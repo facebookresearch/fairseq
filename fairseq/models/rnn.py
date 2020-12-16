@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from typing import Dict, List, Optional, Tuple, Union
+from dataclasses import dataclass, field
 import logging
 
 import torch
@@ -12,6 +13,8 @@ import torch.nn.functional as F
 from torch import Tensor
 
 from fairseq import utils
+from fairseq.dataclass import ChoiceEnum, FairseqDataclass
+from fairseq.dataclass.utils import gen_parser_from_dataclass
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderDecoderModel,
@@ -19,8 +22,7 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
-from fairseq.dataclass import ChoiceEnum
-from fairseq.models.lstm import LSTM
+from fairseq.models.lstm import LSTM, Linear
 from fairseq.modules import AdaptiveSoftmax, FairseqDropout
 
 
@@ -35,7 +37,111 @@ DEFAULT_MAX_SOURCE_POSITIONS = 1e5
 DEFAULT_MAX_TARGET_POSITIONS = 1e5
 
 
-@register_model("rnn")
+@dataclass
+class RNNModelConfig(FairseqDataclass):
+    # Specific model parameters
+    rnn_type: ChoiceEnum(["gru", "lstm"]) = field(
+        default="gru",
+        metadata={"help": "model type (gru or lstm) for both encoder and decoder"}
+    )
+    attention_type: ChoiceEnum(ATTENTION_TYPES) = field(
+        default="luong-dot",
+        metadata={"help": "decoder attention type: can be none, "
+                          "luong-dot, luong_concat, luong-general, "
+                          "bahdanau-dot, bahdanau-concat, bahdanau-general, "
+                          "or the original bahdanau"}
+    )
+    # Encoder parameters
+    encoder_embed_dim: int = field(
+        default=512,
+        metadata={"help": "encoder embedding dimension"}
+    )
+    encoder_embed_path: str = field(
+        default=None,
+        metadata={"help": "path to pre-trained encoder embedding"}
+    )
+    encoder_freeze_embed: bool = field(
+        default=False,
+        metadata={"help": "freeze encoder embeddings during learning"}
+    )
+    encoder_hidden_size: int = field(
+        default=encoder_embed_dim,
+        metadata={"help": "encoder hidden layer size"}
+    )
+    encoder_layers: int = field(
+        default=1,
+        metadata={"help": "number of encoder layers"}
+    )
+    encoder_bidirectional: bool = field(
+        default=False,
+        metadata={"help": "make the encoder bidirectional"}
+    )
+    # Decoder parameters
+    decoder_embed_dim: int = field(
+        default=512,
+        metadata={"help": "decoder embedding dimension"}
+    )
+    decoder_embed_path: str = field(
+        default=None,
+        metadata={"help": "path to pre-trained decoder embedding"}
+    )
+    decoder_freeze_embed : int = field(
+        default=False,
+        metadata={"help": "freeze decoder embeddings"}
+    )
+    decoder_hidden_size: int = field(
+        default=decoder_embed_dim,
+        metadata={"help": "decoder hidden layer size"}
+    )
+    decoder_layers: int = field(
+        default=1,
+        metadata={"help": "number of decoder layers"}
+    )
+    decoder_out_embed_dim: int = field(
+        default=512,
+        metadata={"help": "decoder output embedding dimension"}
+    )
+    adaptive_softmax_cutoff: str = field(
+        default="10000,50000,200000",
+        metadata={"help": "comma separated list of adaptive softmax cutoff points. "
+                          "Must be used with adaptive_loss criterion"}
+    )
+    # Embedding management
+    share_decoder_input_output_embed: bool = field(
+        default=False,
+        metadata={"action": "store_true",
+                  "help": "share decoder input and output embeddings"}
+    )
+    share_all_embeddings: bool = field(
+        default=False,
+        metadata={"action": "store_true",
+                  "help": "share encoder, decoder and output embeddings"
+                          "(requires shared dictionary and embed dim)"}
+    )
+    # Dropouts
+    dropout: float = field(
+        default=0.2,
+        metadata={"help": "dropout probability"}
+    )
+    encoder_dropout_in: float = field(
+        default=-1,
+        metadata={"help": "dropout probability for encoder input embedding"}
+    )
+    encoder_dropout_out: float = field(
+        default=-1,
+        metadata={"help": "dropout probability for encoder output"}
+    )
+    decoder_dropout_in: float = field(
+        default=-1,
+        metadata={"help": "dropout probability for decoder input embedding"}
+    )
+    decoder_dropout_out: float = field(
+        default=-1,
+        metadata={"help": "dropout probability for decoder output"}
+    )
+
+
+@register_model("rnn", dataclass=RNNModelConfig)
 class RNNModel(FairseqEncoderDecoderModel):
     """ Implements a recurrent encoder decoder model, which can use
     uni/bidir GRU/LSTM for the encoder, and unidir GRU/LSTM with
@@ -46,176 +152,121 @@ class RNNModel(FairseqEncoderDecoderModel):
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
 
-    @staticmethod
-    def add_args(parser):
-        """Add model-specific arguments to the parser."""
-        # fmt: off
-        parser.add_argument('--dropout', type=float, metavar='D',
-                            help='dropout probability')
-        parser.add_argument('--encoder-embed-dim', type=int, metavar='N',
-                            help='encoder embedding dimension')
-        parser.add_argument('--encoder-embed-path', type=str, metavar='STR',
-                            help='path to pre-trained encoder embedding')
-        parser.add_argument('--encoder-freeze-embed', action='store_true',
-                            help='freeze encoder embeddings')
-        parser.add_argument('--encoder-hidden-size', type=int, metavar='N',
-                            help='encoder hidden size')
-        parser.add_argument('--encoder-layers', type=int, metavar='N',
-                            help='number of encoder layers')
-        parser.add_argument('--encoder-bidirectional', action='store_true',
-                            help='make all layers of encoder bidirectional')
-        parser.add_argument('--rnn-type', type=str, metavar='STR',
-                            help='model type (gru or lstm)')
-        parser.add_argument('--decoder-embed-dim', type=int, metavar='N',
-                            help='decoder embedding dimension')
-        parser.add_argument('--decoder-embed-path', type=str, metavar='STR',
-                            help='path to pre-trained decoder embedding')
-        parser.add_argument('--decoder-freeze-embed', action='store_true',
-                            help='freeze decoder embeddings')
-        parser.add_argument('--decoder-hidden-size', type=int, metavar='N',
-                            help='decoder hidden size')
-        parser.add_argument('--decoder-layers', type=int, metavar='N',
-                            help='number of decoder layers')
-        parser.add_argument('--decoder-out-embed-dim', type=int, metavar='N',
-                            help='decoder output embedding dimension')
-        parser.add_argument('--decoder-attention', type=str, metavar='BOOL',
-                            help='decoder attention')
-        parser.add_argument('--attention-type', type=str, metavar='STR',
-                            help='attention type (luong-dot, luong_concat, '
-                                 'luong-general, bahdanau-dot, bahdanau-concat, '
-                                 'or bahdanau-general)')
-        parser.add_argument('--adaptive-softmax-cutoff', metavar='EXPR',
-                            help='comma separated list of adaptive softmax cutoff points. '
-                                 'Must be used with adaptive_loss criterion')
-        parser.add_argument('--share-decoder-input-output-embed', default=False,
-                            action='store_true',
-                            help='share decoder input and output embeddings')
-        parser.add_argument('--share-all-embeddings', default=False, action='store_true',
-                            help='share encoder, decoder and output embeddings'
-                                 ' (requires shared dictionary and embed dim)')
-
-        # Granular dropout settings (if not specified these default to --dropout)
-        parser.add_argument('--encoder-dropout-in', type=float, metavar='D',
-                            help='dropout probability for encoder input embedding')
-        parser.add_argument('--encoder-dropout-out', type=float, metavar='D',
-                            help='dropout probability for encoder output')
-        parser.add_argument('--decoder-dropout-in', type=float, metavar='D',
-                            help='dropout probability for decoder input embedding')
-        parser.add_argument('--decoder-dropout-out', type=float, metavar='D',
-                            help='dropout probability for decoder output')
-
+    @classmethod
+    def add_args(cls, parser):
+        """Add criterion-specific arguments to the parser."""
+        dc = getattr(cls, "__dataclass", None)
+        if dc is not None:
+            gen_parser_from_dataclass(parser, dc())
 
     @classmethod
-    def build_model(cls, args, task):
+    def build_model(cls, cfg: RNNModelConfig, task):
         """Build a new model instance."""
-        base_architecture(args)
-
-        if args.encoder_layers != args.decoder_layers:
+        if cfg.encoder_layers != cfg.decoder_layers:
             raise ValueError("--encoder-layers must match --decoder-layers")
 
         max_source_positions = getattr(
-            args, "max_source_positions", DEFAULT_MAX_SOURCE_POSITIONS
+            cfg, "max_source_positions", DEFAULT_MAX_SOURCE_POSITIONS
         )
         max_target_positions = getattr(
-            args, "max_target_positions", DEFAULT_MAX_TARGET_POSITIONS
+            cfg, "max_target_positions", DEFAULT_MAX_TARGET_POSITIONS
         )
 
         def load_pretrained_embedding_from_file(embed_path, dictionary, embed_dim):
             num_embeddings = len(dictionary)
             padding_idx = dictionary.pad()
-            embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
+            embed_tokens = torch.nn.Embedding(num_embeddings, embed_dim, padding_idx)
             embed_dict = utils.parse_embedding(embed_path)
             utils.print_embed_overlap(embed_dict, dictionary)
             return utils.load_embedding(embed_dict, dictionary, embed_tokens)
 
-        if args.encoder_embed_path:
+        if cfg.encoder_embed_path:
             pretrained_encoder_embed = load_pretrained_embedding_from_file(
-                args.encoder_embed_path, task.source_dictionary, args.encoder_embed_dim
+                cfg.encoder_embed_path, task.source_dictionary, cfg.encoder_embed_dim
             )
         else:
             num_embeddings = len(task.source_dictionary)
-            pretrained_encoder_embed = Embedding(
-                num_embeddings, args.encoder_embed_dim, task.source_dictionary.pad()
+            pretrained_encoder_embed = torch.nn.Embedding(
+                num_embeddings, cfg.encoder_embed_dim, task.source_dictionary.pad()
             )
 
-        if args.share_all_embeddings:
+        if cfg.share_all_embeddings:
             # double check all parameters combinations are valid
             if task.source_dictionary != task.target_dictionary:
                 raise ValueError("--share-all-embeddings requires a joint dictionary")
-            if args.decoder_embed_path and (
-                args.decoder_embed_path != args.encoder_embed_path
+            if cfg.decoder_embed_path and (
+                cfg.decoder_embed_path != cfg.encoder_embed_path
             ):
                 raise ValueError(
                     "--share-all-embed not compatible with --decoder-embed-path"
                 )
-            if args.encoder_embed_dim != args.decoder_embed_dim:
+            if cfg.encoder_embed_dim != cfg.decoder_embed_dim:
                 raise ValueError(
                     "--share-all-embeddings requires --encoder-embed-dim to "
                     "match --decoder-embed-dim"
                 )
             pretrained_decoder_embed = pretrained_encoder_embed
-            args.share_decoder_input_output_embed = True
+            cfg.share_decoder_input_output_embed = True
         else:
             # separate decoder input embeddings
             pretrained_decoder_embed = None
-            if args.decoder_embed_path:
+            if cfg.decoder_embed_path:
                 pretrained_decoder_embed = load_pretrained_embedding_from_file(
-                    args.decoder_embed_path,
+                    cfg.decoder_embed_path,
                     task.target_dictionary,
-                    args.decoder_embed_dim,
+                    cfg.decoder_embed_dim,
                 )
         # one last double check of parameter combinations
-        if args.share_decoder_input_output_embed and (
-            args.decoder_embed_dim != args.decoder_out_embed_dim
+        if cfg.share_decoder_input_output_embed and (
+            cfg.decoder_embed_dim != cfg.decoder_out_embed_dim
         ):
             raise ValueError(
                 "--share-decoder-input-output-embeddings requires "
                 "--decoder-embed-dim to match --decoder-out-embed-dim"
             )
 
-        if args.encoder_freeze_embed:
+        if cfg.encoder_freeze_embed:
             pretrained_encoder_embed.weight.requires_grad = False
-        if args.decoder_freeze_embed:
+        if cfg.decoder_freeze_embed:
             pretrained_decoder_embed.weight.requires_grad = False
-
+        print(cfg.decoder_dropout_in if cfg.decoder_dropout_in >= 0 else cfg.dropout)
         encoder = RNNEncoder(
-            rnn_type=args.rnn_type,
+            rnn_type=cfg.rnn_type,
             dictionary=task.source_dictionary,
-            embed_dim=args.encoder_embed_dim,
-            hidden_size=args.encoder_hidden_size,
-            num_layers=args.encoder_layers,
-            dropout_in=args.encoder_dropout_in,
-            dropout_out=args.encoder_dropout_out,
-            bidirectional=args.encoder_bidirectional,
+            embed_dim=cfg.encoder_embed_dim,
+            hidden_size=cfg.encoder_hidden_size,
+            num_layers=cfg.encoder_layers,
+            dropout_in=(cfg.encoder_dropout_in if cfg.encoder_dropout_in >= 0 else cfg.dropout),
+            dropout_out=(cfg.encoder_dropout_out if cfg.encoder_dropout_out >= 0 else cfg.dropout),
+            bidirectional=cfg.encoder_bidirectional,
             pretrained_embed=pretrained_encoder_embed,
             max_source_positions=max_source_positions,
         )
-        uses_attention = utils.eval_bool(args.decoder_attention)
-        attention_type = getattr(args, 'attention_type', "luong-dot") if uses_attention else None
+        uses_attention = getattr(cfg, 'attention_type', "none") != "none"
+        attention_type = getattr(cfg, 'attention_type', "luong-dot") if uses_attention else None
         decoder = RNNDecoder(
-            rnn_type=args.rnn_type,
+            rnn_type=cfg.rnn_type,
             dictionary=task.target_dictionary,
-            embed_dim=args.decoder_embed_dim,
-            hidden_size=args.decoder_hidden_size,
-            out_embed_dim=args.decoder_out_embed_dim,
-            num_layers=args.decoder_layers,
-            dropout_in=args.decoder_dropout_in,
-            dropout_out=args.decoder_dropout_out,
+            embed_dim=cfg.decoder_embed_dim,
+            hidden_size=cfg.decoder_hidden_size,
+            out_embed_dim=cfg.decoder_out_embed_dim,
+            num_layers=cfg.decoder_layers,
+            dropout_in=(cfg.decoder_dropout_in if cfg.decoder_dropout_in >= 0 else cfg.dropout),
+            dropout_out=(cfg.decoder_dropout_out if cfg.decoder_dropout_out >= 0 else cfg.dropout),
             attention=uses_attention,
             attention_type=attention_type,
             encoder_output_units=encoder.output_units,
             pretrained_embed=pretrained_decoder_embed,
-            share_input_output_embed=args.share_decoder_input_output_embed,
+            share_input_output_embed=cfg.share_decoder_input_output_embed,
             adaptive_softmax_cutoff=(
-                utils.eval_str_list(args.adaptive_softmax_cutoff, type=int)
-                if args.criterion == "adaptive_loss"
+                utils.eval_str_list(cfg.adaptive_softmax_cutoff, type=int)
+                if cfg.criterion == "adaptive_loss"
                 else None
             ),
             max_target_positions=max_target_positions,
             residuals=False,
         )
         return cls(encoder, decoder)
-
 
     def forward(
         self,
@@ -266,7 +317,7 @@ class RNNEncoder(FairseqEncoder):
         num_embeddings = len(dictionary)
         self.padding_idx = padding_idx if padding_idx is not None else dictionary.pad()
         if pretrained_embed is None:
-            self.embed_tokens = Embedding(num_embeddings, embed_dim, self.padding_idx)
+            self.embed_tokens = torch.nn.Embedding(num_embeddings, embed_dim, self.padding_idx)
         else:
             self.embed_tokens = pretrained_embed
 
@@ -394,8 +445,6 @@ class Attention(nn.Module):
      - Bahdanau, Neural Machine Translation by Jointly Learning to Align and Translate
      and extends Bahdanau's attentions with Luong's dot/concat/general methods.
     """
-    all_attention_types = ChoiceEnum(ATTENTION_TYPES)
-
     def __init__(self, attention_type, hidden_dimension):
         super().__init__()
         assert attention_type in ATTENTION_TYPES, f"{attention_type}, {ATTENTION_TYPES}"
@@ -464,7 +513,7 @@ class Attention(nn.Module):
             state_transposed = source_or_target_state.squeeze(0).unsqueeze(-1)  # transpose ht
             attn_score = torch.bmm(self.Wa(encoder_output), state_transposed).squeeze(
                 -1
-            )  # general attention
+            )
         # CONCAT
         elif self.attention_type in ["luong-concat", "bahdanau-concat"]:
             # we apply the current ht to all elements of hs
@@ -550,7 +599,7 @@ class RNNDecoder(FairseqIncrementalDecoder):
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
         if pretrained_embed is None:
-            self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
+            self.embed_tokens = torch.nn.Embedding(num_embeddings, embed_dim, padding_idx)
         else:
             self.embed_tokens = pretrained_embed
 
@@ -600,7 +649,7 @@ class RNNDecoder(FairseqIncrementalDecoder):
                 dropout=dropout_out,
             )
         elif not self.share_input_output_embed:
-            self.fc_out = torch.nn.Linear(out_embed_dim, num_embeddings, dropout=dropout_out)
+            self.fc_out = Linear(out_embed_dim, num_embeddings, dropout=dropout_out)
 
     def forward(
         self,
@@ -821,13 +870,6 @@ class RNNDecoder(FairseqIncrementalDecoder):
         self.need_attn = need_attn
 
 
-def Embedding(num_embeddings, embedding_dim, padding_idx):
-    m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
-    nn.init.uniform_(m.weight, -0.1, 0.1)
-    nn.init.constant_(m.weight[padding_idx], 0)
-    return m
-
-
 def GRU(input_size, hidden_size, **kwargs):
     m = nn.GRU(input_size, hidden_size, **kwargs)
     for name, param in m.named_parameters():
@@ -844,38 +886,25 @@ def GRUCell(input_size, hidden_size, **kwargs):
     return m
 
 
-@register_model_architecture("rnn", "rnn")
-def base_architecture(args):
-    args.dropout = getattr(args, "dropout", 0.1)
-    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
-    args.encoder_embed_path = getattr(args, "encoder_embed_path", None)
-    args.encoder_freeze_embed = getattr(args, "encoder_freeze_embed", False)
-    args.encoder_hidden_size = getattr(
-        args, "encoder_hidden_size", args.encoder_embed_dim
-    )
-    args.encoder_layers = getattr(args, "encoder_layers", 1)
-    args.encoder_bidirectional = getattr(args, "encoder_bidirectional", False)
-    args.encoder_dropout_in = getattr(args, "encoder_dropout_in", args.dropout)
-    args.encoder_dropout_out = getattr(args, "encoder_dropout_out", args.dropout)
-    args.encoder_type = getattr(args, "rnn_type", "gru")
+@register_model_architecture('rnn', 'lstm2')
+def lstm(cfg: RNNModelConfig):
+    cfg.encoder_bidirectional = False
+    cfg.rnn_type = "lstm"
 
-    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 512)
-    args.decoder_embed_path = getattr(args, "decoder_embed_path", None)
-    args.decoder_freeze_embed = getattr(args, "decoder_freeze_embed", False)
-    args.decoder_hidden_size = getattr(
-        args, "decoder_hidden_size", args.decoder_embed_dim
-    )
-    args.decoder_layers = getattr(args, "decoder_layers", 1)
-    args.decoder_out_embed_dim = getattr(args, "decoder_out_embed_dim", 512)
-    args.decoder_attention = getattr(args, "decoder_attention", "1")
-    args.attention_type = getattr(args, "attention_type", "luong-dot")
 
-    args.decoder_dropout_in = getattr(args, "decoder_dropout_in", args.dropout)
-    args.decoder_dropout_out = getattr(args, "decoder_dropout_out", args.dropout)
-    args.share_decoder_input_output_embed = getattr(
-        args, "share_decoder_input_output_embed", False
-    )
-    args.share_all_embeddings = getattr(args, "share_all_embeddings", False)
-    args.adaptive_softmax_cutoff = getattr(
-        args, "adaptive_softmax_cutoff", "10000,50000,200000"
-    )
+@register_model_architecture('rnn', 'gru')
+def gru(cfg: RNNModelConfig):
+    cfg.encoder_bidirectional = False
+    cfg.rnn_type = "gru"
+
+
+@register_model_architecture('rnn', 'bilstm')
+def bilstm(cfg: RNNModelConfig):
+    cfg.encoder_bidirectional = True
+    cfg.rnn_type = "lstm"
+
+
+@register_model_architecture('rnn', 'bigru')
+def bigru(cfg: RNNModelConfig):
+    cfg.encoder_bidirectional = True
+    cfg.rnn_type = "gru"
