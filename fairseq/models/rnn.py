@@ -65,7 +65,7 @@ class RNNModelConfig(FairseqDataclass):
         metadata={"help": "freeze encoder embeddings during learning"}
     )
     encoder_hidden_size: int = field(
-        default=encoder_embed_dim,
+        default=512,
         metadata={"help": "encoder hidden layer size"}
     )
     encoder_layers: int = field(
@@ -85,12 +85,13 @@ class RNNModelConfig(FairseqDataclass):
         default=None,
         metadata={"help": "path to pre-trained decoder embedding"}
     )
-    decoder_freeze_embed: int = field(
+    decoder_freeze_embed: bool = field(
         default=False,
         metadata={"help": "freeze decoder embeddings"}
     )
+    #todo: to init from decoder_embed_dim
     decoder_hidden_size: int = field(
-        default=decoder_embed_dim,
+        default=512,
         metadata={"help": "decoder hidden layer size"}
     )
     decoder_layers: int = field(
@@ -101,7 +102,7 @@ class RNNModelConfig(FairseqDataclass):
         default=512,
         metadata={"help": "decoder output embedding dimension"}
     )
-    adaptive_softmax_cutoff: str = field(
+    adaptive_softmax_cutoff: Optional[str] = field(
         default="10000,50000,200000",
         metadata={"help": "comma separated list of adaptive softmax cutoff points. "
                           "Must be used with adaptive_loss criterion"}
