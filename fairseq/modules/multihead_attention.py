@@ -87,13 +87,9 @@ class MultiheadAttention(nn.Module):
         self.reset_parameters()
 
         self.onnx_trace = False
-        self.tpu = False
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
-
-    def prepare_for_tpu_(self, **kwargs):
-        self.tpu = True
 
     def reset_parameters(self):
         if self.qkv_same_dim:
@@ -148,13 +144,15 @@ class MultiheadAttention(nn.Module):
         if need_head_weights:
             need_weights = True
 
+        is_tpu = query.device.type == "xla"
+
         tgt_len, bsz, embed_dim = query.size()
         assert embed_dim == self.embed_dim
         assert list(query.size()) == [tgt_len, bsz, embed_dim]
 
         if (
             not self.onnx_trace
-            and not self.tpu  # don't use PyTorch version on TPUs
+            and not is_tpu  # don't use PyTorch version on TPUs
             and incremental_state is None
             and not static_kv
             # A workaround for quantization to work. Otherwise JIT compilation
@@ -337,7 +335,7 @@ class MultiheadAttention(nn.Module):
         if key_padding_mask is not None:
             # don't attend to padding symbols
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
-            if not self.tpu:
+            if not is_tpu:
                 attn_weights = attn_weights.masked_fill(
                     key_padding_mask.unsqueeze(1).unsqueeze(2).to(torch.bool),
                     float("-inf"),
