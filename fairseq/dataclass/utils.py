@@ -228,8 +228,9 @@ def _override_attr(
         if isinstance(val, tuple):
             val = list(val)
 
+        v_type = getattr(v.type, "__origin__", None)
         if (
-            getattr(v.type, "__origin__", None) is List
+            (v_type is List or v_type is list)
             # skip interpolation
             and not (isinstance(val, str) and val.startswith("${"))
         ):
