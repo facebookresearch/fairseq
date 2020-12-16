@@ -56,7 +56,7 @@ class RNNModelConfig(FairseqDataclass):
         default=512,
         metadata={"help": "encoder embedding dimension"}
     )
-    encoder_embed_path: str = field(
+    encoder_embed_path: Optional[str] = field(
         default=None,
         metadata={"help": "path to pre-trained encoder embedding"}
     )
@@ -81,11 +81,11 @@ class RNNModelConfig(FairseqDataclass):
         default=512,
         metadata={"help": "decoder embedding dimension"}
     )
-    decoder_embed_path: str = field(
+    decoder_embed_path: Optional[str] = field(
         default=None,
         metadata={"help": "path to pre-trained decoder embedding"}
     )
-    decoder_freeze_embed : int = field(
+    decoder_freeze_embed: int = field(
         default=False,
         metadata={"help": "freeze decoder embeddings"}
     )
@@ -101,7 +101,7 @@ class RNNModelConfig(FairseqDataclass):
         default=512,
         metadata={"help": "decoder output embedding dimension"}
     )
-    adaptive_softmax_cutoff: str = field(
+    adaptive_softmax_cutoff: Optional[str] = field(
         default="10000,50000,200000",
         metadata={"help": "comma separated list of adaptive softmax cutoff points. "
                           "Must be used with adaptive_loss criterion"}
