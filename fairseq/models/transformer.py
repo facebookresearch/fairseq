@@ -402,7 +402,7 @@ class TransformerEncoder(FairseqEncoder):
     def forward(
         self,
         src_tokens,
-        src_lengths,
+        src_lengths: Optional[torch.Tensor] = None,
         return_all_hiddens: bool = False,
         token_embeddings: Optional[torch.Tensor] = None,
     ):
@@ -418,7 +418,7 @@ class TransformerEncoder(FairseqEncoder):
                 default `None` will recompute embeddings
 
         Returns:
-            namedtuple:
+            dict:
                 - **encoder_out** (Tensor): the last encoder layer's output of
                   shape `(src_len, batch, embed_dim)`
                 - **encoder_padding_mask** (ByteTensor): the positions of
