@@ -408,8 +408,15 @@ def save_state(
     # keep everything on CPU
     state_dict = utils.move_to_cpu(state_dict)
 
-    with PathManager.open(filename, "wb") as f:
-        torch_persistent_save(state_dict, f)
+    if PathManager.supports_rename(filename):
+        # do atomic save
+        with PathManager.open(filename + ".tmp", "wb") as f:
+            torch_persistent_save(state_dict, f)
+        PathManager.rename(filename + ".tmp", filename)
+    else:
+        # fallback to non-atomic save
+        with PathManager.open(filename, "wb") as f:
+            torch_persistent_save(state_dict, f)
 
 
 def _upgrade_state_dict(state):

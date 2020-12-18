@@ -26,7 +26,7 @@ class TestReproducibility(unittest.TestCase):
     ):
         def get_last_log_stats_containing_string(log_records, search_string):
             for log_record in logs.records[::-1]:
-                if search_string in log_record.msg:
+                if isinstance(log_record.msg, str) and search_string in log_record.msg:
                     return json.loads(log_record.msg)
 
         if extra_flags is None:
