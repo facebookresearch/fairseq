@@ -11,7 +11,7 @@ import os
 import re
 import traceback
 from collections import OrderedDict
-from typing import Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import torch
 from fairseq.dataclass.configs import CheckpointConfig, FairseqConfig
@@ -241,7 +241,7 @@ def load_checkpoint_to_cpu(path, arg_overrides=None):
 
 def load_model_ensemble(
     filenames,
-    arg_overrides=None,
+    arg_overrides: Optional[Dict[str, Any]] = None,
     task=None,
     strict=True,
     suffix="",
@@ -273,7 +273,7 @@ def load_model_ensemble(
 
 def load_model_ensemble_and_task(
     filenames,
-    arg_overrides=None,
+    arg_overrides: Optional[Dict[str, Any]] = None,
     task=None,
     strict=True,
     suffix="",
