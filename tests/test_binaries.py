@@ -1572,13 +1572,13 @@ def read_last_log_entry(
 
 class TestActivationCheckpointing(unittest.TestCase):
     def setUp(self):
-       self._tmp_dir = self._tmp_dir = tempfile.TemporaryDirectory()
-       self.data_dir = self._tmp_dir.name
+        self._tmp_dir = self._tmp_dir = tempfile.TemporaryDirectory()
+        self.data_dir = self._tmp_dir.name
 
-   def tearDown(self):
-       # self._tmp_dir is cleaned up automatically on gc.
-       # intentionally passing for Windows
-       pass
+    def tearDown(self):
+        # self._tmp_dir is cleaned up automatically on gc.
+        # intentionally passing for Windows
+        pass
 
     def test_activation_checkpointing_does_not_change_metrics(self):
         """--checkpoint-activations should not change loss"""
