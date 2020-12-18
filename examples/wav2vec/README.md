@@ -162,8 +162,8 @@ Wav2Vec large | [Librispeech](http://www.openslr.org/12) | [download](https://dl
 import torch
 import fairseq
 
-cp = torch.load('/path/to/wav2vec.pt')
-model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([cp])
+cp_path = '/path/to/wav2vec.pt'
+model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([cp_path])
 model = model[0]
 model.eval()
 
