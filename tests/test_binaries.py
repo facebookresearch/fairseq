@@ -390,6 +390,12 @@ class TestTranslation(TestCaseWithDataDir):
 
     def test_translation_multi_simple_epoch_no_vepoch(self):
         # test with all combinations of encoder/decoder lang tokens
+        encoder_langtok_flags = [
+            [],
+            ["--encoder-langtok", "src"],
+            ["--encoder-langtok", "tgt"],
+        ]
+        decoder_langtok_flags = [[], ["--decoder-langtok"]]
         with contextlib.redirect_stdout(StringIO()):
             enc_ltok_flag = ["--encoder-langtok", "src"]
             dec_ltok_flag = ["--decoder-langtok"]
@@ -866,12 +872,18 @@ class TestTranslation(TestCaseWithDataDir):
 
     def test_translation_multi_simple_epoch(self):
         # test with all combinations of encoder/decoder lang tokens
+        encoder_langtok_flags = [
+            [],
+            ["--encoder-langtok", "src"],
+            ["--encoder-langtok", "tgt"],
+        ]
+        decoder_langtok_flags = [[], ["--decoder-langtok"]]
         with contextlib.redirect_stdout(StringIO()):
-            for i in range(len(self.encoder_langtok_flags)):
-                for j in range(len(self.decoder_langtok_flags)):
+            for i in range(len(encoder_langtok_flags)):
+                for j in range(len(decoder_langtok_flags)):
                     data_dir = os.path.join(self.data_dir, f"{i}_{j}")
-                    enc_ltok_flag = self.encoder_langtok_flags[i]
-                    dec_ltok_flag = self.decoder_langtok_flags[j]
+                    enc_ltok_flag = encoder_langtok_flags[i]
+                    dec_ltok_flag = decoder_langtok_flags[j]
                     create_dummy_data(data_dir)
                     preprocess_translation_data(
                         data_dir, extra_flags=["--joined-dictionary"]
@@ -973,13 +985,19 @@ class TestTranslation(TestCaseWithDataDir):
                 )
 
     def test_multilingual_transformer(self):
+        encoder_langtok_flags = [
+            [],
+            ["--encoder-langtok", "src"],
+            ["--encoder-langtok", "tgt"],
+        ]
+        decoder_langtok_flags = [[], ["--decoder-langtok"]]
         # test with all combinations of encoder/decoder lang tokens
         with contextlib.redirect_stdout(StringIO()):
-            for i in range(len(self.encoder_langtok_flags)):
-                for j in range(len(self.decoder_langtok_flags)):
+            for i in range(len(encoder_langtok_flags)):
+                for j in range(len(decoder_langtok_flags)):
                     data_dir = os.path.join(self.data_dir, f"{i}_{j}")
-                    enc_ltok_flag = self.encoder_langtok_flags[i]
-                    dec_ltok_flag = self.decoder_langtok_flags[j]
+                    enc_ltok_flag = encoder_langtok_flags[i]
+                    dec_ltok_flag = decoder_langtok_flags[j]
                     create_dummy_data(data_dir)
                     preprocess_translation_data(data_dir)
                     train_translation_model(
