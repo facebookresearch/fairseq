@@ -1048,6 +1048,7 @@ class TestLanguageModeling(unittest.TestCase):
                     run_validation=True,
                 )
                 eval_lm_main(data_dir)
+                eval_lm_main(data_dir, extra_flags=["--context-window", "25"])
                 generate_main(
                     data_dir,
                     [

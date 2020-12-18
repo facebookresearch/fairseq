@@ -15,6 +15,7 @@ from fairseq.data import (
     AppendTokenDataset,
     Dictionary,
     IdDataset,
+    LMContextWindowDataset,
     MonolingualDataset,
     NestedDictionaryDataset,
     NumelDataset,
@@ -311,6 +312,42 @@ class LanguageModelingTask(LegacyFairseqTask):
             return generator.generate(
                 models, sample, prefix_tokens=prefix_tokens, bos_token=bos_token
             )
+
+    def eval_lm_dataloader(
+        self,
+        dataset,
+        max_tokens: Optional[int] = 36000,
+        batch_size: Optional[int] = None,
+        max_positions: Optional[int] = None,
+        num_shards: int = 1,
+        shard_id: int = 0,
+        num_workers: int = 1,
+        data_buffer_size: int = 10,
+        # ensures that every evaluated token has access to a context of at least
+        # this size, if possible
+        context_window: int = 0,
+    ):
+        if context_window > 0:
+            assert self.args.tokens_per_sample > context_window
+            # reduce tokens per sample by the required context window size
+            tokens_per_sample = self.args.tokens_per_sample - context_window
+            dataset = LMContextWindowDataset(
+                dataset=dataset,
+                tokens_per_sample=tokens_per_sample,
+                context_window=context_window,
+                pad_idx=self.source_dictionary.pad(),
+            )
+        return self.get_batch_iterator(
+            dataset=dataset,
+            max_tokens=max_tokens,
+            max_sentences=batch_size,
+            max_positions=max_positions,
+            ignore_invalid_inputs=True,
+            num_shards=num_shards,
+            shard_id=shard_id,
+            num_workers=num_workers,
+            data_buffer_size=data_buffer_size,
+        ).next_epoch_itr(shuffle=False)
 
     @property
     def source_dictionary(self):

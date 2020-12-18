@@ -831,9 +831,11 @@ class CommonEvalConfig(FairseqDataclass):
     post_process: Optional[str] = field(
         default=None,
         metadata={
-            "help": "post-process text by removing pre-processing such as BPE, letter segmentation, etc "
-            "(valid options are: sentencepiece, wordpiece, letter, _EOW, none, otherwise treated as BPE symbol)",
-            "argparse_const": "@@ ",
+            "help": (
+                "post-process text by removing BPE, letter segmentation, etc. "
+                "Valid options can be found in fairseq.data.utils.post_process."
+            ),
+            "argparse_const": "subword_nmt",
             "argparse_alias": "--remove-bpe",
         },
     )
