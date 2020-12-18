@@ -26,7 +26,8 @@ try:
         logging.warning("S3PathHandler already registered.")
     except ImportError:
         logging.debug(
-            "S3PathHandler couldn't be imported. Either missing fb-only files, or boto3 module.")
+            "S3PathHandler couldn't be imported. Either missing fb-only files, or boto3 module."
+        )
 
 except ImportError:
     FVCorePathManager = None
@@ -112,7 +113,7 @@ class PathManager:
 
     @staticmethod
     def chmod(path: str, mode: int) -> None:
-        if "manifold" not in path:
+        if not PathManager.path_requires_pathmanager(path):
             os.chmod(path, mode)
 
     @staticmethod
@@ -129,3 +130,21 @@ class PathManager:
                 local_path=local_path, dst_path=dst_path, overwrite=overwrite, **kwargs
             )
         return shutil.copyfile(local_path, dst_path)
+
+    @staticmethod
+    def path_requires_pathmanager(path: str) -> bool:
+        """Do we require PathManager to access given path?"""
+        if FVCorePathManager:
+            for p in FVCorePathManager._path_handlers.keys():
+                if path.startswith(p):
+                    return True
+        return False
+
+    @staticmethod
+    def supports_rename(path: str) -> bool:
+        # PathManager doesn't yet support renames
+        return not PathManager.path_requires_pathmanager(path)
+
+    @staticmethod
+    def rename(src: str, dst: str):
+        os.rename(src, dst)
