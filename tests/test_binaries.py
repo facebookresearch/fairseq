@@ -34,7 +34,7 @@ except ImportError:
     has_hf_transformers = False
 
 
-class BinaryTestCase(unittest.TestCase):
+class TestCaseWithDataDir(unittest.TestCase):
     def setUp(self):
         self._tmp_dir = self._tmp_dir = tempfile.TemporaryDirectory()
         self.data_dir = self._tmp_dir.name
@@ -43,10 +43,10 @@ class BinaryTestCase(unittest.TestCase):
     def tearDown(self):
         # self._tmp_dir is cleaned up automatically on gc.
         # intentionally passing for Windows
-        pass
+        logging.disable(logging.NOTSET)
 
 
-class TestTranslation(BinaryTestCase):
+class TestTranslation(TestCaseWithDataDir):
     def test_fconv(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
@@ -513,8 +513,8 @@ class TestTranslation(BinaryTestCase):
                     "--model-overrides",
                     "{'encoder_layers_to_keep':'0,2','decoder_layers_to_keep':'1'}"
                 ],
-            )            
-            
+            )
+
     def test_transformer_cross_self_attention(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
@@ -1019,7 +1019,7 @@ class TestTranslation(BinaryTestCase):
                     )
 
 
-class TestStories(BinaryTestCase):
+class TestStories(TestCaseWithDataDir):
     def test_fconv_self_att_wp(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
@@ -1069,7 +1069,7 @@ class TestStories(BinaryTestCase):
             train_translation_model(self.data_dir, "fconv_self_att_wp", config)
 
 
-class TestLanguageModeling(BinaryTestCase):
+class TestLanguageModeling(TestCaseWithDataDir):
     def test_fconv_lm(self):
         with contextlib.redirect_stdout(StringIO()):
             create_dummy_data(self.data_dir)
@@ -1254,7 +1254,7 @@ class TestLanguageModeling(BinaryTestCase):
             eval_lm_main(self.data_dir, extra_flags=task_flags)
 
 
-class TestMaskedLanguageModel(BinaryTestCase):
+class TestMaskedLanguageModel(TestCaseWithDataDir):
     def setUp(self):
         super().setUp()
         self._translation_dir = tempfile.TemporaryDirectory()
@@ -1531,7 +1531,7 @@ def train_legacy_masked_language_model(data_dir, arch, extra_args=()):
     train.main(train_args)
 
 
-class TestOptimizers(BinaryTestCase):
+class TestOptimizers(TestCaseWithDataDir):
     def test_optimizers(self):
         with contextlib.redirect_stdout(StringIO()):
             # Use just a bit of data and tiny model to keep this test runtime reasonable
@@ -1571,6 +1571,15 @@ def read_last_log_entry(
 
 
 class TestActivationCheckpointing(unittest.TestCase):
+    def setUp(self):
+       self._tmp_dir = self._tmp_dir = tempfile.TemporaryDirectory()
+       self.data_dir = self._tmp_dir.name
+
+   def tearDown(self):
+       # self._tmp_dir is cleaned up automatically on gc.
+       # intentionally passing for Windows
+       pass
+
     def test_activation_checkpointing_does_not_change_metrics(self):
         """--checkpoint-activations should not change loss"""
         base_flags = [
@@ -1603,8 +1612,11 @@ class TestActivationCheckpointing(unittest.TestCase):
                 )
             return logs.records
 
+        logging.disable(logging.CRITICAL)
         create_dummy_data(self.data_dir, num_examples=20)
         preprocess_translation_data(self.data_dir)
+        logging.disable(logging.NOTSET)
+
         ckpt_logs = _train(["--checkpoint-activations"])
         baseline_logs = _train([])
         assert len(baseline_logs) == len(ckpt_logs)
