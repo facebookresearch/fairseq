@@ -25,8 +25,6 @@ from tests.utils import (
     train_translation_model,
 )
 
-from abc import ABCMeta, abstractmethod
-
 
 try:
     import transformers  # noqa
@@ -46,6 +44,7 @@ class BinaryTestCase(unittest.TestCase):
         # self._tmp_dir is cleaned up automatically on gc.
         # intentionally passing for Windows
         pass
+
 
 class TestTranslation(BinaryTestCase):
     def test_fconv(self):
