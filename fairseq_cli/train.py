@@ -76,7 +76,7 @@ def main(cfg: DictConfig) -> None:
     logger.info(model)
     logger.info("task: {}".format(task.__class__.__name__))
     logger.info("model: {}".format(model.__class__.__name__))
-    logger.info("criterion: {})".format(criterion.__class__.__name__))
+    logger.info("criterion: {}".format(criterion.__class__.__name__))
     logger.info(
         "num. model params: {} (num. trained: {})".format(
             sum(p.numel() for p in model.parameters()),
