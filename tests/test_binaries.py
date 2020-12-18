@@ -394,11 +394,10 @@ class TestTranslation(BinaryTestCase):
         with contextlib.redirect_stdout(StringIO()):
             enc_ltok_flag = ["--encoder-langtok", "src"]
             dec_ltok_flag = ["--decoder-langtok"]
-            data_dir = self.data_dir
-            create_dummy_data(data_dir)
-            preprocess_translation_data(data_dir, extra_flags=[])
+            create_dummy_data(self.data_dir)
+            preprocess_translation_data(self.data_dir, extra_flags=[])
             train_translation_model(
-                data_dir,
+                self.data_dir,
                 arch="transformer",
                 task="translation_multi_simple_epoch",
                 extra_flags=[
@@ -422,7 +421,7 @@ class TestTranslation(BinaryTestCase):
                 extra_valid_flags=enc_ltok_flag + dec_ltok_flag,
             )
             generate_main(
-                data_dir,
+                self.data_dir,
                 extra_flags=[
                     "--task",
                     "translation_multi_simple_epoch",
@@ -442,11 +441,10 @@ class TestTranslation(BinaryTestCase):
         with contextlib.redirect_stdout(StringIO()):
             enc_ltok_flag = ["--encoder-langtok", "src"]
             dec_ltok_flag = ["--decoder-langtok"]
-            data_dir = self.data_dir
-            create_dummy_data(data_dir)
-            preprocess_translation_data(data_dir, extra_flags=[])
+            create_dummy_data(self.data_dir)
+            preprocess_translation_data(self.data_dir, extra_flags=[])
             train_translation_model(
-                data_dir,
+                self.data_dir,
                 arch="transformer",
                 task="translation_multi_simple_epoch",
                 extra_flags=[
@@ -472,7 +470,7 @@ class TestTranslation(BinaryTestCase):
                 extra_valid_flags=enc_ltok_flag + dec_ltok_flag,
             )
             generate_main(
-                data_dir,
+                self.data_dir,
                 extra_flags=[
                     "--task",
                     "translation_multi_simple_epoch",
@@ -545,11 +543,10 @@ class TestTranslation(BinaryTestCase):
 
     def test_transformer_pointer_generator(self):
         with contextlib.redirect_stdout(StringIO()):
-            data_dir = self.data_dir
-            create_dummy_data(data_dir)
-            preprocess_summarization_data(data_dir)
+            create_dummy_data(self.data_dir)
+            preprocess_summarization_data(self.data_dir)
             train_translation_model(
-                data_dir,
+                self.data_dir,
                 "transformer_pointer_generator",
                 extra_flags=[
                     "--user-dir",
@@ -576,7 +573,7 @@ class TestTranslation(BinaryTestCase):
                 ],
             )
             generate_main(
-                data_dir,
+                self.data_dir,
                 extra_flags=[
                     "--user-dir",
                     "examples/pointer_generator/pointer_generator_src",
@@ -1130,11 +1127,10 @@ class TestLanguageModeling(BinaryTestCase):
 
     def test_transformer_lm_with_adaptive_softmax(self):
         with contextlib.redirect_stdout(StringIO()):
-            data_dir = self.data_dir
-            create_dummy_data(data_dir)
-            preprocess_lm_data(data_dir)
+            create_dummy_data(self.data_dir)
+            preprocess_lm_data(self.data_dir)
             train_language_model(
-                data_dir,
+                self.data_dir,
                 "transformer_lm",
                 [
                     "--add-bos-token",
@@ -1145,9 +1141,9 @@ class TestLanguageModeling(BinaryTestCase):
                 ],
                 run_validation=True,
             )
-            eval_lm_main(data_dir)
+            eval_lm_main(self.data_dir)
             generate_main(
-                data_dir,
+                self.data_dir,
                 [
                     "--task",
                     "language_modeling",
@@ -1243,28 +1239,20 @@ class TestLanguageModeling(BinaryTestCase):
                 "--tokens-per-sample",
                 "50",
             ]
+
             train_language_model(
                 data_dir=self.data_dir,
                 arch="transformer_xl",
-                extra_flags=task_flags + [
+                extra_flags=task_flags
+                + [
                     "--n-layer",
                     "2",
-                    "--tokens-per-sample",
-                    "50",
-                ]
-                train_language_model(
-                    data_dir=data_dir,
-                    arch="transformer_xl",
-                    extra_flags=task_flags
-                    + [
-                        "--n-layer",
-                        "2",
-                    ],
-                    task="truncated_bptt_lm",
-                    run_validation=True,
-                    extra_valid_flags=task_flags,
-                )
-                eval_lm_main(data_dir, extra_flags=task_flags)
+                ],
+                task="truncated_bptt_lm",
+                run_validation=True,
+                extra_valid_flags=task_flags,
+            )
+            eval_lm_main(self.data_dir, extra_flags=task_flags)
 
 
 class TestMaskedLanguageModel(BinaryTestCase):
@@ -1616,9 +1604,8 @@ class TestActivationCheckpointing(unittest.TestCase):
                 )
             return logs.records
 
-        data_dir = self.data_dir
-        create_dummy_data(data_dir, num_examples=20)
-        preprocess_translation_data(data_dir)
+        create_dummy_data(self.data_dir, num_examples=20)
+        preprocess_translation_data(self.data_dir)
         ckpt_logs = _train(["--checkpoint-activations"])
         baseline_logs = _train([])
         assert len(baseline_logs) == len(ckpt_logs)
