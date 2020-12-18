@@ -6,9 +6,10 @@
 import re
 
 from fairseq.data.encoders import register_tokenizer
+from fairseq.dataclass import FairseqDataclass
 
 
-@register_tokenizer("space")
+@register_tokenizer("space", dataclass=FairseqDataclass)
 class SpaceTokenizer(object):
     def __init__(self, *unused):
         self.space_tok = re.compile(r"\s+")

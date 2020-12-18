@@ -106,7 +106,7 @@ def move_to_cuda(sample, device=None):
     def _move_to_cuda(tensor):
         # non_blocking is ignored if tensor is not pinned, so we can always set
         # to True (see github.com/PyTorchLightning/pytorch-lightning/issues/620)
-        return tensor.cuda(device=device, non_blocking=True)
+        return tensor.to(device=device, non_blocking=True)
 
     return apply_to_sample(_move_to_cuda, sample)
 
@@ -437,7 +437,7 @@ def import_user_module(args):
     module_path = getattr(args, "user_dir", None)
     if module_path is not None:
         module_path = os.path.abspath(args.user_dir)
-        if not os.path.exists(module_path):
+        if not os.path.exists(module_path) and not os.path.isfile(os.path.dirname(module_path)):
             fairseq_rel_path = os.path.join(os.path.dirname(__file__), args.user_dir)
             if os.path.exists(fairseq_rel_path):
                 module_path = fairseq_rel_path
@@ -628,6 +628,23 @@ def extract_hard_alignment(attn, src_sent, tgt_sent, pad, eos):
                     tgt_token_to_word[tgt_idx.item()] - 1,
                 )
             )
+    return alignment
+
+
+def extract_soft_alignment(attn, src_sent, tgt_sent, pad, eos):
+    tgt_valid = (
+        ((tgt_sent != pad)).nonzero(as_tuple=False)
+    )
+    src_valid = (
+        ((src_sent != pad)).nonzero(as_tuple=False).squeeze(dim=-1)
+    )
+    alignment = []
+    if len(tgt_valid) != 0 and len(src_valid) != 0:
+        attn_valid = attn[tgt_valid, src_valid]
+        alignment = [
+            ["{:.6f}".format(p) for p in src_probs.tolist()]
+            for src_probs in attn_valid
+        ]
     return alignment
 
 

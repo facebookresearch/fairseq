@@ -17,6 +17,7 @@ from fairseq.dataclass.constants import (
     GENERATION_DECODING_FORMAT_CHOICES,
     LOG_FORMAT_CHOICES,
     PIPELINE_CHECKPOINT_CHOICES,
+    PRINT_ALIGNMENT_CHOICES,
     ZERO_SHARDING_CHOICES,
 )
 
@@ -108,6 +109,12 @@ class CommonConfig(FairseqDataclass):
             "help": "Weights and Biases project name to use for logging"
         },
     )
+    azureml_logging: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Log scalars to AzureML context"
+        },
+    )
     seed: int = field(
         default=1, metadata={"help": "pseudo random number generator seed"}
     )
@@ -173,6 +180,12 @@ class CommonConfig(FairseqDataclass):
     profile: bool = field(
         default=False, metadata={"help": "enable autograd profiler emit_nvtx"}
     )
+    reset_logging: bool = field(
+        default=True,
+        metadata={
+            "help": "when using Hydra, reset the logging at the beginning of training"
+        },
+    )
 
 
 @dataclass
@@ -203,10 +216,6 @@ class DistributedTrainingConfig(FairseqDataclass):
         },
     )
     device_id: int = field(
-        default=0,
-        metadata={"help": "which GPU to use (usually configured automatically)"},
-    )
-    local_rank: int = field(
         default=0,
         metadata={
             "help": "which GPU to use (usually configured automatically)",
@@ -400,14 +409,14 @@ class DatasetConfig(FairseqDataclass):
         default=False, metadata={"help": "disable validation"}
     )
     max_tokens_valid: Optional[int] = field(
-        default=None,
+        default=II("dataset.max_tokens"),
         metadata={
             "help": "maximum number of tokens in a validation batch"
             " (defaults to --max-tokens)"
         },
     )
     batch_size_valid: Optional[int] = field(
-        default=None,
+        default=II("dataset.batch_size"),
         metadata={
             "help": "batch size of the validation batch (defaults to --batch-size)",
             "argparse_alias": "--max-sentences-valid",
@@ -463,7 +472,7 @@ class OptimizationConfig(FairseqDataclass):
             " (note: this may be interpreted differently depending on --lr-scheduler)"
         },
     )
-    min_lr: float = field(
+    stop_min_lr: float = field(
         default=-1.0,
         metadata={"help": "stop training when the learning rate reaches this minimum"},
     )
@@ -579,6 +588,13 @@ class CheckpointConfig(FairseqDataclass):
             "if the checkpoint is over 300GB, it is preferable "
             "to split it into shards to prevent OOM on CPU while loading "
             "the checkpoint"
+        },
+    )
+    load_checkpoint_on_all_dp_ranks: bool = field(
+        default=False,
+        metadata={
+            "help": "load checkpoints on all data parallel devices "
+            "(default: only load on rank 0 and broadcast to other devices)"
         },
     )
     model_parallel_size: int = II("common.model_parallel_size")
@@ -728,10 +744,12 @@ class GenerationConfig(FairseqDataclass):
         default=-1.0,
         metadata={"help": "strength of diversity penalty for Diverse Siblings Search"},
     )
-    print_alignment: bool = field(
-        default=False,
+    print_alignment: Optional[PRINT_ALIGNMENT_CHOICES] = field(
+        default=None,
         metadata={
-            "help": "if set, uses attention feedback to compute and print alignment to source tokens"
+            "help": "if set, uses attention feedback to compute and print alignment to source tokens "
+            "(valid options are: hard, soft, otherwise treated as hard alignment)",
+            "argparse_const": "hard",
         },
     )
     print_step: bool = field(

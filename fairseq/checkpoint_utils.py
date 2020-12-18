@@ -5,6 +5,7 @@
 
 import ast
 import collections
+import contextlib
 import logging
 import os
 import re
@@ -239,7 +240,13 @@ def load_checkpoint_to_cpu(path, arg_overrides=None):
 
 
 def load_model_ensemble(
-    filenames, arg_overrides=None, task=None, strict=True, suffix="", num_shards=1, state=None
+    filenames,
+    arg_overrides=None,
+    task=None,
+    strict=True,
+    suffix="",
+    num_shards=1,
+    state=None,
 ):
     """Loads an ensemble of models.
 
@@ -265,7 +272,13 @@ def load_model_ensemble(
 
 
 def load_model_ensemble_and_task(
-    filenames, arg_overrides=None, task=None, strict=True, suffix="", num_shards=1, state=None
+    filenames,
+    arg_overrides=None,
+    task=None,
+    strict=True,
+    suffix="",
+    num_shards=1,
+    state=None,
 ):
     assert state is None or len(filenames) == 1
 
@@ -438,6 +451,12 @@ def _upgrade_state_dict(state):
     # keep track of number of updates
     if "num_updates" not in state["optimizer_history"][-1]:
         state["optimizer_history"][-1]["num_updates"] = 0
+    # old model checkpoints may not have separate source/target positions
+    if hasattr(state["args"], "max_positions") and not hasattr(
+        state["args"], "max_source_positions"
+    ):
+        state["args"].max_source_positions = state["args"].max_positions
+        state["args"].max_target_positions = state["args"].max_positions
     # use stateful training data iterator
     if "train_iterator" not in state["extra_state"]:
         state["extra_state"]["train_iterator"] = {
@@ -445,7 +464,6 @@ def _upgrade_state_dict(state):
             "iterations_in_epoch": state["extra_state"].get("batch_offset", 0),
         }
 
-    # old model checkpoints may not have separate source/target positions
     # backward compatibility, cfg updates
     if "args" in state and state["args"] is not None:
         # default to translation task
@@ -461,24 +479,32 @@ def _upgrade_state_dict(state):
             state["extra_state"]["train_iterator"]["epoch"] = max(
                 state["extra_state"]["train_iterator"].get("epoch", 1), 1
             )
-
+        # --remove-bpe ==> --postprocess
         if hasattr(state["args"], "remove_bpe"):
             state["args"].post_process = state["args"].remove_bpe
+        # --min-lr ==> --stop-min-lr
+        if hasattr(state["args"], "min_lr"):
+            state["args"].stop_min_lr = state["args"].min_lr
+            del state["args"].min_lr
+        # binary_cross_entropy => wav2vec criterion
+        if hasattr(state["args"], "criterion") and state["args"].criterion == "binary_cross_entropy":
+            state["args"].criterion = "wav2vec"
+        # speech_pretraining => audio pretraining
+        if hasattr(state["args"], "task") and state["args"].task == "speech_pretraining":
+            state["args"].task = "audio_pretraining"
+        # audio_cpc => wav2vec
+        if hasattr(state["args"], "arch") and state["args"].arch == "audio_cpc":
+            state["args"].arch = "wav2vec"
+        # convert legacy float learning rate to List[float]
+        if hasattr(state["args"], "lr") and isinstance(state["args"].lr, float):
+            state["args"].lr = [state["args"].lr]
 
         state["cfg"] = convert_namespace_to_omegaconf(state["args"])
 
     if "cfg" in state and state["cfg"] is not None:
         with open_dict(state["cfg"]):
-            if state["cfg"].task is not None:
-                if hasattr(state["cfg"].task, "max_positions") and not hasattr(
-                    state["cfg"].task, "max_source_positions"
-                ):
-                    state["cfg"].task.max_source_positions = state[
-                        "cfg"
-                    ].task.max_positions
-                    state["cfg"].task.max_target_positions = state[
-                        "cfg"
-                    ].task.max_positions
+            # any upgrades for Hydra-based configs
+            pass
 
     return state
 
@@ -563,8 +589,11 @@ def prune_state_dict(state_dict, model_cfg: Optional[DictConfig]):
 
     # Since layers are now pruned, *_layers_to_keep are no longer needed.
     # This is more of "It would make it work fix" rather than a proper fix.
-
-    with open_dict(model_cfg):
+    if isinstance(model_cfg, DictConfig):
+        context = open_dict(model_cfg)
+    else:
+        context = contextlib.ExitStack()
+    with context:
         if hasattr(model_cfg, "encoder_layers_to_keep"):
             model_cfg.encoder_layers_to_keep = None
         if hasattr(model_cfg, "decoder_layers_to_keep"):

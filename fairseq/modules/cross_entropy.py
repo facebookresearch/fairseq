@@ -26,12 +26,14 @@ try:
     import xentropy_cuda
     from apex.contrib import xentropy
 
-    logger.info("using fused cross entropy")
-
     def cross_entropy(logits, target, ignore_index=-100, reduction="mean"):
         if logits.device == torch.device("cpu"):
             return _cross_entropy_pytorch(logits, target, ignore_index, reduction)
         else:
+            if not getattr(cross_entropy, "_has_logged_once", False):
+                logger.info("using fused cross entropy")
+                cross_entropy._has_logged_once = True
+
             half_to_float = logits.dtype == torch.half
             losses = xentropy.SoftmaxCrossEntropyLoss.apply(
                 logits,

@@ -4,19 +4,19 @@
 # LICENSE file in the root directory of this source tree.
 
 import ast
-import os
+import inspect
 import logging
+import os
 import re
 from argparse import ArgumentError, ArgumentParser, Namespace
 from dataclasses import _MISSING_TYPE, MISSING
 from enum import Enum
-import inspect
 from typing import Any, Dict, List, Tuple, Type
 
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.configs import FairseqConfig
-from hydra.experimental import compose, initialize
 from hydra.core.global_hydra import GlobalHydra
+from hydra.experimental import compose, initialize
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 logger = logging.getLogger(__name__)
@@ -157,7 +157,11 @@ def gen_parser_from_dataclass(
             if isinstance(kwargs["default"], str) and kwargs["default"].startswith(
                 "${"
             ):
-                continue
+                if kwargs["help"] is None:
+                    # this is a field with a name that will be added elsewhere
+                    continue
+                else:
+                    del kwargs["default"]
             if delete_default:
                 del kwargs["default"]
         try:
@@ -214,8 +218,9 @@ def _override_attr(
             isinstance(val, str)
             and not val.startswith("${")  # not interpolation
             and field_type != str
-            and inspect.isclass(field_type)
-            and not issubclass(field_type, Enum)  # not choices enum
+            and (
+                not inspect.isclass(field_type) or not issubclass(field_type, Enum)
+            )  # not choices enum
         ):
             # upgrade old models that stored complex parameters as string
             val = ast.literal_eval(val)
@@ -223,11 +228,21 @@ def _override_attr(
         if isinstance(val, tuple):
             val = list(val)
 
-        if getattr(v.type, "__origin__", None) is List:
+        v_type = getattr(v.type, "__origin__", None)
+        if (
+            (v_type is List or v_type is list)
+            # skip interpolation
+            and not (isinstance(val, str) and val.startswith("${"))
+        ):
             # if type is int but val is float, then we will crash later - try to convert here
             t_args = v.type.__args__
             if len(t_args) == 1:
                 val = list(map(t_args[0], val))
+        elif val is not None and (field_type is int or field_type is bool or field_type is float):
+            try:
+                val = field_type(val)
+            except:
+                pass # ignore errors here, they are often from interpolation args
 
         if val is None:
             overrides.append("{}.{}=null".format(sub_node, k))
@@ -431,8 +446,7 @@ def overwrite_args_by_name(cfg: DictConfig, overrides: Dict[str, any]):
 
 
 def merge_with_parent(dc: FairseqDataclass, cfg: FairseqDataclass):
-    dc_instance = DictConfig(dc)
-    dc_instance.__dict__["_parent"] = cfg.__dict__["_parent"]
-    cfg = OmegaConf.merge(dc_instance, cfg)
-    OmegaConf.set_struct(cfg, True)
-    return cfg
+    merged_cfg = OmegaConf.merge(dc, cfg)
+    merged_cfg.__dict__["_parent"] = cfg.__dict__["_parent"]
+    OmegaConf.set_struct(merged_cfg, True)
+    return merged_cfg

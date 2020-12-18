@@ -299,7 +299,7 @@ def _main(cfg: DictConfig, output_file):
                         file=output_file,
                     )
 
-                    if cfg.generation.print_alignment:
+                    if cfg.generation.print_alignment == "hard":
                         print(
                             "A-{}\t{}".format(
                                 sample_id,
@@ -307,6 +307,19 @@ def _main(cfg: DictConfig, output_file):
                                     [
                                         "{}-{}".format(src_idx, tgt_idx)
                                         for src_idx, tgt_idx in alignment
+                                    ]
+                                ),
+                            ),
+                            file=output_file,
+                        )
+                    if cfg.generation.print_alignment == "soft":
+                        print(
+                            "A-{}\t{}".format(
+                                sample_id,
+                                " ".join(
+                                    [
+                                        ",".join(src_probs)
+                                        for src_probs in alignment
                                     ]
                                 ),
                             ),

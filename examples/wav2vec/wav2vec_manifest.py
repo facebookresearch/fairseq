@@ -47,6 +47,9 @@ def get_parser():
 def main(args):
     assert args.valid_percent >= 0 and args.valid_percent <= 1.0
 
+    if not os.path.exists(args.dest):
+        os.makedirs(args.dest)
+
     dir_path = os.path.realpath(args.root)
     search_path = os.path.join(dir_path, "**/*." + args.ext)
     rand = random.Random(args.seed)

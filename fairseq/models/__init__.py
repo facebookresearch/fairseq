@@ -63,7 +63,11 @@ def build_model(cfg: FairseqDataclass, task):
             cfg = cfg[model_type]
         else:
             raise Exception(
-                "Could not infer model type from directory. Please add _name field to indicate model type"
+                "Could not infer model type from directory. Please add _name field to indicate model type. "
+                "Available models: "
+                + str(MODEL_DATACLASS_REGISTRY.keys())
+                + " Requested model type: "
+                + model_type
             )
 
     if model_type in ARCH_MODEL_REGISTRY:
@@ -81,7 +85,13 @@ def build_model(cfg: FairseqDataclass, task):
         else:
             cfg = merge_with_parent(dc(), cfg)
 
-    assert model is not None, f"Could not infer model type from {cfg}"
+    assert model is not None, (
+        f"Could not infer model type from {cfg}. "
+        f"Available models: "
+        + str(MODEL_DATACLASS_REGISTRY.keys())
+        + " Requested model type: "
+        + model_type
+    )
 
     return model.build_model(cfg, task)
 

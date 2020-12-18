@@ -111,13 +111,9 @@ class MultiheadLinearAttention(nn.Module):
                 self.compress_v.weight.requires_grad = False
 
         self.onnx_trace = False
-        self.tpu = False
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
-
-    def prepare_for_tpu_(self, **kwargs):
-        self.tpu = True
 
     def reset_parameters(self):
         if self.qkv_same_dim:

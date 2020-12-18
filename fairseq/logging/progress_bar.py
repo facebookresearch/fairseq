@@ -34,6 +34,8 @@ def progress_bar(
     tensorboard_logdir: Optional[str] = None,
     default_log_format: str = "tqdm",
     wandb_project: Optional[str] = None,
+    wandb_run_name: Optional[str] = None,
+    azureml_logging: Optional[bool] = False,
 ):
     if log_format is None:
         log_format = default_log_format
@@ -62,7 +64,10 @@ def progress_bar(
             bar = TensorboardProgressBarWrapper(bar, tensorboard_logdir)
 
     if wandb_project:
-        bar = WandBProgressBarWrapper(bar, wandb_project)
+        bar = WandBProgressBarWrapper(bar, wandb_project, run_name=wandb_run_name)
+
+    if azureml_logging:
+        bar = AzureMLProgressBarWrapper(bar)
 
     return bar
 
@@ -356,6 +361,8 @@ class TensorboardProgressBarWrapper(BaseProgressBar):
                 writer.add_scalar(key, stats[key].val, step)
             elif isinstance(stats[key], Number):
                 writer.add_scalar(key, stats[key], step)
+            elif torch.is_tensor(stats[key]) and stats[key].numel() == 1:
+                writer.add_scalar(key, stats[key].item(), step)
         writer.flush()
 
 
@@ -368,15 +375,15 @@ except ImportError:
 class WandBProgressBarWrapper(BaseProgressBar):
     """Log to Weights & Biases."""
 
-    def __init__(self, wrapped_bar, wandb_project):
+    def __init__(self, wrapped_bar, wandb_project, run_name=None):
         self.wrapped_bar = wrapped_bar
         if wandb is None:
-            logger.warning('wandb not found, pip install wandb')
+            logger.warning("wandb not found, pip install wandb")
             return
 
         # reinit=False to ensure if wandb.init() is called multiple times
         # within one process it still references the same run
-        wandb.init(project=wandb_project, reinit=False)
+        wandb.init(project=wandb_project, reinit=False, name=run_name)
 
     def __iter__(self):
         return iter(self.wrapped_bar)
@@ -395,12 +402,62 @@ class WandBProgressBarWrapper(BaseProgressBar):
         if wandb is None:
             return
         if step is None:
+            step = stats["num_updates"]
+
+        prefix = "" if tag is None else tag + "/"
+
+        for key in stats.keys() - {"num_updates"}:
+            if isinstance(stats[key], AverageMeter):
+                wandb.log({prefix + key: stats[key].val}, step=step)
+            elif isinstance(stats[key], Number):
+                wandb.log({prefix + key: stats[key]}, step=step)
+
+
+try:
+    from azureml.core import Run
+except ImportError:
+    Run = None
+
+
+class AzureMLProgressBarWrapper(BaseProgressBar):
+    """Log to Azure ML"""
+
+    def __init__(self, wrapped_bar):
+        self.wrapped_bar = wrapped_bar
+        if Run is None:
+            logger.warning("azureml.core not found, pip install azureml-core")
+            return
+        self.run = Run.get_context()
+
+    def __exit__(self, *exc):
+        if Run is not None:
+            self.run.complete()
+        return False
+
+    def __iter__(self):
+        return iter(self.wrapped_bar)
+
+    def log(self, stats, tag=None, step=None):
+        """Log intermediate stats to AzureML"""
+        self._log_to_azureml(stats, tag, step)
+        self.wrapped_bar.log(stats, tag=tag, step=step)
+
+    def print(self, stats, tag=None, step=None):
+        """Print end-of-epoch stats"""
+        self._log_to_azureml(stats, tag, step)
+        self.wrapped_bar.print(stats, tag=tag, step=step)
+
+    def _log_to_azureml(self, stats, tag=None, step=None):
+        if Run is None:
+            return
+        if step is None:
             step = stats['num_updates']
 
         prefix = '' if tag is None else tag + '/'
 
         for key in stats.keys() - {'num_updates'}:
+            name = prefix + key
             if isinstance(stats[key], AverageMeter):
-                wandb.log({prefix + key: stats[key].val}, step=step)
+                self.run.log_row(name=name, **{'step': step, key: stats[key].val})
             elif isinstance(stats[key], Number):
-                wandb.log({prefix + key: stats[key]}, step=step)
+                self.run.log_row(name=name, **{'step': step, key: stats[key]})

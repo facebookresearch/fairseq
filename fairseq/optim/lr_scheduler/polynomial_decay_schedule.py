@@ -8,11 +8,11 @@ from typing import Optional, List
 from omegaconf import II
 
 from fairseq.dataclass import FairseqDataclass
-from . import FairseqLRScheduler, register_lr_scheduler
+from fairseq.optim.lr_scheduler import FairseqLRScheduler, register_lr_scheduler
 
 
 @dataclass
-class PolynomialDecayScheduleConfig(FairseqDataclass):
+class PolynomialDecayLRScheduleConfig(FairseqDataclass):
     warmup_updates: int = field(
         default=0,
         metadata={"help": "warmup the learning rate linearly for the first N updates"},
@@ -29,17 +29,18 @@ class PolynomialDecayScheduleConfig(FairseqDataclass):
         default=1.0,
         metadata={"help": "decay exponent"},
     )
-    total_num_update: float = II("optimization.max_update")
+    total_num_update: float = field(
+        default=II("optimization.max_update"),
+        metadata={"help": "total number of updates over which to decay learning rate"},
+    )
     lr: List[float] = II("optimization.lr")
 
 
-@register_lr_scheduler("polynomial_decay", dataclass=PolynomialDecayScheduleConfig)
-class PolynomialDecaySchedule(FairseqLRScheduler):
+@register_lr_scheduler("polynomial_decay", dataclass=PolynomialDecayLRScheduleConfig)
+class PolynomialDecayLRSchedule(FairseqLRScheduler):
     """Decay the LR on a fixed schedule."""
 
-    cfg: PolynomialDecayScheduleConfig
-
-    def __init__(self, cfg: PolynomialDecayScheduleConfig, optimizer):
+    def __init__(self, cfg: PolynomialDecayLRScheduleConfig, optimizer):
         super().__init__(cfg, optimizer)
 
         assert cfg.total_num_update > 0

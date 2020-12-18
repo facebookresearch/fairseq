@@ -93,11 +93,6 @@ class ModelParallelMultiheadAttention(nn.Module):
             embed_dim, embed_dim, bias=bias, input_is_parallel=True
         )
 
-        self.tpu = False
-
-    def prepare_for_tpu_(self, **kwargs):
-        self.tpu = True
-
     def forward(
         self,
         query,
@@ -122,6 +117,8 @@ class ModelParallelMultiheadAttention(nn.Module):
         tgt_len, bsz, embed_dim = query.size()
         assert embed_dim == self.embed_dim
         assert list(query.size()) == [tgt_len, bsz, embed_dim]
+
+        is_tpu = query.device.type == "xla"
 
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
@@ -250,7 +247,7 @@ class ModelParallelMultiheadAttention(nn.Module):
             attn_weights = attn_weights.view(
                 bsz, self.num_heads_partition, tgt_len, src_len
             )
-            if not self.tpu:
+            if not is_tpu:
                 attn_weights = attn_weights.masked_fill(
                     key_padding_mask.unsqueeze(1).unsqueeze(2).to(torch.bool),
                     float("-inf"),

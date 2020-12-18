@@ -149,11 +149,11 @@ class LevenshteinTransformerModel(FairseqNATModel):
         if max_ratio is None:
             max_lens = torch.zeros_like(output_tokens).fill_(255)
         else:
-            if encoder_out.encoder_padding_mask is None:
-                max_src_len = encoder_out.encoder_out.size(0)
-                src_lens = encoder_out.encoder_out.new(bsz).fill_(max_src_len)
+            if not encoder_out["encoder_padding_mask"]:
+                max_src_len = encoder_out["encoder_out"].size(0)
+                src_lens = encoder_out["encoder_out"].new(bsz).fill_(max_src_len)
             else:
-                src_lens = (~encoder_out.encoder_padding_mask).sum(1)
+                src_lens = (~encoder_out["encoder_padding_mask"][0]).sum(1)
             max_lens = (src_lens * max_ratio).clamp(min=10).long()
 
         # delete words

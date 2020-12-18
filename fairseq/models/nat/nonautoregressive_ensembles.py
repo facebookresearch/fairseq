@@ -83,14 +83,13 @@ class EnsembleLevT(BasicEnsembleModel):
         if max_ratio is None:
             max_lens = output_tokens.new().fill_(255)
         else:
-            if encoder_outs[0].encoder_padding_mask is None:
+            if not encoder_outs[0]["encoder_padding_mask"]:
                 src_lens = (
-                    encoder_outs[0]
-                    .encoder_out.new(bsz)
-                    .fill_(encoder_outs[0].encoder_out.size(1))
+                    encoder_outs[0]["encoder_out"][0].new(bsz)
+                    .fill_(encoder_outs[0]["encoder_out"][0].size(1))
                 )
             else:
-                src_lens = (~encoder_outs[0].encoder_padding_mask).sum(1)
+                src_lens = (~encoder_outs[0]["encoder_padding_mask"][0]).sum(1)
             max_lens = (src_lens * max_ratio).clamp(min=10).long()
 
         # delete words
