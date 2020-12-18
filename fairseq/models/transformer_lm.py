@@ -171,6 +171,8 @@ class TransformerLanguageModel(FairseqLanguageModel):
     def hub_models(cls):
         def moses_fastbpe(path):
             return {"path": path, "tokenizer": "moses", "bpe": "fastbpe"}
+        def spm(path):
+            return {"path": path, "tokenizer": "space", "bpe": "sentencepiece"}
 
         return {
             "transformer_lm.gbw.adaptive_huge": "https://dl.fbaipublicfiles.com/fairseq/models/lm/adaptive_lm_gbw_huge.tar.bz2",
@@ -183,6 +185,18 @@ class TransformerLanguageModel(FairseqLanguageModel):
             ),
             "transformer_lm.wmt19.ru": moses_fastbpe(
                 "https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt19.ru.tar.bz2"
+            ),
+            "transformer_lm.wmt20.en": spm(
+                "https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt20.en.tar.gz"
+            ),
+            "transformer_lm.wmt20.ta": spm(
+                "https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt20.ta.tar.gz"
+            ),
+            "transformer_lm.wmt20.iu.news": spm(
+                "https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt20.iu.news.tar.gz"
+            ),
+            "transformer_lm.wmt20.iu.nh": spm(
+                "https://dl.fbaipublicfiles.com/fairseq/models/lm/wmt20.iu.nh.tar.gz"
             ),
         }
 

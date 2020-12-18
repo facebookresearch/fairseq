@@ -5,13 +5,28 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import os
 import shutil
 from typing import List, Optional
 
 
+logger = logging.getLogger(__file__)
+
+
 try:
     from fvcore.common.file_io import PathManager as FVCorePathManager
+
+    try:
+        # [FB only - for now] AWS PathHandler for PathManager
+        from .fb_pathhandlers import S3PathHandler
+
+        FVCorePathManager.register_handler(S3PathHandler())
+    except KeyError:
+        logging.warning("S3PathHandler already registered.")
+    except ImportError:
+        logging.debug(
+            "S3PathHandler couldn't be imported. Either missing fb-only files, or boto3 module.")
 
 except ImportError:
     FVCorePathManager = None

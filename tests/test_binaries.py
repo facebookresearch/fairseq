@@ -5,13 +5,14 @@
 
 import contextlib
 import logging
+import json
 import os
 import random
 import sys
 import tempfile
 import unittest
 from io import StringIO
-
+from typing import List, Dict
 import torch
 from fairseq import options
 from fairseq_cli import eval_lm, train, validate
@@ -268,18 +269,136 @@ class TestTranslation(BinaryTestCase):
             )
             generate_main(self.data_dir)
 
+    def test_multilingual_transformer(self):
+        # test with all combinations of encoder/decoder lang tokens
+        encoder_langtok_flags = [
+            [],
+            ["--encoder-langtok", "src"],
+            ["--encoder-langtok", "tgt"],
+        ]
+        decoder_langtok_flags = [[], ["--decoder-langtok"]]
+        with contextlib.redirect_stdout(StringIO()):
+            for i in range(len(encoder_langtok_flags)):
+                for j in range(len(decoder_langtok_flags)):
+                    enc_ltok_flag = encoder_langtok_flags[i]
+                    dec_ltok_flag = decoder_langtok_flags[j]
+                    data_dir = os.path.join(self.data_dir, f"{i}_{j}")
+                    create_dummy_data(data_dir)
+                    preprocess_translation_data(data_dir)
+                    train_translation_model(
+                        data_dir,
+                        arch="multilingual_transformer",
+                        task="multilingual_translation",
+                        extra_flags=[
+                            "--encoder-layers",
+                            "2",
+                            "--decoder-layers",
+                            "2",
+                            "--encoder-embed-dim",
+                            "8",
+                            "--decoder-embed-dim",
+                            "8",
+                        ]
+                        + enc_ltok_flag
+                        + dec_ltok_flag,
+                        lang_flags=["--lang-pairs", "in-out,out-in"],
+                        run_validation=True,
+                        extra_valid_flags=enc_ltok_flag + dec_ltok_flag,
+                    )
+                    generate_main(
+                        data_dir,
+                        extra_flags=[
+                            "--task",
+                            "multilingual_translation",
+                            "--lang-pairs",
+                            "in-out,out-in",
+                            "--source-lang",
+                            "in",
+                            "--target-lang",
+                            "out",
+                        ]
+                        + enc_ltok_flag
+                        + dec_ltok_flag,
+                    )
+
+    @unittest.skipIf(
+        sys.platform.lower() == "darwin", "skip latent depth test on MacOS"
+    )
+    def test_multilingual_translation_latent_depth(self):
+        # test with latent depth in encoder, decoder, or both
+        encoder_latent_layer = [[], ["--encoder-latent-layer"]]
+        decoder_latent_layer = [[], ["--decoder-latent-layer"]]
+        with contextlib.redirect_stdout(StringIO()):
+            for i in range(len(encoder_latent_layer)):
+                for j in range(len(decoder_latent_layer)):
+                    if i == 0 and j == 0:
+                        continue
+                    enc_ll_flag = encoder_latent_layer[i]
+                    dec_ll_flag = decoder_latent_layer[j]
+                    data_dir = os.path.join(self.data_dir, f"{i}_{j}")
+                    create_dummy_data(data_dir)
+                    preprocess_translation_data(
+                        data_dir, extra_flags=["--joined-dictionary"]
+                    )
+                    train_translation_model(
+                        data_dir,
+                        arch="latent_multilingual_transformer",
+                        task="multilingual_translation_latent_depth",
+                        extra_flags=[
+                            "--user-dir",
+                            "examples/latent_depth/latent_depth_src",
+                            "--encoder-layers",
+                            "2",
+                            "--decoder-layers",
+                            "2",
+                            "--encoder-embed-dim",
+                            "8",
+                            "--decoder-embed-dim",
+                            "8",
+                            "--share-encoders",
+                            "--share-decoders",
+                            "--sparsity-weight",
+                            "0.1",
+                        ]
+                        + enc_ll_flag
+                        + dec_ll_flag,
+                        lang_flags=["--lang-pairs", "in-out,out-in"],
+                        run_validation=True,
+                        extra_valid_flags=[
+                            "--user-dir",
+                            "examples/latent_depth/latent_depth_src",
+                        ]
+                        + enc_ll_flag
+                        + dec_ll_flag,
+                    )
+                    generate_main(
+                        data_dir,
+                        extra_flags=[
+                            "--user-dir",
+                            "examples/latent_depth/latent_depth_src",
+                            "--task",
+                            "multilingual_translation_latent_depth",
+                            "--lang-pairs",
+                            "in-out,out-in",
+                            "--source-lang",
+                            "in",
+                            "--target-lang",
+                            "out",
+                        ]
+                        + enc_ll_flag
+                        + dec_ll_flag,
+                    )
 
     def test_translation_multi_simple_epoch_no_vepoch(self):
         # test with all combinations of encoder/decoder lang tokens
         with contextlib.redirect_stdout(StringIO()):
             enc_ltok_flag = ["--encoder-langtok", "src"]
             dec_ltok_flag = ["--decoder-langtok"]
-            create_dummy_data(self.data_dir)
-            preprocess_translation_data(
-                self.data_dir, extra_flags=[]
-            )
+            data_dir = self.data_dir
+            create_dummy_data(data_dir)
+            preprocess_translation_data(data_dir, extra_flags=[])
             train_translation_model(
-                self.data_dir,
+                data_dir,
                 arch="transformer",
                 task="translation_multi_simple_epoch",
                 extra_flags=[
@@ -303,7 +422,7 @@ class TestTranslation(BinaryTestCase):
                 extra_valid_flags=enc_ltok_flag + dec_ltok_flag,
             )
             generate_main(
-                self.data_dir,
+                data_dir,
                 extra_flags=[
                     "--task",
                     "translation_multi_simple_epoch",
@@ -323,11 +442,13 @@ class TestTranslation(BinaryTestCase):
         with contextlib.redirect_stdout(StringIO()):
             enc_ltok_flag = ["--encoder-langtok", "src"]
             dec_ltok_flag = ["--decoder-langtok"]
-            create_dummy_data(self.data_dir)
-            preprocess_translation_data(self.data_dir, extra_flags=[])
+            data_dir = self.data_dir
+            create_dummy_data(data_dir)
+            preprocess_translation_data(data_dir, extra_flags=[])
             train_translation_model(
-                self.data_dir,
+                data_dir,
                 arch="transformer",
+                task="translation_multi_simple_epoch",
                 extra_flags=[
                     "--encoder-layers",
                     "2",
@@ -346,13 +467,12 @@ class TestTranslation(BinaryTestCase):
                 ]
                 + enc_ltok_flag
                 + dec_ltok_flag,
-                task="translation_multi_simple_epoch",
-                run_validation=True,
                 lang_flags=["--lang-pairs", "in-out"],
+                run_validation=True,
                 extra_valid_flags=enc_ltok_flag + dec_ltok_flag,
             )
             generate_main(
-                self.data_dir,
+                data_dir,
                 extra_flags=[
                     "--task",
                     "translation_multi_simple_epoch",
@@ -366,7 +486,6 @@ class TestTranslation(BinaryTestCase):
                 + enc_ltok_flag
                 + dec_ltok_flag,
             )
-
 
     def test_transformer_layerdrop(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -426,10 +545,11 @@ class TestTranslation(BinaryTestCase):
 
     def test_transformer_pointer_generator(self):
         with contextlib.redirect_stdout(StringIO()):
-            create_dummy_data(self.data_dir)
-            preprocess_summarization_data(self.data_dir)
+            data_dir = self.data_dir
+            create_dummy_data(data_dir)
+            preprocess_summarization_data(data_dir)
             train_translation_model(
-                self.data_dir,
+                data_dir,
                 "transformer_pointer_generator",
                 extra_flags=[
                     "--user-dir",
@@ -456,7 +576,7 @@ class TestTranslation(BinaryTestCase):
                 ],
             )
             generate_main(
-                self.data_dir,
+                data_dir,
                 extra_flags=[
                     "--user-dir",
                     "examples/pointer_generator/pointer_generator_src",
@@ -570,23 +690,22 @@ class TestTranslation(BinaryTestCase):
 
     # def test_nat_crf_transformer(self):
     #     with contextlib.redirect_stdout(StringIO()):
-    #         with tempfile.TemporaryDirectory('test_nat_crf_transformer') as data_dir:
-    #             create_dummy_data(self.data_dir)
-    #             preprocess_translation_data(self.data_dir, ['--joined-dictionary'])
-    #             train_translation_model(self.data_dir, 'nacrf_transformer', [
-    #                 '--apply-bert-init', '--criterion',
-    #                 'nat_loss', '--noise', 'full_mask', '--pred-length-offset',
-    #                 '--length-loss-factor', '0.1',
-    #                 '--word-ins-loss-factor', '0.5',
-    #                 '--crf-lowrank-approx', '1',
-    #                 '--crf-beam-approx', '1'
-    #             ], task='translation_lev')
-    #             generate_main(self.data_dir, [
-    #                 '--task', 'translation_lev',
-    #                 '--iter-decode-max-iter', '0',
-    #                 '--iter-decode-eos-penalty', '0',
-    #                 '--print-step',
-    #             ])
+    #         create_dummy_data(self.data_dir)
+    #         preprocess_translation_data(self.data_dir, ['--joined-dictionary'])
+    #         train_translation_model(self.data_dir, 'nacrf_transformer', [
+    #             '--apply-bert-init', '--criterion',
+    #             'nat_loss', '--noise', 'full_mask', '--pred-length-offset',
+    #             '--length-loss-factor', '0.1',
+    #             '--word-ins-loss-factor', '0.5',
+    #             '--crf-lowrank-approx', '1',
+    #             '--crf-beam-approx', '1'
+    #         ], task='translation_lev')
+    #         generate_main(self.data_dir, [
+    #             '--task', 'translation_lev',
+    #             '--iter-decode-max-iter', '0',
+    #             '--iter-decode-eos-penalty', '0',
+    #             '--print-step',
+    #         ])
 
     def test_iterative_nonautoregressive_transformer(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -749,52 +868,12 @@ class TestTranslation(BinaryTestCase):
             )
             generate_main(self.data_dir)
 
-
-class TestCombinationTranslation(BinaryTestCase, metaclass=ABCMeta):
-    @property
-    @abstractmethod
-    def enc_it(self):
-        pass
-
-    @property
-    @abstractmethod
-    def dec_it(self):
-        pass
-
-    def setUp(self):
-        super().setUp()
-        self.data_dirs = {}
-        for i in range(len(self.enc_it)):
-            for j in range(len(self.dec_it)):
-                self.data_dirs[f"{i}_{j}"] = tempfile.TemporaryDirectory()
-
-    def tearDown(self):
-        super().tearDown()
-        # self.data_dirs.values() are cleaned up on gc.
-        # intentionally passing for Windows
-        pass
-
-class TestTranslationMultiSingleEpoch(TestCombinationTranslation):
-    @property
-    def enc_it(self):
-        self.encoder_langtok_flags = [
-            [],
-            ["--encoder-langtok", "src"],
-            ["--encoder-langtok", "tgt"],
-        ]
-        return self.encoder_langtok_flags
-
-    @property
-    def dec_it(self):
-        self.decoder_langtok_flags = [[], ["--decoder-langtok"]]
-        return self.decoder_langtok_flags
-
     def test_translation_multi_simple_epoch(self):
         # test with all combinations of encoder/decoder lang tokens
         with contextlib.redirect_stdout(StringIO()):
             for i in range(len(self.encoder_langtok_flags)):
                 for j in range(len(self.decoder_langtok_flags)):
-                    data_dir = self.data_dirs[f"{i}_{j}"].name
+                    data_dir = os.path.join(self.data_dir, f"{i}_{j}")
                     enc_ltok_flag = self.encoder_langtok_flags[i]
                     dec_ltok_flag = self.decoder_langtok_flags[j]
                     create_dummy_data(data_dir)
@@ -843,29 +922,13 @@ class TestTranslationMultiSingleEpoch(TestCombinationTranslation):
                         + dec_ltok_flag,
                     )
 
-
-class TestMultilingualTranslationLatentDepth(TestCombinationTranslation):
-    @property
-    def enc_it(self):
-        self.encoder_latent_layer = [[], ["--encoder-latent-layer"]]
-        return self.encoder_latent_layer
-
-    @property
-    def dec_it(self):
-        self.decoder_latent_layer = [[], ["--decoder-latent-layer"]]
-        return self.decoder_latent_layer
-
-    @unittest.skipIf(
-        sys.platform.lower() in {"darwin", "win32"},
-        "skip latent depth test on MacOS and Windows",
-    )
     def test_multilingual_translation_latent_depth(self):
         # test with latent depth in encoder, decoder, or both
 
         with contextlib.redirect_stdout(StringIO()):
             for i in range(len(self.encoder_latent_layer)):
                 for j in range(len(self.decoder_latent_layer)):
-                    data_dir = self.data_dirs[f"{i}_{j}"].name
+                    data_dir = os.path.join(self.data_dir, f"{i}_{j}")
                     if i == 0 and j == 0:
                         continue
                     enc_ll_flag = self.encoder_latent_layer[i]
@@ -907,44 +970,18 @@ class TestMultilingualTranslationLatentDepth(TestCombinationTranslation):
                     )
                 generate_main(
                     data_dir,
-                    extra_flags=[
-                        "--user-dir",
-                        "examples/latent_depth/latent_depth_src",
-                        "--task",
-                        "multilingual_translation_latent_depth",
-                        "--lang-pairs",
-                        "in-out,out-in",
-                        "--source-lang",
-                        "in",
-                        "--target-lang",
-                        "out",
-                    ]
-                    + enc_ll_flag
-                    + dec_ll_flag,
+                    [
+                        "--model-overrides",
+                        "{'encoder_layers_to_keep':'0,2','decoder_layers_to_keep':'1'}",
+                    ],
                 )
-
-
-class TestMultilingualTranslationTransformer(TestCombinationTranslation):
-    @property
-    def enc_it(self):
-        self.encoder_langtok_flags = [
-            [],
-            ["--encoder-langtok", "src"],
-            ["--encoder-langtok", "tgt"],
-        ]
-        return self.encoder_langtok_flags
-
-    @property
-    def dec_it(self):
-        self.decoder_langtok_flags = [[], ["--decoder-langtok"]]
-        return self.decoder_langtok_flags
 
     def test_multilingual_transformer(self):
         # test with all combinations of encoder/decoder lang tokens
         with contextlib.redirect_stdout(StringIO()):
             for i in range(len(self.encoder_langtok_flags)):
                 for j in range(len(self.decoder_langtok_flags)):
-                    data_dir = self.data_dirs[f"{i}_{j}"].name
+                    data_dir = os.path.join(self.data_dir, f"{i}_{j}")
                     enc_ltok_flag = self.encoder_langtok_flags[i]
                     dec_ltok_flag = self.decoder_langtok_flags[j]
                     create_dummy_data(data_dir)
@@ -1093,10 +1130,11 @@ class TestLanguageModeling(BinaryTestCase):
 
     def test_transformer_lm_with_adaptive_softmax(self):
         with contextlib.redirect_stdout(StringIO()):
-            create_dummy_data(self.data_dir)
-            preprocess_lm_data(self.data_dir)
+            data_dir = self.data_dir
+            create_dummy_data(data_dir)
+            preprocess_lm_data(data_dir)
             train_language_model(
-                self.data_dir,
+                data_dir,
                 "transformer_lm",
                 [
                     "--add-bos-token",
@@ -1107,9 +1145,9 @@ class TestLanguageModeling(BinaryTestCase):
                 ],
                 run_validation=True,
             )
-            eval_lm_main(self.data_dir)
+            eval_lm_main(data_dir)
             generate_main(
-                self.data_dir,
+                data_dir,
                 [
                     "--task",
                     "language_modeling",
@@ -1211,12 +1249,22 @@ class TestLanguageModeling(BinaryTestCase):
                 extra_flags=task_flags + [
                     "--n-layer",
                     "2",
-                ],
-                task="truncated_bptt_lm",
-                run_validation=True,
-                extra_valid_flags=task_flags,
-            )
-            eval_lm_main(self.data_dir, extra_flags=task_flags)
+                    "--tokens-per-sample",
+                    "50",
+                ]
+                train_language_model(
+                    data_dir=data_dir,
+                    arch="transformer_xl",
+                    extra_flags=task_flags
+                    + [
+                        "--n-layer",
+                        "2",
+                    ],
+                    task="truncated_bptt_lm",
+                    run_validation=True,
+                    extra_valid_flags=task_flags,
+                )
+                eval_lm_main(data_dir, extra_flags=task_flags)
 
 
 class TestMaskedLanguageModel(BinaryTestCase):
@@ -1450,7 +1498,7 @@ def train_legacy_masked_language_model(data_dir, arch, extra_args=()):
             "0.5",
             "--lr",
             "0.0001",
-            "--min-lr",
+            "--stop-min-lr",
             "1e-09",
             # dropout, attention args
             "--dropout",
@@ -1524,6 +1572,64 @@ class TestOptimizers(BinaryTestCase):
                     ],
                 )
                 generate_main(self.data_dir)
+
+
+def read_last_log_entry(
+    logs: List[logging.LogRecord], logger_name: str
+) -> Dict[str, float]:
+    for x in reversed(logs):
+        if x.name == logger_name:
+            return json.loads(x.message)
+    raise ValueError(f"No entries from {logger_name} found in captured logs")
+
+
+class TestActivationCheckpointing(unittest.TestCase):
+    def test_activation_checkpointing_does_not_change_metrics(self):
+        """--checkpoint-activations should not change loss"""
+        base_flags = [
+            "--encoder-layers",
+            "2",
+            "--decoder-layers",
+            "2",
+            "--encoder-embed-dim",
+            "8",
+            "--decoder-embed-dim",
+            "8",
+            "--restore-file",
+            "x.pt",
+            "--log-format",
+            "json",
+            "--log-interval",
+            "1",
+            "--max-update",
+            "2",
+        ]
+
+        def _train(extra_flags):
+            with self.assertLogs() as logs:
+                train_translation_model(
+                    data_dir,
+                    "transformer_iwslt_de_en",
+                    base_flags + extra_flags,
+                    run_validation=True,
+                    extra_valid_flags=["--log-format", "json"],
+                )
+            return logs.records
+
+        data_dir = self.data_dir
+        create_dummy_data(data_dir, num_examples=20)
+        preprocess_translation_data(data_dir)
+        ckpt_logs = _train(["--checkpoint-activations"])
+        baseline_logs = _train([])
+        assert len(baseline_logs) == len(ckpt_logs)
+
+        baseline_train_stats = read_last_log_entry(baseline_logs, "train")
+        ckpt_train_stats = read_last_log_entry(ckpt_logs, "train")
+        assert baseline_train_stats["train_loss"] == ckpt_train_stats["train_loss"]
+
+        baseline_valid_stats = read_last_log_entry(baseline_logs, "valid")
+        ckpt_valid_stats = read_last_log_entry(ckpt_logs, "valid")
+        assert baseline_valid_stats["valid_loss"] == ckpt_valid_stats["valid_loss"]
 
 
 def create_dummy_roberta_head_data(
@@ -1642,7 +1748,12 @@ def train_roberta_head(data_dir, arch, num_classes=2, extra_flags=None):
 
 
 def train_language_model(
-    data_dir, arch, extra_flags=None, run_validation=False, extra_valid_flags=None, task="language_modeling"
+    data_dir,
+    arch,
+    extra_flags=None,
+    run_validation=False,
+    extra_valid_flags=None,
+    task="language_modeling",
 ):
     train_parser = options.get_training_parser()
     train_args = options.parse_args_and_arch(
@@ -1712,7 +1823,8 @@ def eval_lm_main(data_dir, extra_flags=None):
             "--no-progress-bar",
             "--num-workers",
             "0",
-        ] + (extra_flags or []),
+        ]
+        + (extra_flags or []),
     )
     eval_lm.main(eval_lm_args)
 

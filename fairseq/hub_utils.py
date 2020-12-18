@@ -60,6 +60,8 @@ def from_pretrained(
         "code": "bpe_codes",
         "bpecodes": "bpe_codes",
         "sentencepiece.bpe.model": "sentencepiece_model",
+        "merges.txt": "bpe_merges",
+        "vocab.json": "bpe_vocab",
     }.items():
         path = os.path.join(model_path, file)
         if os.path.exists(path):
@@ -157,7 +159,7 @@ class GeneratorHubInterface(nn.Module):
             )[0]
 
         # build generator using current args as well as any kwargs
-        gen_args = copy.copy(self.cfg)
+        gen_args = copy.deepcopy(self.cfg.generation)
         with open_dict(gen_args):
             gen_args.beam = beam
             for k, v in kwargs.items():

@@ -8,6 +8,7 @@ RoBERTa iterates on BERT's pretraining procedure, including training the model l
 
 ### What's New:
 
+- December 2020: German model (GottBERT) is available: [GottBERT](https://github.com/pytorch/fairseq/tree/master/examples/gottbert).
 - January 2020: Italian model (UmBERTo) is available from Musixmatch Research: [UmBERTo](https://github.com/musixmatchresearch/umberto).
 - November 2019: French model (CamemBERT) is available: [CamemBERT](https://github.com/pytorch/fairseq/tree/master/examples/camembert).
 - November 2019: Multilingual encoder (XLM-RoBERTa) is available: [XLM-R](https://github.com/pytorch/fairseq/tree/master/examples/xlmr).
