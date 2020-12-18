@@ -1596,7 +1596,7 @@ class TestActivationCheckpointing(unittest.TestCase):
         def _train(extra_flags):
             with self.assertLogs() as logs:
                 train_translation_model(
-                    data_dir,
+                    self.data_dir,
                     "transformer_iwslt_de_en",
                     base_flags + extra_flags,
                     run_validation=True,
