@@ -18,7 +18,8 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
-from fairseq.modules import LayerNorm, TransformerSentenceEncoder
+from fairseq.models.transformer import TransformerEncoder
+from fairseq.modules import LayerNorm
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
@@ -86,6 +87,11 @@ class RobertaModel(FairseqEncoderModel):
             "--encoder-normalize-before",
             action="store_true",
             help="apply layernorm before each encoder block",
+        )
+        parser.add_argument(
+            '--layernorm-embedding',
+            action='store_true',
+            help='add layernorm to embedding'
         )
         parser.add_argument(
             "--dropout", type=float, metavar="D", help="dropout probability"
@@ -264,6 +270,13 @@ class RobertaModel(FairseqEncoderModel):
                 state_dict[new_k] = state_dict[k]
                 del state_dict[k]
 
+        # rename emb_layer_norm -> layernorm_embedding
+        for k in list(state_dict.keys()):
+            if '.emb_layer_norm.' in k:
+                new_k = k.replace('.emb_layer_norm.', '.layernorm_embedding.')
+                state_dict[new_k] = state_dict[k]
+                del state_dict[k]
+
         # upgrade children modules
         super().upgrade_state_dict_named(state_dict, name)
 
@@ -401,24 +414,12 @@ class RobertaEncoder(FairseqEncoder):
         if args.encoder_layers_to_keep:
             args.encoder_layers = len(args.encoder_layers_to_keep.split(","))
 
-        self.sentence_encoder = TransformerSentenceEncoder(
-            padding_idx=dictionary.pad(),
-            vocab_size=len(dictionary),
-            num_encoder_layers=args.encoder_layers,
-            embedding_dim=args.encoder_embed_dim,
-            ffn_embedding_dim=args.encoder_ffn_embed_dim,
-            num_attention_heads=args.encoder_attention_heads,
-            dropout=args.dropout,
-            attention_dropout=args.attention_dropout,
-            activation_dropout=args.activation_dropout,
-            layerdrop=args.encoder_layerdrop,
-            max_seq_len=args.max_positions,
-            num_segments=0,
-            encoder_normalize_before=True,
-            apply_bert_init=True,
-            activation_fn=args.activation_fn,
-            q_noise=args.quant_noise_pq,
-            qn_block_size=args.quant_noise_pq_block_size,
+        embed_tokens = self.build_embedding(
+            len(dictionary), args.encoder_embed_dim, dictionary.pad()
+        )
+
+        self.sentence_encoder = TransformerEncoder(
+            args, dictionary, embed_tokens
         )
 
         self.lm_head = RobertaLMHead(
@@ -431,6 +432,9 @@ class RobertaEncoder(FairseqEncoder):
                 else None
             ),
         )
+
+    def build_embedding(self, vocab_size, embedding_dim, padding_idx):
+        return nn.Embedding(vocab_size, embedding_dim, padding_idx)
 
     def forward(
         self,
@@ -448,7 +452,6 @@ class RobertaEncoder(FairseqEncoder):
                 `(batch, src_len, embed_dim)`.
             return_all_hiddens (bool, optional): also return all of the
                 intermediate hidden states (default: False).
-
         Returns:
             tuple:
                 - the LM output of shape `(batch, src_len, vocab)`
@@ -464,13 +467,13 @@ class RobertaEncoder(FairseqEncoder):
         return x, extra
 
     def extract_features(self, src_tokens, return_all_hiddens=False, **kwargs):
-        inner_states, _ = self.sentence_encoder(
+        encoder_out = self.encoder(
             src_tokens,
-            last_state_only=not return_all_hiddens,
+            return_all_hiddens=return_all_hiddens,
             token_embeddings=kwargs.get("token_embeddings", None),
         )
-        features = inner_states[-1].transpose(0, 1)  # T x B x C -> B x T x C
-        return features, {"inner_states": inner_states if return_all_hiddens else None}
+        features = encoder_out["encoder_out"][0].transpose(0, 1)  # T x B x C -> B x T x C
+        return features, {"inner_states": encoder_out["encoder_out"] if return_all_hiddens else None}
 
     def output_layer(self, features, masked_tokens=None, **unused):
         return self.lm_head(features, masked_tokens)
@@ -486,17 +489,27 @@ def base_architecture(args):
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 768)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 3072)
     args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 12)
+    args.encoder_learned_pos = getattr(args, "encoder_learned_pos", True)
+    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", False)
 
+    args.num_segments = getattr(args, "num_segments", 0)
+    args.max_source_positions = getattr(args, "max_positions", 512)
     args.activation_fn = getattr(args, "activation_fn", "gelu")
     args.pooler_activation_fn = getattr(args, "pooler_activation_fn", "tanh")
 
+    args.no_token_positional_embeddings = getattr(
+        args, "no_token_positional_embeddings", False
+    )
     args.dropout = getattr(args, "dropout", 0.1)
+    args.adaptive_input = getattr(args, "adaptive_input", False)
     args.attention_dropout = getattr(args, "attention_dropout", 0.1)
     args.activation_dropout = getattr(args, "activation_dropout", 0.0)
     args.pooler_dropout = getattr(args, "pooler_dropout", 0.0)
     args.encoder_layers_to_keep = getattr(args, "encoder_layers_to_keep", None)
     args.encoder_layerdrop = getattr(args, "encoder_layerdrop", 0.0)
     args.untie_weights_roberta = getattr(args, "untie_weights_roberta", False)
+    args.layernorm_embedding = getattr(args, "layernorm_embedding", True)
+    args.no_scale_embedding = getattr(args, "no_scale_embedding", True)
     args.spectral_norm_classification_head = getattr(
         args, "spectral_norm_classification_head", False
     )
