@@ -263,10 +263,6 @@ class Trainer(object):
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
         if self.is_data_parallel_master:  # only save one checkpoint
-            logger.info(
-                f"Preparing to save checkpoint to {filename} after "
-                f"{self.get_num_updates()} updates"
-            )
             extra_state["metrics"] = metrics.state_dict()
             extra_state["previous_training_time"] = self.cumulative_training_time()
             checkpoint_utils.save_state(
@@ -297,6 +293,7 @@ class Trainer(object):
         """
         extra_state, self._optim_history, last_optim_state = None, [], None
 
+        logger.info(f"Preparing to load checkpoint {filename}")
         bexists = PathManager.isfile(filename)
         if bexists:
             load_on_all_ranks = (
@@ -377,11 +374,6 @@ class Trainer(object):
 
         if extra_state is not None:
             epoch = extra_state["train_iterator"]["epoch"]
-            logger.info(
-                "loaded checkpoint {} (epoch {} @ {} updates)".format(
-                    filename, epoch, self.get_num_updates()
-                )
-            )
 
             if "previous_training_time" in extra_state:
                 self._previous_training_time = extra_state["previous_training_time"]
@@ -396,8 +388,15 @@ class Trainer(object):
                 for meter in metrics.get_meters("default"):
                     if isinstance(meter, meters.TimeMeter):
                         meter.reset()
+
+            logger.info(
+                "Loaded checkpoint {} (epoch {} @ {} updates)".format(
+                    filename, epoch, self.get_num_updates()
+                )
+            )
+
         else:
-            logger.info("no existing checkpoint found {}".format(filename))
+            logger.info("No existing checkpoint found {}".format(filename))
 
         return extra_state
 

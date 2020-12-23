@@ -327,7 +327,6 @@ def validate_and_save(
 
     # Save checkpoint
     if do_save or should_stop:
-        logger.info("begin save checkpoint")
         checkpoint_utils.save_checkpoint(
             cfg.checkpoint, trainer, epoch_itr, valid_losses[0]
         )
