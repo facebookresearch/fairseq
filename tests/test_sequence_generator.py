@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
-import tempfile
 import unittest
 
 import tests.utils as test_utils
@@ -15,6 +14,7 @@ from fairseq.models.transformer import TransformerModel
 from fairseq.sequence_generator import EnsembleModel, SequenceGenerator
 from fairseq.tasks.fairseq_task import LegacyFairseqTask
 
+from .temp_file import CustomNamedTemporaryFile
 
 DEFAULT_TEST_VOCAB_SIZE = 100
 
@@ -102,7 +102,7 @@ class TestJitSequenceGeneratorBase(unittest.TestCase):
         self.assertAlmostEqual(h1["attention"], h2["attention"])
 
     def _test_save_and_load(self, scripted_module):
-        with tempfile.NamedTemporaryFile() as f:
+        with CustomNamedTemporaryFile() as f:
             scripted_module.save(f.name)
             torch.jit.load(f.name)
 

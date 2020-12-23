@@ -6,6 +6,7 @@
 import contextlib
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from io import StringIO
@@ -16,6 +17,10 @@ from . import test_binaries
 
 
 class TestReproducibility(unittest.TestCase):
+    def setUp(self):
+        self._data_dir = tempfile.TemporaryDirectory()
+        self.data_dir = self._data_dir.name
+
     def _test_reproducibility(
         self,
         name,
@@ -28,76 +33,77 @@ class TestReproducibility(unittest.TestCase):
             for log_record in logs.records[::-1]:
                 if isinstance(log_record.msg, str) and search_string in log_record.msg:
                     return json.loads(log_record.msg)
+            return json.loads("{}")
 
         if extra_flags is None:
             extra_flags = []
+        data_dir = self.data_dir
 
-        with tempfile.TemporaryDirectory(name) as data_dir:
-            with self.assertLogs() as logs:
-                test_binaries.create_dummy_data(data_dir)
-                test_binaries.preprocess_translation_data(data_dir)
+        with self.assertLogs("fairseq_cli.preprocess") as logs:
+            test_binaries.create_dummy_data(data_dir)
+            test_binaries.preprocess_translation_data(data_dir)
 
-            # train epochs 1 and 2 together
-            with self.assertLogs() as logs:
-                test_binaries.train_translation_model(
-                    data_dir,
-                    "fconv_iwslt_de_en",
-                    [
-                        "--dropout",
-                        "0.0",
-                        "--log-format",
-                        "json",
-                        "--log-interval",
-                        "1",
-                        "--max-epoch",
-                        str(max_epoch),
-                    ]
-                    + extra_flags,
-                )
-            train_log = get_last_log_stats_containing_string(logs.records, "train_loss")
-            valid_log = get_last_log_stats_containing_string(logs.records, "valid_loss")
-
-            # train epoch 2, resuming from previous checkpoint 1
-            os.rename(
-                os.path.join(data_dir, resume_checkpoint),
-                os.path.join(data_dir, "checkpoint_last.pt"),
+        # train epochs 1 and 2 together
+        with self.assertLogs("fairseq.logging.progress_bar") as logs:
+            test_binaries.train_translation_model(
+                data_dir,
+                "fconv_iwslt_de_en",
+                [
+                    "--dropout",
+                    "0.0",
+                    "--log-format",
+                    "json",
+                    "--log-interval",
+                    "1",
+                    "--max-epoch",
+                    str(max_epoch),
+                ]
+                + extra_flags,
             )
-            with self.assertLogs() as logs:
-                test_binaries.train_translation_model(
-                    data_dir,
-                    "fconv_iwslt_de_en",
-                    [
-                        "--dropout",
-                        "0.0",
-                        "--log-format",
-                        "json",
-                        "--log-interval",
-                        "1",
-                        "--max-epoch",
-                        str(max_epoch),
-                    ]
-                    + extra_flags,
-                )
-            train_res_log = get_last_log_stats_containing_string(
-                logs.records, "train_loss"
-            )
-            valid_res_log = get_last_log_stats_containing_string(
-                logs.records, "valid_loss"
-            )
+        train_log = get_last_log_stats_containing_string(logs.records, "train_loss")
+        valid_log = get_last_log_stats_containing_string(logs.records, "valid_loss")
 
-            for k in ["train_loss", "train_ppl", "train_num_updates", "train_gnorm"]:
-                self.assertAlmostEqual(
-                    float(train_log[k]), float(train_res_log[k]), delta=delta
-                )
-            for k in [
-                "valid_loss",
-                "valid_ppl",
-                "valid_num_updates",
-                "valid_best_loss",
-            ]:
-                self.assertAlmostEqual(
-                    float(valid_log[k]), float(valid_res_log[k]), delta=delta
-                )
+        # train epoch 2, resuming from previous checkpoint 1
+        shutil.move(
+            os.path.join(data_dir, resume_checkpoint),
+            os.path.join(data_dir, "checkpoint_last.pt"),
+        )
+        with self.assertLogs("fairseq.logging.progress_bar") as logs:
+            test_binaries.train_translation_model(
+                data_dir,
+                "fconv_iwslt_de_en",
+                [
+                    "--dropout",
+                    "0.0",
+                    "--log-format",
+                    "json",
+                    "--log-interval",
+                    "1",
+                    "--max-epoch",
+                    str(max_epoch),
+                ]
+                + extra_flags,
+            )
+        train_res_log = get_last_log_stats_containing_string(
+            logs.records, "train_loss"
+        )
+        valid_res_log = get_last_log_stats_containing_string(
+            logs.records, "valid_loss"
+        )
+
+        for k in ["train_loss", "train_ppl", "train_num_updates", "train_gnorm"]:
+            self.assertAlmostEqual(
+                 float(train_log[k]), float(train_res_log[k]), delta=delta
+            )
+        for k in [
+            "valid_loss",
+            "valid_ppl",
+            "valid_num_updates",
+            "valid_best_loss",
+        ]:
+            self.assertAlmostEqual(
+                float(valid_log[k]), float(valid_res_log[k]), delta=delta
+            )
 
     def test_reproducibility(self):
         self._test_reproducibility("test_reproducibility")

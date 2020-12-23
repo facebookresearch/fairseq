@@ -34,11 +34,10 @@ def main(args):
 
     os.makedirs(args.destdir, exist_ok=True)
 
-    logger.addHandler(
-        logging.FileHandler(
-            filename=os.path.join(args.destdir, "preprocess.log"),
-        )
+    handler = logging.FileHandler(
+        filename=os.path.join(args.destdir, "preprocess.log"),
     )
+    logger.addHandler(handler)
     logger.info(args)
 
     task = tasks.get_task(args.task)
@@ -331,7 +330,8 @@ def main(args):
         ) as f:
             for k, v in align_dict.items():
                 print("{} {}".format(src_dict[k], tgt_dict[v]), file=f)
-
+    handler.close()
+    logger.removeHandler(handler)
 
 def binarize(args, filename, vocab, output_prefix, lang, offset, end, append_eos=True):
     ds = indexed_dataset.make_builder(

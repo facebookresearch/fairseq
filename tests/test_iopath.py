@@ -3,11 +3,15 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import tempfile
 import unittest
 from unittest import mock
 
 
 class TestIOPath(unittest.TestCase):
+    def setUp(self):
+        self._data_dir = tempfile.TemporaryDirectory()
+        self.data_dir = self._data_dir.name
 
     def test_no_iopath(self):
         from .test_reproducibility import TestReproducibility

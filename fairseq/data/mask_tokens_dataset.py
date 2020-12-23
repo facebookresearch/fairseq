@@ -171,7 +171,7 @@ class MaskTokensDataset(BaseWrapperDataset):
                 # (i.e., the targets for masked LM training)
                 if self.mask_whole_words is not None:
                     mask = np.repeat(mask, word_lens)
-                new_item = np.full(len(mask), self.pad_idx)
+                new_item = np.full(len(mask), self.pad_idx, dtype=np.int64)
                 new_item[mask] = item[torch.from_numpy(mask.astype(np.uint8)) == 1]
                 return torch.from_numpy(new_item)
 
@@ -199,7 +199,7 @@ class MaskTokensDataset(BaseWrapperDataset):
             if self.mask_whole_words is not None:
                 mask = np.repeat(mask, word_lens)
 
-            new_item = np.copy(item)
+            new_item = np.copy(item).astype(np.int64)
             new_item[mask] = self.mask_idx
             if rand_mask is not None:
                 num_rand = rand_mask.sum()
