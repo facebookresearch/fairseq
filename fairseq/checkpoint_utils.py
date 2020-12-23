@@ -47,15 +47,17 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
     if not trainer.is_data_parallel_master:
         return
 
-    def is_better(a, b):
-        return a >= b if cfg.maximize_best_checkpoint_metric else a <= b
-
     write_timer = meters.StopwatchMeter()
     write_timer.start()
 
     epoch = epoch_itr.epoch
     end_of_epoch = epoch_itr.end_of_epoch()
     updates = trainer.get_num_updates()
+
+    logger.info(f"Preparing to save checkpoint for epoch {epoch} @ {updates} updates")
+
+    def is_better(a, b):
+        return a >= b if cfg.maximize_best_checkpoint_metric else a <= b
 
     suffix = cfg.checkpoint_suffix or ""
     checkpoint_conds = collections.OrderedDict()
@@ -91,11 +93,13 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
     if len(checkpoints) > 0:
         trainer.save_checkpoint(checkpoints[0], extra_state)
         for cp in checkpoints[1:]:
-            PathManager.copy(checkpoints[0], cp, overwrite=True)
+            assert PathManager.copy(
+                checkpoints[0], cp, overwrite=True
+            ), f"Failed to copy {checkpoints[0]} to {cp}"
 
         write_timer.stop()
         logger.info(
-            "saved checkpoint {} (epoch {} @ {} updates, score {}) (writing took {} seconds)".format(
+            "Saved checkpoint {} (epoch {} @ {} updates, score {}) (writing took {} seconds)".format(
                 checkpoints[0], epoch, updates, val_loss, write_timer.sum
             )
         )
@@ -494,10 +498,16 @@ def _upgrade_state_dict(state):
             state["args"].stop_min_lr = state["args"].min_lr
             del state["args"].min_lr
         # binary_cross_entropy => wav2vec criterion
-        if hasattr(state["args"], "criterion") and state["args"].criterion == "binary_cross_entropy":
+        if (
+            hasattr(state["args"], "criterion")
+            and state["args"].criterion == "binary_cross_entropy"
+        ):
             state["args"].criterion = "wav2vec"
         # speech_pretraining => audio pretraining
-        if hasattr(state["args"], "task") and state["args"].task == "speech_pretraining":
+        if (
+            hasattr(state["args"], "task")
+            and state["args"].task == "speech_pretraining"
+        ):
             state["args"].task = "audio_pretraining"
         # audio_cpc => wav2vec
         if hasattr(state["args"], "arch") and state["args"].arch == "audio_cpc":
