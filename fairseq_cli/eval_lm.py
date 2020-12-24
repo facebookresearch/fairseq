@@ -239,6 +239,10 @@ def main(cfg: DictConfig, **unused_kwargs):
 
     logger.info(cfg)
 
+    if cfg.eval_lm.context_window > 0:
+        # reduce tokens per sample by the required context window size
+        cfg.task.tokens_per_sample -= cfg.eval_lm.context_window
+
     # Initialize the task using the current *cfg*
     task = tasks.setup_task(cfg.task)
 
