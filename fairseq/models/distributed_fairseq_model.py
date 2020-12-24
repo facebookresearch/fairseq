@@ -4,12 +4,19 @@
 # LICENSE file in the root directory of this source tree.
 
 import inspect
+import logging
+import os
+import signal
+import threading
 
 import torch
 import torch.nn as nn
 
 from fairseq import distributed_utils
 from fairseq.legacy_distributed_data_parallel import LegacyDistributedDataParallel
+
+
+logger = logging.getLogger(__name__)
 
 
 _GOSSIP_DISABLED = False
@@ -97,18 +104,52 @@ def DistributedFairseqModel(args, model, process_group):
     else:
         raise ValueError("Unknown --ddp-backend: " + args.ddp_backend)
 
+    heartbeat_timeout = getattr(args, "heartbeat_timeout", -1)
+
     class _DistributedFairseqModel(ddp_class):
-        """Extend DistributedDataParallel to check for missing
-        attributes in the wrapped module."""
+        """
+        Extend DistributedDataParallel to check for missing attributes in the
+        wrapped module and to add a timeout to kill the job if no progress is
+        made (--heartbeat-timeout).
+        """
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
+            self._heartbeat_timeout = heartbeat_timeout
+            if self._heartbeat_timeout > 0:
+                self._heartbeat = threading.Event()
+                self._heartbeat_thread = threading.Thread(
+                    target=self._check_heartbeat,
+                    args=(os.getpid(),),
+                    daemon=True,
+                )
+                self._heartbeat_thread.start()
+            else:
+                self._heartbeat = None
+
+        def _check_heartbeat(self, parent_pid):
+            self._heartbeat.wait()  # wait for the first forward pass
+            while True:
+                self._heartbeat.clear()
+                success = self._heartbeat.wait(timeout=self._heartbeat_timeout)
+                if not success:
+                    logger.error((
+                        "Killing job for not making progress in {} seconds. "
+                        "Set --heartbeat-timeout=-1 to disable this timeout."
+                    ).format(int(self._heartbeat_timeout)))
+                    os.kill(parent_pid, signal.SIGKILL)
+                    return
 
         def __getattr__(self, name):
             wrapped_module = super().__getattr__("module")
             if hasattr(wrapped_module, name):
                 return getattr(wrapped_module, name)
             return super().__getattr__(name)
+
+        def forward(self, *args, **kwargs):
+            if self._heartbeat is not None:
+                self._heartbeat.set()
+            return super().forward(*args, **kwargs)
 
     return _DistributedFairseqModel(**init_kwargs)
 
