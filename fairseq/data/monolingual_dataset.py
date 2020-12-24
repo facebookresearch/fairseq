@@ -70,16 +70,16 @@ class MonolingualDataset(FairseqDataset):
         dataset,
         sizes,
         src_vocab,
-        tgt_vocab,
-        add_eos_for_other_targets,
-        shuffle,
+        tgt_vocab=None,
+        add_eos_for_other_targets=False,
+        shuffle=False,
         targets=None,
         add_bos_token=False,
     ):
         self.dataset = dataset
         self.sizes = np.array(sizes)
         self.vocab = src_vocab
-        self.tgt_vocab = tgt_vocab
+        self.tgt_vocab = tgt_vocab or src_vocab
         self.add_eos_for_other_targets = add_eos_for_other_targets
         self.shuffle = shuffle
         self.add_bos_token = add_bos_token

@@ -328,12 +328,9 @@ class LanguageModelingTask(LegacyFairseqTask):
         context_window: int = 0,
     ):
         if context_window > 0:
-            assert self.args.tokens_per_sample > context_window
-            # reduce tokens per sample by the required context window size
-            tokens_per_sample = self.args.tokens_per_sample - context_window
             dataset = LMContextWindowDataset(
                 dataset=dataset,
-                tokens_per_sample=tokens_per_sample,
+                tokens_per_sample=self.args.tokens_per_sample,
                 context_window=context_window,
                 pad_idx=self.source_dictionary.pad(),
             )

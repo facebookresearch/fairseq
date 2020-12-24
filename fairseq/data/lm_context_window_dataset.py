@@ -11,10 +11,23 @@ from . import FairseqDataset
 
 
 class LMContextWindowDataset(FairseqDataset):
-    """Wraps a MonolingualDataset and provides more context for evaluation."""
+    """
+    Wraps a MonolingualDataset and provides more context for evaluation.
 
-    def __init__(self, dataset, tokens_per_sample, context_window, pad_idx):
-        assert isinstance(dataset, MonolingualDataset)
+    Each item in the new dataset will have a maximum size of
+    ``tokens_per_sample + context_window``.
+
+    Args:
+        dataset: dataset to wrap
+        tokens_per_sample (int): the max number of tokens in each dataset item
+        context_window (int): the number of accumulated tokens to add to each
+            dataset item
+        pad_idx (int): padding symbol
+    """
+
+    def __init__(
+        self, dataset, tokens_per_sample: int, context_window: int, pad_idx: int
+    ):
         assert context_window > 0
         self.dataset = dataset
         self.tokens_per_sample = tokens_per_sample
