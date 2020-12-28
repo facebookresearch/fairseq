@@ -99,7 +99,7 @@ def load_indexed_dataset(
         )
         if dataset is None:
             break
-        logger.info("loaded {} examples from: {}".format(len(dataset), path_k))
+        logger.info("loaded {:,} examples from: {}".format(len(dataset), path_k))
         datasets.append(dataset)
         if not combine:
             break
