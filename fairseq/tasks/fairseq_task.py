@@ -154,7 +154,7 @@ class FairseqTask(object):
                 )
             logger.warning(
                 (
-                    "{} samples have invalid sizes and will be skipped, "
+                    "{:,} samples have invalid sizes and will be skipped, "
                     "max_positions={}, first few sample ids={}"
                 ).format(len(ignored), max_positions, ignored[:10])
             )
@@ -378,7 +378,7 @@ class FairseqTask(object):
         if seq_gen_cls is None:
             if getattr(args, "print_alignment", False):
                 seq_gen_cls = SequenceGeneratorWithAlignment
-                extra_gen_cls_kwargs['print_alignment'] = args.print_alignment
+                extra_gen_cls_kwargs["print_alignment"] = args.print_alignment
             else:
                 seq_gen_cls = SequenceGenerator
 

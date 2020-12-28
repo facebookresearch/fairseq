@@ -370,7 +370,7 @@ def _main(cfg: DictConfig, output_file):
 
     logger.info("NOTE: hypothesis and token scores are output in base 2")
     logger.info(
-        "Translated {} sentences ({} tokens) in {:.1f}s ({:.2f} sentences/s, {:.2f} tokens/s)".format(
+        "Translated {:,} sentences ({:,} tokens) in {:.1f}s ({:.2f} sentences/s, {:.2f} tokens/s)".format(
             num_sentences,
             gen_timer.n,
             gen_timer.sum,

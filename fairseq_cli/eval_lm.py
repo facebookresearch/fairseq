@@ -182,9 +182,11 @@ def eval_lm(
                         )
                     )
 
-    avg_nll_loss = -score_sum / count / math.log(2) if count > 0 else 0  # convert to base 2
+    avg_nll_loss = (
+        -score_sum / count / math.log(2) if count > 0 else 0
+    )  # convert to base 2
     logger.info(
-        "Evaluated {} tokens in {:.1f}s ({:.2f} tokens/s)".format(
+        "Evaluated {:,} tokens in {:.1f}s ({:.2f} tokens/s)".format(
             gen_timer.n, gen_timer.sum, 1.0 / gen_timer.avg if gen_timer.avg > 0 else 0
         )
     )
@@ -274,14 +276,16 @@ def main(cfg: DictConfig, **unused_kwargs):
     assert len(models) > 0
 
     logger.info(
-        "num. model params: {}".format(sum(p.numel() for p in models[0].parameters()))
+        "num. model params: {:,}".format(sum(p.numel() for p in models[0].parameters()))
     )
 
     # Load dataset splits
     task.load_dataset(cfg.dataset.gen_subset)
     dataset = task.dataset(cfg.dataset.gen_subset)
     logger.info(
-        "{} {} {} examples".format(cfg.task.data, cfg.dataset.gen_subset, len(dataset))
+        "{} {} {:,} examples".format(
+            cfg.task.data, cfg.dataset.gen_subset, len(dataset)
+        )
     )
 
     itr = task.eval_lm_dataloader(
