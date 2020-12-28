@@ -72,6 +72,25 @@ The sweep script will use `save_dir_key` to map each hyperparam configuration to
 - `--num-nodes`: launch job on multiple nodes
 
 
+## Aggregating results into tables
+Given a sweep started on e.g. 2020-12-15, we can tabulate results with
+
+```bash
+~/fairseq-py/fb_sweep/agg_results.py \
+    "/checkpoint/sshleifer/2020-12-15/**/*.log" \
+    --keep-cols loss,ppl,epoch,wps \
+    --csv-path sweep_results.md \
+    --sort-col loss
+```
+to save a table like
+| path                    |   loss |     ppl |   epoch |    wps |
+|:------------------------|-------:|--------:|--------:|-------:|
+| dummylr.lr_0.0001.ngpu1 |  11.29 | 2504.39 |       1 | 7181   |
+| dummylr.lr_0.0003.ngpu1 |  11.87 | 3743.49 |       1 | 7148.9 |
+| dummylr.lr_3e-05.ngpu1  |  13.1  | 8811.4  |       1 | 7123.1 |
+
+to `sweep_results.md`. To modify the table creation logic you should edit
+[`agg_results.py`](./agg_results.py). Also note that passing `--csv-path xx.csv` will save a csv.
 
 # Using Hydra
 The benefits of Hydra are discussed in detail [here](../docs/hydra_integration.md).
@@ -123,6 +142,21 @@ We can then run `tree -Ra multirun/2020-11-24/09-52-49/` to see all the files be
 ls multirun/2020-11-24/09-52-49/.submitit/**/*.out | xargs tail -n 2
 ```
 to monitor progress of each job.
+
+To compile results into a table, you can use fb_sweep/agg_results.py, for example:
+
+```bash
+~/fairseq-py/fb_sweep/agg_results.py \
+    "multirun/2020-11-24/09-52-49/**/.submitit/**/*.out" \
+    --csv-path hydra_agg.md \
+    -keep-cols=ppl,wps,epoch,date
+```
+Will produce warnings for jobs that haven't started, and make a table like below once jobs start logging
+
+|       path |   ppl |    wps |   epoch | date                |
+|-----------:|------:|-------:|--------:|:--------------------|
+| 33172726_0 |  6.52 | 1440.2 |       1 | 2020-11-24-09-52-49 |
+| 33172726_1 |  3.64 | 1401.8 |       1 | 2020-11-24-09-52-49 |
 
 
 
