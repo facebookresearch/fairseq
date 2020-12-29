@@ -134,7 +134,7 @@ class CompositeOptimizer(torch.optim.Optimizer):
     def step(self, closure=None, groups=None):
         """Performs a single optimization step.
 
-        Arguments:
+        Args:
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
         """

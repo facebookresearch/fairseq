@@ -47,7 +47,7 @@ class FusedAdamV1(torch.optim.Optimizer):
     Compared to the original version in Apex, the fairseq version casts grads
     and params to FP32 internally to support ``--memory-efficient-fp16``.
 
-    Arguments:
+    Args:
         params (iterable): iterable of parameters to optimize or dicts defining
             parameter groups.
         lr (float, optional): learning rate. (default: 1e-3)
@@ -113,7 +113,7 @@ class FusedAdamV1(torch.optim.Optimizer):
 
     def step(self, closure=None, grads=None, scale=1.0, grad_norms=None):
         """Performs a single optimization step.
-        Arguments:
+        Args:
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
             grads (list of tensors, optional): weight gradient to use for the

@@ -53,7 +53,7 @@ class Adamax(torch.optim.Optimizer):
 
     Compared to the version in PyTorch, this version implements a fix for weight decay.
 
-    Arguments:
+    Args:
         params (iterable): iterable of parameters to optimize or dicts defining
             parameter groups
         lr (float, optional): learning rate (default: 2e-3)
@@ -107,7 +107,7 @@ class Adamax(torch.optim.Optimizer):
     def step(self, closure=None):
         """Performs a single optimization step.
 
-        Arguments:
+        Args:
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
         """
