@@ -80,8 +80,8 @@ def load_indexed_dataset(
             combine 'data-bin/train', 'data-bin/train1', ... and return a
             single ConcatDataset instance.
     """
-    from fairseq.data.concat_dataset import ConcatDataset
     import fairseq.data.indexed_dataset as indexed_dataset
+    from fairseq.data.concat_dataset import ConcatDataset
 
     datasets = []
     for k in itertools.count():
@@ -276,6 +276,7 @@ def filter_paired_dataset_indices_by_size(src_sizes, tgt_sizes, indices, max_siz
 def batch_by_size(
     indices,
     num_tokens_fn,
+    num_tokens_vec=None,
     max_tokens=None,
     max_sentences=None,
     required_batch_size_multiple=1,
@@ -289,6 +290,8 @@ def batch_by_size(
         indices (List[int]): ordered list of dataset indices
         num_tokens_fn (callable): function that returns the number of tokens at
             a given index
+        num_tokens_vec (List[int], optional): precomputed vector of the number
+            of tokens for each index in indices (to enable faster batch generation)
         max_tokens (int, optional): max number of tokens in each batch
             (default: None).
         max_sentences (int, optional): max number of sentences in each
@@ -301,7 +304,8 @@ def batch_by_size(
     """
     try:
         from fairseq.data.data_utils_fast import (
-            batch_by_size_fast,
+            batch_by_size_fn,
+            batch_by_size_vec,
             batch_fixed_shapes_fast,
         )
     except ImportError:
@@ -317,14 +321,27 @@ def batch_by_size(
     if not isinstance(indices, np.ndarray):
         indices = np.fromiter(indices, dtype=np.int64, count=-1)
 
+    if num_tokens_vec is not None and not isinstance(num_tokens_vec, np.ndarray):
+        num_tokens_vec = np.fromiter(num_tokens_vec, dtype=np.int64, count=-1)
+
     if fixed_shapes is None:
-        return batch_by_size_fast(
-            indices,
-            num_tokens_fn,
-            max_tokens,
-            max_sentences,
-            bsz_mult,
-        )
+        if num_tokens_vec is None:
+            return batch_by_size_fn(
+                indices,
+                num_tokens_fn,
+                max_tokens,
+                max_sentences,
+                bsz_mult,
+            )
+        else:
+            return batch_by_size_vec(
+                indices,
+                num_tokens_vec,
+                max_tokens,
+                max_sentences,
+                bsz_mult,
+            )
+
     else:
         fixed_shapes = np.array(fixed_shapes, dtype=np.int64)
         sort_order = np.lexsort(

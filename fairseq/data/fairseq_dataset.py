@@ -3,9 +3,12 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import numpy as np
 import torch.utils.data
 from fairseq.data import data_utils
+
+logger = logging.getLogger(__name__)
 
 
 class EpochListening:
@@ -52,6 +55,11 @@ class FairseqDataset(torch.utils.data.Dataset, EpochListening):
     def num_tokens(self, index):
         """Return the number of tokens in a sample. This value is used to
         enforce ``--max-tokens`` during batching."""
+        raise NotImplementedError
+
+    def num_tokens_vec(self, indices):
+        """Return the number of tokens for a set of positions defined by indices.
+        This value is used to enforce ``--max-tokens`` during batching."""
         raise NotImplementedError
 
     def size(self, index):
@@ -129,9 +137,15 @@ class FairseqDataset(torch.utils.data.Dataset, EpochListening):
                 ]
             )
 
+        try:
+            num_tokens_vec = self.num_tokens_vec(indices).astype('int64')
+        except NotImplementedError:
+            num_tokens_vec = None
+
         return data_utils.batch_by_size(
             indices,
             num_tokens_fn=self.num_tokens,
+            num_tokens_vec=num_tokens_vec,
             max_tokens=max_tokens,
             max_sentences=max_sentences,
             required_batch_size_multiple=required_batch_size_multiple,
