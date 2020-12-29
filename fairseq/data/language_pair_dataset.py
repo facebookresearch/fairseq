@@ -408,6 +408,14 @@ class LanguagePairDataset(FairseqDataset):
             self.tgt_sizes[index] if self.tgt_sizes is not None else 0,
         )
 
+    def num_tokens_vec(self, indices):
+        """Return the number of tokens for a set of positions defined by indices.
+        This value is used to enforce ``--max-tokens`` during batching."""
+        sizes = self.src_sizes[indices]
+        if self.tgt_sizes is not None:
+            sizes = np.maximum(sizes, self.tgt_sizes[indices])
+        return sizes
+
     def size(self, index):
         """Return an example's size as a float or tuple. This value is used when
         filtering a dataset with ``--max-positions``."""
