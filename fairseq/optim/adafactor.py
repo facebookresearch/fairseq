@@ -76,7 +76,7 @@ class Adafactor(torch.optim.Optimizer):
     schedule you should set `scale_parameter=False` and
     `relative_step=False`.
 
-    Arguments:
+    Args:
         params (iterable): iterable of parameters to optimize or dicts defining
             parameter groups
         lr (float, optional): external learning rate (default: None)
@@ -168,7 +168,7 @@ class Adafactor(torch.optim.Optimizer):
     def step(self, closure=None):
         """Performs a single optimization step.
 
-        Arguments:
+        Args:
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
         """
