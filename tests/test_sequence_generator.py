@@ -6,6 +6,9 @@
 import argparse
 import tempfile
 import unittest
+import math
+import numpy as np
+
 
 import tests.utils as test_utils
 import torch
@@ -13,6 +16,7 @@ from fairseq import search
 from fairseq.data.dictionary import Dictionary
 from fairseq.models.transformer import TransformerModel
 from fairseq.sequence_generator import EnsembleModel, SequenceGenerator
+from fairseq.ngram_repeat_block import NGramRepeatBlock
 from fairseq.tasks.fairseq_task import LegacyFairseqTask
 
 
@@ -41,7 +45,7 @@ def get_dummy_dictionary(vocab_size=DEFAULT_TEST_VOCAB_SIZE):
     dummy_dict = Dictionary()
     # add dummy symbol to satisfy vocab size
     for id, _ in enumerate(range(vocab_size)):
-        dummy_dict.add_symbol("{}".format(id), 1000)
+        dummy_dict.add_symbol("{}".format(id), n=1000)
     return dummy_dict
 
 
@@ -107,30 +111,27 @@ class TestJitSequenceGeneratorBase(unittest.TestCase):
             torch.jit.load(f.name)
 
 
-class TestJitSequeneceGenerator(TestJitSequenceGeneratorBase):
-    @unittest.skipIf(
-        torch.__version__ < "1.6.0", "Targeting OSS scriptability for the 1.6 release"
-    )
+JIT_MSG = "Targeting OSS scriptability for the 1.6 release"
+
+
+@unittest.skipIf(torch.__version__ < "1.6.0", JIT_MSG)
+class TestJitSequenceGenerator(TestJitSequenceGeneratorBase):
     def test_export_transformer(self):
         model = self.transformer_model
         torch.jit.script(model)
 
-    @unittest.skipIf(
-        torch.__version__ < "1.6.0", "Targeting OSS scriptability for the 1.6 release"
-    )
     def test_ensemble_sequence_generator(self):
         model = self.transformer_model
         generator = SequenceGenerator(
-            [model], self.task.tgt_dict, beam_size=2, no_repeat_ngram_size=2
+            [model],
+            self.task.tgt_dict,
+            beam_size=2,
+            no_repeat_ngram_size=2,
+            max_len_b=10,
         )
         scripted_model = torch.jit.script(generator)
         self._test_save_and_load(scripted_model)
 
-
-class TestJitEnsemble(TestJitSequenceGeneratorBase):
-    @unittest.skipIf(
-        torch.__version__ < "1.6.0", "Targeting OSS scriptability for the 1.6 release"
-    )
     def test_export_ensemble_model(self):
         model = self.transformer_model
         ensemble_models = EnsembleModel([model])
@@ -185,7 +186,7 @@ class TestSequenceGeneratorBase(unittest.TestCase):
         self.assertEqual(t1.ne(t2).long().sum(), 0)
 
 
-class TestSequeneceGenerator(TestSequenceGeneratorBase):
+class TestSequenceGenerator(TestSequenceGeneratorBase):
     def setUp(self):
         (
             self.tgt_dict,
@@ -324,6 +325,103 @@ class TestSequeneceGenerator(TestSequenceGeneratorBase):
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, eos])
         self.assertHypoScore(hypos[0][0], [0.9, 1.0])
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "")
+class TestRepeatNgramBlocking(TestSequenceGeneratorBase):
+    @classmethod
+    def setUpClass(cls):
+        (
+            cls.tgt_dict,
+            cls.w1,
+            cls.w2,
+            src_tokens,
+            src_lengths,
+            cls.model,
+        ) = test_utils.sequence_generator_setup()
+        return cls
+
+    def test_finds_repetitive_tokens(self):
+        bsz, vocab_size, beam_size, step = 2, 4, 1, 3
+        generated_tok = torch.tensor(
+            [[2, 2, 2, 2], [3, 3, 3, 3]], dtype=torch.long, device="cuda"
+        )
+        lprobs = torch.zeros((beam_size * bsz, vocab_size), device="cuda")
+        desired_result = lprobs.new_tensor(
+            [[0.0, 0.0, -math.inf, 0.0], [0.0, 0.0, 0.0, -math.inf]]
+        )
+
+        cuda_ext_result, baseline_result = self._compare_cuda_ext_to_default_implem(
+            bsz, beam_size, generated_tok, lprobs, step, 2
+        )
+        self.assertTensorEqual(cuda_ext_result, desired_result)
+        self.assertTensorEqual(baseline_result, desired_result)
+
+    @unittest.skipIf(torch.__version__ < "1.6.0", JIT_MSG)
+    def test_jit_no_extension(self):
+        bsz, vocab_size, beam_size, step = 2, 4, 1, 3
+        generated_tok = torch.tensor(
+            [[2, 2, 2, 2], [3, 3, 3, 3]], dtype=torch.long, device="cuda"
+        )
+        lprobs = torch.zeros((beam_size * bsz, vocab_size), device="cuda")
+        blocker = NGramRepeatBlock(2, use_extension=False)
+        base_result = blocker(generated_tok, lprobs.clone(), bsz, beam_size, step)
+        scripted_blocker = torch.jit.script(blocker)
+        jit_result = scripted_blocker(
+            generated_tok, lprobs.clone(), bsz, beam_size, step
+        )
+        self.assertTensorEqual(base_result, jit_result)
+
+    def test_ngram_blocking_same_as_default_implem(self):
+        """Test that cuda extension returns same things as default impl in many settings."""
+        vocab_size = 4
+        step = 6
+        for _ in range(2):
+            block_param = np.random.choice([1, 2, 3, 4])
+            batch_size = np.random.randint(1, 8)
+            beam_size = np.random.choice([1, 2, 4, 8])
+            lprobs = torch.zeros((beam_size * batch_size, vocab_size), device="cuda")
+
+            generated_tok = torch.tensor(
+                np.random.randint(
+                    0, vocab_size, size=(batch_size * beam_size, step + 1)
+                ),
+                device="cuda",
+                dtype=torch.long,
+            )
+            self._compare_cuda_ext_to_default_implem(
+                batch_size,
+                beam_size,
+                generated_tok,
+                lprobs,
+                step,
+                block_param,
+            )
+
+    def _compare_cuda_ext_to_default_implem(
+        self, bsz, beam_size, generated_tok, lprobs, step, block_param
+    ):
+        """Assert that cuda extension and default implem return the same thing."""
+        blocker = NGramRepeatBlock(block_param)
+        assert blocker.use_extension, "Extension not compiled"
+        cuda_ext_result = blocker(
+            generated_tok,
+            lprobs.clone(),
+            bsz,
+            beam_size,
+            step,
+        )
+        blocker.use_extension = False
+        baseline_result = blocker(
+            generated_tok,
+            lprobs.clone(),
+            bsz,
+            beam_size,
+            step,
+        )
+        self.assertTensorEqual(cuda_ext_result, baseline_result)
+        blocker.use_extension = True
+        return cuda_ext_result, baseline_result
 
 
 class TestDiverseBeamSearch(TestSequenceGeneratorBase):
