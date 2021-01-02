@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import hashlib
 import itertools
 import os
 import random
@@ -142,6 +143,10 @@ def launch_train(args, config):
         print(f"skip in progress run: {save_dir}")
         return
 
+    # environment
+    env = os.environ.copy()
+    env["OMP_NUM_THREADS"] = "2"
+
     # generate train command
     train_cmd = [args.python, os.path.join(destination, args.script)]
     train_cmd.extend(["--distributed-world-size", str(args.num_nodes * args.num_gpus)])
@@ -160,7 +165,7 @@ def launch_train(args, config):
         if _dir is None:
             _dir = os.path.join(
                 "/checkpoint",
-                os.environ["USER"],
+                env["USER"],
                 "tensorboard_logs",
                 str(datetime.date.today()),
             )
@@ -168,6 +173,17 @@ def launch_train(args, config):
             _dir, f"{args.prefix}.{save_dir_key}.ngpu{num_total_gpus}"
         )
         train_cmd.extend(["--tensorboard-logdir", tensorboard_logdir])
+    if not args.no_wandb:
+        if "WANDB_API_KEY" in env and "WANDB_BASE_URL" in env:
+            if "--wandb-project" not in config:
+                project = str(datetime.date.today())
+                train_cmd.extend(["--wandb-project", project])
+            if "WANDB_RUN_GROUP" not in env:
+                env["WANDB_RUN_GROUP"] = args.prefix
+            if "WANDB_RUN_ID" not in env:
+                env["WANDB_RUN_ID"] = (
+                    hashlib.md5(os.path.basename(save_dir).encode('utf-8')).hexdigest()
+                )
     for hp in config.values():
         train_cmd.extend(map(str, hp.get_cli_args()))
 
@@ -193,8 +209,6 @@ def launch_train(args, config):
             dry_run(f"post steps command: {post_cmd}")
 
     # start training
-    env = os.environ.copy()
-    env["OMP_NUM_THREADS"] = "2"
     if args.local:
         assert (
             args.num_nodes == 1

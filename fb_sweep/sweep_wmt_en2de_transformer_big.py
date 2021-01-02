@@ -35,7 +35,7 @@ def get_grid(args):
         hyperparam("--warmup-updates", 4000, save_dir_key=lambda val: f"warmup{val}"),
         # use double the default learning rate, since we're using --update-freq=16
         hyperparam("--lr", 10e-4, save_dir_key=lambda val: f"lr{val}"),
-        hyperparam("--min-lr", 1e-9),
+        hyperparam("--stop-min-lr", 1e-9),
         hyperparam("--clip-norm", 0.0, save_dir_key=lambda val: f"clip{val}"),
         hyperparam("--dropout", 0.3, save_dir_key=lambda val: f"drop{val}"),
         hyperparam("--weight-decay", 0.0, save_dir_key=lambda val: f"wd{val}"),

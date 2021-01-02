@@ -230,6 +230,9 @@ def get_args(add_extra_options_func=None, input_args: Optional[List[str]] = None
         "--no-tensorboard", action="store_true", help="disable tensorboard logging"
     )
     parser.add_argument(
+        "--no-wandb", action="store_true", help="disable WandB logging"
+    )
+    parser.add_argument(
         "--post-steps",
         nargs="+",
         help="additional steps to execute after the primary job is complete. "
