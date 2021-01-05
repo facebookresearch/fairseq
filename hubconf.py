@@ -17,6 +17,7 @@ dependencies = [
     "dataclasses",
     "hydra",
     "numpy",
+    "omegaconf",
     "regex",
     "requests",
     "torch",
