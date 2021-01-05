@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Helper script to pre-compute embeddings for a wav2letter++ dataset
+Helper script to pre-compute embeddings for a flashlight (previously called wav2letter++) dataset
 """
 
 import argparse
@@ -52,7 +52,7 @@ class PretrainedWav2VecModel(nn.Module):
 
 class EmbeddingWriterConfig(argparse.ArgumentParser):
     def __init__(self):
-        super().__init__("Pre-compute embeddings for wav2letter++ datasets")
+        super().__init__("Pre-compute embeddings for flashlight datasets")
 
         kwargs = {"action": "store", "type": str, "required": True}
 
@@ -67,7 +67,7 @@ class EmbeddingWriterConfig(argparse.ArgumentParser):
         self.add_argument(
             "--no-copy-labels",
             action="store_true",
-            help="Do not copy label files. Useful for large datasets, use --targetdir in wav2letter then.",
+            help="Do not copy label files. Useful for large datasets, use --targetdir in flashlight then.",
         )
         self.add_argument(
             "--use-feat",
@@ -93,7 +93,7 @@ class Prediction:
 
 
 class H5Writer:
-    """ Write features as hdf5 file in wav2letter++ compatible format """
+    """ Write features as hdf5 file in flashlight compatible format """
 
     def __init__(self, fname):
         self.fname = fname
@@ -109,11 +109,11 @@ class H5Writer:
 
 
 class EmbeddingDatasetWriter(object):
-    """Given a model and a wav2letter++ dataset, pre-compute and store embeddings
+    """Given a model and a flashlight dataset, pre-compute and store embeddings
 
     Args:
         input_root, str :
-            Path to the wav2letter++ dataset
+            Path to the flashlight dataset
         output_root, str :
             Desired output directory. Will be created if non-existent
         split, str :
