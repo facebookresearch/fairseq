@@ -170,8 +170,8 @@ def _main(cfg: DictConfig, output_file):
     )
 
     # Handle tokenization and BPE
-    tokenizer = encoders.build_tokenizer(cfg.tokenizer)
-    bpe = encoders.build_bpe(cfg.bpe)
+    tokenizer = task.build_tokenizer(cfg.tokenizer)
+    bpe = task.build_bpe(cfg.bpe)
 
     def decode_fn(x):
         if bpe is not None:
