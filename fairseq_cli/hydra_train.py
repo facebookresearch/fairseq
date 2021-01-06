@@ -10,7 +10,7 @@ import sys
 
 from fairseq.dataclass.initialize import hydra_init
 from fairseq_cli.train import main as pre_main
-from fairseq import distributed_utils
+from fairseq import distributed_utils, metrics
 from fairseq.dataclass.configs import FairseqConfig
 
 import hydra
@@ -22,7 +22,7 @@ logger = logging.getLogger("fairseq_cli.hydra_train")
 
 
 @hydra.main(config_path=os.path.join("..", "fairseq", "config"), config_name="config")
-def hydra_main(cfg: FairseqConfig) -> None:
+def hydra_main(cfg: FairseqConfig) -> float:
     cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True, enum_to_str=True))
 
     OmegaConf.set_struct(cfg, True)
@@ -30,12 +30,31 @@ def hydra_main(cfg: FairseqConfig) -> None:
     if cfg.common.reset_logging:
         reset_logging()  # Hydra hijacks logging, fix that
 
-    if cfg.common.profile:
-        with torch.cuda.profiler.profile():
-            with torch.autograd.profiler.emit_nvtx():
-                distributed_utils.call_main(cfg, pre_main)
-    else:
-        distributed_utils.call_main(cfg, pre_main)
+    try:
+        if cfg.common.profile:
+            with torch.cuda.profiler.profile():
+                with torch.autograd.profiler.emit_nvtx():
+                    distributed_utils.call_main(cfg, pre_main)
+        else:
+            distributed_utils.call_main(cfg, pre_main)
+    except BaseException as e:
+        if not cfg.common.suppress_crashes:
+            raise
+        else:
+            logger.error("Crashed! " + str(e))
+
+    # get best val and return - useful for sweepers
+    try:
+        best_val = metrics.get_smoothed_value(
+            "valid", cfg.checkpoint.best_checkpoint_metric
+        )
+    except:
+        best_val = None
+
+    if best_val is None:
+        best_val = float("inf")
+
+    return best_val
 
 
 def reset_logging():
