@@ -4,10 +4,30 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+from dataclasses import dataclass, field
 
 import torch
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
+from fairseq.dataclass import FairseqDataclass
+from omegaconf import II
+
+
+@dataclass
+class LabelSmoothedCrossEntropyCriterionConfig(FairseqDataclass):
+    label_smoothing: float = field(
+        default=0.0,
+        metadata={"help": "epsilon for label smoothing, 0 means no label smoothing"},
+    )
+    report_accuracy: bool = field(
+        default=False,
+        metadata={"help": "report accuracy metric"},
+    )
+    ignore_prefix_size: int = field(
+        default=0,
+        metadata={"help": "Ignore first N tokens"},
+    )
+    sentence_avg: bool = II("optimization.sentence_avg")
 
 
 def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=None, reduce=True):
@@ -30,7 +50,9 @@ def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=None, reduce=T
     return loss, nll_loss
 
 
-@register_criterion("label_smoothed_cross_entropy")
+@register_criterion(
+    "label_smoothed_cross_entropy", dataclass=LabelSmoothedCrossEntropyCriterionConfig
+)
 class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
     def __init__(
         self,
@@ -45,18 +67,6 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         self.eps = label_smoothing
         self.ignore_prefix_size = ignore_prefix_size
         self.report_accuracy = report_accuracy
-
-    @staticmethod
-    def add_args(parser):
-        """Add criterion-specific arguments to the parser."""
-        # fmt: off
-        parser.add_argument('--label-smoothing', default=0., type=float, metavar='D',
-                            help='epsilon for label smoothing, 0 means no label smoothing')
-        parser.add_argument('--report-accuracy', action='store_true',
-                            help='report accuracy metric')
-        parser.add_argument('--ignore-prefix-size', default=0, type=int,
-                            help='Ignore first N tokens')
-        # fmt: on
 
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.
