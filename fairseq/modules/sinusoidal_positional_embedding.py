@@ -21,7 +21,7 @@ class SinusoidalPositionalEmbedding(nn.Module):
     def __init__(self, embedding_dim, padding_idx, init_size=1024):
         super().__init__()
         self.embedding_dim = embedding_dim
-        self.padding_idx = padding_idx
+        self.padding_idx = padding_idx if padding_idx is not None else 0
         self.weights = SinusoidalPositionalEmbedding.get_embedding(
             init_size, embedding_dim, padding_idx
         )

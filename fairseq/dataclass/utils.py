@@ -11,7 +11,7 @@ import re
 from argparse import ArgumentError, ArgumentParser, Namespace
 from dataclasses import _MISSING_TYPE, MISSING
 from enum import Enum
-from typing import Any, Dict, List, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.configs import FairseqConfig
@@ -43,7 +43,7 @@ def interpret_dc_type(field_type):
         return str
 
     typestring = str(field_type)
-    if re.match(r"(typing.|^)Union\[(.*), NoneType\]$", typestring):
+    if re.match(r"(typing.|^)Union\[(.*), NoneType\]$", typestring) or typestring.startswith("typing.Optional"):
         return field_type.__args__[0]
     return field_type
 
@@ -230,14 +230,15 @@ def _override_attr(
 
         v_type = getattr(v.type, "__origin__", None)
         if (
-            (v_type is List or v_type is list)
+            (v_type is List or v_type is list or v_type is Optional)
             # skip interpolation
             and not (isinstance(val, str) and val.startswith("${"))
         ):
             # if type is int but val is float, then we will crash later - try to convert here
-            t_args = v.type.__args__
-            if len(t_args) == 1:
-                val = list(map(t_args[0], val))
+            if hasattr(v.type, '__args__'):
+                t_args = v.type.__args__
+                if len(t_args) == 1:
+                    val = list(map(t_args[0], val))
         elif val is not None and (field_type is int or field_type is bool or field_type is float):
             try:
                 val = field_type(val)

@@ -83,7 +83,7 @@ class ModelCriterion(FairseqCriterion):
         }
 
         for lk in self.log_keys:
-            if lk in net_output:
+            if lk in net_output and net_output[lk] is not None:
                 logging_output[lk] = float(net_output[lk])
 
         if len(scaled_losses) > 1:

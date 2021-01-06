@@ -39,7 +39,7 @@ def setup_task(cfg: FairseqDataclass, **kwargs):
             cfg = merge_with_parent(dc(), cfg)
             task = TASK_REGISTRY[task_name]
 
-    assert task is not None, f"Could not infer task type from {cfg}"
+    assert task is not None, f"Could not infer task type from {cfg}. Available tasks: {TASK_REGISTRY.keys()}"
 
     return task.setup_task(cfg, **kwargs)
 

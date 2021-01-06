@@ -186,6 +186,13 @@ class CommonConfig(FairseqDataclass):
             "help": "when using Hydra, reset the logging at the beginning of training"
         },
     )
+    suppress_crashes: bool = field(
+        default=False,
+        metadata={
+            "help": "suppress crashes when training with the hydra_train entry point so that the "
+                    "main method can return a value (useful for sweeps)"
+        },
+    )
 
 
 @dataclass
