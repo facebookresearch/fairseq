@@ -5,6 +5,7 @@
 
 import torch
 from torch.nn.modules.utils import _single
+from torch import Tensor
 
 
 class ConvTBC(torch.nn.Module):
@@ -26,10 +27,13 @@ class ConvTBC(torch.nn.Module):
         )
         self.bias = torch.nn.Parameter(torch.Tensor(out_channels))
 
-    def forward(self, input):
+    def conv_tbc(self, input: Tensor):
         return torch.conv_tbc(
             input.contiguous(), self.weight, self.bias, self.padding[0]
         )
+
+    def forward(self, input: Tensor):
+        return self.conv_tbc(input)
 
     def __repr__(self):
         s = (
