@@ -144,19 +144,46 @@ class EpochBatchIterating(object):
 
 
 class StreamingEpochBatchIterator(EpochBatchIterating):
+    """A steaming-style iterator over a :class:`torch.utils.data.IterableDataset`.
+
+    Args:
+        dataset (~torch.utils.data.Dataset): dataset from which to load the data
+        max_sentences: batch size
+        collate_fn (callable): merges a list of samples to form a mini-batch
+        num_workers (int, optional): how many subprocesses to use for data
+            loading. 0 means the data will be loaded in the main process
+            (default: 0).
+        epoch (int, optional): the epoch to start the iterator from
+            (default: 1).
+        buffer_size (int, optional): the number of batches to keep ready in the
+            queue. Helps speeding up dataloading. When buffer_size is zero, the
+            default torch.utils.data.DataLoader preloading is used.
+        timeout (int, optional): if positive, the timeout value for collecting a batch
+            from workers. Should always be non-negative (default: ``0``).
+    """
+
     def __init__(
         self,
         dataset,
+        max_sentences=1,
+        collate_fn=None,
         epoch=1,
-        num_shards=1,
-        shard_id=0,
+        num_workers=0,
+        buffer_size=0,
+        timeout=0,
     ):
         assert isinstance(dataset, torch.utils.data.IterableDataset)
         self.dataset = dataset
+        self.max_sentences = max_sentences
+        self.collate_fn = collate_fn
         self.epoch = max(epoch, 1)  # we use 1-based indexing for epochs
+        self.num_workers = num_workers
+        # This upper limit here is to prevent people from abusing this feature
+        # in a shared computing environment.
+        self.buffer_size = min(buffer_size, 20)
+        self.timeout = timeout
+
         self._current_epoch_iterator = None
-        self.num_shards = num_shards
-        self.shard_id = shard_id
 
     @property
     def next_epoch_idx(self):
@@ -170,13 +197,7 @@ class StreamingEpochBatchIterator(EpochBatchIterating):
         self.epoch = self.next_epoch_idx
         if hasattr(self.dataset, "set_epoch"):
             self.dataset.set_epoch(self.epoch)
-        self._current_epoch_iterator = CountingIterator(
-            iterable=ShardedIterator(
-                iterable=self.dataset,
-                num_shards=self.num_shards,
-                shard_id=self.shard_id,
-            ),
-        )
+        self._current_epoch_iterator = self._get_iterator_for_epoch(self.epoch, shuffle)
         return self._current_epoch_iterator
 
     def end_of_epoch(self) -> bool:
@@ -195,6 +216,30 @@ class StreamingEpochBatchIterator(EpochBatchIterating):
 
     def load_state_dict(self, state_dict):
         self.epoch = state_dict["epoch"]
+
+    def _get_iterator_for_epoch(self, epoch, shuffle, offset=0):
+        if self.num_workers > 0:
+            os.environ["PYTHONWARNINGS"] = "ignore:semaphore_tracker:UserWarning"
+
+        # Create data loader
+        worker_init_fn = getattr(self.dataset, "worker_init_fn", None)
+        itr = torch.utils.data.DataLoader(
+            self.dataset,
+            batch_size=self.max_sentences,
+            collate_fn=self.collate_fn,
+            num_workers=self.num_workers,
+            timeout=self.timeout,
+            worker_init_fn=worker_init_fn,
+        )
+
+        # Wrap with a BufferedIterator if needed
+        if self.buffer_size > 0:
+            itr = BufferedIterator(self.buffer_size, itr)
+
+        # Wrap with CountingIterator
+        itr = CountingIterator(itr, start=offset)
+
+        return itr
 
 
 class EpochBatchIterator(EpochBatchIterating):
@@ -442,7 +487,7 @@ class EpochBatchIterator(EpochBatchIterating):
         if self.buffer_size > 0:
             itr = BufferedIterator(self.buffer_size, itr)
 
-        # Wrap with CoutingIterator
+        # Wrap with CountingIterator
         itr = CountingIterator(itr, start=offset)
         return itr
 
