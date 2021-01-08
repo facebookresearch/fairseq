@@ -1,3 +1,5 @@
+### 2021 Update: We are merging this example into the [S2T framework](../speech_to_text), which supports more generic speech-to-text tasks (e.g. speech translation) and more flexible data processing pipelines. Please stay tuned.
+
 # Speech Recognition
 `examples/speech_recognition` is implementing ASR task in Fairseq, along with needed features, datasets, models and loss functions to train and infer model described in [Transformers with convolutional context for ASR (Abdelrahman Mohamed et al., 2019)](https://arxiv.org/abs/1904.11660).
 
@@ -39,7 +41,7 @@ sclite -r ${RES_DIR}/ref.word-checkpoint_last.pt-${SET}.txt -h ${RES_DIR}/hypo.w
 * flashlight-style Conv/GLU model
 * flashlight's beam search decoder
 
-To use these, follow the instructions on [this page](https://github.com/facebookresearch/flashlight/tree/master/bindings/python) to install python bindings. 
+To use these, follow the instructions on [this page](https://github.com/facebookresearch/flashlight/tree/master/bindings/python) to install python bindings.
 
 ## Training librispeech data (flashlight style, Conv/GLU + ASG loss)
 Training command:
