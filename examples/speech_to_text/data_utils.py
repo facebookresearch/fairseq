@@ -5,19 +5,16 @@
 # LICENSE file in the root directory of this source tree.
 
 import csv
-import os
-import os.path as op
+from pathlib import Path
 import zipfile
 from functools import reduce
-from glob import glob
 from multiprocessing import cpu_count
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 import sentencepiece as sp
 from fairseq.data.audio.audio_utils import _get_kaldi_fbank, _get_torchaudio_fbank
-from fairseq.data.audio.feature_transforms.utterance_cmvn import UtteranceCMVN
 from tqdm import tqdm
 
 
@@ -28,12 +25,13 @@ PAD_TOKEN, PAD_TOKEN_ID = "<pad>", 1
 
 
 def gen_vocab(
-    input_path: str, output_path_prefix: str, model_type="bpe", vocab_size=1000,
+    input_path: Path, output_path_prefix: Path, model_type="bpe",
+    vocab_size=1000, special_symbols: Optional[List[str]] = None
 ):
     # Train SentencePiece Model
     arguments = [
-        f"--input={input_path}",
-        f"--model_prefix={output_path_prefix}",
+        f"--input={input_path.as_posix()}",
+        f"--model_prefix={output_path_prefix.as_posix()}",
         f"--model_type={model_type}",
         f"--vocab_size={vocab_size}",
         "--character_coverage=1.0",
@@ -43,10 +41,13 @@ def gen_vocab(
         f"--eos_id={EOS_TOKEN_ID}",
         f"--pad_id={PAD_TOKEN_ID}",
     ]
+    if special_symbols is not None:
+        _special_symbols = ",".join(special_symbols)
+        arguments.append(f"--user_defined_symbols={_special_symbols}")
     sp.SentencePieceTrainer.Train(" ".join(arguments))
     # Export fairseq dictionary
     spm = sp.SentencePieceProcessor()
-    spm.Load(output_path_prefix + ".model")
+    spm.Load(output_path_prefix.as_posix() + ".model")
     vocab = {i: spm.IdToPiece(i) for i in range(spm.GetPieceSize())}
     assert (
         vocab.get(UNK_TOKEN_ID) == UNK_TOKEN
@@ -59,20 +60,19 @@ def gen_vocab(
         for i, s in vocab.items()
         if s not in {UNK_TOKEN, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN}
     }
-    with open(output_path_prefix + ".txt", "w") as f_out:
+    with open(output_path_prefix.as_posix() + ".txt", "w") as f_out:
         for _, s in sorted(vocab.items(), key=lambda x: x[0]):
             f_out.write(f"{s} 1\n")
 
 
 def extract_fbank_features(
     waveform,
-    sample_rate,
-    output_path=None,
-    n_mel_bins=80,
-    apply_utterance_cmvn=True,
-    overwrite=False,
+    sample_rate: int,
+    output_path: Optional[Path] = None,
+    n_mel_bins: int = 80,
+    overwrite: bool = False,
 ):
-    if output_path is not None and op.exists(output_path) and not overwrite:
+    if output_path is not None and output_path.is_file() and not overwrite:
         return
 
     _waveform = waveform * (2 ** 15)  # Kaldi compliance: 16-bit signed integers
@@ -83,42 +83,36 @@ def extract_fbank_features(
         features = _get_torchaudio_fbank(_waveform, sample_rate, n_mel_bins)
     if features is None:
         raise ImportError(
-            "Please install pyKaldi or torchaudio to enable "
-            "online filterbank feature extraction"
+            "Please install pyKaldi or torchaudio to enable fbank feature extraction"
         )
 
-    if apply_utterance_cmvn:
-        cmvn = UtteranceCMVN(norm_means=True, norm_vars=True)
-        features = cmvn(features)
     if output_path is not None:
-        np.save(output_path, features)
+        np.save(output_path.as_posix(), features)
     else:
         return features
 
 
-def create_zip(data_root, zip_path):
-    cwd = os.path.abspath(os.curdir)
-    os.chdir(data_root)
+def create_zip(data_root: Path, zip_path: Path):
+    paths = list(data_root.glob("*.npy"))
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED) as f:
-        for filename in tqdm(glob("*.npy")):
-            f.write(filename)
-    os.chdir(cwd)
+        for path in tqdm(paths):
+            f.write(path, arcname=path.name)
 
 
 def is_npy_data(data: bytes) -> bool:
     return data[0] == 147 and data[1] == 78
 
 
-def get_zip_manifest(zip_root, zip_filename):
-    zip_path = op.join(zip_root, zip_filename)
-    with zipfile.ZipFile(zip_path, mode="r") as f:
+def get_zip_manifest(zip_path: Path, zip_root: Optional[Path] = None):
+    _zip_path = zip_path if zip_root is None else Path.joinpath(zip_root, zip_path)
+    with zipfile.ZipFile(_zip_path, mode="r") as f:
         info = f.infolist()
     manifest = {}
     for i in tqdm(info):
-        utt_id = op.splitext(i.filename)[0]
+        utt_id = Path(i.filename).stem
         offset, file_size = i.header_offset + 30 + len(i.filename), i.file_size
-        manifest[utt_id] = f"{zip_filename}:{offset}:{file_size}"
-        with open(zip_path, "rb") as f:
+        manifest[utt_id] = f"{zip_path.as_posix()}:{offset}:{file_size}"
+        with open(_zip_path, "rb") as f:
             f.seek(offset)
             data = f.read(file_size)
             assert len(data) > 1 and is_npy_data(data)
@@ -126,16 +120,16 @@ def get_zip_manifest(zip_root, zip_filename):
 
 
 def gen_config_yaml(
-    data_root,
-    spm_filename,
-    yaml_filename="config.yaml",
-    specaugment_policy="lb",
-    prepend_tgt_lang_tag=False,
-    sampling_alpha=1.0,
+    manifest_root: Path,
+    spm_filename: str,
+    yaml_filename: str = "config.yaml",
+    specaugment_policy: str = "lb",
+    prepend_tgt_lang_tag: bool = False,
+    sampling_alpha: float = 1.0,
+    audio_root: str = ""
 ):
-    data_root = op.abspath(data_root)
-    writer = S2TDataConfigWriter(op.join(data_root, yaml_filename))
-    writer.set_audio_root(op.abspath(data_root))
+    manifest_root = manifest_root.absolute()
+    writer = S2TDataConfigWriter(manifest_root / yaml_filename)
     writer.set_vocab_filename(spm_filename.replace(".model", ".txt"))
     writer.set_input_channels(1)
     writer.set_input_feat_per_channel(80)
@@ -145,24 +139,29 @@ def gen_config_yaml(
         "sm": writer.set_specaugment_sm_policy,
         "ss": writer.set_specaugment_ss_policy,
     }
-    assert specaugment_policy in specaugment_setters
-    specaugment_setters[specaugment_policy]()
+    specaugment_setter = specaugment_setters.get(specaugment_policy, None)
+    if specaugment_setter is not None:
+        specaugment_setter()
     writer.set_bpe_tokenizer(
         {
             "bpe": "sentencepiece",
-            "sentencepiece_model": op.join(data_root, spm_filename),
+            "sentencepiece_model": (manifest_root / spm_filename).as_posix(),
         }
     )
     if prepend_tgt_lang_tag:
         writer.set_prepend_tgt_lang_tag(True)
     writer.set_sampling_alpha(sampling_alpha)
-    writer.set_feature_transforms("_train", ["specaugment"])
+    writer.set_feature_transforms("_train", ["utterance_cmvn", "specaugment"])
+    writer.set_feature_transforms("*", ["utterance_cmvn"])
+    if len(audio_root) > 0:
+        writer.set_audio_root(audio_root)
     writer.flush()
 
 
-def load_df_from_tsv(path: str):
+def load_df_from_tsv(path: Union[str, Path]):
+    _path = path if isinstance(path, str) else path.as_posix()
     return pd.read_csv(
-        path,
+        _path,
         sep="\t",
         header=0,
         encoding="utf-8",
@@ -172,9 +171,10 @@ def load_df_from_tsv(path: str):
     )
 
 
-def save_df_to_tsv(dataframe, path):
+def save_df_to_tsv(dataframe, path: Union[str, Path]):
+    _path = path if isinstance(path, str) else path.as_posix()
     dataframe.to_csv(
-        path,
+        _path,
         sep="\t",
         header=True,
         index=False,
@@ -211,11 +211,11 @@ class S2TDataConfigWriter(object):
     DEFAULT_INPUT_FEAT_PER_CHANNEL = 80
     DEFAULT_INPUT_CHANNELS = 1
 
-    def __init__(self, yaml_path):
+    def __init__(self, yaml_path: Path):
         try:
             import yaml
         except ImportError:
-            print("Please install PyYAML to load YAML files for S2T data config")
+            print("Please install PyYAML for S2T data config YAML files")
         self.yaml = yaml
         self.yaml_path = yaml_path
         self.config = {}
@@ -227,7 +227,7 @@ class S2TDataConfigWriter(object):
     def set_audio_root(self, audio_root=""):
         self.config["audio_root"] = audio_root
 
-    def set_vocab_filename(self, vocab_filename="dict.txt"):
+    def set_vocab_filename(self, vocab_filename: str = "dict.txt"):
         self.config["vocab_filename"] = vocab_filename
 
     def set_specaugment(
@@ -288,22 +288,22 @@ class S2TDataConfigWriter(object):
             time_mask_p=0.2,
         )
 
-    def set_input_channels(self, input_channels=1):
+    def set_input_channels(self, input_channels: int = 1):
         self.config["input_channels"] = input_channels
 
-    def set_input_feat_per_channel(self, input_feat_per_channel=80):
+    def set_input_feat_per_channel(self, input_feat_per_channel: int = 80):
         self.config["input_feat_per_channel"] = input_feat_per_channel
 
     def set_bpe_tokenizer(self, bpe_tokenizer: Dict[str, Any]):
         self.config["bpe_tokenizer"] = bpe_tokenizer
 
-    def set_feature_transforms(self, split, transforms: List[str]):
+    def set_feature_transforms(self, split: str, transforms: List[str]):
         if "transforms" not in self.config:
             self.config["transforms"] = {}
         self.config["transforms"][split] = transforms
 
-    def set_prepend_tgt_lang_tag(self, flag=True):
+    def set_prepend_tgt_lang_tag(self, flag: bool = True):
         self.config["prepend_tgt_lang_tag"] = flag
 
-    def set_sampling_alpha(self, sampling_alpha=1.0):
+    def set_sampling_alpha(self, sampling_alpha: float = 1.0):
         self.config["sampling_alpha"] = sampling_alpha

@@ -7,7 +7,7 @@
 import argparse
 import logging
 import os
-import os.path as op
+from pathlib import Path
 import shutil
 from itertools import groupby
 from tempfile import NamedTemporaryFile
@@ -48,19 +48,19 @@ class MUSTC(Dataset):
 
     def __init__(self, root: str, lang: str, split: str) -> None:
         assert split in self.SPLITS and lang in self.LANGUAGES
-        _root = op.join(root, f"en-{lang}", "data", split)
-        wav_root, txt_root = op.join(_root, "wav"), op.join(_root, "txt")
-        assert op.isdir(_root) and op.isdir(wav_root) and op.isdir(txt_root)
+        _root = Path(root) / f"en-{lang}" / "data" / split
+        wav_root, txt_root = _root / "wav", _root / "txt"
+        assert _root.is_dir() and wav_root.is_dir() and txt_root.is_dir()
         # Load audio segments
         try:
             import yaml
         except ImportError:
-            print("Please install PyYAML to load YAML files for " "the MuST-C dataset")
-        with open(op.join(txt_root, f"{split}.yaml")) as f:
+            print("Please install PyYAML to load the MuST-C YAML files")
+        with open(txt_root / f"{split}.yaml") as f:
             segments = yaml.load(f, Loader=yaml.BaseLoader)
         # Load source and target utterances
         for _lang in ["en", lang]:
-            with open(op.join(txt_root, f"{split}.{_lang}")) as f:
+            with open(txt_root / f"{split}.{_lang}") as f:
                 utterances = [r.strip() for r in f]
             assert len(segments) == len(utterances)
             for i, u in enumerate(utterances):
@@ -68,16 +68,16 @@ class MUSTC(Dataset):
         # Gather info
         self.data = []
         for wav_filename, _seg_group in groupby(segments, lambda x: x["wav"]):
-            wav_path = op.join(wav_root, wav_filename)
-            sample_rate = torchaudio.info(wav_path)[0].rate
+            wav_path = wav_root / wav_filename
+            sample_rate = torchaudio.info(wav_path.as_posix())[0].rate
             seg_group = sorted(_seg_group, key=lambda x: x["offset"])
             for i, segment in enumerate(seg_group):
                 offset = int(float(segment["offset"]) * sample_rate)
                 n_frames = int(float(segment["duration"]) * sample_rate)
-                _id = f"{op.splitext(wav_filename)[0]}_{i}"
+                _id = f"{wav_path.stem}_{i}"
                 self.data.append(
                     (
-                        wav_path,
+                        wav_path.as_posix(),
                         offset,
                         n_frames,
                         sample_rate,
@@ -98,29 +98,29 @@ class MUSTC(Dataset):
 
 
 def process(args):
+    root = Path(args.data_root).absolute()
     for lang in MUSTC.LANGUAGES:
-        cur_root = op.join(args.data_root, f"en-{lang}")
-        if not op.isdir(cur_root):
-            print(f"{cur_root} does not exist. Skipped.")
+        cur_root = root / f"en-{lang}"
+        if not cur_root.is_dir():
+            print(f"{cur_root.as_posix()} does not exist. Skipped.")
             continue
         # Extract features
-        feature_root = op.join(cur_root, "fbank80")
-        os.makedirs(feature_root, exist_ok=True)
+        feature_root = cur_root / "fbank80"
+        feature_root.mkdir(exist_ok=True)
         for split in MUSTC.SPLITS:
             print(f"Fetching split {split}...")
-            dataset = MUSTC(args.data_root, lang, split)
+            dataset = MUSTC(root.as_posix(), lang, split)
             print("Extracting log mel filter bank features...")
             for waveform, sample_rate, _, _, _, utt_id in tqdm(dataset):
                 extract_fbank_features(
-                    waveform, sample_rate, op.join(feature_root, f"{utt_id}.npy")
+                    waveform, sample_rate, feature_root / f"{utt_id}.npy"
                 )
         # Pack features into ZIP
-        zip_filename = "fbank80.zip"
-        zip_path = op.join(cur_root, zip_filename)
+        zip_path = cur_root / "fbank80.zip"
         print("ZIPing features...")
         create_zip(feature_root, zip_path)
         print("Fetching ZIP manifest...")
-        zip_manifest = get_zip_manifest(args.data_root, f"en-{lang}/{zip_filename}")
+        zip_manifest = get_zip_manifest(zip_path)
         # Generate TSV manifest
         print("Generating manifest...")
         train_text = []
@@ -139,7 +139,7 @@ def process(args):
                 train_text.extend(manifest["tgt_text"])
             df = pd.DataFrame.from_dict(manifest)
             df = filter_manifest_df(df, is_train_split=is_train_split)
-            save_df_to_tsv(df, op.join(cur_root, f"{split}_{args.task}.tsv"))
+            save_df_to_tsv(df, cur_root / f"{split}_{args.task}.tsv")
         # Generate vocab
         v_size_str = "" if args.vocab_type == "char" else str(args.vocab_size)
         spm_filename_prefix = f"spm_{args.vocab_type}{v_size_str}_{args.task}"
@@ -147,8 +147,8 @@ def process(args):
             for t in train_text:
                 f.write(t + "\n")
             gen_vocab(
-                f.name,
-                op.join(cur_root, spm_filename_prefix),
+                Path(f.name),
+                cur_root / spm_filename_prefix,
                 args.vocab_type,
                 args.vocab_size,
             )
@@ -164,39 +164,42 @@ def process(args):
 
 
 def process_joint(args):
-    assert all(
-        op.isdir(op.join(args.data_root, f"en-{lang}")) for lang in MUSTC.LANGUAGES
-    ), "do not have downloaded data available for all 8 languages"
-    cur_root = args.data_root
+    cur_root = Path(args.data_root)
+    assert all((cur_root / f"en-{lang}").is_dir() for lang in MUSTC.LANGUAGES), \
+        "do not have downloaded data available for all 8 languages"
     # Generate vocab
     vocab_size_str = "" if args.vocab_type == "char" else str(args.vocab_size)
     spm_filename_prefix = f"spm_{args.vocab_type}{vocab_size_str}_{args.task}"
     with NamedTemporaryFile(mode="w") as f:
         for lang in MUSTC.LANGUAGES:
-            tsv_path = op.join(cur_root, f"en-{lang}", f"train_{args.task}.tsv")
+            tsv_path = cur_root / f"en-{lang}" / f"train_{args.task}.tsv"
             df = load_df_from_tsv(tsv_path)
             for t in df["tgt_text"]:
                 f.write(t + "\n")
+        special_symbols = None
+        if args.task == 'st':
+            special_symbols = [f'<lang:{lang}>' for lang in MUSTC.LANGUAGES]
         gen_vocab(
-            f.name,
-            op.join(cur_root, spm_filename_prefix),
+            Path(f.name),
+            cur_root / spm_filename_prefix,
             args.vocab_type,
             args.vocab_size,
+            special_symbols=special_symbols
         )
     # Generate config YAML
     gen_config_yaml(
         cur_root,
         spm_filename_prefix + ".model",
         yaml_filename=f"config_{args.task}.yaml",
-        specaugment_policy="lb",
+        specaugment_policy="ld",
         prepend_tgt_lang_tag=(args.task == "st"),
     )
     # Make symbolic links to manifests
     for lang in MUSTC.LANGUAGES:
         for split in MUSTC.SPLITS:
-            src_path = op.join(cur_root, f"en-{lang}", f"{split}_{args.task}.tsv")
-            desc_path = op.join(cur_root, f"{split}_{lang}_{args.task}.tsv")
-            if not op.islink(desc_path):
+            src_path = cur_root / f"en-{lang}" / f"{split}_{args.task}.tsv"
+            desc_path = cur_root / f"{split}_{lang}_{args.task}.tsv"
+            if not desc_path.is_symlink():
                 os.symlink(src_path, desc_path)
 
 
