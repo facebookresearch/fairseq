@@ -190,7 +190,7 @@ class CoVoST(Dataset):
 
 
 def process(args):
-    root = Path(args.data_root).absolute() / args.src_lang
+    root = Path(args.data_root).absolute()
     if not root.is_dir():
         raise NotADirectoryError(f"{root} does not exist")
     # Extract features
