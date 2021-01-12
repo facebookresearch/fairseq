@@ -108,7 +108,41 @@ cat {source_lang}_${target_lang}.txt | grep -P "^T" |sort -V |cut -f 2- |$TOK_CM
 sacrebleu -tok 'none' -s 'none' ${source_lang}_${target_lang}.ref < ${source_lang}_${target_lang}.hyp
 ```
 
+# mBART50 models
 
+* [mMBART 50 pretrained model](https://dl.fbaipublicfiles.com/fairseq/models/mbart50/mbart50.pretrained.tar.gz).
+* [mMBART 50 finetuned many-to-one](https://dl.fbaipublicfiles.com/fairseq/models/mbart50/mbart50.ft.n1.tar.gz).
+* [mMBART 50 finetuned one-to-many](https://dl.fbaipublicfiles.com/fairseq/models/mbart50/mbart50.ft.1n.tar.gz).
+* [mMBART 50 finetuned many-to-many](https://dl.fbaipublicfiles.com/fairseq/models/mbart50/mbart50.ft.nn.tar.gz).
+
+Please download and extract from the above tarballs. Each tarball contains
+* The fairseq model checkpoint: model.pt
+* The list of supported languages: ML50_langs.txt
+* Sentence piece model: sentence.bpe.model
+* Fairseq dictionary of each language: dict.{lang}.txt (please replace lang with a language specified in ML50_langs.txt)
+
+To use the trained models, 
+* use the tool [binarize.py](./data_scripts/binarize.py) to binarize your data using sentence.bpe.model and dict.{lang}.txt, and copy the dictionaries to your data path
+* then run the generation command:
+```bash
+path_2_data=<path to your binarized data with fairseq dictionaries>
+model=<path_to_extracted_folder>/model.pt
+lang_list=<path_to_extracted_folder>/ML50_langs.txt
+source_lang=<source language>
+target_lang=<target language>
+
+fairseq-generate $path_2_data \
+  --path $model \
+  --task translation_multi_simple_epoch \
+  --gen-subset test \
+  --source-lang $source_lang \
+  --target-lang $target_lang
+  --sacrebleu --remove-bpe 'sentencepiece'\
+  --batch-size 32 \
+  --encoder-langtok "src" \
+  --decoder-langtok \
+  --lang-dict "$lang_list"
+```
 
 ## Citation
 
