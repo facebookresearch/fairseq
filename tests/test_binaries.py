@@ -538,6 +538,62 @@ class TestTranslation(unittest.TestCase):
                     + dec_ltok_flag,
                 )
 
+    def test_translation_multi_simple_epoch_src_tgt_dict_spec(self):
+        # test the specification of explicit --src-dict and --tgt-dict
+        with contextlib.redirect_stdout(StringIO()):
+            enc_ltok_flag = ["--encoder-langtok", "src"]
+            dec_ltok_flag = ["--decoder-langtok"]
+            with tempfile.TemporaryDirectory(
+                "test_translation_multi_simple_epoch_dict"
+            ) as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(
+                    data_dir, extra_flags=[]
+                )
+                train_translation_model(
+                    data_dir,
+                    arch="transformer",
+                    task="translation_multi_simple_epoch",
+                    extra_flags=[
+                        "--source-dict", f"{data_dir}/dict.in.txt",
+                        "--target-dict", f"{data_dir}/dict.out.txt",
+                        "--encoder-layers",
+                        "2",
+                        "--decoder-layers",
+                        "2",
+                        "--encoder-embed-dim",
+                        "8",
+                        "--decoder-embed-dim",
+                        "8",
+                        "--sampling-method",
+                        "temperature",
+                        "--sampling-temperature",
+                        "1.5",
+                        "--virtual-epoch-size",
+                        "1000",
+                    ]
+                    + enc_ltok_flag
+                    + dec_ltok_flag,
+                    lang_flags=["--lang-pairs", "in-out"],
+                    run_validation=True,
+                    extra_valid_flags=enc_ltok_flag + dec_ltok_flag,
+                )
+                generate_main(
+                    data_dir,
+                    extra_flags=[
+                        "--task",
+                        "translation_multi_simple_epoch",
+                        "--lang-pairs",
+                        "in-out",
+                        "--source-lang",
+                        "in",
+                        "--target-lang",
+                        "out",
+                    ]
+                    + enc_ltok_flag
+                    + dec_ltok_flag,
+                )
+
     def test_transformer_cross_self_attention(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory(

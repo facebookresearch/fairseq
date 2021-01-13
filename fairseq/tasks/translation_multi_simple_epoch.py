@@ -105,8 +105,10 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
             args, self.lang_pairs, langs, dicts, self.sampling_method
         )
 
-    @classmethod
-    def check_dicts(cls, dicts, source_langs, target_langs):
+    def check_dicts(self, dicts, source_langs, target_langs):
+        if self.args.source_dict is not None or self.args.target_dict is not None:
+            # no need to check whether the source side and target side are sharing dictionaries
+            return
         src_dict = dicts[source_langs[0]]
         tgt_dict = dicts[target_langs[0]]
         for src_lang in source_langs:
@@ -123,7 +125,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
     @classmethod
     def setup_task(cls, args, **kwargs):
         langs, dicts, training = MultilingualDatasetManager.prepare(
-            cls.load_dictionary, args, **kwargs
+           cls.load_dictionary, args, **kwargs
         )
         return cls(args, langs, dicts, training)
 
@@ -263,11 +265,11 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
 
     @property
     def source_dictionary(self):
-        return self.dicts[self.source_langs[0]]
+        return self.data_manager.get_source_dictionary(self.source_langs[0])
 
     @property
     def target_dictionary(self):
-        return self.dicts[self.target_langs[0]]
+        return self.data_manager.get_target_dictionary(self.target_langs[0])
 
     def create_batch_sampler_func(
         self,
