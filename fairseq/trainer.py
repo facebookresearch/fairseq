@@ -508,7 +508,7 @@ class Trainer(object):
 
         # forward and backward pass
         logging_outputs, sample_size, ooms = [], 0, 0
-        for i, sample in enumerate(samples):
+        for i, sample in enumerate(samples):  # delayed update loop
             sample, is_dummy_batch = self._prepare_sample(sample)
 
             def maybe_no_sync():
@@ -605,21 +605,29 @@ class Trainer(object):
         overflow = False
         try:
             with torch.autograd.profiler.record_function("reduce-grads"):
+                # reduce gradients across workers
                 self.optimizer.all_reduce_grads(self.model)
                 if utils.has_parameters(self.criterion):
                     self.optimizer.all_reduce_grads(self.criterion)
 
             with torch.autograd.profiler.record_function("multiply-grads"):
                 # multiply gradients by (data_parallel_size / sample_size) since
-                # DDP already normalizes by the number of data parallel workers.
+                # DDP normalizes by the number of data parallel workers for
+                # improved fp16 precision.
                 # Thus we get (sum_of_gradients / sample_size) at the end.
-                if not self.cfg.optimization.use_bmuf:
-                    self.optimizer.multiply_grads(
-                        self.data_parallel_world_size / sample_size
-                    )
-                elif sample_size > 0:  # BMUF needs to check sample size
-                    num = self.data_parallel_world_size if self._sync_stats() else 1
-                    self.optimizer.multiply_grads(num / sample_size)
+                # In case of fp16, this step also undoes loss scaling.
+                # (Debugging note: Some optimizers perform this scaling on the
+                # fly, so inspecting model.parameters() or optimizer.params may
+                # still show the original, unscaled gradients.)
+                numer = (
+                    self.data_parallel_world_size
+                    if not self.cfg.optimization.use_bmuf or self._sync_stats()
+                    else 1
+                )
+                self.optimizer.multiply_grads(numer / (sample_size or 1.0))
+                # Note: (sample_size or 1.0) handles the case of a zero gradient, in a
+                # way that avoids CPU/device transfers in case sample_size is a GPU or
+                # TPU object. The assumption is that the gradient itself is also 0.
 
             with torch.autograd.profiler.record_function("clip-grads"):
                 # clip grads
@@ -661,7 +669,7 @@ class Trainer(object):
             raise
         except OverflowError as e:
             overflow = True
-            logger.info("NOTE: overflow detected, " + str(e))
+            logger.info(f"NOTE: gradient overflow detected, ignoring gradient, {str(e)}")
             grad_norm = torch.tensor(0.0).cuda()
             self.zero_grad()
         except RuntimeError as e:
