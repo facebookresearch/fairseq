@@ -337,7 +337,7 @@ def run_batch(env, sbatch_cmd_str, sbatch_cmd):
 def write_git_commit(args, train_log):
     with open(train_log, "a") as train_log_h:
         # log most recent git commit
-        git_commit = subprocess.check_output("git log -1 HEAD", shell=True, encoding="utf-8")
+        git_commit = subprocess.check_output("git log | head -n 1", shell=True, encoding="utf-8")
         print(git_commit.rstrip(), file=train_log_h)
         if args.baseline_model:
             print(f"baseline model: {args.baseline_model}", file=train_log_h)
