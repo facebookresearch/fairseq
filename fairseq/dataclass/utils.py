@@ -428,7 +428,14 @@ def overwrite_args_by_name(cfg: DictConfig, overrides: Dict[str, any]):
         for k in cfg.keys():
             # "k in cfg" will return false if its a "mandatory value (e.g. ???)"
             if k in cfg and isinstance(cfg[k], DictConfig):
-                overwrite_args_by_name(cfg[k], overrides)
+                if k in overrides and isinstance(overrides[k], dict):
+                    for ok, ov in overrides[k].items():
+                        if isinstance(ov, dict):
+                            overwrite_args_by_name(cfg[k][ok], ov)
+                        else:
+                            cfg[k][ok] = ov
+                else:
+                    overwrite_args_by_name(cfg[k], overrides)
             elif k in cfg and isinstance(cfg[k], Namespace):
                 for override_key, val in overrides.items():
                     setattr(cfg[k], override_key, val)
