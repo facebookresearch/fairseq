@@ -37,7 +37,10 @@ def DynamicConv(
                 num_heads=num_heads,
                 weight_dropout=weight_dropout,
                 weight_softmax=weight_softmax,
+                renorm_padding=renorm_padding,
                 bias=bias,
+                conv_bias=conv_bias,
+                query_size=query_size,
             )
         except ImportError as e:
             print(e)
@@ -48,7 +51,10 @@ def DynamicConv(
         num_heads=num_heads,
         weight_dropout=weight_dropout,
         weight_softmax=weight_softmax,
+        renorm_padding=renorm_padding,
         bias=bias,
+        conv_bias=conv_bias,
+        query_size=query_size,
     )
 
 
