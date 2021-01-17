@@ -156,6 +156,16 @@ class Wav2VecCtc(BaseFairseqModel):
         else:
             return utils.softmax(logits.float(), dim=-1)
 
+    def get_logits(self, net_output):
+        logits = net_output["encoder_out"]
+        padding = net_output["encoder_padding_mask"]
+        if padding is not None and padding.any():
+            padding = padding.T
+            logits[padding][...,0] = 0
+            logits[padding][...,1:] = float('-inf')
+
+        return logits
+
     def forward(self, **kwargs):
         x = self.w2v_encoder(**kwargs)
         return x
