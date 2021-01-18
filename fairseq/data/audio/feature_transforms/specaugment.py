@@ -98,7 +98,7 @@ class SpecAugmentTransform(AudioFeatureTransform):
                 import cv2
 
                 w0 = np.random.randint(self.time_warp_w, num_frames - self.time_warp_w)
-                w = np.random.randint(0, self.time_warp_w)
+                w = np.random.randint(-self.time_warp_w + 1, self.time_warp_w)
                 upper, lower = distorted[:w0, :], distorted[w0:, :]
                 upper = cv2.resize(
                     upper, dsize=(num_freqs, w0 + w), interpolation=cv2.INTER_LINEAR
