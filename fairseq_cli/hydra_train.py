@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 
-from fairseq.dataclass.initialize import hydra_init
+from fairseq.dataclass.initialize import add_defaults, hydra_init
 from fairseq_cli.train import main as pre_main
 from fairseq import distributed_utils, metrics
 from fairseq.dataclass.configs import FairseqConfig
@@ -23,8 +23,8 @@ logger = logging.getLogger("fairseq_cli.hydra_train")
 
 @hydra.main(config_path=os.path.join("..", "fairseq", "config"), config_name="config")
 def hydra_main(cfg: FairseqConfig) -> float:
+    add_defaults(cfg)
     cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True, enum_to_str=True))
-
     OmegaConf.set_struct(cfg, True)
 
     if cfg.common.reset_logging:
