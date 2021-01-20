@@ -363,8 +363,10 @@ def post_process(sentence: str, symbol: str):
         sentence = sentence.replace(" ", "").replace("|", " ").strip()
     elif symbol == "_EOW":
         sentence = sentence.replace(" ", "").replace("_EOW", " ").strip()
-    elif symbol in {"subword_nmt", "@@ "}:
-        sentence = (sentence + " ").replace("@@ ", "").rstrip()
+    elif symbol in {"subword_nmt", "@@ ", "@@"}:
+        if symbol == "subword_nmt":
+            symbol = "@@ "
+        sentence = (sentence + " ").replace(symbol, "").rstrip()
     elif symbol == "none":
         pass
     elif symbol is not None:
