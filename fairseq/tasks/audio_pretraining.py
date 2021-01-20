@@ -148,8 +148,14 @@ class AudioPretrainingTask(FairseqTask):
             label_path = os.path.join(data_path, f"{split}.{task_cfg.labels}")
             labels = []
             with open(label_path, "r") as f:
-                for line in f:
-                    labels.append(line)
+                labels = [
+                    line for i, line in enumerate(f)
+                    if i in self.datasets[split].line_inds
+                ]
+
+            assert len(labels) == len(self.datasets[split]), (
+                    f"labels length ({len(labels)}) and dataset length "
+                    f"({len(self.datasets[split])}) do not match")
 
             process_label = LabelEncoder(self.target_dictionary)
 
