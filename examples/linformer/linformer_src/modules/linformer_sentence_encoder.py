@@ -116,7 +116,7 @@ class LinformerSentenceEncoder(TransformerSentenceEncoder):
         q_noise,
         qn_block_size,
     ):
-        if self.shared_layer_kv_compressed == 1:
+        if self.shared_layer_kv_compressed == 1 and self.compress_layer is None:
             compress_layer = nn.Linear(
                 self.max_seq_len, self.max_seq_len // self.compressed
             )
