@@ -181,7 +181,7 @@ class CommonConfig(FairseqDataclass):
         default=False, metadata={"help": "enable autograd profiler emit_nvtx"}
     )
     reset_logging: bool = field(
-        default=True,
+        default=False,
         metadata={
             "help": "when using Hydra, reset the logging at the beginning of training"
         },

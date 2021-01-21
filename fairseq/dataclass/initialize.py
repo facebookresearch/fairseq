@@ -7,7 +7,7 @@
 import logging
 from hydra.core.config_store import ConfigStore
 from fairseq.dataclass.configs import FairseqConfig
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig, OmegaConf
 
 
 logger = logging.getLogger(__name__)
@@ -35,6 +35,8 @@ def add_defaults(cfg: DictConfig) -> None:
     from fairseq.models import ARCH_MODEL_NAME_REGISTRY, MODEL_DATACLASS_REGISTRY
     from fairseq.dataclass.utils import merge_with_parent
     from typing import Any
+
+    OmegaConf.set_struct(cfg, False)
 
     for k, v in FairseqConfig.__dataclass_fields__.items():
         field_cfg = cfg.get(k)

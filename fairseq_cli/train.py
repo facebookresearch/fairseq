@@ -25,7 +25,9 @@ from fairseq import (
     utils,
 )
 from fairseq.data import iterators
+from fairseq.dataclass.configs import FairseqConfig
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
+from fairseq.distributed_utils import is_master
 from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from fairseq.trainer import Trainer
@@ -41,11 +43,15 @@ logging.basicConfig(
 logger = logging.getLogger("fairseq_cli.train")
 
 
-def main(cfg: DictConfig) -> None:
+def main(cfg: FairseqConfig) -> None:
     if isinstance(cfg, argparse.Namespace):
         cfg = convert_namespace_to_omegaconf(cfg)
 
     utils.import_user_module(cfg.common)
+
+    if is_master(cfg.distributed_training) and "job_logging_cfg" in cfg:
+        # make hydra logging work with ddp (see # see https://github.com/facebookresearch/hydra/issues/1126)
+        logging.config.dictConfig(OmegaConf.to_container(cfg.job_logging_cfg))
 
     assert (
         cfg.dataset.max_tokens is not None or cfg.dataset.batch_size is not None

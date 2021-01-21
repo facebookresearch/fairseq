@@ -14,8 +14,9 @@ from fairseq import distributed_utils, metrics
 from fairseq.dataclass.configs import FairseqConfig
 
 import hydra
+from hydra.core.hydra_config import HydraConfig
 import torch
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 
 
 logger = logging.getLogger("fairseq_cli.hydra_train")
@@ -24,11 +25,16 @@ logger = logging.getLogger("fairseq_cli.hydra_train")
 @hydra.main(config_path=os.path.join("..", "fairseq", "config"), config_name="config")
 def hydra_main(cfg: FairseqConfig) -> float:
     add_defaults(cfg)
-    cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True, enum_to_str=True))
-    OmegaConf.set_struct(cfg, True)
 
     if cfg.common.reset_logging:
         reset_logging()  # Hydra hijacks logging, fix that
+    else:
+        with open_dict(cfg):
+            # make hydra logging work with ddp (see # see https://github.com/facebookresearch/hydra/issues/1126)
+            cfg.job_logging_cfg = OmegaConf.to_container(HydraConfig.get().job_logging, resolve=True)
+
+    cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True, enum_to_str=True))
+    OmegaConf.set_struct(cfg, True)
 
     try:
         if cfg.common.profile:

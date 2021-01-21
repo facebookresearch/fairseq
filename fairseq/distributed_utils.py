@@ -301,6 +301,10 @@ def distributed_main(i, main, cfg: FairseqConfig, kwargs):
 
     main(cfg, **kwargs)
 
+    # make sure checkpoints finish saving
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
+
 
 def call_main(cfg: FairseqConfig, main, **kwargs):
     if cfg.distributed_training.distributed_init_method is None:
