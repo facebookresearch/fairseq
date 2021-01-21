@@ -3,33 +3,35 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import os
-
+from dataclasses import dataclass, field
 import torch
 from fairseq import utils
 from fairseq.data import LanguagePairDataset
+from fairseq.dataclass import ChoiceEnum
 from fairseq.tasks import register_task
-from fairseq.tasks.translation import TranslationTask, load_langpair_dataset
+from fairseq.tasks.translation import TranslationConfig, TranslationTask, load_langpair_dataset
 from fairseq.utils import new_arange
 
 
-@register_task("translation_lev")
+NOISE_CHOICES = ChoiceEnum(["random_delete", "random_mask", "no_noise", "full_mask"])
+
+@dataclass
+class TranslationLevenshteinConfig(TranslationConfig):
+    noise: NOISE_CHOICES = field(
+        default="random_delete",
+        metadata={
+            "help": "type of noise"
+        },
+    )
+
+@register_task("translation_lev", dataclass=TranslationLevenshteinConfig)
 class TranslationLevenshteinTask(TranslationTask):
     """
     Translation (Sequence Generation) task for Levenshtein Transformer
     See `"Levenshtein Transformer" <https://arxiv.org/abs/1905.11006>`_.
     """
 
-    @staticmethod
-    def add_args(parser):
-        """Add task-specific arguments to the parser."""
-        # fmt: off
-        TranslationTask.add_args(parser)
-        parser.add_argument(
-            '--noise',
-            default='random_delete',
-            choices=['random_delete', 'random_mask', 'no_noise', 'full_mask'])
-        # fmt: on
+    cfg: TranslationLevenshteinConfig
 
     def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         """Load a given dataset split.
@@ -37,12 +39,12 @@ class TranslationLevenshteinTask(TranslationTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = utils.split_paths(self.args.data)
+        paths = utils.split_paths(self.cfg.data)
         assert len(paths) > 0
         data_path = paths[(epoch - 1) % len(paths)]
 
         # infer langcode
-        src, tgt = self.args.source_lang, self.args.target_lang
+        src, tgt = self.cfg.source_lang, self.cfg.target_lang
 
         self.datasets[split] = load_langpair_dataset(
             data_path,
@@ -52,12 +54,12 @@ class TranslationLevenshteinTask(TranslationTask):
             tgt,
             self.tgt_dict,
             combine=combine,
-            dataset_impl=self.args.dataset_impl,
-            upsample_primary=self.args.upsample_primary,
-            left_pad_source=self.args.left_pad_source,
-            left_pad_target=self.args.left_pad_target,
-            max_source_positions=self.args.max_source_positions,
-            max_target_positions=self.args.max_target_positions,
+            dataset_impl=self.cfg.dataset_impl,
+            upsample_primary=self.cfg.upsample_primary,
+            left_pad_source=self.cfg.left_pad_source,
+            left_pad_target=self.cfg.left_pad_target,
+            max_source_positions=self.cfg.max_source_positions,
+            max_target_positions=self.cfg.max_target_positions,
             prepend_bos=True,
         )
 
@@ -133,13 +135,13 @@ class TranslationLevenshteinTask(TranslationTask):
             )
             return target_tokens.masked_fill(~target_mask, unk)
 
-        if self.args.noise == "random_delete":
+        if self.cfg.noise == "random_delete":
             return _random_delete(target_tokens)
-        elif self.args.noise == "random_mask":
+        elif self.cfg.noise == "random_mask":
             return _random_mask(target_tokens)
-        elif self.args.noise == "full_mask":
+        elif self.cfg.noise == "full_mask":
             return _full_mask(target_tokens)
-        elif self.args.noise == "no_noise":
+        elif self.cfg.noise == "no_noise":
             return target_tokens
         else:
             raise NotImplementedError
