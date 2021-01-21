@@ -17,6 +17,7 @@ def spawn_and_init(fn, world_size, args=None):
             fn=functools.partial(init_and_run, fn, args),
             args=(world_size, tmp_file.name,),
             nprocs=world_size,
+            join=True,
         )
 
 

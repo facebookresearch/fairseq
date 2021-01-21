@@ -1623,8 +1623,9 @@ class TestActivationCheckpointing(unittest.TestCase):
 
         with tempfile.TemporaryDirectory("test_transformer_with_act_cpt") as data_dir:
 
-            create_dummy_data(data_dir, num_examples=20)
-            preprocess_translation_data(data_dir)
+            with self.assertLogs():
+                create_dummy_data(data_dir, num_examples=20)
+                preprocess_translation_data(data_dir)
             ckpt_logs = _train(["--checkpoint-activations"])
             baseline_logs = _train([])
             assert len(baseline_logs) == len(ckpt_logs)

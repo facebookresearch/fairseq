@@ -136,8 +136,8 @@ pip install --editable ./
 # on MacOS:
 # CFLAGS="-stdlib=libc++" pip install --editable ./
 
-# to install the latest stable release (0.10.1)
-# pip install fairseq==0.10.1
+# to install the latest stable release (0.10.x)
+# pip install fairseq
 ```
 
 * **For faster training** install NVIDIA's [apex](https://github.com/NVIDIA/apex) library:
