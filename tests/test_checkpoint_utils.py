@@ -53,7 +53,7 @@ class TestCheckpointUtils(unittest.TestCase):
             yield os.path.join(data_dir, "checkpoint_last.pt")
 
     def test_load_model_ensemble_and_task(self):
-        with contextlib.redirect_stdout(StringIO()):
+        # with contextlib.redirect_stdout(StringIO()):
             with self._train_transformer(seed=123) as model1:
                 with self._train_transformer(seed=456) as model2:
                     ensemble, cfg, task = checkpoint_utils.load_model_ensemble_and_task(
@@ -67,7 +67,10 @@ class TestCheckpointUtils(unittest.TestCase):
                     self.assertEqual(ensemble[1].args.seed, 456)
 
                     # the task from the first model should be returned
-                    self.assertEqual(task.args.seed, 123)
+                    self.assertTrue("seed123" in task.cfg.data)
+
+                    # last cfg is saved
+                    self.assertEqual(cfg.common.seed, 456)
 
     def test_prune_state_dict(self):
         with contextlib.redirect_stdout(StringIO()):
