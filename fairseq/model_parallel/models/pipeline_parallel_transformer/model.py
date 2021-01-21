@@ -40,37 +40,37 @@ logger = logging.getLogger(__name__)
 DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
 TORCH_PIPE = False
+try:
+    from torch.distributed.pipeline.sync import Pipe
+    from torch.distributed.pipeline.sync.utils import partition_model
+    from torch.distributed import rpc
+    import tempfile
+    TORCH_PIPE = True
+    # Initialize single process RPC agent since TORCH_PIPE requires
+    # RRef.
+    tmpfile = tempfile.NamedTemporaryFile()
+    rpc.init_rpc(
+        name="worker",
+        rank=0,
+        world_size=1,
+        rpc_backend_options=rpc.TensorPipeRpcBackendOptions(
+            init_method="file://{}".format(tmpfile.name),
+        )
+    )
+except ImportError:
+    try:
+        from fairscale.nn import Pipe
+    except ImportError:
+        raise ImportError("Please install fairscale with: pip install fairscale")
 
 
 @register_model("pipeline_parallel_transformer")
 class PipelineParallelTransformerModel(BaseFairseqModel):
     def __init__(self, encoder, decoder, balance, devices, chunks, checkpoint):
-        try:
-            from torch.distributed.pipeline.sync import Pipe
-            from torch.distributed.pipeline.sync.utils import partition_model
-            global TORCH_PIPE
-            TORCH_PIPE = True
-
-            # Initialize single process RPC agent since TORCH_PIPE requires
-            # RRef.
-            from torch.distributed import rpc
-            import tempfile
-            tmpfile = tempfile.NamedTemporaryFile()
-            rpc.init_rpc(
-                name="worker",
-                rank=0,
-                world_size=1,
-                rpc_backend_options=rpc.TensorPipeRpcBackendOptions(
-                    init_method="file://{}".format(tmpfile.name),
-                )
-            )
+        if TORCH_PIPE:
             logger.info('Using torch pipe')
-        except ImportError:
-            try:
-                from fairscale.nn import Pipe
-                logger.info('Using fairscale pipe')
-            except ImportError:
-                raise ImportError("Please install fairscale with: pip install fairscale")
+        else:
+            logger.info('Using fairscale pipe')
         super().__init__()
         assert isinstance(encoder, FairseqEncoder)
         assert isinstance(decoder, FairseqDecoder)
