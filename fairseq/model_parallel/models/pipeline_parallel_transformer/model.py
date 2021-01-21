@@ -458,10 +458,10 @@ class TransformerEncoder(FairseqEncoder):
     def __init__(self, args, dictionary, embed_tokens, encoder_module_list=None):
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
-        try:
-            from fairscale.nn import Pipe
-        except ImportError:
-            raise ImportError("Please install fairscale with: pip install fairscale")
+        if TORCH_PIPE:
+            logger.info('Using torch pipe')
+        else:
+            logger.info('Using fairscale pipe')
         self.use_pipeline = encoder_module_list is not None
         if not self.use_pipeline:
             self.embedding_layer = TransformerEncoderEmbedding(args, embed_tokens)
@@ -604,10 +604,10 @@ class TransformerDecoder(FairseqDecoder):
     ):
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
-        try:
-            from fairscale.nn import Pipe
-        except ImportError:
-            raise ImportError("Please install fairscale with: pip install fairscale")
+        if TORCH_PIPE:
+            logger.info('Using torch pipe')
+        else:
+            logger.info('Using fairscale pipe')
         self.use_pipeline = decoder_module_list is not None
         if not self.use_pipeline:
             self.embedding_layer = TransformerDecoderEmbedding(args, embed_tokens)
