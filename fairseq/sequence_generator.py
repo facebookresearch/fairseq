@@ -86,8 +86,10 @@ class SequenceGenerator(nn.Module):
         self.temperature = temperature
         self.match_source_len = match_source_len
 
-        self.no_repeat_ngram_size = no_repeat_ngram_size
-        self.repeat_ngram_blocker = NGramRepeatBlock(no_repeat_ngram_size)
+        if no_repeat_ngram_size > 0:
+            self.repeat_ngram_blocker = NGramRepeatBlock(no_repeat_ngram_size)
+        else:
+            self.repeat_ngram_blocker = None
 
         assert temperature > 0, "--temperature must be greater than 0"
 
@@ -373,8 +375,10 @@ class SequenceGenerator(nn.Module):
             if self.should_set_src_lengths:
                 self.search.set_src_lengths(src_lengths)
 
-            if self.no_repeat_ngram_size > 0:
-                lprobs = self.repeat_ngram_blocker(tokens, lprobs, bsz, beam_size, step)
+            if self.repeat_ngram_blocker is not None:
+                lprobs = self.repeat_ngram_blocker(
+                    tokens, lprobs, bsz, beam_size, step
+                )
 
             # Shape: (batch, cand_size)
             cand_scores, cand_indices, cand_beams = self.search.step(

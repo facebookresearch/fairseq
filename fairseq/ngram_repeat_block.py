@@ -19,7 +19,7 @@ except ImportError:
 
 def is_cuda_extension_usable() -> bool:
     """Check whether ngram_repeat_block_cuda is built properly"""
-    if not EXTENSION_BUILT:
+    if not EXTENSION_BUILT or not torch.cuda.is_available():
         return False
     bsz = 2
     tokens = torch.tensor([[4, 4, 3, 2], [1, 2, 3, 4]], dtype=torch.long, device="cuda")
