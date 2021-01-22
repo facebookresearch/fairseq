@@ -56,8 +56,20 @@ def _get_torchaudio_fbank(waveform, sample_rate, n_bins=80) -> Optional[np.ndarr
     try:
         import torch
         import torchaudio.compliance.kaldi as ta_kaldi
+        import torchaudio.sox_effects as ta_sox
 
-        waveform = torch.from_numpy(waveform).unsqueeze(0)
+        #if mono, unsqueeze; else, not needed, should be [c,n]
+        waveform = torch.from_numpy(waveform) 
+        if len(waveform.shape)==1:
+            waveform = waveform.unsqueeze(0)  #[14962] -> [1,14962]
+
+        effects = [
+            ['remix', '-'],  # merge channel(s), should it not be mono
+        ]
+        waveform, _ = ta_sox.apply_effects_tensor(
+            waveform, int(sample_rate), effects, channels_first=True
+        )
+
         features = ta_kaldi.fbank(
             waveform, num_mel_bins=n_bins, sample_frequency=sample_rate
         )
