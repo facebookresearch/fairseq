@@ -5,6 +5,8 @@
 
 import numpy as np
 import torch
+from typing import Dict
+
 from fairseq.data.monolingual_dataset import MonolingualDataset
 
 from . import FairseqDataset
@@ -26,7 +28,11 @@ class LMContextWindowDataset(FairseqDataset):
     """
 
     def __init__(
-        self, dataset, tokens_per_sample: int, context_window: int, pad_idx: int
+        self,
+        dataset: MonolingualDataset,
+        tokens_per_sample: int,
+        context_window: int,
+        pad_idx: int,
     ):
         assert context_window > 0
         self.dataset = dataset
@@ -41,7 +47,7 @@ class LMContextWindowDataset(FairseqDataset):
     def __len__(self):
         return len(self.dataset)
 
-    def collater(self, samples):
+    def collater(self, samples) -> Dict:
         sample = self.dataset.collater(samples)
 
         pad = self.pad_idx
@@ -71,7 +77,6 @@ class LMContextWindowDataset(FairseqDataset):
         sample["net_input"]["src_tokens"] = torch.from_numpy(new_toks)
         sample["target"] = torch.from_numpy(new_tgt)
         sample["start_indices"] = start_idxs
-
         return sample
 
     def num_tokens(self, index):
