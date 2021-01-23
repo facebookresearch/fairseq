@@ -159,7 +159,7 @@ class IndexedDataset(FairseqDataset):
             self.data_file.close()
 
     @lru_cache(maxsize=8)
-    def __getitem__(self, i):
+    def __getitem__(self, i) -> torch.Tensor:
         if not self.data_file:
             self.read_data(self.path)
         self.check_index(i)
@@ -296,7 +296,7 @@ class IndexedRawTextDataset(FairseqDataset):
         return PathManager.exists(path)
 
 
-class IndexedDatasetBuilder(object):
+class IndexedDatasetBuilder:
     element_sizes = {
         np.uint8: 1,
         np.int8: 1,
@@ -363,12 +363,12 @@ def _warmup_mmap_file(path):
 
 
 class MMapIndexedDataset(torch.utils.data.Dataset):
-    class Index(object):
+    class Index:
         _HDR_MAGIC = b"MMIDIDX\x00\x00"
 
         @classmethod
         def writer(cls, path, dtype):
-            class _Writer(object):
+            class _Writer:
                 def __enter__(self):
                     self._file = open(path, "wb")
 
@@ -517,7 +517,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
         )
 
 
-def get_indexed_dataset_to_local(path):
+def get_indexed_dataset_to_local(path) -> str:
     local_index_path = PathManager.get_local_path(index_file_path(path))
     local_data_path = PathManager.get_local_path(data_file_path(path))
 
@@ -531,7 +531,7 @@ def get_indexed_dataset_to_local(path):
     return local_path
 
 
-class MMapIndexedDatasetBuilder(object):
+class MMapIndexedDatasetBuilder:
     def __init__(self, out_file, dtype=np.int64):
         self._data_file = open(out_file, "wb")
         self._dtype = dtype

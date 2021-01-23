@@ -15,7 +15,7 @@ from fairseq.file_io import PathManager
 from fairseq.tokenizer import tokenize_line
 
 
-class Dictionary(object):
+class Dictionary:
     """A mapping from symbols to consecutive integers"""
 
     def __init__(
@@ -298,7 +298,7 @@ class Dictionary(object):
         consumer=None,
         append_eos=True,
         reverse_order=False,
-    ):
+    ) -> torch.IntTensor:
         words = line_tokenizer(line)
         if reverse_order:
             words = list(reversed(words))

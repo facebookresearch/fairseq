@@ -9,6 +9,7 @@ from collections import Counter
 import torch
 from fairseq.file_io import PathManager
 from fairseq.tokenizer import tokenize_line
+from typing import List, Dict
 
 
 def safe_readline(f):
@@ -33,7 +34,7 @@ class Binarizer:
         offset=0,
         end=-1,
         already_numberized=False,
-    ):
+    ) -> Dict[str, int]:
         nseq, ntok = 0, 0
         replaced = Counter()
 
@@ -52,7 +53,7 @@ class Binarizer:
                 # end bytes to end + 2**32 bytes (4 GB) and this makes it unlikely
                 # that the procedure breaks by the undeterministic behavior of
                 # f.tell()
-                if end > 0 and f.tell() > end and f.tell() < end + 2**32:
+                if end > 0 and f.tell() > end and f.tell() < end + 2 ** 32:
                     break
                 if already_numberized:
                     id_strings = line.strip().split()
@@ -83,7 +84,9 @@ class Binarizer:
         }
 
     @staticmethod
-    def binarize_alignments(filename, alignment_parser, consumer, offset=0, end=-1):
+    def binarize_alignments(
+        filename, alignment_parser, consumer, offset=0, end=-1
+    ) -> Dict[str, int]:
         nseq = 0
 
         with open(PathManager.get_local_path(filename), "r") as f:
@@ -99,7 +102,7 @@ class Binarizer:
         return {"nseq": nseq}
 
     @staticmethod
-    def find_offsets(filename, num_chunks):
+    def find_offsets(filename, num_chunks) -> List[int]:
         with open(PathManager.get_local_path(filename), "r", encoding="utf-8") as f:
             size = os.fstat(f.fileno()).st_size
             chunk_size = size // num_chunks
