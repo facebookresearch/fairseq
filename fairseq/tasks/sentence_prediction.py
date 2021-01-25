@@ -121,7 +121,6 @@ class SentencePredictionTask(LegacyFairseqTask):
 
         # load label dictionary
         if not args.regression_target:
-            # load label dictionary
             label_dict = cls.load_dictionary(
                 args,
                 os.path.join(args.data, "label", "dict.txt"),
