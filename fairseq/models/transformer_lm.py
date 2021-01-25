@@ -144,6 +144,10 @@ class TransformerLanguageModelConfig(FairseqDataclass):
     checkpoint_activations: bool = field(
         default=False, metadata={"help": "checkpoint activations at each layer"}
     )
+    offload_activations: bool = field(
+        default=False,
+        metadata={"help": "move checkpointed activations to CPU after they are used."},
+    )
     quant_noise_pq: float = field(
         default=0.0,
         metadata={"help": "iterative PQ quantization noise at training time"},
@@ -171,6 +175,7 @@ class TransformerLanguageModel(FairseqLanguageModel):
     def hub_models(cls):
         def moses_fastbpe(path):
             return {"path": path, "tokenizer": "moses", "bpe": "fastbpe"}
+
         def spm(path):
             return {"path": path, "tokenizer": "space", "bpe": "sentencepiece"}
 
@@ -321,6 +326,9 @@ def base_lm_architecture(args):
     args.no_scale_embedding = getattr(args, "no_scale_embedding", False)
     args.layernorm_embedding = getattr(args, "layernorm_embedding", False)
     args.checkpoint_activations = getattr(args, "checkpoint_activations", False)
+    args.offload_activations = getattr(args, "offload_activations", False)
+    if args.offload_activations:
+        args.checkpoint_activations = True
 
 
 @register_model_architecture("transformer_lm", "transformer_lm_big")
