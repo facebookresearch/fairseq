@@ -119,7 +119,7 @@ class SentencePredictionTask(LegacyFairseqTask):
         )
         logger.info("[input] dictionary: {} types".format(len(data_dict)))
 
-        label_dict = None
+        # load label dictionary
         if not args.regression_target:
             # load label dictionary
             label_dict = cls.load_dictionary(
