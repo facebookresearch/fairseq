@@ -47,7 +47,8 @@ try:
     import tempfile
     TORCH_PIPE = True
     # Initialize single process RPC agent since TORCH_PIPE requires
-    # RRef.
+    # RRef. RRef depends on RPC being initialized and as a result we initialize
+    # RPC with a single node.
     tmpfile = tempfile.NamedTemporaryFile()
     rpc.init_rpc(
         name="worker",
