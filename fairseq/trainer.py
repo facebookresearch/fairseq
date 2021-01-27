@@ -376,13 +376,18 @@ class Trainer(object):
             self.set_num_updates(last_optim["num_updates"])
 
         if extra_state is not None:
-            epoch = extra_state["train_iterator"]["epoch"]
+            itr_state = extra_state["train_iterator"]
+            epoch = itr_state["epoch"]
 
             if "previous_training_time" in extra_state:
                 self._previous_training_time = extra_state["previous_training_time"]
                 self._start_time = time.time()
 
             self.lr_step(epoch)
+
+            if itr_state["version"] >= 2 and itr_state["iterations_in_epoch"] == 0:
+                # reset meters at start of epoch
+                reset_meters = True
 
             if "metrics" in extra_state and not reset_meters:
                 metrics.load_state_dict(extra_state["metrics"])
