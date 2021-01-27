@@ -378,7 +378,9 @@ def validate(
         logger.info('begin validation on "{}" subset'.format(subset))
 
         # Initialize data iterator
-        itr = trainer.get_valid_iterator(subset).next_epoch_itr(shuffle=False)
+        itr = trainer.get_valid_iterator(subset).next_epoch_itr(
+            shuffle=False, set_dataset_epoch=False  # use a fixed valid set
+        )
         if cfg.common.tpu:
             itr = utils.tpu_data_loader(itr)
         progress = progress_bar.progress_bar(
