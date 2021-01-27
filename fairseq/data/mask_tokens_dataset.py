@@ -108,8 +108,11 @@ class MaskTokensDataset(BaseWrapperDataset):
         super().set_epoch(epoch)
         self.epoch = epoch
 
-    @lru_cache(maxsize=8)
     def __getitem__(self, index: int):
+        return self.__getitem_cached__(self.seed, self.epoch, index)
+
+    @lru_cache(maxsize=8)
+    def __getitem_cached__(self, seed: int, epoch: int, index: int):
         with data_utils.numpy_seed(self.seed, self.epoch, index):
             item = self.dataset[index]
             sz = len(item)
