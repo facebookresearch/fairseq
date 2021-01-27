@@ -468,6 +468,9 @@ class Trainer(object):
             num_shards=self.data_parallel_world_size,
             shard_id=self.data_parallel_rank,
             num_workers=self.cfg.dataset.num_workers,
+            # always pass a fixed "epoch" to keep validation data consistent
+            # across training epochs
+            epoch=1,
             data_buffer_size=self.cfg.dataset.data_buffer_size,
             disable_iterator_cache=disable_iterator_cache,
         )

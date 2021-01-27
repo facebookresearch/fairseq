@@ -109,15 +109,19 @@ class EpochBatchIterating(object):
     def next_epoch_idx(self):
         raise NotImplementedError
 
-    def next_epoch_itr(self, shuffle=True, fix_batches_to_gpus=False):
+    def next_epoch_itr(
+        self, shuffle=True, fix_batches_to_gpus=False, set_dataset_epoch=True
+    ):
         """Return a new iterator over the dataset.
 
         Args:
             shuffle (bool, optional): shuffle batches before returning the
                 iterator (default: True).
-            fix_batches_to_gpus: ensure that batches are always
+            fix_batches_to_gpus (bool, optional): ensure that batches are always
                 allocated to the same shards across epochs. Requires
                 that :attr:`dataset` supports prefetching (default: False).
+            set_dataset_epoch (bool, optional): update the wrapped Dataset with
+                the new epoch number (default: True).
         """
         raise NotImplementedError
 
@@ -193,9 +197,11 @@ class StreamingEpochBatchIterator(EpochBatchIterating):
         else:
             return self.epoch
 
-    def next_epoch_itr(self, shuffle=True, fix_batches_to_gpus=False):
+    def next_epoch_itr(
+        self, shuffle=True, fix_batches_to_gpus=False, set_dataset_epoch=True
+    ):
         self.epoch = self.next_epoch_idx
-        if hasattr(self.dataset, "set_epoch"):
+        if set_dataset_epoch and hasattr(self.dataset, "set_epoch"):
             self.dataset.set_epoch(self.epoch)
         self._current_epoch_iterator = self._get_iterator_for_epoch(self.epoch, shuffle)
         return self._current_epoch_iterator
@@ -355,20 +361,24 @@ class EpochBatchIterator(EpochBatchIterating):
         else:
             return self.epoch
 
-    def next_epoch_itr(self, shuffle=True, fix_batches_to_gpus=False):
+    def next_epoch_itr(
+        self, shuffle=True, fix_batches_to_gpus=False, set_dataset_epoch=True
+    ):
         """Return a new iterator over the dataset.
 
         Args:
             shuffle (bool, optional): shuffle batches before returning the
                 iterator (default: True).
-            fix_batches_to_gpus: ensure that batches are always
+            fix_batches_to_gpus (bool, optional): ensure that batches are always
                 allocated to the same shards across epochs. Requires
                 that :attr:`dataset` supports prefetching (default: False).
+            set_dataset_epoch (bool, optional): update the wrapped Dataset with
+                the new epoch number (default: True).
         """
         if self.disable_shuffling:
             shuffle = False
         self.epoch = self.next_epoch_idx
-        if hasattr(self.dataset, "set_epoch"):
+        if set_dataset_epoch and hasattr(self.dataset, "set_epoch"):
             self.dataset.set_epoch(self.epoch)
         if self._next_epoch_itr is not None:
             self._cur_epoch_itr = self._next_epoch_itr
