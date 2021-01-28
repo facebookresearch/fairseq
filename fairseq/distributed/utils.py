@@ -552,7 +552,8 @@ def all_gather_list(data, group=None, max_size=16384):
     """Gathers arbitrary data from all nodes into a list.
 
     Similar to :func:`~torch.distributed.all_gather` but for arbitrary Python
-    data. Note that *data* must be picklable.
+    data. Note that *data* must be picklable and any CUDA tensors will be moved
+    to CPU and returned on CPU as well.
 
     Args:
         data (Any): data from the local worker to be gathered on other workers
