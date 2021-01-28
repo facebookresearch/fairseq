@@ -33,7 +33,7 @@ from tqdm import tqdm
 log = logging.getLogger(__name__)
 
 
-MANIFEST_COLUMNS = ["id", "audio", "n_frames", "tgt_text", "speaker"]
+MANIFEST_COLUMNS = ["id", "audio", "n_frames", "tgt_text", "speaker", "tgt_lang"]
 
 
 class TEDx(Dataset):
@@ -44,12 +44,11 @@ class TEDx(Dataset):
     """
 
     SPLITS    = ["train", "valid", "test"] #, "iwslt2021"]
-    LANGPAIRS = ["es-en","es-fr","es-pt","es-it","es-es",
-                 "fr-en","fr-es","fr-pt","fr-fr",
-                 "pt-en","pt-es","pt-pt",
-                 "it-en","it-es","it-it",
-                 "ru-en","ru-ru","el-en","el-el",
-                 "ar-ar","de-de"]
+    LANGPAIRS = ["es-es","fr-fr","pt-pt","it-it","ru-ru","el-el","ar-ar","de-de",
+                 "es-en","es-fr","es-pt","es-it","fr-en","fr-es","fr-pt",
+                 "pt-en","pt-es","it-en","it-es","ru-en","el-en"]
+
+
 
     def __init__(self, root: str, lang: str, split: str) -> None:
         assert split in self.SPLITS and lang in self.LANGPAIRS
@@ -76,7 +75,6 @@ class TEDx(Dataset):
         for wav_filename, _seg_group in groupby(segments, lambda x: x["wav"]):
             wav_path = wav_root / wav_filename
             sample_rate = torchaudio.info(wav_path.as_posix())[0].rate
-#            sample_rate = 16000 #override: setting to 16000
             seg_group = sorted(_seg_group, key=lambda x: float(x["offset"]))
             for i, segment in enumerate(seg_group):
                 offset = int(float(segment["offset"]) * sample_rate)
@@ -91,14 +89,15 @@ class TEDx(Dataset):
                         segment[src],
                         segment[tgt],
                         segment["speaker_id"],
+                        tgt,
                         _id,
                     )
                 )
 
-    def __getitem__(self, n: int) -> Tuple[Tensor, int, str, str, str, str]:
-        wav_path, offset, n_frames, sr, src_utt, tgt_utt, spk_id, utt_id = self.data[n]
+    def __getitem__(self, n: int) -> Tuple[Tensor, int, str, str, str, str, str]:
+        wav_path, offset, n_frames, sr, src_utt, tgt_utt, spk_id, tgt_lang, utt_id = self.data[n]
         waveform, _ = torchaudio.load(wav_path, offset=offset, num_frames=n_frames)
-        return waveform, sr, src_utt, tgt_utt, spk_id, utt_id
+        return waveform, sr, src_utt, tgt_utt, spk_id, tgt_lang, utt_id
 
     def __len__(self) -> int:
         return len(self.data)
@@ -118,8 +117,7 @@ def process(args):
             print(f"Fetching split {split}...")
             dataset = TEDx(root.as_posix(), lang, split)
             print("Extracting log mel filter bank features...")
-            for waveform, sample_rate, _, _, _, utt_id in tqdm(dataset):
-                print(lang, split, utt_id, sample_rate)
+            for waveform, sample_rate, _, _, _, _, utt_id in tqdm(dataset):
                 extract_fbank_features(
                     waveform, sample_rate, feature_root / f"{utt_id}.npy"
                 )
@@ -136,13 +134,14 @@ def process(args):
             is_train_split = split.startswith("train")
             manifest = {c: [] for c in MANIFEST_COLUMNS}
             dataset = TEDx(args.data_root, lang, split)
-            for wav, sr, src_utt, tgt_utt, speaker_id, utt_id in tqdm(dataset):
+            for wav, sr, src_utt, tgt_utt, speaker_id, tgt_lang, utt_id in tqdm(dataset):
                 manifest["id"].append(utt_id)
                 manifest["audio"].append(zip_manifest[utt_id])
                 duration_ms = int(wav.size(1) / sr * 1000)
                 manifest["n_frames"].append(int(1 + (duration_ms - 25) / 10))
                 manifest["tgt_text"].append(src_utt if args.task == "asr" else tgt_utt)
                 manifest["speaker"].append(speaker_id)
+                manifest["tgt_lang"].append(tgt_lang)
             if is_train_split:
                 train_text.extend(manifest["tgt_text"])
             df = pd.DataFrame.from_dict(manifest)
@@ -185,8 +184,8 @@ def process_joint(args):
             for t in df["tgt_text"]:
                 f.write(t + "\n")
         special_symbols = None
-        if args.task == 'st':
-            special_symbols = [f'<lang:{lang}>' for lang in TEDx.LANGPAIRS]
+        if args.joint:
+            special_symbols = list(set([f'<lang:{lang.split("-")[1]}>' for lang in TEDx.LANGPAIRS]))  #add tgt_lang tags to dict
         gen_vocab(
             Path(f.name),
             cur_root / spm_filename_prefix,
@@ -200,7 +199,7 @@ def process_joint(args):
         spm_filename_prefix + ".model",
         yaml_filename=f"config_{args.task}.yaml",
         specaugment_policy="ld",
-        prepend_tgt_lang_tag=(args.task == "st"),
+        prepend_tgt_lang_tag=(args.joint),
     )
     # Make symbolic links to manifests
     for lang in TEDx.LANGPAIRS:
