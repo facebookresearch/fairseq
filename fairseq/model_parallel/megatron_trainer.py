@@ -7,9 +7,9 @@
 Train a network across multiple GPUs.
 """
 
-from fairseq import distributed_utils
-from fairseq.trainer import Trainer
 from fairseq.dataclass.configs import FairseqConfig
+from fairseq.distributed import utils as distributed_utils
+from fairseq.trainer import Trainer
 
 try:
     from fairseq.model_parallel.megatron.mpu import (

@@ -12,7 +12,6 @@ import torch
 import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel
 
-from fairseq import distributed_utils
 from fairseq.distributed import (
     DistributedTimeoutWrapper,
     LegacyDistributedDataParallel,

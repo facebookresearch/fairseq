@@ -20,7 +20,7 @@ from contextlib import contextmanager
 import torch
 from torch import nn
 
-from fairseq import distributed_utils
+from fairseq.distributed import utils
 
 
 class LegacyDistributedDataParallel(nn.Module):
@@ -43,7 +43,7 @@ class LegacyDistributedDataParallel(nn.Module):
 
         self.module = module
         self.process_group = process_group
-        self.world_size = distributed_utils.get_world_size(self.process_group)
+        self.world_size = utils.get_world_size(self.process_group)
 
         # Never use a bigger buffer than the number of model params
         self.buffer_size = min(buffer_size, sum(p.numel() for p in module.parameters()))
@@ -107,7 +107,7 @@ class LegacyDistributedDataParallel(nn.Module):
             if nonzero_buffer:
                 buffer.div_(self.world_size)
 
-            distributed_utils.all_reduce(buffer, self.process_group)
+            utils.all_reduce(buffer, self.process_group)
 
             # copy all-reduced grads back into their original place
             offset = 0

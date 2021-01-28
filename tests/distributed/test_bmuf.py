@@ -11,8 +11,10 @@ from multiprocessing import Manager
 
 import torch
 import torch.nn as nn
-from fairseq import distributed_utils, optim
+from fairseq import optim
+from fairseq.distributed import utils as distributed_utils
 from omegaconf import OmegaConf
+
 
 class Model(nn.Module):
     def __init__(self, input_size, output_size):
