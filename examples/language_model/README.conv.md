@@ -17,7 +17,7 @@ fairseq-train --task language_modeling \
     --optimizer nag --clip-norm 0.1 --weight-decay 5e-06 \
     --lr 1.0 --lr-scheduler reduce_lr_on_plateau --lr-shrink 0.5 \
     --max-tokens 1024 --tokens-per-sample 1024 \
-    --ddp-backend no_c10d \
+    --ddp-backend legacy_ddp \
     --max-epoch 35
 ```
 

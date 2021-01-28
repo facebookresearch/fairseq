@@ -6,7 +6,7 @@ Note that we need to have an additional module to perform "length prediction" (`
 fairseq-train \
     data-bin/wmt14_en_de_distill \
     --save-dir checkpoints \
-    --ddp-backend=no_c10d \
+    --ddp-backend=legacy_ddp \
     --task translation_lev \
     --criterion nat_loss \
     --arch nonautoregressive_transformer \
@@ -35,7 +35,7 @@ Note that we implemented a low-rank appromixated CRF model by setting `--crf-low
 fairseq-train \
     data-bin/wmt14_en_de_distill \
     --save-dir checkpoints \
-    --ddp-backend=no_c10d \
+    --ddp-backend=legacy_ddp \
     --task translation_lev \
     --criterion nat_loss \
     --arch nacrf_transformer \
@@ -68,7 +68,7 @@ Note that `--train-step` means how many iterations of refinement we used during 
 fairseq-train \
     data-bin/wmt14_en_de_distill \
     --save-dir checkpoints \
-    --ddp-backend=no_c10d \
+    --ddp-backend=legacy_ddp \
     --task translation_lev \
     --criterion nat_loss \
     --arch iterative_nonautoregressive_transformer \
@@ -101,7 +101,7 @@ Note that we need to specify the "slot-loss" (uniform or balanced tree) describe
 fairseq-train \
     data-bin/wmt14_en_de_distill \
     --save-dir checkpoints \
-    --ddp-backend=no_c10d \
+    --ddp-backend=legacy_ddp \
     --task translation_lev \
     --criterion nat_loss \
     --arch insertion_transformer \
@@ -128,7 +128,7 @@ fairseq-train \
 fairseq-train \
     data-bin/wmt14_en_de_distill \
     --save-dir checkpoints \
-    --ddp-backend=no_c10d \
+    --ddp-backend=legacy_ddp \
     --task translation_lev \
     --criterion nat_loss \
     --arch cmlm_transformer \
@@ -157,7 +157,7 @@ fairseq-train \
 fairseq-train \
     data-bin/wmt14_en_de_distill \
     --save-dir checkpoints \
-    --ddp-backend=no_c10d \
+    --ddp-backend=legacy_ddp \
     --task translation_lev \
     --criterion nat_loss \
     --arch levenshtein_transformer \

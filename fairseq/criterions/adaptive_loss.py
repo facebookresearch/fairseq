@@ -32,11 +32,11 @@ class AdaptiveLoss(FairseqCriterion):
 
     @classmethod
     def build_criterion(cls, cfg: AdaptiveLossConfig, task):
-        if cfg.ddp_backend == "c10d":
+        if cfg.ddp_backend in {"c10d", "pytorch_ddp"}:
             raise Exception(
-                "AdaptiveLoss is not compatible with the c10d "
+                "AdaptiveLoss is not compatible with the PyTorch "
                 "version of DistributedDataParallel. Please use "
-                "`--ddp-backend=no_c10d` instead."
+                "`--ddp-backend=legacy_ddp` instead."
             )
         return cls(task, cfg.sentence_avg)
 

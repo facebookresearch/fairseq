@@ -19,7 +19,7 @@ UPDATE_FREQ=8         # Accumulate gradients to simulate training on 8 GPUs.
 DATA_DIR=/path/to/race-output-dir
 ROBERTA_PATH=/path/to/roberta/model.pt
 
-CUDA_VISIBLE_DEVICES=0,1 fairseq-train $DATA_DIR --ddp-backend=no_c10d \
+CUDA_VISIBLE_DEVICES=0,1 fairseq-train $DATA_DIR --ddp-backend=legacy_ddp \
     --restore-file $ROBERTA_PATH \
     --reset-optimizer --reset-dataloader --reset-meters \
     --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric \
