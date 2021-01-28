@@ -228,7 +228,7 @@ class TranslationConfig(FairseqDataclass):
     eval_bleu: bool = field(
         default=False, metadata={"help": "evaluation with BLEU scores"}
     )
-    eval_bleu_args: str = field(
+    eval_bleu_args: Optional[str] = field(
         default="{}",
         metadata={
             "help": 'generation args for BLUE scoring, e.g., \'{"beam": 4, "lenpen": 0.6}\', as JSON string'
@@ -241,7 +241,7 @@ class TranslationConfig(FairseqDataclass):
             "use 'space' to disable detokenization; see fairseq.data.encoders for other options"
         },
     )
-    eval_bleu_detok_args: str = field(
+    eval_bleu_detok_args: Optional[str] = field(
         default="{}",
         metadata={"help": "args for building the tokenizer, if needed, as JSON string"},
     )
