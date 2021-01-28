@@ -69,7 +69,12 @@ class Trainer(object):
         elif cfg.common.bf16:
             self._criterion = self._criterion.to(dtype=torch.bfloat16)
             self._model = self._model.to(dtype=torch.bfloat16)
-        if not cfg.distributed_training.pipeline_model_parallel:
+        if (
+            not cfg.distributed_training.pipeline_model_parallel
+            # the DistributedFairseqModel wrapper will handle moving to device,
+            # so only handle cases which don't use the wrapper
+            and not self.use_distributed_wrapper
+        ):
             self._criterion = self._criterion.to(device=self.device)
             self._model = self._model.to(device=self.device)
         self.pipeline_model_parallel = cfg.distributed_training.pipeline_model_parallel
@@ -159,17 +164,24 @@ class Trainer(object):
         return self.data_parallel_rank == 0
 
     @property
+    def use_distributed_wrapper(self) -> bool:
+        return (
+            self.data_parallel_world_size > 1
+            and not self.cfg.optimization.use_bmuf
+        )
+
+    @property
     def criterion(self):
         if self._wrapped_criterion is None:
             if (
                 utils.has_parameters(self._criterion)
-                and self.data_parallel_world_size > 1
-                and not self.cfg.optimization.use_bmuf
+                and self.use_distributed_wrapper
             ):
                 self._wrapped_criterion = models.DistributedFairseqModel(
                     self.cfg.distributed_training,
                     self._criterion,
                     process_group=self.data_parallel_process_group,
+                    device=self.device,
                 )
             else:
                 self._wrapped_criterion = self._criterion
@@ -178,11 +190,12 @@ class Trainer(object):
     @property
     def model(self):
         if self._wrapped_model is None:
-            if self.data_parallel_world_size > 1 and not self.cfg.optimization.use_bmuf:
+            if self.use_distributed_wrapper:
                 self._wrapped_model = models.DistributedFairseqModel(
                     self.cfg.distributed_training,
                     self._model,
                     process_group=self.data_parallel_process_group,
+                    device=self.device,
                 )
             else:
                 self._wrapped_model = self._model
@@ -268,8 +281,8 @@ class Trainer(object):
             checkpoint_utils.save_state(
                 filename,
                 self.cfg,
-                self.get_model().state_dict(),
-                self.get_criterion(),
+                self.model.state_dict(),
+                self.criterion,
                 self.optimizer,
                 self.lr_scheduler,
                 self.get_num_updates(),
@@ -336,7 +349,7 @@ class Trainer(object):
 
             # load model parameters
             try:
-                self.get_model().load_state_dict(
+                self.model.load_state_dict(
                     state["model"], strict=True, model_cfg=self.cfg.model
                 )
                 if utils.has_parameters(self.get_criterion()):
