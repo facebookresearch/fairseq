@@ -14,15 +14,13 @@ This version also supports the *no_sync* context manager, which allows faster
 training with `--update-freq`.
 """
 
-import copy
 from collections import OrderedDict
 from contextlib import contextmanager
 
 import torch
 from torch import nn
-from torch.autograd import Variable
 
-from . import distributed_utils
+from fairseq import distributed_utils
 
 
 class LegacyDistributedDataParallel(nn.Module):
@@ -63,13 +61,6 @@ class LegacyDistributedDataParallel(nn.Module):
                 paramlists[device] = []
             paramlists[device] += [param]
         self.per_device_params = list(paramlists.values())
-
-    def __getstate__(self):
-        attrs = copy.copy(self.__dict__)
-        return attrs
-
-    def __setstate__(self, state):
-        super().__setstate__(state)
 
     @contextmanager
     def no_sync(self):
