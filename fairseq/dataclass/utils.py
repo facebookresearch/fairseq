@@ -162,7 +162,7 @@ def gen_parser_from_dataclass(
                     continue
                 else:
                     del kwargs["default"]
-            if delete_default:
+            if delete_default and "default" in kwargs:
                 del kwargs["default"]
         try:
             parser.add_argument(*field_args, **kwargs)
