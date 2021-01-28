@@ -600,11 +600,7 @@ class Trainer(object):
                 ooms,
                 total_train_time,
             ) = self._aggregate_logging_outputs(
-                logging_outputs,
-                sample_size,
-                ooms,
-                train_time,
-                ignore=is_dummy_batch,
+                logging_outputs, sample_size, ooms, train_time, ignore=is_dummy_batch
             )
             self._cumulative_training_time = (
                 total_train_time / self.data_parallel_world_size
@@ -699,10 +695,7 @@ class Trainer(object):
                 )
 
         logging_output = None
-        if (
-            not overflow
-            or self.cfg.distributed_training.ddp_backend == "slow_mo"
-        ):
+        if not overflow or self.cfg.distributed_training.ddp_backend == "slow_mo":
             self.set_num_updates(self.get_num_updates() + 1)
 
             if self.tpu:
@@ -720,24 +713,14 @@ class Trainer(object):
                     gb_free = mem_info["kb_free"] / 1024 / 1024
                     gb_total = mem_info["kb_total"] / 1024 / 1024
                     metrics.log_scalar(
-                        "gb_free",
-                        gb_free,
-                        priority=1500,
-                        round=1,
-                        weight=0,
+                        "gb_free", gb_free, priority=1500, round=1, weight=0
                     )
                     metrics.log_scalar(
-                        "gb_total",
-                        gb_total,
-                        priority=1600,
-                        round=1,
-                        weight=0,
+                        "gb_total", gb_total, priority=1600, round=1, weight=0
                     )
 
                     logging_output = self._reduce_and_log_stats(
-                        logging_outputs,
-                        sample_size,
-                        grad_norm,
+                        logging_outputs, sample_size, grad_norm
                     )
 
                 # log whenever there's an XLA compilation, since these
@@ -745,11 +728,18 @@ class Trainer(object):
                 # optimization
                 self._check_xla_compilation()
             else:
+                if self.cuda and self.cuda_env is not None:
+                    # log minimum free memory over the iteration
+                    gb_used = torch.cuda.max_memory_allocated() / 1024 / 1024 / 1024
+                    torch.cuda.reset_peak_memory_stats()
+                    gb_free = self.cuda_env.total_memory_in_GB - gb_used
+                    metrics.log_scalar(
+                        "gb_free", gb_free, priority=1500, round=1, weight=0
+                    )
+
                 # log stats
                 logging_output = self._reduce_and_log_stats(
-                    logging_outputs,
-                    sample_size,
-                    grad_norm,
+                    logging_outputs, sample_size, grad_norm
                 )
 
                 # clear CUDA cache to reduce memory fragmentation
