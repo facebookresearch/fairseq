@@ -6,7 +6,7 @@
 import torch
 from torch import nn
 
-from fairseq import distributed_utils
+from fairseq.distributed import utils
 
 
 class TPUDistributedDataParallel(nn.Module):
@@ -15,7 +15,7 @@ class TPUDistributedDataParallel(nn.Module):
         super().__init__()
         self.module = module
         self.process_group = process_group
-        self.world_size = distributed_utils.get_world_size(self.process_group)
+        self.world_size = utils.get_world_size(self.process_group)
 
     def forward(self, *inputs, **kwargs):
         return self.module(*inputs, **kwargs)

@@ -17,10 +17,6 @@ from typing import Callable, Dict, List, Optional
 
 import torch
 import torch.nn.functional as F
-from fairseq.data import iterators
-from fairseq.file_io import PathManager
-from fairseq.logging.meters import safe_round
-from fairseq.modules import gelu, gelu_accurate
 from fairseq.modules.multihead_attention import MultiheadAttention
 from torch import Tensor
 
@@ -51,6 +47,8 @@ class FileContentsAction(argparse.Action):
         super(FileContentsAction, self).__init__(option_strings, dest, **kwargs)
 
     def __call__(self, parser, namespace, values, option_string=None):
+        from fairseq.file_io import PathManager
+
         if PathManager.isfile(values):
             with PathManager.open(values) as f:
                 argument = f.read().strip()
@@ -482,6 +480,8 @@ def log_softmax(x, dim: int, onnx_trace: bool = False):
 
 
 def get_perplexity(loss, round=2, base=2):
+    from fairseq.logging.meters import safe_round
+
     if loss is None:
         return 0.0
     try:
@@ -497,6 +497,8 @@ def deprecation_warning(message, stacklevel=3):
 
 def get_activation_fn(activation: str) -> Callable:
     """ Returns the activation function corresponding to `activation` """
+    from fairseq.modules import gelu, gelu_accurate
+
     if activation == "relu":
         return F.relu
     elif activation == "gelu":
@@ -665,6 +667,7 @@ def get_tpu_device():
 def tpu_data_loader(itr):
     import torch_xla.core.xla_model as xm
     import torch_xla.distributed.parallel_loader as pl
+    from fairseq.data import iterators
 
     xm.rendezvous("tpu_data_loader")  # wait for all workers
     xm.mark_step()
