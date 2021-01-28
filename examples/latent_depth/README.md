@@ -30,7 +30,7 @@ fairseq-train ${databin_dir} \
   --lr 0.0015 \
   --clip-norm 1.0 \
   --seed 2 \
-  --ddp-backend=no_c10d \
+  --ddp-backend=legacy_ddp \
   --encoder-layers 12 \
   --decoder-layers 24 \
   --decoder-latent-layer \

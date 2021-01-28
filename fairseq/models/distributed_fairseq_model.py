@@ -49,7 +49,7 @@ def DistributedFairseqModel(args, model, process_group):
             module=model,
             process_group=process_group,
         )
-    elif args.distributed_wrapper == "DDP" and args.ddp_backend == "c10d":
+    elif args.ddp_backend in {"c10d", "pytorch_ddp"}:
         ddp_class = nn.parallel.DistributedDataParallel
         init_kwargs = dict(
             module=model,
@@ -62,14 +62,14 @@ def DistributedFairseqModel(args, model, process_group):
         # Maintain backward compatibility
         if "find_unused_parameters" in inspect.getargspec(ddp_class)[0]:
             init_kwargs["find_unused_parameters"] = args.find_unused_parameters
-    elif args.distributed_wrapper == "DDP" and args.ddp_backend == "no_c10d":
+    elif args.ddp_backend in {"no_c10d", "legacy_ddp"}:
         ddp_class = LegacyDistributedDataParallel
         init_kwargs = dict(
             module=model,
             buffer_size=2 ** 28,
             process_group=process_group,
         )
-    elif args.distributed_wrapper == "SlowMo":
+    elif args.ddp_backend == "slow_mo":
         if _GOSSIP_DISABLED:
             raise ImportError(
                 "Cannot find gossip library. Please install from: "

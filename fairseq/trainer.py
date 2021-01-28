@@ -646,7 +646,7 @@ class Trainer(object):
             if not self.tpu:
                 if (
                     not self.cfg.optimization.use_bmuf
-                    and self.cfg.distributed_training.distributed_wrapper != "SlowMo"
+                    and self.cfg.distributed_training.ddp_backend != "slow_mo"
                 ):
                     self._check_grad_norms(grad_norm)
                 if not torch.isfinite(grad_norm).all():
@@ -686,7 +686,8 @@ class Trainer(object):
                 logger.error("OOM during optimization, irrecoverable")
             raise e
 
-        # Some distributed wrappers (e.g., SlowMo) need access to the optimizer after the step
+        # Some distributed wrappers (e.g., SlowMo) need access to the optimizer
+        # after the step
         if hasattr(self.model, "perform_additional_optimizer_actions"):
             if hasattr(self.optimizer, "fp32_params"):
                 self.model.perform_additional_optimizer_actions(
@@ -700,7 +701,7 @@ class Trainer(object):
         logging_output = None
         if (
             not overflow
-            or self.cfg.distributed_training.distributed_wrapper == "SlowMo"
+            or self.cfg.distributed_training.ddp_backend == "slow_mo"
         ):
             self.set_num_updates(self.get_num_updates() + 1)
 
@@ -1120,7 +1121,7 @@ class Trainer(object):
                 # use FloatingPointError to trigger NanDetector
                 raise FloatingPointError(
                     "Fatal error: gradients are inconsistent between workers. "
-                    "Try --ddp-backend=no_c10d. "
+                    "Try --ddp-backend=legacy_ddp. "
                     "Or are you mixing up different generation of GPUs in training?"
                     + "\n"
                     + "-" * 80

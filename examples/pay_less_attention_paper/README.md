@@ -113,7 +113,7 @@ CUDA_VISIBLE_DEVICES=0 $(which fairseq-train) data-bin/iwslt14.tokenized.de-en \
     --log-interval 100 --stop-min-lr '1e-09' --weight-decay 0.0001 \
     --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
     --lr-scheduler inverse_sqrt \
-    --ddp-backend=no_c10d \
+    --ddp-backend=legacy_ddp \
     --max-update 50000 --warmup-updates 4000 --warmup-init-lr '1e-07' \
     --adam-betas '(0.9, 0.98)' --keep-last-epochs 10 \
     -a lightconv_iwslt_de_en --save-dir $SAVE \
@@ -138,7 +138,7 @@ python -m torch.distributed.launch --nproc_per_node 8 $(which fairseq-train) \
     --adam-betas '(0.9, 0.98)' --clip-norm 0.0 --weight-decay 0.0 \
     --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
     --stop-min-lr 1e-09 --update-freq 16 --attention-dropout 0.1 --keep-last-epochs 10 \
-    --ddp-backend=no_c10d --max-tokens 3584 \
+    --ddp-backend=legacy_ddp --max-tokens 3584 \
     --lr-scheduler cosine --warmup-init-lr 1e-7 --warmup-updates 10000 \
     --lr-shrink 1 --lr 0.001 --min-lr 1e-7 --warmup-init-lr 1e-07 \
     --t-mult 1 --lr-period-updates 20000 \
@@ -163,7 +163,7 @@ python -m torch.distributed.launch --nproc_per_node 8 $(which fairseq-train) \
     --adam-betas '(0.9, 0.98)' --clip-norm 0.0 --weight-decay 0.0 \
     --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
     --stop-min-lr 1e-09 --update-freq 16 --attention-dropout 0.1 --keep-last-epochs 10 \
-    --ddp-backend=no_c10d --max-tokens 3584 \
+    --ddp-backend=legacy_ddp --max-tokens 3584 \
     --lr-scheduler cosine --warmup-init-lr 1e-7 --warmup-updates 10000 \
     --lr-shrink 1 --lr 0.001 --min-lr 1e-7 --warmup-init-lr 1e-07 \
     --t-mult 1 --lr-period-updates 70000 \

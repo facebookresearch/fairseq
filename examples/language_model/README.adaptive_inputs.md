@@ -22,7 +22,7 @@ fairseq-train --task language_modeling \
     --max-update 286000 --lr 1.0 --t-mult 2 --lr-period-updates 270000 --lr-scheduler cosine --lr-shrink 0.75 \
     --warmup-updates 16000 --warmup-init-lr 1e-07 --stop-min-lr 1e-09 --optimizer nag --min-lr 0.0001 --clip-norm 0.1 \
     --criterion adaptive_loss --max-tokens 3072 --update-freq 3 --tokens-per-sample 3072 --seed 1 \
-    --sample-break-mode none --skip-invalid-size-inputs-valid-test --ddp-backend=no_c10d
+    --sample-break-mode none --skip-invalid-size-inputs-valid-test --ddp-backend=legacy_ddp
 ```
 
 ## Citation

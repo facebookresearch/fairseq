@@ -68,7 +68,7 @@ fairseq-train \
 --dataset-impl lazy --seed 0 \
 --masked-lm-only \
 --monolingual-langs 'ar,de,en,hi,fr' --num-segment 5 \
---ddp-backend=no_c10d
+--ddp-backend=legacy_ddp
 ```
 
 Some Notes:

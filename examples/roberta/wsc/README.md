@@ -51,7 +51,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 fairseq-train WSC/ \
     --no-epoch-checkpoints --no-last-checkpoints --no-save-optimizer-state \
     --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric \
     --valid-subset val \
-    --fp16 --ddp-backend no_c10d \
+    --fp16 --ddp-backend legacy_ddp \
     --user-dir $FAIRSEQ_USER_DIR \
     --task wsc --criterion wsc --wsc-cross-entropy \
     --arch roberta_large --bpe gpt2 --max-positions 512 \
@@ -110,7 +110,7 @@ CUDA_VISIBLE_DEVICES=0 fairseq-train winogrande_1.0/ \
   --no-epoch-checkpoints --no-last-checkpoints --no-save-optimizer-state \
   --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric \
   --valid-subset val \
-  --fp16 --ddp-backend no_c10d \
+  --fp16 --ddp-backend legacy_ddp \
   --user-dir $FAIRSEQ_USER_DIR \
   --task winogrande --criterion winogrande \
   --wsc-margin-alpha 5.0 --wsc-margin-beta 0.4 \

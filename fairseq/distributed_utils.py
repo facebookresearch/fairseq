@@ -591,7 +591,7 @@ def all_gather_list(data, group=None, max_size=16384):
             "sync if one of them runs out of memory, or if there are other conditions "
             "in your training script that can cause one worker to finish an epoch "
             "while other workers are still iterating over their portions of the data. "
-            "Try rerunning with --ddp-backend=no_c10d and see if that helps."
+            "Try rerunning with --ddp-backend=legacy_ddp and see if that helps."
         )
 
 
