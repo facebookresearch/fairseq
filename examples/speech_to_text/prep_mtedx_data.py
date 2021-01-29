@@ -36,7 +36,7 @@ log = logging.getLogger(__name__)
 MANIFEST_COLUMNS = ["id", "audio", "n_frames", "tgt_text", "speaker", "tgt_lang"]
 
 
-class TEDx(Dataset):
+class mTEDx(Dataset):
     """
     Create a Dataset for Multilingual TEDx.
     Each item is a tuple of the form: waveform, sample_rate, source utterance,
@@ -105,7 +105,7 @@ class TEDx(Dataset):
 
 def process(args):
     root = Path(args.data_root).absolute()
-    for lang in TEDx.LANGPAIRS:
+    for lang in mTEDx.LANGPAIRS:
         cur_root = root / f"{lang}"
         if not cur_root.is_dir():
             print(f"{cur_root.as_posix()} does not exist. Skipped.")
@@ -113,9 +113,9 @@ def process(args):
         # Extract features
         feature_root = cur_root / "fbank80"
         feature_root.mkdir(exist_ok=True)
-        for split in TEDx.SPLITS:
+        for split in mTEDx.SPLITS:
             print(f"Fetching split {split}...")
-            dataset = TEDx(root.as_posix(), lang, split)
+            dataset = mTEDx(root.as_posix(), lang, split)
             print("Extracting log mel filter bank features...")
             for waveform, sample_rate, _, _, _, _, utt_id in tqdm(dataset):
                 extract_fbank_features(
@@ -130,10 +130,10 @@ def process(args):
         # Generate TSV manifest
         print("Generating manifest...")
         train_text = []
-        for split in TEDx.SPLITS:
+        for split in mTEDx.SPLITS:
             is_train_split = split.startswith("train")
             manifest = {c: [] for c in MANIFEST_COLUMNS}
-            dataset = TEDx(args.data_root, lang, split)
+            dataset = mTEDx(args.data_root, lang, split)
             for wav, sr, src_utt, tgt_utt, speaker_id, tgt_lang, utt_id in tqdm(dataset):
                 manifest["id"].append(utt_id)
                 manifest["audio"].append(zip_manifest[utt_id])
@@ -172,20 +172,20 @@ def process(args):
 
 def process_joint(args):
     cur_root = Path(args.data_root)
-    assert all((cur_root / f"{lang}").is_dir() for lang in TEDx.LANGPAIRS), \
+    assert all((cur_root / f"{lang}").is_dir() for lang in mTEDx.LANGPAIRS), \
         "do not have downloaded data available for all languages"
     # Generate vocab
     vocab_size_str = "" if args.vocab_type == "char" else str(args.vocab_size)
     spm_filename_prefix = f"spm_{args.vocab_type}{vocab_size_str}_{args.task}"
     with NamedTemporaryFile(mode="w") as f:
-        for lang in TEDx.LANGPAIRS:
+        for lang in mTEDx.LANGPAIRS:
             tsv_path = cur_root / f"{lang}" / f"train_{args.task}.tsv"
             df = load_df_from_tsv(tsv_path)
             for t in df["tgt_text"]:
                 f.write(t + "\n")
         special_symbols = None
         if args.joint:
-            special_symbols = list(set([f'<lang:{lang.split("-")[1]}>' for lang in TEDx.LANGPAIRS]))  #add tgt_lang tags to dict
+            special_symbols = list(set([f'<lang:{lang.split("-")[1]}>' for lang in mTEDx.LANGPAIRS]))  #add tgt_lang tags to dict
         gen_vocab(
             Path(f.name),
             cur_root / spm_filename_prefix,
@@ -202,8 +202,8 @@ def process_joint(args):
         prepend_tgt_lang_tag=(args.joint),
     )
     # Make symbolic links to manifests
-    for lang in TEDx.LANGPAIRS:
-        for split in TEDx.SPLITS:
+    for lang in mTEDx.LANGPAIRS:
+        for split in mTEDx.SPLITS:
             src_path = cur_root / f"{lang}" / f"{split}_{args.task}.tsv"
             desc_path = cur_root / f"{split}_{lang}_{args.task}.tsv"
             if not desc_path.is_symlink():
