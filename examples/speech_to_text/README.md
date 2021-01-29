@@ -31,6 +31,8 @@ It requires arguments `--task speech_to_text` and `--arch <model architecture in
 
 - [Speech-to-Text Translation (ST) on CoVoST 2](docs/covost_example.md)
 
+- [Speech-to-Text Translation (ST) on Multilingual TEDx](docs/mtedx_example.md)
+
 ## Updates
 - 01/08/2021: Several fixes for S2T Transformer model, inference-time de-tokenization, scorer configuration and data
   preparation scripts. We also add pre-trained models to the examples and revise the instructions.
