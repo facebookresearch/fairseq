@@ -1,0 +1,59 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: json
+  log_interval: 200
+
+checkpoint:
+  no_epoch_checkpoints: true
+  best_checkpoint_metric: wer
+
+task:
+  _name: audio_pretraining
+  data: ???
+  normalize: true
+  labels: ltr
+
+dataset:
+  num_workers: 6
+  max_tokens: 1280000
+  skip_invalid_size_inputs_valid_test: true
+  valid_subset: dev_other
+
+distributed_training:
+  ddp_backend: legacy_ddp
+  distributed_world_size: 4
+
+criterion:
+  _name: ctc
+  zero_infinity: true
+
+optimization:
+  max_update: 80000
+  lr: [0.00003]
+  sentence_avg: true
+  update_freq: [5]
+
+optimizer:
+  _name: adam
+  adam_betas: (0.9,0.98)
+  adam_eps: 1e-08
+
+lr_scheduler:
+  _name: tri_stage
+  phase_ratio: [0.1, 0.4, 0.5]
+  final_lr_scale: 0.05
+
+model:
+  _name: wav2vec_ctc
+  w2v_path: ???
+  apply_mask: true
+  mask_prob: 0.5
+  mask_channel_prob: 0.5
+  mask_channel_length: 64
+  layerdrop: 0.1
+  activation_dropout: 0.1
+  feature_grad_mult: 0.0
+  freeze_finetune_updates: 10000
+

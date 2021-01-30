@@ -1,4 +1,4 @@
-# Contributing to FAIR Sequence-to-Sequence Toolkit (PyTorch)
+# Contributing to Facebook AI Research Sequence-to-Sequence Toolkit (fairseq)
 We want to make contributing to this project as easy and transparent as
 possible.
 
@@ -22,9 +22,7 @@ Complete your CLA here: <https://code.facebook.com/cla>
 We use GitHub issues to track public bugs. Please ensure your description is
 clear and has sufficient instructions to be able to reproduce the issue.
 
-## Coding Style
-We try to follow the PEP style guidelines and encourage you to as well.
-
 ## License
-By contributing to FAIR Sequence-to-Sequence Toolkit, you agree that your contributions will be licensed
-under the LICENSE file in the root directory of this source tree.
+By contributing to Facebook AI Research Sequence-to-Sequence Toolkit (fairseq),
+you agree that your contributions will be licensed under the LICENSE file in
+the root directory of this source tree.

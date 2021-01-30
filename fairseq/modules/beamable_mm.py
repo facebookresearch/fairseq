@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import torch
 import torch.nn as nn
@@ -17,16 +15,18 @@ class BeamableMM(nn.Module):
     inference by replacing the inputs {(bsz x 1 x nhu), (bsz x sz2 x nhu)}
     with smaller inputs {(bsz/beam x beam x nhu), (bsz/beam x sz2 x nhu)}.
     """
+
     def __init__(self, beam_size=None):
         super(BeamableMM, self).__init__()
         self.beam_size = beam_size
 
     def forward(self, input1, input2):
         if (
-            not self.training and           # test mode
-            self.beam_size is not None and  # beam size is set
-            input1.dim() == 3 and           # only support batched input
-            input1.size(1) == 1             # single time step update
+            not self.training
+            and self.beam_size is not None  # test mode
+            and input1.dim() == 3  # beam size is set
+            and input1.size(1)  # only support batched input
+            == 1  # single time step update
         ):
             bsz, beam = input1.size(0), self.beam_size
 

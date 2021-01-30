@@ -74,10 +74,16 @@ Adding new models
 .. autoclass:: fairseq.models.BaseFairseqModel
     :members:
     :undoc-members:
-.. autoclass:: fairseq.models.FairseqModel
+.. autoclass:: fairseq.models.FairseqEncoderDecoderModel
+    :members:
+    :undoc-members:
+.. autoclass:: fairseq.models.FairseqEncoderModel
     :members:
     :undoc-members:
 .. autoclass:: fairseq.models.FairseqLanguageModel
+    :members:
+    :undoc-members:
+.. autoclass:: fairseq.models.FairseqMultiModel
     :members:
     :undoc-members:
 .. autoclass:: fairseq.models.FairseqEncoder

@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import torch
 
@@ -32,13 +30,14 @@ class TransformEosDataset(FairseqDataset):
         remove_eos_from_src=False,
         append_eos_to_tgt=False,
         remove_eos_from_tgt=False,
+        has_target=True,
     ):
         if not isinstance(dataset, FairseqDataset):
-            raise ValueError('dataset must be an instance of FairseqDataset')
+            raise ValueError("dataset must be an instance of FairseqDataset")
         if append_eos_to_src and remove_eos_from_src:
-            raise ValueError('cannot combine append_eos_to_src and remove_eos_from_src')
+            raise ValueError("cannot combine append_eos_to_src and remove_eos_from_src")
         if append_eos_to_tgt and remove_eos_from_tgt:
-            raise ValueError('cannot combine append_eos_to_tgt and remove_eos_from_tgt')
+            raise ValueError("cannot combine append_eos_to_tgt and remove_eos_from_tgt")
 
         self.dataset = dataset
         self.eos = torch.LongTensor([eos])
@@ -46,6 +45,7 @@ class TransformEosDataset(FairseqDataset):
         self.remove_eos_from_src = remove_eos_from_src
         self.append_eos_to_tgt = append_eos_to_tgt
         self.remove_eos_from_tgt = remove_eos_from_tgt
+        self.has_target = has_target
 
         # precompute how we should adjust the reported sizes
         self._src_delta = 0
@@ -64,7 +64,7 @@ class TransformEosDataset(FairseqDataset):
             self._checked_src = True
 
     def _check_tgt(self, tgt, expect_eos):
-        if not self._checked_tgt:
+        if self.has_target and not self._checked_tgt:
             assert (tgt[-1] == self.eos[0]) == expect_eos
             self._checked_tgt = True
 
@@ -75,34 +75,37 @@ class TransformEosDataset(FairseqDataset):
         return len(self.dataset)
 
     def collater(self, samples):
-
         def transform(item):
             if self.append_eos_to_src:
-                self._check_src(item['source'], expect_eos=False)
-                item['source'] = torch.cat([item['source'], self.eos])
+                self.eos = self.eos.to(device=item["source"].device)
+                self._check_src(item["source"], expect_eos=False)
+                item["source"] = torch.cat([item["source"], self.eos])
             if self.remove_eos_from_src:
-                self._check_src(item['source'], expect_eos=True)
-                item['source'] = item['source'][:-1]
+                self.eos = self.eos.to(device=item["source"].device)
+                self._check_src(item["source"], expect_eos=True)
+                item["source"] = item["source"][:-1]
             if self.append_eos_to_tgt:
-                self._check_tgt(item['target'], expect_eos=False)
-                item['target'] = torch.cat([item['target'], self.eos])
+                self.eos = self.eos.to(device=item["target"].device)
+                self._check_tgt(item["target"], expect_eos=False)
+                item["target"] = torch.cat([item["target"], self.eos])
             if self.remove_eos_from_tgt:
-                self._check_tgt(item['target'], expect_eos=True)
-                item['target'] = item['target'][:-1]
+                self.eos = self.eos.to(device=item["target"].device)
+                self._check_tgt(item["target"], expect_eos=True)
+                item["target"] = item["target"][:-1]
             return item
 
         samples = list(map(transform, samples))
         return self.dataset.collater(samples)
 
-    def get_dummy_batch(self, *args, **kwargs):
-        return self.dataset.get_dummy_batch(*args, **kwargs)
-
     def num_tokens(self, index):
         return self.dataset.num_tokens(index)
 
     def size(self, index):
-        src_len, tgt_len = self.dataset.size(index)
-        return (src_len + self._src_delta, tgt_len + self._tgt_delta)
+        if self.has_target:
+            src_len, tgt_len = self.dataset.size(index)
+            return (src_len + self._src_delta, tgt_len + self._tgt_delta)
+        else:
+            return self.dataset.size(index)
 
     def ordered_indices(self):
         # NOTE: we assume that the ordering does not change based on the
@@ -111,7 +114,7 @@ class TransformEosDataset(FairseqDataset):
 
     @property
     def supports_prefetch(self):
-        return getattr(self.dataset, 'supports_prefetch', False)
+        return getattr(self.dataset, "supports_prefetch", False)
 
     def prefetch(self, indices):
         return self.dataset.prefetch(indices)

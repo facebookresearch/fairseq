@@ -1,20 +1,36 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
-import inspect
-from torch.nn import parallel
+import logging
+import os
+import signal
+import threading
 
-from fairseq.distributed_utils import c10d_status
-from fairseq.legacy_distributed_data_parallel import LegacyDistributedDataParallel
+import torch
+import torch.nn as nn
+from torch.nn.parallel import DistributedDataParallel
 
-from . import BaseFairseqModel
+from fairseq.distributed import (
+    DistributedTimeoutWrapper,
+    LegacyDistributedDataParallel,
+    ModuleProxyWrapper,
+    TPUDistributedDataParallel,
+)
 
 
-def DistributedFairseqModel(args, model):
+logger = logging.getLogger(__name__)
+
+
+_GOSSIP_DISABLED = False
+try:
+    import gossip
+except ImportError:
+    _GOSSIP_DISABLED = True
+
+
+def DistributedFairseqModel(args, model, process_group, device):
     """
     Wrap a *model* to support distributed data parallel training.
 
@@ -26,52 +42,75 @@ def DistributedFairseqModel(args, model):
     Args:
         args (argparse.Namespace): fairseq args
         model (BaseFairseqModel): model to wrap
+        process_group: the c10d process group to be used for distributed data
+            parallel all-reduction.
+        device: device to move model to
     """
-
-    # determine which DDP class to extend
-    assert isinstance(model, BaseFairseqModel)
-    if args.ddp_backend == 'c10d':
-        if c10d_status.is_default:
-            ddp_class = parallel.DistributedDataParallel
-        elif c10d_status.has_c10d:
-            ddp_class = parallel._DistributedDataParallelC10d
-        else:
-            raise Exception(
-                'Can\'t find c10d version of DistributedDataParallel. '
-                'Please update PyTorch.'
-            )
-        init_kwargs = dict(
-            module=model,
+    assert isinstance(model, nn.Module)
+    if args.tpu:
+        wrapped_model = TPUDistributedDataParallel(
+            module=model.to(device),
+            process_group=process_group,
+        )
+        # forward missing getattr and state_dict/load_state_dict to orig model
+        wrapped_model = ModuleProxyWrapper(wrapped_model)
+    elif args.ddp_backend in {"c10d", "pytorch_ddp"}:
+        wrapped_model = DistributedDataParallel(
+            module=model.to(device),
             device_ids=[args.device_id],
             output_device=args.device_id,
-            broadcast_buffers=False,
+            broadcast_buffers=args.broadcast_buffers,
             bucket_cap_mb=args.bucket_cap_mb,
+            process_group=process_group,
+            find_unused_parameters=args.find_unused_parameters,
         )
-        # Maintain backward compatibility for 0.4 or earlier
-        if 'check_reduction' in inspect.getargspec(ddp_class)[0]:
-            init_kwargs['check_reduction'] = True
+        # forward missing getattr and state_dict/load_state_dict to orig model
+        wrapped_model = ModuleProxyWrapper(wrapped_model)
+    elif args.ddp_backend in {"no_c10d", "legacy_ddp"}:
+        wrapped_model = LegacyDistributedDataParallel(
+            module=model.to(device),
+            buffer_size=2 ** 28,
+            process_group=process_group,
+        )
+        # forward missing getattr and state_dict/load_state_dict to orig model
+        wrapped_model = ModuleProxyWrapper(wrapped_model)
+    elif args.ddp_backend == "slow_mo":
+        if _GOSSIP_DISABLED:
+            raise ImportError(
+                "Cannot find gossip library. Please install from: "
+                "github.com/facebookresearch/stochastic_gradient_push"
+            )
 
-    elif args.ddp_backend == 'no_c10d':
-        ddp_class = LegacyDistributedDataParallel
-        init_kwargs = dict(
-            module=model,
-            world_size=args.distributed_world_size,
-            buffer_size=2**28,
+        # The values of slowmo_momentum below were obtained by tuning on the
+        # En-De 16 dataset by training the transformer_wmt_en_de_large model
+        if args.slowmo_momentum is None:
+            if args.distributed_world_size <= 16:
+                args.slowmo_momentum = 0.0
+            elif args.distributed_world_size <= 32:
+                args.slowmo_momentum = 0.2
+            elif args.distributed_world_size <= 64:
+                args.slowmo_momentum = 0.5
+            else:
+                args.slowmo_momentum = 0.6
+
+        wrapped_model = gossip.GossipDataParallel(
+            module=model.to(device),
+            device_ids=[args.device_id],
+            output_device=args.device_id,
+            broadcast_buffers=args.broadcast_buffers,
+            nprocs_per_node=args.nprocs_per_node,
+            slowmo_momentum=args.slowmo_momentum,
+            localsgd=(args.slowmo_algorithm == "LocalSGD"),
+            localsgd_frequency=args.localsgd_frequency,
         )
+        # forward missing getattr and state_dict/load_state_dict to orig model
+        wrapped_model = ModuleProxyWrapper(wrapped_model)
     else:
-        raise ValueError('Unknown --ddp-backend: ' + args.ddp_backend)
+        raise ValueError("Unknown --ddp-backend: " + args.ddp_backend)
 
-    class _DistributedFairseqModel(ddp_class):
-        """Extend DistributedDataParallel to check for missing
-        attributes in the wrapped module."""
+    # kill hung distributed jobs after a timeout
+    wrapped_model = DistributedTimeoutWrapper(
+        wrapped_model, timeout=getattr(args, "heartbeat_timeout", -1)
+    )
 
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-
-        def __getattr__(self, name):
-            wrapped_module = super().__getattr__('module')
-            if hasattr(wrapped_module, name):
-                return getattr(wrapped_module, name)
-            return super().__getattr__(name)
-
-    return _DistributedFairseqModel(**init_kwargs)
+    return wrapped_model

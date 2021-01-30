@@ -1,39 +1,36 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+"""isort:skip_file"""
 
 import importlib
 import os
 
-from .fairseq_lr_scheduler import FairseqLRScheduler
+from fairseq import registry
+from fairseq.optim.lr_scheduler.fairseq_lr_scheduler import (  # noqa
+    FairseqLRScheduler,
+    LegacyFairseqLRScheduler,
+)
+from omegaconf import DictConfig
 
 
-LR_SCHEDULER_REGISTRY = {}
+(
+    build_lr_scheduler_,
+    register_lr_scheduler,
+    LR_SCHEDULER_REGISTRY,
+    LR_SCHEDULER_DATACLASS_REGISTRY,
+) = registry.setup_registry(
+    "--lr-scheduler", base_class=FairseqLRScheduler, default="fixed"
+)
 
 
-def build_lr_scheduler(args, optimizer):
-    return LR_SCHEDULER_REGISTRY[args.lr_scheduler](args, optimizer)
-
-
-def register_lr_scheduler(name):
-    """Decorator to register a new LR scheduler."""
-
-    def register_lr_scheduler_cls(cls):
-        if name in LR_SCHEDULER_REGISTRY:
-            raise ValueError('Cannot register duplicate LR scheduler ({})'.format(name))
-        if not issubclass(cls, FairseqLRScheduler):
-            raise ValueError('LR Scheduler ({}: {}) must extend FairseqLRScheduler'.format(name, cls.__name__))
-        LR_SCHEDULER_REGISTRY[name] = cls
-        return cls
-
-    return register_lr_scheduler_cls
+def build_lr_scheduler(cfg: DictConfig, optimizer):
+    return build_lr_scheduler_(cfg, optimizer)
 
 
 # automatically import any Python files in the optim/lr_scheduler/ directory
 for file in os.listdir(os.path.dirname(__file__)):
-    if file.endswith('.py') and not file.startswith('_'):
-        module = file[:file.find('.py')]
-        importlib.import_module('fairseq.optim.lr_scheduler.' + module)
+    if file.endswith(".py") and not file.startswith("_"):
+        file_name = file[: file.find(".py")]
+        importlib.import_module("fairseq.optim.lr_scheduler." + file_name)

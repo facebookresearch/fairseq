@@ -1,9 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 from collections import OrderedDict
 
@@ -39,20 +37,22 @@ class RoundRobinZipDatasets(FairseqDataset):
                 self.longest_dataset = dataset
                 self.longest_dataset_key = key
 
-        self._ordered_indices = OrderedDict([
-            (key, dataset.ordered_indices())
-            for key, dataset in datasets.items()
-        ])
+        self._ordered_indices = None
 
     def _map_index(self, key, index):
+        assert (
+            self._ordered_indices is not None
+        ), "Must call RoundRobinZipDatasets.ordered_indices() first"
         return self._ordered_indices[key][index % len(self.datasets[key])]
 
     def __getitem__(self, index):
         if self.eval_key is None:
-            return OrderedDict([
-                (key, dataset[self._map_index(key, index)])
-                for key, dataset in self.datasets.items()
-            ])
+            return OrderedDict(
+                [
+                    (key, dataset[self._map_index(key, index)])
+                    for key, dataset in self.datasets.items()
+                ]
+            )
         else:
             # at evaluation time it's useful to pass-through batches from a single key
             return self.datasets[self.eval_key][self._map_index(self.eval_key, index)]
@@ -65,24 +65,15 @@ class RoundRobinZipDatasets(FairseqDataset):
         if len(samples) == 0:
             return None
         if self.eval_key is None:
-            return OrderedDict([
-                (key, dataset.collater([sample[key] for sample in samples]))
-                for key, dataset in self.datasets.items()
-            ])
+            return OrderedDict(
+                [
+                    (key, dataset.collater([sample[key] for sample in samples]))
+                    for key, dataset in self.datasets.items()
+                ]
+            )
         else:
             # at evaluation time it's useful to pass-through batches from a single key
             return self.datasets[self.eval_key].collater(samples)
-
-    def get_dummy_batch(self, max_tokens, max_positions):
-        if self.eval_key is None:
-            # TODO should max_tokens be used independently for each batch like this?
-            return OrderedDict([
-                (key, dataset.get_dummy_batch(max_tokens, max_positions[key]))
-                for key, dataset in self.datasets.items()
-            ])
-        else:
-            # at evaluation time it's useful to return a single batch directly
-            return self.datasets[self.eval_key].get_dummy_batch(max_tokens, max_positions[self.eval_key])
 
     def num_tokens(self, index):
         """Return an example's length (number of tokens), used for batching."""
@@ -102,19 +93,22 @@ class RoundRobinZipDatasets(FairseqDataset):
 
     def ordered_indices(self):
         """Ordered indices for batching."""
+        if self._ordered_indices is None:
+            # Call the underlying dataset's ordered_indices() here, so that we
+            # get the same random ordering as we would have from using the
+            # underlying dataset directly.
+            self._ordered_indices = OrderedDict(
+                [
+                    (key, dataset.ordered_indices())
+                    for key, dataset in self.datasets.items()
+                ]
+            )
         return np.arange(len(self))
-
-    def valid_size(self, index, max_positions):
-        """Check if an example's size is valid according to max_positions."""
-        return all(
-            dataset.valid_size(self._map_index(key, index), max_positions[key])
-            for key, dataset in self.datasets.items()
-        )
 
     @property
     def supports_prefetch(self):
         return all(
-            getattr(dataset, 'supports_prefetch', False)
+            getattr(dataset, "supports_prefetch", False)
             for dataset in self.datasets.values()
         )
 

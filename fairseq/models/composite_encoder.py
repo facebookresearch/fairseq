@@ -1,11 +1,9 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
-from . import FairseqEncoder
+from .fairseq_encoder import FairseqEncoder
 
 
 class CompositeEncoder(FairseqEncoder):
@@ -45,11 +43,13 @@ class CompositeEncoder(FairseqEncoder):
     def reorder_encoder_out(self, encoder_out, new_order):
         """Reorder encoder output according to new_order."""
         for key in self.encoders:
-            encoder_out[key] = self.encoders[key].reorder_encoder_out(encoder_out[key], new_order)
+            encoder_out[key] = self.encoders[key].reorder_encoder_out(
+                encoder_out[key], new_order
+            )
         return encoder_out
 
     def max_positions(self):
-        return min([self.encoders[key].max_positions() for key in self.encoders])
+        return min(self.encoders[key].max_positions() for key in self.encoders)
 
     def upgrade_state_dict(self, state_dict):
         for key in self.encoders:

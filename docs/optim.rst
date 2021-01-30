@@ -15,7 +15,13 @@ Optimizers update the Model parameters based on the gradients.
     :members:
     :undoc-members:
 
+.. autoclass:: fairseq.optim.adadelta.Adadelta
+    :members:
+    :undoc-members:
 .. autoclass:: fairseq.optim.adagrad.Adagrad
+    :members:
+    :undoc-members:
+.. autoclass:: fairseq.optim.adafactor.FairseqAdafactor
     :members:
     :undoc-members:
 .. autoclass:: fairseq.optim.adam.FairseqAdam

@@ -1,19 +1,32 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
+from collections.abc import Collection
+from dataclasses import dataclass, field
+from typing import List
+
+import torch
+from fairseq.dataclass import FairseqDataclass
+from omegaconf import II, DictConfig
 from torch.optim.optimizer import Optimizer, required
 
 from . import FairseqOptimizer, register_optimizer
 
 
-@register_optimizer('nag')
+@dataclass
+class FairseqNAGConfig(FairseqDataclass):
+    momentum: float = field(default=0.99, metadata={"help": "momentum factor"})
+    weight_decay: float = field(default=0.0, metadata={"help": "weight decay"})
+    # TODO common vars in parent class
+    lr: List[float] = II("optimization.lr")
+
+
+@register_optimizer("nag", dataclass=FairseqNAGConfig)
 class FairseqNAG(FairseqOptimizer):
-    def __init__(self, args, params):
-        super().__init__(args, params)
+    def __init__(self, cfg: DictConfig, params):
+        super().__init__(cfg)
         self._optimizer = NAG(params, **self.optimizer_config)
 
     @property
@@ -25,9 +38,11 @@ class FairseqNAG(FairseqOptimizer):
         different learning rate.
         """
         return {
-            'lr': self.args.lr[0],
-            'momentum': self.args.momentum,
-            'weight_decay': self.args.weight_decay,
+            "lr": self.cfg.lr[0]
+            if isinstance(self.cfg.lr, Collection)
+            else self.cfg.lr,
+            "momentum": self.cfg.momentum,
+            "weight_decay": self.cfg.weight_decay,
         }
 
 
@@ -36,10 +51,18 @@ class NAG(Optimizer):
         defaults = dict(lr=lr, lr_old=lr, momentum=momentum, weight_decay=weight_decay)
         super(NAG, self).__init__(params, defaults)
 
+    @property
+    def supports_memory_efficient_fp16(self):
+        return True
+
+    @property
+    def supports_flat_params(self):
+        return True
+
     def step(self, closure=None):
         """Performs a single optimization step.
 
-        Arguments:
+        Args:
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
         """
@@ -48,30 +71,41 @@ class NAG(Optimizer):
             loss = closure()
 
         for group in self.param_groups:
-            weight_decay = group['weight_decay']
-            momentum = group['momentum']
-            lr = group['lr']
-            lr_old = group.get('lr_old', lr)
-            lr_correct = lr / lr_old
+            weight_decay = group["weight_decay"]
+            momentum = group["momentum"]
+            lr = group["lr"]
+            lr_old = group.get("lr_old", lr)
+            lr_correct = lr / lr_old if lr_old > 0 else lr
 
-            for p in group['params']:
+            for p in group["params"]:
                 if p.grad is None:
                     continue
 
-                d_p = p.grad.data
-                param_state = self.state[p]
-                if 'momentum_buffer' not in param_state:
-                    param_state['momentum_buffer'] = d_p.clone().zero_()
+                p_data_fp32 = p.data
+                if p_data_fp32.dtype in {torch.float16, torch.bfloat16}:
+                    p_data_fp32 = p_data_fp32.float()
 
-                buf = param_state['momentum_buffer']
+                d_p = p.grad.data.float()
+                param_state = self.state[p]
+                if "momentum_buffer" not in param_state:
+                    param_state["momentum_buffer"] = torch.zeros_like(d_p)
+                else:
+                    param_state["momentum_buffer"] = param_state["momentum_buffer"].to(
+                        d_p
+                    )
+
+                buf = param_state["momentum_buffer"]
 
                 if weight_decay != 0:
-                    p.data.mul_(1 - lr * weight_decay)
-                p.data.add_(momentum * momentum * lr_correct, buf)
-                p.data.add_(-(1 + momentum) * lr, d_p)
+                    p_data_fp32.mul_(1 - lr * weight_decay)
+                p_data_fp32.add_(buf, alpha=momentum * momentum * lr_correct)
+                p_data_fp32.add_(d_p, alpha=-(1 + momentum) * lr)
 
-                buf.mul_(momentum * lr_correct).add_(-lr, d_p)
+                buf.mul_(momentum * lr_correct).add_(d_p, alpha=-lr)
 
-            group['lr_old'] = lr
+                if p.data.dtype in {torch.float16, torch.bfloat16}:
+                    p.data.copy_(p_data_fp32)
+
+            group["lr_old"] = lr
 
         return loss

@@ -1,0 +1,18 @@
+# @package _group_
+
+hydra:
+  run:
+    dir: .
+
+defaults:
+    - task: null
+    - model: null
+    - criterion: cross_entropy
+    - optimizer: null
+    - lr_scheduler: fixed
+    - bpe: null
+    - tokenizer: null
+    - scoring: null
+    - generation: null
+    - common_eval: null
+    - eval_lm: null

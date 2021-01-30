@@ -28,11 +28,12 @@ fairseq implements the following high-level training flow::
           lr_scheduler.step_update(num_updates)
       lr_scheduler.step(epoch)
 
-where the default implementation for ``train.train_step`` is roughly::
+where the default implementation for ``task.train_step`` is roughly::
 
-  def train_step(self, batch, model, criterion, optimizer):
+  def train_step(self, batch, model, criterion, optimizer, **unused):
       loss = criterion(model, batch)
       optimizer.backward(loss)
+      return loss
 
 **Registering new plug-ins**
 
@@ -40,9 +41,34 @@ New plug-ins are *registered* through a set of ``@register`` function
 decorators, for example::
 
   @register_model('my_lstm')
-  class MyLSTM(FairseqModel):
+  class MyLSTM(FairseqEncoderDecoderModel):
       (...)
 
 Once registered, new plug-ins can be used with the existing :ref:`Command-line
 Tools`. See the Tutorial sections for more detailed walkthroughs of how to add
 new plug-ins.
+
+**Loading plug-ins from another directory**
+
+New plug-ins can be defined in a custom module stored in the user system. In
+order to import the module, and make the plugin available to *fairseq*, the
+command line supports the ``--user-dir`` flag that can be used to specify a
+custom location for additional modules to load into *fairseq*.
+
+For example, assuming this directory tree::
+
+  /home/user/my-module/
+  └── __init__.py
+  
+with ``__init__.py``::
+
+  from fairseq.models import register_model_architecture
+  from fairseq.models.transformer import transformer_vaswani_wmt_en_de_big
+
+  @register_model_architecture('transformer', 'my_transformer')
+  def transformer_mmt_big(args):
+      transformer_vaswani_wmt_en_de_big(args)
+
+it is possible to invoke the :ref:`fairseq-train` script with the new architecture with::
+
+  fairseq-train ... --user-dir /home/user/my-module -a my_transformer --task translation

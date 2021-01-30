@@ -26,21 +26,21 @@ of the data that is already tokenized into characters and split into separate
 train, valid and test sets.
 
 Download and extract the data from here:
-`tutorial_names.tar.gz <https://s3.amazonaws.com/fairseq-py/data/tutorial_names.tar.gz>`_
+`tutorial_names.tar.gz <https://dl.fbaipublicfiles.com/fairseq/data/tutorial_names.tar.gz>`_
 
-Once extracted, let's preprocess the data using the :ref:`preprocess.py`
+Once extracted, let's preprocess the data using the :ref:`fairseq-preprocess`
 command-line tool to create the dictionaries. While this tool is primarily
 intended for sequence-to-sequence problems, we're able to reuse it here by
 treating the label as a "target" sequence of length 1. We'll also output the
-preprocessed files in "raw" format using the ``--output-format`` option to
+preprocessed files in "raw" format using the ``--dataset-impl`` option to
 enhance readability:
 
 .. code-block:: console
 
-  > python preprocess.py \
+  > fairseq-preprocess \
     --trainpref names/train --validpref names/valid --testpref names/test \
     --source-lang input --target-lang label \
-    --destdir names-bin --output-format raw
+    --destdir names-bin --dataset-impl raw
 
 After running the above command you should see a new directory,
 :file:`names-bin/`, containing the dictionaries for *inputs* and *labels*.
@@ -209,11 +209,10 @@ following contents::
 
   from fairseq.data import Dictionary, LanguagePairDataset
   from fairseq.tasks import FairseqTask, register_task
-  from fairseq.tokenizer import Tokenizer
 
 
   @register_task('simple_classification')
-  class SimpleClassificationTask(FairseqTask):
+  class SimpleClassificationTask(LegacyFairseqTask):
 
       @staticmethod
       def add_args(parser):
@@ -253,8 +252,8 @@ following contents::
                   sentence = line.strip()
 
                   # Tokenize the sentence, splitting on spaces
-                  tokens = Tokenizer.tokenize(
-                      sentence, self.input_vocab, add_if_not_exist=False,
+                  tokens = self.input_vocab.encode_line(
+                      sentence, add_if_not_exist=False,
                   )
 
                   sentences.append(tokens)
@@ -283,10 +282,8 @@ following contents::
               tgt_sizes=torch.ones(len(labels)),  # targets have length 1
               tgt_dict=self.label_vocab,
               left_pad_source=False,
-              max_source_positions=self.args.max_positions,
-              max_target_positions=1,
               # Since our target is a single class label, there's no need for
-              # input feeding. If we set this to ``True`` then our Model's
+              # teacher forcing. If we set this to ``True`` then our Model's
               # ``forward()`` method would receive an additional argument called
               # *prev_output_tokens* that would contain a shifted version of the
               # target sequence.
@@ -316,7 +313,8 @@ following contents::
       # def get_batch_iterator(
       #     self, dataset, max_tokens=None, max_sentences=None, max_positions=None,
       #     ignore_invalid_inputs=False, required_batch_size_multiple=1,
-      #     seed=1, num_shards=1, shard_id=0,
+      #     seed=1, num_shards=1, shard_id=0, num_workers=0, epoch=1,
+      #     data_buffer_size=0, disable_iterator_cache=False,
       # ):
       #     (...)
 
@@ -324,7 +322,7 @@ following contents::
 4. Training the Model
 ---------------------
 
-Now we're ready to train the model. We can use the existing :ref:`train.py`
+Now we're ready to train the model. We can use the existing :ref:`fairseq-train`
 command-line tool for this, making sure to specify our new Task (``--task
 simple_classification``) and Model architecture (``--arch
 pytorch_tutorial_rnn``):
@@ -332,11 +330,11 @@ pytorch_tutorial_rnn``):
 .. note::
 
   You can also configure the dimensionality of the hidden state by passing the
-  ``--hidden-dim`` argument to :ref:`train.py`.
+  ``--hidden-dim`` argument to :ref:`fairseq-train`.
 
 .. code-block:: console
 
-  > python train.py names-bin \
+  > fairseq-train names-bin \
     --task simple_classification \
     --arch pytorch_tutorial_rnn \
     --optimizer adam --lr 0.001 --lr-shrink 0.5 \
@@ -355,8 +353,7 @@ The model files should appear in the :file:`checkpoints/` directory.
 Finally we can write a short script to evaluate our model on new inputs. Create
 a new file named :file:`eval_classifier.py` with the following contents::
 
-  from fairseq import data, options, tasks, utils
-  from fairseq.tokenizer import Tokenizer
+  from fairseq import checkpoint_utils, data, options, tasks
 
   # Parse command-line arguments for generation
   parser = options.get_generation_parser(default_task='simple_classification')
@@ -367,7 +364,7 @@ a new file named :file:`eval_classifier.py` with the following contents::
 
   # Load model
   print('| loading model from {}'.format(args.path))
-  models, _model_args = utils.load_ensemble_for_inference([args.path], task)
+  models, _model_args = checkpoint_utils.load_model_ensemble([args.path], task=task)
   model = models[0]
 
   while True:
@@ -375,8 +372,8 @@ a new file named :file:`eval_classifier.py` with the following contents::
 
       # Tokenize into characters
       chars = ' '.join(list(sentence.strip()))
-      tokens = Tokenizer.tokenize(
-          chars, task.source_dictionary, add_if_not_exist=False,
+      tokens = task.source_dictionary.encode_line(
+          chars, add_if_not_exist=False,
       )
 
       # Build mini-batch to feed to the model

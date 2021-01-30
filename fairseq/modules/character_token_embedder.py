@@ -1,34 +1,34 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+import logging
+from typing import List, Tuple
 
 import torch
 import torch.nn.functional as F
-
+from fairseq.data import Dictionary
 from torch import nn
 
-from typing import List, Tuple
-
-from .highway import Highway
-from fairseq.data import Dictionary
 
 CHAR_PAD_IDX = 0
 CHAR_EOS_IDX = 257
 
 
+logger = logging.getLogger(__name__)
+
+
 class CharacterTokenEmbedder(torch.nn.Module):
     def __init__(
-            self,
-            vocab: Dictionary,
-            filters: List[Tuple[int, int]],
-            char_embed_dim: int,
-            word_embed_dim: int,
-            highway_layers: int,
-            max_char_len: int = 50,
-            char_inputs: bool = False
+        self,
+        vocab: Dictionary,
+        filters: List[Tuple[int, int]],
+        char_embed_dim: int,
+        word_embed_dim: int,
+        highway_layers: int,
+        max_char_len: int = 50,
+        char_inputs: bool = False,
     ):
         super(CharacterTokenEmbedder, self).__init__()
 
@@ -52,7 +52,9 @@ class CharacterTokenEmbedder(torch.nn.Module):
 
         self.projection = nn.Linear(last_dim, word_embed_dim)
 
-        assert vocab is not None or char_inputs, "vocab must be set if not using char inputs"
+        assert (
+            vocab is not None or char_inputs
+        ), "vocab must be set if not using char inputs"
         self.vocab = None
         if vocab is not None:
             self.set_vocab(vocab, max_char_len)
@@ -79,7 +81,11 @@ class CharacterTokenEmbedder(torch.nn.Module):
             word_to_char[i] = torch.LongTensor(char_idxs)
 
         if truncated > 0:
-            print('Truncated {} words longer than {} characters'.format(truncated, max_char_len))
+            logger.info(
+                "truncated {} words longer than {} characters".format(
+                    truncated, max_char_len
+                )
+            )
 
         self.vocab = vocab
         self.word_to_char = word_to_char
@@ -93,12 +99,14 @@ class CharacterTokenEmbedder(torch.nn.Module):
         nn.init.xavier_normal_(self.symbol_embeddings)
         nn.init.xavier_uniform_(self.projection.weight)
 
-        nn.init.constant_(self.char_embeddings.weight[self.char_embeddings.padding_idx], 0.)
-        nn.init.constant_(self.projection.bias, 0.)
+        nn.init.constant_(
+            self.char_embeddings.weight[self.char_embeddings.padding_idx], 0.0
+        )
+        nn.init.constant_(self.projection.bias, 0.0)
 
     def forward(
-            self,
-            input: torch.Tensor,
+        self,
+        input: torch.Tensor,
     ):
         if self.char_inputs:
             chars = input.view(-1, self.max_char_len)
@@ -113,7 +121,9 @@ class CharacterTokenEmbedder(torch.nn.Module):
             unk = None
         else:
             flat_words = input.view(-1)
-            chars = self.word_to_char[flat_words.type_as(self.word_to_char)].type_as(input)
+            chars = self.word_to_char[flat_words.type_as(self.word_to_char)].type_as(
+                input
+            )
             pads = flat_words.eq(self.vocab.pad())
             eos = flat_words.eq(self.vocab.eos())
             unk = flat_words.eq(self.vocab.unk())
@@ -121,11 +131,17 @@ class CharacterTokenEmbedder(torch.nn.Module):
         word_embs = self._convolve(chars)
         if self.onnx_trace:
             if pads.any():
-                word_embs = torch.where(pads.unsqueeze(1), word_embs.new_zeros(1), word_embs)
+                word_embs = torch.where(
+                    pads.unsqueeze(1), word_embs.new_zeros(1), word_embs
+                )
             if eos.any():
-                word_embs = torch.where(eos.unsqueeze(1), self.symbol_embeddings[self.eos_idx], word_embs)
+                word_embs = torch.where(
+                    eos.unsqueeze(1), self.symbol_embeddings[self.eos_idx], word_embs
+                )
             if unk is not None and unk.any():
-                word_embs = torch.where(unk.unsqueeze(1), self.symbol_embeddings[self.unk_idx], word_embs)
+                word_embs = torch.where(
+                    unk.unsqueeze(1), self.symbol_embeddings[self.unk_idx], word_embs
+                )
         else:
             if pads.any():
                 word_embs[pads] = 0
@@ -137,15 +153,15 @@ class CharacterTokenEmbedder(torch.nn.Module):
         return word_embs.view(input.size()[:2] + (-1,))
 
     def _convolve(
-            self,
-            char_idxs: torch.Tensor,
+        self,
+        char_idxs: torch.Tensor,
     ):
         char_embs = self.char_embeddings(char_idxs)
         char_embs = char_embs.transpose(1, 2)  # BTC -> BCT
 
         conv_result = []
 
-        for i, conv in enumerate(self.convolutions):
+        for conv in self.convolutions:
             x = conv(char_embs)
             x, _ = torch.max(x, -1)
             x = F.relu(x)
@@ -157,4 +173,42 @@ class CharacterTokenEmbedder(torch.nn.Module):
             x = self.highway(x)
         x = self.projection(x)
 
+        return x
+
+
+class Highway(torch.nn.Module):
+    """
+    A `Highway layer <https://arxiv.org/abs/1505.00387>`_.
+    Adopted from the AllenNLP implementation.
+    """
+
+    def __init__(self, input_dim: int, num_layers: int = 1):
+        super(Highway, self).__init__()
+        self.input_dim = input_dim
+        self.layers = nn.ModuleList(
+            [nn.Linear(input_dim, input_dim * 2) for _ in range(num_layers)]
+        )
+        self.activation = nn.ReLU()
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for layer in self.layers:
+            # As per comment in AllenNLP:
+            # We should bias the highway layer to just carry its input forward.  We do that by
+            # setting the bias on `B(x)` to be positive, because that means `g` will be biased to
+            # be high, so we will carry the input forward.  The bias on `B(x)` is the second half
+            # of the bias vector in each Linear layer.
+            nn.init.constant_(layer.bias[self.input_dim :], 1)
+
+            nn.init.constant_(layer.bias[: self.input_dim], 0)
+            nn.init.xavier_normal_(layer.weight)
+
+    def forward(self, x: torch.Tensor):
+        for layer in self.layers:
+            projection = layer(x)
+            proj_x, gate = projection.chunk(2, dim=-1)
+            proj_x = self.activation(proj_x)
+            gate = torch.sigmoid(gate)
+            x = gate * x + (gate.new_tensor([1]) - gate) * proj_x
         return x

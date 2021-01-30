@@ -5,81 +5,81 @@ Command-line Tools
 
 Fairseq provides several command-line tools for training and evaluating models:
 
-- :ref:`preprocess.py`: Data pre-processing: build vocabularies and binarize training data
-- :ref:`train.py`: Train a new model on one or multiple GPUs
-- :ref:`generate.py`: Translate pre-processed data with a trained model
-- :ref:`interactive.py`: Translate raw text with a trained model
-- :ref:`score.py`: BLEU scoring of generated translations against reference translations
-- :ref:`eval_lm.py`: Language model evaluation
+- :ref:`fairseq-preprocess`: Data pre-processing: build vocabularies and binarize training data
+- :ref:`fairseq-train`: Train a new model on one or multiple GPUs
+- :ref:`fairseq-generate`: Translate pre-processed data with a trained model
+- :ref:`fairseq-interactive`: Translate raw text with a trained model
+- :ref:`fairseq-score`: BLEU scoring of generated translations against reference translations
+- :ref:`fairseq-eval-lm`: Language model evaluation
 
 
-.. _preprocess.py:
+.. _fairseq-preprocess:
 
-preprocess.py
-~~~~~~~~~~~~~
-.. automodule:: preprocess
+fairseq-preprocess
+~~~~~~~~~~~~~~~~~~
+.. automodule:: fairseq_cli.preprocess
 
     .. argparse::
-        :module: preprocess
-        :func: get_parser
-        :prog: preprocess.py
+        :module: fairseq.options
+        :func: get_preprocessing_parser
+        :prog: fairseq-preprocess
 
 
-.. _train.py:
+.. _fairseq-train:
 
-train.py
-~~~~~~~~
-.. automodule:: train
+fairseq-train
+~~~~~~~~~~~~~
+.. automodule:: fairseq_cli.train
 
     .. argparse::
         :module: fairseq.options
         :func: get_training_parser
-        :prog: train.py
+        :prog: fairseq-train
 
 
-.. _generate.py:
+.. _fairseq-generate:
 
-generate.py
-~~~~~~~~~~~
-.. automodule:: generate
+fairseq-generate
+~~~~~~~~~~~~~~~~
+.. automodule:: fairseq_cli.generate
 
     .. argparse::
         :module: fairseq.options
         :func: get_generation_parser
-        :prog: generate.py
+        :prog: fairseq-generate
 
 
-.. _interactive.py:
+.. _fairseq-interactive:
 
-interactive.py
-~~~~~~~~~~~~~~
-.. automodule:: interactive
+fairseq-interactive
+~~~~~~~~~~~~~~~~~~~
+.. automodule:: fairseq_cli.interactive
 
     .. argparse::
         :module: fairseq.options
         :func: get_interactive_generation_parser
-        :prog: interactive.py
+        :prog: fairseq-interactive
 
 
-.. _score.py:
+.. _fairseq-score:
 
-score.py
-~~~~~~~~
-.. automodule:: score
+fairseq-score
+~~~~~~~~~~~~~
+.. automodule:: fairseq_cli.score
 
     .. argparse::
-        :module: score
+        :module: fairseq_cli.score
         :func: get_parser
-        :prog: score.py
+        :prog: fairseq-score
 
 
-.. _eval_lm.py:
+.. _fairseq-eval-lm:
 
-eval_lm.py
-~~~~~~~~~~
-.. automodule:: eval_lm
+fairseq-eval-lm
+~~~~~~~~~~~~~~~
+.. automodule:: fairseq_cli.eval_lm
 
     .. argparse::
         :module: fairseq.options
         :func: get_eval_lm_parser
-        :prog: eval_lm.py
+        :prog: fairseq-eval-lm

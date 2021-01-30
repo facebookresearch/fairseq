@@ -1,18 +1,19 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import torch
 import torch.nn.functional as F
-
 from fairseq import utils
+from fairseq.incremental_decoding_utils import with_incremental_state
 
 from .conv_tbc import ConvTBC
 
+from typing import Dict, Optional
+from torch import Tensor
 
+@with_incremental_state
 class LinearizedConvolution(ConvTBC):
     """An optimized version of nn.Conv1d.
 
@@ -27,7 +28,20 @@ class LinearizedConvolution(ConvTBC):
         self._linearized_weight = None
         self.register_backward_hook(self._clear_linearized_weight)
 
-    def forward(self, input, incremental_state=None):
+    def state_dict(self, destination=None, prefix="", keep_vars=False):
+        state = ConvTBC.state_dict(self, destination, prefix, keep_vars=keep_vars)
+        # don't store redundant _linearized_weight in checkpoints
+        if prefix + "_linearized_weight" in state:
+            del state[prefix + "_linearized_weight"]
+        return state
+
+    def upgrade_state_dict_named(self, state_dict, name):
+        prefix = name + "." if name != "" else ""
+        if prefix + "_linearized_weight" in state_dict:
+            del state_dict[prefix + "_linearized_weight"]
+
+    @torch.jit.export
+    def forward(self, input, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None):
         """
         Args:
             incremental_state: Used to buffer signal; if not None, then input is
@@ -38,10 +52,10 @@ class LinearizedConvolution(ConvTBC):
             Batch x Time x Channel during inference
         """
         if incremental_state is None:
-            output = super().forward(input)
+            output = self.conv_tbc(input)
             if self.kernel_size[0] > 1 and self.padding[0] > 0:
                 # remove future timesteps added by padding
-                output = output[:-self.padding[0], :, :]
+                output = output[: -self.padding[0], :, :]
             return output
 
         # reshape weight
@@ -65,25 +79,32 @@ class LinearizedConvolution(ConvTBC):
             output = F.linear(input.view(bsz, -1), weight, self.bias)
         return output.view(bsz, 1, -1)
 
-    def reorder_incremental_state(self, incremental_state, new_order):
+    @torch.jit.unused
+    def reorder_incremental_state(self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]], new_order):
         input_buffer = self._get_input_buffer(incremental_state)
         if input_buffer is not None:
             input_buffer = input_buffer.index_select(0, new_order)
             self._set_input_buffer(incremental_state, input_buffer)
 
-    def _get_input_buffer(self, incremental_state):
-        return utils.get_incremental_state(self, incremental_state, 'input_buffer')
+    @torch.jit.unused
+    def _get_input_buffer(self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]):
+        return utils.get_incremental_state(self, incremental_state, "input_buffer")
 
-    def _set_input_buffer(self, incremental_state, new_buffer):
-        return utils.set_incremental_state(self, incremental_state, 'input_buffer', new_buffer)
+    @torch.jit.unused
+    def _set_input_buffer(self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]], new_buffer):
+        return utils.set_incremental_state(
+            self, incremental_state, "input_buffer", new_buffer
+        )
 
+    @torch.jit.unused
     def _get_linearized_weight(self):
         if self._linearized_weight is None:
             kw = self.kernel_size[0]
             weight = self.weight.transpose(2, 1).transpose(1, 0).contiguous()
             assert weight.size() == (self.out_channels, kw, self.in_channels)
-            self._linearized_weight = weight.view(self.out_channels, -1)
+            return weight.view(self.out_channels, -1)
         return self._linearized_weight
 
+    @torch.jit.unused
     def _clear_linearized_weight(self, *args):
         self._linearized_weight = None

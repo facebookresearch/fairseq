@@ -1,18 +1,44 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+"""isort:skip_file"""
 
-from .multiprocessing_pdb import pdb
+import os
+import sys
 
-__all__ = ['pdb']
-__version__ = '0.6.0'
+try:
+    from .version import __version__  # noqa
+except ImportError:
+    version_txt = os.path.join(os.path.dirname(__file__), "version.txt")
+    with open(version_txt) as f:
+        __version__ = f.read().strip()
 
-import fairseq.criterions
-import fairseq.models
-import fairseq.modules
-import fairseq.optim
-import fairseq.optim.lr_scheduler
-import fairseq.tasks
+__all__ = ["pdb"]
+
+# backwards compatibility to support `from fairseq.X import Y`
+from fairseq.distributed import utils as distributed_utils
+from fairseq.logging import meters, metrics, progress_bar  # noqa
+
+sys.modules["fairseq.distributed_utils"] = distributed_utils
+sys.modules["fairseq.meters"] = meters
+sys.modules["fairseq.metrics"] = metrics
+sys.modules["fairseq.progress_bar"] = progress_bar
+
+# initialize hydra
+from fairseq.dataclass.initialize import hydra_init
+hydra_init()
+
+import fairseq.criterions  # noqa
+import fairseq.distributed  # noqa
+import fairseq.models  # noqa
+import fairseq.modules  # noqa
+import fairseq.optim  # noqa
+import fairseq.optim.lr_scheduler  # noqa
+import fairseq.pdb  # noqa
+import fairseq.scoring  # noqa
+import fairseq.tasks  # noqa
+import fairseq.token_generation_constraints  # noqa
+
+import fairseq.benchmark  # noqa
+import fairseq.model_parallel  # noqa

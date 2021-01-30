@@ -29,6 +29,6 @@ epoch boundaries via :func:`step`.
 .. autoclass:: fairseq.optim.lr_scheduler.reduce_lr_on_plateau.ReduceLROnPlateau
     :members:
     :undoc-members:
-.. autoclass:: fairseq.optim.lr_scheduler.reduce_angular_lr_scheduler.TriangularSchedule
+.. autoclass:: fairseq.optim.lr_scheduler.triangular_lr_scheduler.TriangularSchedule
     :members:
     :undoc-members:

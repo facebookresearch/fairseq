@@ -1,14 +1,12 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
+# Copyright (c) Facebook, Inc. and its affiliates.
 #
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import unittest
 
+import tests.utils as test_utils
 import torch
-
 from fairseq.data import (
     BacktranslationDataset,
     LanguagePairDataset,
@@ -16,15 +14,17 @@ from fairseq.data import (
 )
 from fairseq.sequence_generator import SequenceGenerator
 
-import tests.utils as test_utils
-
 
 class TestBacktranslationDataset(unittest.TestCase):
-
     def setUp(self):
-        self.tgt_dict, self.w1, self.w2, self.src_tokens, self.src_lengths, self.model = (
-            test_utils.sequence_generator_setup()
-        )
+        (
+            self.tgt_dict,
+            self.w1,
+            self.w2,
+            self.src_tokens,
+            self.src_lengths,
+            self.model,
+        ) = test_utils.sequence_generator_setup()
 
         dummy_src_samples = self.src_tokens
 
@@ -32,7 +32,9 @@ class TestBacktranslationDataset(unittest.TestCase):
         self.cuda = torch.cuda.is_available()
 
     def _backtranslation_dataset_helper(
-        self, remove_eos_from_input_src, remove_eos_from_output_src,
+        self,
+        remove_eos_from_input_src,
+        remove_eos_from_output_src,
     ):
         tgt_dataset = LanguagePairDataset(
             src=self.tgt_dataset,
@@ -44,14 +46,13 @@ class TestBacktranslationDataset(unittest.TestCase):
         )
 
         generator = SequenceGenerator(
-            models=[self.model],
+            [self.model],
             tgt_dict=self.tgt_dict,
+            max_len_a=0,
+            max_len_b=200,
             beam_size=2,
             unk_penalty=0,
-            sampling=False,
         )
-        if self.cuda:
-            generator.cuda()
 
         backtranslation_dataset = BacktranslationDataset(
             tgt_dataset=TransformEosDataset(
@@ -60,9 +61,10 @@ class TestBacktranslationDataset(unittest.TestCase):
                 # remove eos from the input src
                 remove_eos_from_src=remove_eos_from_input_src,
             ),
-            backtranslation_fn=generator.generate,
-            max_len_a=0,
-            max_len_b=200,
+            src_dict=self.tgt_dict,
+            backtranslation_fn=(
+                lambda sample: generator.generate([self.model], sample)
+            ),
             output_collater=TransformEosDataset(
                 dataset=tgt_dataset,
                 eos=self.tgt_dict.eos(),
@@ -96,17 +98,20 @@ class TestBacktranslationDataset(unittest.TestCase):
 
     def test_backtranslation_dataset_no_eos_in_output_src(self):
         self._backtranslation_dataset_helper(
-            remove_eos_from_input_src=False, remove_eos_from_output_src=True,
+            remove_eos_from_input_src=False,
+            remove_eos_from_output_src=True,
         )
 
     def test_backtranslation_dataset_with_eos_in_output_src(self):
         self._backtranslation_dataset_helper(
-            remove_eos_from_input_src=False, remove_eos_from_output_src=False,
+            remove_eos_from_input_src=False,
+            remove_eos_from_output_src=False,
         )
 
     def test_backtranslation_dataset_no_eos_in_input_src(self):
         self._backtranslation_dataset_helper(
-            remove_eos_from_input_src=True, remove_eos_from_output_src=False,
+            remove_eos_from_input_src=True,
+            remove_eos_from_output_src=False,
         )
 
     def assertTensorEqual(self, t1, t2):
