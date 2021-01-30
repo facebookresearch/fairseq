@@ -174,7 +174,7 @@ class SentencePredictionTask(LegacyFairseqTask):
             split,
             self.args.shorten_data_split_list,
             self.args.shorten_method,
-            self.args.max_positions,
+            self.max_positions(),
             self.args.seed,
         )
 
