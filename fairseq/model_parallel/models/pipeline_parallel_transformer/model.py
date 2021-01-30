@@ -40,38 +40,46 @@ logger = logging.getLogger(__name__)
 DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
 TORCH_PIPE = False
-try:
-    from torch.distributed.pipeline.sync import Pipe
-    from torch.distributed.pipeline.sync.utils import partition_model
-    from torch.distributed import rpc
-    import tempfile
-    TORCH_PIPE = True
-    # Initialize single process RPC agent since TORCH_PIPE requires
-    # RRef. RRef depends on RPC being initialized and as a result we initialize
-    # RPC with a single node.
-    tmpfile = tempfile.NamedTemporaryFile()
-    rpc.init_rpc(
-        name="worker",
-        rank=0,
-        world_size=1,
-        rpc_backend_options=rpc.TensorPipeRpcBackendOptions(
-            init_method="file://{}".format(tmpfile.name),
-        )
-    )
-except ImportError:
+RPC_INIT = False
+
+def import_pipe():
+    global TORCH_PIPE
+    global RPC_INIT
     try:
-        from fairscale.nn import Pipe
+        from torch.distributed.pipeline.sync import Pipe # noqa
+        global Pipe
+        from torch.distributed.pipeline.sync.utils import partition_model
+        global partition_model
+        from torch.distributed import rpc
+        import tempfile
+        TORCH_PIPE = True
+        # Initialize single process RPC agent since TORCH_PIPE requires
+        # RRef. RRef depends on RPC being initialized and as a result we initialize
+        # RPC with a single node.
+        tmpfile = tempfile.NamedTemporaryFile()
+        if not RPC_INIT:
+            rpc.init_rpc(
+                name="worker",
+                rank=0,
+                world_size=1,
+                rpc_backend_options=rpc.TensorPipeRpcBackendOptions(
+                    init_method="file://{}".format(tmpfile.name),
+                )
+            )
+            RPC_INIT = True
+        logger.info('Using torch pipe')
     except ImportError:
-        raise ImportError("Please install fairscale with: pip install fairscale")
+        try:
+            from fairscale.nn import Pipe # noqa
+            logger.info('Using fairscale pipe')
+        except ImportError:
+            raise ImportError("Please install fairscale with: pip install fairscale")
 
 
 @register_model("pipeline_parallel_transformer")
 class PipelineParallelTransformerModel(BaseFairseqModel):
     def __init__(self, encoder, decoder, balance, devices, chunks, checkpoint):
-        if TORCH_PIPE:
-            logger.info('Using torch pipe')
-        else:
-            logger.info('Using fairscale pipe')
+        import_pipe()
         super().__init__()
         assert isinstance(encoder, FairseqEncoder)
         assert isinstance(decoder, FairseqDecoder)
@@ -459,10 +467,7 @@ class TransformerEncoder(FairseqEncoder):
     def __init__(self, args, dictionary, embed_tokens, encoder_module_list=None):
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
-        if TORCH_PIPE:
-            logger.info('Using torch pipe')
-        else:
-            logger.info('Using fairscale pipe')
+        import_pipe()
         self.use_pipeline = encoder_module_list is not None
         if not self.use_pipeline:
             self.embedding_layer = TransformerEncoderEmbedding(args, embed_tokens)
@@ -605,10 +610,7 @@ class TransformerDecoder(FairseqDecoder):
     ):
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
-        if TORCH_PIPE:
-            logger.info('Using torch pipe')
-        else:
-            logger.info('Using fairscale pipe')
+        import_pipe()
         self.use_pipeline = decoder_module_list is not None
         if not self.use_pipeline:
             self.embedding_layer = TransformerDecoderEmbedding(args, embed_tokens)
