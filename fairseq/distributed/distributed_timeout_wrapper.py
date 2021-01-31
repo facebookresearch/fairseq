@@ -33,7 +33,7 @@ class DistributedTimeoutWrapper(nn.Module):
             (set to a value <= 0 to disable the timeout)
         signal (Optional): signal to send once timeout is triggered
     """
-    def __init__(self, module: nn.Module, timeout: int, signal=signal.SIGKILL):
+    def __init__(self, module: nn.Module, timeout: int, signal=signal.SIGINT):
         super().__init__()
         self.module = module
         self.timeout = timeout
