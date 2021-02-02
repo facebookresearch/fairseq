@@ -7,7 +7,7 @@ speech translation. The data is derived from TEDx talks in 8 source languages
 with translations to a subset of 5 target languages. 
 
 ## Data Preparation
-[Download]() and unpack Multilingual TEDx data to a path
+[Download](http://openslr.org/100/) and unpack Multilingual TEDx data to a path
 `${MTEDX_ROOT}/${LANG_PAIR}`, then preprocess it with
 ```bash
 # additional Python packages for S2T data processing/model training
