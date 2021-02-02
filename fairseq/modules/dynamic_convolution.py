@@ -16,7 +16,7 @@ from .unfold import unfold1d
 def DynamicConv(
     input_size,
     kernel_size=1,
-    padding_l=None,
+    padding_l=1,
     num_heads=1,
     weight_dropout=0.0,
     weight_softmax=False,
