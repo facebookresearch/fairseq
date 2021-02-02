@@ -546,6 +546,9 @@ def _upgrade_state_dict(state):
         # convert legacy float learning rate to List[float]
         if hasattr(state["args"], "lr") and isinstance(state["args"].lr, float):
             state["args"].lr = [state["args"].lr]
+        # convert task data arg to a string instead of List[string]
+        if hasattr(state["args"], "data") and isinstance(state["args"].data, list) and len(state["args"].data) > 0:
+            state["args"].data = state["args"].data[0]
 
         state["cfg"] = convert_namespace_to_omegaconf(state["args"])
 
