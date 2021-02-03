@@ -15,6 +15,7 @@ task:
   data: ???
   max_sample_size: 250000
   min_sample_size: 32000
+  normalize: false
 
 dataset:
   num_workers: 6
@@ -53,3 +54,4 @@ model:
   dropout_input: 0.1
   dropout_features: 0.1
   feature_grad_mult: 0.1
+  encoder_embed_dim: 768
