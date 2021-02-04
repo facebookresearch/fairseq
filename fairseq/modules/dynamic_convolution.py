@@ -263,7 +263,7 @@ class DynamicConv1dTBC(nn.Module):
             weight_expanded = self.weight_dropout_module(weight_expanded, inplace=False)
         else:
             P = self.padding_l
-            # For efficieny, we cut the kernel size and reduce the padding when the kernel is larger than the length
+            # For efficiency, we cut the kernel size and reduce the padding when the kernel is larger than the length
             if K > T and P == K - 1:
                 weight = weight.narrow(2, K - T, T)
                 K, P = T, T - 1

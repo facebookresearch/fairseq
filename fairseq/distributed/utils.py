@@ -47,6 +47,7 @@ def infer_init_method(cfg: DistributedTrainingConfig, force_distributed=False):
     if cfg.distributed_init_method is not None or cfg.tpu:
         return
 
+    num_pipelines_per_node = None
     if cfg.pipeline_model_parallel:
         num_pipeline_devices, num_pipelines_per_node = _pipeline_parallel_pre_init(cfg)
 

@@ -119,9 +119,8 @@ class SentencePredictionTask(LegacyFairseqTask):
         )
         logger.info("[input] dictionary: {} types".format(len(data_dict)))
 
-        label_dict = None
+        # load label dictionary
         if not args.regression_target:
-            # load label dictionary
             label_dict = cls.load_dictionary(
                 args,
                 os.path.join(args.data, "label", "dict.txt"),
@@ -174,7 +173,7 @@ class SentencePredictionTask(LegacyFairseqTask):
             split,
             self.args.shorten_data_split_list,
             self.args.shorten_method,
-            self.args.max_positions,
+            self.max_positions(),
             self.args.seed,
         )
 

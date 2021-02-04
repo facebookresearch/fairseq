@@ -21,6 +21,7 @@ from fairseq.data import (
     data_utils,
 )
 from fairseq.data.encoders.utils import get_whole_word_mask
+from fairseq.data.shorten_dataset import maybe_shorten_dataset
 from fairseq.tasks import LegacyFairseqTask, register_task
 import numpy as np
 
@@ -121,6 +122,20 @@ class DenoisingTask(LegacyFairseqTask):
             help="max number of tokens in the target sequence",
         )
 
+        parser.add_argument(
+            "--shorten-method",
+            default="none",
+            choices=["none", "truncate", "random_crop"],
+            help="if not none, shorten sequences that exceed --tokens-per-sample",
+        )
+        parser.add_argument(
+            "--shorten-data-split-list",
+            default="",
+            help="comma-separated list of dataset splits to apply shortening to, "
+            'e.g., "train,valid" (default: all dataset splits)',
+        )
+
+
     def __init__(self, args, dictionary):
         super().__init__(args)
         self.dictionary = dictionary
@@ -161,6 +176,15 @@ class DenoisingTask(LegacyFairseqTask):
             )
 
         dataset = StripTokenDataset(dataset, self.dictionary.eos())
+
+        dataset = maybe_shorten_dataset(
+            dataset,
+            split,
+            self.args.shorten_data_split_list,
+            self.args.shorten_method,
+            self.args.tokens_per_sample,
+            self.args.seed,
+        )
 
         # create continuous blocks of tokens
         dataset = TokenBlockDataset(
