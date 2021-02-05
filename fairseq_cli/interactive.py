@@ -20,7 +20,6 @@ from collections import namedtuple
 import numpy as np
 import torch
 from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
-from fairseq.data import encoders
 from fairseq.dataclass.configs import FairseqConfig
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.token_generation_constraints import pack_constraints, unpack_constraints
@@ -76,19 +75,13 @@ def make_batches(lines, cfg, task, max_positions, encode_fn):
                 for constraint in constraint_list
             ]
 
-    tokens = [
-        task.source_dictionary.encode_line(
-            encode_fn(src_str), add_if_not_exist=False
-        ).long()
-        for src_str in lines
-    ]
-
     if cfg.generation.constraints:
         constraints_tensor = pack_constraints(batch_constraints)
     else:
         constraints_tensor = None
 
-    lengths = [t.numel() for t in tokens]
+    tokens, lengths = task.get_interactive_tokens_and_lengths(lines, encode_fn)
+
     itr = task.get_batch_iterator(
         dataset=task.build_dataset_for_inference(
             tokens, lengths, constraints=constraints_tensor
@@ -176,8 +169,8 @@ def main(cfg: FairseqConfig):
     generator = task.build_generator(models, cfg.generation)
 
     # Handle tokenization and BPE
-    tokenizer = encoders.build_tokenizer(cfg.tokenizer)
-    bpe = encoders.build_bpe(cfg.bpe)
+    tokenizer = task.build_tokenizer(cfg.tokenizer)
+    bpe = task.build_bpe(cfg.bpe)
 
     def encode_fn(x):
         if tokenizer is not None:
@@ -256,6 +249,7 @@ def main(cfg: FairseqConfig):
 
         # sort output to match input order
         for id_, src_tokens, hypos, info in sorted(results, key=lambda x: x[0]):
+            src_str = ''
             if src_dict is not None:
                 src_str = src_dict.string(src_tokens, cfg.common_eval.post_process)
                 print("S-{}\t{}".format(id_, src_str))
