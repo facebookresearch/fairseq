@@ -85,6 +85,15 @@ fairseq-generate ${COVOST_ROOT}/fr \
   --max-tokens 50000 --beam 5 --scoring sacrebleu
 ```
 
+## Interactive Decoding
+Launch the interactive console via
+```bash
+fairseq-interactive ${COVOST_ROOT}/fr --config-yaml config_st_fr_en.yaml \
+  --task speech_to_text --path ${SAVE_DIR}/${CHECKPOINT_FILENAME} \
+  --max-tokens 50000 --beam 5
+```
+Type in WAV/FLAC/OGG audio paths (one per line) after the prompt.
+
 #### Results
 | --arch | Params | Fr-En | De-En | Es-En | Ca-En | En-De | En-Ca | En-Fa | En-Et | Model |
 |---|---|---|---|---|---|---|---|---|---|---|

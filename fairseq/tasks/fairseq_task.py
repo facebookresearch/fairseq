@@ -532,6 +532,16 @@ class FairseqTask(object):
         """Build the tokenizer for this task."""
         return encoders.build_bpe(args)
 
+    def get_interactive_tokens_and_lengths(self, lines, encode_fn):
+        tokens = [
+            self.source_dictionary.encode_line(
+                encode_fn(src_str), add_if_not_exist=False
+            ).long()
+            for src_str in lines
+        ]
+        lengths = [t.numel() for t in tokens]
+        return tokens, lengths
+
 
 class LegacyFairseqTask(FairseqTask):
     def __init__(self, args: Namespace):

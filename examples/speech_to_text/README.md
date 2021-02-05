@@ -19,9 +19,14 @@ Fairseq S2T also employs a YAML file for data related configurations: tokenizer 
 for the target text, feature transforms such as CMVN (cepstral mean and variance normalization) and SpecAugment,
 temperature-based resampling, etc.
 
-## Model Training & Evaluation
-Fairseq S2T uses the unified `fairseq-train`/`fairseq-generate` interface for model training and evaluation.
-It requires arguments `--task speech_to_text` and `--arch <model architecture in fairseq.models.speech_to_text.*>`.
+## Model Training
+Fairseq S2T uses the unified `fairseq-train` interface for model training. It requires arguments `--task speech_to_text`,
+ `--arch <model architecture in fairseq.models.speech_to_text.*>` and `--config-yaml <config YAML filename>`.
+
+## Inference & Evaluation
+Fairseq S2T uses the unified `fairseq-generate`/`fairseq-interactive` interface for inference and evaluation. It
+requires arguments `--task speech_to_text` and `--config-yaml <config YAML filename>`. The interactive console takes
+audio paths (one per line) as inputs.
 
 
 ## Examples
@@ -32,6 +37,9 @@ It requires arguments `--task speech_to_text` and `--arch <model architecture in
 - [Speech-to-Text Translation (ST) on CoVoST 2](docs/covost_example.md)
 
 ## Updates
+- 02/04/2021: Added interactive decoding (`fairseq-interactive`) support. Examples:
+  [ASR (LibriSpeech)](docs/librispeech_example.md#interactive-decoding)
+  and [ST (CoVoST 2)](docs/covost_example.md#interactive-decoding).
 - 01/08/2021: Several fixes for S2T Transformer model, inference-time de-tokenization, scorer configuration and data
   preparation scripts. We also add pre-trained models to the examples and revise the instructions.
   Breaking changes: the data preparation scripts now extract filterbank features without CMVN. CMVN is instead applied
