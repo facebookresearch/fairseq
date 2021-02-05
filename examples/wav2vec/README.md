@@ -147,6 +147,35 @@ python examples/speech_recognition/infer.py /checkpoint/abaevski/data/speech/lib
 
 To get raw numbers, use --w2l-decoder viterbi and omit the lexicon. To use the transformer language model, use --w2l-decoder fairseqlm.
 
+## Use wav2vec 2.0 with 🤗Transformers:
+
+Wav2Vec2 is also available in the [🤗Transformers library](https://github.com/huggingface/transformers) since vesion 4.3.
+
+Pretrained Models can be found on the [hub](https://huggingface.co/models?filter=wav2vec2) 
+and documentation can be found [here](https://huggingface.co/transformers/master/model_doc/wav2vec2.html).
+
+Usage example:
+
+```python
+# !pip install transformers
+import soundfile as sf
+import torch
+from transformers import Wav2Vec2ForMaskedLM, Wav2Vec2Tokenizer
+
+# load pretrained model
+tokenizer = Wav2Vec2Tokenizer.from_pretrained("facebook/wav2vec2-base-960h")
+model = Wav2Vec2ForMaskedLM.from_pretrained("facebook/wav2vec2-base-960h")
+
+# load audio
+audio_input, _ = sf.read("path/to/audio/file")
+
+# transcribe
+input_values = tokenizer(audio_input, return_tensors="pt").input_values
+logits = model(input_values).logits
+predicted_ids = torch.argmax(logits, dim=-1)
+transcription = tokenizer.batch_decode(predicted_ids)[0]
+```
+
 # wav2vec
 
 Example to train a wav2vec model as described in [wav2vec: Unsupervised Pre-training for Speech Recognition (Schneider et al., 2019)](https://arxiv.org/abs/1904.05862).
