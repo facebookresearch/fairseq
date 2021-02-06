@@ -12,7 +12,9 @@ from torch.utils.checkpoint import checkpoint
 
 
 class Model(nn.Module):
-    def __init__(self, use_pytorch_checkpoint=False, use_fairseq_checkpoint=False):
+    def __init__(
+        self, use_pytorch_checkpoint=False, use_fairseq_checkpoint=False, **kwargs
+    ):
         super().__init__()
         torch.manual_seed(0)
         self.use_pytorch_checkpoint = use_pytorch_checkpoint
@@ -23,7 +25,7 @@ class Model(nn.Module):
             nn.Linear(128, 32),
         )
         if use_fairseq_checkpoint:
-            self.ffn = checkpoint_wrapper(self.ffn)
+            self.ffn = checkpoint_wrapper(self.ffn, **kwargs)
         self.out = nn.Linear(32, 1)
 
     def forward(self, x):
@@ -59,6 +61,11 @@ class TestActivationCheckpointing(unittest.TestCase):
         fairseq_cpt = get_loss_and_gnorm(model)
         torch.testing.assert_allclose(no_cpt["loss"], fairseq_cpt["loss"])
         torch.testing.assert_allclose(no_cpt["gnorm"], fairseq_cpt["gnorm"])
+
+        model = Model(use_fairseq_checkpoint=True, offload_to_cpu=True).to(device)
+        fairseq_cpt_offload = get_loss_and_gnorm(model)
+        torch.testing.assert_allclose(no_cpt["loss"], fairseq_cpt_offload["loss"])
+        torch.testing.assert_allclose(no_cpt["gnorm"], fairseq_cpt_offload["gnorm"])
 
     def test_checkpoint_wrapper_cpu(self):
         self._test_checkpoint_wrapper(device=torch.device("cpu"))

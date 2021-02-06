@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import functools
 from typing import Any, Dict, List, Tuple, Union
 
 import torch
@@ -25,27 +26,30 @@ def checkpoint_wrapper(m, offload_to_cpu=False):
         checkpointed_module = checkpoint_wrapper(my_module, offload_to_cpu=True)
         a, b = checkpointed_module(x, y=3, z=torch.Tensor([1]))
     """
-    original_forward = m.forward
-
-    def _checkpointed_forward(*args, **kwargs):
-        # Autograd Functions in PyTorch work best with positional args, since
-        # the backward must return gradients (or None) for every input argument.
-        # We can flatten keyword arguments to make this easier.
-        kwarg_keys, flat_args = pack_kwargs(*args, **kwargs)
-        parent_ctx_dict = {"offload": offload_to_cpu}
-        output = CheckpointFunction.apply(
-            original_forward, parent_ctx_dict, kwarg_keys, *flat_args
-        )
-        if isinstance(output, torch.Tensor):
-            return output
-        else:
-            packed_non_tensor_outputs = parent_ctx_dict["packed_non_tensor_outputs"]
-            if packed_non_tensor_outputs:
-                output = unpack_non_tensors(output, packed_non_tensor_outputs)
-            return output
-
-    m.forward = _checkpointed_forward
+    m.forward = functools.partial(
+        _checkpointed_forward,
+        m.forward,  # original_forward
+        offload_to_cpu,
+    )
     return m
+
+
+def _checkpointed_forward(original_forward, offload_to_cpu, *args, **kwargs):
+    # Autograd Functions in PyTorch work best with positional args, since
+    # the backward must return gradients (or None) for every input argument.
+    # We can flatten keyword arguments to make this easier.
+    kwarg_keys, flat_args = pack_kwargs(*args, **kwargs)
+    parent_ctx_dict = {"offload": offload_to_cpu}
+    output = CheckpointFunction.apply(
+        original_forward, parent_ctx_dict, kwarg_keys, *flat_args
+    )
+    if isinstance(output, torch.Tensor):
+        return output
+    else:
+        packed_non_tensor_outputs = parent_ctx_dict["packed_non_tensor_outputs"]
+        if packed_non_tensor_outputs:
+            output = unpack_non_tensors(output, packed_non_tensor_outputs)
+        return output
 
 
 def pack_kwargs(*args, **kwargs) -> Tuple[List[str], List[Any]]:
