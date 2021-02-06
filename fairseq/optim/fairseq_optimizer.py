@@ -103,6 +103,8 @@ class FairseqOptimizer(object):
         """Multiplies grads by a constant *c*."""
         for p in self.params:
             if p.grad is not None:
+                if torch.is_tensor(c):
+                    c = c.to(p.grad.device)
                 p.grad.data.mul_(c)
 
     def clip_grad_norm(self, max_norm, aggregate_norm_fn=None):
