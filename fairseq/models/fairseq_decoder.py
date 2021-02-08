@@ -17,6 +17,8 @@ class FairseqDecoder(nn.Module):
         super().__init__()
         self.dictionary = dictionary
         self.onnx_trace = False
+        self.adaptive_softmax = None
+
 
     def forward(self, prev_output_tokens, encoder_out=None, **kwargs):
         """
