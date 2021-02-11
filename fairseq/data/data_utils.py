@@ -307,6 +307,11 @@ def batch_by_size(
             "Please build Cython components with: `pip install --editable .` "
             "or `python setup.py build_ext --inplace`"
         )
+    except ValueError:
+        raise ValueError(
+            "Please build (or rebuild) Cython components with: `pip install "
+            " --editable .` or `python setup.py build_ext --inplace`."
+        )
 
     max_tokens = max_tokens if max_tokens is not None else -1
     max_sentences = max_sentences if max_sentences is not None else -1
