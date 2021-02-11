@@ -7,7 +7,7 @@ import logging
 import os
 import warnings
 from argparse import Namespace
-from typing import List
+from typing import Any, Callable, Dict, List
 
 import torch
 from fairseq import metrics, search, tokenizer, utils
@@ -20,10 +20,45 @@ from omegaconf import DictConfig
 logger = logging.getLogger(__name__)
 
 
+class StatefulContainer(object):
+
+    _state: Dict[str, Any] = dict()
+    _factories: Dict[str, Callable[[], Any]] = dict()
+
+    def add_factory(self, name, factory: Callable[[], Any]):
+        self._factories[name] = factory
+
+    def merge_state_dict(self, state_dict: Dict[str, Any]):
+        self._state.update(state_dict)
+
+    @property
+    def state_dict(self) -> Dict[str, Any]:
+        return self._state
+
+    def __getattr__(self, name):
+        if name not in self._state and name in self._factories:
+            self._state[name] = self._factories[name]()
+
+        if name in self._state:
+            return self._state[name]
+
+        raise AttributeError(f"Task state has no factory for attribute {name}")
+
+
 class FairseqTask(object):
     """
     Tasks store dictionaries and provide helpers for loading/iterating over
     Datasets, initializing the Model/Criterion and calculating the loss.
+
+    Tasks have limited statefulness. In particular, state that needs to be
+    saved to/loaded from checkpoints needs to be stored in the `self.state`
+    :class:`StatefulContainer` object. For example::
+
+        self.state.add_factory("dictionary", self.load_dictionary)
+        print(self.state.dictionary)  # calls self.load_dictionary()
+
+    This is necessary so that when loading checkpoints, we can properly
+    recreate the task state after initializing the task instance.
     """
 
     @classmethod
@@ -42,10 +77,13 @@ class FairseqTask(object):
         """
         return criterion.logging_outputs_can_be_summed()
 
+    cfg: FairseqDataclass
+    datasets: Dict[str, FairseqDataset] = dict()
+    dataset_to_epoch_iter: Dict[FairseqDataset, Any] = dict()
+    state: StatefulContainer = StatefulContainer()
+
     def __init__(self, cfg: FairseqDataclass, **kwargs):
         self.cfg = cfg
-        self.datasets = {}
-        self.dataset_to_epoch_iter = {}
 
     @classmethod
     def load_dictionary(cls, filename):
@@ -513,6 +551,12 @@ class FairseqTask(object):
             metrics.log_scalar("bsz", nsentences, priority=190, round=1)
 
         criterion.__class__.reduce_metrics(logging_outputs)
+
+    def state_dict(self):
+        return self.state.state_dict
+
+    def load_state_dict(self, state_dict: Dict[str, Any]):
+        self.state.merge_state_dict(state_dict)
 
     def max_positions(self):
         """Return the max input length allowed by the task."""
