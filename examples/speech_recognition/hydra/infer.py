@@ -10,10 +10,9 @@ import logging
 import os
 import shutil
 import sys
-from argparse import Namespace
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import editdistance
 import torch
@@ -26,7 +25,6 @@ from fairseq.dataclass.configs import (CheckpointConfig, CommonConfig,
                                        CommonEvalConfig, DatasetConfig,
                                        DistributedTrainingConfig,
                                        FairseqDataclass, GenerationConfig)
-from fairseq.dataclass.initialize import hydra_init
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
 from fairseq.logging.progress_bar import BaseProgressBar
 from fairseq.models.fairseq_model import FairseqModel

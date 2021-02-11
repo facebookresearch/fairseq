@@ -144,11 +144,11 @@ def process_predictions(
             print(
                 "{} ({}-{})".format(tgt_words, speaker, id), file=res_files["ref.words"]
             )
-            # only score top hypothesis
-            if not args.quiet:
-                logger.debug("HYPO:" + hyp_words)
-                logger.debug("TARGET:" + tgt_words)
-                logger.debug("___________________")
+
+        if not args.quiet:
+            logger.info("HYPO:" + hyp_words)
+            logger.info("TARGET:" + tgt_words)
+            logger.info("___________________")
 
         hyp_words = hyp_words.split()
         tgt_words = tgt_words.split()
@@ -216,7 +216,6 @@ def main(args, task=None, model_state=None):
 
     use_cuda = torch.cuda.is_available() and not args.cpu
 
-
     logger.info("| decoding with criterion {}".format(args.criterion))
 
     task = tasks.setup_task(args)
@@ -227,7 +226,7 @@ def main(args, task=None, model_state=None):
         task.load_dataset(args.gen_subset)
     else:
         logger.info("| loading model(s) from {}".format(args.path))
-        models, saved_cfg = checkpoint_utils.load_model_ensemble(
+        models, saved_cfg, task = checkpoint_utils.load_model_ensemble_and_task(
             utils.split_paths(args.path),
             arg_overrides=ast.literal_eval(args.model_overrides),
             task=task,
