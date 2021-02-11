@@ -158,7 +158,7 @@ class Wav2VecCtc(BaseFairseqModel):
 
     def get_logits(self, net_output):
         logits = net_output["encoder_out"]
-        padding = net_output["encoder_padding_mask"]
+        padding = net_output["padding_mask"]
         if padding is not None and padding.any():
             padding = padding.T
             logits[padding][...,0] = 0
@@ -359,7 +359,7 @@ class Wav2VecEncoder(FairseqEncoder):
 
         return {
             "encoder_out": x,  # T x B x C
-            "encoder_padding_mask": padding_mask,  # B x T
+            "encoder_padding_mask": padding_mask.transpose(0, 1),  # T x B
             "padding_mask": padding_mask,
         }
 
@@ -539,7 +539,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 x, attn, _ = layer(
                     x,
                     encoder_out["encoder_out"] if encoder_out is not None else None,
-                    encoder_out["encoder_padding_mask"]
+                    encoder_out["padding_mask"]
                     if encoder_out is not None
                     else None,
                     incremental_state,
