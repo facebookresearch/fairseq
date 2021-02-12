@@ -394,7 +394,11 @@ class TranslationTask(FairseqTask):
         if self.cfg.eval_bleu:
 
             def sum_logs(key):
-                return sum(log.get(key, 0) for log in logging_outputs)
+                import torch
+                result = sum(log.get(key, 0) for log in logging_outputs)
+                if torch.is_tensor(result):
+                    result = result.cpu()
+                return result
 
             counts, totals = [], []
             for i in range(EVAL_BLEU_ORDER):
