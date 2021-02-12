@@ -281,7 +281,6 @@ def distributed_init(cfg: FairseqConfig):
         cfg.distributed_training.device_id = xm.get_local_ordinal()
         cfg.distributed_training.distributed_rank = xm.get_ordinal()
         xm.rendezvous("distributed_init")  # wait for all workers
-        xm.mark_step()
 
     if is_master(cfg.distributed_training):
         logging.getLogger().setLevel(logging.INFO)
@@ -357,7 +356,10 @@ def call_main(cfg: FairseqConfig, main, **kwargs):
         xmp.spawn(
             fn=distributed_main,
             args=(main, cfg, kwargs),
-            nprocs=8,  # use all 8 TPU cores
+            # tpu-comment:
+            #   8 devices in one TPU VM, is the max processes to be spawned.
+            #   The rest is driven by xm.distributed.xla_dist
+            nprocs=min(cfg.distributed_training.distributed_world_size, 8),
         )
     else:
         # single GPU main

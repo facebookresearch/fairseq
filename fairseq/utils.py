@@ -110,6 +110,7 @@ def move_to_cuda(sample, device=None):
 
 
 def move_to_cpu(sample):
+
     def _move_to_cpu(tensor):
         # PyTorch has poor support for half tensors (float16) on CPU.
         # Move any such tensors to float32.
@@ -118,6 +119,17 @@ def move_to_cpu(sample):
         return tensor.cpu()
 
     return apply_to_sample(_move_to_cpu, sample)
+
+
+def move_to_tpu(sample):
+
+    import torch_xla.core.xla_model as xm
+    device = xm.xla_device()
+
+    def _move_to_tpu(tensor):
+        return tensor.to(device)
+
+    return apply_to_sample(_move_to_tpu, sample)
 
 
 def get_incremental_state(
@@ -289,6 +301,9 @@ def convert_padding_direction(
 
 
 def item(tensor):
+    # tpu-comment: making this a no-op for xla devices.
+    if torch.is_tensor(tensor) and tensor.device.type == 'xla':
+        return tensor.detach()
     if hasattr(tensor, "item"):
         return tensor.item()
     if hasattr(tensor, "__getitem__"):
@@ -677,6 +692,27 @@ def tpu_data_loader(itr):
         start=getattr(itr, "n", 0),
         total=len(itr),
     )
+
+
+def is_xla_tensor(tensor):
+    return torch.is_tensor(tensor) and tensor.device.type == 'xla'
+
+
+def index_put(tensor, indices, value):
+    if is_xla_tensor(tensor):
+        for _ in range(indices.dim(), tensor.dim()):
+            indices = indices.unsqueeze(-1)
+        if indices.size(-1) < tensor.size(-1):
+            indices = indices.expand_as(tensor)
+        tensor = torch.mul(tensor, ~indices) + torch.mul(value, indices)
+    else:
+        tensor[indices] = value
+    return tensor
+
+
+def xla_device_to_cpu(dat):
+    import torch_xla.core.xla_model as xm
+    return xm._maybe_convert_to_cpu(dat)
 
 
 class CudaEnvironment(object):
