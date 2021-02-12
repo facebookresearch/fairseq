@@ -431,7 +431,7 @@ class W2lFairseqLMDecoder(W2lDecoder):
                 self.silence,
                 self.blank,
                 self.unk_word,
-                self.asg_transitions,
+                [],
                 self.unit_lm,
             )
         else:
