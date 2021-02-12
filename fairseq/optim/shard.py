@@ -5,11 +5,11 @@
 
 from typing import Any, Dict
 
-import torch
+from fairseq.distributed import utils
 
 
 try:
-    from fairscale.optim import OSS, utils
+    from fairscale.optim import OSS
 
     _has_fairscale = True
 except ImportError:
@@ -38,53 +38,15 @@ def shard_(optimizer, group):
             self, state_dict: Dict[str, Any]
         ) -> Dict[str, Any]:
             """
-            Broadcasts the relevant parts of a global state dict from rank 0 to
-            all other ranks.
+            Broadcasts the entire state_dict to all other ranks
+            each rank is responsible to load their own partition of data
             """
-            if self.rank == 0:
-
-                # Create template state dict for all other keys not related to sharding
-                template_state_dict = {
-                    key: state_dict[key]
-                    for key in state_dict
-                    if key not in ("param_groups", "state")
-                }
-                template_state_dict["local_state_dict"] = True
-
-                for dst_rank in range(self.world_size):
-                    # Get the dst_rank's param_groups shard
-                    send_state = {
-                        "param_groups": state_dict["param_groups"][
-                            state_dict["partition"][dst_rank][0] : state_dict[
-                                "partition"
-                            ][dst_rank][1]
-                        ],
-                        "state": state_dict["state"][dst_rank],
-                    }
-                    send_state.update(template_state_dict)
-
-                    if dst_rank == 0:
-                        recv_state = send_state
-                    else:
-                        utils.broadcast_object(
-                            send_state,
-                            src_rank=0,
-                            group=self.group,
-                            dist_device=self._device,
-                        )
-            else:
-                empty_buffer = torch.tensor([0], dtype=torch.uint8, device=self._device)
-                for dst_rank in range(1, self.world_size):
-                    state = utils.broadcast_object(
-                        empty_buffer,
-                        src_rank=0,
-                        group=self.group,
-                        dist_device=self._device,
-                    )
-                    if dst_rank == self.rank:
-                        recv_state = state
-
-            return recv_state
+            return utils.broadcast_object(
+                state_dict,
+                src_rank=0,
+                group=self.group,
+                dist_device=self._device,
+            )
 
     torch_optimizer = optimizer.optimizer
     optim_cls = type(torch_optimizer)
