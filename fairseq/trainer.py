@@ -532,6 +532,7 @@ class Trainer(object):
                 epoch=epoch,
                 combine=combine,
                 data_selector=data_selector,
+                tpu=self.tpu,
             )
         batch_iterator = self.task.get_batch_iterator(
             dataset=self.task.dataset(self.cfg.dataset.train_subset),
@@ -684,9 +685,7 @@ class Trainer(object):
                 # before marking step can lead to OOM errors.
                 # To handle gradient accumulation use case, we explicitly
                 # mark step here for every forward pass without a backward pass
-                import torch_xla.core.xla_model as xm
-
-                xm.mark_step()
+                self._xla_markstep_and_send_to_cpu()
 
         if is_dummy_batch:
             if torch.is_tensor(sample_size):
@@ -808,7 +807,6 @@ class Trainer(object):
             if self.tpu:
                 # mark step on TPUs
                 import torch_xla.core.xla_model as xm
-
                 xm.mark_step()
 
                 # only log stats every log_interval steps
@@ -825,7 +823,7 @@ class Trainer(object):
                     metrics.log_scalar(
                         "gb_total", gb_total, priority=1600, round=1, weight=0
                     )
-
+                    logging_outputs = self._xla_markstep_and_send_to_cpu(logging_outputs)
                     logging_output = self._reduce_and_log_stats(
                         logging_outputs, sample_size, grad_norm
                     )
@@ -878,9 +876,7 @@ class Trainer(object):
         """Do forward pass in evaluation mode."""
         if self.tpu:
             import torch_xla.core.xla_model as xm
-
             xm.rendezvous("valid_step")  # wait for all workers
-            xm.mark_step()
 
         with torch.no_grad():
             self.model.eval()
@@ -923,6 +919,8 @@ class Trainer(object):
             )
 
         # log validation stats
+        if self.tpu:
+            logging_outputs = self._xla_markstep_and_send_to_cpu(logging_outputs)
         logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
 
         return logging_output
@@ -1285,6 +1283,8 @@ class Trainer(object):
             return logging_output
 
     def _check_xla_compilation(self):
+        if self.cfg.distributed_training.distributed_rank:
+            return
         import torch_xla.debug.metrics as met
 
         compile_stats = met.metric_data("CompileTime")
@@ -1293,12 +1293,17 @@ class Trainer(object):
         num_xla_compiles = compile_stats[0]
         if num_xla_compiles > self._num_xla_compiles:
             logger.warning(
-                "XLA compilation detected on device #{}; too many of these can lead "
-                "to slow training, but we expect a few in the beginning".format(
-                    self.cfg.distributed_training.distributed_rank
-                )
+                "XLA compilation detected; too many of these can lead "
+                "to slow training, but we expect a few in the beginning"
             )
         self._num_xla_compiles = num_xla_compiles
+
+    def _xla_markstep_and_send_to_cpu(self, data=None):
+        import torch_xla.core.xla_model as xm
+        xm.mark_step()
+        if data is not None:
+            from fairseq.utils import xla_device_to_cpu
+            return xla_device_to_cpu(data)
 
 
 def _catalog_shared_params(module, memo=None, prefix=""):
