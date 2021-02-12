@@ -220,6 +220,7 @@ class Wav2Vec2Seq2SeqConfig(Wav2Vec2AsrConfig):
     share_decoder_input_output_embed: bool  = field(
         default=False, metadata={"help": "share decoder input and output embeddings"}
     )
+    autoregressive: bool = II("task.autoregressive")
 
 
 @register_model("wav2vec_seq2seq", dataclass=Wav2Vec2Seq2SeqConfig)
@@ -230,6 +231,8 @@ class Wav2Vec2Seq2SeqModel(FairseqEncoderDecoderModel):
     @classmethod
     def build_model(cls, cfg: Wav2Vec2Seq2SeqConfig, task: FairseqTask):
         """Build a new model instance."""
+
+        assert cfg.autoregressive, "Please set task.autoregressive=true for seq2seq asr models"
 
         src_dict, tgt_dict = task.source_dictionary, task.target_dictionary
 
