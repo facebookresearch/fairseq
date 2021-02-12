@@ -396,7 +396,7 @@ class TranslationTask(FairseqTask):
             def sum_logs(key):
                 import torch
                 result = sum(log.get(key, 0) for log in logging_outputs)
-                if isinstance(result, torch.Tensor) and result.device.type != "cpu":
+                if torch.is_tensor(result):
                     result = result.cpu()
                 return result
 
