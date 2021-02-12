@@ -39,15 +39,47 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
+TORCH_PIPE = False
+RPC_INIT = False
+
+def import_pipe():
+    global TORCH_PIPE
+    global RPC_INIT
+    try:
+        from torch.distributed.pipeline.sync import Pipe # noqa
+        global Pipe
+        from torch.distributed.pipeline.sync.utils import partition_model
+        global partition_model
+        from torch.distributed import rpc
+        import tempfile
+        TORCH_PIPE = True
+        # Initialize single process RPC agent since TORCH_PIPE requires
+        # RRef. RRef depends on RPC being initialized and as a result we initialize
+        # RPC with a single node.
+        tmpfile = tempfile.NamedTemporaryFile()
+        if not RPC_INIT:
+            rpc.init_rpc(
+                name="worker",
+                rank=0,
+                world_size=1,
+                rpc_backend_options=rpc.TensorPipeRpcBackendOptions(
+                    init_method="file://{}".format(tmpfile.name),
+                )
+            )
+            RPC_INIT = True
+        logger.info('Using torch pipe')
+    except ImportError:
+        try:
+            from fairscale.nn import Pipe # noqa
+            logger.info('Using fairscale pipe')
+        except ImportError:
+            raise ImportError("Please install fairscale with: pip install fairscale")
 
 
 @register_model("pipeline_parallel_transformer")
 class PipelineParallelTransformerModel(BaseFairseqModel):
     def __init__(self, encoder, decoder, balance, devices, chunks, checkpoint):
-        try:
-            from fairscale.nn import Pipe
-        except ImportError:
-            raise ImportError("Please install fairscale with: pip install fairscale")
+        import_pipe()
         super().__init__()
         assert isinstance(encoder, FairseqEncoder)
         assert isinstance(decoder, FairseqDecoder)
@@ -65,13 +97,20 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
         self.num_decoder_modules = len(decoder_module_list)
         module_list = encoder_module_list + decoder_module_list
         self.devices = devices
-        self.model = Pipe(
-            nn.Sequential(*module_list),
-            balance=balance,
-            devices=devices,
-            chunks=chunks,
-            checkpoint=checkpoint,
-        )
+        if TORCH_PIPE:
+            self.model = Pipe(
+                partition_model(nn.Sequential(*module_list), balance, devices),
+                chunks=chunks,
+                checkpoint=checkpoint,
+            )
+        else:
+            self.model = Pipe(
+                nn.Sequential(*module_list),
+                balance=balance,
+                devices=devices,
+                chunks=chunks,
+                checkpoint=checkpoint,
+            )
         self.encoder_max_positions = self.max_positions_helper(
             encoder.embedding_layer, "max_source_positions"
         )
@@ -87,7 +126,10 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
         if self.training:
             input_lst = [src_tokens, src_lengths, prev_output_tokens]
             input = tuple(i.to(self.devices[0], non_blocking=True) for i in input_lst)
-            return self.model(input)
+            if TORCH_PIPE:
+                return self.model(input).local_value()
+            else:
+                return self.model(input)
         else:
             assert self.encoder is not None and self.decoder is not None, (
                 "encoder and decoder need to be initialized by "
@@ -425,10 +467,7 @@ class TransformerEncoder(FairseqEncoder):
     def __init__(self, args, dictionary, embed_tokens, encoder_module_list=None):
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
-        try:
-            from fairscale.nn import Pipe
-        except ImportError:
-            raise ImportError("Please install fairscale with: pip install fairscale")
+        import_pipe()
         self.use_pipeline = encoder_module_list is not None
         if not self.use_pipeline:
             self.embedding_layer = TransformerEncoderEmbedding(args, embed_tokens)
@@ -449,13 +488,20 @@ class TransformerEncoder(FairseqEncoder):
                 f"Sum of encoder_balance={encoder_balance} is not equal "
                 + f"to num_encoder_modules={len(encoder_module_list)}"
             )
-            self.model = Pipe(
-                module=nn.Sequential(*encoder_module_list),
-                balance=encoder_balance,
-                devices=encoder_devices,
-                chunks=args.pipeline_chunks,
-                checkpoint=args.pipeline_checkpoint,
-            )
+            if TORCH_PIPE:
+                self.model = Pipe(
+                    module=partition_model(nn.Sequential(*encoder_module_list), encoder_balance, encoder_devices),
+                    chunks=args.pipeline_chunks,
+                    checkpoint=args.pipeline_checkpoint,
+                )
+            else:
+                self.model = Pipe(
+                    module=nn.Sequential(*encoder_module_list),
+                    balance=encoder_balance,
+                    devices=encoder_devices,
+                    chunks=args.pipeline_chunks,
+                    checkpoint=args.pipeline_checkpoint,
+                )
 
     def forward(self, src_tokens, src_lengths):
         """
@@ -485,7 +531,10 @@ class TransformerEncoder(FairseqEncoder):
         input_tuple = (src_tokens, src_lengths, dummy_prev_output_tokens)
         if self.use_pipeline:
             input_tuple = tuple(i.to(self.model.devices[0]) for i in input_tuple)
-            encoder_out = self.model(input_tuple)
+            if TORCH_PIPE:
+                encoder_out = self.model(input_tuple).local_value()
+            else:
+                encoder_out = self.model(input_tuple)
         else:
             encoder_embed_output_tuple = self.embedding_layer(input_tuple)
             encoder_layers_output = self.encoder_layers(encoder_embed_output_tuple)
@@ -561,10 +610,7 @@ class TransformerDecoder(FairseqDecoder):
     ):
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
-        try:
-            from fairscale.nn import Pipe
-        except ImportError:
-            raise ImportError("Please install fairscale with: pip install fairscale")
+        import_pipe()
         self.use_pipeline = decoder_module_list is not None
         if not self.use_pipeline:
             self.embedding_layer = TransformerDecoderEmbedding(args, embed_tokens)
@@ -586,13 +632,20 @@ class TransformerDecoder(FairseqDecoder):
                 f"Sum of decoder_balance={decoder_balance} is not equal "
                 + f"to num_decoder_modules={len(decoder_module_list)}"
             )
-            self.model = Pipe(
-                module=nn.Sequential(*decoder_module_list),
-                balance=decoder_balance,
-                devices=decoder_devices,
-                chunks=args.pipeline_chunks,
-                checkpoint=args.pipeline_checkpoint,
-            )
+            if TORCH_PIPE:
+                self.model = Pipe(
+                    module=partition_model(nn.Sequential(*decoder_module_list), decoder_balance, decoder_devices),
+                    chunks=args.pipeline_chunks,
+                    checkpoint=args.pipeline_checkpoint,
+                )
+            else:
+                self.model = Pipe(
+                    module=nn.Sequential(*decoder_module_list),
+                    balance=decoder_balance,
+                    devices=decoder_devices,
+                    chunks=args.pipeline_chunks,
+                    checkpoint=args.pipeline_checkpoint,
+                )
 
     def forward(
         self,
@@ -622,7 +675,10 @@ class TransformerDecoder(FairseqDecoder):
         )
         if self.use_pipeline:
             input_tuple = tuple(i.to(self.model.devices[0]) for i in input_tuple)
-            return (self.model(input_tuple),)
+            if TORCH_PIPE:
+                return (self.model(input_tuple).local_value(),)
+            else:
+                return (self.model(input_tuple),)
         else:
             embed_layer_output = self.embedding_layer(input_tuple)
             state = self.decoder_layers(embed_layer_output)

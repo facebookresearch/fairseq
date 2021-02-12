@@ -288,8 +288,9 @@ class Trainer(object):
                 self.optimizer,
                 self.lr_scheduler,
                 self.get_num_updates(),
-                self._optim_history,
-                extra_state,
+                optim_history=self._optim_history,
+                extra_state=extra_state,
+                task=self.task,
             )
             logger.info(f"Finished saving checkpoint to {filename}")
 
