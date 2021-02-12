@@ -325,6 +325,9 @@ def distributed_main(i, main, cfg: FairseqConfig, kwargs):
 
     main(cfg, **kwargs)
 
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier(get_global_group())
+
 
 def call_main(cfg: FairseqConfig, main, **kwargs):
     if cfg.distributed_training.distributed_init_method is None:

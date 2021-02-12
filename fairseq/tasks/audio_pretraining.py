@@ -15,7 +15,6 @@ from typing import Optional, Any
 from omegaconf import MISSING
 
 from fairseq.data import AddTargetDataset, Dictionary, FileAudioDataset, encoders
-from fairseq.data.data_utils import post_process
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.configs import GenerationConfig
 
@@ -98,15 +97,13 @@ class AudioPretrainingTask(FairseqTask):
     def __init__(
         self,
         cfg: AudioPretrainingConfig,
-        source_dictionary=None,
-        target_dictionary=None,
     ):
         super().__init__(cfg)
-        self._target_dictionary = target_dictionary
-        self._source_dictionary = source_dictionary
         if cfg.eval_wer:
             assert cfg.labels is not None, "eval_wer can only be set during fine-tuning"
         self.blank_symbol = "<s>"
+
+        self.state.add_factory("target_dictionary", self.load_target_dictionary)
 
     @classmethod
     def setup_task(cls, cfg: AudioPretrainingConfig, **kwargs):
@@ -116,13 +113,13 @@ class AudioPretrainingTask(FairseqTask):
             cfg (AudioPretrainingConfig): configuration of this task
         """
 
-        if cfg.labels:
-            dict_path = os.path.join(cfg.data, f"dict.{cfg.labels}.txt")
-            target_dictionary = Dictionary.load(dict_path)
-        else:
-            target_dictionary = None
+        return cls(cfg)
 
-        return cls(cfg, target_dictionary=target_dictionary)
+    def load_target_dictionary(self):
+        if self.cfg.labels:
+            dict_path = os.path.join(self.cfg.data, f"dict.{self.cfg.labels}.txt")
+            return Dictionary.load(dict_path)
+        return None
 
     def load_dataset(self, split: str, task_cfg: FairseqDataclass = None, **kwargs):
         data_path = self.cfg.data
@@ -136,7 +133,7 @@ class AudioPretrainingTask(FairseqTask):
         manifest = os.path.join(data_path, "{}.tsv".format(split))
         self.datasets[split] = FileAudioDataset(
             manifest,
-            sample_rate=task_cfg.sample_rate,
+            sample_rate=task_cfg.get('sample_rate', self.cfg.sample_rate),
             max_sample_size=self.cfg.max_sample_size,
             min_sample_size=self.cfg.max_sample_size,
             min_length=self.cfg.min_sample_size,
@@ -146,7 +143,6 @@ class AudioPretrainingTask(FairseqTask):
 
         if task_cfg.labels:
             label_path = os.path.join(data_path, f"{split}.{task_cfg.labels}")
-            labels = []
             with open(label_path, "r") as f:
                 labels = [
                     line for i, line in enumerate(f)
@@ -166,18 +162,18 @@ class AudioPretrainingTask(FairseqTask):
                 eos=self.target_dictionary.eos(),
                 batch_targets=True,
                 process_label=process_label,
-                add_to_input=task_cfg.autoregressive,
+                add_to_input=task_cfg.get('autoregressive', False),
             )
 
     @property
     def source_dictionary(self):
-        return self._source_dictionary
+        return None
 
     @property
     def target_dictionary(self):
         """Return the :class:`~fairseq.data.Dictionary` for the language
         model."""
-        return self._target_dictionary
+        return self.state.target_dictionary
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""
