@@ -78,12 +78,15 @@ class FairseqTask(object):
         return criterion.logging_outputs_can_be_summed()
 
     cfg: FairseqDataclass
-    datasets: Dict[str, FairseqDataset] = dict()
-    dataset_to_epoch_iter: Dict[FairseqDataset, Any] = dict()
-    state: StatefulContainer = StatefulContainer()
+    datasets: Dict[str, FairseqDataset]
+    dataset_to_epoch_iter: Dict[FairseqDataset, Any]
+    state: StatefulContainer = None
 
     def __init__(self, cfg: FairseqDataclass, **kwargs):
         self.cfg = cfg
+        self.datasets = dict()
+        self.dataset_to_epoch_iter = dict()
+        self.state = StatefulContainer()
 
     @classmethod
     def load_dictionary(cls, filename):
@@ -553,10 +556,13 @@ class FairseqTask(object):
         criterion.__class__.reduce_metrics(logging_outputs)
 
     def state_dict(self):
-        return self.state.state_dict
+        if self.state is not None:
+            return self.state.state_dict
+        return {}
 
     def load_state_dict(self, state_dict: Dict[str, Any]):
-        self.state.merge_state_dict(state_dict)
+        if self.state is not None:
+            self.state.merge_state_dict(state_dict)
 
     def max_positions(self):
         """Return the max input length allowed by the task."""
