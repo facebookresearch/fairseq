@@ -165,6 +165,9 @@ python examples/speech_recognition/infer.py /checkpoint/abaevski/data/speech/lib
 --post-process letter
 ```
 
+The audio files list can be provided through --audio-file-list as a comma separated list. The dict file also needed to be 
+provided from --dict-file. The dict file of the training data of the model could be used here.
+
 ## Use wav2vec 2.0 with 🤗Transformers:
 
 Wav2Vec2 is also available in the [🤗Transformers library](https://github.com/huggingface/transformers) since version 4.3.
