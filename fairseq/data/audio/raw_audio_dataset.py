@@ -178,3 +178,43 @@ class FileAudioDataset(RawAudioDataset):
         feats = torch.from_numpy(wav).float()
         feats = self.postprocess(feats, curr_sample_rate)
         return {"id": index, "source": feats}
+
+
+
+class FileListAudioDataset(FileAudioDataset):
+    def __init__(
+        self,
+        file_list,
+        manifest_path,
+        sample_rate,
+        max_sample_size=None,
+        min_sample_size=None,
+        shuffle=True,
+        min_length=0,
+        pad=False,
+        normalize=False,
+    ):
+        super().__init__(
+            sample_rate=sample_rate,
+            max_sample_size=max_sample_size,
+            min_sample_size=min_sample_size,
+            shuffle=shuffle,
+            min_length=min_length,
+            pad=pad,
+            normalize=normalize,
+        )
+        self.fnames = []
+        self.line_inds = set()
+
+        skipped = 0
+
+        for i, file_path in enumerate(file_list):
+            sz = soundfile.info(file_path).frames
+
+            if min_length is not None and sz < min_length:
+                skipped += 1
+                continue
+            self.fnames.append(items[0])
+            self.line_inds.add(i)
+            self.sizes.append(sz)
+        logger.info(f"loaded {len(self.fnames)}, skipped {skipped} samples")

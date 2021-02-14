@@ -147,6 +147,23 @@ python examples/speech_recognition/infer.py /checkpoint/abaevski/data/speech/lib
 
 To get raw numbers, use --w2l-decoder viterbi and omit the lexicon. To use the transformer language model, use --w2l-decoder fairseqlm.
 
+### Infer a list of audio file without evaluation:
+
+Sometimes we need to infer list of audio files without evaluating based on some labels.
+
+First setup dictionary and language model similar to evaluation steps above.
+
+Then run the command:
+
+```shell script
+$subset=dev_other
+python examples/speech_recognition/infer.py /checkpoint/abaevski/data/speech/libri/10h/wav2vec/raw --task audio_pretraining \
+--nbest 1 --path /path/to/model --gen-subset $subset --results-path /path/to/save/results/for/sclite --w2l-decoder kenlm \
+--lm-model /path/to/kenlm.bin --lm-weight 2 --word-score -1 --sil-weight 0 --criterion ctc --max-tokens 4000000 \
+--audio-file-list /path/to/audio_file1,/path/to/audio_file2,/path/to/audio_file3 \
+--post-process letter
+```
+
 ## Use wav2vec 2.0 with 🤗Transformers:
 
 Wav2Vec2 is also available in the [🤗Transformers library](https://github.com/huggingface/transformers) since version 4.3.

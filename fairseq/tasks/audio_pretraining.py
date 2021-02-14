@@ -131,15 +131,27 @@ class AudioPretrainingTask(FairseqTask):
                 task_cfg.autoregressive = not task_cfg.criterion == 'ctc'
 
         manifest = os.path.join(data_path, "{}.tsv".format(split))
-        self.datasets[split] = FileAudioDataset(
-            manifest,
-            sample_rate=task_cfg.get('sample_rate', self.cfg.sample_rate),
-            max_sample_size=self.cfg.max_sample_size,
-            min_sample_size=self.cfg.max_sample_size,
-            min_length=self.cfg.min_sample_size,
-            pad=task_cfg.labels is not None or task_cfg.enable_padding,
-            normalize=task_cfg.normalize,
-        )
+        if 'file_list' in kwargs:
+            self.datasets[split] = FileListDataset(
+                kwargs['file_list'],
+                manifest,
+                sample_rate=task_cfg.sample_rate,
+                max_sample_size=self.cfg.max_sample_size,
+                min_sample_size=self.cfg.max_sample_size,
+                min_length=self.cfg.min_sample_size,
+                pad=task_cfg.labels is not None or task_cfg.enable_padding,
+                normalize=task_cfg.normalize,
+            )
+        else:
+            self.datasets[split] = FileAudioDataset(
+                manifest,
+                sample_rate=task_cfg.get('sample_rate', self.cfg.sample_rate),
+                max_sample_size=self.cfg.max_sample_size,
+                min_sample_size=self.cfg.max_sample_size,
+                min_length=self.cfg.min_sample_size,
+                pad=task_cfg.labels is not None or task_cfg.enable_padding,
+                normalize=task_cfg.normalize,
+            )
 
         if task_cfg.labels:
             label_path = os.path.join(data_path, f"{split}.{task_cfg.labels}")

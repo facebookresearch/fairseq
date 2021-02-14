@@ -13,6 +13,7 @@ import logging
 import math
 import os
 import sys
+from collections import OrderedDict
 
 import editdistance
 import numpy as np
@@ -82,6 +83,12 @@ output units",
         type=str,
         default=None,
         help="if present, loads emissions from this file",
+    )
+    parser.add_argument(
+        "--audio-file-list",
+        type=str,
+        required=True,
+        help="comma separated paths to the audio files, required",
     )
     return parser
 
@@ -220,10 +227,12 @@ def main(args, task=None, model_state=None):
 
     task = tasks.setup_task(args)
 
+    file_list = args.audio_file_list.split(',')
+
     # Load ensemble
     if args.load_emissions:
         models, criterions = [], []
-        task.load_dataset(args.gen_subset)
+        task.load_dataset(args.gen_subset, file_list=file_list)
     else:
         logger.info("| loading model(s) from {}".format(args.path))
         models, saved_cfg, task = checkpoint_utils.load_model_ensemble_and_task(
@@ -234,6 +243,7 @@ def main(args, task=None, model_state=None):
             strict=(args.checkpoint_shard_count == 1),
             num_shards=args.checkpoint_shard_count,
             state=model_state,
+            file_list=file_list
         )
         optimize_models(args, use_cuda, models)
         task.load_dataset(args.gen_subset, task_cfg=saved_cfg.task)
@@ -313,6 +323,8 @@ def main(args, task=None, model_state=None):
         res_files = prepare_result_files(args)
     errs_t = 0
     lengths_t = 0
+
+    infer_result = OrderedDict()
     with progress_bar.build_progress_bar(args, itr) as t:
         wps_meter = TimeMeter()
         for sample in t:
@@ -321,7 +333,7 @@ def main(args, task=None, model_state=None):
                 continue
 
             prefix_tokens = None
-            if args.prefix_size > 0:
+            if args.prefix_size > 0 and args.labels:
                 prefix_tokens = sample["target"][:, : args.prefix_size]
 
             gen_timer.start()
@@ -353,25 +365,30 @@ def main(args, task=None, model_state=None):
                 speaker = None
                 # id = task.dataset(args.gen_subset).ids[int(sample_id)]
                 id = sample_id
-                toks = (
-                    sample["target"][i, :]
-                    if "target_label" not in sample
-                    else sample["target_label"][i, :]
-                )
-                target_tokens = utils.strip_pad(toks, tgt_dict.pad()).int().cpu()
+                target_tokens = None
+                if args.labels:
+                    toks = (
+                        sample["target"][i, :]
+                        if "target_label" not in sample
+                        else sample["target_label"][i, :]
+                    )
+                    target_tokens = utils.strip_pad(toks, tgt_dict.pad()).int().cpu()
                 # Process top predictions
-                errs, length = process_predictions(
-                    args,
-                    hypos[i],
-                    None,
-                    tgt_dict,
-                    target_tokens,
-                    res_files,
-                    speaker,
-                    id,
-                )
-                errs_t += errs
-                lengths_t += length
+                if args.labels:
+                    errs, length = process_predictions(
+                        args,
+                        hypos[i],
+                        None,
+                        tgt_dict,
+                        target_tokens,
+                        res_files,
+                        speaker,
+                        id,
+                    )
+                    errs_t += errs
+                    lengths_t += length
+                else:
+                    infer_result[id] = hypos[i][0]
 
             wps_meter.update(num_generated_tokens)
             t.log({"wps": round(wps_meter.avg)})
@@ -408,6 +425,11 @@ def main(args, task=None, model_state=None):
             )
         )
         logger.info("| Generate {} with beam={}".format(args.gen_subset, args.beam))
+
+    if not args.labels:
+        for hypo in infer_result.values():
+            logger.info(hypo)
+
     return task, wer
 
 
