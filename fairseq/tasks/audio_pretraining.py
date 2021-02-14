@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Any
 from omegaconf import MISSING
 
-from fairseq.data import AddTargetDataset, Dictionary, FileAudioDataset, encoders
+from fairseq.data import AddTargetDataset, Dictionary, FileAudioDataset, encoders, FileListAudioDataset
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.configs import GenerationConfig
 
@@ -86,7 +86,10 @@ class AudioPretrainingConfig(FairseqDataclass):
             "adds 'prev_output_tokens' to input and appends eos to target"
         },
     )
-
+    dict_file: Optional[str] = field(
+        default=None,
+        metadata={"help": "the file path of the dictionary"},
+    )
 
 @register_task("audio_pretraining", dataclass=AudioPretrainingConfig)
 class AudioPretrainingTask(FairseqTask):
@@ -119,6 +122,8 @@ class AudioPretrainingTask(FairseqTask):
         if self.cfg.labels:
             dict_path = os.path.join(self.cfg.data, f"dict.{self.cfg.labels}.txt")
             return Dictionary.load(dict_path)
+        elif self.cfg.dict_file is not None:
+            return Dictionary.load(self.cfg.dict_file)
         return None
 
     def load_dataset(self, split: str, task_cfg: FairseqDataclass = None, **kwargs):
@@ -131,8 +136,8 @@ class AudioPretrainingTask(FairseqTask):
                 task_cfg.autoregressive = not task_cfg.criterion == 'ctc'
 
         manifest = os.path.join(data_path, "{}.tsv".format(split))
-        if 'file_list' in kwargs:
-            self.datasets[split] = FileListDataset(
+        if 'file_list' in kwargs and kwargs['file_list']:
+            self.datasets[split] = FileListAudioDataset(
                 kwargs['file_list'],
                 manifest,
                 sample_rate=task_cfg.sample_rate,

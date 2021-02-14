@@ -14,7 +14,6 @@ import torch.nn.functional as F
 
 from .. import FairseqDataset
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -180,7 +179,6 @@ class FileAudioDataset(RawAudioDataset):
         return {"id": index, "source": feats}
 
 
-
 class FileListAudioDataset(FileAudioDataset):
     def __init__(
         self,
@@ -194,7 +192,7 @@ class FileListAudioDataset(FileAudioDataset):
         pad=False,
         normalize=False,
     ):
-        super().__init__(
+        super(FileListAudioDataset.__bases__[0], self).__init__(
             sample_rate=sample_rate,
             max_sample_size=max_sample_size,
             min_sample_size=min_sample_size,
@@ -203,8 +201,12 @@ class FileListAudioDataset(FileAudioDataset):
             pad=pad,
             normalize=normalize,
         )
+
+        import soundfile
+
         self.fnames = []
         self.line_inds = set()
+        self.root_dir = ""
 
         skipped = 0
 
@@ -214,7 +216,7 @@ class FileListAudioDataset(FileAudioDataset):
             if min_length is not None and sz < min_length:
                 skipped += 1
                 continue
-            self.fnames.append(items[0])
+            self.fnames.append(file_path)
             self.line_inds.add(i)
             self.sizes.append(sz)
         logger.info(f"loaded {len(self.fnames)}, skipped {skipped} samples")

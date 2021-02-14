@@ -87,8 +87,14 @@ output units",
     parser.add_argument(
         "--audio-file-list",
         type=str,
-        required=True,
-        help="comma separated paths to the audio files, required",
+        required=False,
+        help="comma separated paths to the audio files",
+    )
+    parser.add_argument(
+        "--dict-file",
+        type=str,
+        required=False,
+        help="specify the dictionary file",
     )
     return parser
 
@@ -227,7 +233,10 @@ def main(args, task=None, model_state=None):
 
     task = tasks.setup_task(args)
 
-    file_list = args.audio_file_list.split(',')
+    if args.audio_file_list:
+        file_list = args.audio_file_list.split(',')
+    else:
+        file_list = None
 
     # Load ensemble
     if args.load_emissions:
@@ -242,11 +251,10 @@ def main(args, task=None, model_state=None):
             suffix=args.checkpoint_suffix,
             strict=(args.checkpoint_shard_count == 1),
             num_shards=args.checkpoint_shard_count,
-            state=model_state,
-            file_list=file_list
+            state=model_state
         )
         optimize_models(args, use_cuda, models)
-        task.load_dataset(args.gen_subset, task_cfg=saved_cfg.task)
+        task.load_dataset(args.gen_subset, task_cfg=saved_cfg.task, file_list=file_list)
 
 
     # Set dictionary
@@ -427,8 +435,16 @@ def main(args, task=None, model_state=None):
         logger.info("| Generate {} with beam={}".format(args.gen_subset, args.beam))
 
     if not args.labels:
-        for hypo in infer_result.values():
-            logger.info(hypo)
+        for i, hypo in enumerate(infer_result.values()):
+            hyp_pieces = tgt_dict.string(hypo["tokens"].int().cpu())
+
+            if "words" in hypo:
+                hyp_words = " ".join(hypo["words"])
+            else:
+                hyp_words = post_process(hyp_pieces, args.post_process)
+
+            logger.info(f"{file_list[i]}:")
+            logger.info(hyp_words)
 
     return task, wer
 
