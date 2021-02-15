@@ -776,13 +776,11 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             alignment_layer = self.num_layers - 1
 
         # embed positions
-        positions = (
-            self.embed_positions(
+        positions = None
+        if self.embed_positions is not None:
+            positions = self.embed_positions(
                 prev_output_tokens, incremental_state=incremental_state
             )
-            if self.embed_positions is not None
-            else None
-        )
 
         if incremental_state is not None:
             prev_output_tokens = prev_output_tokens[:, -1:]
