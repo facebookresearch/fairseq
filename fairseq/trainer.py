@@ -277,6 +277,7 @@ class Trainer(object):
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
         if self.is_data_parallel_master:  # only save one checkpoint
+            logger.info(f"Saving checkpoint to {filename}")
             extra_state["metrics"] = metrics.state_dict()
             extra_state["previous_training_time"] = self.cumulative_training_time()
             checkpoint_utils.save_state(
@@ -287,8 +288,9 @@ class Trainer(object):
                 self.optimizer,
                 self.lr_scheduler,
                 self.get_num_updates(),
-                self._optim_history,
-                extra_state,
+                optim_history=self._optim_history,
+                extra_state=extra_state,
+                task=self.task,
             )
             logger.info(f"Finished saving checkpoint to {filename}")
 

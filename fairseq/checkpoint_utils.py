@@ -349,6 +349,9 @@ def load_model_ensemble_and_task(
             if task is None:
                 task = tasks.setup_task(cfg.task)
 
+            if "task_state" in state:
+                task.load_state_dict(state["task_state"])
+
             # build model for ensemble
             model = task.build_model(cfg.model)
 
@@ -403,6 +406,7 @@ def save_state(
     num_updates,
     optim_history=None,
     extra_state=None,
+    task=None,
     **kwargs,
 ):
     from fairseq import utils
@@ -425,6 +429,7 @@ def save_state(
             }
         ],
         "extra_state": extra_state,
+        "task_state": task.state_dict() if task is not None else {}
     }
     if utils.has_parameters(criterion):
         state_dict["criterion"] = criterion.state_dict()
@@ -546,6 +551,9 @@ def _upgrade_state_dict(state):
         # convert legacy float learning rate to List[float]
         if hasattr(state["args"], "lr") and isinstance(state["args"].lr, float):
             state["args"].lr = [state["args"].lr]
+        # convert task data arg to a string instead of List[string]
+        if hasattr(state["args"], "data") and isinstance(state["args"].data, list) and len(state["args"].data) > 0:
+            state["args"].data = state["args"].data[0]
 
         state["cfg"] = convert_namespace_to_omegaconf(state["args"])
 

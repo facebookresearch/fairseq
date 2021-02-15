@@ -47,6 +47,7 @@ def infer_init_method(cfg: DistributedTrainingConfig, force_distributed=False):
     if cfg.distributed_init_method is not None or cfg.tpu:
         return
 
+    num_pipelines_per_node = None
     if cfg.pipeline_model_parallel:
         num_pipeline_devices, num_pipelines_per_node = _pipeline_parallel_pre_init(cfg)
 
@@ -323,6 +324,9 @@ def distributed_main(i, main, cfg: FairseqConfig, kwargs):
         cfg = after_distributed_init_fn(cfg)
 
     main(cfg, **kwargs)
+
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier(get_global_group())
 
 
 def call_main(cfg: FairseqConfig, main, **kwargs):

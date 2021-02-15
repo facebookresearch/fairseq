@@ -7,7 +7,7 @@ import logging
 import os
 import warnings
 from argparse import Namespace
-from typing import List
+from typing import Any, Callable, Dict, List
 
 import torch
 from fairseq import metrics, search, tokenizer, utils
@@ -20,10 +20,45 @@ from omegaconf import DictConfig
 logger = logging.getLogger(__name__)
 
 
+class StatefulContainer(object):
+
+    _state: Dict[str, Any] = dict()
+    _factories: Dict[str, Callable[[], Any]] = dict()
+
+    def add_factory(self, name, factory: Callable[[], Any]):
+        self._factories[name] = factory
+
+    def merge_state_dict(self, state_dict: Dict[str, Any]):
+        self._state.update(state_dict)
+
+    @property
+    def state_dict(self) -> Dict[str, Any]:
+        return self._state
+
+    def __getattr__(self, name):
+        if name not in self._state and name in self._factories:
+            self._state[name] = self._factories[name]()
+
+        if name in self._state:
+            return self._state[name]
+
+        raise AttributeError(f"Task state has no factory for attribute {name}")
+
+
 class FairseqTask(object):
     """
     Tasks store dictionaries and provide helpers for loading/iterating over
     Datasets, initializing the Model/Criterion and calculating the loss.
+
+    Tasks have limited statefulness. In particular, state that needs to be
+    saved to/loaded from checkpoints needs to be stored in the `self.state`
+    :class:`StatefulContainer` object. For example::
+
+        self.state.add_factory("dictionary", self.load_dictionary)
+        print(self.state.dictionary)  # calls self.load_dictionary()
+
+    This is necessary so that when loading checkpoints, we can properly
+    recreate the task state after initializing the task instance.
     """
 
     @classmethod
@@ -42,10 +77,16 @@ class FairseqTask(object):
         """
         return criterion.logging_outputs_can_be_summed()
 
+    cfg: FairseqDataclass
+    datasets: Dict[str, FairseqDataset]
+    dataset_to_epoch_iter: Dict[FairseqDataset, Any]
+    state: StatefulContainer = None
+
     def __init__(self, cfg: FairseqDataclass, **kwargs):
         self.cfg = cfg
-        self.datasets = {}
-        self.dataset_to_epoch_iter = {}
+        self.datasets = dict()
+        self.dataset_to_epoch_iter = dict()
+        self.state = StatefulContainer()
 
     @classmethod
     def load_dictionary(cls, filename):
@@ -313,6 +354,10 @@ class FairseqTask(object):
             SequenceGenerator,
             SequenceGeneratorWithAlignment,
         )
+        try:
+            from fairseq.fb_sequence_generator import FBSequenceGenerator
+        except ModuleNotFoundError:
+            pass
 
         # Choose search strategy. Defaults to Beam Search.
         sampling = getattr(args, "sampling", False)
@@ -379,6 +424,8 @@ class FairseqTask(object):
             if getattr(args, "print_alignment", False):
                 seq_gen_cls = SequenceGeneratorWithAlignment
                 extra_gen_cls_kwargs["print_alignment"] = args.print_alignment
+            elif getattr(args, "fb_seq_gen", False):
+                seq_gen_cls = FBSequenceGenerator
             else:
                 seq_gen_cls = SequenceGenerator
 
@@ -508,6 +555,15 @@ class FairseqTask(object):
 
         criterion.__class__.reduce_metrics(logging_outputs)
 
+    def state_dict(self):
+        if self.state is not None:
+            return self.state.state_dict
+        return {}
+
+    def load_state_dict(self, state_dict: Dict[str, Any]):
+        if self.state is not None:
+            self.state.merge_state_dict(state_dict)
+
     def max_positions(self):
         """Return the max input length allowed by the task."""
         return None
@@ -531,6 +587,16 @@ class FairseqTask(object):
     def build_bpe(self, args):
         """Build the tokenizer for this task."""
         return encoders.build_bpe(args)
+
+    def get_interactive_tokens_and_lengths(self, lines, encode_fn):
+        tokens = [
+            self.source_dictionary.encode_line(
+                encode_fn(src_str), add_if_not_exist=False
+            ).long()
+            for src_str in lines
+        ]
+        lengths = [t.numel() for t in tokens]
+        return tokens, lengths
 
 
 class LegacyFairseqTask(FairseqTask):

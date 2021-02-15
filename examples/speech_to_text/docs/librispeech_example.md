@@ -50,6 +50,14 @@ for SUBSET in dev-clean dev-other test-clean test-other; do
 done
 ```
 
+## Interactive Decoding
+Launch the interactive console via
+```bash
+fairseq-interactive ${LS_ROOT} --config-yaml config.yaml --task speech_to_text \
+  --path ${SAVE_DIR}/${CHECKPOINT_FILENAME} --max-tokens 50000 --beam 5
+```
+Type in WAV/FLAC/OGG audio paths (one per line) after the prompt.
+
 ## Results
 
 | --arch | Params | dev-clean | dev-other | test-clean | test-other | Model |

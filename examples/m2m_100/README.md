@@ -130,7 +130,7 @@ wget https://dl.fbaipublicfiles.com/m2m_100/418M_last_checkpoint.pt
 wget https://dl.fbaipublicfiles.com/m2m_100/1.2B_last_checkpoint.pt
 
 # Generation:
-fairseq-generate $binarized_data_path --batch-size 32 --path $path_to_model -s en -t fr --remove-bpe 'sentencepiece' --beam 5 --task translation_multi_simple_epoch --lang-pairs language_pairs_small_models --decoder-langtok --encoder-langtok src --gen-subset test > gen_out
+fairseq-generate $binarized_data_path --batch-size 32 --path $path_to_model --fixed-dictionary model_dict.128k.txt -s en -t fr --remove-bpe 'sentencepiece' --beam 5 --task translation_multi_simple_epoch --lang-pairs language_pairs_small_models.txt --decoder-langtok --encoder-langtok src --gen-subset test > gen_out
 ```
 
 ### 12B Model

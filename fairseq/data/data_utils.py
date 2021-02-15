@@ -164,12 +164,6 @@ def _filter_by_size_dynamic(indices, size_fn, max_positions, raise_exception=Fal
                 for key in intersect_keys
             )
         else:
-            # Hacky as heck, for the specific case of multilingual training with RoundRobin.
-            if isinstance(size_fn(idx), dict) and isinstance(max_positions, tuple):
-                return all(
-                    a is None or b is None or compare_leq(a, b)
-                    for a, b in zip(size_fn(idx).values(), max_positions)
-                )
             # For MultiCorpusSampledDataset, will generalize it later
             if not isinstance(size_fn(idx), Iterable):
                 return all(size_fn(idx) <= b for b in max_positions)
@@ -312,6 +306,11 @@ def batch_by_size(
         raise ImportError(
             "Please build Cython components with: `pip install --editable .` "
             "or `python setup.py build_ext --inplace`"
+        )
+    except ValueError:
+        raise ValueError(
+            "Please build (or rebuild) Cython components with: `pip install "
+            " --editable .` or `python setup.py build_ext --inplace`."
         )
 
     max_tokens = max_tokens if max_tokens is not None else -1

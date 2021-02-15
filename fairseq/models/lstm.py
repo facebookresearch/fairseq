@@ -535,7 +535,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         assert (
             srclen > 0 or self.attention is None
         ), "attention is not supported if there are no encoder outputs"
-        attn_scores = (
+        attn_scores: Optional[Tensor] = (
             x.new_zeros(srclen, seqlen, bsz) if self.attention is not None else None
         )
         outs = []
