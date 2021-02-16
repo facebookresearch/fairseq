@@ -325,6 +325,7 @@ class TransformerEncoder(FairseqEncoder):
     """
 
     def __init__(self, args, dictionary, embed_tokens):
+        self.args = args
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
 
