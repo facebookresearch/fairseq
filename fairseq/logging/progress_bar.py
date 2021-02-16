@@ -123,7 +123,7 @@ class BaseProgressBar(object):
         if epoch is not None:
             self.prefix += "epoch {:03d}".format(epoch)
         if prefix is not None:
-            self.prefix += " | {}".format(prefix)
+            self.prefix += (" | " if self.prefix != "" else "") + prefix
 
     def __len__(self):
         return len(self.iterable)
