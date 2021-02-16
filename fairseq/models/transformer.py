@@ -435,13 +435,20 @@ class TransformerEncoder(FairseqEncoder):
         """
         x, encoder_embedding = self.forward_embedding(src_tokens, token_embeddings)
 
-        # B x T x C -> T x B x C
-        x = x.transpose(0, 1)
-
         # compute padding mask
         encoder_padding_mask = src_tokens.eq(self.padding_idx)
 
+        # account for padding while computing the representation
+        if encoder_padding_mask is not None:
+            x = x * (1 - encoder_padding_mask.unsqueeze(-1).type_as(x))
+
+        # B x T x C -> T x B x C
+        x = x.transpose(0, 1)
+
         encoder_states = []
+
+        if return_all_hiddens:
+            encoder_states.append(x)
 
         # encoder layers
         for layer in self.layers:
@@ -454,7 +461,7 @@ class TransformerEncoder(FairseqEncoder):
             x = self.layer_norm(x)
 
         # The Pytorch Mobile lite interpreter does not supports returning NamedTuple in
-        # `foward` so we use a dictionary instead.
+        # `forward` so we use a dictionary instead.
         # TorchScript does not support mixed values so the values are all lists.
         # The empty list is equivalent to None.
         return {
