@@ -92,22 +92,27 @@ class BARTHubInterface(GeneratorHubInterface):
         tokenized_sentences: List[torch.LongTensor],
         *args,
         inference_step_args=None,
+        skip_invalid_size_inputs=False,
         **kwargs
     ) -> List[List[Dict[str, torch.Tensor]]]:
         inference_step_args = inference_step_args or {}
         if "prefix_tokens" in inference_step_args:
             raise NotImplementedError("prefix generation not implemented for BART")
-        else:
-            bsz = len(tokenized_sentences)
-            inference_step_args["prefix_tokens"] = tokenized_sentences[0].new_full(
-                (bsz, 1), fill_value=self.task.source_dictionary.bos()
+        res = []
+        for batch in self._build_batches(tokenized_sentences, skip_invalid_size_inputs):
+            src_tokens = batch['net_input']['src_tokens']
+            inference_step_args["prefix_tokens"] =src_tokens.new_full(
+                (src_tokens.size(0), 1), fill_value=self.task.source_dictionary.bos()
             ).to(device=self.device)
-        return super().generate(
-            tokenized_sentences,
-            *args,
-            inference_step_args=inference_step_args,
-            **kwargs
-        )
+            results = super().generate(
+                src_tokens,
+                *args,
+                inference_step_args=inference_step_args,
+                skip_invalid_size_inputs=skip_invalid_size_inputs,
+                **kwargs
+            )
+            res.extend(results)
+        return res
 
     def extract_features(
         self, tokens: torch.LongTensor, return_all_hiddens: bool = False
