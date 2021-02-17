@@ -84,6 +84,8 @@ class TestTranslationHub(unittest.TestCase):
             )
 
 
+
+
 @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
 class TestLMHub(unittest.TestCase):
     def setUp(self):
@@ -426,6 +428,12 @@ has run a marathon in less than two hours."""
                 """Eliud Kipchoge has run a marathon in less than two hours. \
 Kenyan ran in Vienna, Austria. It was not an officially sanctioned world record.""",
             )
+
+    def bart_large_large_inputs(self):
+        # BartModel.generate threw an error because of prefix tokens size mismatch
+        bart = torch.hub.load('pytorch/fairseq', 'bart.large.cnn')
+        inputs = [bart.encode('. ' * 40)] * 50
+        bart.generate(inputs, beam=1, max_length=10)
 
 
 if __name__ == "__main__":
