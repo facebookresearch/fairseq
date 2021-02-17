@@ -162,10 +162,8 @@ class TransformerPointerGeneratorEncoder(TransformerEncoder):
         token_embeddings: Optional[Tensor] = None
     ):
         """
-        Copy of `forward()` method of the parent Transformer class. This is a
-        workaround to avoid calling `super()` which is not compatible
-        with Torchscript. It also adds the source tokens into the encoder output
-        tuple.
+        Runs the `forward()` method of the parent Transformer class. Then adds
+        the source tokens into the encoder output tuple.
 
         While it might be more elegant that the model would pass the source
         tokens to the `forward()` method of the decoder too, this would require
