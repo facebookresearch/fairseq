@@ -73,6 +73,7 @@ class mTEDx(Dataset):
         # Gather info
         self.data = []
         for wav_filename, _seg_group in groupby(segments, lambda x: x["wav"]):
+            wav_filename = wav_filename.replace(".wav",".flac")
             wav_path = wav_root / wav_filename
             sample_rate = torchaudio.info(wav_path.as_posix())[0].rate
             seg_group = sorted(_seg_group, key=lambda x: float(x["offset"]))
