@@ -433,6 +433,45 @@ class TransformerEncoder(FairseqEncoder):
                   hidden states of shape `(src_len, batch, embed_dim)`.
                   Only populated if *return_all_hiddens* is True.
         """
+        return self.forward_scriptable(src_tokens,
+                                       src_lengths,
+                                       return_all_hiddens,
+                                       token_embeddings)
+
+    # TorchScript doesn't support super() method so that the scriptable Subclass
+    # can't access the base class model in Torchscript.
+    # Current workaround is to add a helper function with different name and
+    # call the helper function from scriptable Subclass.
+    def forward_scriptable(
+        self,
+        src_tokens,
+        src_lengths: Optional[torch.Tensor] = None,
+        return_all_hiddens: bool = False,
+        token_embeddings: Optional[torch.Tensor] = None,
+    ):
+        """
+        Args:
+            src_tokens (LongTensor): tokens in the source language of shape
+                `(batch, src_len)`
+            src_lengths (torch.LongTensor): lengths of each source sentence of
+                shape `(batch)`
+            return_all_hiddens (bool, optional): also return all of the
+                intermediate hidden states (default: False).
+            token_embeddings (torch.Tensor, optional): precomputed embeddings
+                default `None` will recompute embeddings
+
+        Returns:
+            dict:
+                - **encoder_out** (Tensor): the last encoder layer's output of
+                  shape `(src_len, batch, embed_dim)`
+                - **encoder_padding_mask** (ByteTensor): the positions of
+                  padding elements of shape `(batch, src_len)`
+                - **encoder_embedding** (Tensor): the (scaled) embedding lookup
+                  of shape `(batch, src_len, embed_dim)`
+                - **encoder_states** (List[Tensor]): all intermediate
+                  hidden states of shape `(src_len, batch, embed_dim)`.
+                  Only populated if *return_all_hiddens* is True.
+        """
         x, encoder_embedding = self.forward_embedding(src_tokens, token_embeddings)
 
         # B x T x C -> T x B x C

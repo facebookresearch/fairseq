@@ -195,35 +195,20 @@ class TransformerPointerGeneratorEncoder(TransformerEncoder):
                 - **src_tokens** (Tensor): input token ids of shape
                   `(batch, src_len)`
         """
-        x, encoder_embedding = self.forward_embedding(src_tokens, token_embeddings)
-
-        # B x T x C -> T x B x C
-        x = x.transpose(0, 1)
-
-        # compute padding mask
-        encoder_padding_mask = src_tokens.eq(self.padding_idx)
-
-        encoder_states = []
-
-        # encoder layers
-        for layer in self.layers:
-            x = layer(x, encoder_padding_mask)
-            if return_all_hiddens:
-                assert encoder_states is not None
-                encoder_states.append(x)
-
-        if self.layer_norm is not None:
-            x = self.layer_norm(x)
+        encoder_out = self.forward_scriptable(src_tokens,
+                                              src_lengths,
+                                              return_all_hiddens,
+                                              token_embeddings)
 
         # The Pytorch Mobile lite interpreter does not supports returning NamedTuple in
         # `forward` so we use a dictionary instead.
         # TorchScript does not support mixed values so the values are all lists.
         # The empty list is equivalent to None.
         return {
-            "encoder_out": [x],  # T x B x C
-            "encoder_padding_mask": [encoder_padding_mask],  # B x T
-            "encoder_embedding": [encoder_embedding],  # B x T x C
-            "encoder_states": encoder_states,  # List[T x B x C]
+            "encoder_out": encoder_out["encoder_out"],  # T x B x C
+            "encoder_padding_mask": encoder_out["encoder_padding_mask"],  # B x T
+            "encoder_embedding": encoder_out["encoder_embedding"],  # B x T x C
+            "encoder_states": encoder_out["encoder_states"],  # List[T x B x C]
             "src_tokens": [src_tokens],  # B x T
             "src_lengths": [],
         }
@@ -354,7 +339,7 @@ class TransformerPointerGeneratorDecoder(TransformerDecoder):
 
         # The final output distribution will be a mixture of the normal output
         # distribution (softmax of logits) and attention weights.
-        gen_dists = self.get_normalized_probs_base(
+        gen_dists = self.get_normalized_probs_scriptable(
             (logits, None), log_probs=False, sample=None
         )
         gen_dists = torch.mul(gen_dists, p_gens)
@@ -377,32 +362,6 @@ class TransformerPointerGeneratorDecoder(TransformerDecoder):
 
         # Final distributions, [batch_size, output_length, num_types].
         return gen_dists + attn_dists
-
-    def get_normalized_probs_base(
-        self,
-        net_output: Tuple[Tensor, Optional[Dict[str, List[Optional[Tensor]]]]],
-        log_probs: bool,
-        sample: Optional[Dict[str, Tensor]] = None,
-    ):
-        """
-        Get normalized probabilities (or log probs) from a net's output. This method
-        is a copy from FairseqDecoder because `super()` cannot be used to ensure .
-        """
-
-        if hasattr(self, "adaptive_softmax") and self.adaptive_softmax is not None:
-            if sample is not None:
-                assert "target" in sample
-                target = sample["target"]
-            else:
-                target = None
-            out = self.adaptive_softmax.get_log_prob(net_output[0], target=target)
-            return out.exp_() if not log_probs else out
-
-        logits = net_output[0]
-        if log_probs:
-            return utils.log_softmax(logits, dim=-1, onnx_trace=self.onnx_trace)
-        else:
-            return utils.softmax(logits, dim=-1, onnx_trace=self.onnx_trace)
 
     def get_normalized_probs(
         self, 
