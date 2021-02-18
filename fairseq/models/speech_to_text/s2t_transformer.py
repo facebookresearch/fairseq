@@ -422,6 +422,15 @@ def s2t_transformer_s(args):
     base_architecture(args)
 
 
+@register_model_architecture("s2t_transformer", "s2t_transformer_xs")
+def s2t_transformer_xs(args):
+    args.encoder_layers = getattr(args, "encoder_layers", 6)
+    args.decoder_layers = getattr(args, "decoder_layers", 3)
+    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 256 * 4)
+    args.dropout = getattr(args, "dropout", 0.3)
+    s2t_transformer_s(args)
+
+
 @register_model_architecture("s2t_transformer", "s2t_transformer_sp")
 def s2t_transformer_sp(args):
     args.encoder_layers = getattr(args, "encoder_layers", 16)
