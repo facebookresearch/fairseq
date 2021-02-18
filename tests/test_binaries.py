@@ -22,6 +22,7 @@ from tests.utils import (
     preprocess_lm_data,
     preprocess_summarization_data,
     preprocess_translation_data,
+    create_laser_data_and_config_json,
     train_translation_model,
 )
 
@@ -934,6 +935,65 @@ class TestTranslation(unittest.TestCase):
                     run_validation=True,
                 )
                 generate_main(data_dir)
+
+    def test_laser_lstm(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_laser_lstm") as data_dir:
+                laser_config_file = create_laser_data_and_config_json(data_dir)
+                train_translation_model(
+                    laser_config_file.name,
+                    "laser_lstm",
+                    [
+                        "--user-dir",
+                        "examples/laser/laser_src",
+                        "--weighting-alpha",
+                        "0.3",
+                        "--encoder-bidirectional",
+                        "--encoder-hidden-size",
+                        "512",
+                        "--encoder-layers",
+                        "5",
+                        "--decoder-layers",
+                        "1",
+                        "--encoder-embed-dim",
+                        "320",
+                        "--decoder-embed-dim",
+                        "320",
+                        "--decoder-lang-embed-dim",
+                        "32",
+                        "--save-dir",
+                        data_dir,
+                        "--disable-validation",
+                    ],
+                    task="laser",
+                    lang_flags=[],
+                )
+
+    def test_laser_transformer(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_laser_transformer") as data_dir:
+                laser_config_file = create_laser_data_and_config_json(data_dir)
+                train_translation_model(
+                    laser_config_file.name,
+                    "laser_transformer",
+                    [
+                        "--user-dir",
+                        "examples/laser/laser_src",
+                        "--weighting-alpha",
+                        "0.3",
+                        "--encoder-embed-dim",
+                        "320",
+                        "--decoder-embed-dim",
+                        "320",
+                        "--decoder-lang-embed-dim",
+                        "32",
+                        "--save-dir",
+                        data_dir,
+                        "--disable-validation",
+                    ],
+                    task="laser",
+                    lang_flags=[],
+                )
 
     def test_alignment_full_context(self):
         with contextlib.redirect_stdout(StringIO()):
