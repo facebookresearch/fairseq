@@ -423,10 +423,7 @@ class Embedding(nn.Embedding):
         unk_idx: int,
         max_norm: Optional[float] = float("inf"),
     ):
-        super(Embedding, self).__init__(num_embeddings,
-                                        embedding_dim,
-                                        padding_idx=padding_idx,
-                                        max_norm=max_norm)
+        super().__init__(num_embeddings, embedding_dim, padding_idx=padding_idx, max_norm=max_norm)
         self.unk_idx = unk_idx
         nn.init.normal_(self.weight, mean=0, std=embedding_dim ** -0.5)
         nn.init.constant_(self.weight[padding_idx], 0)

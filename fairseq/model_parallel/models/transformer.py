@@ -6,7 +6,6 @@
 import logging
 
 import torch.nn as nn
-import torch.nn.functional as F
 from fairseq.model_parallel.modules import (
     ModelParallelTransformerDecoderLayer,
     ModelParallelTransformerEncoderLayer,
@@ -85,6 +84,12 @@ class ModelParallelTransformerEncoder(TransformerEncoder):
     Model parallel Transformer encoder consisting of *args.encoder_layers* layers. Each layer
     is a :class:`ModelParallelTransformerEncoderLayer`.
     """
+
+    def __init__(self, args, dictionary, embed_tokens):
+        super().__init__(args, dictionary, embed_tokens)
+
+        if args.no_final_layer_norm:
+            self.layer_norm = None
 
     def build_encoder_layer(self, args):
         return ModelParallelTransformerEncoderLayer(args)

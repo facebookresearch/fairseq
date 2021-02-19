@@ -325,6 +325,7 @@ class TransformerEncoder(FairseqEncoder):
     """
 
     def __init__(self, args, dictionary, embed_tokens):
+        self.args = args
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
 
@@ -472,19 +473,29 @@ class TransformerEncoder(FairseqEncoder):
                   hidden states of shape `(src_len, batch, embed_dim)`.
                   Only populated if *return_all_hiddens* is True.
         """
+        # compute padding mask
+        encoder_padding_mask = src_tokens.eq(self.padding_idx)
+        has_pads = (src_tokens.device.type == "xla" or encoder_padding_mask.any())
+
         x, encoder_embedding = self.forward_embedding(src_tokens, token_embeddings)
+
+        # account for padding while computing the representation
+        if encoder_padding_mask is not None:
+            x = x * (1 - encoder_padding_mask.unsqueeze(-1).type_as(x))
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
 
-        # compute padding mask
-        encoder_padding_mask = src_tokens.eq(self.padding_idx)
-
         encoder_states = []
+
+        if return_all_hiddens:
+            encoder_states.append(x)
 
         # encoder layers
         for layer in self.layers:
-            x = layer(x, encoder_padding_mask)
+            x = layer(
+                x, encoder_padding_mask=encoder_padding_mask if has_pads else None
+            )
             if return_all_hiddens:
                 assert encoder_states is not None
                 encoder_states.append(x)
@@ -493,7 +504,7 @@ class TransformerEncoder(FairseqEncoder):
             x = self.layer_norm(x)
 
         # The Pytorch Mobile lite interpreter does not supports returning NamedTuple in
-        # `foward` so we use a dictionary instead.
+        # `forward` so we use a dictionary instead.
         # TorchScript does not support mixed values so the values are all lists.
         # The empty list is equivalent to None.
         return {

@@ -45,7 +45,6 @@ def shard_(optimizer, group):
                 state_dict,
                 src_rank=0,
                 group=self.group,
-                dist_device=self._device,
             )
 
     torch_optimizer = optimizer.optimizer
