@@ -26,9 +26,17 @@ class TransformerMonotonicDecoderLayer(TransformerDecoderLayer):
             add_bias_kv=add_bias_kv,
             add_zero_attn=add_zero_attn,
         )
+
+        assert args.simul_type is not None, "A --simul-type is needed."
+
         self.encoder_attn = build_monotonic_attention(args)
         self.encoder_attn_layer_norm = LayerNorm(
             self.embed_dim, export=getattr(args, "char_inputs", False)
+        )
+
+    def get_head_steps(self, incremental_state):
+        return self.encoder_attn._get_monotonic_buffer(incremental_state).get(
+            "head_step"
         )
 
     def prune_incremental_state(self, incremental_state):
