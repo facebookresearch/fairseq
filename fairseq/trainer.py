@@ -401,7 +401,7 @@ class Trainer(object):
 
             self.lr_step(epoch)
 
-            if itr_state["version"] >= 2 and itr_state["iterations_in_epoch"] == 0:
+            if itr_state.get("version", 1) >= 2 and itr_state["iterations_in_epoch"] == 0:
                 # reset meters at start of epoch
                 reset_meters = True
 
