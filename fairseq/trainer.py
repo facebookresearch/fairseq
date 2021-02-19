@@ -284,7 +284,7 @@ class Trainer(object):
                 filename,
                 self.cfg,
                 self.model.state_dict(),
-                self.criterion,
+                self.get_criterion(),
                 self.optimizer,
                 self.lr_scheduler,
                 self.get_num_updates(),
@@ -375,10 +375,10 @@ class Trainer(object):
             last_optim = self._optim_history[-1]
             assert (
                 last_optim["criterion_name"] == self.get_criterion().__class__.__name__
-            ), "Criterion does not match; please reset the optimizer (--reset-optimizer)."
+            ), f"Criterion does not match; please reset the optimizer (--reset-optimizer). {last_optim['criterion_name']} vs {self.get_criterion().__class__.__name__}"
             assert (
                 last_optim["optimizer_name"] == self.optimizer.__class__.__name__
-            ), "Optimizer does not match; please reset the optimizer (--reset-optimizer)."
+            ), f"Optimizer does not match; please reset the optimizer (--reset-optimizer). {last_optim['optimizer_name']} vs {self.optimizer.__class__.__name__}"
 
             if not reset_lr_scheduler:
                 self.lr_scheduler.load_state_dict(last_optim["lr_scheduler_state"])
