@@ -71,7 +71,7 @@ def process(args):
             manifest["audio"].append(zip_manifest[sample_id])
             duration_ms = int(wav.size(1) / sample_rate * 1000)
             manifest["n_frames"].append(int(1 + (duration_ms - 25) / 10))
-            manifest["tgt_text"].append(utt)
+            manifest["tgt_text"].append(utt.lower())
             manifest["speaker"].append(spk_id)
         save_df_to_tsv(
             pd.DataFrame.from_dict(manifest), out_root / f"{split}.tsv"
