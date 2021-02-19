@@ -10,16 +10,19 @@ from examples.simultaneous_translation.modules.monotonic_transformer_layer impor
     TransformerMonotonicDecoderLayer,
     TransformerMonotonicEncoderLayer,
 )
-from fairseq.models import register_model, register_model_architecture
+from fairseq.models import (
+    register_model,
+    register_model_architecture,
+)
 from fairseq.models.transformer import (
-    TransformerDecoder,
-    TransformerEncoder,
     TransformerModel,
+    TransformerEncoder,
+    TransformerDecoder,
     base_architecture,
     transformer_iwslt_de_en,
     transformer_vaswani_wmt_en_de_big,
+    transformer_vaswani_wmt_en_fr_big,
 )
-
 
 DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
@@ -33,7 +36,7 @@ class TransformerUnidirectionalModel(TransformerModel):
 
 
 @register_model("transformer_monotonic")
-class TransformerMonotonicModel(TransformerModel):
+class TransformerModelSimulTrans(TransformerModel):
     @classmethod
     def build_encoder(cls, args, src_dict, embed_tokens):
         return TransformerMonotonicEncoder(args, src_dict, embed_tokens)
@@ -178,13 +181,18 @@ class TransformerMonotonicDecoder(TransformerDecoder):
 
         if positions is not None:
             x += positions
+
         x = self.dropout_module(x)
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
 
-        encoder_out = encoder_out_dict.encoder_out
-        encoder_padding_mask = encoder_out_dict.encoder_padding_mask
+        encoder_out = encoder_out_dict["encoder_out"][0]
+        encoder_padding_mask = (
+            encoder_out_dict["encoder_padding_mask"][0]
+            if len(encoder_out_dict["encoder_padding_mask"]) > 0
+            else None
+        )
 
         return x, encoder_out, encoder_padding_mask
 
@@ -236,7 +244,7 @@ class TransformerMonotonicDecoder(TransformerDecoder):
             attn_list.append(attn)
 
             if incremental_state is not None:
-                curr_steps = layer.get_steps(incremental_state)
+                curr_steps = layer.get_head_steps(incremental_state)
                 step_list.append(curr_steps)
 
                 if incremental_state.get("online", False):
@@ -287,7 +295,7 @@ class TransformerMonotonicDecoder(TransformerDecoder):
 
 
 @register_model_architecture("transformer_monotonic", "transformer_monotonic")
-def base_monotonic_rchitecture(args):
+def base_monotonic_architecture(args):
     base_architecture(args)
     args.encoder_unidirectional = getattr(args, "encoder_unidirectional", False)
 
@@ -297,7 +305,7 @@ def base_monotonic_rchitecture(args):
 )
 def transformer_monotonic_iwslt_de_en(args):
     transformer_iwslt_de_en(args)
-    base_monotonic_rchitecture(args)
+    base_monotonic_architecture(args)
 
 
 # parameters used in the "Attention Is All You Need" paper (Vaswani et al., 2017)

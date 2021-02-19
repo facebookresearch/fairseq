@@ -37,6 +37,7 @@ audio paths (one per line) as inputs.
 - [Speech-to-Text Translation (ST) on CoVoST 2](docs/covost_example.md)
 
 - [Speech-to-Text Translation (ST) on Multilingual TEDx](docs/mtedx_example.md)
+- [Simultaneous Speech-to-Text Translation (SimulST) on MuST-C](docs/simulst_mustc_example.md)
 
 ## Updates
 - 02/04/2021: Added interactive decoding (`fairseq-interactive`) support. Examples:
