@@ -57,7 +57,7 @@ class AudioPretrainingConfig(FairseqDataclass):
         default=None, metadata={"help": "max sample size to crop to for batching"}
     )
     min_sample_size: Optional[int] = field(
-        default=None, metadata={"help": "min sample size to crop to for batching"}
+        default=None, metadata={"help": "min sample size to skip small examples"}
     )
 
     # Options for reporting WER metrics during validation. Only applicable to
@@ -135,8 +135,7 @@ class AudioPretrainingTask(FairseqTask):
             manifest,
             sample_rate=task_cfg.get('sample_rate', self.cfg.sample_rate),
             max_sample_size=self.cfg.max_sample_size,
-            min_sample_size=self.cfg.max_sample_size,
-            min_length=self.cfg.min_sample_size,
+            min_sample_size=self.cfg.min_sample_size,
             pad=task_cfg.labels is not None or task_cfg.enable_padding,
             normalize=task_cfg.normalize,
         )
