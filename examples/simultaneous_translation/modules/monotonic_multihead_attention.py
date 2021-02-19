@@ -259,8 +259,6 @@ class MonotonicAttention(nn.Module):
 
             finish_read = new_monotonic_step.eq(max_steps) | (action == 0)
 
-        if p_choose_i is None:
-            import pdb;pdb.set_trace()
 
         monotonic_cache["head_step"] = new_monotonic_step
         # Whether a head is looking for new input
