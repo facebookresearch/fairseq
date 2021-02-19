@@ -313,7 +313,10 @@ def batch_by_size(
             " --editable .` or `python setup.py build_ext --inplace`."
         )
 
-    max_tokens = max_tokens if max_tokens is not None else -1
+    # added int() to avoid TypeError: an integer is required
+    max_tokens = (
+        int(max_tokens) if max_tokens is not None else -1
+    )
     max_sentences = max_sentences if max_sentences is not None else -1
     bsz_mult = required_batch_size_multiple
 

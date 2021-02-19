@@ -99,7 +99,6 @@ def fixed_pooling_monotonic_attention(monotonic_attention):
 
                 if self.pre_decision_ratio == 1:
                     return super().p_choose(
-                        self,
                         query,
                         key,
                         key_padding_mask=None,

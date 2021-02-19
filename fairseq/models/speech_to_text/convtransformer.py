@@ -307,11 +307,7 @@ class ConvTransformerEncoder(FairseqEncoder):
 
         subsampling_factor = int(max_seq_len * 1.0 / output_seq_len + 0.5)
 
-        input_lengths = min(
-            (src_lengths.float() / subsampling_factor).ceil().long(),
-            x.size(0) * src_lengths.new_ones([1]),
-        )
-
+        input_lengths = (src_lengths.float() / subsampling_factor).ceil().long()
         encoder_padding_mask, _ = lengths_to_encoder_padding_mask(
             input_lengths, batch_first=True
         )
