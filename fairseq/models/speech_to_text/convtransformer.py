@@ -4,9 +4,13 @@ import logging
 import math
 from typing import Dict, List, Optional, Tuple
 
+import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from examples.simultaneous_translation.utils.data_utils import (
+    lengths_to_encoder_padding_mask,
+)
 from fairseq import checkpoint_utils, utils
-from fairseq.data.data_utils import lengths_to_padding_mask
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderDecoderModel,
@@ -14,99 +18,32 @@ from fairseq.models import (
     register_model_architecture,
 )
 from fairseq.models.transformer import Embedding, TransformerDecoder
-from fairseq.modules import (
-    FairseqDropout,
-    LayerNorm,
-    PositionalEmbedding,
-    TransformerEncoderLayer,
-)
+from fairseq.modules import LayerNorm, PositionalEmbedding, TransformerEncoderLayer
 from torch import Tensor
-
 
 logger = logging.getLogger(__name__)
 
 
-class Conv1dSubsampler(nn.Module):
-    """Convolutional subsampler: a stack of 1D convolution (along temporal
-    dimension) followed by non-linear activation via gated linear units
-    (https://arxiv.org/abs/1911.08460)
-
-    Args:
-        in_channels (int): the number of input channels
-        mid_channels (int): the number of intermediate channels
-        out_channels (int): the number of output channels
-        kernel_sizes (List[int]): the kernel size for each convolutional layer
+@register_model("convtransformer")
+class ConvTransformerModel(FairseqEncoderDecoderModel):
     """
-
-    def __init__(
-        self,
-        in_channels: int,
-        mid_channels: int,
-        out_channels: int,
-        kernel_sizes: List[int] = (3, 3),
-    ):
-        super(Conv1dSubsampler, self).__init__()
-        self.n_layers = len(kernel_sizes)
-        self.conv_layers = nn.ModuleList(
-            nn.Conv1d(
-                in_channels if i == 0 else mid_channels // 2,
-                mid_channels if i < self.n_layers - 1 else out_channels * 2,
-                k,
-                stride=2,
-                padding=k // 2,
-            )
-            for i, k in enumerate(kernel_sizes)
-        )
-
-    def get_out_seq_lens_tensor(self, in_seq_lens_tensor):
-        out = in_seq_lens_tensor.clone()
-        for _ in range(self.n_layers):
-            out = ((out.float() - 1) / 2 + 1).floor().long()
-        return out
-
-    def forward(self, src_tokens, src_lengths):
-        bsz, in_seq_len, _ = src_tokens.size()  # B x T x (C x D)
-        x = src_tokens.transpose(1, 2).contiguous()  # -> B x (C x D) x T
-        for conv in self.conv_layers:
-            x = conv(x)
-            x = nn.functional.glu(x, dim=1)
-        _, _, out_seq_len = x.size()
-        x = x.transpose(1, 2).transpose(0, 1).contiguous()  # -> T x B x (C x D)
-        return x, self.get_out_seq_lens_tensor(src_lengths)
-
-
-@register_model("s2t_transformer")
-class S2TTransformerModel(FairseqEncoderDecoderModel):
-    """Adapted Transformer model (https://arxiv.org/abs/1706.03762) for
-    speech-to-text tasks. The Transformer encoder/decoder remains the same.
-    A trainable input subsampler is prepended to the Transformer encoder to
-    project inputs into the encoder dimension as well as downsample input
-    sequence for computational efficiency."""
-
+    Transformer-based Speech translation model from ESPNet-ST
+    https://arxiv.org/abs/2004.10234
+    """
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
 
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""
-        # input
         parser.add_argument(
-            "--conv-kernel-sizes",
-            type=str,
-            metavar="N",
-            help="kernel sizes of Conv1d subsampling layers",
-        )
-        parser.add_argument(
-            "--conv-channels",
+            "--input-feat-per-channel",
             type=int,
             metavar="N",
-            help="# of channels in Conv1d subsampling layers",
+            help="encoder input dimension per input channel",
         )
-        # Transformer
         parser.add_argument(
             "--activation-fn",
-            type=str,
-            default="relu",
             choices=utils.get_available_activation_fns(),
             help="activation function to use",
         )
@@ -179,6 +116,12 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
             help="apply layernorm before each decoder block",
         )
         parser.add_argument(
+            "--decoder-output-dim",
+            type=int,
+            metavar="N",
+            help="decoder output dimension (extra linear layer if different from decoder embed dim)",
+        )
+        parser.add_argument(
             "--share-decoder-input-output-embed",
             action="store_true",
             help="share decoder input and output embeddings",
@@ -199,23 +142,36 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
             metavar="STR",
             help="model to take encoder weights from (for initialization)",
         )
+        parser.add_argument(
+            "--load-pretrained-decoder-from",
+            type=str,
+            metavar="STR",
+            help="model to take decoder weights from (for initialization)",
+        )
+        parser.add_argument(
+            "--conv-out-channels",
+            type=int,
+            metavar="INT",
+            help="the number of output channels of conv layer",
+        )
 
     @classmethod
     def build_encoder(cls, args):
-        encoder = S2TTransformerEncoder(args)
+        encoder = ConvTransformerEncoder(args)
         if getattr(args, "load_pretrained_encoder_from", None):
             encoder = checkpoint_utils.load_pretrained_component_from_model(
                 component=encoder, checkpoint=args.load_pretrained_encoder_from
-            )
-            logger.info(
-                f"loaded pretrained encoder from: "
-                f"{args.load_pretrained_encoder_from}"
             )
         return encoder
 
     @classmethod
     def build_decoder(cls, args, task, embed_tokens):
-        return TransformerDecoderScriptable(args, task.target_dictionary, embed_tokens)
+        decoder = TransformerDecoderNoExtra(args, task.target_dictionary, embed_tokens)
+        if getattr(args, "load_pretrained_decoder_from", None):
+            decoder = checkpoint_utils.load_pretrained_component_from_model(
+                component=decoder, checkpoint=args.load_pretrained_decoder_from
+            )
+        return decoder
 
     @classmethod
     def build_model(cls, args, task):
@@ -236,6 +192,11 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
         decoder = cls.build_decoder(args, task, decoder_embed_tokens)
         return cls(encoder, decoder)
 
+    @staticmethod
+    @torch.jit.unused
+    def set_batch_first(lprobs):
+        lprobs.batch_first = True
+
     def get_normalized_probs(
         self,
         net_output: Tuple[Tensor, Optional[Dict[str, List[Optional[Tensor]]]]],
@@ -244,15 +205,20 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
     ):
         # net_output['encoder_out'] is a (B, T, D) tensor
         lprobs = self.get_normalized_probs_scriptable(net_output, log_probs, sample)
-        lprobs.batch_first = True
+        if self.training:
+            self.set_batch_first(lprobs)
         return lprobs
 
+    def output_layout(self):
+        return "BTD"
+
+    """
+    The forward method inherited from the base class has a **kwargs argument in
+    its input, which is not supported in torchscript. This method overrites the forward
+    method definition without **kwargs.
+    """
+
     def forward(self, src_tokens, src_lengths, prev_output_tokens):
-        """
-        The forward method inherited from the base class has a **kwargs
-        argument in its input, which is not supported in torchscript. This
-        method overwrites the forward method definition without **kwargs.
-        """
         encoder_out = self.encoder(src_tokens=src_tokens, src_lengths=src_lengths)
         decoder_out = self.decoder(
             prev_output_tokens=prev_output_tokens, encoder_out=encoder_out
@@ -260,100 +226,163 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
         return decoder_out
 
 
-class S2TTransformerEncoder(FairseqEncoder):
-    """Speech-to-text Transformer encoder that consists of input subsampler and
-    Transformer encoder."""
+class ConvTransformerEncoder(FairseqEncoder):
+    """Conv + Transformer encoder"""
 
     def __init__(self, args):
+        """Construct an Encoder object."""
         super().__init__(None)
 
-        self.dropout_module = FairseqDropout(
-            p=args.dropout, module_name=self.__class__.__name__
+        self.dropout = args.dropout
+        self.embed_scale = (
+            1.0 if args.no_scale_embedding else math.sqrt(args.encoder_embed_dim)
         )
-        self.embed_scale = math.sqrt(args.encoder_embed_dim)
-        if args.no_scale_embedding:
-            self.embed_scale = 1.0
         self.padding_idx = 1
-
-        self.subsample = Conv1dSubsampler(
-            args.input_feat_per_channel * args.input_channels,
-            args.conv_channels,
-            args.encoder_embed_dim,
-            [int(k) for k in args.conv_kernel_sizes.split(",")],
+        self.in_channels = 1
+        self.input_dim = args.input_feat_per_channel
+        self.conv = torch.nn.Sequential(
+            torch.nn.Conv2d(1, args.conv_out_channels, 3, stride=2, padding=3 // 2),
+            torch.nn.ReLU(),
+            torch.nn.Conv2d(
+                args.conv_out_channels,
+                args.conv_out_channels,
+                3,
+                stride=2,
+                padding=3 // 2,
+            ),
+            torch.nn.ReLU(),
         )
-
+        transformer_input_dim = self.infer_conv_output_dim(
+            self.in_channels, self.input_dim, args.conv_out_channels
+        )
+        self.out = torch.nn.Linear(transformer_input_dim, args.encoder_embed_dim)
         self.embed_positions = PositionalEmbedding(
-            args.max_source_positions, args.encoder_embed_dim, self.padding_idx
+            args.max_source_positions,
+            args.encoder_embed_dim,
+            self.padding_idx,
+            learned=False,
         )
 
-        self.transformer_layers = nn.ModuleList(
-            [TransformerEncoderLayer(args) for _ in range(args.encoder_layers)]
+        self.transformer_layers = nn.ModuleList([])
+        self.transformer_layers.extend(
+            [TransformerEncoderLayer(args) for i in range(args.encoder_layers)]
         )
         if args.encoder_normalize_before:
             self.layer_norm = LayerNorm(args.encoder_embed_dim)
         else:
             self.layer_norm = None
 
+    def pooling_ratio(self):
+        return 4
+
+    def infer_conv_output_dim(self, in_channels, input_dim, out_channels):
+        sample_seq_len = 200
+        sample_bsz = 10
+        x = torch.randn(sample_bsz, in_channels, sample_seq_len, input_dim)
+        x = torch.nn.Conv2d(1, out_channels, 3, stride=2, padding=3 // 2)(x)
+        x = torch.nn.Conv2d(out_channels, out_channels, 3, stride=2, padding=3 // 2)(x)
+        x = x.transpose(1, 2)
+        mb, seq = x.size()[:2]
+        return x.contiguous().view(mb, seq, -1).size(-1)
+
     def forward(self, src_tokens, src_lengths):
-        x, input_lengths = self.subsample(src_tokens, src_lengths)
+        """Encode input sequence.
+        :param torch.Tensor xs: input tensor
+        :param torch.Tensor masks: input mask
+        :return: position embedded tensor and mask
+        :rtype Tuple[torch.Tensor, torch.Tensor]:
+        """
+        bsz, max_seq_len, _ = src_tokens.size()
+        x = (
+            src_tokens.view(bsz, max_seq_len, self.in_channels, self.input_dim)
+            .transpose(1, 2)
+            .contiguous()
+        )
+        x = self.conv(x)
+        bsz, _, output_seq_len, _ = x.size()
+        x = x.transpose(1, 2).transpose(0, 1).contiguous().view(output_seq_len, bsz, -1)
+        x = self.out(x)
         x = self.embed_scale * x
 
-        encoder_padding_mask = lengths_to_padding_mask(input_lengths)
+        subsampling_factor = int(max_seq_len * 1.0 / output_seq_len + 0.5)
+
+        input_lengths = torch.min(
+            (src_lengths.float() / subsampling_factor).ceil().long(),
+            x.size(0) * src_lengths.new_ones([src_lengths.size(0)]).long()
+        )
+
+        encoder_padding_mask, _ = lengths_to_encoder_padding_mask(
+            input_lengths, batch_first=True
+        )
+
         positions = self.embed_positions(encoder_padding_mask).transpose(0, 1)
         x += positions
-        x = self.dropout_module(x)
+        x = F.dropout(x, p=self.dropout, training=self.training)
 
         for layer in self.transformer_layers:
             x = layer(x, encoder_padding_mask)
 
-        if self.layer_norm is not None:
-            x = self.layer_norm(x)
+        if not encoder_padding_mask.any():
+            maybe_encoder_padding_mask = None
+        else:
+            maybe_encoder_padding_mask = encoder_padding_mask
 
         return {
-            "encoder_out": [x],  # T x B x C
-            "encoder_padding_mask": [encoder_padding_mask] if encoder_padding_mask.any() else [],  # B x T
-            "encoder_embedding": [],  # B x T x C
-            "encoder_states": [],  # List[T x B x C]
+            "encoder_out": [x],
+            "encoder_padding_mask": [maybe_encoder_padding_mask]
+            if maybe_encoder_padding_mask is not None
+            else [],
+            "encoder_embedding": [],
+            "encoder_states": [],
             "src_tokens": [],
             "src_lengths": [],
         }
 
-    def reorder_encoder_out(self, encoder_out, new_order):
-        new_encoder_out = (
-            [] if len(encoder_out["encoder_out"]) == 0
-            else [x.index_select(1, new_order) for x in encoder_out["encoder_out"]]
-        )
+    @torch.jit.export
+    def reorder_encoder_out(self, encoder_out: Dict[str, List[Tensor]], new_order):
+        """
+        Reorder encoder output according to *new_order*.
 
-        new_encoder_padding_mask = (
-            [] if len(encoder_out["encoder_padding_mask"]) == 0
-            else [x.index_select(0, new_order) for x in encoder_out["encoder_padding_mask"]]
-        )
+        Args:
+            encoder_out: output from the ``forward()`` method
+            new_order (LongTensor): desired order
 
-        new_encoder_embedding = (
-            [] if len(encoder_out["encoder_embedding"]) == 0
-            else [x.index_select(0, new_order) for x in encoder_out["encoder_embedding"]]
-        )
-
+        Returns:
+            *encoder_out* rearranged according to *new_order*
+        """
+        new_encoder_out = [encoder_out["encoder_out"][0].index_select(1, new_order)]
+        if len(encoder_out["encoder_padding_mask"]) == 0:
+            new_encoder_padding_mask = []
+        else:
+            new_encoder_padding_mask = [
+                (encoder_out["encoder_padding_mask"][0]).index_select(0, new_order)
+            ]
+        if len(encoder_out["encoder_embedding"]) == 0:
+            new_encoder_embedding = []
+        else:
+            new_encoder_embedding = [
+                (encoder_out["encoder_embedding"][0]).index_select(0, new_order)
+            ]
         encoder_states = encoder_out["encoder_states"]
         if len(encoder_states) > 0:
             for idx, state in enumerate(encoder_states):
                 encoder_states[idx] = state.index_select(1, new_order)
 
         return {
-            "encoder_out": new_encoder_out,  # T x B x C
-            "encoder_padding_mask": new_encoder_padding_mask,  # B x T
-            "encoder_embedding": new_encoder_embedding,  # B x T x C
-            "encoder_states": encoder_states,  # List[T x B x C]
-            "src_tokens": [],  # B x T
-            "src_lengths": [],  # B x 1
+            "encoder_out": new_encoder_out,
+            "encoder_padding_mask": new_encoder_padding_mask,
+            "encoder_embedding": new_encoder_embedding,
+            "encoder_states": encoder_states,
+            "src_tokens": [],
+            "src_lengths": [],
         }
 
 
-class TransformerDecoderScriptable(TransformerDecoder):
+class TransformerDecoderNoExtra(TransformerDecoder):
     def extract_features(
         self,
         prev_output_tokens,
-        encoder_out: Optional[Dict[str, List[Tensor]]] = None,
+        encoder_out: Optional[Dict[str, List[Tensor]]],
         incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
         full_context_alignment: bool = False,
         alignment_layer: Optional[int] = None,
@@ -371,29 +400,26 @@ class TransformerDecoderScriptable(TransformerDecoder):
         return x, None
 
 
-@register_model_architecture(model_name="s2t_transformer", arch_name="s2t_transformer")
+@register_model_architecture(model_name="convtransformer", arch_name="convtransformer")
 def base_architecture(args):
-    # Convolutional subsampler
-    args.conv_kernel_sizes = getattr(args, "conv_kernel_sizes", "5,5")
-    args.conv_channels = getattr(args, "conv_channels", 1024)
-    # Transformer
+    args.input_feat_per_channel = getattr(args, "input_feat_per_channel", 80)
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 2048)
-    args.encoder_layers = getattr(args, "encoder_layers", 12)
+    args.encoder_layers = getattr(args, "encoder_layers", 6)
     args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 8)
-    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", True)
+    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", False)
     args.decoder_embed_dim = getattr(args, "decoder_embed_dim", args.encoder_embed_dim)
     args.decoder_ffn_embed_dim = getattr(
         args, "decoder_ffn_embed_dim", args.encoder_ffn_embed_dim
     )
     args.decoder_layers = getattr(args, "decoder_layers", 6)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 8)
-    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", True)
+    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", False)
     args.decoder_learned_pos = getattr(args, "decoder_learned_pos", False)
-    args.dropout = getattr(args, "dropout", 0.1)
-    args.attention_dropout = getattr(args, "attention_dropout", args.dropout)
-    args.activation_dropout = getattr(args, "activation_dropout", args.dropout)
+    args.attention_dropout = getattr(args, "attention_dropout", 0.0)
+    args.activation_dropout = getattr(args, "activation_dropout", 0.0)
     args.activation_fn = getattr(args, "activation_fn", "relu")
+    args.dropout = getattr(args, "dropout", 0.1)
     args.adaptive_softmax_cutoff = getattr(args, "adaptive_softmax_cutoff", None)
     args.adaptive_softmax_dropout = getattr(args, "adaptive_softmax_dropout", 0)
     args.share_decoder_input_output_embed = getattr(
@@ -404,66 +430,22 @@ def base_architecture(args):
     )
     args.adaptive_input = getattr(args, "adaptive_input", False)
     args.decoder_layerdrop = getattr(args, "decoder_layerdrop", 0.0)
+
     args.decoder_output_dim = getattr(
         args, "decoder_output_dim", args.decoder_embed_dim
     )
     args.decoder_input_dim = getattr(args, "decoder_input_dim", args.decoder_embed_dim)
     args.no_scale_embedding = getattr(args, "no_scale_embedding", False)
     args.quant_noise_pq = getattr(args, "quant_noise_pq", 0)
+    args.max_source_positions = getattr(args, "max_source_positions", 3000)
+    args.max_target_positions = getattr(args, "max_target_positions", 1024)
+    args.tie_adaptive_weights = getattr(args, "tie_adaptive_weights", False)
+    args.conv_out_channels = getattr(args, "conv_out_channels", args.encoder_embed_dim)
 
 
-@register_model_architecture("s2t_transformer", "s2t_transformer_s")
-def s2t_transformer_s(args):
+@register_model_architecture("convtransformer", "convtransformer_espnet")
+def convtransformer_espnet(args):
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 256)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 256 * 8)
+    args.encoder_layers = getattr(args, "encoder_layers", 12)
     args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 4)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 4)
-    args.dropout = getattr(args, "dropout", 0.1)
-    base_architecture(args)
-
-
-@register_model_architecture("s2t_transformer", "s2t_transformer_xs")
-def s2t_transformer_xs(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 6)
-    args.decoder_layers = getattr(args, "decoder_layers", 3)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 256 * 4)
-    args.dropout = getattr(args, "dropout", 0.3)
-    s2t_transformer_s(args)
-
-
-@register_model_architecture("s2t_transformer", "s2t_transformer_sp")
-def s2t_transformer_sp(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 16)
-    s2t_transformer_s(args)
-
-
-@register_model_architecture("s2t_transformer", "s2t_transformer_m")
-def s2t_transformer_m(args):
-    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 512 * 4)
-    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 8)
-    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 8)
-    args.dropout = getattr(args, "dropout", 0.15)
-    base_architecture(args)
-
-
-@register_model_architecture("s2t_transformer", "s2t_transformer_mp")
-def s2t_transformer_mp(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 16)
-    s2t_transformer_m(args)
-
-
-@register_model_architecture("s2t_transformer", "s2t_transformer_l")
-def s2t_transformer_l(args):
-    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 1024)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 1024 * 4)
-    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 16)
-    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 16)
-    args.dropout = getattr(args, "dropout", 0.2)
-    base_architecture(args)
-
-
-@register_model_architecture("s2t_transformer", "s2t_transformer_lp")
-def s2t_transformer_lp(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 16)
-    s2t_transformer_l(args)

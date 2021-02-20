@@ -11,9 +11,15 @@ import logging
 import torch
 from fairseq import utils
 from fairseq.models import register_model, register_model_architecture
-from fairseq.models.roberta import RobertaEncoder, RobertaModel
+from fairseq.models.roberta import (
+    init_bert_params,
+    roberta_base_architecture,
+    roberta_large_architecture,
+    RobertaEncoder,
+    RobertaModel,
+)
 
-from ..modules.linformer_sentence_encoder import LinformerSentenceEncoder
+from ..modules.linformer_sentence_encoder import LinformerTransformerEncoder
 
 
 logger = logging.getLogger(__name__)
@@ -66,30 +72,10 @@ class LinformerEncoder(RobertaEncoder):
         super().__init__(args, dictionary)
         self.register_buffer("version", torch.tensor(2))
 
-    def build_encoder(self, args, dictionary):
-        return LinformerSentenceEncoder(
-            padding_idx=dictionary.pad(),
-            vocab_size=len(dictionary),
-            num_encoder_layers=args.encoder_layers,
-            embedding_dim=args.encoder_embed_dim,
-            ffn_embedding_dim=args.encoder_ffn_embed_dim,
-            num_attention_heads=args.encoder_attention_heads,
-            dropout=args.dropout,
-            attention_dropout=args.attention_dropout,
-            activation_dropout=args.activation_dropout,
-            layerdrop=args.encoder_layerdrop,
-            max_seq_len=args.max_positions,
-            num_segments=0,
-            encoder_normalize_before=True,
-            apply_bert_init=True,
-            activation_fn=args.activation_fn,
-            q_noise=args.quant_noise_pq,
-            qn_block_size=args.quant_noise_pq_block_size,
-            compressed=args.compressed,
-            shared_kv_compressed=args.shared_kv_compressed,
-            shared_layer_kv_compressed=args.shared_layer_kv_compressed,
-            freeze_compress=args.freeze_compress,
-        )
+    def build_encoder(self, args, dictionary, embed_tokens):
+        encoder = LinformerTransformerEncoder(args, dictionary, embed_tokens)
+        encoder.apply(init_bert_params)
+        return encoder
 
     def upgrade_state_dict_named(self, state_dict, name):
         super().upgrade_state_dict_named(state_dict, name)
@@ -115,25 +101,11 @@ class LinformerEncoder(RobertaEncoder):
 
 @register_model_architecture("linformer_roberta", "linformer_roberta")
 def base_architecture(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 12)
-    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 768)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 3072)
-    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 12)
-
-    args.activation_fn = getattr(args, "activation_fn", "gelu")
-    args.pooler_activation_fn = getattr(args, "pooler_activation_fn", "tanh")
-
-    args.dropout = getattr(args, "dropout", 0.1)
-    args.attention_dropout = getattr(args, "attention_dropout", 0.1)
-    args.activation_dropout = getattr(args, "activation_dropout", 0.0)
-    args.pooler_dropout = getattr(args, "pooler_dropout", 0.0)
-    args.encoder_layers_to_keep = getattr(args, "encoder_layers_to_keep", None)
-    args.encoder_layerdrop = getattr(args, "encoder_layerdrop", 0.0)
-
     args.compressed = getattr(args, "compressed", 4)
     args.shared_kv_compressed = getattr(args, "shared_kv_compressed", 0)
     args.shared_layer_kv_compressed = getattr(args, "shared_layer_kv_compressed", 0)
     args.freeze_compress = getattr(args, "freeze_compress", 0)
+    roberta_base_architecture(args)
 
 
 @register_model_architecture("linformer_roberta", "linformer_roberta_base")
@@ -143,18 +115,5 @@ def linformer_roberta_base_architecture(args):
 
 @register_model_architecture("linformer_roberta", "linformer_roberta_large")
 def linformer_roberta_large_architecture(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 24)
-    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 1024)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 4096)
-    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 16)
-
-    args.activation_fn = getattr(args, "activation_fn", "gelu")
-    args.pooler_activation_fn = getattr(args, "pooler_activation_fn", "tanh")
-
-    args.dropout = getattr(args, "dropout", 0.1)
-    args.attention_dropout = getattr(args, "attention_dropout", 0.1)
-    args.activation_dropout = getattr(args, "activation_dropout", 0.0)
-    args.pooler_dropout = getattr(args, "pooler_dropout", 0.0)
-    args.compressed = getattr(args, "compressed", 4)
-    args.shared_kv_compressed = getattr(args, "shared_kv_compressed", 0)
-    args.shared_layer_kv_compressed = getattr(args, "shared_layer_kv_compressed", 0)
+    roberta_large_architecture(args)
+    base_architecture(args)
