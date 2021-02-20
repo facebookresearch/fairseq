@@ -30,7 +30,6 @@ class ConvTransformerModel(FairseqEncoderDecoderModel):
     Transformer-based Speech translation model from ESPNet-ST
     https://arxiv.org/abs/2004.10234
     """
-
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
 
@@ -307,7 +306,11 @@ class ConvTransformerEncoder(FairseqEncoder):
 
         subsampling_factor = int(max_seq_len * 1.0 / output_seq_len + 0.5)
 
-        input_lengths = (src_lengths.float() / subsampling_factor).ceil().long()
+        input_lengths = torch.min(
+            (src_lengths.float() / subsampling_factor).ceil().long(),
+            x.size(0) * src_lengths.new_ones([src_lengths.size(0)]).long()
+        )
+
         encoder_padding_mask, _ = lengths_to_encoder_padding_mask(
             input_lengths, batch_first=True
         )
