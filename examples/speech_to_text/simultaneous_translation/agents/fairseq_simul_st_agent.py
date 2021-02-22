@@ -27,25 +27,18 @@ class OnlineFeatureExtractor:
     Extract speech feature on the fly.
     """
 
-    def __init__(
-        self,
-        shift_size=SHIFT_SIZE,
-        window_size=WINDOW_SIZE,
-        sample_rate=SAMPLE_RATE,
-        feature_dim=FEATURE_DIM,
-        global_cmvn=None,
-    ):
-        self.shift_size = shift_size
-        self.window_size = window_size
+    def __init__(self, args):
+        self.shift_size = args.shift_size
+        self.window_size = args.window_size
         assert self.window_size >= self.shift_size
 
-        self.sample_rate = sample_rate
-        self.feature_dim = feature_dim
-        self.num_samples_per_shift = int(SHIFT_SIZE * SAMPLE_RATE / 1000)
-        self.num_samples_per_window = int(WINDOW_SIZE * SAMPLE_RATE / 1000)
+        self.sample_rate = args.sample_rate
+        self.feature_dim = args.feature_dim
+        self.num_samples_per_shift = int(self.shift_size * self.sample_rate / 1000)
+        self.num_samples_per_window = int(self.window_size * self.sample_rate / 1000)
         self.len_ms_to_samples = lambda x: x * self.sample_rate / 1000
         self.previous_residual_samples = []
-        self.global_cmvn = global_cmvn
+        self.global_cmvn = args.global_cmvn
 
     def clear_cache(self):
         self.previous_residual_samples = []
@@ -134,16 +127,15 @@ class FairseqSimulSTAgent(SpeechAgent):
 
         self.load_model_vocab(args)
 
-        config_yaml = os.path.join(args.data_bin, "config.yaml")
-        with open(config_yaml, "r") as f:
+        with open(args.config, "r") as f:
             config = yaml.load(f)
 
         if "global_cmvn" in config:
-            global_cmvn = np.load(config["global_cmvn"]["stats_npz_path"])
+            args.global_cmvn = np.load(config["global_cmvn"]["stats_npz_path"])
         else:
-            global_cmvn = None
+            args.global_cmvn = None
 
-        self.feature_extractor = OnlineFeatureExtractor(global_cmvn=global_cmvn)
+        self.feature_extractor = OnlineFeatureExtractor(args)
 
         self.max_len = args.max_len
 
@@ -164,6 +156,8 @@ class FairseqSimulSTAgent(SpeechAgent):
                             help='path to your pretrained model.')
         parser.add_argument("--data-bin", type=str, required=True,
                             help="Path of data binary")
+        parser.add_argument("--config", type=str, required=True,
+                            help="Path to config yaml file")
         parser.add_argument("--tgt-splitter-type", type=str, default="SentencePiece",
                             help="Subword splitter type for target text")
         parser.add_argument("--tgt-splitter-path", type=str, default=None,
@@ -174,8 +168,20 @@ class FairseqSimulSTAgent(SpeechAgent):
                             help="Max length of translation")
         parser.add_argument("--force-finish", default=False, action="store_true",
                             help="")
+        parser.add_argument("--shift-size", type=int, default=SHIFT_SIZE,
+                            help="")
+        parser.add_argument("--window-size", type=int, default=WINDOW_SIZE,
+                            help="")
+        parser.add_argument("--sample-rate", type=int, default=SAMPLE_RATE,
+                            help="")
+        parser.add_argument("--feature-dim", type=int, default=FEATURE_DIM,
+                            help="")
+
         # fmt: on
         return parser
+
+    def set_up_task(self, task_args):
+        return tasks.setup_task(task_args)
 
     def load_model_vocab(self, args):
 
@@ -188,7 +194,7 @@ class FairseqSimulSTAgent(SpeechAgent):
         task_args = state["cfg"]["task"]
         task_args.data = args.data_bin
 
-        task = tasks.setup_task(task_args)
+        task = self.set_up_task(task_args)
 
         # build model for ensemble
         self.model = task.build_model(state["cfg"]["model"])
