@@ -84,8 +84,6 @@ class TestTranslationHub(unittest.TestCase):
             )
 
 
-
-
 @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
 class TestLMHub(unittest.TestCase):
     def setUp(self):
@@ -289,7 +287,6 @@ class TestRobertaHub(unittest.TestCase):
 
 @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
 class TestBartHub(unittest.TestCase):
-
     def setUp(self):
         logging.disable(logging.CRITICAL)
 
@@ -330,8 +327,11 @@ class TestBartHub(unittest.TestCase):
             self.assertEqual(res[2][0], "The cat was on the floor.")
 
             # Test mask filling (beam = 10, topk = 3) and batch size > 1
-            res = bart.fill_mask(["The cat <mask> on the <mask>.", "The dog <mask> on the <mask>."],
-                                 topk=3, beam=10)
+            res = bart.fill_mask(
+                ["The cat <mask> on the <mask>.", "The dog <mask> on the <mask>."],
+                topk=3,
+                beam=10,
+            )
             self.assertEqual(len(res), 2)
             self.assertEqual(len(res[0]), 3)
             self.assertEqual(res[0][0][0], "The cat was on the ground.")
@@ -429,10 +429,10 @@ has run a marathon in less than two hours."""
 Kenyan ran in Vienna, Austria. It was not an officially sanctioned world record.""",
             )
 
-    def bart_large_large_inputs(self):
+    def test_cnn_large_inputs(self):
         # BartModel.generate threw an error because of prefix tokens size mismatch
-        bart = torch.hub.load('pytorch/fairseq', 'bart.large.cnn')
-        inputs = [bart.encode('. ' * 40)] * 50
+        bart = torch.hub.load("pytorch/fairseq", "bart.large.cnn")
+        inputs = [bart.encode(". " * 40)] * 50
         bart.generate(inputs, beam=1, max_length=10)
 
 
