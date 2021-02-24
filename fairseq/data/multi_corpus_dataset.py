@@ -35,6 +35,7 @@ class MultiCorpusDataset(FairseqDataset):
                         corresponding dataset
         seed: random seed for sampling the datsets
         sort_indices: if true, will sort the ordered indices by size
+        batch_sample: if true, will ensure each batch is from a single dataset
     """
 
     def __init__(
@@ -43,6 +44,7 @@ class MultiCorpusDataset(FairseqDataset):
         distribution: List[float],
         seed: int,
         sort_indices: bool = False,
+        batch_sample: bool = False,
     ):
         super().__init__()
         assert isinstance(datasets, OrderedDict)
@@ -51,6 +53,7 @@ class MultiCorpusDataset(FairseqDataset):
         self.distribution = distribution
         self.seed = seed
         self.sort_indices = sort_indices
+        self.batch_sample = batch_sample
 
         # Avoid repeated conversions to list later
         self.dataset_list = list(datasets.values())
@@ -80,6 +83,7 @@ class MultiCorpusDataset(FairseqDataset):
             ]
             if self.sort_indices:
                 sampled_indices.sort(key=lambda i: self.num_tokens(i))
+
             return np.array(sampled_indices, dtype=np.int64)
 
     def _sample(self, indices, counters):
@@ -125,22 +129,26 @@ class MultiCorpusDataset(FairseqDataset):
         return self.total_num_instances
 
     def __getitem__(self, index):
-        index, key = self._map_index(index)
+        new_index, key = self._map_index(index)
         try:
-            return self.datasets[key][index]
+            item = self.datasets[key][new_index]
+            item["full_id"] = index
+            return item
         except Exception as e:
             e.args = (f"Error from {key} dataset", *e.args)
             raise
 
     def collater(self, samples):
         """
-        Since we enforce all datsets to be the same, collating is just
-        picking the first one and doing collate.
+        If we are doing batch sampling, then pick the right collater to use.
+
+        Otherwise we assume all collaters are the same.
         """
         if len(samples) == 0:
             return None
+        _, key = self._map_index(samples[0]["full_id"])
 
-        return list(self.datasets.values())[0].collater(samples)
+        return self.datasets[key].collater(samples)
 
     def num_tokens(self, index: int):
         index, key = self._map_index(index)
@@ -168,3 +176,34 @@ class MultiCorpusDataset(FairseqDataset):
             self.datasets[key].supports_fetch_outside_dataloader
             for key in self.datasets
         )
+
+    def batch_by_size(
+        self,
+        indices,
+        max_tokens=None,
+        max_sentences=None,
+        required_batch_size_multiple=1,
+    ):
+        if not self.batch_sample:
+            return super().batch_by_size(
+                indices, max_tokens, max_sentences, required_batch_size_multiple
+            )
+
+        dataset_indices = {key: [] for key in self.datasets}
+        for i in indices:
+            _, key = self._map_index(i)
+            dataset_indices[key].append(i)
+
+        batches = []
+        for key in dataset_indices:
+            cur_batches = super().batch_by_size(
+                np.array(dataset_indices[key], dtype=np.int64),
+                max_tokens,
+                max_sentences,
+                required_batch_size_multiple,
+            )
+            logger.info(f"Created {len(cur_batches)} batches for dataset {key}")
+            batches += cur_batches
+
+        # Assume shuffling is handled in fairseq/data/iterators.py
+        return batches
