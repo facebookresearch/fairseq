@@ -1113,7 +1113,7 @@ class Trainer(object):
                 max_abs_diff = torch.max(torch.abs(tensor - tensor[0]))
                 return (
                     torch.isfinite(tensor).all()
-                    or (max_abs_diff / (tensor[0] + 1e-6) < 1e-6).all()
+                    and (max_abs_diff / (tensor[0] + 1e-6) < 1e-6).all()
                 )
 
             if not is_consistent(self._grad_norm_buf):
