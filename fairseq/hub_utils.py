@@ -163,9 +163,14 @@ class GeneratorHubInterface(nn.Module):
         with open_dict(gen_args):
             gen_args.beam = beam
             for k, v in kwargs.items():
-                setattr(gen_args, k, v)
-        generator = self.task.build_generator(self.models, gen_args)
-
+                if k != "prefix_allowed_tokens_fn":
+                    setattr(gen_args, k, v)
+        generator = self.task.build_generator(
+            self.models,
+            gen_args,
+            prefix_allowed_tokens_fn=kwargs.get("prefix_allowed_tokens_fn", None),
+        )
+        
         inference_step_args = inference_step_args or {}
         results = []
         for batch in self._build_batches(tokenized_sentences, skip_invalid_size_inputs):
