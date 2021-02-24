@@ -15,12 +15,21 @@ from fairseq.file_io import PathManager
 
 from . import FairseqDataset
 
+from typing import Union
 
-def __best_fitting_dtype(vocab_size=None):
-    if vocab_size is not None and vocab_size < 65500:
+
+def best_fitting_uint_dtype(
+    max_int_to_represent,
+) -> Union[np.uint16, np.uint32, np.uint64]:
+
+    if max_int_to_represent is None:
+        return np.uint32  # Safe guess
+    elif max_int_to_represent < 65500:
         return np.uint16
+    elif max_int_to_represent < 4294967295:
+        return np.uint32
     else:
-        return np.int32
+        return np.uint64
 
 
 def get_available_dataset_impl():
@@ -48,7 +57,7 @@ def infer_dataset_impl(path):
 def make_builder(out_file, impl, vocab_size=None):
     if impl == "mmap":
         return MMapIndexedDatasetBuilder(
-            out_file, dtype=__best_fitting_dtype(vocab_size)
+            out_file, dtype=best_fitting_uint_dtype(vocab_size)
         )
     elif impl == "fasta":
         raise NotImplementedError
@@ -92,7 +101,7 @@ def write_longs(f, a):
     f.write(np.array(a, dtype=np.int64))
 
 
-dtypes = {
+_code_to_dtype = {
     1: np.uint8,
     2: np.int8,
     3: np.int16,
@@ -101,12 +110,14 @@ dtypes = {
     6: np.float,
     7: np.double,
     8: np.uint16,
+    9: np.uint32,
+    10: np.uint64,
 }
 
 
-def code(dtype):
-    for k in dtypes.keys():
-        if dtypes[k] == dtype:
+def _dtype_header_code(dtype) -> int:
+    for k in _code_to_dtype.keys():
+        if _code_to_dtype[k] == dtype:
             return k
     raise ValueError(dtype)
 
@@ -141,7 +152,7 @@ class IndexedDataset(FairseqDataset):
             version = f.read(8)
             assert struct.unpack("<Q", version) == (1,)
             code, self.element_size = struct.unpack("<QQ", f.read(16))
-            self.dtype = dtypes[code]
+            self.dtype = _code_to_dtype[code]
             self._len, self.s = struct.unpack("<QQ", f.read(16))
             self.dim_offsets = read_longs(f, self._len + 1)
             self.data_offsets = read_longs(f, self._len + 1)
@@ -348,7 +359,9 @@ class IndexedDatasetBuilder:
         index = open(index_file, "wb")
         index.write(b"TNTIDX\x00\x00")
         index.write(struct.pack("<Q", 1))
-        index.write(struct.pack("<QQ", code(self.dtype), self.element_size))
+        index.write(
+            struct.pack("<QQ", _dtype_header_code(self.dtype), self.element_size)
+        )
         index.write(struct.pack("<QQ", len(self.data_offsets) - 1, len(self.sizes)))
         write_longs(index, self.dim_offsets)
         write_longs(index, self.data_offsets)
@@ -374,7 +387,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
 
                     self._file.write(cls._HDR_MAGIC)
                     self._file.write(struct.pack("<Q", 1))
-                    self._file.write(struct.pack("<B", code(dtype)))
+                    self._file.write(struct.pack("<B", _dtype_header_code(dtype)))
 
                     return self
 
@@ -419,7 +432,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
                 assert (1,) == version
 
                 (dtype_code,) = struct.unpack("<B", stream.read(1))
-                self._dtype = dtypes[dtype_code]
+                self._dtype = _code_to_dtype[dtype_code]
                 self._dtype_size = self._dtype().itemsize
 
                 self._len = struct.unpack("<Q", stream.read(8))[0]
