@@ -128,7 +128,7 @@ class FairseqSimulSTAgent(SpeechAgent):
         self.load_model_vocab(args)
 
         with open(args.config, "r") as f:
-            config = yaml.load(f)
+            config = yaml.load(f, Loader=yaml.BaseLoader)
 
         if "global_cmvn" in config:
             args.global_cmvn = np.load(config["global_cmvn"]["stats_npz_path"])
