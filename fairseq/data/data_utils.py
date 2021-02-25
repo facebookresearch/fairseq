@@ -17,6 +17,8 @@ from typing import Optional, Tuple
 import numpy as np
 import torch
 
+from fairseq.file_io import PathManager
+
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +26,7 @@ logger = logging.getLogger(__name__)
 def infer_language_pair(path):
     """Infer language pair from filename: <split>.<lang1>-<lang2>.(...).idx"""
     src, dst = None, None
-    for filename in os.listdir(path):
+    for filename in PathManager.ls(path):
         parts = filename.split(".")
         if len(parts) >= 3 and len(parts[1].split("-")) == 2:
             return parts[1].split("-")

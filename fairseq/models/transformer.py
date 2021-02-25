@@ -434,6 +434,45 @@ class TransformerEncoder(FairseqEncoder):
                   hidden states of shape `(src_len, batch, embed_dim)`.
                   Only populated if *return_all_hiddens* is True.
         """
+        return self.forward_scriptable(src_tokens,
+                                       src_lengths,
+                                       return_all_hiddens,
+                                       token_embeddings)
+
+    # TorchScript doesn't support super() method so that the scriptable Subclass
+    # can't access the base class model in Torchscript.
+    # Current workaround is to add a helper function with different name and
+    # call the helper function from scriptable Subclass.
+    def forward_scriptable(
+        self,
+        src_tokens,
+        src_lengths: Optional[torch.Tensor] = None,
+        return_all_hiddens: bool = False,
+        token_embeddings: Optional[torch.Tensor] = None,
+    ):
+        """
+        Args:
+            src_tokens (LongTensor): tokens in the source language of shape
+                `(batch, src_len)`
+            src_lengths (torch.LongTensor): lengths of each source sentence of
+                shape `(batch)`
+            return_all_hiddens (bool, optional): also return all of the
+                intermediate hidden states (default: False).
+            token_embeddings (torch.Tensor, optional): precomputed embeddings
+                default `None` will recompute embeddings
+
+        Returns:
+            dict:
+                - **encoder_out** (Tensor): the last encoder layer's output of
+                  shape `(src_len, batch, embed_dim)`
+                - **encoder_padding_mask** (ByteTensor): the positions of
+                  padding elements of shape `(batch, src_len)`
+                - **encoder_embedding** (Tensor): the (scaled) embedding lookup
+                  of shape `(batch, src_len, embed_dim)`
+                - **encoder_states** (List[Tensor]): all intermediate
+                  hidden states of shape `(src_len, batch, embed_dim)`.
+                  Only populated if *return_all_hiddens* is True.
+        """
         # compute padding mask
         encoder_padding_mask = src_tokens.eq(self.padding_idx)
         has_pads = (src_tokens.device.type == "xla" or encoder_padding_mask.any())
@@ -787,13 +826,11 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             alignment_layer = self.num_layers - 1
 
         # embed positions
-        positions = (
-            self.embed_positions(
+        positions = None
+        if self.embed_positions is not None:
+            positions = self.embed_positions(
                 prev_output_tokens, incremental_state=incremental_state
             )
-            if self.embed_positions is not None
-            else None
-        )
 
         if incremental_state is not None:
             prev_output_tokens = prev_output_tokens[:, -1:]

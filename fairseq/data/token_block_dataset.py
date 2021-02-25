@@ -6,7 +6,7 @@
 import numpy as np
 import torch
 from fairseq.data import FairseqDataset, plasma_utils
-
+from fairseq.data.indexed_dataset import best_fitting_uint_dtype
 
 class TokenBlockDataset(FairseqDataset):
     """Break a Dataset of tokens into blocks.
@@ -98,9 +98,12 @@ class TokenBlockDataset(FairseqDataset):
                 sizes,
                 slice_indices,
             )
-        self._slice_indices = plasma_utils.PlasmaArray(slice_indices)
-        self._sizes = plasma_utils.PlasmaArray(self._sizes)
-        self._block_to_dataset_index = plasma_utils.PlasmaArray(block_to_dataset_index)
+        size_dtype = np.uint16 if block_size < 65535 else np.uint32
+        slice_indices_dtype = best_fitting_uint_dtype(slice_indices[-1].max())
+
+        self._slice_indices = plasma_utils.PlasmaArray(slice_indices.astype(slice_indices_dtype))
+        self._sizes = plasma_utils.PlasmaArray(self._sizes.astype(size_dtype))
+        self._block_to_dataset_index = plasma_utils.PlasmaArray(block_to_dataset_index.astype(slice_indices_dtype))
 
     @property
     def slice_indices(self):

@@ -214,7 +214,7 @@ class SequenceGenerator(nn.Module):
             raise Exception("expected src_tokens or source in net input")
 
         # bsz: total number of sentences in beam
-        # Note that src_tokens may have more than 2 dimenions (i.e. audio features)
+        # Note that src_tokens may have more than 2 dimensions (i.e. audio features)
         bsz, src_len = src_tokens.size()[:2]
         beam_size = self.beam_size
 
@@ -376,9 +376,7 @@ class SequenceGenerator(nn.Module):
                 self.search.set_src_lengths(src_lengths)
 
             if self.repeat_ngram_blocker is not None:
-                lprobs = self.repeat_ngram_blocker(
-                    tokens, lprobs, bsz, beam_size, step
-                )
+                lprobs = self.repeat_ngram_blocker(tokens, lprobs, bsz, beam_size, step)
 
             # Shape: (batch, cand_size)
             cand_scores, cand_indices, cand_beams = self.search.step(

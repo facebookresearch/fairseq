@@ -80,42 +80,23 @@ Expected training time is about `5 hours`. Training time can be reduced with dis
 Use TOTAL_NUM_UPDATES=15000 UPDATE_FREQ=2 for Xsum task
 
 ### Inference for CNN-DM test data using above trained checkpoint.
-After training the model as mentioned in previous step, you can perform inference with checkpoints in `checkpoints/` directory using following python code snippet:
+After training the model as mentioned in previous step, you can perform inference with checkpoints in `checkpoints/` directory using `eval_cnn.py`, for example
 
-```python
-import torch
-from fairseq.models.bart import BARTModel
-
-bart = BARTModel.from_pretrained(
-    'checkpoints/',
-    checkpoint_file='checkpoint_best.pt',
-    data_name_or_path='cnn_dm-bin'
-)
-
-bart.cuda()
-bart.eval()
-bart.half()
-count = 1
-bsz = 32
-with open('cnn_dm/test.source') as source, open('cnn_dm/test.hypo', 'w') as fout:
-    sline = source.readline().strip()
-    slines = [sline]
-    for sline in source:
-        if count % bsz == 0:
-            with torch.no_grad():
-                hypotheses_batch = bart.sample(slines, beam=4, lenpen=2.0, max_len_b=140, min_len=55, no_repeat_ngram_size=3)
-
-            for hypothesis in hypotheses_batch:
-                fout.write(hypothesis + '\n')
-                fout.flush()
-            slines = []
-
-        slines.append(sline.strip())
-        count += 1
-    if slines != []:
-        hypotheses_batch = bart.sample(slines, beam=4, lenpen=2.0, max_len_b=140, min_len=55, no_repeat_ngram_size=3)
-        for hypothesis in hypotheses_batch:
-            fout.write(hypothesis + '\n')
-            fout.flush()
+```bash
+cp data-bin/cnn_dm/dict.source.txt  checkpoints/
+python examples/bart/summarize.py \
+  --model-dir checkpoints \
+  --model-file checkpoint_best.pt \
+  --src cnn_dm/test.source \
+  --out cnn_dm/test.hypo
 ```
-Use beam=6, lenpen=1.0, max_len_b=60, min_len=10 for Xsum Generation
+For XSUM, which uses beam=6, lenpen=1.0, max_len_b=60, min_len=10:
+```bash
+cp data-bin/cnn_dm/dict.source.txt  checkpoints/
+python examples/bart/summarize.py \
+  --model-dir checkpoints \
+  --model-file checkpoint_best.pt \
+  --src cnn_dm/test.source \
+  --out cnn_dm/test.hypo \
+  --xsum-kwargs
+```

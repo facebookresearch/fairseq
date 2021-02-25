@@ -5,9 +5,6 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from examples.simultaneous_translation.models.transformer_monotonic_attention import (
-    TransformerMonotonicDecoder,
-)
 from fairseq import checkpoint_utils
 from fairseq.models import (
     register_model,
@@ -32,6 +29,10 @@ class SimulConvTransformerModel(ConvTransformerModel):
     @classmethod
     def build_decoder(cls, args, task, embed_tokens):
         tgt_dict = task.tgt_dict
+
+        from examples.simultaneous_translation.models.transformer_monotonic_attention import (
+            TransformerMonotonicDecoder,
+        )
 
         decoder = TransformerMonotonicDecoder(args, tgt_dict, embed_tokens)
 
