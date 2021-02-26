@@ -184,7 +184,9 @@ class LanguageModelingTask(LegacyFairseqTask):
 
         return model
 
-    def load_dataset(self, split, epoch=1, combine=False, **kwargs):
+    def load_dataset(
+        self, split: str, epoch=1, combine=False, **kwargs
+    ) -> MonolingualDataset:
         """Load a given dataset split.
 
         Args:
@@ -228,7 +230,7 @@ class LanguageModelingTask(LegacyFairseqTask):
             and self.args.sample_break_mode != "none"
         )
 
-        self.datasets[split] = self._initialize_dataset(
+        self.datasets[split] = MonolingualDataset(
             dataset=dataset,
             sizes=dataset.sizes,
             src_vocab=self.dictionary,
@@ -238,9 +240,6 @@ class LanguageModelingTask(LegacyFairseqTask):
             targets=self.targets,
             add_bos_token=self.args.add_bos_token,
         )
-
-    def _initialize_dataset(self, **kwargs):
-        return MonolingualDataset(**kwargs)
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, **kwargs):
         """
