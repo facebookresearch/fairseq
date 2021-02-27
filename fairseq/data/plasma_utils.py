@@ -10,7 +10,6 @@ import torch
 
 try:
     import pyarrow.plasma as plasma
-
     PYARROW_AVAILABLE = True
 except ImportError:
     plasma = None
@@ -19,8 +18,7 @@ from typing import Optional
 import tempfile
 import hashlib
 
-# from functools import cached_property
-from filelock import Timeout, FileLock
+from filelock import FileLock
 USE_LOCK = os.getenv('USE_LOCK', False)
 
 class PlasmaArray:
@@ -110,22 +108,19 @@ class PlasmaView:
         assert PYARROW_AVAILABLE
         self.path = path
         self.object_id = self.get_object_id(object_id)
-        self._client = None  # Initialize lazily for pickle, (TODO: needed?)
+        self._client = None  # Initialize lazily for pickle
         self.use_lock = USE_LOCK
-        if not self.client.contains(self.object_id):
-            try:
-                self.client.put(array, object_id=self.object_id)
-                self.msg("PUT")
-            except plasma.PlasmaObjectExists:
-                self.msg("PlasmaObjectExists")
-
+        try:
+            self.client.put(array, object_id=self.object_id)
+            self.msg("PUT")
+        except plasma.PlasmaObjectExists:
+            self.msg("PlasmaObjectExists")
 
     @property
     def client(self):
         if self._client is None:
             self._client = plasma.connect(self.path, num_retries=200)
         return self._client
-        # return self._client
 
     @property
     def array(self):  # -> np.ndarray
