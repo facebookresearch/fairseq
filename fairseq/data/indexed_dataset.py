@@ -18,9 +18,9 @@ from . import FairseqDataset
 from typing import Union
 
 
-def best_fitting_uint_dtype(
+def best_fitting_int_dtype(
     max_int_to_represent,
-) -> Union[np.uint16, np.uint32, np.uint64]:
+) -> Union[np.uint16, np.uint32, np.int64]:
 
     if max_int_to_represent is None:
         return np.uint32  # Safe guess
@@ -29,7 +29,9 @@ def best_fitting_uint_dtype(
     elif max_int_to_represent < 4294967295:
         return np.uint32
     else:
-        return np.uint64
+        return np.int64
+        # we avoid np.uint64 because it doesn't save space and its type promotion behaves unexpectedly
+        # https://github.com/numpy/numpy/issues/5745
 
 
 def get_available_dataset_impl():
@@ -57,7 +59,7 @@ def infer_dataset_impl(path):
 def make_builder(out_file, impl, vocab_size=None):
     if impl == "mmap":
         return MMapIndexedDatasetBuilder(
-            out_file, dtype=best_fitting_uint_dtype(vocab_size)
+            out_file, dtype=best_fitting_int_dtype(vocab_size)
         )
     elif impl == "fasta":
         raise NotImplementedError
