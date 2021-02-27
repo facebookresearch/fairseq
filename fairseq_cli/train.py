@@ -25,6 +25,7 @@ from fairseq import (
     utils,
 )
 from fairseq.data import iterators
+from fairseq.data.plasma_utils import start_plasma_store
 from fairseq.dataclass.configs import FairseqConfig
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.distributed_utils import is_master
@@ -112,8 +113,7 @@ def main(cfg: FairseqConfig) -> None:
     )
     logger.info(
         "max tokens per GPU = {} and batch size per GPU = {}".format(
-            cfg.dataset.max_tokens,
-            cfg.dataset.batch_size,
+            cfg.dataset.max_tokens, cfg.dataset.batch_size,
         )
     )
 
@@ -186,6 +186,17 @@ def should_stop_early(cfg: DictConfig, valid_loss: float) -> bool:
             return False
 
 
+def print_mem():
+    """For benchmarking, will be deleted."""
+    import psutil
+
+    torch.cuda.empty_cache()
+    smaller = {"cuda_mem_used": torch.cuda.max_memory_allocated() / 1e9}
+    smaller["cpu_mem_used"] = psutil.virtual_memory().used / 1e9
+    # print(f'{msg}, {smaller}')
+    return {k: round(v, 2) for k, v in smaller.items()}
+
+
 @metrics.aggregate("train")
 def train(
     cfg: DictConfig, trainer: Trainer, task: tasks.FairseqTask, epoch_itr
@@ -248,6 +259,7 @@ def train(
             num_updates = trainer.get_num_updates()
             if num_updates % cfg.common.log_interval == 0:
                 stats = get_training_stats(metrics.get_smoothed_values("train_inner"))
+                stats.update(print_mem())  # DELETE
                 progress.log(stats, tag="train_inner", step=num_updates)
 
                 # reset mid-epoch stats after each log interval
@@ -442,12 +454,20 @@ def cli_main(
 
     cfg = convert_namespace_to_omegaconf(args)
 
+    if cfg.common.use_plasma_view:
+        server = start_plasma_store()
+        logger.info(f"Started plasma server pid {server.pid}")
+
     if args.profile:
         with torch.cuda.profiler.profile():
             with torch.autograd.profiler.emit_nvtx():
                 distributed_utils.call_main(cfg, main)
     else:
         distributed_utils.call_main(cfg, main)
+
+    if cfg.common.use_plasma_view:
+        # pass
+        server.kill()
 
 
 if __name__ == "__main__":

@@ -58,6 +58,7 @@ class ResamplingDataset(BaseWrapperDataset):
             weights_arr = np.array(weights, dtype=np.float64)
             weights_arr /= weights_arr.sum()
             self.weights = plasma_utils.PlasmaArray(weights_arr)
+            # NOTE(SS): it would be possible convert this to PlasmaArray with epoch in key
 
         self.replace = replace
 
@@ -135,5 +136,5 @@ class ResamplingDataset(BaseWrapperDataset):
                 self.actual_size,
                 replace=self.replace,
                 p=(None if self.weights is None else self.weights.array),
-            )
+            ),
         )
