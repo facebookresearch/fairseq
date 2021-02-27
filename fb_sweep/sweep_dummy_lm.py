@@ -18,7 +18,7 @@ def get_grid(args):
         hyperparam("--tokens-per-sample", 512),
         hyperparam("--max-sentences", 2),
         # hyperparam('--arch', 'transformer_lm_gpt', save_dir_key=lambda val: val),
-        hyperparam("--arch", "transformer_lm_gpt2_small"),
+        hyperparam("--arch", "transformer_lm_gpt2_tiny"),
         hyperparam("--log-format", "json"),
         hyperparam("--max-update", 10),
         hyperparam("--lr", 3e-4),
