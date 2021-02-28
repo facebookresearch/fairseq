@@ -88,7 +88,7 @@ class TokenBlockDataset(FairseqDataset):
                 [
                     np.arange(len(sizes)),  # starting index in dataset
                     np.zeros(
-                        len(sizes), dtype=np.long
+                        len(sizes), dtype=np.compat.long
                     ),  # starting offset within starting index
                     np.arange(len(sizes)),  # ending index in dataset
                 ],

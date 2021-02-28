@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-from collections import Collection
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from typing import List
 
