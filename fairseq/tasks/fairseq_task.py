@@ -368,6 +368,8 @@ class FairseqTask(object):
         match_source_len = getattr(args, "match_source_len", False)
         diversity_rate = getattr(args, "diversity_rate", -1)
         constrained = getattr(args, "constraints", False)
+        if prefix_allowed_tokens_fn is None:
+            prefix_allowed_tokens_fn = getattr(args, "prefix_allowed_tokens_fn", None)
         if (
             sum(
                 int(cond)
