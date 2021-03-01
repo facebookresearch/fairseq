@@ -292,9 +292,16 @@ class RobertaModel(FairseqEncoderModel):
                 continue
 
             head_name = k[len(prefix + "classification_heads.") :].split(".")[0]
+            if prefix + "classification_heads." + head_name + ".out_proj.weight" not in state_dict:
+                continue
+
             num_classes = state_dict[
                 prefix + "classification_heads." + head_name + ".out_proj.weight"
             ].size(0)
+
+            if prefix + "classification_heads." + head_name + ".dense.weight" not in state_dict:
+                continue
+
             inner_dim = state_dict[
                 prefix + "classification_heads." + head_name + ".dense.weight"
             ].size(0)
