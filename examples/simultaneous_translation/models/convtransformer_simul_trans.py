@@ -11,11 +11,19 @@ from fairseq.models import (
     register_model_architecture,
 )
 
-from .convtransformer import ConvTransformerModel, convtransformer_espnet
+from fairseq.models.speech_to_text import ConvTransformerModel, convtransformer_espnet
 
 
 @register_model("convtransformer_simul_trans")
 class SimulConvTransformerModel(ConvTransformerModel):
+    """
+    Implementation of the paper:
+
+    SimulMT to SimulST: Adapting Simultaneous Text Translation to
+    End-to-End Simultaneous Speech Translation
+
+    https://www.aclweb.org/anthology/2020.aacl-main.58.pdf
+    """
     @staticmethod
     def add_args(parser):
         super(SimulConvTransformerModel, SimulConvTransformerModel).add_args(parser)
