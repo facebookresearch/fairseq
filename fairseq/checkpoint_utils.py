@@ -93,9 +93,17 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
     if len(checkpoints) > 0:
         trainer.save_checkpoint(checkpoints[0], extra_state)
         for cp in checkpoints[1:]:
-            assert PathManager.copy(
-                checkpoints[0], cp, overwrite=True
-            ), f"Failed to copy {checkpoints[0]} to {cp}"
+            if cfg.write_checkpoints_asynchronously:
+                # TODO[ioPath]: Need to implement a delayed asynchronous
+                # file copying/moving feature.
+                logger.warning(
+                    f"ioPath is not copying {checkpoints[0]} to {cp} "
+                    "since async write mode is on."
+                )
+            else:
+                assert PathManager.copy(
+                    checkpoints[0], cp, overwrite=True
+                ), f"Failed to copy {checkpoints[0]} to {cp}"
 
         write_timer.stop()
         logger.info(
@@ -383,7 +391,23 @@ def checkpoint_paths(path, pattern=r"checkpoint(\d+)\.pt"):
     return [os.path.join(path, x[1]) for x in sorted(entries, reverse=True)]
 
 
-def torch_persistent_save(obj, f):
+def torch_persistent_save(cfg: CheckpointConfig, obj, filename):
+    if cfg.write_checkpoints_asynchronously:
+        with PathManager.opena(filename, "wb") as f:
+            _torch_persistent_save(obj, f)
+    else:
+        if PathManager.supports_rename(filename):
+            # do atomic save
+            with PathManager.open(filename + ".tmp", "wb") as f:
+                _torch_persistent_save(obj, f)
+            PathManager.rename(filename + ".tmp", filename)
+        else:
+            # fallback to non-atomic save
+            with PathManager.open(filename, "wb") as f:
+                _torch_persistent_save(obj, f)
+
+
+def _torch_persistent_save(obj, f):
     if isinstance(f, str):
         with PathManager.open(f, "wb") as h:
             torch_persistent_save(obj, h)
@@ -448,15 +472,7 @@ def save_state(
     # keep everything on CPU
     state_dict = utils.move_to_cpu(state_dict)
 
-    if PathManager.supports_rename(filename):
-        # do atomic save
-        with PathManager.open(filename + ".tmp", "wb") as f:
-            torch_persistent_save(state_dict, f)
-        PathManager.rename(filename + ".tmp", filename)
-    else:
-        # fallback to non-atomic save
-        with PathManager.open(filename, "wb") as f:
-            torch_persistent_save(state_dict, f)
+    torch_persistent_save(cfg.checkpoint, state_dict, filename)
 
 
 def _upgrade_state_dict(state):

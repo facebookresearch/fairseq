@@ -32,6 +32,8 @@ try:
 except ImportError:
     FVCorePathManager = None
 
+IOPathPathManager = None
+
 
 class PathManager:
     """
@@ -148,3 +150,47 @@ class PathManager:
     @staticmethod
     def rename(src: str, dst: str):
         os.rename(src, dst)
+
+    """
+    ioPath async PathManager methods:
+    """
+    @staticmethod
+    def opena(
+        path: str,
+        mode: str = "r",
+        buffering: int = -1,
+        encoding: Optional[str] = None,
+        errors: Optional[str] = None,
+        newline: Optional[str] = None,
+    ):
+        """
+        Return file descriptor with asynchronous write operations.
+        """
+        global IOPathPathManager
+        if not IOPathPathManager:
+            logging.info("ioPath is initializing PathManager.")
+            try:
+                from iopath import PathManager
+                IOPathPathManager = PathManager()
+            except Exception:
+                logging.exception("Failed to initialize ioPath PathManager object.")
+        return IOPathPathManager.opena(
+            path=path,
+            mode=mode,
+            buffering=buffering,
+            encoding=encoding,
+            errors=errors,
+            newline=newline,
+        )
+
+    @staticmethod
+    def async_close() -> bool:
+        """
+        Wait for files to be written and clean up asynchronous PathManager.
+        NOTE: `PathManager.async_close()` must be called at the end of any
+        script that uses `PathManager.opena(...)`.
+        """
+        global IOPathPathManager
+        if IOPathPathManager:
+            return IOPathPathManager.async_close()
+        return False
