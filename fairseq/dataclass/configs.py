@@ -607,6 +607,16 @@ class CheckpointConfig(FairseqDataclass):
             "(default: only load on rank 0 and broadcast to other devices)"
         },
     )
+    write_checkpoints_asynchronously: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Write checkpoints asynchronously in a separate "
+                "thread. NOTE: This feature is currently being tested."
+            ),
+            "argparse_alias": "--save-async",
+        },
+    )
     model_parallel_size: int = II("common.model_parallel_size")
     distributed_rank: int = II("distributed_training.distributed_rank")
 

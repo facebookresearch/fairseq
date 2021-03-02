@@ -28,6 +28,7 @@ from fairseq.data import iterators
 from fairseq.dataclass.configs import FairseqConfig
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.distributed_utils import is_master
+from fairseq.file_io import PathManager
 from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from fairseq.trainer import Trainer
@@ -66,6 +67,16 @@ def main(cfg: FairseqConfig) -> None:
 
     # Print args
     logger.info(cfg)
+
+    if cfg.checkpoint.write_checkpoints_asynchronously:
+        try:
+            import iopath  # noqa: F401
+        except ImportError:
+            logging.exception(
+                "Asynchronous checkpoint writing is specified but iopath is "
+                "not installed: `pip install iopath`"
+            )
+            return
 
     # Setup task, e.g., translation, language modeling, etc.
     task = tasks.setup_task(cfg.task)
@@ -156,6 +167,15 @@ def main(cfg: FairseqConfig) -> None:
         )
     train_meter.stop()
     logger.info("done training in {:.1f} seconds".format(train_meter.sum))
+
+    # ioPath implementation to wait for all asynchronous file writes to complete.
+    if cfg.checkpoint.write_checkpoints_asynchronously:
+        logger.info(
+            "ioPath PathManager waiting for all asynchronous checkpoint "
+            "writes to finish."
+        )
+        PathManager.async_close()
+        logger.info("ioPath PathManager finished waiting.")
 
 
 def should_stop_early(cfg: DictConfig, valid_loss: float) -> bool:
