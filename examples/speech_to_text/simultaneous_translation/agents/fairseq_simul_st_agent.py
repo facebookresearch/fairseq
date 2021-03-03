@@ -127,6 +127,15 @@ class FairseqSimulSTAgent(SpeechAgent):
 
         self.load_model_vocab(args)
 
+        if getattr(
+            self.model.decoder.layers[0].encoder_attn,
+            'pre_decision_ratio',
+            None
+        ) is not None:
+            self.speech_segment_size *= (
+                self.model.decoder.layers[0].encoder_attn.pre_decision_ratio
+            )
+
         with open(args.config, "r") as f:
             config = yaml.load(f, Loader=yaml.BaseLoader)
 
@@ -167,15 +176,15 @@ class FairseqSimulSTAgent(SpeechAgent):
         parser.add_argument("--max-len", type=int, default=200,
                             help="Max length of translation")
         parser.add_argument("--force-finish", default=False, action="store_true",
-                            help="")
+                            help="Force the model to finish the hypothsis if the source is not finished")
         parser.add_argument("--shift-size", type=int, default=SHIFT_SIZE,
-                            help="")
+                            help="Shift size of feature extraction window.")
         parser.add_argument("--window-size", type=int, default=WINDOW_SIZE,
-                            help="")
+                            help="Window size of feature extraction window.")
         parser.add_argument("--sample-rate", type=int, default=SAMPLE_RATE,
-                            help="")
+                            help="Sample rate")
         parser.add_argument("--feature-dim", type=int, default=FEATURE_DIM,
-                            help="")
+                            help="Acoustic feature dimension.")
 
         # fmt: on
         return parser
@@ -265,11 +274,12 @@ class FairseqSimulSTAgent(SpeechAgent):
     def update_model_encoder(self, states):
         if len(states.units.source) == 0:
             return
-        src_indices = self.to_device(states.units.source.value.unsqueeze(0))
+        src_indices = self.to_device(
+            states.units.source.value.unsqueeze(0)
+        )
         src_lengths = self.to_device(
             torch.LongTensor([states.units.source.value.size(0)])
         )
-        print(src_lengths)
 
         states.encoder_states = self.model.encoder(src_indices, src_lengths)
         torch.cuda.empty_cache()
@@ -294,13 +304,12 @@ class FairseqSimulSTAgent(SpeechAgent):
             "tgt": 1 + len(states.units.target),
         }
 
-        states.incremental_states["online"] = True
+        states.incremental_states["online"] = not states.finish_read()
 
         x, outputs = self.model.decoder.forward(
             prev_output_tokens=tgt_indices,
             encoder_out=states.encoder_states,
             incremental_state=states.incremental_states,
-            # features_only=True,
         )
 
         states.decoder_out = x
@@ -323,8 +332,6 @@ class FairseqSimulSTAgent(SpeechAgent):
 
         index = lprobs.argmax(dim=-1)
 
-        torch.cuda.empty_cache()
-
         index = index[0, 0].item()
 
         if (
@@ -332,6 +339,9 @@ class FairseqSimulSTAgent(SpeechAgent):
             and index == self.model.decoder.dictionary.eos()
             and not states.finish_read()
         ):
+            # If we want to force finish the translation
+            # (don't stop before finish reading), return a None
+            # self.model.decoder.clear_cache(states.incremental_states)
             index = None
 
         return index

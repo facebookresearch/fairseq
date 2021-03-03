@@ -604,12 +604,13 @@ class MonotonicMultiheadAttentionWaitK(
         key_padding_mask: bsz, src_len
         """
         if incremental_state is not None:
+            # Retrieve target length from incremental states
+            # For inference the length of query is always 1
             tgt_len = int(incremental_state["steps"]["tgt"])
-            src_len = int(incremental_state["steps"]["src"])
-            bsz = 1
         else:
-            src_len, bsz, _ = key.size()
             tgt_len, bsz, _ = query.size()
+
+        src_len, bsz, _ = key.size()
 
         p_choose = query.new_ones(bsz, tgt_len, src_len)
         p_choose = torch.tril(p_choose, diagonal=self.waitk_lagging - 1)
