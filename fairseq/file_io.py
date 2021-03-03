@@ -170,7 +170,7 @@ class PathManager:
         if not IOPathPathManager:
             logging.info("ioPath is initializing PathManager.")
             try:
-                from iopath import PathManager
+                from iopath.common.file_io import PathManager
                 IOPathPathManager = PathManager()
             except Exception:
                 logging.exception("Failed to initialize ioPath PathManager object.")
