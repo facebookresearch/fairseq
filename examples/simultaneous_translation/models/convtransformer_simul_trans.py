@@ -10,7 +10,6 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
-
 from fairseq.models.speech_to_text import ConvTransformerModel, convtransformer_espnet
 
 
@@ -24,6 +23,7 @@ class SimulConvTransformerModel(ConvTransformerModel):
 
     https://www.aclweb.org/anthology/2020.aacl-main.58.pdf
     """
+
     @staticmethod
     def add_args(parser):
         super(SimulConvTransformerModel, SimulConvTransformerModel).add_args(parser)
