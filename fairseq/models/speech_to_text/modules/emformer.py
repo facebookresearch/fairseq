@@ -17,7 +17,6 @@ import torch.nn as nn
 from fairseq.models import (
     FairseqEncoder,
 )
-from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models.speech_to_text.utils import (
     NoOp,
     lengths_to_padding_mask,
@@ -1811,23 +1810,22 @@ def emformer_encoder(klass):
                 ]
             )
 
-        def forward(self, *args, **kwargs):
-            encoder_out = super().forward(*args, **kwargs)
-            (output, encoder_padding_masks, [], all_outputs) = encoder_out.encoder_out
+        def forward(self, src_tokens, src_lengths):
+            encoder_out = super().forward(src_tokens, src_lengths)
+            (output, encoder_padding_masks, [], _) = encoder_out["encoder_out"][0]
 
             # This is because that in the original implementation
             # the output didn't consider the last segment as right context.
             encoder_padding_masks = encoder_padding_masks[:, : output.size(0)]
-            # import pdb;pdb.set_trace()
 
-            return EncoderOut(
-                encoder_out=output,
-                encoder_padding_mask=encoder_padding_masks,
-                encoder_embedding=None,
-                encoder_states=None,
-                src_tokens=None,
-                src_lengths=None,
-            )
+            return {
+                "encoder_out": [output],
+                "encoder_padding_mask": [encoder_padding_masks],
+                "encoder_embedding": [],
+                "encoder_states": [],
+                "src_tokens": [],
+                "src_lengths": [],
+            }
 
         @staticmethod
         def conv_layer_stride(args):

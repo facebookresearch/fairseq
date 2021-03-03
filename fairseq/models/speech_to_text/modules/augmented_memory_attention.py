@@ -8,7 +8,6 @@ from typing import Tuple, List
 import torch
 import torch.nn.functional as F
 from fairseq.models import FairseqEncoder
-from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models.speech_to_text import (
     ConvTransformerEncoder,
 )
@@ -72,7 +71,10 @@ class AugmentedMemoryConvTransformerEncoder(ConvTransformerEncoder):
         x = self.embed_scale * x
 
         subsampling_factor = 1.0 * max_seq_len / output_seq_len
-        input_lengths = (src_lengths.float() / subsampling_factor).round().long()
+        input_lengths = torch.max(
+            (src_lengths.float() / subsampling_factor).ceil().long(),
+            x.size(0) * src_lengths.new_ones([src_lengths.size(0)]).long(),
+        )
 
         encoder_padding_mask, _ = lengths_to_encoder_padding_mask(
             input_lengths, batch_first=True
@@ -425,14 +427,14 @@ class SequenceEncoder(FairseqEncoder):
         if not encoder_padding_mask.any():
             encoder_padding_mask = None
 
-        return EncoderOut(
-            encoder_out=encoder_out,
-            encoder_padding_mask=encoder_padding_mask,
-            encoder_embedding=None,
-            encoder_states=states,
-            src_tokens=None,
-            src_lengths=None,
-        )
+        return {
+            "encoder_out": [encoder_out],
+            "encoder_padding_mask": [encoder_padding_mask],
+            "encoder_embedding": [],
+            "encoder_states": [states],
+            "src_tokens": [],
+            "src_lengths": [],
+        }
 
     def incremental_encode(
         self,
