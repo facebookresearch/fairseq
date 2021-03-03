@@ -9,8 +9,10 @@ import os
 import tempfile
 import unittest
 from io import StringIO
+from unittest.mock import patch
 
 from fairseq import checkpoint_utils
+from omegaconf import OmegaConf
 
 from tests.utils import (
     create_dummy_data,
@@ -86,6 +88,19 @@ class TestCheckpointUtils(unittest.TestCase):
                 self.assertEqual(len(ensemble), 1)
                 self.assertEqual(len(ensemble[0].encoder.layers), 2)
                 self.assertEqual(len(ensemble[0].decoder.layers), 1)
+
+    def test_torch_persistent_save_async(self):
+        cfg = OmegaConf.create()
+        cfg.dataset = OmegaConf.create()
+        cfg.dataset.write_checkpoints_asynchronously = True
+        state_dict = {}
+        filename = "async_checkpoint.pt"
+
+        with patch(f"{checkpoint_utils.__name__}.PathManager.opena") as mock_opena:
+            with patch(f"{checkpoint_utils.__name__}._torch_persistent_save") as mock_save:
+                checkpoint_utils.torch_persistent_save(cfg.dataset, state_dict, filename)
+                mock_opena.assert_called_with(filename, "wb")
+                mock_save.assert_called()
 
 
 if __name__ == "__main__":
