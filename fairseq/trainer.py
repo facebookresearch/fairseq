@@ -25,6 +25,8 @@ from fairseq.logging import meters, metrics
 from fairseq.nan_detector import NanDetector
 from fairseq.optim import lr_scheduler
 
+from omegaconf import OmegaConf
+
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +174,16 @@ class Trainer(object):
         )
 
     @property
+    def should_save_checkpoint_on_current_rank(self) -> bool:
+        """Indicates whether to save checkpoints on the current DDP rank."""
+        return self.is_data_parallel_master
+
+    @property
+    def checkpoint_suffix(self) -> str:
+        """Suffix to add to the checkpoint file name."""
+        return self.cfg.checkpoint.checkpoint_suffix or ""
+
+    @property
     def criterion(self):
         if self._wrapped_criterion is None:
             if (
@@ -274,25 +286,50 @@ class Trainer(object):
         if hasattr(self.optimizer.optimizer, "consolidate_state_dict"):
             self.optimizer.optimizer.consolidate_state_dict()
 
+    def state_dict(self):
+        state_dict = {
+            "args": None,  # legacy
+            "cfg": (
+                OmegaConf.to_container(self.cfg)
+                if OmegaConf.is_config(self.cfg) else self.cfg
+            ),
+            "model": self.model.state_dict(),
+            "criterion": (
+                self.criterion.state_dict()
+                if utils.has_parameters(self.criterion) else None
+            ),
+            "optimizer_history": (self._optim_history or [])
+            + [
+                {
+                    "criterion_name": self.get_criterion().__class__.__name__,
+                    "optimizer_name": self.optimizer.__class__.__name__,
+                    "lr_scheduler_state": self.lr_scheduler.state_dict(),
+                    "num_updates": self.get_num_updates(),
+                }
+            ],
+            "task_state": self.task.state_dict() if self.task is not None else {},
+            "extra_state": {
+                "metrics": metrics.state_dict(),
+                "previous_training_time": self.cumulative_training_time(),
+            }
+        }
+        if not self.cfg.checkpoint.no_save_optimizer_state:
+            state_dict["last_optimizer_state"] = self.optimizer.state_dict()
+        return state_dict
+
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
-        if self.is_data_parallel_master:  # only save one checkpoint
-            logger.info(f"Saving checkpoint to {filename}")
-            extra_state["metrics"] = metrics.state_dict()
-            extra_state["previous_training_time"] = self.cumulative_training_time()
-            checkpoint_utils.save_state(
+        logger.info(f"Saving checkpoint to {filename}")
+        # call state_dict on all ranks in case it needs internal communication
+        state_dict = utils.move_to_cpu(self.state_dict())
+        state_dict["extra_state"].update(extra_state)
+        if self.should_save_checkpoint_on_current_rank:
+            checkpoint_utils.torch_persistent_save(
+                state_dict,
                 filename,
-                self.cfg,
-                self.model.state_dict(),
-                self.get_criterion(),
-                self.optimizer,
-                self.lr_scheduler,
-                self.get_num_updates(),
-                optim_history=self._optim_history,
-                extra_state=extra_state,
-                task=self.task,
+                async_write=self.cfg.checkpoint.write_checkpoints_asynchronously,
             )
-            logger.info(f"Finished saving checkpoint to {filename}")
+        logger.info(f"Finished saving checkpoint to {filename}")
 
     def load_checkpoint(
         self,

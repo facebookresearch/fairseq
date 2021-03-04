@@ -618,7 +618,6 @@ class CheckpointConfig(FairseqDataclass):
         },
     )
     model_parallel_size: int = II("common.model_parallel_size")
-    distributed_rank: int = II("distributed_training.distributed_rank")
 
 
 @dataclass
