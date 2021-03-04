@@ -27,7 +27,7 @@ class TestMultiCorpusDataset(unittest.TestCase):
         self.dataset_1 = LanguagePairDataset(
             tokens_ds1, tokens_ds1.sizes, d, shuffle=False
         )
-        tokens_2 = torch.LongTensor([i for i in range(2, 5000, 2)]).view(1, -1)
+        tokens_2 = torch.LongTensor([i for i in range(0, 5000, 2)]).view(1, -1)
         tokens_ds2 = TokenBlockDataset(
             tokens_2,
             sizes=[tokens_2.size(-1)],
@@ -53,9 +53,13 @@ class TestMultiCorpusDataset(unittest.TestCase):
         m.set_epoch(1)
         indices = m.ordered_indices()
         count_sample_from_first_dataset = 0
+        items = set()
         for i in indices:
-            if m[i]["source"].item() % 2 == 1:
+            item = m[i]["source"].item()
+            if item % 2 == 1:
                 count_sample_from_first_dataset += 1
+
+            items.add(item)
         sample_from_first_ds_percentage = (
             1.0 * count_sample_from_first_dataset / len(indices)
         )
@@ -63,6 +67,12 @@ class TestMultiCorpusDataset(unittest.TestCase):
             abs(sample_from_first_ds_percentage - distribution[0]),
             0.01,
         )
+        self.assertEqual(
+            len(items),
+            int(min(len(self.dataset_1), len(indices) * distribution[0])
+                + min(len(self.dataset_1), len(indices) * distribution[1]))
+        )
+        print(distribution)
 
     def test_multi_corpus_dataset(self):
         for distribution in [[0.5, 0.5], [0.1, 0.9], [0.9, 0.1]]:
