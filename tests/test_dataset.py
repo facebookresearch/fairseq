@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import unittest
 from typing import Sequence
 
@@ -20,6 +21,12 @@ def sample(id: int, length: int):
 
 
 class TestDataset(unittest.TestCase):
+    def setUp(self):
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        logging.disable(logging.NOTSET)
+
     def test_round_robin_zip_datasets(self):
         long_dataset = lang_pair_dataset([10, 9, 8, 11])
         short_dataset = lang_pair_dataset([11, 9])

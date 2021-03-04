@@ -18,7 +18,6 @@ import numpy as np
 import torch
 from fairseq import (
     checkpoint_utils,
-    distributed_utils,
     options,
     quantization_utils,
     tasks,
@@ -27,7 +26,7 @@ from fairseq import (
 from fairseq.data import iterators
 from fairseq.dataclass.configs import FairseqConfig
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
-from fairseq.distributed_utils import is_master
+from fairseq.distributed import fsdp_enable_wrap, fsdp_wrap, utils as distributed_utils
 from fairseq.file_io import PathManager
 from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
@@ -50,7 +49,7 @@ def main(cfg: FairseqConfig) -> None:
 
     utils.import_user_module(cfg.common)
 
-    if is_master(cfg.distributed_training) and "job_logging_cfg" in cfg:
+    if distributed_utils.is_master(cfg.distributed_training) and "job_logging_cfg" in cfg:
         # make hydra logging work with ddp (see # see https://github.com/facebookresearch/hydra/issues/1126)
         logging.config.dictConfig(OmegaConf.to_container(cfg.job_logging_cfg))
 
@@ -87,7 +86,11 @@ def main(cfg: FairseqConfig) -> None:
     assert cfg.criterion, "Please specify criterion to train a model"
 
     # Build model and criterion
-    model = task.build_model(cfg.model)
+    if cfg.distributed_training.ddp_backend == "fully_sharded":
+        with fsdp_enable_wrap(cfg.distributed_training):
+            model = fsdp_wrap(task.build_model(cfg.model))
+    else:
+        model = task.build_model(cfg.model)
     criterion = task.build_criterion(cfg.criterion)
     logger.info(model)
     logger.info("task: {}".format(task.__class__.__name__))
@@ -95,8 +98,8 @@ def main(cfg: FairseqConfig) -> None:
     logger.info("criterion: {}".format(criterion.__class__.__name__))
     logger.info(
         "num. model params: {:,} (num. trained: {:,})".format(
-            sum(p.numel() for p in model.parameters()),
-            sum(p.numel() for p in model.parameters() if p.requires_grad),
+            sum(getattr(p, "_orig_size", p).numel() for p in model.parameters()),
+            sum(getattr(p, "_orig_size", p).numel() for p in model.parameters() if p.requires_grad),
         )
     )
 

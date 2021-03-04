@@ -355,7 +355,22 @@ class DistributedTrainingConfig(FairseqDataclass):
     zero_sharding: ZERO_SHARDING_CHOICES = field(
         default="none", metadata={"help": "ZeRO sharding"}
     )
+    fp16: bool = II("common.fp16")
+    memory_efficient_fp16: bool = II("common.memory_efficient_fp16")
     tpu: bool = II("common.tpu")
+    # configuration for --ddp-backend=fully_sharded
+    no_reshard_after_forward: bool = field(
+        default=False,
+        metadata={"help": "don't reshard parameters after forward pass"},
+    )
+    fp32_reduce_scatter: bool = field(
+        default=False,
+        metadata={"help": "reduce-scatter grads in FP32"},
+    )
+    cpu_offload: bool = field(
+        default=False,
+        metadata={"help": "offload FP32 params to CPU"}
+    )
 
 
 @dataclass

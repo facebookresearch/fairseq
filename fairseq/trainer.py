@@ -63,15 +63,31 @@ class Trainer(object):
         else:
             self.device = torch.device("cpu")
 
+        if self.cfg.distributed_training.ddp_backend == "fully_sharded":
+            if self.cfg.common.bf16:
+                raise ValueError(
+                    "FullyShardedDataParallel is not compatible with --bf16 or "
+                    "--memory-efficient-bf16"
+                )
+            if self.cfg.distributed_training.zero_sharding != "none":
+                raise ValueError(
+                    "FullyShardedDataParallel is not compatible with --zero-sharding "
+                    "option (it's already built in)"
+                )
+        else:
+            if self.cfg.distributed_training.cpu_offload:
+                raise ValueError("--cpu-offload requires --ddp-backend=fully_sharded")
+
         # copy model and criterion to current device/dtype
         self._criterion = criterion
         self._model = model
-        if cfg.common.fp16:
-            self._criterion = self._criterion.half()
-            self._model = self._model.half()
-        elif cfg.common.bf16:
-            self._criterion = self._criterion.to(dtype=torch.bfloat16)
-            self._model = self._model.to(dtype=torch.bfloat16)
+        if cfg.distributed_training.ddp_backend != "fully_sharded":
+            if cfg.common.fp16:
+                self._criterion = self._criterion.half()
+                self._model = self._model.half()
+            elif cfg.common.bf16:
+                self._criterion = self._criterion.to(dtype=torch.bfloat16)
+                self._model = self._model.to(dtype=torch.bfloat16)
         if (
             not cfg.distributed_training.pipeline_model_parallel
             # the DistributedFairseqModel wrapper will handle moving to device,
@@ -171,17 +187,26 @@ class Trainer(object):
         return (
             self.data_parallel_world_size > 1
             and not self.cfg.optimization.use_bmuf
+        ) or (
+            self.cfg.distributed_training.ddp_backend == "fully_sharded"
+            and self.cfg.distributed_training.cpu_offload
         )
 
     @property
     def should_save_checkpoint_on_current_rank(self) -> bool:
         """Indicates whether to save checkpoints on the current DDP rank."""
-        return self.is_data_parallel_master
+        if self.cfg.distributed_training.ddp_backend == "fully_sharded":
+            return True
+        else:
+            return self.is_data_parallel_master
 
     @property
     def checkpoint_suffix(self) -> str:
         """Suffix to add to the checkpoint file name."""
-        return self.cfg.checkpoint.checkpoint_suffix or ""
+        if self.cfg.distributed_training.ddp_backend == "fully_sharded":
+            return self.cfg.checkpoint.checkpoint_suffix + "-shard{0}".format(self.data_parallel_rank)
+        else:
+            return self.cfg.checkpoint.checkpoint_suffix or ""
 
     @property
     def criterion(self):
@@ -234,7 +259,20 @@ class Trainer(object):
             )
         )
 
-        if self.cfg.common.fp16 or self.cfg.common.bf16:
+        if (
+            self.cfg.distributed_training.ddp_backend == "fully_sharded"
+            and self.cfg.common.fp16
+        ):
+            # FullyShardedDataParallel always uses MemoryEfficientFP16 wrapper,
+            # mostly for the grad scaling. But if we don't have the
+            # --memory-efficient-fp16 flag set, then we're effectively doing
+            # regular --fp16 and can allow the use of optimizers that would
+            # otherwise be unsupported by MemoryEfficientFP16Optimizer.
+            allow_unsupported = not self.cfg.common.memory_efficient_fp16
+            self._optimizer = optim.MemoryEfficientFP16Optimizer.build_optimizer(
+                self.cfg, params, allow_unsupported=allow_unsupported
+            )
+        elif self.cfg.common.fp16 or self.cfg.common.bf16:
             if self.cuda and torch.cuda.get_device_capability(0)[0] < 7:
                 logger.info(
                     "NOTE: your device does NOT support faster training with --fp16, "
@@ -253,6 +291,16 @@ class Trainer(object):
             if self.cuda and torch.cuda.get_device_capability(0)[0] >= 7:
                 logger.info("NOTE: your device may support faster training with --fp16")
             self._optimizer = optim.build_optimizer(self.cfg.optimizer, params)
+
+        if self.cfg.distributed_training.ddp_backend == "fully_sharded":
+            assert not self.cfg.optimization.use_bmuf, \
+                "--ddp-backend=fully_sharded is not compatible with BMUF"
+            assert self._optimizer.supports_flat_params, (
+                "--ddp-backend=fully_sharded is only compatible with pointwise "
+                "optimizers (e.g., Adam, AdamW, Adadelta, Adamax, SGD, etc.). "
+                "However, the sharding will result in slightly different results when "
+                "using non-pointwise optimizers (e.g., Adagrad, Adafactor, LAMB)"
+            )
 
         if self.cfg.optimization.use_bmuf:
             self._optimizer = optim.FairseqBMUF(
@@ -355,6 +403,8 @@ class Trainer(object):
                 # TPUs don't support broadcast yet, so load checkpoints
                 # on every worker for now
                 or self.tpu
+                # FSDP requires loading checkpoint shards on all ranks
+                or self.cfg.distributed_training.ddp_backend == "fully_sharded"
             )
 
             if load_on_all_ranks or self.data_parallel_rank == 0:
@@ -965,7 +1015,21 @@ class Trainer(object):
         metrics.log_scalar("num_updates", self._num_updates, weight=0, priority=200)
 
     def clip_grad_norm(self, clip_norm):
-        return self.optimizer.clip_grad_norm(clip_norm, aggregate_norm_fn=None)
+
+        def agg_norm_fn(total_norm):
+            if self.cfg.distributed_training.ddp_backend == "fully_sharded":
+                total_norm = total_norm ** 2
+                if (
+                    self.data_parallel_process_group is not None
+                    or torch.distributed.is_initialized()
+                ):
+                    total_norm = distributed_utils.all_reduce(
+                        total_norm.cuda(), group=self.data_parallel_process_group
+                    )
+                total_norm = total_norm ** 0.5
+            return total_norm
+
+        return self.optimizer.clip_grad_norm(clip_norm, aggregate_norm_fn=agg_norm_fn)
 
     def cumulative_training_time(self):
         if self._cumulative_training_time is None:

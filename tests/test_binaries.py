@@ -1697,8 +1697,9 @@ class TestActivationCheckpointing(unittest.TestCase):
         """Neither ----checkpoint-activations nor --offload-activations should change loss"""
         with tempfile.TemporaryDirectory("test_transformer_with_act_cpt") as data_dir:
 
-            create_dummy_data(data_dir, num_examples=20)
-            preprocess_translation_data(data_dir)
+            with self.assertLogs():
+                create_dummy_data(data_dir, num_examples=20)
+                preprocess_translation_data(data_dir)
             offload_logs = self._train(data_dir, ["--offload-activations"])
             baseline_logs = self._train(data_dir, [])
 
@@ -1720,8 +1721,9 @@ class TestActivationCheckpointing(unittest.TestCase):
         """--checkpoint-activations should not change loss"""
 
         with tempfile.TemporaryDirectory("test_transformer_with_act_cpt") as data_dir:
-            create_dummy_data(data_dir, num_examples=20)
-            preprocess_translation_data(data_dir)
+            with self.assertLogs():
+                create_dummy_data(data_dir, num_examples=20)
+                preprocess_translation_data(data_dir)
             ckpt_logs = self._train(data_dir, ["--checkpoint-activations"])
             baseline_logs = self._train(data_dir, [])
             assert len(baseline_logs) == len(ckpt_logs)

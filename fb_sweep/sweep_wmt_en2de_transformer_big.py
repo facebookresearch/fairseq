@@ -11,7 +11,9 @@ def get_grid(args):
     """
     return [
         hyperparam("--fp16", save_dir_key=lambda val: "fp16"),
-        # hyperparam('--ddp-backend', 'no_c10d', save_dir_key=lambda val: 'no_c10d'),
+        hyperparam("--ddp-backend", "fully_sharded", save_dir_key=lambda val: val),
+        # hyperparam("--cpu-offload"),
+        # hyperparam("--no-reshard-after-forward"),
         hyperparam("--max-epoch", 70),
         # equivalent to training on 16x GPUs
         hyperparam(

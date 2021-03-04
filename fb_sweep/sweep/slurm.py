@@ -139,7 +139,8 @@ def is_job_valid(args, save_dir, dry_run):
 
 
 def set_env(args, env, dry_run):
-    env["OMP_NUM_THREADS"] = "2"
+    if "OMP_NUM_THREADS" not in env:
+        env["OMP_NUM_THREADS"] = "2"
     if args.local:
         if not dry_run("start training locally"):
             if "CUDA_VISIBLE_DEVICES" not in env:
