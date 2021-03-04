@@ -1,19 +1,20 @@
 import math
 import os
-
+import json
 import numpy as np
 import torch
 import torchaudio.compliance.kaldi as kaldi
 import yaml
 from fairseq import checkpoint_utils, tasks
+from fairseq.file_io import PathManager
 
 try:
     from simuleval import READ_ACTION, WRITE_ACTION, DEFAULT_EOS
-    from simuleval.agents import SpeechAgent
-    from simuleval.states import ListEntry
+    from simuleval.states import ListEntry, SpeechStates
 except ImportError:
     print("Please install simuleval 'pip install simuleval'")
 
+from torch import nn
 
 SHIFT_SIZE = 10
 WINDOW_SIZE = 25
@@ -112,12 +113,12 @@ class TensorListEntry(ListEntry):
         }
 
 
-class FairseqSimulSTAgent(SpeechAgent):
+class FairseqSimulSTAgent(nn.Module):
 
     speech_segment_size = 40  # in ms, 4 pooling ratio * 10 ms step size
 
     def __init__(self, args):
-        super().__init__(args)
+        super().__init__()
 
         self.eos = DEFAULT_EOS
 
@@ -136,13 +137,18 @@ class FairseqSimulSTAgent(SpeechAgent):
                 self.model.decoder.layers[0].encoder_attn.pre_decision_ratio
             )
 
-        with open(args.config, "r") as f:
-            config = yaml.load(f, Loader=yaml.BaseLoader)
+        args.global_cmvn = None
+        if args.config:
+            with open(args.config, "r") as f:
+                config = yaml.load(f, Loader=yaml.BaseLoader)
 
-        if "global_cmvn" in config:
-            args.global_cmvn = np.load(config["global_cmvn"]["stats_npz_path"])
-        else:
-            args.global_cmvn = None
+            if "global_cmvn" in config:
+                args.global_cmvn = np.load(config["global_cmvn"]["stats_npz_path"])
+
+        if args.global_stats:
+            with PathManager.open(args.global_stats, "r") as f:
+                global_cmvn = json.loads(f.read())
+                self.global_cmvn = {"mean": global_cmvn["mean"], "std": global_cmvn["stddev"]}
 
         self.feature_extractor = OnlineFeatureExtractor(args)
 
@@ -151,6 +157,13 @@ class FairseqSimulSTAgent(SpeechAgent):
         self.force_finish = args.force_finish
 
         torch.set_grad_enabled(False)
+
+    def build_states(self, args, client, sentence_id):
+        # Initialize states here, for example add customized entry to states
+        # This function will be called at beginning of every new sentence
+        states = SpeechStates(args, client, sentence_id, self)
+        self.initialize_states(states)
+        return states
 
     def to_device(self, tensor):
         if self.gpu:
@@ -165,8 +178,10 @@ class FairseqSimulSTAgent(SpeechAgent):
                             help='path to your pretrained model.')
         parser.add_argument("--data-bin", type=str, required=True,
                             help="Path of data binary")
-        parser.add_argument("--config", type=str, required=True,
+        parser.add_argument("--config", type=str, default=None,
                             help="Path to config yaml file")
+        parser.add_argument("--global-stats", type=str, default=None,
+                            help="Path to json file containing cmvn stats")
         parser.add_argument("--tgt-splitter-type", type=str, default="SentencePiece",
                             help="Subword splitter type for target text")
         parser.add_argument("--tgt-splitter-path", type=str, default=None,
