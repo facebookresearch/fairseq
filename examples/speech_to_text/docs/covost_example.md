@@ -30,14 +30,13 @@ Download our vocabulary files if you want to use our pre-trained models:
 #### Training
 We train an En ASR model for encoder pre-training of all ST models:
 ```bash
-fairseq-train ${COVOST_ROOT}/en \
-  --config-yaml config_asr_en.yaml --train-subset train_asr_en --valid-subset dev_asr_en \
-  --save-dir ${ASR_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-update 60000 \
-  --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
-  --arch s2t_transformer_s --optimizer adam --lr 2e-3 --lr-scheduler inverse_sqrt \
-  --warmup-updates 10000 --clip-norm 10.0 --seed 1 --update-freq 8
+fairseq-hydra-train \
+  task.data=${COVOST_ROOT}/en \
+  checkpoint.save_dir=${ASR_SAVE_DIR} \
+  --config-dir ${FAIRSEQ_ROOT}/examples/speech_to_text/config/ \
+  --config-name covost-s2t_transformer_s-asr.yaml
 ```
-where `ASR_SAVE_DIR` is the checkpoint root path. We set `--update-freq 8` to simulate 8 GPUs with 1 GPU.
+where `ASR_SAVE_DIR` is the checkpoint root path. We set `optimization.update_freq=[8]` to simulate 8 GPUs with 1 GPU.
 You may want to update it accordingly when using more than 1 GPU.
 
 #### Inference & Evaluation
@@ -47,10 +46,11 @@ python scripts/average_checkpoints.py \
   --inputs ${ASR_SAVE_DIR} --num-epoch-checkpoints 10 \
   --output "${ASR_SAVE_DIR}/${CHECKPOINT_FILENAME}"
 fairseq-generate ${COVOST_ROOT}/en \
-  --config-yaml config_asr_en.yaml --gen-subset test_asr_en --task speech_to_text \
+  --data-config-yaml config_asr_en.yaml --gen-subset test_asr_en --task speech_to_text \
   --path ${ASR_SAVE_DIR}/${CHECKPOINT_FILENAME} --max-tokens 50000 --beam 5 \
   --scoring wer --wer-tokenizer 13a --wer-lowercase --wer-remove-punct
 ```
+NOTE: Set `--model-overrides "{'arch': 's2t_transformer'}"` if using a checkpoint previous to the Hydra migration.
 #### Results
 | --arch | Params | En | Model |
 |---|---|---|---|
@@ -60,16 +60,15 @@ fairseq-generate ${COVOST_ROOT}/en \
 #### Training
 Fr-En as example:
 ```bash
-fairseq-train ${COVOST_ROOT}/fr \
-  --config-yaml config_st_fr_en.yaml --train-subset train_st_fr_en --valid-subset dev_st_fr_en \
-  --save-dir ${ST_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-update 60000 \
-  --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
-  --arch s2t_transformer_s --optimizer adam --lr 2e-3 --lr-scheduler inverse_sqrt \
-  --warmup-updates 10000 --clip-norm 10.0 --seed 1 --update-freq 8 \
-  --load-pretrained-encoder-from ${ASR_SAVE_DIR}/${CHECKPOINT_FILENAME}
+fairseq-hydra-train \
+  task.data=${COVOST_ROOT}/fr \
+  checkpoint.save_dir=${ST_SAVE_DIR} \
+  checkpoint.load_pretrained_encoder_from=${ASR_SAVE_DIR}/${CHECKPOINT_FILENAME} \
+  --config-dir ${FAIRSEQ_ROOT}/examples/speech_to_text/config/ \
+  --config-name covost-s2t_transformer_s-st.yaml
 ```
 where `ST_SAVE_DIR` is the checkpoint root path. The ST encoder is pre-trained by En ASR for faster training and better
-performance: `--load-pretrained-encoder-from <ASR checkpoint path>`. We set `--update-freq 8` to simulate 8 GPUs with 1 GPU.
+performance: `checkpoint.load_pretrained_encoder_from=<ASR checkpoint path>`. We set `optimization.update_freq=[8]` to simulate 8 GPUs with 1 GPU.
 You may want to update it accordingly when using more than 1 GPU.
 
 #### Inference & Evaluation
@@ -80,20 +79,22 @@ python scripts/average_checkpoints.py \
   --inputs ${ST_SAVE_DIR} --num-epoch-checkpoints 10 \
   --output "${ST_SAVE_DIR}/${CHECKPOINT_FILENAME}"
 fairseq-generate ${COVOST_ROOT}/fr \
-  --config-yaml config_st_fr_en.yaml --gen-subset test_st_fr_en --task speech_to_text \
+  --data-config-yaml config_st_fr_en.yaml --gen-subset test_st_fr_en --task speech_to_text \
   --path ${ST_SAVE_DIR}/${CHECKPOINT_FILENAME} \
   --max-tokens 50000 --beam 5 --scoring sacrebleu
 ```
 
+NOTE: Set `--model-overrides "{'arch': 's2t_transformer'}"` if using a checkpoint previous to the Hydra migration.
 ## Interactive Decoding
 Launch the interactive console via
 ```bash
-fairseq-interactive ${COVOST_ROOT}/fr --config-yaml config_st_fr_en.yaml \
+fairseq-interactive ${COVOST_ROOT}/fr --data-config-yaml config_st_fr_en.yaml \
   --task speech_to_text --path ${SAVE_DIR}/${CHECKPOINT_FILENAME} \
   --max-tokens 50000 --beam 5
 ```
 Type in WAV/FLAC/OGG audio paths (one per line) after the prompt.
 
+NOTE: Set `--model-overrides "{'arch': 's2t_transformer'}"` if using a checkpoint previous to the Hydra migration.
 #### Results
 | --arch | Params | Fr-En | De-En | Es-En | Ca-En | En-De | En-Ca | En-Fa | En-Et | Model |
 |---|---|---|---|---|---|---|---|---|---|---|

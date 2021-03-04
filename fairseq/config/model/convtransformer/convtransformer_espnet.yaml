@@ -1,0 +1,12 @@
+# @package _group_
+
+conv_out_channels: 256
+
+encoder_embed_dim: 256
+encoder_attention_heads: 4
+encoder_layers: 12
+
+decoder_embed_dim: 256
+decoder_attention_heads: 4
+decoder_output_dim: 256
+decoder_input_dim: 256

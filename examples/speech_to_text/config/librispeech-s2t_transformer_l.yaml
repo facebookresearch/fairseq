@@ -1,0 +1,51 @@
+# @package _global_
+
+common:
+  seed: 1
+
+task:
+  _name: speech_to_text
+  data: ???
+  data_config_yaml: config.yaml
+
+dataset:
+  train_subset: train-clean-100,train-clean-360,train-other-500
+  valid_subset: dev-clean,dev-other
+  num_workers: 4
+  max_tokens: 40000
+
+criterion:
+  _name: label_smoothed_cross_entropy
+  report_accuracy: True
+
+optimization:
+  lr: [5e-4]
+  update_freq: [8]
+  max_update: 300000
+  clip_norm: 10.0
+
+optimizer:
+  _name: adam
+
+lr_scheduler:
+  _name: inverse_sqrt
+  warmup_updates: 10000
+
+model:
+  _name: s2t_transformer  # s2t_transformer_l
+
+  encoder_embed_dim: 1024
+  encoder_ffn_embed_dim: 4096  # 1024 * 4
+  encoder_attention_heads: 16
+
+  decoder_embed_dim: 1024
+  decoder_ffn_embed_dim: 4096  # 1024 * 4
+  decoder_attention_heads: 16
+  decoder_output_dim: 1024
+  decoder_input_dim: 1024
+
+  dropout: 0.2
+  attention_dropout: 0.2
+  activation_dropout: 0.2
+
+  share_decoder_input_output_embed: True

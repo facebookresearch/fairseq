@@ -2,16 +2,18 @@
 
 import logging
 import math
+from omegaconf import II
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 import torch.nn as nn
 from fairseq import checkpoint_utils, utils
 from fairseq.data.data_utils import lengths_to_padding_mask
+from fairseq.dataclass import ChoiceEnum, FairseqDataclass
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderDecoderModel,
     register_model,
-    register_model_architecture,
 )
 from fairseq.models.transformer import Embedding, TransformerDecoder
 from fairseq.modules import (
@@ -75,7 +77,153 @@ class Conv1dSubsampler(nn.Module):
         return x, self.get_out_seq_lens_tensor(src_lengths)
 
 
-@register_model("s2t_transformer")
+@dataclass
+class S2TTransformerModelConfig(FairseqDataclass):
+
+    # Convolutional subsampler
+    conv_kernel_sizes: str = field(
+        default="5,5",
+        metadata={"help": "kernel sizes of Conv1d subsampling layers"}
+    )
+    conv_channels: int = field(
+        default=1024,
+        metadata={"help": "# of channels in Conv1d subsampling layers"}
+    )
+
+    # Transformer
+    encoder_embed_dim: int = field(
+        default=512,
+        metadata={"help": "encoder embedding dimension"}
+    )
+    encoder_ffn_embed_dim: int = field(
+        default=2048,
+        metadata={"help": "encoder embedding dimension for FFN"}
+    )
+    encoder_layers: int = field(
+        default=12,
+        metadata={"help": "num encoder layers"}
+    )
+    encoder_attention_heads: int = field(
+        default=8,
+        metadata={"help": "num encoder attention heads"}
+    )
+    encoder_normalize_before: bool = field(
+        default=True,
+        metadata={"help": "apply layernorm before each encoder block"}
+    )
+    decoder_embed_dim: int = field(
+        default=512,
+        metadata={"help": "decoder embedding dimension"}
+    )
+    decoder_ffn_embed_dim: int = field(
+        default=2048,
+        metadata={"help": "decoder embedding dimension for FFN"}
+    )
+    decoder_layers: int = field(
+        default=6,
+        metadata={"help": "num decoder layers"}
+    )
+    decoder_attention_heads: int = field(
+        default=8, metadata={"help": "num decoder attention heads"}
+    )
+    decoder_normalize_before: bool = field(
+        default=True,
+        metadata={"help": "apply layernorm before each decoder block"}
+    )
+    decoder_learned_pos: bool = field(
+        default=False,
+        metadata={"help": "use learned positional embeddings in the decoder"}
+    )
+    dropout: float = field(
+        default=0.1,
+        metadata={"help": "dropout probability"}
+    )
+    attention_dropout: float = field(
+        default=0.1,
+        metadata={"help": "dropout probability for attention weights"}
+    )
+    activation_dropout: float = field(
+        default=0.1,
+        metadata={"help": "dropout probability after activation in FFN."}
+    )
+    activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
+        default="relu",
+        metadata={"help": "activation function to use"}
+    )
+    adaptive_softmax_cutoff: Optional[str] = field(
+        default=None,
+        metadata={"help": "comma separated list of adaptive softmax cutoff "
+                          "points. Must be used with adaptive_loss criterion"}
+    )
+    adaptive_softmax_dropout: float = field(
+        default=0.0,
+        metadata={"help": "sets adaptive softmax dropout for "
+                          "the tail projections"}
+    )
+    share_decoder_input_output_embed: bool = field(
+        default=False,
+        metadata={"help": "share decoder input and output embeddings"}
+    )
+    no_token_positional_embeddings: bool = field(
+        default=False,
+        metadata={"help": "if set, disables positional embeddings "
+                          "(outside self attention)"}
+    )
+    adaptive_input: bool = field(
+        default=False, metadata={"help": "if set, uses adaptive input"}
+    )
+    decoder_layerdrop: float = field(
+        default=0.0,
+        metadata={"help": "LayerDrop probability for decoder"}
+    )
+    decoder_output_dim: int = field(
+        default=512,
+        metadata={"help": "decoder output dimension (extra linear layer "
+                          "if different from decoder embed dim)"}
+    )
+    decoder_input_dim: int = field(
+        default=512,
+        metadata={"help": "decoder input dimension"}
+    )
+    no_scale_embedding: bool = field(
+        default=False,
+        metadata={"help": "if True, dont scale embeddings"}
+    )
+    quant_noise_pq: float = field(
+        default=0.0,
+        metadata={"help": "iterative PQ quantization noise at training time"}
+    )
+    layernorm_embedding: bool = field(
+        default=False,
+        metadata={"help": "if True, add layernorm to embedding"}
+    )
+    tie_adaptive_weights: bool = field(
+        default=False,
+        metadata={"help": "if set, ties the weights of adaptive softmax "
+                          "and adaptive input"},
+    )
+    load_pretrained_encoder_from: Optional[str] = field(
+        default=None,
+        metadata={"help": "model to take encoder weights from "
+                          "(for initialization)"}
+    )
+
+    # Inherit from other configs
+    max_source_positions: int = II("task.max_source_positions")
+    max_target_positions: int = II("task.max_target_positions")
+
+    # Populated in build_model()
+    input_feat_per_channel: Optional[int] = field(
+        default=None,
+        metadata={"help": "dimension of input features (per audio channel)"}
+    )
+    input_channels: Optional[int] = field(
+        default=None,
+        metadata={"help": "number of channels in the input audio"}
+    )
+
+
+@register_model("s2t_transformer", dataclass=S2TTransformerModelConfig)
 class S2TTransformerModel(FairseqEncoderDecoderModel):
     """Adapted Transformer model (https://arxiv.org/abs/1706.03762) for
     speech-to-text tasks. The Transformer encoder/decoder remains the same.
@@ -86,143 +234,29 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
 
-    @staticmethod
-    def add_args(parser):
-        """Add model-specific arguments to the parser."""
-        # input
-        parser.add_argument(
-            "--conv-kernel-sizes",
-            type=str,
-            metavar="N",
-            help="kernel sizes of Conv1d subsampling layers",
-        )
-        parser.add_argument(
-            "--conv-channels",
-            type=int,
-            metavar="N",
-            help="# of channels in Conv1d subsampling layers",
-        )
-        # Transformer
-        parser.add_argument(
-            "--activation-fn",
-            type=str,
-            default="relu",
-            choices=utils.get_available_activation_fns(),
-            help="activation function to use",
-        )
-        parser.add_argument(
-            "--dropout", type=float, metavar="D", help="dropout probability"
-        )
-        parser.add_argument(
-            "--attention-dropout",
-            type=float,
-            metavar="D",
-            help="dropout probability for attention weights",
-        )
-        parser.add_argument(
-            "--activation-dropout",
-            "--relu-dropout",
-            type=float,
-            metavar="D",
-            help="dropout probability after activation in FFN.",
-        )
-        parser.add_argument(
-            "--encoder-embed-dim",
-            type=int,
-            metavar="N",
-            help="encoder embedding dimension",
-        )
-        parser.add_argument(
-            "--encoder-ffn-embed-dim",
-            type=int,
-            metavar="N",
-            help="encoder embedding dimension for FFN",
-        )
-        parser.add_argument(
-            "--encoder-layers", type=int, metavar="N", help="num encoder layers"
-        )
-        parser.add_argument(
-            "--encoder-attention-heads",
-            type=int,
-            metavar="N",
-            help="num encoder attention heads",
-        )
-        parser.add_argument(
-            "--encoder-normalize-before",
-            action="store_true",
-            help="apply layernorm before each encoder block",
-        )
-        parser.add_argument(
-            "--decoder-embed-dim",
-            type=int,
-            metavar="N",
-            help="decoder embedding dimension",
-        )
-        parser.add_argument(
-            "--decoder-ffn-embed-dim",
-            type=int,
-            metavar="N",
-            help="decoder embedding dimension for FFN",
-        )
-        parser.add_argument(
-            "--decoder-layers", type=int, metavar="N", help="num decoder layers"
-        )
-        parser.add_argument(
-            "--decoder-attention-heads",
-            type=int,
-            metavar="N",
-            help="num decoder attention heads",
-        )
-        parser.add_argument(
-            "--decoder-normalize-before",
-            action="store_true",
-            help="apply layernorm before each decoder block",
-        )
-        parser.add_argument(
-            "--share-decoder-input-output-embed",
-            action="store_true",
-            help="share decoder input and output embeddings",
-        )
-        parser.add_argument(
-            "--layernorm-embedding",
-            action="store_true",
-            help="add layernorm to embedding",
-        )
-        parser.add_argument(
-            "--no-scale-embedding",
-            action="store_true",
-            help="if True, dont scale embeddings",
-        )
-        parser.add_argument(
-            "--load-pretrained-encoder-from",
-            type=str,
-            metavar="STR",
-            help="model to take encoder weights from (for initialization)",
-        )
-
     @classmethod
-    def build_encoder(cls, args):
-        encoder = S2TTransformerEncoder(args)
-        if getattr(args, "load_pretrained_encoder_from", None):
+    def build_encoder(cls, cfg):
+        encoder = S2TTransformerEncoder(cfg)
+        if getattr(cfg, "load_pretrained_encoder_from", None):
             encoder = checkpoint_utils.load_pretrained_component_from_model(
-                component=encoder, checkpoint=args.load_pretrained_encoder_from
+                component=encoder, checkpoint=cfg.load_pretrained_encoder_from
             )
             logger.info(
                 f"loaded pretrained encoder from: "
-                f"{args.load_pretrained_encoder_from}"
+                f"{cfg.load_pretrained_encoder_from}"
             )
         return encoder
 
     @classmethod
-    def build_decoder(cls, args, task, embed_tokens):
-        return TransformerDecoderScriptable(args, task.target_dictionary, embed_tokens)
+    def build_decoder(cls, cfg, task, embed_tokens):
+        return TransformerDecoderScriptable(cfg, task.target_dictionary, embed_tokens)
 
     @classmethod
-    def build_model(cls, args, task):
+    def build_model(cls, cfg, task):
         """Build a new model instance."""
 
-        # make sure all arguments are present in older models
-        base_architecture(args)
+        cfg.input_feat_per_channel = task.data_cfg.input_feat_per_channel
+        cfg.input_channels = task.data_cfg.input_channels
 
         def build_embedding(dictionary, embed_dim):
             num_embeddings = len(dictionary)
@@ -230,10 +264,10 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
             return Embedding(num_embeddings, embed_dim, padding_idx)
 
         decoder_embed_tokens = build_embedding(
-            task.target_dictionary, args.decoder_embed_dim
+            task.target_dictionary, cfg.decoder_embed_dim
         )
-        encoder = cls.build_encoder(args)
-        decoder = cls.build_decoder(args, task, decoder_embed_tokens)
+        encoder = cls.build_encoder(cfg)
+        decoder = cls.build_decoder(cfg, task, decoder_embed_tokens)
         return cls(encoder, decoder)
 
     def get_normalized_probs(
@@ -264,33 +298,33 @@ class S2TTransformerEncoder(FairseqEncoder):
     """Speech-to-text Transformer encoder that consists of input subsampler and
     Transformer encoder."""
 
-    def __init__(self, args):
+    def __init__(self, cfg: S2TTransformerModelConfig):
         super().__init__(None)
 
         self.dropout_module = FairseqDropout(
-            p=args.dropout, module_name=self.__class__.__name__
+            p=cfg.dropout, module_name=self.__class__.__name__
         )
-        self.embed_scale = math.sqrt(args.encoder_embed_dim)
-        if args.no_scale_embedding:
+        self.embed_scale = math.sqrt(cfg.encoder_embed_dim)
+        if cfg.no_scale_embedding:
             self.embed_scale = 1.0
         self.padding_idx = 1
 
         self.subsample = Conv1dSubsampler(
-            args.input_feat_per_channel * args.input_channels,
-            args.conv_channels,
-            args.encoder_embed_dim,
-            [int(k) for k in args.conv_kernel_sizes.split(",")],
+            cfg.input_feat_per_channel * cfg.input_channels,
+            cfg.conv_channels,
+            cfg.encoder_embed_dim,
+            [int(k) for k in cfg.conv_kernel_sizes.split(",")],
         )
 
         self.embed_positions = PositionalEmbedding(
-            args.max_source_positions, args.encoder_embed_dim, self.padding_idx
+            cfg.max_source_positions, cfg.encoder_embed_dim, self.padding_idx
         )
 
         self.transformer_layers = nn.ModuleList(
-            [TransformerEncoderLayer(args) for _ in range(args.encoder_layers)]
+            [TransformerEncoderLayer(cfg) for _ in range(cfg.encoder_layers)]
         )
-        if args.encoder_normalize_before:
-            self.layer_norm = LayerNorm(args.encoder_embed_dim)
+        if cfg.encoder_normalize_before:
+            self.layer_norm = LayerNorm(cfg.encoder_embed_dim)
         else:
             self.layer_norm = None
 
@@ -369,101 +403,3 @@ class TransformerDecoderScriptable(TransformerDecoder):
             alignment_heads,
         )
         return x, None
-
-
-@register_model_architecture(model_name="s2t_transformer", arch_name="s2t_transformer")
-def base_architecture(args):
-    # Convolutional subsampler
-    args.conv_kernel_sizes = getattr(args, "conv_kernel_sizes", "5,5")
-    args.conv_channels = getattr(args, "conv_channels", 1024)
-    # Transformer
-    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 2048)
-    args.encoder_layers = getattr(args, "encoder_layers", 12)
-    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 8)
-    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", True)
-    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", args.encoder_embed_dim)
-    args.decoder_ffn_embed_dim = getattr(
-        args, "decoder_ffn_embed_dim", args.encoder_ffn_embed_dim
-    )
-    args.decoder_layers = getattr(args, "decoder_layers", 6)
-    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 8)
-    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", True)
-    args.decoder_learned_pos = getattr(args, "decoder_learned_pos", False)
-    args.dropout = getattr(args, "dropout", 0.1)
-    args.attention_dropout = getattr(args, "attention_dropout", args.dropout)
-    args.activation_dropout = getattr(args, "activation_dropout", args.dropout)
-    args.activation_fn = getattr(args, "activation_fn", "relu")
-    args.adaptive_softmax_cutoff = getattr(args, "adaptive_softmax_cutoff", None)
-    args.adaptive_softmax_dropout = getattr(args, "adaptive_softmax_dropout", 0)
-    args.share_decoder_input_output_embed = getattr(
-        args, "share_decoder_input_output_embed", False
-    )
-    args.no_token_positional_embeddings = getattr(
-        args, "no_token_positional_embeddings", False
-    )
-    args.adaptive_input = getattr(args, "adaptive_input", False)
-    args.decoder_layerdrop = getattr(args, "decoder_layerdrop", 0.0)
-    args.decoder_output_dim = getattr(
-        args, "decoder_output_dim", args.decoder_embed_dim
-    )
-    args.decoder_input_dim = getattr(args, "decoder_input_dim", args.decoder_embed_dim)
-    args.no_scale_embedding = getattr(args, "no_scale_embedding", False)
-    args.quant_noise_pq = getattr(args, "quant_noise_pq", 0)
-
-
-@register_model_architecture("s2t_transformer", "s2t_transformer_s")
-def s2t_transformer_s(args):
-    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 256)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 256 * 8)
-    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 4)
-    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 4)
-    args.dropout = getattr(args, "dropout", 0.1)
-    base_architecture(args)
-
-
-@register_model_architecture("s2t_transformer", "s2t_transformer_xs")
-def s2t_transformer_xs(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 6)
-    args.decoder_layers = getattr(args, "decoder_layers", 3)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 256 * 4)
-    args.dropout = getattr(args, "dropout", 0.3)
-    s2t_transformer_s(args)
-
-
-@register_model_architecture("s2t_transformer", "s2t_transformer_sp")
-def s2t_transformer_sp(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 16)
-    s2t_transformer_s(args)
-
-
-@register_model_architecture("s2t_transformer", "s2t_transformer_m")
-def s2t_transformer_m(args):
-    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 512 * 4)
-    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 8)
-    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 8)
-    args.dropout = getattr(args, "dropout", 0.15)
-    base_architecture(args)
-
-
-@register_model_architecture("s2t_transformer", "s2t_transformer_mp")
-def s2t_transformer_mp(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 16)
-    s2t_transformer_m(args)
-
-
-@register_model_architecture("s2t_transformer", "s2t_transformer_l")
-def s2t_transformer_l(args):
-    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 1024)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 1024 * 4)
-    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 16)
-    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 16)
-    args.dropout = getattr(args, "dropout", 0.2)
-    base_architecture(args)
-
-
-@register_model_architecture("s2t_transformer", "s2t_transformer_lp")
-def s2t_transformer_lp(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 16)
-    s2t_transformer_l(args)

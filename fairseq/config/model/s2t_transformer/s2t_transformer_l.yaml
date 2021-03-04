@@ -1,0 +1,15 @@
+# @package _group_
+
+encoder_embed_dim: 1024
+encoder_ffn_embed_dim: 4096  # 1024 * 4
+encoder_attention_heads: 16
+
+decoder_embed_dim: 1024
+decoder_ffn_embed_dim: 4096  # 1024 * 4
+decoder_attention_heads: 16
+decoder_output_dim: 1024
+decoder_input_dim: 1024
+
+dropout: 0.2
+attention_dropout: 0.2
+activation_dropout: 0.2

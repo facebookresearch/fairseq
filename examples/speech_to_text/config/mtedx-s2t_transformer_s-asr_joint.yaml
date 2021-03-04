@@ -1,0 +1,56 @@
+# @package _global_
+
+common:
+  seed: 1
+
+checkpoint:
+  keep_last_epochs: 10
+  patience: 10
+
+task:
+  _name: speech_to_text
+  data: ???
+  data_config_yaml: config_asr.yaml
+
+dataset:
+  train_subset: train_es-es_asr,train_fr-fr_asr,train_pt-pt_asr,train_it-it_asr,train_ru-ru_asr,train_el-el_asr,train_ar-ar_asr,train_de-de_asr
+  valid_subset: valid_es-es_asr,valid_fr-fr_asr,valid_pt-pt_asr,valid_it-it_asr,valid_ru-ru_asr,valid_el-el_asr,valid_ar-ar_asr,valid_de-de_asr
+  num_workers: 4
+  max_tokens: 40000
+  skip_invalid_size_inputs_valid_test: True
+
+criterion:
+  _name: label_smoothed_cross_entropy
+  report_accuracy: True
+  label_smoothing: 0.1
+  ignore_prefix_size: 1
+
+optimization:
+  lr: [2e-3]
+  update_freq: [8]
+  clip_norm: 10.0
+  max_epoch: 200
+
+optimizer:
+  _name: adam
+
+lr_scheduler:
+  _name: inverse_sqrt
+  warmup_updates: 10000
+
+model:
+  _name: s2t_transformer  # s2t_transformer_s
+
+  encoder_embed_dim: 256
+  encoder_ffn_embed_dim: 2048  # 256 * 8
+  encoder_attention_heads: 4
+
+  decoder_embed_dim: 256
+  decoder_ffn_embed_dim: 2048  # 256 * 8
+  decoder_attention_heads: 4
+  decoder_output_dim: 256
+  decoder_input_dim: 256
+
+  dropout: 0.3
+  attention_dropout: 0.3
+  activation_dropout: 0.3

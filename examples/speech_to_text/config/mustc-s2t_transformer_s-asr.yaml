@@ -1,0 +1,49 @@
+# @package _global_
+
+common:
+  seed: 1
+
+task:
+  _name: speech_to_text
+  data: ???
+  data_config_yaml: config_asr.yaml
+
+dataset:
+  train_subset: train_asr
+  valid_subset: dev_asr
+  num_workers: 4
+  max_tokens: 40000
+
+criterion:
+  _name: label_smoothed_cross_entropy
+  report_accuracy: True
+
+optimization:
+  lr: [1e-3]
+  update_freq: [8]
+  max_update: 100000
+  clip_norm: 10.0
+
+optimizer:
+  _name: adam
+
+lr_scheduler:
+  _name: inverse_sqrt
+  warmup_updates: 10000
+
+model:
+  _name: s2t_transformer  # s2t_transformer_s
+
+  encoder_embed_dim: 256
+  encoder_ffn_embed_dim: 2048  # 256 * 8
+  encoder_attention_heads: 4
+
+  decoder_embed_dim: 256
+  decoder_ffn_embed_dim: 2048  # 256 * 8
+  decoder_attention_heads: 4
+  decoder_output_dim: 256
+  decoder_input_dim: 256
+
+  dropout: 0.1
+  attention_dropout: 0.1
+  activation_dropout: 0.1

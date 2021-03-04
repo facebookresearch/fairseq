@@ -42,25 +42,21 @@ Download our vocabulary files if you want to use our pre-trained models:
 #### Training
 En-De as example:
 ```bash
-fairseq-train ${MUSTC_ROOT}/en-de \
-  --config-yaml config_asr.yaml --train-subset train_asr --valid-subset dev_asr \
-  --save-dir ${ASR_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-update 100000 \
-  --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
-  --arch s2t_transformer_s --optimizer adam --lr 1e-3 --lr-scheduler inverse_sqrt \
-  --warmup-updates 10000 --clip-norm 10.0 --seed 1 --update-freq 8
+fairseq-hydra-train \
+  task.data=${MUSTC_ROOT}/en-de \
+  checkpoint.save_dir=${ASR_SAVE_DIR} \
+  --config-dir ${FAIRSEQ_ROOT}/examples/speech_to_text/config/ \
+  --config-name mustc-s2t_transformer_s-asr.yaml
 ```
 For joint model (using ASR data from all 8 directions):
 ```bash
-fairseq-train ${MUSTC_ROOT} \
-  --config-yaml config_asr.yaml \
-  --train-subset train_de_asr,train_nl_asr,train_es_asr,train_fr_asr,train_it_asr,train_pt_asr,train_ro_asr,train_ru_asr \
-  --valid-subset dev_de_asr,dev_nl_asr,dev_es_asr,dev_fr_asr,dev_it_asr,dev_pt_asr,dev_ro_asr,dev_ru_asr \
-  --save-dir ${JOINT_ASR_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-update 100000 \
-  --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
-  --arch s2t_transformer_s --optimizer adam --lr 1e-3 --lr-scheduler inverse_sqrt \
-  --warmup-updates 10000 --clip-norm 10.0 --seed 1 --update-freq 8
+fairseq-hydra-train \
+  task.data=${MUSTC_ROOT} \
+  checkpoint.save_dir=${JOINT_ASR_SAVE_DIR} \
+  --config-dir ${FAIRSEQ_ROOT}/examples/speech_to_text/config/ \
+  --config-name mustc-s2t_transformer_s-asr_joint.yaml
 ```
-where `ASR_SAVE_DIR` (`JOINT_ASR_SAVE_DIR`) is the checkpoint root path. We set `--update-freq 8` to simulate 8 GPUs
+where `ASR_SAVE_DIR` (`JOINT_ASR_SAVE_DIR`) is the checkpoint root path. We set `optimization.update_freq=[8]` to simulate 8 GPUs
 with 1 GPU. You may want to update it accordingly when using more than 1 GPU.
 
 #### Inference & Evaluation
@@ -70,7 +66,7 @@ python scripts/average_checkpoints.py \
   --inputs ${ASR_SAVE_DIR} --num-epoch-checkpoints 10 \
   --output "${ASR_SAVE_DIR}/${CHECKPOINT_FILENAME}"
 fairseq-generate ${MUSTC_ROOT}/en-de \
-  --config-yaml config_asr.yaml --gen-subset tst-COMMON_asr --task speech_to_text \
+  --data-config-yaml config_asr.yaml --gen-subset tst-COMMON_asr --task speech_to_text \
   --path ${ASR_SAVE_DIR}/${CHECKPOINT_FILENAME} --max-tokens 50000 --beam 5 \
   --scoring wer --wer-tokenizer 13a --wer-lowercase --wer-remove-punct
 
@@ -80,11 +76,12 @@ python scripts/average_checkpoints.py \
   --output "${JOINT_ASR_SAVE_DIR}/${CHECKPOINT_FILENAME}"
 for LANG in de nl es fr it pt ro ru; do
   fairseq-generate ${MUSTC_ROOT} \
-  --config-yaml config_asr.yaml --gen-subset tst-COMMON_${LANG}_asr --task speech_to_text \
+    --data-config-yaml config_asr.yaml --gen-subset tst-COMMON_${LANG}_asr --task speech_to_text \
     --path ${JOINT_ASR_SAVE_DIR}/${CHECKPOINT_FILENAME} --max-tokens 50000 --beam 5 \
     --scoring wer --wer-tokenizer 13a --wer-lowercase --wer-remove-punct
 done
 ```
+NOTE: Set `--model-overrides "{'arch': 's2t_transformer'}"` if using a checkpoint previous to the Hydra migration.
 #### Results
 | Data | --arch | Params | En-De | En-Nl | En-Es | En-Fr | En-It | En-Pt | En-Ro | En-Ru | Model |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -95,31 +92,27 @@ done
 #### Training
 En-De as example:
 ```bash
-fairseq-train ${MUSTC_ROOT}/en-de \
-  --config-yaml config_st.yaml --train-subset train_st --valid-subset dev_st \
-  --save-dir ${ST_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-update 100000 \
-  --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
-  --arch s2t_transformer_s --optimizer adam --lr 2e-3 --lr-scheduler inverse_sqrt \
-  --warmup-updates 10000 --clip-norm 10.0 --seed 1 --update-freq 8 \
-  --load-pretrained-encoder-from ${ASR_SAVE_DIR}/${CHECKPOINT_FILENAME}
+fairseq-hydra-train \
+  task.data=${MUSTC_ROOT}/en-de \
+  checkpoint.save_dir=${ST_SAVE_DIR} \
+  checkpoint.load_pretrained_encoder_from=${ASR_SAVE_DIR}/${CHECKPOINT_FILENAME} \
+  --config-dir ${FAIRSEQ_ROOT}/examples/speech_to_text/config/ \
+  --config-name mustc-s2t_transformer_s-st.yaml
 ```
 For multilingual model (all 8 directions):
 ```bash
-fairseq-train ${MUSTC_ROOT} \
-  --config-yaml config_st.yaml \
-  --train-subset train_de_st,train_nl_st,train_es_st,train_fr_st,train_it_st,train_pt_st,train_ro_st,train_ru_st \
-  --valid-subset dev_de_st,dev_nl_st,dev_es_st,dev_fr_st,dev_it_st,dev_pt_st,dev_ro_st,dev_ru_st \
-  --save-dir ${MULTILINGUAL_ST_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-update 100000 \
-  --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
-  --arch s2t_transformer_s --ignore-prefix-size 1 --optimizer adam --lr 2e-3 --lr-scheduler inverse_sqrt \
-  --warmup-updates 10000 --clip-norm 10.0 --seed 1 --update-freq 8 \
-  --load-pretrained-encoder-from ${JOINT_ASR_SAVE_DIR}/${CHECKPOINT_FILENAME}
+fairseq-hydra-train \
+  task.data=${MUSTC_ROOT} \
+  checkpoint.save_dir=${MULTILINGUAL_ST_SAVE_DIR} \
+  checkpoint.load_pretrained_encoder_from=${JOINT_ASR_SAVE_DIR}/${CHECKPOINT_FILENAME} \
+  --config-dir ${FAIRSEQ_ROOT}/examples/speech_to_text/config/ \
+  --config-name mustc-s2t_transformer_s-st_multi.yaml
 ```
 where `ST_SAVE_DIR` (`MULTILINGUAL_ST_SAVE_DIR`) is the checkpoint root path. The ST encoder is pre-trained by ASR
-for faster training and better performance: `--load-pretrained-encoder-from <(JOINT_)ASR checkpoint path>`. We set
-`--update-freq 8` to simulate 8 GPUs with 1 GPU. You may want to update it accordingly when using more than 1 GPU.
+for faster training and better performance: `checkpoint.load_pretrained_encoder_from=<(JOINT_)ASR checkpoint path>`. We set
+`optimization.update_freq=[8]` to simulate 8 GPUs with 1 GPU. You may want to update it accordingly when using more than 1 GPU.
 For multilingual models, we prepend target language ID token as target BOS, which should be excluded from
-the training loss via `--ignore-prefix-size 1`.
+the training loss via `criterion.ignore_prefix_size=1`.
 
 #### Inference & Evaluation
 Average the last 10 checkpoints and evaluate on the `tst-COMMON` split:
@@ -129,7 +122,7 @@ python scripts/average_checkpoints.py \
   --inputs ${ST_SAVE_DIR} --num-epoch-checkpoints 10 \
   --output "${ST_SAVE_DIR}/${CHECKPOINT_FILENAME}"
 fairseq-generate ${MUSTC_ROOT}/en-de \
-  --config-yaml config_st.yaml --gen-subset tst-COMMON_st --task speech_to_text \
+  --data-config-yaml config_st.yaml --gen-subset tst-COMMON_st --task speech_to_text \
   --path ${ST_SAVE_DIR}/${CHECKPOINT_FILENAME} \
   --max-tokens 50000 --beam 5 --scoring sacrebleu
 
@@ -139,13 +132,14 @@ python scripts/average_checkpoints.py \
   --output "${MULTILINGUAL_ST_SAVE_DIR}/${CHECKPOINT_FILENAME}"
 for LANG in de nl es fr it pt ro ru; do
   fairseq-generate ${MUSTC_ROOT} \
-    --config-yaml config_st.yaml --gen-subset tst-COMMON_${LANG}_st --task speech_to_text \
+    --data-config-yaml config_st.yaml --gen-subset tst-COMMON_${LANG}_st --task speech_to_text \
     --prefix-size 1 --path ${MULTILINGUAL_ST_SAVE_DIR}/${CHECKPOINT_FILENAME} \
     --max-tokens 50000 --beam 5 --scoring sacrebleu
 done
 ```
 For multilingual models, we force decoding from the target language ID token (as BOS) via `--prefix-size 1`.
 
+NOTE: Set `--model-overrides "{'arch': 's2t_transformer'}"` if using a checkpoint previous to the Hydra migration.
 #### Results
 | Data | --arch | Params | En-De | En-Nl | En-Es | En-Fr | En-It | En-Pt | En-Ro | En-Ru | Model |
 |---|---|---|---|---|---|---|---|---|---|---|---|

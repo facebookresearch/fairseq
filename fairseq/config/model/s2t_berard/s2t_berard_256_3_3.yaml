@@ -1,0 +1,11 @@
+# @package _group_
+
+# Used in
+#   * "Harnessing Indirect Training Data for End-to-End Automatic Speech
+#     Translation: Tricks of the Trade" (https://arxiv.org/abs/1909.06515)
+#   * "CoVoST: A Diverse Multilingual Speech-To-Text Translation Corpus"
+#     (https://arxiv.org/pdf/2002.01320.pdf)
+#   * "Self-Supervised Representations Improve End-to-End Speech Translation"
+#     (https://arxiv.org/abs/2006.12124)
+
+decoder_num_layers: 3

@@ -28,7 +28,7 @@ python examples/speech_to_text/prep_mustc_data.py \
 We just need a pretrained offline ASR model
 ```
 fairseq-train ${MUSTC_ROOT}/en-de \
-  --config-yaml config_asr.yaml --train-subset train_asr --valid-subset dev_asr \
+  --data-config-yaml config_asr.yaml --train-subset train_asr --valid-subset dev_asr \
   --save-dir ${ASR_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-update 100000 \
   --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
   --arch convtransformer_espnet --optimizer adam --lr 0.0005 --lr-scheduler inverse_sqrt \
@@ -43,7 +43,7 @@ Here is a example of fixed pre-decision ratio 7 (the simultaneous decision is ma
 a wait-3 policy model
 ```
  fairseq-train ${MUSTC_ROOT}/en-de \
-        --config-yaml config_st.yaml --train-subset train_st --valid-subset dev_st \
+        --data-config-yaml config_st.yaml --train-subset train_st --valid-subset dev_st \
         --save-dir ${ST_SAVE_DIR} --num-workers 8  \
         --optimizer adam --lr 0.0001 --lr-scheduler inverse_sqrt --clip-norm 10.0 \
         --criterion label_smoothed_cross_entropy \
@@ -59,7 +59,7 @@ a wait-3 policy model
 ### Monotonic multihead attention with fixed pre-decision module
 ```
  fairseq-train ${MUSTC_ROOT}/en-de \
-        --config-yaml config_st.yaml --train-subset train_st --valid-subset dev_st \
+        --data-config-yaml config_st.yaml --train-subset train_st --valid-subset dev_st \
         --save-dir ${ST_SAVE_DIR} --num-workers 8  \
         --optimizer adam --lr 0.0001 --lr-scheduler inverse_sqrt --clip-norm 10.0 \
         --warmup-updates 4000 --max-update 100000 --max-tokens 40000 --seed 2 \

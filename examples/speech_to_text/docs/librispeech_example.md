@@ -22,17 +22,15 @@ if you want to use our pre-trained models.
 
 ## Training
 ```bash
-fairseq-train ${LS_ROOT} --save-dir ${SAVE_DIR} \
-  --config-yaml config.yaml --train-subset train --valid-subset dev \
-  --num-workers 4 --max-tokens 40000 --max-update 300000 \
-  --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
-  --arch s2t_transformer_s --share-decoder-input-output-embed \
-  --optimizer adam --lr 2e-3 --lr-scheduler inverse_sqrt --warmup-updates 10000 \
-  --clip-norm 10.0 --seed 1 --update-freq 8
+fairseq-hydra-train \
+  task.data=${LS_ROOT} \
+  checkpoint.save_dir=${SAVE_DIR} \
+  --config-dir ${FAIRSEQ_ROOT}/examples/speech_to_text/config/ \
+  --config-name librispeech-s2t_transformer_s.yaml
 ```
-where `SAVE_DIR` is the checkpoint root path. Here we use `--arch s2t_transformer_s` (31M parameters) as example.
-For better performance, you may switch to `s2t_transformer_m` (71M, with `--lr 1e-3`) or `s2t_transformer_l`
-(268M, with `--lr 5e-4`). We set `--update-freq 8` to simulate 8 GPUs with 1 GPU. You may want to update it accordingly
+where `SAVE_DIR` is the checkpoint root path. Here we use `s2t_transformer_s` (31M parameters) as example.
+For better performance, you may switch to `s2t_transformer_m` (71M, with lr: 1e-3) or `s2t_transformer_l`
+(268M, with lr: 5e-4). We set `optimization.update_freq=[8]` to simulate 8 GPUs with 1 GPU. You may want to update it accordingly
 when using more than 1 GPU.
 
 ## Inference & Evaluation
@@ -44,20 +42,22 @@ python scripts/average_checkpoints.py --inputs ${SAVE_DIR} \
   --num-epoch-checkpoints 10 \
   --output "${SAVE_DIR}/${CHECKPOINT_FILENAME}"
 for SUBSET in dev-clean dev-other test-clean test-other; do
-  fairseq-generate ${LS_ROOT} --config-yaml config.yaml --gen-subset ${SUBSET} \
+  fairseq-generate ${LS_ROOT} --data-config-yaml config.yaml --gen-subset ${SUBSET} \
     --task speech_to_text --path ${SAVE_DIR}/${CHECKPOINT_FILENAME} \
     --max-tokens 50000 --beam 5 --scoring wer
 done
 ```
 
+NOTE: Set `--model-overrides "{'arch': 's2t_transformer'}"` if using a checkpoint previous to the Hydra migration.
 ## Interactive Decoding
 Launch the interactive console via
 ```bash
-fairseq-interactive ${LS_ROOT} --config-yaml config.yaml --task speech_to_text \
+fairseq-interactive ${LS_ROOT} --data-config-yaml config.yaml --task speech_to_text \
   --path ${SAVE_DIR}/${CHECKPOINT_FILENAME} --max-tokens 50000 --beam 5
 ```
 Type in WAV/FLAC/OGG audio paths (one per line) after the prompt.
 
+NOTE: Set `--model-overrides "{'arch': 's2t_transformer'}"` if using a checkpoint previous to the Hydra migration.
 ## Results
 
 | --arch | Params | dev-clean | dev-other | test-clean | test-other | Model |

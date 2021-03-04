@@ -1,23 +1,97 @@
 #!/usr/bin/env python3
 
 from ast import literal_eval
-from typing import List, Tuple
+from dataclasses import dataclass, field
+from typing import List, Tuple, Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from fairseq import checkpoint_utils, utils
 from fairseq.data.data_utils import lengths_to_padding_mask
+from fairseq.dataclass import FairseqDataclass
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderDecoderModel,
     FairseqIncrementalDecoder,
     register_model,
-    register_model_architecture,
 )
 
 
-@register_model("s2t_berard")
+@dataclass
+class BerardModelConfig(FairseqDataclass):
+
+    input_layers: str = field(
+        default="[256, 128]",
+        metadata={"help": "List of linear layer dimensions. These "
+                          "layers are applied to the input features and "
+                          "are followed by tanh and possibly dropout."}
+    )
+    conv_layers: str = field(
+        default="[(16, 3, 2), (16, 3, 2)]",
+        metadata={"help": "List of conv layers "
+                          "(format: (channels, kernel, stride))."}
+    )
+    num_blstm_layers: int = field(
+        default=3,
+        metadata={"help": "Number of encoder bi-LSTM layers."}
+    )
+    lstm_size: int = field(
+        default=256,
+        metadata={"help": "LSTM hidden size."}
+    )
+    dropout: float = field(
+        default=0.2,
+        metadata={"help": "Dropout probability to use in the encoder/decoder. "
+                          "Note that this parameters control dropout in "
+                          "various places, there is no fine-grained "
+                          "control for dropout for embeddings vs LSTM "
+                          "layers for example."}
+    )
+    decoder_embed_dim: int = field(
+        default=128,
+        metadata={"help": "Embedding dimension of the decoder target tokens."}
+    )
+    decoder_hidden_dim: int = field(
+        default=512,
+        metadata={"help": "Decoder LSTM hidden dimension."}
+    )
+    decoder_num_layers: int = field(
+        default=2,
+        metadata={"help": "Number of decoder LSTM layers."}
+    )
+    attention_dim: int = field(
+        default=512,
+        metadata={"help": "Hidden layer dimension in MLP attention."}
+    )
+    output_layer_dim: int = field(
+        default=128,
+        metadata={"help": "Hidden layer dim for linear layer prior to "
+                          "output projection."}
+    )
+    load_pretrained_encoder_from: Optional[str] = field(
+        default=None,
+        metadata={"help": "model to take encoder weights from "
+                          "(for initialization)"}
+    )
+    load_pretrained_decoder_from: Optional[str] = field(
+        default=None,
+        metadata={"help": "model to take decoder weights from "
+                          "(for initialization)"}
+    )
+
+    # Populated in build_model()
+    input_feat_per_channel: Optional[int] = field(
+        default=None,
+        metadata={"help": "dimension of input features (per audio channel)"}
+    )
+    input_channels: Optional[int] = field(
+        default=None,
+        metadata={"help": "number of channels in the input audio"}
+    )
+
+
+@register_model("s2t_berard", dataclass=BerardModelConfig)
 class BerardModel(FairseqEncoderDecoderModel):
     """Implementation of a model similar to https://arxiv.org/abs/1802.04200
 
@@ -37,129 +111,50 @@ class BerardModel(FairseqEncoderDecoderModel):
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
 
-    @staticmethod
-    def add_args(parser):
-        parser.add_argument(
-            "--input-layers",
-            type=str,
-            metavar="EXPR",
-            help="List of linear layer dimensions. These "
-            "layers are applied to the input features and "
-            "are followed by tanh and possibly dropout.",
-        )
-        parser.add_argument(
-            "--dropout",
-            type=float,
-            metavar="D",
-            help="Dropout probability to use in the encoder/decoder. "
-            "Note that this parameters control dropout in various places, "
-            "there is no fine-grained control for dropout for embeddings "
-            "vs LSTM layers for example.",
-        )
-        parser.add_argument(
-            "--in-channels",
-            type=int,
-            metavar="N",
-            help="Number of encoder input channels. " "Typically value is 1.",
-        )
-        parser.add_argument(
-            "--conv-layers",
-            type=str,
-            metavar="EXPR",
-            help="List of conv layers " "(format: (channels, kernel, stride)).",
-        )
-        parser.add_argument(
-            "--num-blstm-layers",
-            type=int,
-            metavar="N",
-            help="Number of encoder bi-LSTM layers.",
-        )
-        parser.add_argument(
-            "--lstm-size", type=int, metavar="N", help="LSTM hidden size."
-        )
-        parser.add_argument(
-            "--decoder-embed-dim",
-            type=int,
-            metavar="N",
-            help="Embedding dimension of the decoder target tokens.",
-        )
-        parser.add_argument(
-            "--decoder-hidden-dim",
-            type=int,
-            metavar="N",
-            help="Decoder LSTM hidden dimension.",
-        )
-        parser.add_argument(
-            "--decoder-num-layers",
-            type=int,
-            metavar="N",
-            help="Number of decoder LSTM layers.",
-        )
-        parser.add_argument(
-            "--attention-dim",
-            type=int,
-            metavar="N",
-            help="Hidden layer dimension in MLP attention.",
-        )
-        parser.add_argument(
-            "--output-layer-dim",
-            type=int,
-            metavar="N",
-            help="Hidden layer dim for linear layer prior to output projection.",
-        )
-        parser.add_argument(
-            "--load-pretrained-encoder-from",
-            type=str,
-            metavar="STR",
-            help="model to take encoder weights from (for initialization)",
-        )
-        parser.add_argument(
-            "--load-pretrained-decoder-from",
-            type=str,
-            metavar="STR",
-            help="model to take decoder weights from (for initialization)",
-        )
-
     @classmethod
-    def build_encoder(cls, args, task):
+    def build_encoder(cls, cfg, task):
         encoder = BerardEncoder(
-            input_layers=literal_eval(args.input_layers),
-            conv_layers=literal_eval(args.conv_layers),
-            in_channels=args.input_channels,
-            input_feat_per_channel=args.input_feat_per_channel,
-            num_blstm_layers=args.num_blstm_layers,
-            lstm_size=args.lstm_size,
-            dropout=args.dropout,
+            input_layers=literal_eval(cfg.input_layers),
+            conv_layers=literal_eval(cfg.conv_layers),
+            in_channels=cfg.input_channels,
+            input_feat_per_channel=cfg.input_feat_per_channel,
+            num_blstm_layers=cfg.num_blstm_layers,
+            lstm_size=cfg.lstm_size,
+            dropout=cfg.dropout,
         )
-        if getattr(args, "load_pretrained_encoder_from", None):
+        if getattr(cfg, "load_pretrained_encoder_from", None):
             encoder = checkpoint_utils.load_pretrained_component_from_model(
-                component=encoder, checkpoint=args.load_pretrained_encoder_from
+                component=encoder, checkpoint=cfg.load_pretrained_encoder_from
             )
         return encoder
 
     @classmethod
-    def build_decoder(cls, args, task):
+    def build_decoder(cls, cfg, task):
         decoder = LSTMDecoder(
             dictionary=task.target_dictionary,
-            embed_dim=args.decoder_embed_dim,
-            num_layers=args.decoder_num_layers,
-            hidden_size=args.decoder_hidden_dim,
-            dropout=args.dropout,
-            encoder_output_dim=2 * args.lstm_size,  # bidirectional
-            attention_dim=args.attention_dim,
-            output_layer_dim=args.output_layer_dim,
+            embed_dim=cfg.decoder_embed_dim,
+            num_layers=cfg.decoder_num_layers,
+            hidden_size=cfg.decoder_hidden_dim,
+            dropout=cfg.dropout,
+            encoder_output_dim=2 * cfg.lstm_size,  # bidirectional
+            attention_dim=cfg.attention_dim,
+            output_layer_dim=cfg.output_layer_dim,
         )
-        if getattr(args, "load_pretrained_decoder_from", None):
+        if getattr(cfg, "load_pretrained_decoder_from", None):
             decoder = checkpoint_utils.load_pretrained_component_from_model(
-                component=decoder, checkpoint=args.load_pretrained_decoder_from
+                component=decoder, checkpoint=cfg.load_pretrained_decoder_from
             )
         return decoder
 
     @classmethod
-    def build_model(cls, args, task):
+    def build_model(cls, cfg, task):
         """Build a new model instance."""
-        encoder = cls.build_encoder(args, task)
-        decoder = cls.build_decoder(args, task)
+
+        cfg.input_feat_per_channel = task.data_cfg.input_feat_per_channel
+        cfg.input_channels = task.data_cfg.input_channels
+
+        encoder = cls.build_encoder(cfg, task)
+        decoder = cls.build_decoder(cfg, task)
 
         return cls(encoder, decoder)
 
@@ -282,7 +277,7 @@ class BerardEncoder(FairseqEncoder):
             input_lengths = (input_lengths.float() + 2 * p - k) / s + 1
             input_lengths = input_lengths.floor().long()
 
-        packed_x = nn.utils.rnn.pack_padded_sequence(x, input_lengths)
+        packed_x = nn.utils.rnn.pack_padded_sequence(x, input_lengths.cpu())
 
         h0 = x.new(2 * self.num_blstm_layers, bsz, self.lstm_size).zero_()
         c0 = x.new(2 * self.num_blstm_layers, bsz, self.lstm_size).zero_()
@@ -541,66 +536,3 @@ class LSTMDecoder(FairseqIncrementalDecoder):
 
         new_state = tuple(map(reorder_state, cached_state))
         utils.set_incremental_state(self, incremental_state, "cached_state", new_state)
-
-
-@register_model_architecture(model_name="s2t_berard", arch_name="s2t_berard")
-def berard(args):
-    """The original version: "End-to-End Automatic Speech Translation of
-    Audiobooks" (https://arxiv.org/abs/1802.04200)
-    """
-    args.input_layers = getattr(args, "input_layers", "[256, 128]")
-    args.conv_layers = getattr(args, "conv_layers", "[(16, 3, 2), (16, 3, 2)]")
-    args.num_blstm_layers = getattr(args, "num_blstm_layers", 3)
-    args.lstm_size = getattr(args, "lstm_size", 256)
-    args.dropout = getattr(args, "dropout", 0.2)
-    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 128)
-    args.decoder_num_layers = getattr(args, "decoder_num_layers", 2)
-    args.decoder_hidden_dim = getattr(args, "decoder_hidden_dim", 512)
-    args.attention_dim = getattr(args, "attention_dim", 512)
-    args.output_layer_dim = getattr(args, "output_layer_dim", 128)
-    args.load_pretrained_encoder_from = getattr(
-        args, "load_pretrained_encoder_from", None
-    )
-    args.load_pretrained_decoder_from = getattr(
-        args, "load_pretrained_decoder_from", None
-    )
-
-
-@register_model_architecture(model_name="s2t_berard", arch_name="s2t_berard_256_3_3")
-def berard_256_3_3(args):
-    """Used in
-    * "Harnessing Indirect Training Data for End-to-End Automatic Speech
-    Translation: Tricks of the Trade" (https://arxiv.org/abs/1909.06515)
-    * "CoVoST: A Diverse Multilingual Speech-To-Text Translation Corpus"
-    (https://arxiv.org/pdf/2002.01320.pdf)
-    * "Self-Supervised Representations Improve End-to-End Speech Translation"
-    (https://arxiv.org/abs/2006.12124)
-    """
-    args.decoder_num_layers = getattr(args, "decoder_num_layers", 3)
-    berard(args)
-
-
-@register_model_architecture(model_name="s2t_berard", arch_name="s2t_berard_512_3_2")
-def berard_512_3_2(args):
-    args.num_blstm_layers = getattr(args, "num_blstm_layers", 3)
-    args.lstm_size = getattr(args, "lstm_size", 512)
-    args.dropout = getattr(args, "dropout", 0.3)
-    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 256)
-    args.decoder_num_layers = getattr(args, "decoder_num_layers", 2)
-    args.decoder_hidden_dim = getattr(args, "decoder_hidden_dim", 1024)
-    args.attention_dim = getattr(args, "attention_dim", 512)
-    args.output_layer_dim = getattr(args, "output_layer_dim", 256)
-    berard(args)
-
-
-@register_model_architecture(model_name="s2t_berard", arch_name="s2t_berard_512_5_3")
-def berard_512_5_3(args):
-    args.num_blstm_layers = getattr(args, "num_blstm_layers", 5)
-    args.lstm_size = getattr(args, "lstm_size", 512)
-    args.dropout = getattr(args, "dropout", 0.3)
-    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 256)
-    args.decoder_num_layers = getattr(args, "decoder_num_layers", 3)
-    args.decoder_hidden_dim = getattr(args, "decoder_hidden_dim", 1024)
-    args.attention_dim = getattr(args, "attention_dim", 512)
-    args.output_layer_dim = getattr(args, "output_layer_dim", 256)
-    berard(args)

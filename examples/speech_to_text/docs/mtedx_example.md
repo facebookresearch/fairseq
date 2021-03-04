@@ -39,34 +39,24 @@ The generated files (manifest, features, vocabulary and data configuration) will
 #### Training
 Spanish as example:
 ```bash
-fairseq-train ${MTEDX_ROOT}/es-es \
-    --config-yaml config_asr.yaml --train-subset train_asr --valid-subset valid_asr \
-    --save-dir ${ASR_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-epoch 200 \
-    --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
-    --arch s2t_transformer_xs --optimizer adam --lr 2e-3 --lr-scheduler inverse_sqrt \
-    --warmup-updates 10000 --clip-norm 10.0 --seed 1 --dropout 0.3 --label-smoothing 0.1 \
-    --load-pretrained-encoder-from ${PRETRAINED_ENCODER} \
-    --skip-invalid-size-inputs-valid-test \
-    --keep-last-epochs 10 --update-freq 8 --patience 10
+fairseq-hydra-train \
+    task.data=${MTEDX_ROOT}/es-es \
+    checkpoint.save_dir=${ASR_SAVE_DIR} \
+    --config-dir ${FAIRSEQ_ROOT}/examples/speech_to_text/config/ \
+    --config-name mtedx-s2t_transformer_xs-asr.yaml
 ```
 For joint model (using ASR data from all 8 languages):
 ```bash
-fairseq-train ${MTEDX_ROOT} \
-    --config-yaml config_asr.yaml \
-    --train-subset train_es-es_asr,train_fr-fr_asr,train_pt-pt_asr,train_it-it_asr,train_ru-ru_asr,train_el-el_asr,train_ar-ar_asr,train_de-de_asr \
-    --valid-subset valid_es-es_asr,valid_fr-fr_asr,valid_pt-pt_asr,valid_it-it_asr,valid_ru-ru_asr,valid_el-el_asr,valid_ar-ar_asr,valid_de-de_asr \
-    --save-dir ${MULTILINGUAL_ASR_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-epoch 200 \
-    --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
-    --arch s2t_transformer_s --optimizer adam --lr 2e-3 --lr-scheduler inverse_sqrt \
-    --warmup-updates 10000 --clip-norm 10.0 --seed 1 --dropout 0.3 --label-smoothing 0.1 \
-    --skip-invalid-size-inputs-valid-test \
-    --keep-last-epochs 10 --update-freq 8 --patience 10 \
-    --ignore-prefix-size 1
+fairseq-hydra-train \
+    task.data=${MTEDX_ROOT} \
+    checkpoint.save_dir=${MULTILINGUAL_ASR_SAVE_DIR} \
+    --config-dir ${FAIRSEQ_ROOT}/examples/speech_to_text/config/ \
+    --config-name mtedx-s2t_transformer_s-asr_joint.yaml
 ```
-where `MULTILINGUAL_ASR_SAVE_DIR` is the checkpoint root path. We set `--update-freq 8` to simulate 8 GPUs
+where `MULTILINGUAL_ASR_SAVE_DIR` is the checkpoint root path. We set `optimization.update_freq=[8` to simulate 8 GPUs
 with 1 GPU. You may want to update it accordingly when using more than 1 GPU.
 For multilingual models, we prepend target language ID token as target BOS, which should be excluded from
-the training loss via `--ignore-prefix-size 1`.
+the training loss via `criterion.ignore_prefix_size=1`.
 
 #### Inference & Evaluation
 ```bash
@@ -76,7 +66,7 @@ python scripts/average_checkpoints.py \
   --output "${ASR_SAVE_DIR}/${CHECKPOINT_FILENAME}"
 
 fairseq-generate ${MTEDX_ROOT}/es-es \
-  --config-yaml config_asr.yaml --gen-subset test --task speech_to_text \
+  --data-config-yaml config_asr.yaml --gen-subset test --task speech_to_text \
   --path ${ASR_SAVE_DIR}/${CHECKPOINT_FILENAME} --max-tokens 50000 --beam 5 \
   --skip-invalid-size-inputs-valid-test \
   --scoring wer --wer-tokenizer 13a --wer-lowercase --wer-remove-punct --remove-bpe
@@ -89,13 +79,14 @@ python scripts/average_checkpoints.py \
 
 for LANG in es fr pt it ru el ar de; do
   fairseq-generate ${MTEDX_ROOT} \
-    --config-yaml config_asr.yaml --gen-subset test_${LANG}-${LANG}_asr --task speech_to_text \
+    --data-config-yaml config_asr.yaml --gen-subset test_${LANG}-${LANG}_asr --task speech_to_text \
     --prefix-size 1 --path ${MULTILINGUAL_ASR_SAVE_DIR}/${CHECKPOINT_FILENAME} \
     --max-tokens 40000 --beam 5 \
     --skip-invalid-size-inputs-valid-test \
     --scoring wer --wer-tokenizer 13a --wer-lowercase --wer-remove-punct --remove-bpe
 done
 ```
+NOTE: Set `--model-overrides "{'arch': 's2t_transformer'}"` if using a checkpoint previous to the Hydra migration.
 #### Results
 | Data         | --arch             | Params |  Es  |  Fr  |  Pt  |  It  |  Ru  |   El  |   Ar  |   De  |
 |--------------|--------------------|--------|------|------|------|------|------|-------|-------|-------|
@@ -106,30 +97,21 @@ done
 #### Training
 Es-En as example:
 ```bash
-fairseq-train ${MTEDX_ROOT}/es-en \
-    --config-yaml config_st.yaml --train-subset train_st --valid-subset valid_st \
-    --save-dir ${ST_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-epoch 200 \
-    --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
-    --arch s2t_transformer_xs --optimizer adam --lr 2e-3 --lr-scheduler inverse_sqrt \
-    --warmup-updates 10000 --clip-norm 10.0 --seed 1 --dropout 0.3 --label-smoothing 0.1 \
-    --load-pretrained-encoder-from ${PRETRAINED_ENCODER} \
-    --skip-invalid-size-inputs-valid-test \
-    --keep-last-epochs 10 --update-freq 8 --patience 10
+fairseq-hydra-train \
+    task.data=${MTEDX_ROOT}/es-en \
+    checkpoint.save_dir=${ST_SAVE_DIR} \
+    checkpoint.load_pretrained_encoder_from=${PRETRAINED_ENCODER} \
+    --config-dir ${FAIRSEQ_ROOT}/examples/speech_to_text/config/ \
+    --config-name mtedx-s2t_transformer_xs-st.yaml
 ```
 For multilingual model (all 12 directions):
 ```bash
-fairseq-train ${MTEDX_ROOT} \
-    --config-yaml config_st.yaml \
-    --train-subset train_el-en_st,train_es-en_st,train_es-fr_st,train_es-it_st,train_es-pt_st,train_fr-en_st,train_fr-es_st,train_fr-pt_st,train_it-en_st,train_it-es_st,train_pt-en_st,train_pt-es_st,train_ru-en_st \
-    --valid-subset valid_el-en_st,valid_es-en_st,valid_es-fr_st,valid_es-it_st,valid_es-pt_st,valid_fr-en_st,valid_fr-es_st,valid_fr-pt_st,valid_it-en_st,valid_it-es_st,valid_pt-en_st,valid_pt-es_st,valid_ru-en_st \
-    --save-dir ${MULTILINGUAL_ST_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-epoch 200 \
-    --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
-    --arch s2t_transformer_s --optimizer adam --lr 2e-3 --lr-scheduler inverse_sqrt \
-    --warmup-updates 10000 --clip-norm 10.0 --seed 1 --dropout 0.3 --label-smoothing 0.1 \
-    --skip-invalid-size-inputs-valid-test \
-    --keep-last-epochs 10 --update-freq 8 --patience 10 \
-    --ignore-prefix-size 1 \
-    --load-pretrained-encoder-from ${PRETRAINED_ENCODER}
+fairseq-hydra-train \
+    task.data=${MTEDX_ROOT} \
+    checkpoint.save_dir=${MULTILINGUAL_ST_SAVE_DIR} \
+    checkpoint.load_pretrained_encoder_from=${PRETRAINED_ENCODER} \
+    --config-dir ${FAIRSEQ_ROOT}/examples/speech_to_text/config/ \
+    --config-name mtedx-s2t_transformer_s-st_multi.yaml}
 ```
 where `ST_SAVE_DIR` (`MULTILINGUAL_ST_SAVE_DIR`) is the checkpoint root path. The ST encoder is pre-trained by ASR
 for faster training and better performance: `--load-pretrained-encoder-from <(JOINT_)ASR checkpoint path>`. We set
@@ -146,7 +128,7 @@ python scripts/average_checkpoints.py \
   --output "${ST_SAVE_DIR}/${CHECKPOINT_FILENAME}"
 
 fairseq-generate ${MTEDX_ROOT}/es-en \
-  --config-yaml config_st.yaml --gen-subset test --task speech_to_text \
+  --data-config-yaml config_st.yaml --gen-subset test --task speech_to_text \
   --path ${ST_SAVE_DIR}/${CHECKPOINT_FILENAME} \
   --max-tokens 50000 --beam 5 --scoring sacrebleu --remove-bpe
 
@@ -157,7 +139,7 @@ python scripts/average_checkpoints.py \
 
 for LANGPAIR in es-en es-fr es-pt fr-en fr-es fr-pt pt-en pt-es it-en it-es ru-en el-en; do
   fairseq-generate ${MTEDX_ROOT} \
-    --config-yaml config_st.yaml --gen-subset test_${LANGPAIR}_st --task speech_to_text \
+    --data-config-yaml config_st.yaml --gen-subset test_${LANGPAIR}_st --task speech_to_text \
     --prefix-size 1 --path ${MULTILINGUAL_ST_SAVE_DIR}/${CHECKPOINT_FILENAME} \
     --max-tokens 40000 --beam 5 \
     --skip-invalid-size-inputs-valid-test \
@@ -166,6 +148,7 @@ done
 ```
 For multilingual models, we force decoding from the target language ID token (as BOS) via `--prefix-size 1`.
 
+NOTE: Set `--model-overrides "{'arch': 's2t_transformer'}"` if using a checkpoint previous to the Hydra migration.
 #### Results
 | Data         | --arch          | Params | Es-En | Es-Pt | Es-Fr | Fr-En | Fr-Es | Fr-Pt | Pt-En | Pt-Es | It-En | It-Es | Ru-En | El-En |
 |--------------|--------------------|-----|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|

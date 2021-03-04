@@ -12,7 +12,6 @@ from fairseq.models import (
 )
 from fairseq.models.speech_to_text import (
     ConvTransformerModel,
-    convtransformer_espnet,
     ConvTransformerEncoder,
 )
 from fairseq.models.speech_to_text.modules.augmented_memory_attention import (
@@ -153,3 +152,51 @@ class ConvtransformerEmformer(SimulConvTransformerModel):
 )
 def convtransformer_emformer_base(args):
     convtransformer_espnet(args)
+
+
+def convtransformer_espnet(args):
+    # convtransformer / convtransformer_espnet
+    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 256)
+    args.encoder_layers = getattr(args, "encoder_layers", 12)
+    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 4)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 4)
+
+    # convtransformer / base_architecture
+    args.input_feat_per_channel = getattr(args, "input_feat_per_channel", 80)
+    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
+    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 2048)
+    args.encoder_layers = getattr(args, "encoder_layers", 6)
+    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 8)
+    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", False)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", args.encoder_embed_dim)
+    args.decoder_ffn_embed_dim = getattr(
+        args, "decoder_ffn_embed_dim", args.encoder_ffn_embed_dim
+    )
+    args.decoder_layers = getattr(args, "decoder_layers", 6)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 8)
+    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", False)
+    args.decoder_learned_pos = getattr(args, "decoder_learned_pos", False)
+    args.attention_dropout = getattr(args, "attention_dropout", 0.0)
+    args.activation_dropout = getattr(args, "activation_dropout", 0.0)
+    args.activation_fn = getattr(args, "activation_fn", "relu")
+    args.dropout = getattr(args, "dropout", 0.1)
+    args.adaptive_softmax_cutoff = getattr(args, "adaptive_softmax_cutoff", None)
+    args.adaptive_softmax_dropout = getattr(args, "adaptive_softmax_dropout", 0)
+    args.share_decoder_input_output_embed = getattr(
+        args, "share_decoder_input_output_embed", False
+    )
+    args.no_token_positional_embeddings = getattr(
+        args, "no_token_positional_embeddings", False
+    )
+    args.adaptive_input = getattr(args, "adaptive_input", False)
+    args.decoder_layerdrop = getattr(args, "decoder_layerdrop", 0.0)
+    args.decoder_output_dim = getattr(
+        args, "decoder_output_dim", args.decoder_embed_dim
+    )
+    args.decoder_input_dim = getattr(args, "decoder_input_dim", args.decoder_embed_dim)
+    args.no_scale_embedding = getattr(args, "no_scale_embedding", False)
+    args.quant_noise_pq = getattr(args, "quant_noise_pq", 0)
+    args.max_source_positions = getattr(args, "max_source_positions", 3000)
+    args.max_target_positions = getattr(args, "max_target_positions", 1024)
+    args.tie_adaptive_weights = getattr(args, "tie_adaptive_weights", False)
+    args.conv_out_channels = getattr(args, "conv_out_channels", args.encoder_embed_dim)

@@ -1,0 +1,10 @@
+# @package _group_
+
+num_blstm_layers: 5
+lstm_size: 512
+dropout: 0.3
+decoder_embed_dim: 256
+decoder_hidden_dim: 1024
+decoder_num_layers: 3
+attention_dim: 512
+output_layer_dim: 256
