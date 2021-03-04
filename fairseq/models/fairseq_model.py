@@ -14,7 +14,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from fairseq import utils
-from fairseq.checkpoint_utils import prune_state_dict
 from fairseq.data import Dictionary
 from fairseq.dataclass.utils import (
     convert_namespace_to_omegaconf,
@@ -111,6 +110,9 @@ class BaseFairseqModel(nn.Module):
             model_cfg = convert_namespace_to_omegaconf(args).model
 
         self.upgrade_state_dict(state_dict)
+
+        from fairseq.checkpoint_utils import prune_state_dict
+
         new_state_dict = prune_state_dict(state_dict, model_cfg)
         return super().load_state_dict(new_state_dict, strict)
 
@@ -450,6 +452,9 @@ class FairseqMultiModel(BaseFairseqModel):
             model_cfg = convert_namespace_to_omegaconf(args).model
 
         self.upgrade_state_dict(state_dict)
+
+        from fairseq.checkpoint_utils import prune_state_dict
+
         new_state_dict = prune_state_dict(state_dict, model_cfg)
         return super().load_state_dict(new_state_dict, strict)
 
