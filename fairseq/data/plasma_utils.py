@@ -5,21 +5,24 @@
 
 import os
 import subprocess
+import logging
 
-import torch
 
 try:
     import pyarrow.plasma as plasma
+
     PYARROW_AVAILABLE = True
 except ImportError:
     plasma = None
     PYARROW_AVAILABLE = False
-from typing import Optional
+
 import tempfile
 import hashlib
-
 from filelock import FileLock
-USE_LOCK = os.getenv('USE_LOCK', False)
+
+NO_LOCK = os.getenv("NO_LOCK", False)
+#logging.getLogger("filelock").setLevel(logging.ERROR)
+
 
 class PlasmaArray:
     """
@@ -95,50 +98,57 @@ class PlasmaArray:
 
 DEFAULT_PLASMA_PATH = "/tmp/plasma"
 
-import numpy as np
+def plasma_store_contains(split_path, object_id, timeout_ms=30000) -> bool:
+    id = PlasmaView.get_object_id(split_path, object_id)
+    client = plasma.connect(DEFAULT_PLASMA_PATH, num_retries=200)
+    ret = client.get(id, timeout_ms=timeout_ms)
+    client.disconnect()
+    return not isinstance(ret, plasma.ObjectNotAvailable)
 
 
 class PlasmaView:
-    """
-    New callers of this method should read https://tinyurl.com/25xx7j7y to avoid hash collisions
-    """
-
-    def __init__(self, array, object_id: int, path=DEFAULT_PLASMA_PATH):
-        assert isinstance(array, np.ndarray)
+    def __init__(
+        self, array, split_path: str, object_num: int, path=DEFAULT_PLASMA_PATH
+    ):
         assert PYARROW_AVAILABLE
+        assert split_path is not None
+
         self.path = path
-        self.object_id = self.get_object_id(object_id)
-        self._client = None  # Initialize lazily for pickle
-        self.use_lock = USE_LOCK
-        try:
-            self.client.put(array, object_id=self.object_id)
-            self.msg("PUT")
-        except plasma.PlasmaObjectExists:
-            self.msg("PlasmaObjectExists")
+        self.split_path = split_path
+        self.object_id = self.get_object_id(self.split_path, object_num)
+        self._client = None  # Initialize lazily for pickle, (TODO(SS): needed?)
+        self._n = None
+        self.use_lock = not NO_LOCK
+        if array is not None:
+            try:
+                self.client.put(array, object_id=self.object_id)
+                self.log("PUT")
+            except plasma.PlasmaObjectExists:
+                self.log("PlasmaObjectExists")
 
     @property
     def client(self):
         if self._client is None:
             self._client = plasma.connect(self.path, num_retries=200)
         return self._client
+        # return self._client
 
     @property
-    def array(self):  # -> np.ndarray
-        self.msg("GET")
+    def array(self):
+        """Fetch a read only view of a np array, stored in plasma."""
+        self.log("GET")
         if self.use_lock:
-            with FileLock("/tmp/plasma_lock"):
+            with FileLock("/tmp/plasma_read_lock"):
                 ret = self.client.get(self.object_id)
+
         else:
             ret = self.client.get(self.object_id)
-        self.msg("GOT")
+        self.log("GOT")
         return ret
 
-    @property
-    def debug_info(self) -> str:
-        return f"pid: {os.getpid()}, id: {self.object_id}, lock: {self.use_lock}"
-
-    def msg(self, preamble) -> None:
-        print(f"P: {self.debug_info}: {preamble}")
+    def log(self, msg: str) -> None:
+        # print(f"pid: {os.getpid()}, id: {self.object_id}, lock: {self.use_lock}: {preamble}")
+        pass
 
     @staticmethod
     def int_to_bytes(x: int) -> bytes:
@@ -147,23 +157,23 @@ class PlasmaView:
         )  # https://tinyurl.com/56j5964v
 
     @staticmethod
-    def get_object_id(x: int) -> plasma.ObjectID:
-        id = PlasmaView.int_to_bytes(x).zfill(
-            20
-        )  # fill from left with zeroes, must be of length 20
-        return plasma.ObjectID(id)
+    def get_object_id(split_path: str, object_num: int) -> plasma.ObjectID:
+        hash = hashlib.blake2b(bytes(split_path, "utf-8"), digest_size=20)
+        hash.update(object_num.to_bytes(4, byteorder="big"))
+        return plasma.ObjectID(hash.digest())
 
     @staticmethod
     def get_object_id_arr_unused(arr) -> plasma.ObjectID:
         """Just hash the shape"""
-        # UNUSED, for now.
-        hash = hashlib.blake2b(b'0', digest_size=20)
+        # TODO(SS): delete if useless
+        hash = hashlib.blake2b(b"0", digest_size=20)
         for dim in arr.shape:
-            hash.update(dim.to_bytes(4, byteorder='big'))
+            hash.update(dim.to_bytes(4, byteorder="big"))
         return plasma.ObjectID(hash.digest())
 
     def __getstate__(self):
         """Called on pickle save, I believe"""
+        self.client.disconnect()
         state = self.__dict__.copy()
         state["_client"] = None
         return state
@@ -174,13 +184,17 @@ class PlasmaView:
         # self.client = plasma.connect(self.path, num_retries=200)
 
     def __del__(self):
-        # self.client.disconnect()
-        # del self.client
         self._client = None
+
+    def __len__(self):
+        """Save reads by caching len"""
+        if self._n is None:
+            self._n = len(self.array)
+        return self._n
 
 
 ONE_TB = 1024 ** 4
-GB200 = (1024 ** 3) * 200
+GB200 = (1024 ** 3) * 100
 
 
 def start_plasma_store(

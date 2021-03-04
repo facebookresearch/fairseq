@@ -19,19 +19,13 @@ def collate(samples, pad_idx, eos_idx):
             for i in range(len(samples[0][key])):
                 res.append(
                     data_utils.collate_tokens(
-                        [s[key][i] for s in samples],
-                        pad_idx,
-                        eos_idx,
-                        left_pad=False,
+                        [s[key][i] for s in samples], pad_idx, eos_idx, left_pad=False,
                     )
                 )
             return res
         else:
             return data_utils.collate_tokens(
-                [s[key] for s in samples],
-                pad_idx,
-                eos_idx,
-                left_pad=False,
+                [s[key] for s in samples], pad_idx, eos_idx, left_pad=False,
             )
 
     src_tokens = merge("source")
@@ -220,6 +214,8 @@ class MonolingualDataset(FairseqDataset):
         else:
             order = [np.arange(len(self))]
         order.append(self.sizes)
+        # raise ValueError(f'{len(self)}, {self.sizes}')
+        # import ipdb;
         return np.lexsort(order)
 
     @property

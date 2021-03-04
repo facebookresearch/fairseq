@@ -187,7 +187,7 @@ class CommonConfig(FairseqDataclass):
             "main method can return a value (useful for sweeps)"
         },
     )
-    use_plasma_view: bool = field(default=False, metadata={"help": "FIXME"})
+    use_plasma_view: bool = field(default=False, metadata={"help": "use plasma"})
 
 
 @dataclass

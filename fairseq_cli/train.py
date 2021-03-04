@@ -66,29 +66,31 @@ def main(cfg: FairseqConfig) -> None:
         checkpoint_utils.verify_checkpoint_directory(cfg.checkpoint.save_dir)
 
     # Print args
-    logger.info(cfg)
+    # logger.info(cfg)
 
     # Setup task, e.g., translation, language modeling, etc.
-    task = tasks.setup_task(cfg.task)
+    task = tasks.setup_task(cfg.task)  # type: FairseqTask
     # Load valid dataset (we load training data below, based on the latest checkpoint)
     for valid_sub_split in cfg.dataset.valid_subset.split(","):
-        task.load_dataset(valid_sub_split, combine=False, epoch=1)
+        task.load_dataset(
+            valid_sub_split, combine=False, epoch=1,  is_master=distributed_utils.is_master(cfg.distributed_training),
+        )
 
     assert cfg.criterion, "Please specify criterion to train a model"
 
     # Build model and criterion
     model = task.build_model(cfg.model)
     criterion = task.build_criterion(cfg.criterion)
-    logger.info(model)
-    logger.info("task: {}".format(task.__class__.__name__))
-    logger.info("model: {}".format(model.__class__.__name__))
-    logger.info("criterion: {}".format(criterion.__class__.__name__))
-    logger.info(
-        "num. model params: {:,} (num. trained: {:,})".format(
-            sum(p.numel() for p in model.parameters()),
-            sum(p.numel() for p in model.parameters() if p.requires_grad),
-        )
-    )
+    # logger.info(model)
+    # logger.info("task: {}".format(task.__class__.__name__))
+    # logger.info("model: {}".format(model.__class__.__name__))
+    # logger.info("criterion: {}".format(criterion.__class__.__name__))
+    # logger.info(
+    #     "num. model params: {:,} (num. trained: {:,})".format(
+    #         sum(p.numel() for p in model.parameters()),
+    #         sum(p.numel() for p in model.parameters() if p.requires_grad),
+    #     )
+    # )
 
     # (optionally) Configure quantization
     if cfg.common.quantization_config_path is not None:
@@ -421,7 +423,9 @@ def validate(
         # create a new root metrics aggregator so validation metrics
         # don't pollute other aggregators (e.g., train meters)
         with metrics.aggregate(new_root=True) as agg:
-            for sample in progress:
+            for i, sample in enumerate(progress):
+                if cfg.common.n_val_steps is not None and i > cfg.common.n_val_steps:
+                    break
                 trainer.valid_step(sample)
 
         # log validation stats
