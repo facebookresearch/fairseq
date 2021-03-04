@@ -226,6 +226,7 @@ class TransformerSentenceEncoder(nn.Module):
         last_state_only: bool = False,
         positions: Optional[torch.Tensor] = None,
         token_embeddings: Optional[torch.Tensor] = None,
+        attn_mask: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         is_tpu = tokens.device.type == "xla"
 
@@ -268,7 +269,7 @@ class TransformerSentenceEncoder(nn.Module):
             inner_states.append(x)
 
         for layer in self.layers:
-            x, _ = layer(x, self_attn_padding_mask=padding_mask)
+            x, _ = layer(x, self_attn_padding_mask=padding_mask, self_attn_mask=attn_mask)
             if not last_state_only:
                 inner_states.append(x)
 
