@@ -189,6 +189,7 @@ class CommonConfig(FairseqDataclass):
     )
     use_plasma_view: bool = field(default=False, metadata={"help": "use plasma"})
 
+    n_val_steps: Optional[int] = field(default=None, metadata={"help": "use plasma"})
 
 @dataclass
 class DistributedTrainingConfig(FairseqDataclass):
