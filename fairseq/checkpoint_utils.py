@@ -21,7 +21,7 @@ from fairseq.dataclass.utils import (
 )
 from fairseq.file_io import PathManager
 from fairseq.models import FairseqDecoder, FairseqEncoder
-from omegaconf import DictConfig, open_dict
+from omegaconf import Container, DictConfig, open_dict, OmegaConf
 
 
 logger = logging.getLogger(__name__)
@@ -275,8 +275,22 @@ def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False):
         for arg_name, arg_val in arg_overrides.items():
             setattr(args, arg_name, arg_val)
 
-    if "cfg" in state and state["cfg"] is not None and arg_overrides is not None:
-        overwrite_args_by_name(state["cfg"], arg_overrides)
+    if "cfg" in state and state["cfg"] is not None:
+
+        # hack to be able to set Namespace in dict config. this should be removed when we update to newer
+        # omegaconf version that supports object flags, or when we migrate all existing models
+        from omegaconf import _utils
+
+        old_primitive = _utils.is_primitive_type
+        _utils.is_primitive_type = lambda _: True
+
+        state["cfg"] = OmegaConf.create(state["cfg"])
+
+        _utils.is_primitive_type = old_primitive
+        OmegaConf.set_struct(state["cfg"], True)
+
+        if arg_overrides is not None:
+            overwrite_args_by_name(state["cfg"], arg_overrides)
 
     state = _upgrade_state_dict(state)
     return state
@@ -440,7 +454,7 @@ def save_state(
     if extra_state is None:
         extra_state = {}
     state_dict = {
-        "cfg": cfg,
+        "cfg": OmegaConf.to_container(cfg) if OmegaConf.is_config(cfg) else cfg,
         "args": kwargs.get("args", None),
         "model": model_state_dict or {},
         "optimizer_history": optim_history
@@ -453,7 +467,7 @@ def save_state(
             }
         ],
         "extra_state": extra_state,
-        "task_state": task.state_dict() if task is not None else {}
+        "task_state": task.state_dict() if task is not None else {},
     }
     if utils.has_parameters(criterion):
         state_dict["criterion"] = criterion.state_dict()
@@ -568,15 +582,39 @@ def _upgrade_state_dict(state):
         if hasattr(state["args"], "lr") and isinstance(state["args"].lr, float):
             state["args"].lr = [state["args"].lr]
         # convert task data arg to a string instead of List[string]
-        if hasattr(state["args"], "data") and isinstance(state["args"].data, list) and len(state["args"].data) > 0:
+        if (
+            hasattr(state["args"], "data")
+            and isinstance(state["args"].data, list)
+            and len(state["args"].data) > 0
+        ):
             state["args"].data = state["args"].data[0]
 
         state["cfg"] = convert_namespace_to_omegaconf(state["args"])
 
     if "cfg" in state and state["cfg"] is not None:
-        with open_dict(state["cfg"]):
+        cfg = state["cfg"]
+        with open_dict(cfg):
             # any upgrades for Hydra-based configs
-            pass
+            if (
+                "task" in cfg
+                and "eval_wer_config" in cfg.task
+                and isinstance(cfg.task.eval_wer_config.print_alignment, bool)
+            ):
+                cfg.task.eval_wer_config.print_alignment = "hard"
+            if "generation" in cfg and isinstance(cfg.generation.print_alignment, bool):
+                cfg.generation.print_alignment = "hard"
+            if (
+                "model" in cfg
+                and "w2v_args" in cfg.model
+                and cfg.model.w2v_args is not None
+                and (
+                    hasattr(cfg.model.w2v_args, "task") or "task" in cfg.model.w2v_args
+                )
+                and isinstance(
+                    cfg.model.w2v_args.task.eval_wer_config.print_alignment, bool
+                )
+            ):
+                cfg.model.w2v_args.task.eval_wer_config.print_alignment = "hard"
 
     return state
 
