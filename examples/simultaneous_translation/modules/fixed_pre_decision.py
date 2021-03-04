@@ -1,6 +1,7 @@
 from functools import partial
 
 import torch
+import math
 import torch.nn.functional as F
 
 from . import register_monotonic_attention
@@ -96,6 +97,9 @@ def fixed_pooling_monotonic_attention(monotonic_attention):
                 incremental_state=None,
                 **extra_args
             ):
+                src_len = key.size(0)
+                tgt_len = query.size(0)
+                batch_size = query.size(1)
 
                 if self.pre_decision_ratio == 1:
                     return super().p_choose(
@@ -119,6 +123,16 @@ def fixed_pooling_monotonic_attention(monotonic_attention):
                 else:
                     key_padding_mask_pool = None
 
+                if incremental_state is not None:
+                    # The floor instead of ceil is used for inference
+                    # But make sure the length key_pool at least 1
+                    if (
+                        max(1, math.floor(key.size(0) / self.pre_decision_ratio))
+                    ) < key_pool.size(0):
+                        key_pool = key_pool[:-1]
+                        if key_padding_mask_pool is not None:
+                            key_padding_mask_pool = key_padding_mask_pool[:-1]
+
                 p_choose_pooled = super().p_choose(
                     query,
                     key_pool,
@@ -129,13 +143,23 @@ def fixed_pooling_monotonic_attention(monotonic_attention):
                 # Upsample, interpolate zeros
                 p_choose = self.insert_zeros(p_choose_pooled)
 
-                # can be larger than src_len because we used ceil before
-                src_len = key.size(0)
-                p_choose = p_choose[:, :, :src_len]
-                p_choose[:, :, -1] = p_choose_pooled[:, :, -1]
-
-                tgt_len = query.size(0)
-                batch_size = query.size(1)
+                if p_choose.size(-1) < src_len:
+                    # Append zeros if the upsampled p_choose is shorter than src_len
+                    p_choose = torch.cat(
+                        [
+                            p_choose,
+                            p_choose.new_zeros(
+                                p_choose.size(0),
+                                tgt_len,
+                                src_len - p_choose.size(-1)
+                            )
+                        ],
+                        dim=2
+                    )
+                else:
+                    # can be larger than src_len because we used ceil before
+                    p_choose = p_choose[:, :, :src_len]
+                    p_choose[:, :, -1] = p_choose_pooled[:, :, -1]
 
                 assert list(p_choose.size()) == [
                     batch_size * self.num_heads,

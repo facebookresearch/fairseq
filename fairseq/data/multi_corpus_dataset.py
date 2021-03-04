@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
+import time
 from collections import OrderedDict
 from typing import Dict, List
 
@@ -11,7 +12,6 @@ import numpy as np
 from fairseq.data import data_utils
 
 from . import FairseqDataset
-
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,7 @@ class MultiCorpusDataset(FairseqDataset):
         super().__init__()
         assert isinstance(datasets, OrderedDict)
         assert len(datasets) == len(distribution)
+        assert sum(distribution) == 1
         self.datasets = datasets
         self.distribution = distribution
         self.seed = seed
@@ -69,43 +70,61 @@ class MultiCorpusDataset(FairseqDataset):
             self.total_num_instances += len(dataset)
 
     def ordered_indices(self):
+        start = time.time()
         with data_utils.numpy_seed(self.seed, self.epoch):
-            # Used to store the order of indices of each dataset to use
-            indices = [
-                np.random.permutation(len(dataset))
-                for dataset in self.datasets.values()
-            ]
-            # Keep track of which samples we've  used for each dataset
-            counters = [0 for _ in self.datasets]
+            sampled_indices = []
+            num_selected_instances = 0
 
-            sampled_indices = [
-                self._sample(indices, counters) for _ in range(self.total_num_instances)
-            ]
+            # For each dataset i, sample self.distribution[i] * self.total_num_instances
+            for i, key in enumerate(self.datasets):
+
+                if i < len(self.datasets) - 1:
+                    num_instances = int(self.distribution[i] * self.total_num_instances)
+                    high = self.dataset_offsets[i + 1]
+                else:
+                    num_instances = self.total_num_instances - num_selected_instances
+                    high = self.total_num_instances
+
+                logger.info(f"sampling {num_instances} from {key} dataset")
+                num_selected_instances += num_instances
+
+                # First, add k copies of the dataset where k = num_instances // len(dataset).
+                # This ensures an equal distribution of the data points as much as possible.
+                # For the remaining entries randomly sample them
+                dataset_size = len(self.datasets[key])
+                num_copies = num_instances // dataset_size
+                dataset_indices = (
+                    np.random.permutation(high - self.dataset_offsets[i])
+                    + self.dataset_offsets[i]
+                )[: num_instances - num_copies * dataset_size]
+                if num_copies > 0:
+                    sampled_indices += list(
+                        np.concatenate(
+                            (
+                                np.repeat(
+                                    np.arange(self.dataset_offsets[i], high), num_copies
+                                ),
+                                dataset_indices,
+                            )
+                        )
+                    )
+                else:
+                    sampled_indices += list(dataset_indices)
+
+            assert (
+                len(sampled_indices) == self.total_num_instances
+            ), f"{len(sampled_indices)} vs {self.total_num_instances}"
+
+            np.random.shuffle(sampled_indices)
             if self.sort_indices:
                 sampled_indices.sort(key=lambda i: self.num_tokens(i))
 
-            return np.array(sampled_indices, dtype=np.int64)
-
-    def _sample(self, indices, counters):
-        # First pick dataset
-        dataset_idx = np.random.choice(len(self.distribution), p=self.distribution)
-
-        # Then get dataset internal index
-        idx = indices[dataset_idx][counters[dataset_idx]]
-
-        # Convert to multi-datasets index
-        idx += self.dataset_offsets[dataset_idx]
-
-        counters[dataset_idx] += 1
-
-        # Reset if we reach end
-        if counters[dataset_idx] == len(self.dataset_list[dataset_idx]):
-            counters[dataset_idx] = 0
-            indices[dataset_idx] = np.random.permutation(
-                len(self.dataset_list[dataset_idx])
+            logger.info(
+                "multi_corpus_dataset ordered_indices took {}s".format(
+                    time.time() - start
+                )
             )
-
-        return idx
+            return np.array(sampled_indices, dtype=np.int64)
 
     def _map_index(self, index: int):
         """
