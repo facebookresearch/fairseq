@@ -27,6 +27,13 @@ from torch import Tensor
 logger = logging.getLogger(__name__)
 
 
+def check_type(module, expected_type):
+    if hasattr(module, "unwrapped_module"):
+        assert isinstance(module.unwrapped_module, expected_type)
+    else:
+        assert isinstance(module, expected_type)
+
+
 class BaseFairseqModel(nn.Module):
     """Base class for fairseq models."""
 
@@ -284,8 +291,9 @@ class FairseqEncoderDecoderModel(BaseFairseqModel):
 
         self.encoder = encoder
         self.decoder = decoder
-        assert isinstance(self.encoder, FairseqEncoder)
-        assert isinstance(self.decoder, FairseqDecoder)
+
+        check_type(self.encoder, FairseqEncoder)
+        check_type(self.decoder, FairseqDecoder)
 
     def forward(self, src_tokens, src_lengths, prev_output_tokens, **kwargs):
         """
@@ -365,8 +373,8 @@ class FairseqMultiModel(BaseFairseqModel):
         assert encoders.keys() == decoders.keys()
         self.keys = list(encoders.keys())
         for key in self.keys:
-            assert isinstance(encoders[key], FairseqEncoder)
-            assert isinstance(decoders[key], FairseqDecoder)
+            check_type(encoders[key], FairseqEncoder)
+            check_type(decoders[key], FairseqDecoder)
 
         self.models = nn.ModuleDict(
             {
@@ -469,7 +477,7 @@ class FairseqLanguageModel(BaseFairseqModel):
     def __init__(self, decoder):
         super().__init__()
         self.decoder = decoder
-        assert isinstance(self.decoder, FairseqDecoder)
+        check_type(self.decoder, FairseqDecoder)
 
     def forward(self, src_tokens, **kwargs):
         """
@@ -530,7 +538,7 @@ class FairseqEncoderModel(BaseFairseqModel):
     def __init__(self, encoder):
         super().__init__()
         self.encoder = encoder
-        assert isinstance(self.encoder, FairseqEncoder)
+        check_type(self.encoder, FairseqEncoder)
 
     def forward(self, src_tokens, src_lengths, **kwargs):
         """

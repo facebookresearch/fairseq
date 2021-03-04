@@ -107,6 +107,10 @@ class CPUAdam(torch.optim.Optimizer):
             self.opt_id, lr, betas[0], betas[1], eps, weight_decay, adamw_mode
         )
 
+    @property
+    def supports_flat_params(self):
+        return True
+
     @torch.no_grad()
     def step(self, closure=None):
         loss = None
