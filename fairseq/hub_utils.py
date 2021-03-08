@@ -128,7 +128,7 @@ class GeneratorHubInterface(nn.Module):
         sentences: List[str],
         beam: int = 1,
         verbose: bool = False,
-        return_all_hypothesis: bool = False,
+        return_all_hypotheses: bool = False,
         return_scores: bool = False,
         **kwargs
     ) -> List[str]:
@@ -137,7 +137,7 @@ class GeneratorHubInterface(nn.Module):
         tokenized_sentences = [self.encode(sentence) for sentence in sentences]
         batched_hypos = self.generate(tokenized_sentences, beam, verbose, **kwargs)
 
-        if return_all_hypothesis:
+        if return_all_hypotheses:
             return [
                 [
                     (self.decode(hypo["tokens"]), hypo["score"].item())
