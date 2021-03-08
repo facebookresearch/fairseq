@@ -36,6 +36,9 @@ DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
 
 
+DEFAULT_MIN_PARAMS_TO_WRAP = int(1e8)
+
+
 @register_model("transformer")
 class TransformerModel(FairseqEncoderDecoderModel):
     """
@@ -191,6 +194,16 @@ class TransformerModel(FairseqEncoderDecoderModel):
                             help='block size of quantization noise at training time')
         parser.add_argument('--quant-noise-scalar', type=float, metavar='D', default=0,
                             help='scalar quantization noise and scalar quantization at training time')
+        # args for Fully Sharded Data Parallel (FSDP) training
+        parser.add_argument(
+            '--min-params-to-wrap', type=int, metavar='D', default=DEFAULT_MIN_PARAMS_TO_WRAP,
+            help=(
+                'minimum number of params for a layer to be wrapped with FSDP() when '
+                'training with --ddp-backend=fully_sharded. Smaller values will '
+                'improve memory efficiency, but may make torch.distributed '
+                'communication less efficient due to smaller input sizes.'
+            )
+        )
         # fmt: on
 
     @classmethod
@@ -242,8 +255,11 @@ class TransformerModel(FairseqEncoderDecoderModel):
         encoder = cls.build_encoder(args, src_dict, encoder_embed_tokens)
         decoder = cls.build_decoder(args, tgt_dict, decoder_embed_tokens)
         if not args.share_all_embeddings:
-            encoder = fsdp_wrap(encoder, min_num_params=1e8)
-            decoder = fsdp_wrap(decoder, min_num_params=1e8)
+            min_params_to_wrap = getattr(
+                args, "min_params_to_wrap", DEFAULT_MIN_PARAMS_TO_WRAP
+            )
+            encoder = fsdp_wrap(encoder, min_num_params=min_params_to_wrap)
+            decoder = fsdp_wrap(decoder, min_num_params=min_params_to_wrap)
         return cls(args, encoder, decoder)
 
     @classmethod
@@ -387,10 +403,16 @@ class TransformerEncoder(FairseqEncoder):
 
     def build_encoder_layer(self, args):
         layer = TransformerEncoderLayer(args)
-        if getattr(args, "checkpoint_activations", False):
+        checkpoint = getattr(args, "checkpoint_activations", False)
+        if checkpoint:
             offload_to_cpu = getattr(args, "offload_activations", False)
             layer = checkpoint_wrapper(layer, offload_to_cpu=offload_to_cpu)
-        layer = fsdp_wrap(layer, min_num_params=1e8)
+        # checkpointing requires alignment to FSDP wrap boundaries
+        min_params_to_wrap = (
+            getattr(args, "min_params_to_wrap", DEFAULT_MIN_PARAMS_TO_WRAP)
+            if not checkpoint else 0
+        )
+        layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
         return layer
 
     def forward_embedding(
@@ -728,10 +750,16 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
     def build_decoder_layer(self, args, no_encoder_attn=False):
         layer = TransformerDecoderLayer(args, no_encoder_attn)
-        if getattr(args, "checkpoint_activations", False):
+        checkpoint = getattr(args, "checkpoint_activations", False)
+        if checkpoint:
             offload_to_cpu = getattr(args, "offload_activations", False)
             layer = checkpoint_wrapper(layer, offload_to_cpu=offload_to_cpu)
-        layer = fsdp_wrap(layer, min_num_params=1e8)
+        # checkpointing requires alignment to FSDP wrap boundaries
+        min_params_to_wrap = (
+            getattr(args, "min_params_to_wrap", DEFAULT_MIN_PARAMS_TO_WRAP)
+            if not checkpoint else 0
+        )
+        layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
         return layer
 
     def forward(
