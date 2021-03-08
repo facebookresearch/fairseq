@@ -5,5 +5,4 @@
 
 from .berard import *  # noqa
 from .convtransformer import *  # noqa
-from .convtransformer_simul_trans import *  # noqa
 from .s2t_transformer import *  # noqa

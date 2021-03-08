@@ -65,60 +65,6 @@ class TransformerModelSimulTrans(TransformerModel):
 
         return src_indices, None, tgt_indices
 
-    def predict_from_states(self, states):
-        decoder_states = self.decoder.output_layer(states["decoder_features"])
-        lprobs = self.get_normalized_probs([decoder_states[:, -1:]], log_probs=True)
-
-        index = lprobs.argmax(dim=-1)
-
-        token = self.decoder.dictionary.string(index)
-
-        return token, index[0, 0].item()
-
-    def decision_from_states(self, states):
-        """
-        This funcion take states dictionary as input, and gives the agent
-        a decision of whether read a token from server. Moreover, the decoder
-        states are also calculated here so we can directly generate a target
-        token without recompute every thing
-        """
-
-        self.eval()
-
-        if len(states["tokens"]["src"]) == 0:
-            return 0
-
-        src_indices, src_lengths, tgt_indices = self._indices_from_states(states)
-
-        # Update encoder states if needed
-        if (
-            "encoder_states" not in states
-            or states["encoder_states"][0].size(1) <= states["steps"]["src"]
-        ):
-            encoder_out_dict = self.encoder(src_indices, src_lengths)
-            states["encoder_states"] = encoder_out_dict
-        else:
-            encoder_out_dict = states["encoder_states"]
-
-        # online means we still need tokens to feed the model
-        states["model_states"]["online"] = not (
-            states["finish_read"]
-            and len(states["tokens"]["src"]) == states["steps"]["src"]
-        )
-
-        states["model_states"]["steps"] = states["steps"]
-
-        x, outputs = self.decoder.forward(
-            prev_output_tokens=tgt_indices,
-            encoder_out=encoder_out_dict,
-            incremental_state=states["model_states"],
-            features_only=True,
-        )
-
-        states["decoder_features"] = x
-
-        return outputs["action"]
-
 
 class TransformerMonotonicEncoder(TransformerEncoder):
     def __init__(self, args, dictionary, embed_tokens):
@@ -208,6 +154,18 @@ class TransformerMonotonicDecoder(TransformerDecoder):
 
         return x
 
+    def clear_cache(self, incremental_state, end_id=None):
+        """
+        Clear cache in the monotonic layers.
+        The cache is generated because of a forward pass of decode but no prediction.
+        end_id is the last idx of the layers
+        """
+        if end_id is None:
+            end_id = len(self.layers)
+
+        for j in range(end_id):
+            self.layers[j].prune_incremental_state(incremental_state)
+
     def extract_features(
         self, prev_output_tokens, encoder_out, incremental_state=None, **unused
     ):
@@ -247,9 +205,13 @@ class TransformerMonotonicDecoder(TransformerDecoder):
                 curr_steps = layer.get_head_steps(incremental_state)
                 step_list.append(curr_steps)
 
-                if incremental_state.get("online", False):
+                if incremental_state.get("online", True):
+                    # Online indicates that the encoder states are still changing
                     p_choose = (
-                        attn["p_choose"].squeeze(0).squeeze(1).gather(1, curr_steps.t())
+                        attn["p_choose"]
+                        .squeeze(0)
+                        .squeeze(1)
+                        .gather(1, curr_steps.t())
                     )
 
                     new_steps = curr_steps + (p_choose < 0.5).t().type_as(curr_steps)
@@ -258,23 +220,9 @@ class TransformerMonotonicDecoder(TransformerDecoder):
                         # We need to prune the last self_attn saved_state
                         # if model decide not to read
                         # otherwise there will be duplicated saved_state
-                        for j in range(i + 1):
-                            self.layers[j].prune_incremental_state(incremental_state)
+                        self.clear_cache(incremental_state, i + 1)
 
                         return x, {"action": 0}
-
-        if incremental_state is not None and not incremental_state.get("online", False):
-            # Here is for fast evaluation
-            fastest_step = (
-                torch.max(torch.cat(step_list, dim=1), dim=1, keepdim=True)[0] + 1
-            )
-
-            if "fastest_step" in incremental_state:
-                incremental_state["fastest_step"] = torch.cat(
-                    [incremental_state["fastest_step"], fastest_step], dim=1
-                )
-            else:
-                incremental_state["fastest_step"] = fastest_step
 
         x = self.post_attention(x)
 

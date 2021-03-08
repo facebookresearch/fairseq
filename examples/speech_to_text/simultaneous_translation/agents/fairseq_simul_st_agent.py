@@ -1,19 +1,20 @@
 import math
 import os
-
+import json
 import numpy as np
 import torch
 import torchaudio.compliance.kaldi as kaldi
 import yaml
 from fairseq import checkpoint_utils, tasks
+from fairseq.file_io import PathManager
 
 try:
     from simuleval import READ_ACTION, WRITE_ACTION, DEFAULT_EOS
-    from simuleval.agents import SpeechAgent
-    from simuleval.states import ListEntry
+    from simuleval.states import ListEntry, SpeechStates
 except ImportError:
     print("Please install simuleval 'pip install simuleval'")
 
+from torch import nn
 
 SHIFT_SIZE = 10
 WINDOW_SIZE = 25
@@ -112,12 +113,12 @@ class TensorListEntry(ListEntry):
         }
 
 
-class FairseqSimulSTAgent(SpeechAgent):
+class FairseqSimulSTAgent(nn.Module):
 
     speech_segment_size = 40  # in ms, 4 pooling ratio * 10 ms step size
 
     def __init__(self, args):
-        super().__init__(args)
+        super().__init__()
 
         self.eos = DEFAULT_EOS
 
@@ -127,13 +128,27 @@ class FairseqSimulSTAgent(SpeechAgent):
 
         self.load_model_vocab(args)
 
-        with open(args.config, "r") as f:
-            config = yaml.load(f)
+        if getattr(
+            self.model.decoder.layers[0].encoder_attn,
+            'pre_decision_ratio',
+            None
+        ) is not None:
+            self.speech_segment_size *= (
+                self.model.decoder.layers[0].encoder_attn.pre_decision_ratio
+            )
 
-        if "global_cmvn" in config:
-            args.global_cmvn = np.load(config["global_cmvn"]["stats_npz_path"])
-        else:
-            args.global_cmvn = None
+        args.global_cmvn = None
+        if args.config:
+            with open(args.config, "r") as f:
+                config = yaml.load(f, Loader=yaml.BaseLoader)
+
+            if "global_cmvn" in config:
+                args.global_cmvn = np.load(config["global_cmvn"]["stats_npz_path"])
+
+        if args.global_stats:
+            with PathManager.open(args.global_stats, "r") as f:
+                global_cmvn = json.loads(f.read())
+                self.global_cmvn = {"mean": global_cmvn["mean"], "std": global_cmvn["stddev"]}
 
         self.feature_extractor = OnlineFeatureExtractor(args)
 
@@ -142,6 +157,13 @@ class FairseqSimulSTAgent(SpeechAgent):
         self.force_finish = args.force_finish
 
         torch.set_grad_enabled(False)
+
+    def build_states(self, args, client, sentence_id):
+        # Initialize states here, for example add customized entry to states
+        # This function will be called at beginning of every new sentence
+        states = SpeechStates(args, client, sentence_id, self)
+        self.initialize_states(states)
+        return states
 
     def to_device(self, tensor):
         if self.gpu:
@@ -156,8 +178,10 @@ class FairseqSimulSTAgent(SpeechAgent):
                             help='path to your pretrained model.')
         parser.add_argument("--data-bin", type=str, required=True,
                             help="Path of data binary")
-        parser.add_argument("--config", type=str, required=True,
+        parser.add_argument("--config", type=str, default=None,
                             help="Path to config yaml file")
+        parser.add_argument("--global-stats", type=str, default=None,
+                            help="Path to json file containing cmvn stats")
         parser.add_argument("--tgt-splitter-type", type=str, default="SentencePiece",
                             help="Subword splitter type for target text")
         parser.add_argument("--tgt-splitter-path", type=str, default=None,
@@ -167,15 +191,15 @@ class FairseqSimulSTAgent(SpeechAgent):
         parser.add_argument("--max-len", type=int, default=200,
                             help="Max length of translation")
         parser.add_argument("--force-finish", default=False, action="store_true",
-                            help="")
+                            help="Force the model to finish the hypothsis if the source is not finished")
         parser.add_argument("--shift-size", type=int, default=SHIFT_SIZE,
-                            help="")
+                            help="Shift size of feature extraction window.")
         parser.add_argument("--window-size", type=int, default=WINDOW_SIZE,
-                            help="")
+                            help="Window size of feature extraction window.")
         parser.add_argument("--sample-rate", type=int, default=SAMPLE_RATE,
-                            help="")
+                            help="Sample rate")
         parser.add_argument("--feature-dim", type=int, default=FEATURE_DIM,
-                            help="")
+                            help="Acoustic feature dimension.")
 
         # fmt: on
         return parser
@@ -265,11 +289,12 @@ class FairseqSimulSTAgent(SpeechAgent):
     def update_model_encoder(self, states):
         if len(states.units.source) == 0:
             return
-        src_indices = self.to_device(states.units.source.value.unsqueeze(0))
+        src_indices = self.to_device(
+            states.units.source.value.unsqueeze(0)
+        )
         src_lengths = self.to_device(
             torch.LongTensor([states.units.source.value.size(0)])
         )
-        print(src_lengths)
 
         states.encoder_states = self.model.encoder(src_indices, src_lengths)
         torch.cuda.empty_cache()
@@ -294,13 +319,12 @@ class FairseqSimulSTAgent(SpeechAgent):
             "tgt": 1 + len(states.units.target),
         }
 
-        states.incremental_states["online"] = True
+        states.incremental_states["online"] = not states.finish_read()
 
         x, outputs = self.model.decoder.forward(
             prev_output_tokens=tgt_indices,
             encoder_out=states.encoder_states,
             incremental_state=states.incremental_states,
-            # features_only=True,
         )
 
         states.decoder_out = x
@@ -323,8 +347,6 @@ class FairseqSimulSTAgent(SpeechAgent):
 
         index = lprobs.argmax(dim=-1)
 
-        torch.cuda.empty_cache()
-
         index = index[0, 0].item()
 
         if (
@@ -332,6 +354,9 @@ class FairseqSimulSTAgent(SpeechAgent):
             and index == self.model.decoder.dictionary.eos()
             and not states.finish_read()
         ):
+            # If we want to force finish the translation
+            # (don't stop before finish reading), return a None
+            # self.model.decoder.clear_cache(states.incremental_states)
             index = None
 
         return index
