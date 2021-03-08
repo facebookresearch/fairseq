@@ -79,7 +79,10 @@ def _infer_torch_distributed_launch_init(cfg: DistributedTrainingConfig):
     cfg.distributed_rank = int(os.environ["RANK"])
     # processes are created by torch.distributed.launch
     cfg.distributed_no_spawn = True
-
+    if os.environ["CUDA_VISIBLE_DEVICES"]:
+        cfg.device_id = int(os.environ["CUDA_VISIBLE_DEVICES"].split(',')[cfg.local_rank])
+    else:
+        cfg.device_id = cfg.local_rank
 
 def _infer_slurm_init(cfg: DistributedTrainingConfig, num_pipelines_per_node):
     node_list = os.environ.get("SLURM_STEP_NODELIST")
