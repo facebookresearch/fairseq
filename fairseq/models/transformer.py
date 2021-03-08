@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import torch
 import torch.nn as nn
 from fairseq import utils
+from fairseq.distributed import fsdp_wrap
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderDecoderModel,
@@ -240,6 +241,9 @@ class TransformerModel(FairseqEncoderDecoderModel):
             args.checkpoint_activations = True  # offloading implies checkpointing
         encoder = cls.build_encoder(args, src_dict, encoder_embed_tokens)
         decoder = cls.build_decoder(args, tgt_dict, decoder_embed_tokens)
+        if not args.share_all_embeddings:
+            encoder = fsdp_wrap(encoder, min_num_params=1e8)
+            decoder = fsdp_wrap(decoder, min_num_params=1e8)
         return cls(args, encoder, decoder)
 
     @classmethod
@@ -386,6 +390,7 @@ class TransformerEncoder(FairseqEncoder):
         if getattr(args, "checkpoint_activations", False):
             offload_to_cpu = getattr(args, "offload_activations", False)
             layer = checkpoint_wrapper(layer, offload_to_cpu=offload_to_cpu)
+        layer = fsdp_wrap(layer, min_num_params=1e8)
         return layer
 
     def forward_embedding(
@@ -726,6 +731,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         if getattr(args, "checkpoint_activations", False):
             offload_to_cpu = getattr(args, "offload_activations", False)
             layer = checkpoint_wrapper(layer, offload_to_cpu=offload_to_cpu)
+        layer = fsdp_wrap(layer, min_num_params=1e8)
         return layer
 
     def forward(

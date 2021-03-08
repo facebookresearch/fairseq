@@ -13,6 +13,7 @@ from itertools import groupby
 from tempfile import NamedTemporaryFile
 from typing import Tuple
 
+import numpy as np
 import pandas as pd
 import torchaudio
 from examples.speech_to_text.data_utils import (
@@ -24,6 +25,7 @@ from examples.speech_to_text.data_utils import (
     get_zip_manifest,
     load_df_from_tsv,
     save_df_to_tsv,
+    cal_gcmvn_stats,
 )
 from torch import Tensor
 from torch.utils.data import Dataset
@@ -111,10 +113,28 @@ def process(args):
             print(f"Fetching split {split}...")
             dataset = MUSTC(root.as_posix(), lang, split)
             print("Extracting log mel filter bank features...")
+            if split == 'train' and args.cmvn_type == "global":
+                print("And estimating cepstral mean and variance stats...")
+                gcmvn_feature_list = []
+
             for waveform, sample_rate, _, _, _, utt_id in tqdm(dataset):
-                extract_fbank_features(
-                    waveform, sample_rate, feature_root / f"{utt_id}.npy"
+                features = extract_fbank_features(waveform, sample_rate)
+
+                np.save(
+                    (feature_root / f"{utt_id}.npy").as_posix(),
+                    features
                 )
+
+                if split == 'train' and args.cmvn_type == "global":
+                    if len(gcmvn_feature_list) < args.gcmvn_max_num:
+                        gcmvn_feature_list.append(features)
+
+            if split == 'train' and args.cmvn_type == "global":
+                # Estimate and save cmv
+                stats = cal_gcmvn_stats(gcmvn_feature_list)
+                with open(cur_root / "gcmvn.npz", "wb") as f:
+                    np.savez(f, mean=stats["mean"], std=stats["std"])
+
         # Pack features into ZIP
         zip_path = cur_root / "fbank80.zip"
         print("ZIPing features...")
@@ -158,6 +178,11 @@ def process(args):
             spm_filename_prefix + ".model",
             yaml_filename=f"config_{args.task}.yaml",
             specaugment_policy="lb",
+            cmvn_type=args.cmvn_type,
+            gcmvn_cmvn_path=(
+                cur_root / "gcmvn.npz" if args.cmvn_type == "global"
+                else None
+            ),
         )
         # Clean up
         shutil.rmtree(feature_root)
@@ -216,6 +241,14 @@ def main():
     parser.add_argument("--vocab-size", default=8000, type=int)
     parser.add_argument("--task", type=str, choices=["asr", "st"])
     parser.add_argument("--joint", action="store_true", help="")
+    parser.add_argument("--cmvn-type", default="utterance",
+                        choices=["global", "utterance"],
+                        help="The type of cepstral mean and variance normalization")
+    parser.add_argument("--gcmvn-max-num", default=150000, type=int,
+                        help=(
+                            "Maximum number of sentences to use to estimate"
+                            "global mean and variance"
+                            ))
     args = parser.parse_args()
 
     if args.joint:

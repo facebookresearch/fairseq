@@ -10,7 +10,7 @@ class DynamicLossScaler(object):
         init_scale=2.0 ** 15,
         scale_factor=2.0,
         scale_window=2000,
-        tolerance=0.05,
+        tolerance=0.0,
         threshold=None,
         min_loss_scale=1e-4,
     ):

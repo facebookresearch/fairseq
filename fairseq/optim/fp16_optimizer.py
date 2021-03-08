@@ -322,6 +322,10 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
     def all_reduce_grads(self, module):
         self.fp32_optimizer.all_reduce_grads(module)
 
+    @property
+    def supports_flat_params(self):
+        return self.fp32_optimizer.supports_flat_params
+
 
 class _MemoryEfficientFP16OptimizerMixin(object):
     def __init__(self, *args, **kwargs):
@@ -442,6 +446,10 @@ class _MemoryEfficientFP16OptimizerMixin(object):
         else:
             self._multiply_factor = 1.0
 
+    @property
+    def supports_flat_params(self):
+        return self.wrapped_optimizer.supports_flat_params
+
 
 class MemoryEfficientFP16Optimizer(
     _MemoryEfficientFP16OptimizerMixin, optim.FairseqOptimizer
@@ -461,8 +469,10 @@ class MemoryEfficientFP16Optimizer(
     *supports_memory_efficient_fp16* property.
     """
 
-    def __init__(self, cfg: DictConfig, params, optimizer, **kwargs):
-        if not optimizer.supports_memory_efficient_fp16:
+    def __init__(
+        self, cfg: DictConfig, params, optimizer, allow_unsupported=False, **kwargs
+    ):
+        if not allow_unsupported and not optimizer.supports_memory_efficient_fp16:
             raise ValueError(
                 "Unsupported optimizer: {}".format(optimizer.__class__.__name__)
             )

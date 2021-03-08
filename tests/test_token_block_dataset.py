@@ -74,6 +74,19 @@ class TestTokenBlockDataset(unittest.TestCase):
         self.assertEqual(ds[1].tolist(), [5, 1, 1])
         self.assertEqual(ds[2].tolist(), [6, 1])
 
+    def test_4billion_tokens(self):
+        """Regression test for numpy type promotion issue https://github.com/numpy/numpy/issues/5745"""
+        data = [torch.tensor(list(range(10000)), dtype=torch.long)] * 430000
+        ds = self._build_dataset(
+            data, block_size=6, pad=0, eos=1, break_mode="complete"
+        )
+        ds[-1]  # __getitem__ works
+        start, end = ds.slice_indices[-1]
+        assert end > 4294967295  # data must be sufficiently large to overflow uint32
+        assert not isinstance(
+            end + 1, float
+        )  # this would also raise, since np.uint64(1) + 1 => 2.0
+
 
 if __name__ == "__main__":
     unittest.main()

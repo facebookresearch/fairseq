@@ -7,9 +7,7 @@ from typing import Dict, List, Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from examples.simultaneous_translation.utils.data_utils import (
-    lengths_to_encoder_padding_mask,
-)
+from fairseq.data.data_utils import lengths_to_padding_mask
 from fairseq import checkpoint_utils, utils
 from fairseq.models import (
     FairseqEncoder,
@@ -311,9 +309,7 @@ class ConvTransformerEncoder(FairseqEncoder):
             x.size(0) * src_lengths.new_ones([src_lengths.size(0)]).long()
         )
 
-        encoder_padding_mask, _ = lengths_to_encoder_padding_mask(
-            input_lengths, batch_first=True
-        )
+        encoder_padding_mask = lengths_to_padding_mask(input_lengths)
 
         positions = self.embed_positions(encoder_padding_mask).transpose(0, 1)
         x += positions
