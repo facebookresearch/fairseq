@@ -33,7 +33,7 @@ from tqdm import tqdm
 log = logging.getLogger(__name__)
 
 
-MANIFEST_COLUMNS = ["id", "audio", "n_frames", "tgt_text", "speaker", "tgt_lang"]
+MANIFEST_COLUMNS = ["id", "audio", "duration_ms", "n_frames", "tgt_text", "speaker", "tgt_lang"]
 
 
 class mTEDx(Dataset):
@@ -109,23 +109,27 @@ def process(args):
         if not cur_root.is_dir():
             print(f"{cur_root.as_posix()} does not exist. Skipped.")
             continue
-        # Extract features
-        feature_root = cur_root / "fbank80"
-        feature_root.mkdir(exist_ok=True)
-        for split in mTEDx.SPLITS:
-            print(f"Fetching split {split}...")
-            dataset = mTEDx(root.as_posix(), lang, split)
-            print("Extracting log mel filter bank features...")
-            for waveform, sample_rate, _, _, _, _, utt_id in tqdm(dataset):
-                extract_fbank_features(
-                    waveform, sample_rate, feature_root / f"{utt_id}.npy"
-                )
-        # Pack features into ZIP
-        zip_path = cur_root / "fbank80.zip"
-        print("ZIPing features...")
-        create_zip(feature_root, zip_path)
-        print("Fetching ZIP manifest...")
-        zip_manifest = get_zip_manifest(zip_path)
+        if not args.use_audio_input:
+            # Extract features
+            feature_root = cur_root / "fbank80"
+            feature_root.mkdir(exist_ok=True)
+            for split in mTEDx.SPLITS:
+                print(f"Fetching split {split}...")
+                dataset = mTEDx(root.as_posix(), lang, split)
+                print("Extracting log mel filter bank features...")
+                for waveform, sample_rate, _, _, _, _, utt_id in tqdm(dataset):
+                    extract_fbank_features(
+                        waveform, sample_rate, feature_root / f"{utt_id}.npy"
+                    )
+            # Pack features into ZIP
+            zip_path = cur_root / "fbank80.zip"
+            print("ZIPing features...")
+            create_zip(feature_root, zip_path)
+            print("Fetching ZIP manifest...")
+            zip_manifest = get_zip_manifest(zip_path)
+            # Clean up
+            shutil.rmtree(feature_root)
+
         # Generate TSV manifest
         print("Generating manifest...")
         train_text = []
@@ -133,11 +137,20 @@ def process(args):
             is_train_split = split.startswith("train")
             manifest = {c: [] for c in MANIFEST_COLUMNS}
             dataset = mTEDx(args.data_root, lang, split)
-            for wav, sr, src_utt, tgt_utt, speaker_id, tgt_lang, utt_id in tqdm(dataset):
+            for i, (wav, sr, src_utt, tgt_utt, speaker_id, tgt_lang, utt_id) \
+                    in enumerate(tqdm(dataset)):
                 manifest["id"].append(utt_id)
-                manifest["audio"].append(zip_manifest[utt_id])
                 duration_ms = int(wav.size(1) / sr * 1000)
-                manifest["n_frames"].append(int(1 + (duration_ms - 25) / 10))
+                manifest["duration_ms"].append(duration_ms)
+                if args.use_audio_input:
+                    wav_filename, offset, n_frames = dataset.data[i][:3]
+                    manifest["audio"].append(
+                        f"{wav_filename}:{offset}:{n_frames}"
+                    )
+                    manifest["n_frames"].append(n_frames)
+                else:
+                    manifest["audio"].append(zip_manifest[utt_id])
+                    manifest["n_frames"].append(int(1 + (duration_ms - 25) / 10))
                 manifest["tgt_text"].append(src_utt if args.task == "asr" else tgt_utt)
                 manifest["speaker"].append(speaker_id)
                 manifest["tgt_lang"].append(tgt_lang)
@@ -164,9 +177,8 @@ def process(args):
             spm_filename_prefix + ".model",
             yaml_filename=f"config_{args.task}.yaml",
             specaugment_policy="lb",
+            use_audio_input=args.use_audio_input,
         )
-        # Clean up
-        shutil.rmtree(feature_root)
 
 
 def process_joint(args):
@@ -200,6 +212,7 @@ def process_joint(args):
         yaml_filename=f"config_{args.task}.yaml",
         specaugment_policy="ld",
         prepend_tgt_lang_tag=(args.joint),
+        use_audio_input=args.use_audio_input,
     )
     # Make symbolic links to manifests
     for lang in mTEDx.LANGPAIRS:
@@ -223,6 +236,8 @@ def main():
     parser.add_argument("--vocab-size", default=8000, type=int)
     parser.add_argument("--task", type=str, choices=["asr", "st"])
     parser.add_argument("--joint", action="store_true", help="")
+    parser.add_argument("--use-audio-input", action='store_true',
+                        help="Use raw audio, instead of extracting features.")
     args = parser.parse_args()
 
     if args.joint:

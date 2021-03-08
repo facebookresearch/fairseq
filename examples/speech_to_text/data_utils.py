@@ -129,12 +129,16 @@ def gen_config_yaml(
     audio_root: str = "",
     cmvn_type: str = "utterance",
     gcmvn_path: Optional[Path] = None,
+    use_audio_input: bool = False,
 ):
     manifest_root = manifest_root.absolute()
     writer = S2TDataConfigWriter(manifest_root / yaml_filename)
     writer.set_vocab_filename(spm_filename.replace(".model", ".txt"))
     writer.set_input_channels(1)
-    writer.set_input_feat_per_channel(80)
+    if use_audio_input:
+        writer.set_input_feat_per_channel(1)
+    else:
+        writer.set_input_feat_per_channel(80)
     specaugment_setters = {
         "lb": writer.set_specaugment_lb_policy,
         "ld": writer.set_specaugment_ld_policy,
@@ -157,14 +161,17 @@ def gen_config_yaml(
     if cmvn_type not in ["global", "utterance"]:
         raise NotImplementedError
 
-    writer.set_feature_transforms("_train", [f"{cmvn_type}_cmvn", "specaugment"])
-    writer.set_feature_transforms("*", [f"{cmvn_type}_cmvn"])
+    if not use_audio_input:
+        writer.set_feature_transforms("_train", [f"{cmvn_type}_cmvn", "specaugment"])
+        writer.set_feature_transforms("*", [f"{cmvn_type}_cmvn"])
 
     if cmvn_type == "global":
         assert gcmvn_path is not None, (
             'Please provide path of global cmvn file.'
         )
         writer.set_global_cmvn(gcmvn_path)
+
+    writer.set_use_audio_input(use_audio_input)
 
     if len(audio_root) > 0:
         writer.set_audio_root(audio_root)
@@ -198,15 +205,15 @@ def save_df_to_tsv(dataframe, path: Union[str, Path]):
 
 
 def filter_manifest_df(
-    df, is_train_split=False, extra_filters=None, min_n_frames=5, max_n_frames=3000
+    df, is_train_split=False, extra_filters=None, min_ms=50, max_ms=30000
 ):
     filters = {
         "no speech": df["audio"] == "",
-        f"short speech (<{min_n_frames} frames)": df["n_frames"] < min_n_frames,
+        f"short speech (<{min_ms} ms)": df["duration_ms"] < min_ms,
         "empty sentence": df["tgt_text"] == "",
     }
     if is_train_split:
-        filters[f"long speech (>{max_n_frames} frames)"] = df["n_frames"] > max_n_frames
+        filters[f"long speech (>{max_ms} ms)"] = df["duration_ms"] > max_ms
     if extra_filters is not None:
         filters.update(extra_filters)
     invalid = reduce(lambda x, y: x | y, filters.values())
@@ -333,3 +340,6 @@ class S2TDataConfigWriter(object):
 
     def set_sampling_alpha(self, sampling_alpha: float = 1.0):
         self.config["sampling_alpha"] = sampling_alpha
+
+    def set_use_audio_input(self, use_audio_input: bool = False):
+        self.config["use_audio_input"] = use_audio_input

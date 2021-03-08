@@ -35,7 +35,7 @@ from tqdm import tqdm
 log = logging.getLogger(__name__)
 
 
-MANIFEST_COLUMNS = ["id", "audio", "n_frames", "tgt_text", "speaker"]
+MANIFEST_COLUMNS = ["id", "audio", "duration_ms", "n_frames", "tgt_text", "speaker"]
 
 
 class MUSTC(Dataset):
@@ -106,41 +106,45 @@ def process(args):
         if not cur_root.is_dir():
             print(f"{cur_root.as_posix()} does not exist. Skipped.")
             continue
-        # Extract features
-        feature_root = cur_root / "fbank80"
-        feature_root.mkdir(exist_ok=True)
-        for split in MUSTC.SPLITS:
-            print(f"Fetching split {split}...")
-            dataset = MUSTC(root.as_posix(), lang, split)
-            print("Extracting log mel filter bank features...")
-            if split == 'train' and args.cmvn_type == "global":
-                print("And estimating cepstral mean and variance stats...")
-                gcmvn_feature_list = []
+        if not args.use_audio_input:
+            # Extract features
+            feature_root = cur_root / "fbank80"
+            feature_root.mkdir(exist_ok=True)
+            for split in MUSTC.SPLITS:
+                print(f"Fetching split {split}...")
+                dataset = MUSTC(root.as_posix(), lang, split)
+                print("Extracting log mel filter bank features...")
+                if split == 'train' and args.cmvn_type == "global":
+                    print("And estimating cepstral mean and variance stats...")
+                    gcmvn_feature_list = []
 
-            for waveform, sample_rate, _, _, _, utt_id in tqdm(dataset):
-                features = extract_fbank_features(waveform, sample_rate)
+                for waveform, sample_rate, _, _, _, utt_id in tqdm(dataset):
+                    features = extract_fbank_features(waveform, sample_rate)
 
-                np.save(
-                    (feature_root / f"{utt_id}.npy").as_posix(),
-                    features
-                )
+                    np.save(
+                        (feature_root / f"{utt_id}.npy").as_posix(),
+                        features
+                    )
+
+                    if split == 'train' and args.cmvn_type == "global":
+                        if len(gcmvn_feature_list) < args.gcmvn_max_num:
+                            gcmvn_feature_list.append(features)
 
                 if split == 'train' and args.cmvn_type == "global":
-                    if len(gcmvn_feature_list) < args.gcmvn_max_num:
-                        gcmvn_feature_list.append(features)
+                    # Estimate and save cmv
+                    stats = cal_gcmvn_stats(gcmvn_feature_list)
+                    with open(cur_root / "gcmvn.npz", "wb") as f:
+                        np.savez(f, mean=stats["mean"], std=stats["std"])
 
-            if split == 'train' and args.cmvn_type == "global":
-                # Estimate and save cmv
-                stats = cal_gcmvn_stats(gcmvn_feature_list)
-                with open(cur_root / "gcmvn.npz", "wb") as f:
-                    np.savez(f, mean=stats["mean"], std=stats["std"])
+            # Pack features into ZIP
+            zip_path = cur_root / "fbank80.zip"
+            print("ZIPing features...")
+            create_zip(feature_root, zip_path)
+            print("Fetching ZIP manifest...")
+            zip_manifest = get_zip_manifest(zip_path)
+            # Clean up
+            shutil.rmtree(feature_root)
 
-        # Pack features into ZIP
-        zip_path = cur_root / "fbank80.zip"
-        print("ZIPing features...")
-        create_zip(feature_root, zip_path)
-        print("Fetching ZIP manifest...")
-        zip_manifest = get_zip_manifest(zip_path)
         # Generate TSV manifest
         print("Generating manifest...")
         train_text = []
@@ -148,11 +152,20 @@ def process(args):
             is_train_split = split.startswith("train")
             manifest = {c: [] for c in MANIFEST_COLUMNS}
             dataset = MUSTC(args.data_root, lang, split)
-            for wav, sr, src_utt, tgt_utt, speaker_id, utt_id in tqdm(dataset):
+            for i, (wav, sr, src_utt, tgt_utt, speaker_id, utt_id) \
+                    in enumerate(tqdm(dataset)):
                 manifest["id"].append(utt_id)
-                manifest["audio"].append(zip_manifest[utt_id])
                 duration_ms = int(wav.size(1) / sr * 1000)
-                manifest["n_frames"].append(int(1 + (duration_ms - 25) / 10))
+                manifest["duration_ms"].append(duration_ms)
+                if args.use_audio_input:
+                    wav_filename, offset, n_frames = dataset.data[i][:3]
+                    manifest["audio"].append(
+                        f"{wav_filename}:{offset}:{n_frames}"
+                    )
+                    manifest["n_frames"].append(n_frames)
+                else:
+                    manifest["audio"].append(zip_manifest[utt_id])
+                    manifest["n_frames"].append(int(1 + (duration_ms - 25) / 10))
                 manifest["tgt_text"].append(src_utt if args.task == "asr" else tgt_utt)
                 manifest["speaker"].append(speaker_id)
             if is_train_split:
@@ -179,13 +192,12 @@ def process(args):
             yaml_filename=f"config_{args.task}.yaml",
             specaugment_policy="lb",
             cmvn_type=args.cmvn_type,
-            gcmvn_cmvn_path=(
+            gcmvn_path=(
                 cur_root / "gcmvn.npz" if args.cmvn_type == "global"
                 else None
             ),
+            use_audio_input=args.use_audio_input,
         )
-        # Clean up
-        shutil.rmtree(feature_root)
 
 
 def process_joint(args):
@@ -218,6 +230,7 @@ def process_joint(args):
         yaml_filename=f"config_{args.task}.yaml",
         specaugment_policy="ld",
         prepend_tgt_lang_tag=(args.task == "st"),
+        use_audio_input=args.use_audio_input,
     )
     # Make symbolic links to manifests
     for lang in MUSTC.LANGUAGES:
@@ -249,6 +262,8 @@ def main():
                             "Maximum number of sentences to use to estimate"
                             "global mean and variance"
                             ))
+    parser.add_argument("--use-audio-input", action='store_true',
+                        help="Use raw audio, instead of extracting features.")
     args = parser.parse_args()
 
     if args.joint:

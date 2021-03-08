@@ -32,7 +32,7 @@ from tqdm import tqdm
 log = logging.getLogger(__name__)
 
 
-MANIFEST_COLUMNS = ["id", "audio", "n_frames", "tgt_text", "speaker"]
+MANIFEST_COLUMNS = ["id", "audio", "duration_ms", "n_frames", "tgt_text", "speaker"]
 
 
 class CoVoST(Dataset):
@@ -193,23 +193,27 @@ def process(args):
     root = Path(args.data_root).absolute() / args.src_lang
     if not root.is_dir():
         raise NotADirectoryError(f"{root} does not exist")
-    # Extract features
-    feature_root = root / "fbank80"
-    feature_root.mkdir(exist_ok=True)
-    for split in CoVoST.SPLITS:
-        print(f"Fetching split {split}...")
-        dataset = CoVoST(root, split, args.src_lang, args.tgt_lang)
-        print("Extracting log mel filter bank features...")
-        for waveform, sample_rate, _, _, _, utt_id in tqdm(dataset):
-            extract_fbank_features(
-                waveform, sample_rate, feature_root / f"{utt_id}.npy"
-            )
-    # Pack features into ZIP
-    zip_path = root / "fbank80.zip"
-    print("ZIPing features...")
-    create_zip(feature_root, zip_path)
-    print("Fetching ZIP manifest...")
-    zip_manifest = get_zip_manifest(zip_path)
+    if not args.use_audio_input:
+        # Extract features
+        feature_root = root / "fbank80"
+        feature_root.mkdir(exist_ok=True)
+        for split in CoVoST.SPLITS:
+            print(f"Fetching split {split}...")
+            dataset = CoVoST(root, split, args.src_lang, args.tgt_lang)
+            print("Extracting log mel filter bank features...")
+            for waveform, sample_rate, _, _, _, utt_id in tqdm(dataset):
+                extract_fbank_features(
+                    waveform, sample_rate, feature_root / f"{utt_id}.npy"
+                )
+        # Pack features into ZIP
+        zip_path = root / "fbank80.zip"
+        print("ZIPing features...")
+        create_zip(feature_root, zip_path)
+        print("Fetching ZIP manifest...")
+        zip_manifest = get_zip_manifest(zip_path)
+        # Clean up
+        shutil.rmtree(feature_root)
+
     # Generate TSV manifest
     print("Generating manifest...")
     train_text = []
@@ -219,11 +223,16 @@ def process(args):
     for split in CoVoST.SPLITS:
         manifest = {c: [] for c in MANIFEST_COLUMNS}
         dataset = CoVoST(root, split, args.src_lang, args.tgt_lang)
-        for wav, sr, src_utt, tgt_utt, speaker_id, utt_id in tqdm(dataset):
+        for i, (wav, sr, src_utt, tgt_utt, speaker_id, utt_id) in enumerate(tqdm(dataset)):
             manifest["id"].append(utt_id)
-            manifest["audio"].append(zip_manifest[utt_id])
             duration_ms = int(wav.size(1) / sr * 1000)
-            manifest["n_frames"].append(int(1 + (duration_ms - 25) / 10))
+            manifest["duration_ms"].append(duration_ms)
+            if args.use_audio_input:
+                manifest["audio"].append(root / "clips" / dataset.data[i]["path"])
+                manifest["n_frames"].append(wav.size(1))
+            else:
+                manifest["audio"].append(zip_manifest[utt_id])
+                manifest["n_frames"].append(int(1 + (duration_ms - 25) / 10))
             manifest["tgt_text"].append(src_utt if args.tgt_lang is None else tgt_utt)
             manifest["speaker"].append(speaker_id)
         is_train_split = split.startswith("train")
@@ -250,9 +259,8 @@ def process(args):
         spm_filename_prefix + ".model",
         yaml_filename=f"config_{task}.yaml",
         specaugment_policy="lb",
+        use_audio_input=args.use_audio_input,
     )
-    # Clean up
-    shutil.rmtree(feature_root)
 
 
 def main():
@@ -271,6 +279,8 @@ def main():
     parser.add_argument("--vocab-size", default=1000, type=int)
     parser.add_argument("--src-lang", "-s", required=True, type=str)
     parser.add_argument("--tgt-lang", "-t", type=str)
+    parser.add_argument("--use-audio-input", action='store_true',
+                        help="Use raw audio, instead of extracting features.")
     args = parser.parse_args()
 
     process(args)

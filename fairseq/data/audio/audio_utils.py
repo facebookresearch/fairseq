@@ -5,7 +5,8 @@ import numpy as np
 
 
 def get_waveform(
-    path_or_fp: Union[str, BinaryIO], normalization=True
+    path_or_fp: Union[str, BinaryIO], offset: int = 0,
+    n_frames: int = -1, normalization=True
 ) -> Tuple[np.ndarray, int]:
     """Get the waveform and sample rate of a 16-bit mono-channel WAV or FLAC.
 
@@ -15,15 +16,25 @@ def get_waveform(
     """
     if isinstance(path_or_fp, str):
         ext = op.splitext(op.basename(path_or_fp))[1]
-        if ext not in {".flac", ".wav"}:
-            raise ValueError(f"Unsupported audio format: {ext}")
-
-    try:
-        import soundfile as sf
-    except ImportError:
-        raise ImportError("Please install soundfile to load WAV/FLAC file")
-
-    waveform, sample_rate = sf.read(path_or_fp, dtype="float32")
+        if ext in {".flac", ".wav"}:
+            try:
+                import soundfile as sf
+            except ImportError:
+                raise ImportError("Please install soundfile to load WAV/FLAC file")
+            waveform, sample_rate = sf.read(
+                path_or_fp, frames=n_frames, start=offset, dtype="float32"
+            )
+        else:
+            try:
+                from torchaudio.backend.sox_io_backend import load
+            except ImportError:
+                raise ImportError("Please install torchaudio to load MP3 file")
+            waveform, sample_rate = load(
+                path_or_fp, frame_offset=offset, num_frames=n_frames,
+                channels_first=False
+            )
+            waveform = waveform.numpy()
+    
     if not normalization:
         waveform *= 2 ** 15  # denormalized to 16-bit signed integers
     return waveform, sample_rate
