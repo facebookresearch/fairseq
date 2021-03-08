@@ -179,7 +179,7 @@ def process(args):
             yaml_filename=f"config_{args.task}.yaml",
             specaugment_policy="lb",
             cmvn_type=args.cmvn_type,
-            gcmvn_cmvn_path=(
+            gcmvn_path=(
                 cur_root / "gcmvn.npz" if args.cmvn_type == "global"
                 else None
             ),
