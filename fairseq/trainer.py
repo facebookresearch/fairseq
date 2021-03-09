@@ -1017,21 +1017,22 @@ class Trainer(object):
     def clip_grad_norm(self, clip_norm):
 
         def agg_norm_fn(total_norm):
-            if (
-                self.cfg.distributed_training.ddp_backend == "fully_sharded"
-                and (
-                    self.data_parallel_process_group is not None
-                    or torch.distributed.is_initialized()
-                )
-            ):
-                total_norm = total_norm.cuda().float() ** 2
-                total_norm = distributed_utils.all_reduce(
-                    total_norm, group=self.data_parallel_process_group
-                )
-                total_norm = total_norm ** 0.5
-            return total_norm
+            total_norm = total_norm.cuda().float() ** 2
+            total_norm = distributed_utils.all_reduce(
+                total_norm, group=self.data_parallel_process_group
+            )
+            return total_norm ** 0.5
 
-        return self.optimizer.clip_grad_norm(clip_norm, aggregate_norm_fn=agg_norm_fn)
+        should_agg_norm = (
+            self.cfg.distributed_training.ddp_backend == "fully_sharded"
+            and (
+                self.data_parallel_process_group is not None
+                or torch.distributed.is_initialized()
+            )
+        )
+        return self.optimizer.clip_grad_norm(
+            clip_norm, aggregate_norm_fn=agg_norm_fn if should_agg_norm else None
+        )
 
     def cumulative_training_time(self):
         if self._cumulative_training_time is None:

@@ -179,7 +179,9 @@ class RobertaModel(FairseqEncoderModel):
                 "minimum number of params for a layer to be wrapped with FSDP() when "
                 "training with --ddp-backend=fully_sharded. Smaller values will "
                 "improve memory efficiency, but may make torch.distributed "
-                "communication less efficient due to smaller input sizes."
+                "communication less efficient due to smaller input sizes. This option "
+                "is set to 0 (i.e., always wrap) when --checkpoint-activations or "
+                "--offload-activations are passed."
             )
         )
 
