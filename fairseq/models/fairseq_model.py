@@ -29,9 +29,10 @@ logger = logging.getLogger(__name__)
 
 def check_type(module, expected_type):
     if hasattr(module, "unwrapped_module"):
-        assert isinstance(module.unwrapped_module, expected_type)
+        assert isinstance(module.unwrapped_module, expected_type), \
+            f"{type(module.unwrapped_module)} != {expected_type}"
     else:
-        assert isinstance(module, expected_type)
+        assert isinstance(module, expected_type), f"{type(module)} != {expected_type}"
 
 
 class BaseFairseqModel(nn.Module):

@@ -14,7 +14,9 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
-from fairseq.models.transformer import Embedding, TransformerDecoder
+from fairseq.models.transformer import (
+    DEFAULT_MIN_PARAMS_TO_WRAP, Embedding, TransformerDecoder
+)
 from fairseq.modules import AdaptiveInput, CharacterTokenEmbedder
 from omegaconf import II
 
@@ -126,15 +128,6 @@ class TransformerLanguageModelConfig(FairseqDataclass):
         default=False,
         metadata={"help": "use learned positional embeddings in the decoder"},
     )
-    decoder_layerdrop: float = field(
-        default=0.0, metadata={"help": "LayerDrop probability for decoder"}
-    )
-    decoder_layers_to_keep: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "which layers to *keep* when pruning as a comma-separated list"
-        },
-    )
     layernorm_embedding: bool = field(
         default=False, metadata={"help": "add layernorm to embedding"}
     )
@@ -148,6 +141,17 @@ class TransformerLanguageModelConfig(FairseqDataclass):
         default=False,
         metadata={"help": "move checkpointed activations to CPU after they are used."},
     )
+    # config for "Reducing Transformer Depth on Demand with Structured Dropout" (Fan et al., 2019)
+    decoder_layerdrop: float = field(
+        default=0.0, metadata={"help": "LayerDrop probability for decoder"}
+    )
+    decoder_layers_to_keep: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "which layers to *keep* when pruning as a comma-separated list"
+        },
+    )
+    # config for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
     quant_noise_pq: float = field(
         default=0.0,
         metadata={"help": "iterative PQ quantization noise at training time"},
@@ -156,13 +160,25 @@ class TransformerLanguageModelConfig(FairseqDataclass):
         default=8,
         metadata={"help": "block size of quantization noise at training time"},
     )
-    # TODO common var add to parent
     quant_noise_scalar: float = field(
         default=0.0,
         metadata={
             "help": "scalar quantization noise and scalar quantization at training time"
         },
     )
+    # config for Fully Sharded Data Parallel (FSDP) training
+    min_params_to_wrap: int = field(
+        default=DEFAULT_MIN_PARAMS_TO_WRAP,
+        metadata={
+            "help": (
+                "minimum number of params for a layer to be wrapped with FSDP() when "
+                "training with --ddp-backend=fully_sharded. Smaller values will "
+                "improve memory efficiency, but may make torch.distributed "
+                "communication less efficient due to smaller input sizes."
+            )
+        }
+    )
+    # options from other parts of the config
     add_bos_token: bool = II("task.add_bos_token")
     tokens_per_sample: int = II("task.tokens_per_sample")
     max_target_positions: Optional[int] = II("task.max_target_positions")
@@ -289,7 +305,7 @@ def base_lm_architecture(args):
     args.adaptive_softmax_cutoff = getattr(args, "adaptive_softmax_cutoff", None)
     args.adaptive_softmax_dropout = getattr(args, "adaptive_softmax_dropout", 0)
     args.adaptive_softmax_factor = getattr(args, "adaptive_softmax_factor", 4)
-    args.decoder_learned_pos = getattr(args, "decoder_learned_pos", False)
+    args.decoder_learned_pos = getattr(args, "decoder_learned_pos", True)
     args.activation_fn = getattr(args, "activation_fn", "relu")
 
     args.decoder_layerdrop = getattr(args, "decoder_layerdrop", 0)
@@ -428,3 +444,84 @@ def transformer_lm_gpt2_big(args):
     args.attention_dropout = getattr(args, "attention_dropout", 0.1)
     args.activation_fn = getattr(args, "activation_fn", "gelu")
     base_lm_architecture(args)
+
+
+def base_gpt3_architecture(args):
+    args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", args.decoder_embed_dim * 4)
+    args.decoder_learned_pos = getattr(args, "decoder_learned_pos", True)
+    args.dropout = getattr(args, "dropout", 0.0)
+    args.attention_dropout = getattr(args, "attention_dropout", 0.0)
+    args.activation_fn = getattr(args, "activation_fn", "gelu")
+    base_lm_architecture(args)
+
+
+@register_model_architecture("transformer_lm", "transformer_lm_gpt3_small")
+def transformer_lm_gpt3_small(args):
+    # 125M params
+    args.decoder_layers = getattr(args, "decoder_layers", 12)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 768)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 12)
+    base_gpt3_architecture(args)
+
+
+@register_model_architecture("transformer_lm", "transformer_lm_gpt3_medium")
+def transformer_lm_gpt3_medium(args):
+    # 350M params
+    args.decoder_layers = getattr(args, "decoder_layers", 24)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 1024)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 16)
+    base_gpt3_architecture(args)
+
+
+@register_model_architecture("transformer_lm", "transformer_lm_gpt3_large")
+def transformer_lm_gpt3_large(args):
+    # 760M params
+    args.decoder_layers = getattr(args, "decoder_layers", 24)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 1536)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 16)
+    base_gpt3_architecture(args)
+
+
+@register_model_architecture("transformer_lm", "transformer_lm_gpt3_xl")
+def transformer_lm_gpt3_xl(args):
+    # 1.3B params
+    args.decoder_layers = getattr(args, "decoder_layers", 24)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 2048)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 24)
+    base_gpt3_architecture(args)
+
+
+@register_model_architecture("transformer_lm", "transformer_lm_gpt3_2_7")
+def transformer_lm_gpt3_2_7(args):
+    # 2.7B params
+    args.decoder_layers = getattr(args, "decoder_layers", 32)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 2560)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 32)
+    base_gpt3_architecture(args)
+
+
+@register_model_architecture("transformer_lm", "transformer_lm_gpt3_6_7")
+def transformer_lm_gpt3_6_7(args):
+    # 6.7B params
+    args.decoder_layers = getattr(args, "decoder_layers", 32)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 4096)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 32)
+    base_gpt3_architecture(args)
+
+
+@register_model_architecture("transformer_lm", "transformer_lm_gpt3_13")
+def transformer_lm_gpt3_13(args):
+    # 13B params
+    args.decoder_layers = getattr(args, "decoder_layers", 40)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 5120)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 40)
+    base_gpt3_architecture(args)
+
+
+@register_model_architecture("transformer_lm", "transformer_lm_gpt3_175")
+def transformer_lm_gpt3_175(args):
+    # 175B params
+    args.decoder_layers = getattr(args, "decoder_layers", 96)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 12288)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 96)
+    base_gpt3_architecture(args)

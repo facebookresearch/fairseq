@@ -1017,15 +1017,17 @@ class Trainer(object):
     def clip_grad_norm(self, clip_norm):
 
         def agg_norm_fn(total_norm):
-            if self.cfg.distributed_training.ddp_backend == "fully_sharded":
-                total_norm = total_norm ** 2
-                if (
+            if (
+                self.cfg.distributed_training.ddp_backend == "fully_sharded"
+                and (
                     self.data_parallel_process_group is not None
                     or torch.distributed.is_initialized()
-                ):
-                    total_norm = distributed_utils.all_reduce(
-                        total_norm.cuda(), group=self.data_parallel_process_group
-                    )
+                )
+            ):
+                total_norm = total_norm.cuda().float() ** 2
+                total_norm = distributed_utils.all_reduce(
+                    total_norm, group=self.data_parallel_process_group
+                )
                 total_norm = total_norm ** 0.5
             return total_norm
 
