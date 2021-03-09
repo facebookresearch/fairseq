@@ -201,7 +201,9 @@ class TransformerModel(FairseqEncoderDecoderModel):
                 'minimum number of params for a layer to be wrapped with FSDP() when '
                 'training with --ddp-backend=fully_sharded. Smaller values will '
                 'improve memory efficiency, but may make torch.distributed '
-                'communication less efficient due to smaller input sizes.'
+                'communication less efficient due to smaller input sizes. This option '
+                'is set to 0 (i.e., always wrap) when --checkpoint-activations or '
+                '--offload-activations are passed.'
             )
         )
         # fmt: on
@@ -258,6 +260,7 @@ class TransformerModel(FairseqEncoderDecoderModel):
             min_params_to_wrap = getattr(
                 args, "min_params_to_wrap", DEFAULT_MIN_PARAMS_TO_WRAP
             )
+            # fsdp_wrap is a no-op when --ddp-backend != fully_sharded
             encoder = fsdp_wrap(encoder, min_num_params=min_params_to_wrap)
             decoder = fsdp_wrap(decoder, min_num_params=min_params_to_wrap)
         return cls(args, encoder, decoder)
@@ -407,7 +410,8 @@ class TransformerEncoder(FairseqEncoder):
         if checkpoint:
             offload_to_cpu = getattr(args, "offload_activations", False)
             layer = checkpoint_wrapper(layer, offload_to_cpu=offload_to_cpu)
-        # checkpointing requires alignment to FSDP wrap boundaries
+        # if we are checkpointing, enforce that FSDP always wraps the
+        # checkpointed layer, regardless of layer size
         min_params_to_wrap = (
             getattr(args, "min_params_to_wrap", DEFAULT_MIN_PARAMS_TO_WRAP)
             if not checkpoint else 0
@@ -754,7 +758,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         if checkpoint:
             offload_to_cpu = getattr(args, "offload_activations", False)
             layer = checkpoint_wrapper(layer, offload_to_cpu=offload_to_cpu)
-        # checkpointing requires alignment to FSDP wrap boundaries
+        # if we are checkpointing, enforce that FSDP always wraps the
+        # checkpointed layer, regardless of layer size
         min_params_to_wrap = (
             getattr(args, "min_params_to_wrap", DEFAULT_MIN_PARAMS_TO_WRAP)
             if not checkpoint else 0
