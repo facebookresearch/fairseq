@@ -1,6 +1,6 @@
 # Simultaneous Speech Translation (SimulST) on MuST-C
 
-This is an instruction of training and evaluating a transformer *wait-k* simultaneous model on MUST-C English-Germen Dataset, from [SimulMT to SimulST: Adapting Simultaneous Text Translation to End-to-End Simultaneous Speech Translation](https://www.aclweb.org/anthology/2020.aacl-main.58.pdf).
+This is a tutorial of training and evaluating a transformer *wait-k* simultaneous model on MUST-C English-Germen Dataset, from [SimulMT to SimulST: Adapting Simultaneous Text Translation to End-to-End Simultaneous Speech Translation](https://www.aclweb.org/anthology/2020.aacl-main.58.pdf).
 
 [MuST-C](https://www.aclweb.org/anthology/N19-1202) is multilingual speech-to-text translation corpus with 8-language translations on English TED talks.
 
@@ -14,18 +14,21 @@ pip install pandas torchaudio sentencepiece
 # Generate TSV manifests, features, vocabulary,
 # global cepstral and mean estimation,
 # and configuration for each language
+cd fairseq
+
 python examples/speech_to_text/prep_mustc_data.py \
   --data-root ${MUSTC_ROOT} --task asr \
   --vocab-type unigram --vocab-size 10000 \
   --cmvn-type global
+
 python examples/speech_to_text/prep_mustc_data.py \
   --data-root ${MUSTC_ROOT} --task st \
-  --vocab-type unigram --vocab-size 10000
+  --vocab-type unigram --vocab-size 10000 \
   --cmvn-type global
 ```
 
 ## ASR Pretraining
-We just need a pretrained offline ASR model
+We need a pretrained offline ASR model. Assuming the save directory of the ASR model is `${ASR_SAVE_DIR}`
 ```
 fairseq-train ${MUSTC_ROOT}/en-de \
   --config-yaml config_asr.yaml --train-subset train_asr --valid-subset dev_asr \
@@ -34,21 +37,22 @@ fairseq-train ${MUSTC_ROOT}/en-de \
   --arch convtransformer_espnet --optimizer adam --lr 0.0005 --lr-scheduler inverse_sqrt \
   --warmup-updates 10000 --clip-norm 10.0 --seed 1 --update-freq 8
 ```
+A pretrained ASR checkpoint can be downloaded [here](https://dl.fbaipublicfiles.com/simultaneous_translation/must_c_v1_en_de_pretrained_asr)
 
 ## Simultaneous Speech Translation Training
 
 ### Wait-K with fixed pre-decision module
 Fixed pre-decision indicates that the model operate simultaneous policy on the boundaries of fixed chunks.
 Here is a example of fixed pre-decision ratio 7 (the simultaneous decision is made every 7 encoder states) and
-a wait-3 policy model
-```
+a wait-3 policy model. Assuming the save directory is `${ST_SAVE_DIR}`
+```bash
  fairseq-train ${MUSTC_ROOT}/en-de \
         --config-yaml config_st.yaml --train-subset train_st --valid-subset dev_st \
         --save-dir ${ST_SAVE_DIR} --num-workers 8  \
         --optimizer adam --lr 0.0001 --lr-scheduler inverse_sqrt --clip-norm 10.0 \
         --criterion label_smoothed_cross_entropy \
         --warmup-updates 4000 --max-update 100000 --max-tokens 40000 --seed 2 \
-        --load-pretrained-encoder-from ${ASR_SAVE_DIR}/${CHECKPOINT_FILENAME} \
+        --load-pretrained-encoder-from ${ASR_SAVE_DIR}/checkpoint_best.pt \
         --task speech_to_text  \
         --arch convtransformer_simul_trans_espnet  \
         --simul-type waitk_fixed_pre_decision  \
@@ -76,7 +80,9 @@ a wait-3 policy model
 The source file is a list of paths of audio files,
 while target file is the corresponding translations.
 ```
-pip install simuleval
+git clone https://github.com/facebookresearch/SimulEval.git
+cd SimulEval
+pip install -e .
 
 simuleval \
     --agent examples/speech_to_text/simultaneous_translation/agents/fairseq_simul_st_agent.py
@@ -89,7 +95,24 @@ simuleval \
     --scores
 ```
 
-A pretrained checkpoint can be downloaded from [here](https://dl.fbaipublicfiles.com/simultaneous_translation/convtransformer_wait5_pre7), which is a wait-5 model with a pre-decision of 280 ms. The databin (containing dictionary, gcmvn file and sentencepiece model) can be found [here](https://dl.fbaipublicfiles.com/simultaneous_translation/must_c_v1.0_en_de_databin).
+A pretrained checkpoint can be downloaded from [here](https://dl.fbaipublicfiles.com/simultaneous_translation/convtransformer_wait5_pre7), which is a wait-5 model with a pre-decision of 280 ms. The databin (containing dictionary, gcmvn file and sentencepiece model) can be found [here](https://dl.fbaipublicfiles.com/simultaneous_translation/must_c_v1.0_en_de_databin.tgz).
+
+The output should be similar as follow:
+```bash
+{
+    "Quality": {
+        "BLEU": 12.79214535384013
+    },
+    "Latency": {
+        "AL": 1669.5778120018108,
+        "AL_CA": 2077.9027656104813,
+        "AP": 0.7652936521983029,
+        "AP_CA": 0.8891561507382866,
+        "DAL": 2028.1566141735727,
+        "DAL_CA": 2497.336430059716
+    }
+}
+```
 
 The quality is measured by detokenized BLEU. So make sure that the predicted words sent to the server are detokenized.
 
