@@ -24,6 +24,7 @@ from fairseq import (
     utils,
 )
 from fairseq.data import iterators
+from fairseq.data.plasma_utils import PlasmaStore
 from fairseq.dataclass.configs import FairseqConfig
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.distributed import fsdp_enable_wrap, fsdp_wrap, utils as distributed_utils
@@ -118,7 +119,6 @@ def main(cfg: FairseqConfig) -> None:
         trainer = Trainer(cfg, task, model, criterion, quantizer)
     else:
         trainer = MegatronTrainer(cfg, task, model, criterion)
-
     logger.info(
         "training on {} devices (GPUs/TPUs)".format(
             cfg.distributed_training.distributed_world_size
@@ -465,12 +465,19 @@ def cli_main(
 
     cfg = convert_namespace_to_omegaconf(args)
 
+    if cfg.common.use_plasma_view:
+        server = PlasmaStore(path=cfg.common.plasma_path)
+        logger.info(f"Started plasma server pid {server.server.pid} {cfg.common.plasma_path}")
+
     if args.profile:
         with torch.cuda.profiler.profile():
             with torch.autograd.profiler.emit_nvtx():
                 distributed_utils.call_main(cfg, main)
     else:
         distributed_utils.call_main(cfg, main)
+
+    # if cfg.common.use_plasma_view:
+    #     server.server.kill()
 
 
 if __name__ == "__main__":

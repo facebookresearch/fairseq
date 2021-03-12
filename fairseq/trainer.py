@@ -1165,10 +1165,7 @@ class Trainer(object):
         return logging_outputs, extra_stats_to_sum
 
     def _fast_stat_sync_sum(
-        self,
-        logging_outputs: List[Dict[str, Any]],
-        *extra_stats_to_sum,
-        ignore=False,
+        self, logging_outputs: List[Dict[str, Any]], *extra_stats_to_sum, ignore=False,
     ):
         """
         Sync logging outputs across workers. fast_stat_sync_sum is
