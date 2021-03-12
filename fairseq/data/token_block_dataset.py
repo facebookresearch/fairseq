@@ -9,6 +9,7 @@ from fairseq.data import FairseqDataset, plasma_utils
 from fairseq.data.indexed_dataset import best_fitting_int_dtype
 
 
+
 class TokenBlockDataset(FairseqDataset):
     """Break a Dataset of tokens into blocks.
 
@@ -42,6 +43,7 @@ class TokenBlockDataset(FairseqDataset):
         break_mode=None,
         include_targets=False,
         document_sep_len=1,
+        use_plasma_view=False,
     ):
         try:
             from fairseq.data.token_block_utils_fast import (
@@ -99,15 +101,31 @@ class TokenBlockDataset(FairseqDataset):
                 sizes, slice_indices,
             )
         size_dtype = np.uint16 if block_size < 65535 else np.uint32
-        slice_indices_dtype = best_fitting_int_dtype(slice_indices[-1].max())
+        num_tokens = slice_indices[-1].max()
+        slice_indices_dtype = best_fitting_int_dtype(num_tokens)
+        slice_indices = slice_indices.astype(slice_indices_dtype)
+        self._sizes = self._sizes.astype(size_dtype)
+        # block_to_dataset_index = block_to_dataset_index.astype(slice_indices_dtype)
+        self.n_slice_indices = len(slice_indices)
+        assert (
+            len(slice_indices) == len(self._sizes) == len(block_to_dataset_index)
+        )  # no hash collisions possible
+        assert len(set([slice_indices.shape, self._sizes.shape, block_to_dataset_index.shape])) == 3
 
-        self._slice_indices = plasma_utils.PlasmaArray(
-            slice_indices.astype(slice_indices_dtype)
-        )
-        self._sizes = plasma_utils.PlasmaArray(self._sizes.astype(size_dtype))
-        self._block_to_dataset_index = plasma_utils.PlasmaArray(
-            block_to_dataset_index.astype(slice_indices_dtype)
-        )
+        if use_plasma_view:
+            ds_len = self.n_slice_indices  # Part of object_id for PlasmaView
+            # discussion here: https://tinyurl.com/25xx7j7y
+            self._slice_indices = plasma_utils.PlasmaView(slice_indices, ds_len)
+            self._sizes = plasma_utils.PlasmaView(self._sizes, ds_len + 1)
+            self._block_to_dataset_index = plasma_utils.PlasmaView(
+                block_to_dataset_index, ds_len + 2
+            )
+        else:
+            self._slice_indices = plasma_utils.PlasmaArray(slice_indices)
+            self._sizes = plasma_utils.PlasmaArray(self._sizes)
+            self._block_to_dataset_index = plasma_utils.PlasmaArray(
+                block_to_dataset_index
+            )
 
     @property
     def slice_indices(self):
@@ -131,8 +149,8 @@ class TokenBlockDataset(FairseqDataset):
         buffer = torch.cat(
             [self.dataset[idx] for idx in range(start_ds_idx, end_ds_idx + 1)]
         )
-
-        slice_s, slice_e = self.slice_indices[index]
+        si = self.slice_indices
+        slice_s, slice_e = si[index]
         length = slice_e - slice_s
         s, e = start_offset, start_offset + length
         item = buffer[s:e]
@@ -158,7 +176,7 @@ class TokenBlockDataset(FairseqDataset):
         return item
 
     def __len__(self):
-        return len(self.slice_indices)
+        return self.n_slice_indices  # save trip to shared memory
 
     @property
     def supports_prefetch(self):

@@ -104,15 +104,10 @@ class CommonConfig(FairseqDataclass):
     )
     wandb_project: Optional[str] = field(
         default=None,
-        metadata={
-            "help": "Weights and Biases project name to use for logging"
-        },
+        metadata={"help": "Weights and Biases project name to use for logging"},
     )
     azureml_logging: Optional[bool] = field(
-        default=False,
-        metadata={
-            "help": "Log scalars to AzureML context"
-        },
+        default=False, metadata={"help": "Log scalars to AzureML context"},
     )
     seed: int = field(
         default=1, metadata={"help": "pseudo random number generator seed"}
@@ -189,9 +184,10 @@ class CommonConfig(FairseqDataclass):
         default=False,
         metadata={
             "help": "suppress crashes when training with the hydra_train entry point so that the "
-                    "main method can return a value (useful for sweeps)"
+            "main method can return a value (useful for sweeps)"
         },
     )
+    use_plasma_view: bool = field(default=False, metadata={"help": "FIXME"})
 
 
 @dataclass
@@ -263,7 +259,7 @@ class DistributedTrainingConfig(FairseqDataclass):
         metadata={
             "help": "kill the job if no progress is made in N seconds; "
             "set to -1 to disable"
-        }
+        },
     )
     broadcast_buffers: bool = field(
         default=False,
@@ -665,12 +661,10 @@ class FairseqBMUFConfig(FairseqDataclass):
 @dataclass
 class GenerationConfig(FairseqDataclass):
     beam: int = field(
-        default=5,
-        metadata={"help": "beam size"},
+        default=5, metadata={"help": "beam size"},
     )
     nbest: int = field(
-        default=1,
-        metadata={"help": "number of hypotheses to output"},
+        default=1, metadata={"help": "number of hypotheses to output"},
     )
     max_len_a: float = field(
         default=0,
@@ -685,24 +679,19 @@ class GenerationConfig(FairseqDataclass):
         },
     )
     min_len: int = field(
-        default=1,
-        metadata={"help": "minimum generation length"},
+        default=1, metadata={"help": "minimum generation length"},
     )
     match_source_len: bool = field(
-        default=False,
-        metadata={"help": "generations should match the source length"},
+        default=False, metadata={"help": "generations should match the source length"},
     )
     unnormalized: bool = field(
-        default=False,
-        metadata={"help": "compare unnormalized hypothesis scores"},
+        default=False, metadata={"help": "compare unnormalized hypothesis scores"},
     )
     no_early_stop: bool = field(
-        default=False,
-        metadata={"help": "deprecated"},
+        default=False, metadata={"help": "deprecated"},
     )
     no_beamable_mm: bool = field(
-        default=False,
-        metadata={"help": "don't use BeamableMM in attention layers"},
+        default=False, metadata={"help": "don't use BeamableMM in attention layers"},
     )
     lenpen: float = field(
         default=1,
@@ -724,12 +713,10 @@ class GenerationConfig(FairseqDataclass):
         },
     )
     sacrebleu: bool = field(
-        default=False,
-        metadata={"help": "score with sacrebleu"},
+        default=False, metadata={"help": "score with sacrebleu"},
     )
     score_reference: bool = field(
-        default=False,
-        metadata={"help": "just score the reference translation"},
+        default=False, metadata={"help": "just score the reference translation"},
     )
     prefix_size: int = field(
         default=0,
@@ -763,12 +750,10 @@ class GenerationConfig(FairseqDataclass):
         },
     )
     temperature: float = field(
-        default=1.0,
-        metadata={"help": "temperature for generation"},
+        default=1.0, metadata={"help": "temperature for generation"},
     )
     diverse_beam_groups: int = field(
-        default=-1,
-        metadata={"help": "number of groups for Diverse Beam Search"},
+        default=-1, metadata={"help": "number of groups for Diverse Beam Search"},
     )
     diverse_beam_strength: float = field(
         default=0.5,
@@ -787,16 +772,13 @@ class GenerationConfig(FairseqDataclass):
         },
     )
     print_step: bool = field(
-        default=False,
-        metadata={"help": "print steps"},
+        default=False, metadata={"help": "print steps"},
     )
     lm_path: Optional[str] = field(
-        default=None,
-        metadata={"help": "path to lm checkpoint for lm fusion"},
+        default=None, metadata={"help": "path to lm checkpoint for lm fusion"},
     )
     lm_weight: float = field(
-        default=0.0,
-        metadata={"help": "weight for lm probs for lm fusion"},
+        default=0.0, metadata={"help": "weight for lm probs for lm fusion"},
     )
 
     # arguments for iterative refinement generator
@@ -805,8 +787,7 @@ class GenerationConfig(FairseqDataclass):
         metadata={"help": "if > 0.0, it penalized early-stopping in decoding."},
     )
     iter_decode_max_iter: int = field(
-        default=10,
-        metadata={"help": "maximum iterations for iterative refinement."},
+        default=10, metadata={"help": "maximum iterations for iterative refinement."},
     )
     iter_decode_force_max_iter: bool = field(
         default=False,
@@ -833,8 +814,7 @@ class GenerationConfig(FairseqDataclass):
         },
     )
     retain_dropout: bool = field(
-        default=False,
-        metadata={"help": "Use dropout at inference time"},
+        default=False, metadata={"help": "Use dropout at inference time"},
     )
     # temporarily set to Any until https://github.com/facebookresearch/hydra/issues/1117 is fixed
     # retain_dropout_modules: Optional[List[str]] = field(
@@ -859,8 +839,7 @@ class GenerationConfig(FairseqDataclass):
 @dataclass
 class CommonEvalConfig(FairseqDataclass):
     path: Optional[str] = field(
-        default=None,
-        metadata={"help": "path(s) to model file(s), colon separated"},
+        default=None, metadata={"help": "path(s) to model file(s), colon separated"},
     )
     post_process: Optional[str] = field(
         default=None,
@@ -922,8 +901,7 @@ class InteractiveConfig(FairseqDataclass):
         },
     )
     input: str = field(
-        default="-",
-        metadata={"help": "file to read from; use - for stdin"},
+        default="-", metadata={"help": "file to read from; use - for stdin"},
     )
 
 
