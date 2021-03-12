@@ -136,10 +136,10 @@ and [RoBERTa](https://pytorch.org/hub/pytorch_fairseq_roberta/) for more example
 ``` bash
 git clone https://github.com/pytorch/fairseq
 cd fairseq
-pip install --editable ./
+pip install --user --global-option="build_ext" --editable ./
 
 # on MacOS:
-# CFLAGS="-stdlib=libc++" pip install --editable ./
+# CFLAGS="-stdlib=libc++" pip install --user --global-option="build_ext" --editable ./
 
 # to install the latest stable release (0.10.x)
 # pip install fairseq
