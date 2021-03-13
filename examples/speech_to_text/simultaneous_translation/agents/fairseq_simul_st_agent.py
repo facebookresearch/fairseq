@@ -10,11 +10,10 @@ from fairseq.file_io import PathManager
 
 try:
     from simuleval import READ_ACTION, WRITE_ACTION, DEFAULT_EOS
+    from simuleval.agents import SpeechAgent
     from simuleval.states import ListEntry, SpeechStates
 except ImportError:
     print("Please install simuleval 'pip install simuleval'")
-
-from torch import nn
 
 SHIFT_SIZE = 10
 WINDOW_SIZE = 25
@@ -65,7 +64,7 @@ class OnlineFeatureExtractor:
 
         input_samples = samples[:effective_num_samples]
         self.previous_residual_samples = samples[
-            num_frames * self.num_samples_per_shift :
+            num_frames * self.num_samples_per_shift:
         ]
 
         torch.manual_seed(1)
@@ -113,12 +112,12 @@ class TensorListEntry(ListEntry):
         }
 
 
-class FairseqSimulSTAgent(nn.Module):
+class FairseqSimulSTAgent(SpeechAgent):
 
     speech_segment_size = 40  # in ms, 4 pooling ratio * 10 ms step size
 
     def __init__(self, args):
-        super().__init__()
+        super().__init__(args)
 
         self.eos = DEFAULT_EOS
 
@@ -217,6 +216,9 @@ class FairseqSimulSTAgent(nn.Module):
 
         task_args = state["cfg"]["task"]
         task_args.data = args.data_bin
+
+        if args.config is not None:
+            task_args.config_yaml = args.config
 
         task = self.set_up_task(task_args)
 
