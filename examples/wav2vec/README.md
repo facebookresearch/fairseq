@@ -151,7 +151,7 @@ To get raw numbers, use --w2l-decoder viterbi and omit the lexicon. To use the t
 
 Wav2Vec2 is also available in the [🤗Transformers library](https://github.com/huggingface/transformers) since version 4.3.
 
-Pretrained Models can be found on the [hub](https://huggingface.co/models?filter=wav2vec2) 
+Pretrained Models can be found on the [hub](https://huggingface.co/models?filter=wav2vec2)
 and documentation can be found [here](https://huggingface.co/transformers/master/model_doc/wav2vec2.html).
 
 Usage example:
@@ -248,8 +248,8 @@ Roberta on K-means codes | [Librispeech](http://www.openslr.org/12) | [download]
 import torch
 import fairseq
 
-cp = torch.load('/path/to/vq-wav2vec.pt')
-model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([cp])
+cp_path = '/path/to/vq-wav2vec.pt'
+model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([cp_path])
 model = model[0]
 model.eval()
 
