@@ -23,6 +23,9 @@ from .. import utils
 from ..logging import metrics
 
 
+logger = logging.getLogger(__name__)
+
+
 class LabelEncoder(object):
     def __init__(self, dictionary):
         self.dictionary = dictionary
@@ -197,6 +200,13 @@ class AudioPretrainingTask(FairseqTask):
             ),
             **self._get_mask_precompute_kwargs(task_cfg),
         )
+
+        if self.cfg.tpu and task_cfg['mask_channel_prob'] == 0.0:
+            logger.info(
+                "Pretraining on TPUs may suffer convergence "
+                "issues when training with `mask_channel_prob` value of "
+                "0. You may want to set this to a low value close to 0."
+            )
 
         if task_cfg.labels:
             label_path = os.path.join(data_path, f"{split}.{task_cfg.labels}")
