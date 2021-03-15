@@ -442,10 +442,14 @@ class Trainer(object):
                 self.model.load_state_dict(
                     state["model"], strict=True, model_cfg=self.cfg.model
                 )
+                # save memory for later steps
+                del state["model"]
                 if utils.has_parameters(self.get_criterion()):
                     self.get_criterion().load_state_dict(
                         state["criterion"], strict=True
                     )
+                    del state["criterion"]
+
             except Exception:
                 raise Exception(
                     "Cannot load model parameters from checkpoint {}; "
