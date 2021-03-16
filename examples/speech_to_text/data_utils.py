@@ -168,7 +168,7 @@ def gen_config_yaml(
         assert gcmvn_path is not None, (
             'Please provide path of global cmvn file.'
         )
-        writer.set_global_cmvn(gcmvn_path)
+        writer.set_global_cmvn(str(gcmvn_path))
 
     if len(audio_root) > 0:
         writer.set_audio_root(audio_root)
@@ -325,7 +325,7 @@ class S2TDataConfigWriter(object):
         self.config["bpe_tokenizer"] = bpe_tokenizer
 
     def set_global_cmvn(self, stats_npz_path: str):
-        self.config["stats_npz_path"] = stats_npz_path
+        self.config["global_cmvn"] = {"stats_npz_path": stats_npz_path}
 
     def set_feature_transforms(self, split: str, transforms: List[str]):
         if "transforms" not in self.config:
