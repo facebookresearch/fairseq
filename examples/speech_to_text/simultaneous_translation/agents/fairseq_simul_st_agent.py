@@ -138,7 +138,7 @@ class FairseqSimulSTAgent(SpeechAgent):
 
         args.global_cmvn = None
         if args.config:
-            with open(args.config, "r") as f:
+            with open(os.path.join(args.data_bin, args.config), "r") as f:
                 config = yaml.load(f, Loader=yaml.BaseLoader)
 
             if "global_cmvn" in config:
@@ -203,9 +203,6 @@ class FairseqSimulSTAgent(SpeechAgent):
         # fmt: on
         return parser
 
-    def set_up_task(self, task_args):
-        return tasks.setup_task(task_args)
-
     def load_model_vocab(self, args):
 
         filename = args.model_path
@@ -220,9 +217,11 @@ class FairseqSimulSTAgent(SpeechAgent):
         if args.config is not None:
             task_args.config_yaml = args.config
 
-        task = self.set_up_task(task_args)
+        task = tasks.setup_task(task_args)
 
         # build model for ensemble
+        state["cfg"]["model"].load_pretrained_encoder_from = None
+        state["cfg"]["model"].load_pretrained_decoder_from = None
         self.model = task.build_model(state["cfg"]["model"])
         self.model.load_state_dict(state["model"], strict=True)
         self.model.eval()
