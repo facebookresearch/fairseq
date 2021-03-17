@@ -152,12 +152,14 @@ class AudioPretrainingTask(FairseqTask):
 
     def load_target_dictionary(self):
         if self.cfg.labels:
-            dict_path = os.path.join(self.cfg.data, f"dict.{self.cfg.labels}.txt")
+            dict_path = os.path.join(
+                self.cfg.data, f"dict.{self.cfg.labels}.txt"
+            )
             return Dictionary.load(dict_path)
         return None
 
     def _get_mask_precompute_kwargs(self, cfg):
-        if self.cfg.precompute_mask_indices:
+        if self.cfg.precompute_mask_indices or self.cfg.tpu:
             args = [
                 'mask_length',
                 'mask_prob',
@@ -178,7 +180,9 @@ class AudioPretrainingTask(FairseqTask):
         else:
             return {}
 
-    def load_dataset(self, split: str, task_cfg: FairseqDataclass = None, **kwargs):
+    def load_dataset(
+            self, split: str, task_cfg: FairseqDataclass = None, **kwargs
+    ):
         data_path = self.cfg.data
         task_cfg = task_cfg or self.cfg
 
