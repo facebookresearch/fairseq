@@ -37,7 +37,7 @@ To produce the training data, we use a combination of [CCMatrix](https://arxiv.o
 
 2. **Preprocess Data**
 
-After downloading raw data, you will need to postprocess the data, then apply SPM, then binarize. Note that it is very important you run the postprocessing script, because this removes any instance of the evaluation data in the mined training data.
+After downloading raw data, you will need to preprocess the data, then apply SPM, then binarize. Note that it is very important you run the preprocessing script, because this removes any instance of the evaluation data in the mined training data.
 
 ```bash
 # preprocess data
