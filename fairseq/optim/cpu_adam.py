@@ -12,12 +12,14 @@ import torch
 from fairseq.dataclass import FairseqDataclass
 from fairseq.optim import FairseqOptimizer, register_optimizer
 from omegaconf import II, DictConfig
+import logging
 
 
 try:
-    from deepspeed.ops.op_builder import CPUAdamBuilder
+    import deepspeed.op_extensions.cpu_adam as ds_opt_adam
     has_deepspeed_cpu_adam = True
-except ImportError:
+except ImportError as e:
+    logging.warning(e)
     has_deepspeed_cpu_adam = False
 
 
@@ -101,7 +103,7 @@ class CPUAdam(torch.optim.Optimizer):
         self.opt_id = CPUAdam.optimizer_id
         CPUAdam.optimizer_id = CPUAdam.optimizer_id + 1
 
-        self.ds_opt_adam = CPUAdamBuilder().load()
+        self.ds_opt_adam = ds_opt_adam
         adamw_mode = True
         self.ds_opt_adam.create_adam(
             self.opt_id, lr, betas[0], betas[1], eps, weight_decay, adamw_mode
