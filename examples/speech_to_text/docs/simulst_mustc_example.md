@@ -31,7 +31,8 @@ python examples/speech_to_text/prep_mustc_data.py \
 ```
 
 ## ASR Pretraining
-We need a pretrained offline ASR model. Assuming the save directory of the ASR model is `${ASR_SAVE_DIR}`
+We need a pretrained offline ASR model. Assuming the save directory of the ASR model is `${ASR_SAVE_DIR}`.
+The following command (and the subsequent training commands in this tutorial) assume training on 1 GPU (you can also train on 8 GPUs and remove the `--update-freq 8` option).
 ```
 fairseq-train ${MUSTC_ROOT}/en-de \
   --config-yaml config_asr.yaml --train-subset train_asr --valid-subset dev_asr \
@@ -60,7 +61,8 @@ a wait-3 policy model. Assuming the save directory is `${ST_SAVE_DIR}`
         --arch convtransformer_simul_trans_espnet  \
         --simul-type waitk_fixed_pre_decision  \
         --waitk-lagging 3 \
-        --fixed-pre-decision-ratio 7
+        --fixed-pre-decision-ratio 7 \
+        --update-freq 8
 
 ```
 ### Monotonic multihead attention with fixed pre-decision module
@@ -76,7 +78,8 @@ a wait-3 policy model. Assuming the save directory is `${ST_SAVE_DIR}`
         --latency-weight-avg 0.1 \
         --arch convtransformer_simul_trans_espnet  \
         --simul-type infinite_lookback_fixed_pre_decision  \
-        --fixed-pre-decision-ratio 7
+        --fixed-pre-decision-ratio 7 \
+        --update-freq 8
 ```
 ## Inference & Evaluation
 [SimulEval](https://github.com/facebookresearch/SimulEval) is used for evaluation.
