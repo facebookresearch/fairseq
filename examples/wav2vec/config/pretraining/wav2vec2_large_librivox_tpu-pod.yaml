@@ -27,7 +27,7 @@ dataset:
   skip_invalid_size_inputs_valid_test: true
 
 distributed_training:
-  distributed_world_size: 8
+  distributed_world_size: 128
   ddp_backend: legacy_ddp
 
 criterion:

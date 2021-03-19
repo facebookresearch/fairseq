@@ -226,6 +226,15 @@ $ python train.py /manifest/path --save-dir /model/path --num-workers 6 --fp16 -
 
 Wav2Vec2 is now supported on TPUs! It's currently pre-training only.
 
+#### Using hydra on a v3-8:
+
+```
+$ OMP_NUM_THREADS=1 fairseq-hydra-train \
+  task.data=/manifest/path \
+  --config-dir /PATH/TO/FAIRSEQ/examples/wav2vec/config/pretraining \
+  --config-name wav2vec2_large_librivox_tpu.yaml
+```
+
 #### Using command line arguments on a v3-8:
 
 ```
@@ -239,9 +248,17 @@ $ OMP_NUM_THREADS=1 python train.py /manifest/path --save-dir /model/path --num-
 --encoder-layerdrop 0 --mask-channel-prob 0.1
 ```
 
+#### Using hydra on a pod slice (v3-N with N > 8):
+
+```
+$ OMP_NUM_THREADS=1 fairseq-hydra-train \
+  task.data=/manifest/path \
+  --config-dir /PATH/TO/FAIRSEQ/examples/wav2vec/config/pretraining \
+  --config-name wav2vec2_large_librivox_tpu-pod.yaml  # edit distributed-world-size accordingly
+```
+
 #### Using command line arguments on a pod slice (v3-N with N > 8):
 
-Make sure to fill in the variables below.
 
 ```
 $ python -m torch_xla.distributed.xla_dist \
