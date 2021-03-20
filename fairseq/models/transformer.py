@@ -511,7 +511,7 @@ class TransformerEncoder(FairseqEncoder):
         x, encoder_embedding = self.forward_embedding(src_tokens, token_embeddings)
 
         # account for padding while computing the representation
-        if encoder_padding_mask is not None:
+        if has_pads:
             x = x * (1 - encoder_padding_mask.unsqueeze(-1).type_as(x))
 
         # B x T x C -> T x B x C
