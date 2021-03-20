@@ -16,10 +16,11 @@ import logging
 
 
 try:
-    import deepspeed.op_extensions.cpu_adam as ds_opt_adam
+    import deepspeed.ops.adam.cpu_adam as ds_opt_adam
     has_deepspeed_cpu_adam = True
 except ImportError as e:
-    logging.warning(e)
+    logger = logging.getLogger(__name__)
+    logger.warning(e)
     has_deepspeed_cpu_adam = False
 
 
