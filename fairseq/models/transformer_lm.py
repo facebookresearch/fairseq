@@ -449,11 +449,14 @@ def transformer_lm_gpt2_big(args):
 
 
 def base_gpt3_architecture(args):
+    args.decoder_input_dim = args.decoder_embed_dim
+    args.decoder_output_dim = args.decoder_embed_dim
     args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", args.decoder_embed_dim * 4)
     args.decoder_learned_pos = getattr(args, "decoder_learned_pos", True)
     args.dropout = getattr(args, "dropout", 0.0)
     args.attention_dropout = getattr(args, "attention_dropout", 0.0)
     args.activation_fn = getattr(args, "activation_fn", "gelu")
+    args.share_decoder_input_output_embed = True
     base_lm_architecture(args)
 
 
@@ -489,7 +492,7 @@ def transformer_lm_gpt3_xl(args):
     # 1.3B params
     args.decoder_layers = getattr(args, "decoder_layers", 24)
     args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 2048)
-    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 24)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 32)
     base_gpt3_architecture(args)
 
 

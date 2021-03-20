@@ -458,9 +458,6 @@ class RobertaEncoder(FairseqEncoder):
     def build_lm_head(self, embed_dim, output_dim, activation_fn, weight):
         return RobertaLMHead(embed_dim, output_dim, activation_fn, weight)
 
-    def build_lm_head(self, embed_dim, output_dim, activation_fn, weight):
-        return RobertaLMHead(embed_dim, output_dim, activation_fn, weight)
-
     def forward(
         self,
         src_tokens,
