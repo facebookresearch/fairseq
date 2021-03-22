@@ -304,7 +304,7 @@ def base_lm_architecture(args):
     args.adaptive_softmax_cutoff = getattr(args, "adaptive_softmax_cutoff", None)
     args.adaptive_softmax_dropout = getattr(args, "adaptive_softmax_dropout", 0)
     args.adaptive_softmax_factor = getattr(args, "adaptive_softmax_factor", 4)
-    args.decoder_learned_pos = getattr(args, "decoder_learned_pos", True)
+    args.decoder_learned_pos = getattr(args, "decoder_learned_pos", False)
     args.activation_fn = getattr(args, "activation_fn", "relu")
 
     args.decoder_layerdrop = getattr(args, "decoder_layerdrop", 0)
@@ -449,6 +449,7 @@ def base_gpt3_architecture(args):
     args.decoder_input_dim = args.decoder_embed_dim
     args.decoder_output_dim = args.decoder_embed_dim
     args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", args.decoder_embed_dim * 4)
+    # GPT-3 used learned positional embeddings, rather than sinusoidal
     args.decoder_learned_pos = getattr(args, "decoder_learned_pos", True)
     args.dropout = getattr(args, "dropout", 0.0)
     args.attention_dropout = getattr(args, "attention_dropout", 0.0)
