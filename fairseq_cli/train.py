@@ -125,7 +125,7 @@ def main(cfg: FairseqConfig) -> None:
         )
     )
     logger.info(
-        "max tokens per GPU = {} and batch size per GPU = {}".format(
+        "max tokens per device = {} and max sentences per device = {}".format(
             cfg.dataset.max_tokens,
             cfg.dataset.batch_size,
         )
@@ -139,6 +139,9 @@ def main(cfg: FairseqConfig) -> None:
         # don't cache epoch iterators for sharded datasets
         disable_iterator_cache=task.has_sharded_data("train"),
     )
+    if cfg.common.tpu:
+        import torch_xla.core.xla_model as xm
+        xm.rendezvous("load_checkpoint")  # wait for all workers
 
     max_epoch = cfg.optimization.max_epoch or math.inf
     lr = trainer.get_lr()
