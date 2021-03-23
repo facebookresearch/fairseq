@@ -432,7 +432,9 @@ def validate(
         # create a new root metrics aggregator so validation metrics
         # don't pollute other aggregators (e.g., train meters)
         with metrics.aggregate(new_root=True) as agg:
-            for sample in progress:
+            for i, sample in enumerate(progress):
+                if cfg.dataset.max_valid_steps is not None and i > cfg.dataset.max_valid_steps:
+                    break
                 trainer.valid_step(sample)
 
         # log validation stats
