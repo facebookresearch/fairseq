@@ -524,3 +524,25 @@ def lengths_to_padding_mask(lens: torch.LongTensor) -> torch.BoolTensor:
 
 def lengths_to_mask(lens: torch.LongTensor) -> torch.BoolTensor:
     return ~lengths_to_padding_mask(lens)
+
+
+def get_buckets(sizes, num_buckets):
+    buckets = np.unique(
+        np.percentile(
+            sizes,
+            np.linspace(0, 100, num_buckets + 1),
+            interpolation='lower',
+        )[1:]
+    )
+    return buckets
+
+
+def get_bucketed_sizes(orig_sizes, buckets):
+    sizes = np.copy(orig_sizes)
+    assert np.min(sizes) >= 0
+    start_val = -1
+    for end_val in buckets:
+        mask = (sizes > start_val) & (sizes <= end_val)
+        sizes[mask] = end_val
+        start_val = end_val
+    return sizes
