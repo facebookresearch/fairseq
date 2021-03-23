@@ -1160,7 +1160,7 @@ class TestLanguageModeling(unittest.TestCase):
                 train_language_model(
                     data_dir,
                     "transformer_lm",
-                    ["--add-bos-token"],
+                    ["--add-bos-token", '--nval',  '1'],
                     run_validation=True,
                 )
                 eval_lm_main(data_dir)
