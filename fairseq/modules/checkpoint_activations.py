@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Tuple, Union
 
 import torch
 import torch.utils.checkpoint as checkpoint
-
 from fairseq import utils
 
 
@@ -26,9 +25,14 @@ def checkpoint_wrapper(m, offload_to_cpu=False):
         checkpointed_module = checkpoint_wrapper(my_module, offload_to_cpu=True)
         a, b = checkpointed_module(x, y=3, z=torch.Tensor([1]))
     """
+    # should I check whether original_forward has already been set?
+    assert not hasattr(
+        m, "precheckpoint_forward"
+    ), "checkpoint function has already been applied?"
+    m.precheckpoint_forward = m.forward
     m.forward = functools.partial(
         _checkpointed_forward,
-        m.forward,  # original_forward
+        m.precheckpoint_forward,  # original_forward
         offload_to_cpu,
     )
     return m
