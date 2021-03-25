@@ -88,7 +88,13 @@ def load_indexed_dataset(
     datasets = []
     for k in itertools.count():
         path_k = path + (str(k) if k > 0 else "")
-        path_k = indexed_dataset.get_indexed_dataset_to_local(path_k)
+        try:
+            path_k = indexed_dataset.get_indexed_dataset_to_local(path_k)
+        except Exception as e:
+            if "StorageException: [404] Path not found" in str(e):
+                logger.warning(f"path_k: {e} not found")
+            else:
+                raise e
 
         dataset_impl_k = dataset_impl
         if dataset_impl_k is None:
