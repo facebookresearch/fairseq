@@ -3,7 +3,9 @@
 import logging
 import math
 from typing import Dict, List, Optional, Tuple
+from pathlib import Path
 
+import torch
 import torch.nn as nn
 from fairseq import checkpoint_utils, utils
 from fairseq.data.data_utils import lengths_to_padding_mask
@@ -199,18 +201,28 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
             metavar="STR",
             help="model to take encoder weights from (for initialization)",
         )
+        parser.add_argument(
+            '--encoder-freezing-updates',
+            default=None,
+            type=int,
+            metavar='N',
+            help='freeze encoder for first N updates'
+        )
 
     @classmethod
     def build_encoder(cls, args):
         encoder = S2TTransformerEncoder(args)
-        if getattr(args, "load_pretrained_encoder_from", None):
-            encoder = checkpoint_utils.load_pretrained_component_from_model(
-                component=encoder, checkpoint=args.load_pretrained_encoder_from
-            )
-            logger.info(
-                f"loaded pretrained encoder from: "
-                f"{args.load_pretrained_encoder_from}"
-            )
+        pretraining_path = getattr(args, "load_pretrained_encoder_from", None)
+        if pretraining_path is not None:
+            if not Path(pretraining_path).exists():
+                logger.warning(
+                    f"skipped pretraining because {pretraining_path} does not exist"
+                )
+            else:
+                encoder = checkpoint_utils.load_pretrained_component_from_model(
+                    component=encoder, checkpoint=pretraining_path
+                )
+                logger.info(f"loaded pretrained encoder from: {pretraining_path}")
         return encoder
 
     @classmethod
@@ -267,6 +279,9 @@ class S2TTransformerEncoder(FairseqEncoder):
     def __init__(self, args):
         super().__init__(None)
 
+        self.encoder_freezing_updates = args.encoder_freezing_updates
+        self.num_updates = 0
+
         self.dropout_module = FairseqDropout(
             p=args.dropout, module_name=self.__class__.__name__
         )
@@ -294,7 +309,7 @@ class S2TTransformerEncoder(FairseqEncoder):
         else:
             self.layer_norm = None
 
-    def forward(self, src_tokens, src_lengths):
+    def _forward(self, src_tokens, src_lengths):
         x, input_lengths = self.subsample(src_tokens, src_lengths)
         x = self.embed_scale * x
 
@@ -317,6 +332,14 @@ class S2TTransformerEncoder(FairseqEncoder):
             "src_tokens": [],
             "src_lengths": [],
         }
+
+    def forward(self, src_tokens, src_lengths):
+        if self.num_updates < self.encoder_freezing_updates:
+            with torch.no_grad():
+                x = self._forward(src_tokens, src_lengths)
+        else:
+            x = self._forward(src_tokens, src_lengths)
+        return x
 
     def reorder_encoder_out(self, encoder_out, new_order):
         new_encoder_out = (
@@ -348,6 +371,10 @@ class S2TTransformerEncoder(FairseqEncoder):
             "src_lengths": [],  # B x 1
         }
 
+    def set_num_updates(self, num_updates):
+        super().set_num_updates(num_updates)
+        self.num_updates = num_updates
+
 
 class TransformerDecoderScriptable(TransformerDecoder):
     def extract_features(
@@ -373,6 +400,7 @@ class TransformerDecoderScriptable(TransformerDecoder):
 
 @register_model_architecture(model_name="s2t_transformer", arch_name="s2t_transformer")
 def base_architecture(args):
+    args.encoder_freezing_updates = getattr(args, "encoder_freezing_updates", 0)
     # Convolutional subsampler
     args.conv_kernel_sizes = getattr(args, "conv_kernel_sizes", "5,5")
     args.conv_channels = getattr(args, "conv_channels", 1024)
