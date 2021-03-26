@@ -320,7 +320,7 @@ class FairseqSimulSTAgent(SpeechAgent):
             "tgt": 1 + len(states.units.target),
         }
 
-        states.incremental_states["online"] = not states.finish_read()
+        states.incremental_states["online"] = {"only": torch.tensor(not states.finish_read())}
 
         x, outputs = self.model.decoder.forward(
             prev_output_tokens=tgt_indices,
