@@ -20,8 +20,10 @@ from fairseq.models.speech_to_text.modules.augmented_memory_attention import (
     SequenceEncoder,
     AugmentedMemoryConvTransformerEncoder,
 )
-from fairseq.models.speech_to_text.modules.emformer import emformer_encoder
 
+from torch import nn, Tensor
+from typing import Dict, List
+from fairseq.models.speech_to_text.modules.emformer import NoSegAugmentedMemoryTransformerEncoderLayer
 
 @register_model("convtransformer_simul_trans")
 class SimulConvTransformerModel(ConvTransformerModel):
@@ -97,9 +99,56 @@ def augmented_memory_convtransformer_espnet(args):
 # ============================================================================ #
 
 
-@emformer_encoder
 class ConvTransformerEmformerEncoder(ConvTransformerEncoder):
-    pass
+    def __init__(self, args):
+        super().__init__(args)
+        stride = self.conv_layer_stride(args)
+        trf_left_context = args.segment_left_context // stride
+        trf_right_context = args.segment_right_context // stride
+        context_config = [trf_left_context, trf_right_context]
+        self.transformer_layers = nn.ModuleList(
+            [
+                NoSegAugmentedMemoryTransformerEncoderLayer(
+                    input_dim=args.encoder_embed_dim,
+                    num_heads=args.encoder_attention_heads,
+                    ffn_dim=args.encoder_ffn_embed_dim,
+                    num_layers=args.encoder_layers,
+                    dropout_in_attn=args.dropout,
+                    dropout_on_attn=args.dropout,
+                    dropout_on_fc1=args.dropout,
+                    dropout_on_fc2=args.dropout,
+                    activation_fn=args.activation_fn,
+                    context_config=context_config,
+                    segment_size=args.segment_length,
+                    max_memory_size=args.max_memory_size,
+                    scaled_init=True,  # TODO: use constant for now.
+                    tanh_on_mem=args.amtrf_tanh_on_mem,
+                )
+            ]
+        )
+        self.conv_transformer_encoder = ConvTransformerEncoder(args)
+
+    def forward(self, src_tokens, src_lengths):
+        encoder_out: Dict[str, List[Tensor]] = self.conv_transformer_encoder(src_tokens, src_lengths.to(src_tokens.device))
+        output = encoder_out["encoder_out"][0]
+        encoder_padding_masks = encoder_out["encoder_padding_mask"]
+
+        return {
+            "encoder_out": [output],
+            # This is because that in the original implementation
+            # the output didn't consider the last segment as right context.
+            "encoder_padding_mask": [encoder_padding_masks[0][:, : output.size(0)]] if len(encoder_padding_masks) > 0
+            else [],
+            "encoder_embedding": [],
+            "encoder_states": [],
+            "src_tokens": [],
+            "src_lengths": [],
+        }
+
+    @staticmethod
+    def conv_layer_stride(args):
+        # TODO: make it configurable from the args
+        return 4
 
 
 @register_model("convtransformer_emformer")
