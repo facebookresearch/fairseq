@@ -1812,7 +1812,8 @@ def emformer_encoder(klass):
 
         def forward(self, src_tokens, src_lengths):
             encoder_out = super().forward(src_tokens, src_lengths)
-            (output, encoder_padding_masks, [], _) = encoder_out["encoder_out"][0]
+            output = encoder_out["encoder_out"][0]
+            encoder_padding_masks = encoder_out["encoder_padding_mask"][0]
 
             # This is because that in the original implementation
             # the output didn't consider the last segment as right context.
