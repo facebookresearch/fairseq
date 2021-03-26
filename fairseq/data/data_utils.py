@@ -312,13 +312,12 @@ def batch_by_size(
         )
     except ImportError:
         raise ImportError(
-            "Please build Cython components with: `pip install --editable .` "
-            "or `python setup.py build_ext --inplace`"
+            "Please build Cython components with: "
+            "`python setup.py build_ext --inplace`"
         )
     except ValueError:
         raise ValueError(
-            "Please build (or rebuild) Cython components with: `pip install "
-            " --editable .` or `python setup.py build_ext --inplace`."
+            "Please build (or rebuild) Cython components with `python setup.py build_ext --inplace`."
         )
 
     # added int() to avoid TypeError: an integer is required

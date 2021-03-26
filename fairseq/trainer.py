@@ -331,8 +331,14 @@ class Trainer(object):
 
     def consolidate_optimizer(self):
         """For OSS, we need to consolidate the state dict."""
+        self._gathered_optim_state = None
         if hasattr(self.optimizer.optimizer, "consolidate_state_dict"):
             self.optimizer.optimizer.consolidate_state_dict()
+
+        elif self.cfg.distributed_training.ddp_backend == 'fully_sharded':
+            self._gathered_optim_state = self.model.gather_full_optim_state_dict(self.optimizer,
+                                                                                 recipient_rank=0)
+
 
     def state_dict(self):
         state_dict = {
@@ -362,7 +368,11 @@ class Trainer(object):
             }
         }
         if not self.cfg.checkpoint.no_save_optimizer_state:
-            state_dict["last_optimizer_state"] = self.optimizer.state_dict()
+            if self._gathered_optim_state is not None:
+                state_dict["last_optimizer_state"] = self._gathered_optim_state
+                self._gathered_optim_state = None
+            else:
+                state_dict["last_optimizer_state"] = self.optimizer.state_dict()
         return state_dict
 
     def save_checkpoint(self, filename, extra_state):
@@ -478,6 +488,9 @@ class Trainer(object):
                 last_optim_state = self.optimizer.broadcast_global_state_dict(
                     last_optim_state
                 )
+            elif self.cfg.distributed_training.ddp_backend == 'fully_sharded':
+                last_optim_state = self.model.get_shard_from_optim_state_dict(last_optim_state)
+
             self.optimizer.load_state_dict(last_optim_state, optimizer_overrides)
 
             self.set_num_updates(last_optim["num_updates"])

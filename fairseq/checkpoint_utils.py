@@ -42,7 +42,7 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
     if cfg.no_save:
         return
 
-    trainer.consolidate_optimizer()
+    trainer.consolidate_optimizer()  # TODO(SS): do we need this if no_save_optimizer_state
 
     if not trainer.should_save_checkpoint_on_current_rank:
         return
