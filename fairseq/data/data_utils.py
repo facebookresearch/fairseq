@@ -511,13 +511,13 @@ def compute_mask_indices(
 
 
 def get_mem_usage():
-    # try:
-    import psutil
+    try:
+        import psutil
 
-    mb = 1024 * 1024
-    return f"used={psutil.virtual_memory().used / mb}Mb; avail={psutil.virtual_memory().available / mb}Mb"
-    # except ImportError:
-    #     return "N/A"
+        mb = 1024 * 1024
+        return f"used={psutil.virtual_memory().used / mb}Mb; avail={psutil.virtual_memory().available / mb}Mb"
+    except ImportError:
+        return "N/A"
 
 
 # lens: torch.LongTensor
