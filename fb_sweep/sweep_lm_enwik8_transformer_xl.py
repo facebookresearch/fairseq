@@ -10,7 +10,7 @@ Usage:
     --constraint volta32gb
 """
 
-import sweep as sweep
+import sweep
 from sweep import hyperparam
 
 

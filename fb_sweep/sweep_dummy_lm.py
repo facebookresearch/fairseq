@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import sweep as sweep
+import sweep
 from sweep import hyperparam
 
 
