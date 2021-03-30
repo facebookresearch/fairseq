@@ -19,6 +19,7 @@ from fairseq.models import (
 )
 from fairseq.modules import (
     AdaptiveSoftmax,
+    BaseLayer,
     FairseqDropout,
     LayerDropModuleList,
     LayerNorm,
@@ -751,6 +752,10 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             nn.init.normal_(
                 self.output_projection.weight, mean=0, std=self.output_embed_dim ** -0.5
             )
+        num_base_layers = getattr(args, "base_layers", 0)
+        for i in range(num_base_layers):
+            self.layers.insert(((i+1) * args.decoder_layers) // (num_base_layers + 1), BaseLayer(args))
+
 
     def build_decoder_layer(self, args, no_encoder_attn=False):
         layer = TransformerDecoderLayer(args, no_encoder_attn)

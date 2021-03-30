@@ -180,6 +180,16 @@ class TransformerLanguageModelConfig(FairseqDataclass):
             )
         }
     )
+    # config for "BASE Layers: Simplifying Training of Large, Sparse Models"
+    base_layers: Optional[int] = field(
+        default=0, metadata={"help": "number of BASE layers in total"}
+    )
+    base_sublayers: Optional[int] = field(
+        default=1, metadata={"help": "number of sublayers in each BASE layer"}
+    )
+    base_shuffle: Optional[int] = field(
+        default=1, metadata={"help": "shuffle tokens between workers before computing assignment"}
+    )
     # options from other parts of the config
     add_bos_token: bool = II("task.add_bos_token")
     tokens_per_sample: int = II("task.tokens_per_sample")
@@ -312,6 +322,10 @@ def base_lm_architecture(args):
     args.quant_noise_pq = getattr(args, "quant_noise_pq", 0)
     args.quant_noise_pq_block_size = getattr(args, "quant_noise_pq_block_size", 8)
     args.quant_noise_scalar = getattr(args, "quant_noise_scalar", 0)
+
+    args.base_layers = getattr(args, "base_layers", 0)
+    args.base_sublayers = getattr(args, "base_sublayers", 1)
+    args.base_shuffle = getattr(args, "base_shuffle", False)
 
     args.add_bos_token = getattr(args, "add_bos_token", False)
     args.no_token_positional_embeddings = getattr(

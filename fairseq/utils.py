@@ -339,10 +339,14 @@ def multi_tensor_total_norm(grads, chunk_size=2048 * 32) -> torch.Tensor:
 
 @torch.no_grad()
 def clip_grad_norm_(params, max_norm, aggregate_norm_fn=None) -> torch.Tensor:
+    def grad_exists(p):
+        return p is not None and getattr(p, "grad", None) is not None
     if isinstance(params, torch.Tensor):
         params = [params]
     params = list(params)
-    grads = [p.grad.detach() for p in filter(lambda p: p.grad is not None, params)]
+    grads = [p.grad.detach() for p in params if grad_exists(p) and not hasattr(p, 'expert')]
+    expert_grads = [p.grad.detach() for p in params if grad_exists(p) and hasattr(p, 'expert')]
+
     if len(grads) == 0:
         if len(params) > 0:
             return params[0].new_tensor(0.0)
@@ -377,7 +381,7 @@ def clip_grad_norm_(params, max_norm, aggregate_norm_fn=None) -> torch.Tensor:
     if max_norm > 0:
         max_norm = float(max_norm)
         clip_coef = (max_norm / (total_norm + 1e-6)).clamp_(max=1)
-        for g in grads:
+        for g in grads + expert_grads:
             g.mul_(clip_coef)
     return total_norm
 

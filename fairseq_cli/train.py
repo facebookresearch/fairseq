@@ -98,9 +98,16 @@ def main(cfg: FairseqConfig) -> None:
     logger.info("model: {}".format(model.__class__.__name__))
     logger.info("criterion: {}".format(criterion.__class__.__name__))
     logger.info(
-        "num. model params: {:,} (num. trained: {:,})".format(
-            sum(getattr(p, "_orig_size", p).numel() for p in model.parameters()),
-            sum(getattr(p, "_orig_size", p).numel() for p in model.parameters() if p.requires_grad),
+        "num. shared model params: {:,} (num. trained: {:,})".format(
+            sum(p.numel() for p in model.parameters() if not getattr(p, "expert", False)),
+            sum(p.numel() for p in model.parameters() if not getattr(p, "expert", False) and p.requires_grad)
+        )
+    )
+
+    logger.info(
+        "num. expert model params: {} (num. trained: {})".format(
+            sum(p.numel() for p in model.parameters() if getattr(p, "expert", False)),
+            sum(p.numel() for p in model.parameters() if getattr(p, "expert", False) and p.requires_grad),
         )
     )
 

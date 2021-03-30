@@ -136,6 +136,11 @@ class LegacyDistributedDataParallel(nn.Module):
                         continue
                     if param.grad is None:
                         param.grad = torch.zeros_like(param)
+
+                    if hasattr(param, 'expert'):
+                        # Skip gradient sync for unshared parameters
+                        continue
+
                     if param.grad.requires_grad:
                         raise RuntimeError(
                             "DistributedDataParallel only works "

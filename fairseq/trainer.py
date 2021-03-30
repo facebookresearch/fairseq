@@ -195,7 +195,7 @@ class Trainer(object):
     @property
     def should_save_checkpoint_on_current_rank(self) -> bool:
         """Indicates whether to save checkpoints on the current DDP rank."""
-        if self.cfg.distributed_training.ddp_backend == "fully_sharded":
+        if self.cfg.distributed_training.ddp_backend == "fully_sharded" or getattr(self.cfg.model, "base_layers", 0) > 0:
             return True
         else:
             return self.is_data_parallel_master
@@ -415,6 +415,7 @@ class Trainer(object):
                 or self.tpu
                 # FSDP requires loading checkpoint shards on all ranks
                 or self.cfg.distributed_training.ddp_backend == "fully_sharded"
+                or getattr(self.cfg.model, "base_layers", 0) > 0
             )
 
             if load_on_all_ranks or self.data_parallel_rank == 0:
