@@ -204,7 +204,7 @@ class RobertaModel(FairseqEncoderModel):
         features_only=False,
         return_all_hiddens=False,
         classification_head_name=None,
-        **kwargs
+        **kwargs,
     ):
         if classification_head_name is not None:
             features_only = True
@@ -259,7 +259,7 @@ class RobertaModel(FairseqEncoderModel):
         checkpoint_file="model.pt",
         data_name_or_path=".",
         bpe="gpt2",
-        **kwargs
+        **kwargs,
     ):
         from fairseq import hub_utils
 
@@ -464,7 +464,7 @@ class RobertaEncoder(FairseqEncoder):
         features_only=False,
         return_all_hiddens=False,
         masked_tokens=None,
-        **unused
+        **unused,
     ):
         """
         Args:

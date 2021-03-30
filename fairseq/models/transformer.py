@@ -645,7 +645,14 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             (default: False).
     """
 
-    def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False):
+    def __init__(
+        self,
+        args,
+        dictionary,
+        embed_tokens,
+        no_encoder_attn=False,
+        output_projection=None,
+    ):
         self.args = args
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
@@ -727,7 +734,11 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         )
 
         self.adaptive_softmax = None
-        self.output_projection = None
+        self.output_projection = output_projection
+        if self.output_projection is None:
+            self.build_output_projection(args, dictionary, embed_tokens)
+
+    def build_output_projection(self, args, dictionary, embed_tokens):
         if args.adaptive_softmax_cutoff is not None:
             self.adaptive_softmax = AdaptiveSoftmax(
                 len(dictionary),
@@ -789,7 +800,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             prev_output_tokens (LongTensor): previous decoder outputs of shape
                 `(batch, tgt_len)`, for teacher forcing
             encoder_out (optional): output from the encoder, used for
-                encoder-side attention
+                encoder-side attention, should be of size T x B x C
             incremental_state (dict): dictionary used for storing state during
                 :ref:`Incremental decoding`
             features_only (bool, optional): only return features without
@@ -802,6 +813,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 - the decoder's output of shape `(batch, tgt_len, vocab)`
                 - a dictionary with any model-specific outputs
         """
+
         x, extra = self.extract_features(
             prev_output_tokens,
             encoder_out=encoder_out,
@@ -810,6 +822,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             alignment_layer=alignment_layer,
             alignment_heads=alignment_heads,
         )
+
         if not features_only:
             x = self.output_layer(x)
         return x, extra
@@ -866,8 +879,18 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 - the decoder's features of shape `(batch, tgt_len, embed_dim)`
                 - a dictionary with any model-specific outputs
         """
+        bs, slen = prev_output_tokens.size()
         if alignment_layer is None:
             alignment_layer = self.num_layers - 1
+
+        enc: Optional[Tensor] = None
+        padding_mask: Optional[Tensor] = None
+        if encoder_out is not None:
+            enc = encoder_out["encoder_out"][0]
+            padding_mask = encoder_out["encoder_padding_mask"][0]
+            assert (
+                enc.size()[1] == bs
+            ), f"Expected enc.shape == (t, {bs}, c) got {enc.shape}"
 
         # embed positions
         positions = None
@@ -916,15 +939,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
             x, layer_attn, _ = layer(
                 x,
-                encoder_out["encoder_out"][0]
-                if (encoder_out is not None and len(encoder_out["encoder_out"]) > 0)
-                else None,
-                encoder_out["encoder_padding_mask"][0]
-                if (
-                    encoder_out is not None
-                    and len(encoder_out["encoder_padding_mask"]) > 0
-                )
-                else None,
+                enc,
+                padding_mask,
                 incremental_state,
                 self_attn_mask=self_attn_mask,
                 self_attn_padding_mask=self_attn_padding_mask,
