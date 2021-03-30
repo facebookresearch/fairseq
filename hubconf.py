@@ -2,21 +2,17 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+"""isort:skip_file"""
 
 import functools
 import importlib
-
-from fairseq.hub_utils import (  # noqa; noqa
-    BPEHubInterface as bpe,
-    TokenizerHubInterface as tokenizer,
-)
-from fairseq.models import MODEL_REGISTRY  # noqa
 
 
 dependencies = [
     "dataclasses",
     "hydra",
     "numpy",
+    "omegaconf",
     "regex",
     "requests",
     "torch",
@@ -37,6 +33,14 @@ for dep in dependencies:
         missing_deps.append(dep)
 if len(missing_deps) > 0:
     raise RuntimeError("Missing dependencies: {}".format(", ".join(missing_deps)))
+
+
+# only do fairseq imports after checking for dependencies
+from fairseq.hub_utils import (  # noqa; noqa
+    BPEHubInterface as bpe,
+    TokenizerHubInterface as tokenizer,
+)
+from fairseq.models import MODEL_REGISTRY  # noqa
 
 
 # torch.hub doesn't build Cython components, so if they are not found then try

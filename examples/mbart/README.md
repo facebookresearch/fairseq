@@ -81,7 +81,7 @@ fairseq-train path_2_data \
   --restore-file $PRETRAIN \
   --reset-optimizer --reset-meters --reset-dataloader --reset-lr-scheduler \
   --langs $langs \
-  --ddp-backend no_c10d
+  --ddp-backend legacy_ddp
 ```
 ## Generate on EN-RO
 Get sacrebleu on finetuned en-ro model

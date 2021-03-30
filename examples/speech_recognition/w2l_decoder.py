@@ -6,7 +6,7 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Wav2letter decoders.
+Flashlight decoders.
 """
 
 import gc
@@ -25,11 +25,11 @@ from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 
 
 try:
-    from wav2letter.common import create_word_dict, load_words
-    from wav2letter.criterion import CpuViterbiPath, get_data_ptr_as_bytes
-    from wav2letter.decoder import (
+    from flashlight.lib.text.dictionary import create_word_dict, load_words
+    from flashlight.lib.sequence.criterion import CpuViterbiPath, get_data_ptr_as_bytes
+    from flashlight.lib.text.decoder import (
         CriterionType,
-        DecoderOptions,
+        LexiconDecoderOptions,
         KenLM,
         LM,
         LMState,
@@ -39,7 +39,7 @@ try:
     )
 except:
     warnings.warn(
-        "wav2letter python bindings are required to use this functionality. Please install from https://github.com/facebookresearch/wav2letter/wiki/Python-bindings"
+        "flashlight python bindings are required to use this functionality. Please install from https://github.com/facebookresearch/flashlight/tree/master/bindings/python"
     )
     LM = object
     LMState = object
@@ -59,10 +59,17 @@ class W2lDecoder(object):
                 if "<ctc_blank>" in tgt_dict.indices
                 else tgt_dict.bos()
             )
+            if "<sep>" in tgt_dict.indices:
+                self.silence = tgt_dict.index("<sep>")
+            elif "|" in tgt_dict.indices:
+                self.silence = tgt_dict.index("|")
+            else:
+                self.silence = tgt_dict.eos()
             self.asg_transitions = None
         elif args.criterion == "asg_loss":
             self.criterion_type = CriterionType.ASG
             self.blank = -1
+            self.silence = -1
             self.asg_transitions = args.asg_transitions
             self.max_replabel = args.max_replabel
             assert len(self.asg_transitions) == self.vocab_size ** 2
@@ -81,10 +88,13 @@ class W2lDecoder(object):
 
     def get_emissions(self, models, encoder_input):
         """Run encoder and normalize emissions"""
-        # encoder_out = models[0].encoder(**encoder_input)
-        encoder_out = models[0](**encoder_input)
+        model = models[0]
+        encoder_out = model(**encoder_input)
         if self.criterion_type == CriterionType.CTC:
-            emissions = models[0].get_normalized_probs(encoder_out, log_probs=True)
+            if hasattr(model, "get_logits"):
+                emissions = model.get_logits(encoder_out) # no need to normalize emissions
+            else:
+                emissions = model.get_normalized_probs(encoder_out, log_probs=True)
         elif self.criterion_type == CriterionType.ASG:
             emissions = encoder_out["encoder_out"]
         return emissions.transpose(0, 1).float().cpu().contiguous()
@@ -132,58 +142,75 @@ class W2lKenLMDecoder(W2lDecoder):
     def __init__(self, args, tgt_dict):
         super().__init__(args, tgt_dict)
 
-        self.silence = (
-            tgt_dict.index("<ctc_blank>")
-            if "<ctc_blank>" in tgt_dict.indices
-            else tgt_dict.bos()
-        )
-        self.lexicon = load_words(args.lexicon)
-        self.word_dict = create_word_dict(self.lexicon)
-        self.unk_word = self.word_dict.get_index("<unk>")
+        self.unit_lm = getattr(args, "unit_lm", False)
 
-        self.lm = KenLM(args.kenlm_model, self.word_dict)
-        self.trie = Trie(self.vocab_size, self.silence)
+        if args.lexicon:
+            self.lexicon = load_words(args.lexicon)
+            self.word_dict = create_word_dict(self.lexicon)
+            self.unk_word = self.word_dict.get_index("<unk>")
 
-        start_state = self.lm.start(False)
-        for i, (word, spellings) in enumerate(self.lexicon.items()):
-            word_idx = self.word_dict.get_index(word)
-            _, score = self.lm.score(start_state, word_idx)
-            for spelling in spellings:
-                spelling_idxs = [tgt_dict.index(token) for token in spelling]
-                assert (
-                    tgt_dict.unk() not in spelling_idxs
-                ), f"{spelling} {spelling_idxs}"
-                self.trie.insert(spelling_idxs, word_idx, score)
-        self.trie.smear(SmearingMode.MAX)
+            self.lm = KenLM(args.kenlm_model, self.word_dict)
+            self.trie = Trie(self.vocab_size, self.silence)
 
-        self.decoder_opts = DecoderOptions(
-            args.beam,
-            int(getattr(args, "beam_size_token", len(tgt_dict))),
-            args.beam_threshold,
-            args.lm_weight,
-            args.word_score,
-            args.unk_weight,
-            args.sil_weight,
-            0,
-            False,
-            self.criterion_type,
-        )
+            start_state = self.lm.start(False)
+            for i, (word, spellings) in enumerate(self.lexicon.items()):
+                word_idx = self.word_dict.get_index(word)
+                _, score = self.lm.score(start_state, word_idx)
+                for spelling in spellings:
+                    spelling_idxs = [tgt_dict.index(token) for token in spelling]
+                    assert (
+                        tgt_dict.unk() not in spelling_idxs
+                    ), f"{spelling} {spelling_idxs}"
+                    self.trie.insert(spelling_idxs, word_idx, score)
+            self.trie.smear(SmearingMode.MAX)
 
-        if self.asg_transitions is None:
-            N = 768
-            # self.asg_transitions = torch.FloatTensor(N, N).zero_()
-            self.asg_transitions = []
+            self.decoder_opts = LexiconDecoderOptions(
+                beam_size=args.beam,
+                beam_size_token=int(getattr(args, "beam_size_token", len(tgt_dict))),
+                beam_threshold=args.beam_threshold,
+                lm_weight=args.lm_weight,
+                word_score=args.word_score,
+                unk_score=args.unk_weight,
+                sil_score=args.sil_weight,
+                log_add=False,
+                criterion_type=self.criterion_type,
+            )
 
-        self.decoder = LexiconDecoder(
-            self.decoder_opts,
-            self.trie,
-            self.lm,
-            self.silence,
-            self.blank,
-            self.unk_word,
-            self.asg_transitions,
-            False,
-        )
+            if self.asg_transitions is None:
+                N = 768
+                # self.asg_transitions = torch.FloatTensor(N, N).zero_()
+                self.asg_transitions = []
+
+            self.decoder = LexiconDecoder(
+                self.decoder_opts,
+                self.trie,
+                self.lm,
+                self.silence,
+                self.blank,
+                self.unk_word,
+                self.asg_transitions,
+                self.unit_lm,
+            )
+        else:
+            assert args.unit_lm, "lexicon free decoding can only be done with a unit language model"
+            from flashlight.lib.text.decoder import LexiconFreeDecoder, LexiconFreeDecoderOptions
+
+            d = {w: [[w]] for w in tgt_dict.symbols}
+            self.word_dict = create_word_dict(d)
+            self.lm = KenLM(args.kenlm_model, self.word_dict)
+            self.decoder_opts = LexiconFreeDecoderOptions(
+                beam_size=args.beam,
+                beam_size_token=int(getattr(args, "beam_size_token", len(tgt_dict))),
+                beam_threshold=args.beam_threshold,
+                lm_weight=args.lm_weight,
+                sil_score=args.sil_weight,
+                log_add=False,
+                criterion_type=self.criterion_type,
+            )
+            self.decoder = LexiconFreeDecoder(
+                self.decoder_opts, self.lm, self.silence, self.blank, []
+            )
+
 
     def decode(self, emissions):
         B, T, N = emissions.size()
@@ -341,8 +368,6 @@ class W2lFairseqLMDecoder(W2lDecoder):
     def __init__(self, args, tgt_dict):
         super().__init__(args, tgt_dict)
 
-        self.silence = tgt_dict.bos()
-
         self.unit_lm = getattr(args, "unit_lm", False)
 
         self.lexicon = load_words(args.lexicon) if args.lexicon else None
@@ -368,19 +393,6 @@ class W2lFairseqLMDecoder(W2lDecoder):
         self.unk_word = self.word_dict.unk()
         self.lm = FairseqLM(self.word_dict, model)
 
-        self.decoder_opts = DecoderOptions(
-            args.beam,
-            int(getattr(args, "beam_size_token", len(tgt_dict))),
-            args.beam_threshold,
-            args.lm_weight,
-            args.word_score,
-            args.unk_weight,
-            args.sil_weight,
-            0,
-            False,
-            self.criterion_type,
-        )
-
         if self.lexicon:
             start_state = self.lm.start(False)
             for i, (word, spellings) in enumerate(self.lexicon.items()):
@@ -400,6 +412,18 @@ class W2lFairseqLMDecoder(W2lDecoder):
                     self.trie.insert(spelling_idxs, word_idx, score)
             self.trie.smear(SmearingMode.MAX)
 
+            self.decoder_opts = LexiconDecoderOptions(
+                beam_size=args.beam,
+                beam_size_token=int(getattr(args, "beam_size_token", len(tgt_dict))),
+                beam_threshold=args.beam_threshold,
+                lm_weight=args.lm_weight,
+                word_score=args.word_score,
+                unk_score=args.unk_weight,
+                sil_score=args.sil_weight,
+                log_add=False,
+                criterion_type=self.criterion_type,
+            )
+
             self.decoder = LexiconDecoder(
                 self.decoder_opts,
                 self.trie,
@@ -411,7 +435,21 @@ class W2lFairseqLMDecoder(W2lDecoder):
                 self.unit_lm,
             )
         else:
-            from wav2letter.decoder import LexiconFreeDecoder
+            assert args.unit_lm, "lexicon free decoding can only be done with a unit language model"
+            from flashlight.lib.text.decoder import LexiconFreeDecoder, LexiconFreeDecoderOptions
+
+            d = {w: [[w]] for w in tgt_dict.symbols}
+            self.word_dict = create_word_dict(d)
+            self.lm = KenLM(args.kenlm_model, self.word_dict)
+            self.decoder_opts = LexiconFreeDecoderOptions(
+                beam_size=args.beam,
+                beam_size_token=int(getattr(args, "beam_size_token", len(tgt_dict))),
+                beam_threshold=args.beam_threshold,
+                lm_weight=args.lm_weight,
+                sil_score=args.sil_weight,
+                log_add=False,
+                criterion_type=self.criterion_type,
+            )
             self.decoder = LexiconFreeDecoder(
                 self.decoder_opts, self.lm, self.silence, self.blank, []
             )

@@ -3,6 +3,7 @@
 import logging
 import math
 from typing import Dict, List, Optional, Tuple
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -14,7 +15,6 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
-from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models.transformer import Embedding, TransformerDecoder
 from fairseq.modules import (
     FairseqDropout,
@@ -201,18 +201,28 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
             metavar="STR",
             help="model to take encoder weights from (for initialization)",
         )
+        parser.add_argument(
+            '--encoder-freezing-updates',
+            default=None,
+            type=int,
+            metavar='N',
+            help='freeze encoder for first N updates'
+        )
 
     @classmethod
     def build_encoder(cls, args):
         encoder = S2TTransformerEncoder(args)
-        if getattr(args, "load_pretrained_encoder_from", None):
-            encoder = checkpoint_utils.load_pretrained_component_from_model(
-                component=encoder, checkpoint=args.load_pretrained_encoder_from
-            )
-            logger.info(
-                f"loaded pretrained encoder from: "
-                f"{args.load_pretrained_encoder_from}"
-            )
+        pretraining_path = getattr(args, "load_pretrained_encoder_from", None)
+        if pretraining_path is not None:
+            if not Path(pretraining_path).exists():
+                logger.warning(
+                    f"skipped pretraining because {pretraining_path} does not exist"
+                )
+            else:
+                encoder = checkpoint_utils.load_pretrained_component_from_model(
+                    component=encoder, checkpoint=pretraining_path
+                )
+                logger.info(f"loaded pretrained encoder from: {pretraining_path}")
         return encoder
 
     @classmethod
@@ -253,7 +263,7 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
         """
         The forward method inherited from the base class has a **kwargs
         argument in its input, which is not supported in torchscript. This
-        method overrites the forward method definition without **kwargs.
+        method overwrites the forward method definition without **kwargs.
         """
         encoder_out = self.encoder(src_tokens=src_tokens, src_lengths=src_lengths)
         decoder_out = self.decoder(
@@ -268,6 +278,9 @@ class S2TTransformerEncoder(FairseqEncoder):
 
     def __init__(self, args):
         super().__init__(None)
+
+        self.encoder_freezing_updates = args.encoder_freezing_updates
+        self.num_updates = 0
 
         self.dropout_module = FairseqDropout(
             p=args.dropout, module_name=self.__class__.__name__
@@ -296,7 +309,7 @@ class S2TTransformerEncoder(FairseqEncoder):
         else:
             self.layer_norm = None
 
-    def forward(self, src_tokens, src_lengths):
+    def _forward(self, src_tokens, src_lengths):
         x, input_lengths = self.subsample(src_tokens, src_lengths)
         x = self.embed_scale * x
 
@@ -308,70 +321,66 @@ class S2TTransformerEncoder(FairseqEncoder):
         for layer in self.transformer_layers:
             x = layer(x, encoder_padding_mask)
 
-        if not encoder_padding_mask.any():
-            encoder_padding_mask = None
-
         if self.layer_norm is not None:
             x = self.layer_norm(x)
 
-        return EncoderOut(
-            encoder_out=x,
-            encoder_padding_mask=encoder_padding_mask,
-            encoder_embedding=None,
-            encoder_states=None,
-            src_tokens=None,
-            src_lengths=None,
-        )
+        return {
+            "encoder_out": [x],  # T x B x C
+            "encoder_padding_mask": [encoder_padding_mask] if encoder_padding_mask.any() else [],  # B x T
+            "encoder_embedding": [],  # B x T x C
+            "encoder_states": [],  # List[T x B x C]
+            "src_tokens": [],
+            "src_lengths": [],
+        }
 
-    @torch.jit.export
-    def reorder_encoder_out(self, encoder_out: EncoderOut, new_order):
-        """
-        Since encoder_padding_mask and encoder_embedding are both of type
-        Optional[Tensor] in EncoderOut, they need to be copied as local
-        variables for Torchscript Optional refinement
-        """
+    def forward(self, src_tokens, src_lengths):
+        if self.num_updates < self.encoder_freezing_updates:
+            with torch.no_grad():
+                x = self._forward(src_tokens, src_lengths)
+        else:
+            x = self._forward(src_tokens, src_lengths)
+        return x
 
-        encoder_padding_mask: Optional[Tensor] = encoder_out.encoder_padding_mask
-        encoder_embedding: Optional[Tensor] = encoder_out.encoder_embedding
-
+    def reorder_encoder_out(self, encoder_out, new_order):
         new_encoder_out = (
-            encoder_out.encoder_out
-            if encoder_out.encoder_out is None
-            else encoder_out.encoder_out.index_select(1, new_order)
+            [] if len(encoder_out["encoder_out"]) == 0
+            else [x.index_select(1, new_order) for x in encoder_out["encoder_out"]]
         )
 
         new_encoder_padding_mask = (
-            encoder_padding_mask
-            if encoder_padding_mask is None
-            else encoder_padding_mask.index_select(0, new_order)
+            [] if len(encoder_out["encoder_padding_mask"]) == 0
+            else [x.index_select(0, new_order) for x in encoder_out["encoder_padding_mask"]]
         )
 
         new_encoder_embedding = (
-            encoder_embedding
-            if encoder_embedding is None
-            else encoder_embedding.index_select(0, new_order)
+            [] if len(encoder_out["encoder_embedding"]) == 0
+            else [x.index_select(0, new_order) for x in encoder_out["encoder_embedding"]]
         )
 
-        encoder_states = encoder_out.encoder_states
-        if encoder_states is not None:
+        encoder_states = encoder_out["encoder_states"]
+        if len(encoder_states) > 0:
             for idx, state in enumerate(encoder_states):
                 encoder_states[idx] = state.index_select(1, new_order)
 
-        return EncoderOut(
-            encoder_out=new_encoder_out,  # T x B x C
-            encoder_padding_mask=new_encoder_padding_mask,  # B x T
-            encoder_embedding=new_encoder_embedding,  # B x T x C
-            encoder_states=encoder_states,  # List[T x B x C]
-            src_tokens=None,
-            src_lengths=None,
-        )
+        return {
+            "encoder_out": new_encoder_out,  # T x B x C
+            "encoder_padding_mask": new_encoder_padding_mask,  # B x T
+            "encoder_embedding": new_encoder_embedding,  # B x T x C
+            "encoder_states": encoder_states,  # List[T x B x C]
+            "src_tokens": [],  # B x T
+            "src_lengths": [],  # B x 1
+        }
+
+    def set_num_updates(self, num_updates):
+        super().set_num_updates(num_updates)
+        self.num_updates = num_updates
 
 
 class TransformerDecoderScriptable(TransformerDecoder):
     def extract_features(
         self,
         prev_output_tokens,
-        encoder_out: Optional[EncoderOut] = None,
+        encoder_out: Optional[Dict[str, List[Tensor]]] = None,
         incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
         full_context_alignment: bool = False,
         alignment_layer: Optional[int] = None,
@@ -391,6 +400,7 @@ class TransformerDecoderScriptable(TransformerDecoder):
 
 @register_model_architecture(model_name="s2t_transformer", arch_name="s2t_transformer")
 def base_architecture(args):
+    args.encoder_freezing_updates = getattr(args, "encoder_freezing_updates", 0)
     # Convolutional subsampler
     args.conv_kernel_sizes = getattr(args, "conv_kernel_sizes", "5,5")
     args.conv_channels = getattr(args, "conv_channels", 1024)
@@ -415,7 +425,7 @@ def base_architecture(args):
     args.adaptive_softmax_cutoff = getattr(args, "adaptive_softmax_cutoff", None)
     args.adaptive_softmax_dropout = getattr(args, "adaptive_softmax_dropout", 0)
     args.share_decoder_input_output_embed = getattr(
-        args, "share_decoder_input_output_embed", True
+        args, "share_decoder_input_output_embed", False
     )
     args.no_token_positional_embeddings = getattr(
         args, "no_token_positional_embeddings", False
@@ -438,6 +448,15 @@ def s2t_transformer_s(args):
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 4)
     args.dropout = getattr(args, "dropout", 0.1)
     base_architecture(args)
+
+
+@register_model_architecture("s2t_transformer", "s2t_transformer_xs")
+def s2t_transformer_xs(args):
+    args.encoder_layers = getattr(args, "encoder_layers", 6)
+    args.decoder_layers = getattr(args, "decoder_layers", 3)
+    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 256 * 4)
+    args.dropout = getattr(args, "dropout", 0.3)
+    s2t_transformer_s(args)
 
 
 @register_model_architecture("s2t_transformer", "s2t_transformer_sp")

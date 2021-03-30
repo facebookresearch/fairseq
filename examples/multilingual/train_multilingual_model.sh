@@ -1,4 +1,9 @@
 #!/bin/bash
+# Copyright (c) Facebook, Inc. and its affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
 
 path_2_data=$1  # <path to data> which contains binarized data for each directions
 lang_list=$2  # <path to a file which contains a list of languages separted by new lines>

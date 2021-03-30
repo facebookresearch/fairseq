@@ -3,15 +3,15 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import functools
 from typing import Any, Dict, List, Tuple, Union
 
 import torch
 import torch.utils.checkpoint as checkpoint
-
 from fairseq import utils
 
 
-def checkpoint_wrapper(m):
+def checkpoint_wrapper(m, offload_to_cpu=False):
     """
     A friendlier wrapper for performing activation checkpointing.
 
@@ -22,30 +22,38 @@ def checkpoint_wrapper(m):
 
     Usage::
 
-        checkpointed_module = checkpoint_wrapper(my_module)
+        checkpointed_module = checkpoint_wrapper(my_module, offload_to_cpu=True)
         a, b = checkpointed_module(x, y=3, z=torch.Tensor([1]))
     """
-    original_forward = m.forward
-
-    def _checkpointed_forward(*args, **kwargs):
-        # Autograd Functions in PyTorch work best with positional args, since
-        # the backward must return gradients (or None) for every input argument.
-        # We can flatten keyword arguments to make this easier.
-        kwarg_keys, flat_args = pack_kwargs(*args, **kwargs)
-        parent_ctx_dict = {}
-        output = CheckpointFunction.apply(
-            original_forward, parent_ctx_dict, kwarg_keys, *flat_args
-        )
-        if isinstance(output, torch.Tensor):
-            return output
-        else:
-            packed_non_tensor_outputs = parent_ctx_dict["packed_non_tensor_outputs"]
-            if packed_non_tensor_outputs:
-                output = unpack_non_tensors(output, packed_non_tensor_outputs)
-            return output
-
-    m.forward = _checkpointed_forward
+    # should I check whether original_forward has already been set?
+    assert not hasattr(
+        m, "precheckpoint_forward"
+    ), "checkpoint function has already been applied?"
+    m.precheckpoint_forward = m.forward
+    m.forward = functools.partial(
+        _checkpointed_forward,
+        m.precheckpoint_forward,  # original_forward
+        offload_to_cpu,
+    )
     return m
+
+
+def _checkpointed_forward(original_forward, offload_to_cpu, *args, **kwargs):
+    # Autograd Functions in PyTorch work best with positional args, since
+    # the backward must return gradients (or None) for every input argument.
+    # We can flatten keyword arguments to make this easier.
+    kwarg_keys, flat_args = pack_kwargs(*args, **kwargs)
+    parent_ctx_dict = {"offload": offload_to_cpu}
+    output = CheckpointFunction.apply(
+        original_forward, parent_ctx_dict, kwarg_keys, *flat_args
+    )
+    if isinstance(output, torch.Tensor):
+        return output
+    else:
+        packed_non_tensor_outputs = parent_ctx_dict["packed_non_tensor_outputs"]
+        if packed_non_tensor_outputs:
+            output = unpack_non_tensors(output, packed_non_tensor_outputs)
+        return output
 
 
 def pack_kwargs(*args, **kwargs) -> Tuple[List[str], List[Any]]:
@@ -141,6 +149,14 @@ class CheckpointFunction(torch.autograd.Function):
         ctx.fwd_rng_state = utils.get_rng_state()
 
         tensor_inputs, packed_non_tensor_inputs = split_non_tensors(args)
+        if parent_ctx_dict["offload"]:
+            ctx.fwd_device = tuple(x.device for x in tensor_inputs)
+            ctx.grad_requirements = tuple(x.requires_grad for x in tensor_inputs)
+            tensor_inputs = tuple(x.cpu() for x in tensor_inputs)
+
+        else:
+            ctx.fwd_device, ctx.grad_requirements = None, None
+
         ctx.save_for_backward(*tensor_inputs)
         ctx.packed_non_tensor_inputs = packed_non_tensor_inputs
 
@@ -165,8 +181,14 @@ class CheckpointFunction(torch.autograd.Function):
                 "Checkpointing is not compatible with .grad(), please use .backward() if possible"
             )
 
-        tensor_inputs = ctx.saved_tensors
+        tensor_inputs: Tuple = ctx.saved_tensors
         tensor_inputs = checkpoint.detach_variable(tensor_inputs)
+        if ctx.fwd_device is not None:
+            tensor_inputs = [
+                t.to(ctx.fwd_device[i]) for i, t in enumerate(tensor_inputs)
+            ]
+            for i, need_grad in enumerate(ctx.grad_requirements):
+                tensor_inputs[i].requires_grad = need_grad
         inputs = unpack_non_tensors(tensor_inputs, ctx.packed_non_tensor_inputs)
 
         # Store the current states.
@@ -179,7 +201,6 @@ class CheckpointFunction(torch.autograd.Function):
             unpacked_args, unpacked_kwargs = unpack_kwargs(ctx.kwarg_keys, inputs)
             outputs = ctx.run_function(*unpacked_args, **unpacked_kwargs)
             tensor_outputs, _ = split_non_tensors(outputs)
-
         # Set the states back to what it was at the start of this function.
         utils.set_rng_state(bwd_rng_state)
 

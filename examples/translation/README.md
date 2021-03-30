@@ -263,7 +263,7 @@ fairseq-preprocess --source-lang fr --target-lang en \
 mkdir -p checkpoints/multilingual_transformer
 CUDA_VISIBLE_DEVICES=0 fairseq-train data-bin/iwslt17.de_fr.en.bpe16k/ \
     --max-epoch 50 \
-    --ddp-backend=no_c10d \
+    --ddp-backend=legacy_ddp \
     --task multilingual_translation --lang-pairs de-en,fr-en \
     --arch multilingual_transformer_iwslt_de_en \
     --share-decoders --share-decoder-input-output-embed \

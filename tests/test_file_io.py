@@ -45,3 +45,18 @@ class TestFileIO(unittest.TestCase):
         with PathManager.open(os.path.join(self._tmpdir, "test.txt"), "r") as f:
             s = f.read()
         self.assertEqual(s, self._tmpfile_contents)
+
+    def test_file_io_async(self):
+        # ioPath `PathManager` is initialized after the first `opena` call.
+        try:
+            from fairseq.file_io import IOPathPathManager, PathManager
+
+            self.assertIsNone(IOPathPathManager)
+            _asyncfile = os.path.join(self._tmpdir, "async.txt")
+            f = PathManager.opena(_asyncfile, "wb")
+            f.close()
+
+            from fairseq.file_io import IOPathPathManager
+            self.assertIsNotNone(IOPathPathManager)
+        finally:
+            self.assertTrue(PathManager.async_close())

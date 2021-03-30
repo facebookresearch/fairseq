@@ -193,7 +193,7 @@ class MaskedLMTask(LegacyFairseqTask):
             mask_stdev=self.args.mask_stdev,
         )
 
-        with data_utils.numpy_seed(self.args.seed + epoch):
+        with data_utils.numpy_seed(self.args.seed):
             shuffle = np.random.permutation(len(src_dataset))
 
         self.datasets[split] = SortDataset(

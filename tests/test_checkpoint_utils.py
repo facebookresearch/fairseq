@@ -9,8 +9,10 @@ import os
 import tempfile
 import unittest
 from io import StringIO
+from unittest.mock import patch
 
 from fairseq import checkpoint_utils
+from omegaconf import OmegaConf
 
 from tests.utils import (
     create_dummy_data,
@@ -53,7 +55,7 @@ class TestCheckpointUtils(unittest.TestCase):
             yield os.path.join(data_dir, "checkpoint_last.pt")
 
     def test_load_model_ensemble_and_task(self):
-        with contextlib.redirect_stdout(StringIO()):
+        # with contextlib.redirect_stdout(StringIO()):
             with self._train_transformer(seed=123) as model1:
                 with self._train_transformer(seed=456) as model2:
                     ensemble, cfg, task = checkpoint_utils.load_model_ensemble_and_task(
@@ -67,7 +69,10 @@ class TestCheckpointUtils(unittest.TestCase):
                     self.assertEqual(ensemble[1].args.seed, 456)
 
                     # the task from the first model should be returned
-                    self.assertEqual(task.args.seed, 123)
+                    self.assertTrue("seed123" in task.cfg.data)
+
+                    # last cfg is saved
+                    self.assertEqual(cfg.common.seed, 456)
 
     def test_prune_state_dict(self):
         with contextlib.redirect_stdout(StringIO()):
@@ -83,6 +88,18 @@ class TestCheckpointUtils(unittest.TestCase):
                 self.assertEqual(len(ensemble), 1)
                 self.assertEqual(len(ensemble[0].encoder.layers), 2)
                 self.assertEqual(len(ensemble[0].decoder.layers), 1)
+
+    def test_torch_persistent_save_async(self):
+        state_dict = {}
+        filename = "async_checkpoint.pt"
+
+        with patch(f"{checkpoint_utils.__name__}.PathManager.opena") as mock_opena:
+            with patch(f"{checkpoint_utils.__name__}._torch_persistent_save") as mock_save:
+                checkpoint_utils.torch_persistent_save(
+                    state_dict, filename, async_write=True
+                )
+                mock_opena.assert_called_with(filename, "wb")
+                mock_save.assert_called()
 
 
 if __name__ == "__main__":

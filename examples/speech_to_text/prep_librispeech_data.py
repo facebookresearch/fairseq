@@ -6,8 +6,7 @@
 
 import argparse
 import logging
-import os
-import os.path as op
+from pathlib import Path
 import shutil
 from tempfile import NamedTemporaryFile
 
@@ -40,42 +39,42 @@ MANIFEST_COLUMNS = ["id", "audio", "n_frames", "tgt_text", "speaker"]
 
 
 def process(args):
-    os.makedirs(args.output_root, exist_ok=True)
+    out_root = Path(args.output_root).absolute()
+    out_root.mkdir(exist_ok=True)
     # Extract features
-    feature_root = op.join(args.output_root, "fbank80")
-    os.makedirs(feature_root, exist_ok=True)
+    feature_root = out_root / "fbank80"
+    feature_root.mkdir(exist_ok=True)
     for split in SPLITS:
         print(f"Fetching split {split}...")
-        dataset = LIBRISPEECH(args.output_root, url=split, download=True)
+        dataset = LIBRISPEECH(out_root.as_posix(), url=split, download=True)
         print("Extracting log mel filter bank features...")
-        for wav, sample_rate, _, spk_id, chapter_id, utt_id in tqdm(dataset):
-            sample_id = f"{spk_id}-{chapter_id}-{utt_id}"
+        for wav, sample_rate, _, spk_id, chapter_no, utt_no in tqdm(dataset):
+            sample_id = f"{spk_id}-{chapter_no}-{utt_no}"
             extract_fbank_features(
-                wav, sample_rate, op.join(feature_root, f"{sample_id}.npy")
+                wav, sample_rate, feature_root / f"{sample_id}.npy"
             )
     # Pack features into ZIP
-    zip_filename = "fbank80.zip"
-    zip_path = op.join(args.output_root, zip_filename)
+    zip_path = out_root / "fbank80.zip"
     print("ZIPing features...")
     create_zip(feature_root, zip_path)
     print("Fetching ZIP manifest...")
-    zip_manifest = get_zip_manifest(args.output_root, zip_filename)
+    zip_manifest = get_zip_manifest(zip_path)
     # Generate TSV manifest
     print("Generating manifest...")
     train_text = []
     for split in SPLITS:
         manifest = {c: [] for c in MANIFEST_COLUMNS}
-        dataset = LIBRISPEECH(args.output_root, url=split)
-        for wav, sample_rate, utt, spk_id, chapter_id, utt_id in tqdm(dataset):
-            sample_id = f"{spk_id}-{chapter_id}-{utt_id}"
+        dataset = LIBRISPEECH(out_root.as_posix(), url=split)
+        for wav, sample_rate, utt, spk_id, chapter_no, utt_no in tqdm(dataset):
+            sample_id = f"{spk_id}-{chapter_no}-{utt_no}"
             manifest["id"].append(sample_id)
             manifest["audio"].append(zip_manifest[sample_id])
             duration_ms = int(wav.size(1) / sample_rate * 1000)
             manifest["n_frames"].append(int(1 + (duration_ms - 25) / 10))
-            manifest["tgt_text"].append(utt)
+            manifest["tgt_text"].append(utt.lower())
             manifest["speaker"].append(spk_id)
         save_df_to_tsv(
-            pd.DataFrame.from_dict(manifest), op.join(args.output_root, f"{split}.tsv")
+            pd.DataFrame.from_dict(manifest), out_root / f"{split}.tsv"
         )
         if split.startswith("train"):
             train_text.extend(manifest["tgt_text"])
@@ -86,14 +85,14 @@ def process(args):
         for t in train_text:
             f.write(t + "\n")
         gen_vocab(
-            f.name,
-            op.join(args.output_root, spm_filename_prefix),
+            Path(f.name),
+            out_root / spm_filename_prefix,
             args.vocab_type,
             args.vocab_size,
         )
     # Generate config YAML
     gen_config_yaml(
-        args.output_root, spm_filename_prefix + ".model", specaugment_policy="ld"
+        out_root, spm_filename_prefix + ".model", specaugment_policy="ld"
     )
     # Clean up
     shutil.rmtree(feature_root)

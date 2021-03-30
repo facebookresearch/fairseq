@@ -11,7 +11,7 @@ import re
 from argparse import ArgumentError, ArgumentParser, Namespace
 from dataclasses import _MISSING_TYPE, MISSING
 from enum import Enum
-from typing import Any, Dict, List, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.configs import FairseqConfig
@@ -43,7 +43,9 @@ def interpret_dc_type(field_type):
         return str
 
     typestring = str(field_type)
-    if re.match(r"(typing.|^)Union\[(.*), NoneType\]$", typestring):
+    if re.match(
+        r"(typing.|^)Union\[(.*), NoneType\]$", typestring
+    ) or typestring.startswith("typing.Optional"):
         return field_type.__args__[0]
     return field_type
 
@@ -162,7 +164,7 @@ def gen_parser_from_dataclass(
                     continue
                 else:
                     del kwargs["default"]
-            if delete_default:
+            if delete_default and "default" in kwargs:
                 del kwargs["default"]
         try:
             parser.add_argument(*field_args, **kwargs)
@@ -230,19 +232,22 @@ def _override_attr(
 
         v_type = getattr(v.type, "__origin__", None)
         if (
-            (v_type is List or v_type is list)
+            (v_type is List or v_type is list or v_type is Optional)
             # skip interpolation
             and not (isinstance(val, str) and val.startswith("${"))
         ):
             # if type is int but val is float, then we will crash later - try to convert here
-            t_args = v.type.__args__
-            if len(t_args) == 1:
-                val = list(map(t_args[0], val))
-        elif val is not None and (field_type is int or field_type is bool or field_type is float):
+            if hasattr(v.type, "__args__"):
+                t_args = v.type.__args__
+                if len(t_args) == 1 and (t_args[0] is float or t_args[0] is int):
+                    val = list(map(t_args[0], val))
+        elif val is not None and (
+            field_type is int or field_type is bool or field_type is float
+        ):
             try:
                 val = field_type(val)
             except:
-                pass # ignore errors here, they are often from interpolation args
+                pass  # ignore errors here, they are often from interpolation args
 
         if val is None:
             overrides.append("{}.{}=null".format(sub_node, k))
@@ -427,7 +432,14 @@ def overwrite_args_by_name(cfg: DictConfig, overrides: Dict[str, any]):
         for k in cfg.keys():
             # "k in cfg" will return false if its a "mandatory value (e.g. ???)"
             if k in cfg and isinstance(cfg[k], DictConfig):
-                overwrite_args_by_name(cfg[k], overrides)
+                if k in overrides and isinstance(overrides[k], dict):
+                    for ok, ov in overrides[k].items():
+                        if isinstance(ov, dict) and cfg[k][ok] is not None:
+                            overwrite_args_by_name(cfg[k][ok], ov)
+                        else:
+                            cfg[k][ok] = ov
+                else:
+                    overwrite_args_by_name(cfg[k], overrides)
             elif k in cfg and isinstance(cfg[k], Namespace):
                 for override_key, val in overrides.items():
                     setattr(cfg[k], override_key, val)

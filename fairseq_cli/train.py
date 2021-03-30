@@ -16,21 +16,23 @@ from typing import Dict, Optional, Any, List, Tuple, Callable
 
 import numpy as np
 import torch
-
 from fairseq import (
     checkpoint_utils,
-    distributed_utils,
     options,
     quantization_utils,
     tasks,
     utils,
 )
 from fairseq.data import iterators
+from fairseq.data.plasma_utils import PlasmaStore
+from fairseq.dataclass.configs import FairseqConfig
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
+from fairseq.distributed import fsdp_enable_wrap, fsdp_wrap, utils as distributed_utils
+from fairseq.file_io import PathManager
 from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
-from omegaconf import DictConfig
 from fairseq.trainer import Trainer
+from omegaconf import DictConfig, OmegaConf
 
 
 logging.basicConfig(
@@ -42,11 +44,15 @@ logging.basicConfig(
 logger = logging.getLogger("fairseq_cli.train")
 
 
-def main(cfg: DictConfig) -> None:
+def main(cfg: FairseqConfig) -> None:
     if isinstance(cfg, argparse.Namespace):
         cfg = convert_namespace_to_omegaconf(cfg)
 
     utils.import_user_module(cfg.common)
+
+    if distributed_utils.is_master(cfg.distributed_training) and "job_logging_cfg" in cfg:
+        # make hydra logging work with ddp (see # see https://github.com/facebookresearch/hydra/issues/1126)
+        logging.config.dictConfig(OmegaConf.to_container(cfg.job_logging_cfg))
 
     assert (
         cfg.dataset.max_tokens is not None or cfg.dataset.batch_size is not None
@@ -62,6 +68,16 @@ def main(cfg: DictConfig) -> None:
     # Print args
     logger.info(cfg)
 
+    if cfg.checkpoint.write_checkpoints_asynchronously:
+        try:
+            import iopath  # noqa: F401
+        except ImportError:
+            logging.exception(
+                "Asynchronous checkpoint writing is specified but iopath is "
+                "not installed: `pip install iopath`"
+            )
+            return
+
     # Setup task, e.g., translation, language modeling, etc.
     task = tasks.setup_task(cfg.task)
     # Load valid dataset (we load training data below, based on the latest checkpoint)
@@ -71,16 +87,27 @@ def main(cfg: DictConfig) -> None:
     assert cfg.criterion, "Please specify criterion to train a model"
 
     # Build model and criterion
-    model = task.build_model(cfg.model)
+    if cfg.distributed_training.ddp_backend == "fully_sharded":
+        with fsdp_enable_wrap(cfg.distributed_training):
+            model = fsdp_wrap(task.build_model(cfg.model))
+    else:
+        model = task.build_model(cfg.model)
     criterion = task.build_criterion(cfg.criterion)
     logger.info(model)
     logger.info("task: {}".format(task.__class__.__name__))
     logger.info("model: {}".format(model.__class__.__name__))
-    logger.info("criterion: {})".format(criterion.__class__.__name__))
+    logger.info("criterion: {}".format(criterion.__class__.__name__))
     logger.info(
-        "num. model params: {} (num. trained: {})".format(
-            sum(p.numel() for p in model.parameters()),
-            sum(p.numel() for p in model.parameters() if p.requires_grad),
+        "num. shared model params: {:,} (num. trained: {:,})".format(
+            sum(p.numel() for p in model.parameters() if not getattr(p, "expert", False)),
+            sum(p.numel() for p in model.parameters() if not getattr(p, "expert", False) and p.requires_grad)
+        )
+    )
+
+    logger.info(
+        "num. expert model params: {} (num. trained: {})".format(
+            sum(p.numel() for p in model.parameters() if getattr(p, "expert", False)),
+            sum(p.numel() for p in model.parameters() if getattr(p, "expert", False) and p.requires_grad),
         )
     )
 
@@ -99,14 +126,13 @@ def main(cfg: DictConfig) -> None:
         trainer = Trainer(cfg, task, model, criterion, quantizer)
     else:
         trainer = MegatronTrainer(cfg, task, model, criterion)
-
     logger.info(
         "training on {} devices (GPUs/TPUs)".format(
             cfg.distributed_training.distributed_world_size
         )
     )
     logger.info(
-        "max tokens per GPU = {} and batch size per GPU = {}".format(
+        "max tokens per device = {} and max sentences per device = {}".format(
             cfg.dataset.max_tokens,
             cfg.dataset.batch_size,
         )
@@ -120,6 +146,9 @@ def main(cfg: DictConfig) -> None:
         # don't cache epoch iterators for sharded datasets
         disable_iterator_cache=task.has_sharded_data("train"),
     )
+    if cfg.common.tpu:
+        import torch_xla.core.xla_model as xm
+        xm.rendezvous("load_checkpoint")  # wait for all workers
 
     max_epoch = cfg.optimization.max_epoch or math.inf
     lr = trainer.get_lr()
@@ -151,6 +180,15 @@ def main(cfg: DictConfig) -> None:
         )
     train_meter.stop()
     logger.info("done training in {:.1f} seconds".format(train_meter.sum))
+
+    # ioPath implementation to wait for all asynchronous file writes to complete.
+    if cfg.checkpoint.write_checkpoints_asynchronously:
+        logger.info(
+            "ioPath PathManager waiting for all asynchronous checkpoint "
+            "writes to finish."
+        )
+        PathManager.async_close()
+        logger.info("ioPath PathManager finished waiting.")
 
 
 def should_stop_early(cfg: DictConfig, valid_loss: float) -> bool:
@@ -219,15 +257,19 @@ def train(
             "WANDB_NAME", os.path.basename(cfg.checkpoint.save_dir)
         ),
         azureml_logging=(
-            cfg.common.azureml_logging if distributed_utils.is_master(cfg.distributed_training) else False
+            cfg.common.azureml_logging
+            if distributed_utils.is_master(cfg.distributed_training)
+            else False
         ),
     )
+    progress.update_config(_flatten_config(cfg))
 
     trainer.begin_epoch(epoch_itr.epoch)
 
     valid_subsets = cfg.dataset.valid_subset.split(",")
     should_stop = False
     num_updates = trainer.get_num_updates()
+    logger.info("Start iterating over samples")
     for i, samples in enumerate(progress):
         with metrics.aggregate("train_inner"), torch.autograd.profiler.record_function(
             "train_step-%d" % i
@@ -263,6 +305,19 @@ def train(
     return valid_losses, should_stop
 
 
+def _flatten_config(cfg: DictConfig):
+    config = OmegaConf.to_container(cfg)
+    # remove any legacy Namespaces and replace with a single "args"
+    namespace = None
+    for k, v in list(config.items()):
+        if isinstance(v, argparse.Namespace):
+            namespace = v
+            del config[k]
+    if namespace is not None:
+        config["args"] = vars(namespace)
+    return config
+
+
 def validate_and_save(
     cfg: DictConfig,
     trainer: Trainer,
@@ -273,9 +328,32 @@ def validate_and_save(
 ) -> Tuple[List[Optional[float]], bool]:
     num_updates = trainer.get_num_updates()
     max_update = cfg.optimization.max_update or math.inf
+
+    # Stopping conditions (and an additional one based on validation loss later
+    # on)
+    should_stop = False
+    if num_updates >= max_update:
+        should_stop = True
+        logger.info(
+            f"Stopping training due to "
+            f"num_updates: {num_updates} >= max_update: {max_update}"
+        )
+
+    training_time_hours = trainer.cumulative_training_time() / (60 * 60)
+    if (
+        cfg.optimization.stop_time_hours > 0
+        and training_time_hours > cfg.optimization.stop_time_hours
+    ):
+        should_stop = True
+        logger.info(
+            f"Stopping training due to "
+            f"cumulative_training_time: {training_time_hours} > "
+            f"stop_time_hours: {cfg.optimization.stop_time_hours} hour(s)"
+        )
+
     do_save = (
         (end_of_epoch and epoch_itr.epoch % cfg.checkpoint.save_interval == 0)
-        or num_updates >= max_update
+        or should_stop
         or (
             cfg.checkpoint.save_interval_updates > 0
             and num_updates > 0
@@ -286,7 +364,7 @@ def validate_and_save(
     do_validate = (
         (not end_of_epoch and do_save)  # validate during mid-epoch saves
         or (end_of_epoch and epoch_itr.epoch % cfg.dataset.validate_interval == 0)
-        or num_updates >= max_update
+        or should_stop
         or (
             cfg.dataset.validate_interval_updates > 0
             and num_updates > 0
@@ -299,20 +377,10 @@ def validate_and_save(
     if do_validate:
         valid_losses = validate(cfg, trainer, task, epoch_itr, valid_subsets)
 
-    # Stopping conditions
-    should_stop = (
-        should_stop_early(cfg, valid_losses[0])
-        or num_updates >= max_update
-        or (
-            cfg.optimization.stop_time_hours > 0
-            and trainer.cumulative_training_time() / (60 * 60)
-            > cfg.optimization.stop_time_hours
-        )
-    )
+    should_stop |= should_stop_early(cfg, valid_losses[0])
 
     # Save checkpoint
     if do_save or should_stop:
-        logger.info("begin save checkpoint")
         checkpoint_utils.save_checkpoint(
             cfg.checkpoint, trainer, epoch_itr, valid_losses[0]
         )
@@ -344,7 +412,9 @@ def validate(
         logger.info('begin validation on "{}" subset'.format(subset))
 
         # Initialize data iterator
-        itr = trainer.get_valid_iterator(subset).next_epoch_itr(shuffle=False)
+        itr = trainer.get_valid_iterator(subset).next_epoch_itr(
+            shuffle=False, set_dataset_epoch=False  # use a fixed valid set
+        )
         if cfg.common.tpu:
             itr = utils.tpu_data_loader(itr)
         progress = progress_bar.progress_bar(
@@ -372,7 +442,9 @@ def validate(
         # create a new root metrics aggregator so validation metrics
         # don't pollute other aggregators (e.g., train meters)
         with metrics.aggregate(new_root=True) as agg:
-            for sample in progress:
+            for i, sample in enumerate(progress):
+                if cfg.dataset.max_valid_steps is not None and i > cfg.dataset.max_valid_steps:
+                    break
                 trainer.valid_step(sample)
 
         # log validation stats
@@ -405,12 +477,19 @@ def cli_main(
 
     cfg = convert_namespace_to_omegaconf(args)
 
+    if cfg.common.use_plasma_view:
+        server = PlasmaStore(path=cfg.common.plasma_path)
+        logger.info(f"Started plasma server pid {server.server.pid} {cfg.common.plasma_path}")
+
     if args.profile:
         with torch.cuda.profiler.profile():
             with torch.autograd.profiler.emit_nvtx():
                 distributed_utils.call_main(cfg, main)
     else:
         distributed_utils.call_main(cfg, main)
+
+    # if cfg.common.use_plasma_view:
+    #     server.server.kill()
 
 
 if __name__ == "__main__":

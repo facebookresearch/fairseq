@@ -9,9 +9,15 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 import torch
-from fairseq import distributed_utils as dist_utils, utils
-from fairseq.data import Dictionary, TokenBlockDataset, data_utils, iterators
+from fairseq import utils
+from fairseq.data import (
+    Dictionary,
+    TokenBlockDataset,
+    data_utils,
+    iterators,
+)
 from fairseq.dataclass import FairseqDataclass
+from fairseq.distributed import utils as dist_utils
 from fairseq.tasks import FairseqTask, register_task
 from omegaconf import II
 
@@ -181,6 +187,35 @@ class TruncatedBPTTLMTask(FairseqTask):
             return generator.generate(
                 models, sample, prefix_tokens=prefix_tokens, bos_token=bos_token
             )
+
+    def eval_lm_dataloader(
+        self,
+        dataset,
+        max_tokens: Optional[int] = 36000,
+        batch_size: Optional[int] = None,
+        max_positions: Optional[int] = None,
+        num_shards: int = 1,
+        shard_id: int = 0,
+        num_workers: int = 1,
+        data_buffer_size: int = 10,
+        context_window: int = 0,
+    ):
+        if context_window > 0:
+            raise NotImplementedError(
+                "Transformer-XL doesn't need --context-window, try "
+                "--model-overrides '{\"mem_len\":42}' instead "
+            )
+        return self.get_batch_iterator(
+            dataset=dataset,
+            max_tokens=max_tokens,
+            max_sentences=batch_size,
+            max_positions=max_positions,
+            ignore_invalid_inputs=True,
+            num_shards=num_shards,
+            shard_id=shard_id,
+            num_workers=num_workers,
+            data_buffer_size=data_buffer_size,
+        ).next_epoch_itr(shuffle=False)
 
     @property
     def source_dictionary(self):

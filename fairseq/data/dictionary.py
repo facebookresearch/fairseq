@@ -15,7 +15,7 @@ from fairseq.file_io import PathManager
 from fairseq.tokenizer import tokenize_line
 
 
-class Dictionary(object):
+class Dictionary:
     """A mapping from symbols to consecutive integers"""
 
     def __init__(
@@ -298,7 +298,7 @@ class Dictionary(object):
         consumer=None,
         append_eos=True,
         reverse_order=False,
-    ):
+    ) -> torch.IntTensor:
         words = line_tokenizer(line)
         if reverse_order:
             words = list(reversed(words))
@@ -335,7 +335,13 @@ class Dictionary(object):
                 for word in tokenize(line):
                     counter.update([word])
                 counter.update([eos_word])
-                if f.tell() > end:
+                # f.tell() returns only an opaque number which can
+                # return to the position in the file via f.seek()
+                # and does not necessarily represent a byte position
+                # in the file. However, f.tell() is faithful to the
+                # byte position _most of the time_. Thus we can just
+                # check against the file size to prevent early exit.
+                if f.tell() > end and f.tell() < size:
                     break
                 line = f.readline()
         return counter

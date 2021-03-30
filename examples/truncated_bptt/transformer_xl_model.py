@@ -37,6 +37,7 @@ class TransformerXLConfig(FairseqDataclass):
     dropout: float = 0.0
     dropatt: float = 0.0
     checkpoint_activations: bool = False
+    offload_activations: bool = False
     max_target_positions: int = II("task.max_target_positions")
 
 
@@ -49,8 +50,14 @@ class TransformerXLLanguageModel(FairseqLanguageModel):
 
 class TransformerXLDecoder(FairseqIncrementalDecoder):
     def __init__(self, cfg, task):
-        from transformers.configuration_transfo_xl import TransfoXLConfig
-        from transformers.modeling_transfo_xl import TransfoXLLMHeadModel
+        try:
+            from transformers.models.transfo_xl import (
+                TransfoXLConfig,
+                TransfoXLLMHeadModel,
+            )
+        except ImportError:
+            from transformers.configuration_transfo_xl import TransfoXLConfig
+            from transformers.modeling_transfo_xl import TransfoXLLMHeadModel
 
         super().__init__(task.target_dictionary)
         self.cfg = cfg
@@ -91,11 +98,13 @@ class TransformerXLDecoder(FairseqIncrementalDecoder):
         except Exception:
             pass
 
-        if cfg.checkpoint_activations:
+        if cfg.checkpoint_activations or cfg.offload_activations:
             for i in range(len(self.model.transformer.layers)):
                 self.model.transformer.layers[i] = checkpoint_wrapper(
-                    self.model.transformer.layers[i]
+                    self.model.transformer.layers[i],
+                    offload_to_cpu=cfg.offload_activations,
                 )
+                # TODO: may save mem to wrap(layer.pos_ff.CoreNet[3])
 
         self._mems = None
 

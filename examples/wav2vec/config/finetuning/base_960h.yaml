@@ -22,7 +22,7 @@ dataset:
   valid_subset: dev_other
 
 distributed_training:
-  ddp_backend: no_c10d
+  ddp_backend: legacy_ddp
   distributed_world_size: 8
 
 criterion:

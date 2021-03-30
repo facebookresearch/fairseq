@@ -31,6 +31,7 @@ class TransformerEncoderLayer(nn.Module):
 
     def __init__(self, args):
         super().__init__()
+        self.args = args
         self.embed_dim = args.encoder_embed_dim
         self.quant_noise = getattr(args, 'quant_noise_pq', 0)
         self.quant_noise_block_size = getattr(args, 'quant_noise_pq_block_size', 8) or 8
@@ -102,7 +103,7 @@ class TransformerEncoderLayer(nn.Module):
                     state_dict["{}.{}.{}".format(name, new, m)] = state_dict[k]
                     del state_dict[k]
 
-    def forward(self, x, encoder_padding_mask, attn_mask: Optional[Tensor] = None):
+    def forward(self, x, encoder_padding_mask: Optional[Tensor], attn_mask: Optional[Tensor] = None):
         """
         Args:
             x (Tensor): input to the layer of shape `(seq_len, batch, embed_dim)`
@@ -134,6 +135,7 @@ class TransformerEncoderLayer(nn.Module):
             key=x,
             value=x,
             key_padding_mask=encoder_padding_mask,
+            need_weights=False,
             attn_mask=attn_mask,
         )
         x = self.dropout_module(x)

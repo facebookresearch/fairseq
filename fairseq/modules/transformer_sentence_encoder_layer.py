@@ -40,6 +40,11 @@ class TransformerSentenceEncoderLayer(nn.Module):
 
         # Initialize parameters
         self.embedding_dim = embedding_dim
+        self.num_attention_heads = num_attention_heads
+        self.attention_dropout = attention_dropout
+        self.q_noise = q_noise
+        self.qn_block_size = qn_block_size
+
         self.dropout_module = FairseqDropout(
             dropout, module_name=self.__class__.__name__
         )

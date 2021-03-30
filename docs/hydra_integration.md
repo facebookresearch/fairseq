@@ -120,7 +120,7 @@ class LanguageModelingConfig(FairseqDataclass):
     ...
 
 @register_task("language_modeling", dataclass=LanguageModelingConfig)
-class LanguageModelingTask(LegacyFairseqTask):
+class LanguageModelingTask(FairseqTask):
     ...
     @classmethod
     def setup_task(cls, cfg: LanguageModelingConfig):

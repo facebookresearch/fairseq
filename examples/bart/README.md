@@ -1,6 +1,6 @@
 # BART: Denoising Sequence-to-Sequence Pre-training for Natural Language Generation, Translation, and Comprehension
 
-[https://arxiv.org/pdf/1910.13461.pdf]
+[https://arxiv.org/abs/1910.13461](https://arxiv.org/abs/1910.13461)
 
 ## Introduction
 
@@ -179,38 +179,23 @@ with open('glue_data/MNLI/dev_matched.tsv') as fin:
 ```
 
 #### Evaluating the `bart.large.cnn` model:
-Follow instructions [here](https://github.com/abisee/cnn-dailymail) to download and process into data-files such that `test.source` and `test.target` has one line for each non-tokenized sample.
+- Follow instructions [here](https://github.com/abisee/cnn-dailymail) to download and process into data-files such that `test.source` and `test.target` has one line for each non-tokenized sample.
+- For simpler preprocessing, you can also `wget https://cdn-datasets.huggingface.co/summarization/cnn_dm_v2.tgz`, although there is no guarantee of identical scores
+- `huggingface/transformers` has a simpler interface that supports [single-gpu](https://github.com/huggingface/transformers/blob/master/examples/legacy/seq2seq/run_eval.py) and [multi-gpu](https://github.com/huggingface/transformers/blob/master/examples/legacy/seq2seq/run_distributed_eval.py) beam search.
+    In `huggingface/transformers`, the BART models' paths are `facebook/bart-large-cnn` and `facebook/bart-large-xsum`.
 
-```python
-bart = torch.hub.load('pytorch/fairseq', 'bart.large.cnn')
-bart.cuda()
-bart.eval()
-bart.half()
-count = 1
-bsz = 32
-with open('test.source') as source, open('test.hypo', 'w') as fout:
-    sline = source.readline().strip()
-    slines = [sline]
-    for sline in source:
-        if count % bsz == 0:
-            with torch.no_grad():
-                hypotheses_batch = bart.sample(slines, beam=4, lenpen=2.0, max_len_b=140, min_len=55, no_repeat_ngram_size=3)
+In `fairseq`, summaries can be generated using:
 
-            for hypothesis in hypotheses_batch:
-                fout.write(hypothesis + '\n')
-                fout.flush()
-            slines = []
-
-        slines.append(sline.strip())
-        count += 1
-    if slines != []:
-        hypotheses_batch = bart.sample(slines, beam=4, lenpen=2.0, max_len_b=140, min_len=55, no_repeat_ngram_size=3)
-        for hypothesis in hypotheses_batch:
-            fout.write(hypothesis + '\n')
-            fout.flush()
+```bash
+cp data-bin/cnn_dm/dict.source.txt  checkpoints/
+python examples/bart/summarize.py \
+  --model-dir pytorch/fairseq \
+  --model-file bart.large.cnn \
+  --src cnn_dm/test.source \
+  --out cnn_dm/test.hypo
 ```
 
-Install `files2rouge` from [here](https://github.com/pltrdy/files2rouge).
+For calculating rouge, install `files2rouge` from [here](https://github.com/pltrdy/files2rouge).
 
 ```bash
 export CLASSPATH=/path/to/stanford-corenlp-full-2016-10-31/stanford-corenlp-3.7.0.jar

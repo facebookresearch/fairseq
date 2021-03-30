@@ -14,8 +14,8 @@ from typing import List
 
 import numpy as np
 import torch
-from fairseq import distributed_utils
 from fairseq.data import FairseqDataset, data_utils
+from fairseq.distributed import utils as distributed_utils
 
 
 def get_time_gap(s, e):
@@ -237,6 +237,11 @@ class SampledMultiDataset(FairseqDataset):
 
     def num_tokens(self, index):
         return self.sizes[index].max()
+
+    def num_tokens_vec(self, indices):
+        sizes_vec = self.sizes[np.array(indices)]
+        # max across all dimensions but first one
+        return np.amax(sizes_vec, axis=tuple(range(1, len(sizes_vec.shape))))
 
     def size(self, index):
         return self.sizes[index]

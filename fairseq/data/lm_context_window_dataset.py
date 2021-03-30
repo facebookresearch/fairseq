@@ -5,16 +5,35 @@
 
 import numpy as np
 import torch
+from typing import Dict
+
 from fairseq.data.monolingual_dataset import MonolingualDataset
 
 from . import FairseqDataset
 
 
 class LMContextWindowDataset(FairseqDataset):
-    """Wraps a MonolingualDataset and provides more context for evaluation."""
+    """
+    Wraps a MonolingualDataset and provides more context for evaluation.
 
-    def __init__(self, dataset, tokens_per_sample, context_window, pad_idx):
-        assert isinstance(dataset, MonolingualDataset)
+    Each item in the new dataset will have a maximum size of
+    ``tokens_per_sample + context_window``.
+
+    Args:
+        dataset: dataset to wrap
+        tokens_per_sample (int): the max number of tokens in each dataset item
+        context_window (int): the number of accumulated tokens to add to each
+            dataset item
+        pad_idx (int): padding symbol
+    """
+
+    def __init__(
+        self,
+        dataset: MonolingualDataset,
+        tokens_per_sample: int,
+        context_window: int,
+        pad_idx: int,
+    ):
         assert context_window > 0
         self.dataset = dataset
         self.tokens_per_sample = tokens_per_sample
@@ -28,7 +47,7 @@ class LMContextWindowDataset(FairseqDataset):
     def __len__(self):
         return len(self.dataset)
 
-    def collater(self, samples):
+    def collater(self, samples) -> Dict:
         sample = self.dataset.collater(samples)
 
         pad = self.pad_idx
@@ -58,7 +77,6 @@ class LMContextWindowDataset(FairseqDataset):
         sample["net_input"]["src_tokens"] = torch.from_numpy(new_toks)
         sample["target"] = torch.from_numpy(new_tgt)
         sample["start_indices"] = start_idxs
-
         return sample
 
     def num_tokens(self, index):
