@@ -9,15 +9,12 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 
-import torch.nn.functional as F
 from examples.simultaneous_translation.utils.functions import (
     exclusive_cumprod,
     lengths_to_mask,
 )
-from fairseq import utils
 from fairseq.incremental_decoding_utils import with_incremental_state
 from fairseq.modules import MultiheadAttention
-from fairseq.utils import convert_padding_direction
 
 from . import register_monotonic_attention
 from typing import Dict, Optional
@@ -262,7 +259,6 @@ class MonotonicAttention(nn.Module):
 
             finish_read = new_monotonic_step.eq(max_steps) | (action == 0)
 
-
         monotonic_cache["head_step"] = new_monotonic_step
         # Whether a head is looking for new input
         monotonic_cache["head_read"] = (
@@ -408,9 +404,6 @@ class MonotonicMultiheadAttentionHardAligned(
                             help='Initial value of the bias for energy')
         parser.add_argument('--attention-eps', type=float, default=1e-6,
                             help='Epsilon when calculating expected attention')
-
-    def p_choose(self, *args):
-        raise NotImplementedError
 
     def attn_energy(
         self, q_proj: Optional[Tensor], k_proj: Optional[Tensor], key_padding_mask: Optional[Tensor] = None, attn_mask: Optional[Tensor] = None
@@ -934,11 +927,73 @@ class MonotonicMultiheadAttentionWaitK(
         else:
             tgt_len, bsz, _ = query.size()
 
-        src_len, bsz, _ = key.size()
+        max_src_len, bsz, _ = key.size()
 
-        p_choose = torch.ones(bsz, tgt_len, src_len).to(query)
-        p_choose = torch.tril(p_choose, diagonal=self.waitk_lagging - 1)
-        p_choose = torch.triu(p_choose, diagonal=self.waitk_lagging - 1)
+        if max_src_len < self.waitk_lagging:
+            return query.new_zeros(
+                bsz * self.num_heads, tgt_len, max_src_len
+            )
+
+        # Assuming the p_choose looks like this for wait k=3
+        # src_len = 6, tgt_len = 5
+        #   [0, 0, 1, 0, 0, 0, 0]
+        #   [0, 0, 0, 1, 0, 0, 0]
+        #   [0, 0, 0, 0, 1, 0, 0]
+        #   [0, 0, 0, 0, 0, 1, 0]
+        #   [0, 0, 0, 0, 0, 0, 1]
+        # linearize the p_choose matrix:
+        # [0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0...]
+        # The indices of linearized matrix that equals 1 is
+        # 2 + 6 * 0
+        # 3 + 6 * 1
+        # ...
+        # n + src_len * n + k - 1 = n * (src_len + 1) + k - 1
+        # n from 0 to tgt_len - 1
+        #
+        # First, generate the indices (activate_indices_offset: bsz, tgt_len)
+        # Second, scatter a zeros tensor (bsz, tgt_len * src_len)
+        # with activate_indices_offset
+        # Third, resize the tensor to (bsz, tgt_len, src_len)
+
+        activate_indices_offset = (
+            (
+                torch.arange(tgt_len) * (max_src_len + 1)
+                + self.waitk_lagging - 1
+            )
+            .unsqueeze(0)
+            .expand(bsz, tgt_len)
+            .to(query)
+            .long()
+        )
+
+        if key_padding_mask is not None:
+            if key_padding_mask[:, 0].any():
+                # Left padding
+                activate_indices_offset += (
+                    key_padding_mask.sum(dim=1, keepdim=True)
+                )
+
+        # Need to clamp the indices that are too large
+        activate_indices_offset = (
+            activate_indices_offset
+            .clamp(
+                0,
+                min(
+                    [
+                        tgt_len,
+                        max_src_len - self.waitk_lagging + 1
+                    ]
+                ) * max_src_len - 1
+            )
+        )
+
+        p_choose = torch.zeros(bsz, tgt_len * max_src_len).to(query)
+
+        p_choose = p_choose.scatter(
+            1,
+            activate_indices_offset,
+            1.0
+        ).view(bsz, tgt_len, max_src_len)
 
         if incremental_state is not None:
             p_choose = p_choose[:, -1:]
@@ -950,7 +1005,7 @@ class MonotonicMultiheadAttentionWaitK(
             .unsqueeze(1)
             .expand(-1, self.num_heads, -1, -1)
             .contiguous()
-            .view(-1, tgt_len, src_len)
+            .view(-1, tgt_len, max_src_len)
         )
 
         return p_choose
