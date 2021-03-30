@@ -1,4 +1,5 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
+# Developed by clefourrier
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
@@ -173,7 +174,6 @@ class MultilingualRNNModel(FairseqMultiModel):
                     hidden_size=cfg.decoder_hidden_size,
                     out_embed_dim=cfg.decoder_out_embed_dim,
                     num_layers=cfg.decoder_layers,
-                    attention=utils.eval_bool(cfg.attention_type != "none"),
                     attention_type=cfg.attention_type,
                     dropout_in=(cfg.decoder_dropout_in if cfg.decoder_dropout_in >= 0 else cfg.dropout),
                     dropout_out=(cfg.decoder_dropout_out if cfg.decoder_dropout_out >= 0 else cfg.dropout),
@@ -206,15 +206,14 @@ class MultilingualRNNModel(FairseqMultiModel):
 
         return MultilingualRNNModel(encoders, decoders)
 
-    def load_state_dict(self, state_dict, strict=True, model_cfg=None, args="none"):
-        print(args)
+    def load_state_dict(self, state_dict, strict=True, args="none"):
         state_dict_subset = state_dict.copy()
         for k, _ in state_dict.items():
             assert k.startswith("models.")
             lang_pair = k.split(".")[1]
             if lang_pair not in self.models:
                 del state_dict_subset[k]
-        super().load_state_dict(state_dict_subset, strict=strict, model_cfg=model_cfg)
+        super().load_state_dict(state_dict_subset, strict=strict, args=args)
 
 
 @register_model_architecture('multilingual_rnn', 'multilingual_lstm')

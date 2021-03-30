@@ -89,7 +89,6 @@ class RNNModelConfig(FairseqDataclass):
         default=False,
         metadata={"help": "freeze decoder embeddings"}
     )
-    #todo: to init from decoder_embed_dim
     decoder_hidden_size: int = field(
         default=512,
         metadata={"help": "decoder hidden layer size"}
@@ -230,7 +229,7 @@ class RNNModel(FairseqEncoderDecoderModel):
             pretrained_encoder_embed.weight.requires_grad = False
         if cfg.decoder_freeze_embed:
             pretrained_decoder_embed.weight.requires_grad = False
-        print(cfg.decoder_dropout_in if cfg.decoder_dropout_in >= 0 else cfg.dropout)
+
         encoder = RNNEncoder(
             rnn_type=cfg.rnn_type,
             dictionary=task.source_dictionary,
@@ -244,7 +243,7 @@ class RNNModel(FairseqEncoderDecoderModel):
             max_source_positions=max_source_positions,
         )
         uses_attention = getattr(cfg, 'attention_type', "none") != "none"
-        attention_type = getattr(cfg, 'attention_type', "none")
+        attention_type = getattr(cfg, 'attention_type', "luong-dot") if uses_attention else None
         decoder = RNNDecoder(
             rnn_type=cfg.rnn_type,
             dictionary=task.target_dictionary,
@@ -297,7 +296,7 @@ class RNNEncoder(FairseqEncoder):
         dropout_in=0.1,
         dropout_out=0.1,
         bidirectional=False,
-        left_pad=True,
+        left_pad_source=True,
         pretrained_embed=None,
         padding_idx=None,
         max_source_positions=DEFAULT_MAX_SOURCE_POSITIONS,
@@ -340,7 +339,7 @@ class RNNEncoder(FairseqEncoder):
                 bidirectional=bidirectional,
             )
 
-        self.left_pad = left_pad
+        self.left_pad_source = left_pad_source
 
         self.output_units = hidden_size
         if bidirectional:
@@ -363,7 +362,7 @@ class RNNEncoder(FairseqEncoder):
                 decreasing order. If False, this condition is not
                 required. Default: True.
         """
-        if self.left_pad:
+        if self.left_pad_source:
             # nn.utils.rnn.pack_padded_sequence requires right-padding;
             # convert left-padding to right-padding
             src_tokens = utils.convert_padding_direction(
@@ -371,7 +370,6 @@ class RNNEncoder(FairseqEncoder):
                 torch.zeros_like(src_tokens).fill_(self.padding_idx),
                 left_to_right=True,
             )
-
         bsz, seqlen = src_tokens.size()
 
         # embed tokens
@@ -491,7 +489,8 @@ class Attention(nn.Module):
 
     def bahdanau_forward(self, prev_prediction_emb, encoder_output, prev_hidden_state):
         bsz = encoder_output.shape[0]
-        attn_score = self.get_attention_score(prev_hidden_state, encoder_output)
+        # We take the last layer of the hidden state
+        attn_score = self.get_attention_score(prev_hidden_state[-1:], encoder_output)
         context, softmax_attn = self.compute_context(attn_score, encoder_output)
         concat_context_embed = torch.cat(
             (prev_prediction_emb.view(bsz, 1, -1), context), 2
@@ -526,7 +525,9 @@ class Attention(nn.Module):
         # ORIGINAL BAHDANAU
         elif self.attention_type == "bahdanau":
             # we apply the current ht to all elements of hs
+            #print(encoder_output.shape, source_or_target_state.shape)
             extended = source_or_target_state.repeat(encoder_output.shape[1], 1, 1)
+            #print(extended.shape, self.Wa(extended.transpose(0, 1)).shape, self.Ua(encoder_output).shape)
             concat = torch.cat((self.Wa(extended.transpose(0, 1)), self.Ua(encoder_output)), -1)
             wa = torch.tanh(concat)
             va = self.va.repeat(encoder_output.shape[0], 1).unsqueeze(-1)
@@ -573,7 +574,6 @@ class RNNDecoder(FairseqIncrementalDecoder):
         num_layers=1,
         dropout_in=0.1,
         dropout_out=0.1,
-        attention=True,
         attention_type="luong-dot",
         encoder_output_units=512,
         pretrained_embed=None,
@@ -631,12 +631,12 @@ class RNNDecoder(FairseqIncrementalDecoder):
                 num_layers=num_layers
             )
 
-        if attention:
-            self.attention_type = attention_type
-            self.attention = Attention(self.attention_type, hidden_size)
-        else:
+        if attention_type == "none":
             self.attention_type = "none"
             self.attention = None
+        else:
+            self.attention_type = attention_type
+            self.attention = Attention(self.attention_type, hidden_size)
 
         if hidden_size != out_embed_dim:
             self.additional_fc = torch.nn.Linear(hidden_size, out_embed_dim)
