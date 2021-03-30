@@ -38,6 +38,17 @@ def checkpoint_wrapper(m, offload_to_cpu=False):
     return m
 
 
+def unwrap_checkpoint(m: torch.nn.Module):
+    """
+    unwrap a module and its children from checkpoint_wrapper
+    """
+    for module in m.modules():
+        if hasattr(module, "precheckpoint_forward"):
+            module.forward = module.precheckpoint_forward
+            del module.precheckpoint_forward
+    return m
+
+
 def _checkpointed_forward(original_forward, offload_to_cpu, *args, **kwargs):
     # Autograd Functions in PyTorch work best with positional args, since
     # the backward must return gradients (or None) for every input argument.
