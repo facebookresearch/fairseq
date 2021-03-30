@@ -84,8 +84,17 @@ class LanguageModelingConfig(FairseqDataclass):
             'e.g., "train,valid" (default: all dataset splits)'
         },
     )
+    pad_to_fixed_length: Optional[bool] = field(
+        default=False, metadata={"help": "pad to fixed length"},
+    )
+    pad_to_fixed_bsz: Optional[bool] = field(
+        default=False, metadata={"help": "boolean to pad to fixed batch size"},
+    )
+
     # TODO common vars below add to parent
     seed: int = II("common.seed")
+    batch_size: Optional[int] = II("dataset.batch_size")
+    batch_size_valid: Optional[int] = II("dataset.batch_size_valid")
     dataset_impl: Optional[ChoiceEnum(get_available_dataset_impl())] = II(
         "dataset.dataset_impl"
     )
@@ -232,6 +241,13 @@ class LanguageModelingTask(LegacyFairseqTask):
             self.args.sample_break_mode is not None
             and self.args.sample_break_mode != "none"
         )
+        fixed_pad_length = None
+        if self.args.pad_to_fixed_length:
+            fixed_pad_length = self.args.tokens_per_sample
+
+        pad_to_bsz = None
+        if self.args.pad_to_fixed_bsz:
+            pad_to_bsz = self.args.batch_size_valid if 'valid' in split else self.args.batch_size
 
         self.datasets[split] = MonolingualDataset(
             dataset=dataset,
@@ -242,6 +258,8 @@ class LanguageModelingTask(LegacyFairseqTask):
             shuffle=True,
             targets=self.targets,
             add_bos_token=self.args.add_bos_token,
+            fixed_pad_length=fixed_pad_length,
+            pad_to_bsz=pad_to_bsz,
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, **kwargs):
