@@ -12,10 +12,11 @@ dataset:
   train_subset: train_asr_en
   valid_subset: dev_asr_en
   num_workers: 4
-  max_tokens: 40000
+  max_tokens: 50000
 
 criterion:
   _name: label_smoothed_cross_entropy
+  label_smoothing: 0.1
   report_accuracy: True
 
 optimization:
@@ -44,6 +45,6 @@ model:
   decoder_output_dim: 256
   decoder_input_dim: 256
 
-  dropout: 0.1
-  attention_dropout: 0.1
-  activation_dropout: 0.1
+  dropout: 0.15
+  attention_dropout: 0.15
+  activation_dropout: 0.15

@@ -102,6 +102,17 @@ try:
     extensions.extend(
         [
             cpp_extension.CppExtension(
+                "fairseq.libbase",
+                sources=[
+                    "fairseq/clib/libbase/balanced_assignment.cpp",
+                ],
+            )
+        ]
+    )
+
+    extensions.extend(
+        [
+            cpp_extension.CppExtension(
                 "fairseq.libnat",
                 sources=[
                     "fairseq/clib/libnat/edit_dist.cpp",

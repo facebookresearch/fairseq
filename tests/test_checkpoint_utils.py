@@ -90,15 +90,14 @@ class TestCheckpointUtils(unittest.TestCase):
                 self.assertEqual(len(ensemble[0].decoder.layers), 1)
 
     def test_torch_persistent_save_async(self):
-        cfg = OmegaConf.create()
-        cfg.dataset = OmegaConf.create()
-        cfg.dataset.write_checkpoints_asynchronously = True
         state_dict = {}
         filename = "async_checkpoint.pt"
 
         with patch(f"{checkpoint_utils.__name__}.PathManager.opena") as mock_opena:
             with patch(f"{checkpoint_utils.__name__}._torch_persistent_save") as mock_save:
-                checkpoint_utils.torch_persistent_save(cfg.dataset, state_dict, filename)
+                checkpoint_utils.torch_persistent_save(
+                    state_dict, filename, async_write=True
+                )
                 mock_opena.assert_called_with(filename, "wb")
                 mock_save.assert_called()
 

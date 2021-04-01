@@ -12,16 +12,17 @@ dataset:
   train_subset: train_st_fr_en
   valid_subset: dev_st_fr_en
   num_workers: 4
-  max_tokens: 40000
+  max_tokens: 40000   # max_tokens: 50000 for en-*
 
 criterion:
   _name: label_smoothed_cross_entropy
+  label_smoothing: 0.1
   report_accuracy: True
 
 optimization:
   lr: [2e-3]
   update_freq: [8]
-  max_update: 60000
+  max_update: 30000
   clip_norm: 10.0
 
 optimizer:
@@ -47,3 +48,5 @@ model:
   dropout: 0.1
   attention_dropout: 0.1
   activation_dropout: 0.1
+
+  encoder_freezing_updates: 1000
