@@ -334,7 +334,7 @@ class FairseqSimulSTAgent(SpeechAgent):
 
         torch.cuda.empty_cache()
 
-        if outputs["action"] == 0:
+        if outputs.action == 0:
             return READ_ACTION
         else:
             return WRITE_ACTION
