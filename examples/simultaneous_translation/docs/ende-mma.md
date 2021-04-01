@@ -16,7 +16,7 @@ Another example of training an English to Japanese model can be found [here](doc
 fairseq-train \
     data-bin/wmt15_en_de_32k \
     --simul-type infinite_lookback \
-    --user-dir $FAIRSEQ/example/simultaneous_translation \
+    --user-dir $FAIRSEQ/examples/simultaneous_translation \
     --mass-preservation \
     --criterion latency_augmented_label_smoothed_cross_entropy \
     --latency-weight-avg  0.1 \
@@ -37,7 +37,7 @@ fairseq-train \
 fairseq-train \
     data-bin/wmt15_en_de_32k \
     --simul-type hard_aligned \
-    --user-dir $FAIRSEQ/example/simultaneous_translation \
+    --user-dir $FAIRSEQ/examples/simultaneous_translation \
     --mass-preservation \
     --criterion latency_augmented_label_smoothed_cross_entropy \
     --latency-weight-var  0.1 \
@@ -59,7 +59,7 @@ fairseq-train \
     data-bin/wmt15_en_de_32k \
     --simul-type wait-k \
     --waitk-lagging 3 \
-    --user-dir $FAIRSEQ/example/simultaneous_translation \
+    --user-dir $FAIRSEQ/examples/simultaneous_translation \
     --mass-preservation \
     --criterion latency_augmented_label_smoothed_cross_entropy \
     --max-update 50000 \
