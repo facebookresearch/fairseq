@@ -296,6 +296,8 @@ class NoisingDataset(torch.utils.data.Dataset):
                 **kwargs,
             )
         )
+        self.sizes = src_dataset.sizes
+
 
     def __getitem__(self, index):
         """

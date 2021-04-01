@@ -14,7 +14,10 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 import sentencepiece as sp
-from fairseq.data.audio.audio_utils import _get_kaldi_fbank, _get_torchaudio_fbank
+from fairseq.data.audio.audio_utils import (
+    _convert_to_mono, _get_kaldi_fbank, _get_torchaudio_fbank
+)
+import torch
 from tqdm import tqdm
 
 
@@ -66,7 +69,7 @@ def gen_vocab(
 
 
 def extract_fbank_features(
-    waveform,
+    waveform: torch.FloatTensor,
     sample_rate: int,
     output_path: Optional[Path] = None,
     n_mel_bins: int = 80,
@@ -75,8 +78,9 @@ def extract_fbank_features(
     if output_path is not None and output_path.is_file() and not overwrite:
         return
 
-    _waveform = waveform * (2 ** 15)  # Kaldi compliance: 16-bit signed integers
-    _waveform = _waveform.squeeze().numpy()
+    _waveform = _convert_to_mono(waveform, sample_rate)
+    _waveform = _waveform * (2 ** 15)  # Kaldi compliance: 16-bit signed integers
+    _waveform = _waveform.numpy()
 
     features = _get_kaldi_fbank(_waveform, sample_rate, n_mel_bins)
     if features is None:
@@ -169,7 +173,7 @@ def gen_config_yaml(
         assert gcmvn_path is not None, (
             'Please provide path of global cmvn file.'
         )
-        writer.set_global_cmvn(gcmvn_path)
+        writer.set_global_cmvn(str(gcmvn_path))
 
     writer.set_use_audio_input(use_audio_input)
 
@@ -328,7 +332,7 @@ class S2TDataConfigWriter(object):
         self.config["bpe_tokenizer"] = bpe_tokenizer
 
     def set_global_cmvn(self, stats_npz_path: str):
-        self.config["stats_npz_path"] = stats_npz_path
+        self.config["global_cmvn"] = {"stats_npz_path": stats_npz_path}
 
     def set_feature_transforms(self, split: str, transforms: List[str]):
         if "transforms" not in self.config:

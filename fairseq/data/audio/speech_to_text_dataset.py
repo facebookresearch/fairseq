@@ -153,7 +153,8 @@ def get_features_or_waveform_from_uncompressed_zip(
     if is_npy_data(data):
         features_or_waveform = np.load(f)
     elif is_flac_or_wav_data(data):
-        features_or_waveform = get_waveform(f)[0] if need_waveform else get_fbank(f)
+        features_or_waveform = \
+            get_waveform(f, always_2d=False)[0] if need_waveform else get_fbank(f)
     else:
         raise ValueError(f'Unknown file format for "{path}"')
     return features_or_waveform
@@ -178,18 +179,15 @@ def get_features_or_waveform(path: str, need_waveform=False):
 
     if len(extra) == 0:
         if need_waveform:
-            waveform, sr = get_waveform(_path)
-            if len(waveform.shape) > 1:
-                waveform = waveform.mean(1)
-            return waveform.reshape(-1, 1)
+            waveform, _ = get_waveform(_path, always_2d=False)
+            return waveform
         return get_features_from_npy_or_audio(_path)
     elif len(extra) == 2:
         extra = [int(i) for i in extra]
         if need_waveform:
-            waveform, sr = get_waveform(_path, extra[0], extra[1])
-            if len(waveform.shape) > 1:
-                waveform = waveform.mean(1)
-            return waveform.reshape(-1, 1)
+            waveform, _ = get_waveform(_path, start=extra[0], frames=extra[1],
+                                       always_2d=False)
+            return waveform
         features_or_waveform = get_features_or_waveform_from_uncompressed_zip(
             _path, extra[0], extra[1], need_waveform=need_waveform
         )

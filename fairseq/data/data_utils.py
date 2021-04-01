@@ -41,13 +41,16 @@ def collate_tokens(
     move_eos_to_beginning=False,
     pad_to_length=None,
     pad_to_multiple=1,
+    pad_to_bsz=None,
 ):
     """Convert a list of 1d tensors into a padded 2d tensor."""
     size = max(v.size(0) for v in values)
     size = size if pad_to_length is None else max(size, pad_to_length)
     if pad_to_multiple != 1 and size % pad_to_multiple != 0:
         size = int(((size - 0.1) // pad_to_multiple + 1) * pad_to_multiple)
-    res = values[0].new(len(values), size).fill_(pad_idx)
+
+    batch_size = len(values) if pad_to_bsz is None else max(len(values), pad_to_bsz)
+    res = values[0].new(batch_size, size).fill_(pad_idx)
 
     def copy_tensor(src, dst):
         assert dst.numel() == src.numel()
@@ -88,7 +91,13 @@ def load_indexed_dataset(
     datasets = []
     for k in itertools.count():
         path_k = path + (str(k) if k > 0 else "")
-        path_k = indexed_dataset.get_indexed_dataset_to_local(path_k)
+        try:
+            path_k = indexed_dataset.get_indexed_dataset_to_local(path_k)
+        except Exception as e:
+            if "StorageException: [404] Path not found" in str(e):
+                logger.warning(f"path_k: {e} not found")
+            else:
+                raise e
 
         dataset_impl_k = dataset_impl
         if dataset_impl_k is None:
@@ -306,13 +315,12 @@ def batch_by_size(
         )
     except ImportError:
         raise ImportError(
-            "Please build Cython components with: `pip install --editable .` "
-            "or `python setup.py build_ext --inplace`"
+            "Please build Cython components with: "
+            "`python setup.py build_ext --inplace`"
         )
     except ValueError:
         raise ValueError(
-            "Please build (or rebuild) Cython components with: `pip install "
-            " --editable .` or `python setup.py build_ext --inplace`."
+            "Please build (or rebuild) Cython components with `python setup.py build_ext --inplace`."
         )
 
     # added int() to avoid TypeError: an integer is required
@@ -515,12 +523,38 @@ def get_mem_usage():
         return "N/A"
 
 
-def lengths_to_padding_mask(lens: torch.LongTensor) -> torch.BoolTensor:
+# lens: torch.LongTensor
+# returns: torch.BoolTensor
+def lengths_to_padding_mask(lens):
     bsz, max_lens = lens.size(0), torch.max(lens).item()
     mask = torch.arange(max_lens).to(lens.device).view(1, max_lens)
     mask = mask.expand(bsz, -1) >= lens.view(bsz, 1).expand(-1, max_lens)
     return mask
 
 
-def lengths_to_mask(lens: torch.LongTensor) -> torch.BoolTensor:
+# lens: torch.LongTensor
+# returns: torch.BoolTensor
+def lengths_to_mask(lens):
     return ~lengths_to_padding_mask(lens)
+
+
+def get_buckets(sizes, num_buckets):
+    buckets = np.unique(
+        np.percentile(
+            sizes,
+            np.linspace(0, 100, num_buckets + 1),
+            interpolation='lower',
+        )[1:]
+    )
+    return buckets
+
+
+def get_bucketed_sizes(orig_sizes, buckets):
+    sizes = np.copy(orig_sizes)
+    assert np.min(sizes) >= 0
+    start_val = -1
+    for end_val in buckets:
+        mask = (sizes > start_val) & (sizes <= end_val)
+        sizes[mask] = end_val
+        start_val = end_val
+    return sizes

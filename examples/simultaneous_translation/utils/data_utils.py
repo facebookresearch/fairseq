@@ -28,7 +28,7 @@ def apply_mv_norm(features):
     return res
 
 
-def lengths_to_encoder_padding_mask(lengths, batch_first=False):
+def lengths_to_encoder_padding_mask(lengths, batch_first: bool = False):
     """
     convert lengths (a 1-D Long/Int tensor) to 2-D binary tensor
 

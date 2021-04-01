@@ -155,27 +155,29 @@ class InferenceProcessor:
         shard_id = self.data_parallel_rank
         num_shards = self.data_parallel_world_size
 
-        def merge_shards_with_root(fname: str) -> None:
-            logger.info("Merging %s on shard %d", fname, shard_id)
-            base_fpath = Path(f"{fname}.0")
-            with open(base_fpath, "a") as out_file:
-                for s in range(1, num_shards):
-                    shard_fpath = Path(f"{fname}.{s}")
-                    with open(shard_fpath, "r") as in_file:
-                        for line in in_file:
-                            out_file.write(line)
-                    shard_fpath.unlink()
-            shutil.move(f"{fname}.0", fname)
+        if self.data_parallel_world_size > 1:
+            def merge_shards_with_root(fname: str) -> None:
+                logger.info("Merging %s on shard %d", fname, shard_id)
+                base_fpath = Path(f"{fname}.0")
+                with open(base_fpath, "a") as out_file:
+                    for s in range(1, num_shards):
+                        shard_fpath = Path(f"{fname}.{s}")
+                        with open(shard_fpath, "r") as in_file:
+                            for line in in_file:
+                                out_file.write(line)
+                        shard_fpath.unlink()
+                shutil.move(f"{fname}.0", fname)
 
-        if shard_id == (0 % num_shards):
-            merge_shards_with_root("hypo.word")
-        if shard_id == (1 % num_shards):
-            merge_shards_with_root("hypo.units")
-        if shard_id == (2 % num_shards):
-            merge_shards_with_root("ref.word")
-        if shard_id == (3 % num_shards):
-            merge_shards_with_root("ref.units")
-        dist.barrier()
+            dist.barrier()  # ensure all shards finished writing
+            if shard_id == (0 % num_shards):
+                merge_shards_with_root("hypo.word")
+            if shard_id == (1 % num_shards):
+                merge_shards_with_root("hypo.units")
+            if shard_id == (2 % num_shards):
+                merge_shards_with_root("ref.word")
+            if shard_id == (3 % num_shards):
+                merge_shards_with_root("ref.units")
+            dist.barrier()
 
     def optimize_model(self, model: FairseqModel) -> None:
         gcfg = self.cfg.generation
@@ -370,7 +372,7 @@ def main(cfg: InferConfig) -> float:
 
         if cfg.common.cpu:
             logger.warning("Merging WER requires CUDA.")
-        else:
+        elif processor.data_parallel_world_size > 1:
             stats = torch.LongTensor([errs_t, leng_t]).cuda()
             dist.all_reduce(stats, op=dist.ReduceOp.SUM)
             errs_t, leng_t = stats[0].item(), stats[1].item()
@@ -379,7 +381,11 @@ def main(cfg: InferConfig) -> float:
 
         if distributed_utils.is_master(cfg.distributed_training):
             with open(wer_file, "w") as f:
-                f.write(f"WER: {wer}\n\n{yaml_str}")
+                f.write((
+                    f"WER: {wer}\n"
+                    f"err / num_ref_words = {errs_t} / {leng_t}\n\n"
+                    f"{yaml_str}"
+                ))
 
         return wer
 

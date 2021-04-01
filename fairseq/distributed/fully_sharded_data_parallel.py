@@ -43,6 +43,13 @@ class FullyShardedDataParallel(FSDP):
         super().__init__(*args, **kwargs)
         self.use_sharded_state = use_sharded_state
 
+    @property
+    def unwrapped_module(self) -> torch.nn.Module:
+        if self.flatten_parameters:
+            return self.module.module
+        else:
+            return self.module
+
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         if self.use_sharded_state:
             return super().local_state_dict(
@@ -94,7 +101,11 @@ def fsdp_enable_wrap(cfg: DistributedTrainingConfig, use_sharded_state: bool = F
         "compute_dtype": torch.float16 if cfg.fp16 else torch.float32,
         "bucket_cap_mb": cfg.bucket_cap_mb,
     }
-    with enable_wrap(use_sharded_state=use_sharded_state, **fsdp_config):
+    with enable_wrap(
+        wrapper_cls=FullyShardedDataParallel,
+        use_sharded_state=use_sharded_state,
+        **fsdp_config,
+    ):
         yield
 
 
@@ -109,14 +120,13 @@ def fsdp_wrap(module, min_num_params: Optional[int] = None, **kwargs):
     """
     try:
         from fairscale.nn import wrap
-        cls = FullyShardedDataParallel
         if min_num_params is not None:
             num_params = sum(p.numel() for p in module.parameters())
             if num_params >= min_num_params:
-                return wrap(module, cls=cls, **kwargs)
+                return wrap(module, **kwargs)
             else:
                 return module
         else:
-            return wrap(module, cls=cls, **kwargs)
+            return wrap(module, **kwargs)
     except ImportError:
         return module
