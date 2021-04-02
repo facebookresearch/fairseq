@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import csv
+import os
 from pathlib import Path
 import zipfile
 from functools import reduce
@@ -29,7 +30,8 @@ PAD_TOKEN, PAD_TOKEN_ID = "<pad>", 1
 
 def gen_vocab(
     input_path: Path, output_path_prefix: Path, model_type="bpe",
-    vocab_size=1000, special_symbols: Optional[List[str]] = None
+    vocab_size=1000, special_symbols: Optional[List[str]] = None,
+    overwrite=False
 ):
     # Train SentencePiece Model
     arguments = [
@@ -47,10 +49,14 @@ def gen_vocab(
     if special_symbols is not None:
         _special_symbols = ",".join(special_symbols)
         arguments.append(f"--user_defined_symbols={_special_symbols}")
-    sp.SentencePieceTrainer.Train(" ".join(arguments))
+    spm_filename = output_path_prefix.as_posix() + ".model"
+    if Path(spm_filename).exists() and not overwrite:
+        print(f"Using an existing SentencePiece model: {spm_filename}")
+    else:
+        sp.SentencePieceTrainer.Train(" ".join(arguments))
     # Export fairseq dictionary
     spm = sp.SentencePieceProcessor()
-    spm.Load(output_path_prefix.as_posix() + ".model")
+    spm.Load(spm_filename)
     vocab = {i: spm.IdToPiece(i) for i in range(spm.GetPieceSize())}
     assert (
         vocab.get(UNK_TOKEN_ID) == UNK_TOKEN
@@ -63,9 +69,13 @@ def gen_vocab(
         for i, s in vocab.items()
         if s not in {UNK_TOKEN, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN}
     }
-    with open(output_path_prefix.as_posix() + ".txt", "w") as f_out:
-        for _, s in sorted(vocab.items(), key=lambda x: x[0]):
-            f_out.write(f"{s} 1\n")
+    dict_filename = output_path_prefix.as_posix() + ".txt"
+    if (Path(dict_filename).exists() and not overwrite):
+        print(f"Using an existing Fairseq dictionary: {spm_filename}")
+    else:
+        with open(dict_filename, "w") as f_out:
+            for _, s in sorted(vocab.items(), key=lambda x: x[0]):
+                f_out.write(f"{s} 1\n")
 
 
 def extract_fbank_features(
