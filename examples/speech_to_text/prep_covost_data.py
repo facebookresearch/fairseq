@@ -34,6 +34,11 @@ log = logging.getLogger(__name__)
 
 MANIFEST_COLUMNS = ["id", "audio", "duration_ms", "n_frames", "tgt_text", "speaker"]
 
+WAV_MESSAGE = \
+'for f in ${COVOST_ROOT}/*/clips/*.mp3; do\n' \
+'    ffmpeg -i $f -ar 16000 -hide_banner -loglevel error "${f%.mp3}.wav" && rm $in_audiofile\n' \
+'done\n' \
+"sed 's/\.mp3\t/\.wav\t/g' ${COVOST_ROOT}/**/*.tsv"
 
 class CoVoST(Dataset):
     """Create a Dataset for CoVoST (https://github.com/facebookresearch/covost).
@@ -182,7 +187,7 @@ class CoVoST(Dataset):
         sentence = data["sentence"]
         translation = None if self.no_translation else data["translation"]
         speaker_id = data["client_id"]
-        _id = data["path"].replace(".mp3", "")
+        _id = data["path"].with_suffix('').as_posix()
         return waveform, sample_rate, sentence, translation, speaker_id, _id
 
     def __len__(self) -> int:
@@ -228,7 +233,11 @@ def process(args):
             duration_ms = int(wav.size(1) / sr * 1000)
             manifest["duration_ms"].append(duration_ms)
             if args.use_audio_input:
-                manifest["audio"].append(root / "clips" / dataset.data[i]["path"])
+                audiofile = root / "clips" / dataset.data[i]["path"]
+                assert audiofile.suffix == '.wav', \
+                f"You must convert the audio files to WAV format " \
+                f"(and resampling to 16 kHz is recommended):\n\n{WAV_MESSAGE}\n"
+                manifest["audio"].append(audiofile)
                 manifest["n_frames"].append(wav.size(1))
             else:
                 manifest["audio"].append(zip_manifest[utt_id])
