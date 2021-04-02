@@ -193,7 +193,7 @@ def process(args):
             cur_root,
             spm_filename_prefix + ".model",
             yaml_filename=f"config_{args.task}.yaml",
-            specaugment_policy="lb",
+            specaugment_policy="lb" if not args.use_audio_input else None,
             cmvn_type=args.cmvn_type,
             gcmvn_path=(
                 cur_root / "gcmvn.npz" if args.cmvn_type == "global"
@@ -231,7 +231,7 @@ def process_joint(args):
         cur_root,
         spm_filename_prefix + ".model",
         yaml_filename=f"config_{args.task}.yaml",
-        specaugment_policy="ld",
+        specaugment_policy="ld" if not args.use_audio_input else None,
         prepend_tgt_lang_tag=(args.task == "st"),
         use_audio_input=args.use_audio_input,
     )

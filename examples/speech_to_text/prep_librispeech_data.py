@@ -104,7 +104,8 @@ def process(args):
         )
     # Generate config YAML
     gen_config_yaml(
-        out_root, spm_filename_prefix + ".model", specaugment_policy="ld",
+        out_root, spm_filename_prefix + ".model",
+        specaugment_policy="ld" if not args.use_audio_input else None,
         use_audio_input=args.use_audio_input,
     )
 

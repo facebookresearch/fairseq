@@ -258,7 +258,7 @@ def process(args):
         root,
         spm_filename_prefix + ".model",
         yaml_filename=f"config_{task}.yaml",
-        specaugment_policy="lb",
+        specaugment_policy="lb" if not args.use_audio_input else None,
         use_audio_input=args.use_audio_input,
     )
 
