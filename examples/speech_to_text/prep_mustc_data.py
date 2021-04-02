@@ -154,6 +154,8 @@ def process(args):
         for split in MUSTC.SPLITS:
             is_train_split = split.startswith("train")
             manifest = {c: [] for c in MANIFEST_COLUMNS}
+            if args.prepend_tgt_lang_tag:
+                manifest["tgt_lang"] = []
             dataset = MUSTC(args.data_root, lang, split)
             for i, (wav, sr, src_utt, tgt_utt, speaker_id, utt_id) \
                     in enumerate(tqdm(dataset)):
@@ -171,6 +173,10 @@ def process(args):
                     manifest["n_frames"].append(int(1 + (duration_ms - 25) / 10))
                 manifest["tgt_text"].append(src_utt if args.task == "asr" else tgt_utt)
                 manifest["speaker"].append(speaker_id)
+                if args.prepend_tgt_lang_tag:
+                    manifest["tgt_lang"].append(
+                        lang if args.task == 'st' else 'en'
+                    )
             if is_train_split:
                 train_text.extend(manifest["tgt_text"])
             df = pd.DataFrame.from_dict(manifest)
@@ -182,17 +188,22 @@ def process(args):
         with NamedTemporaryFile(mode="w") as f:
             for t in train_text:
                 f.write(t + "\n")
+            special_symbols = [
+                f"<lang:{lang if args.task == 'st' else 'en'}>"
+            ] if args.prepend_tgt_lang_tag else None
             gen_vocab(
                 Path(f.name),
                 cur_root / spm_filename_prefix,
                 args.vocab_type,
                 args.vocab_size,
+                special_symbols=special_symbols,
             )
         # Generate config YAML
         gen_config_yaml(
             cur_root,
             spm_filename_prefix + ".model",
             yaml_filename=f"config_{args.task}.yaml",
+            prepend_tgt_lang_tag=args.prepend_tgt_lang_tag,
             specaugment_policy="lb" if not args.use_audio_input else None,
             cmvn_type=args.cmvn_type,
             gcmvn_path=(
@@ -267,6 +278,9 @@ def main():
                             ))
     parser.add_argument("--use-audio-input", action='store_true',
                         help="Use raw audio, instead of extracting features.")
+    parser.add_argument("--prepend-tgt-lang-tag", action='store_true',
+                        help="Prepend the target language tag when loading "
+                             "target sentences.")
     args = parser.parse_args()
 
     if args.joint:

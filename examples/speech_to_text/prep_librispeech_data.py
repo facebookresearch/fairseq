@@ -68,6 +68,8 @@ def process(args):
     train_text = []
     for split in SPLITS:
         manifest = {c: [] for c in MANIFEST_COLUMNS}
+        if args.prepend_tgt_lang_tag:
+            manifest["tgt_lang"] = []
         dataset = LIBRISPEECH(out_root.as_posix(), url=split)
         for wav, sample_rate, utt, spk_id, chapter_no, utt_no in tqdm(dataset):
             sample_id = f"{spk_id}-{chapter_no}-{format(utt_no, '04d')}"
@@ -85,6 +87,8 @@ def process(args):
                 manifest["n_frames"].append(int(1 + (duration_ms - 25) / 10))
             manifest["tgt_text"].append(utt.lower())
             manifest["speaker"].append(spk_id)
+            if args.prepend_tgt_lang_tag:
+                manifest["tgt_lang"].append('en')
         save_df_to_tsv(
             pd.DataFrame.from_dict(manifest), out_root / f"{split}.tsv"
         )
@@ -96,15 +100,18 @@ def process(args):
     with NamedTemporaryFile(mode="w") as f:
         for t in train_text:
             f.write(t + "\n")
+        special_symbols = ['<lang:en>'] if args.prepend_tgt_lang_tag else None
         gen_vocab(
             Path(f.name),
             out_root / spm_filename_prefix,
             args.vocab_type,
             args.vocab_size,
+            special_symbols=special_symbols,
         )
     # Generate config YAML
     gen_config_yaml(
         out_root, spm_filename_prefix + ".model",
+        prepend_tgt_lang_tag=args.prepend_tgt_lang_tag,
         specaugment_policy="ld" if not args.use_audio_input else None,
         use_audio_input=args.use_audio_input,
     )
@@ -123,6 +130,9 @@ def main():
     parser.add_argument("--vocab-size", default=10000, type=int)
     parser.add_argument("--use-audio-input", action='store_true',
                         help="Use raw audio, instead of extracting features.")
+    parser.add_argument("--prepend-tgt-lang-tag", action='store_true',
+                        help="Prepend the target language tag when loading "
+                             "target sentences.")
     args = parser.parse_args()
 
     process(args)
