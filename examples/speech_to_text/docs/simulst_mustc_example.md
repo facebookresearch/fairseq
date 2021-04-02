@@ -114,6 +114,14 @@ Each line of target file `${TGT_FILE}` is the translation for each audio file in
 Translation_1
 Translation_2
 ```
+The evaluation runs on the original MUSTC segmentation.
+The following command will generate the wav list and text file for a evaluation set `${SPLIT}` (chose from `dev`, `tst-COMMON` and `tst-HE`) in MUSTC to `${EVAL_DATA}`.
+```bash
+python ${FAIRSEQ}/examples/speech_to_text/seg_mustc_data.py \
+  --data-root ${MUSTC_ROOT} --lang de \
+  --split ${SPLIT} --task st \
+  --output ${EVAL_DATA}
+```
 
 The `--data-bin` and `--config` should be the same in previous section if you prepare the data from the scratch.
 If only for evaluation, a prepared data directory can be found [here](https://dl.fbaipublicfiles.com/simultaneous_translation/must_c_v1.0_en_de_databin.tgz). It contains
@@ -152,19 +160,19 @@ Notice that once a `--data-bin` is set, the `--config` is the base name of the c
 Set `--model-path` to the model checkpoint.
 A pretrained checkpoint can be downloaded from [here](https://dl.fbaipublicfiles.com/simultaneous_translation/convtransformer_wait5_pre7), which is a wait-5 model with a pre-decision of 280 ms.
 
-The output should be similar as follow:
+The result of this model on `tst-COMMON` is:
 ```bash
 {
     "Quality": {
-        "BLEU": 12.79214535384013
+        "BLEU": 13.94974229366959
     },
     "Latency": {
-        "AL": 1669.5778120018108,
-        "AL_CA": 2077.9027656104813,
-        "AP": 0.7652936521983029,
-        "AP_CA": 0.8891561507382866,
-        "DAL": 2028.1566141735727,
-        "DAL_CA": 2497.336430059716
+        "AL": 1751.8031870037803,
+        "AL_CA": 2338.5911762796536,
+        "AP": 0.7931395378788959,
+        "AP_CA": 0.9405103863210942,
+        "DAL": 1987.7811616943081,
+        "DAL_CA": 2425.2751560926167
     }
 }
 ```
