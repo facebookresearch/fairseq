@@ -35,10 +35,11 @@ log = logging.getLogger(__name__)
 MANIFEST_COLUMNS = ["id", "audio", "duration_ms", "n_frames", "tgt_text", "speaker"]
 
 WAV_MESSAGE = \
-'for f in ${COVOST_ROOT}/*/clips/*.mp3; do\n' \
-'    ffmpeg -i $f -ar 16000 -hide_banner -loglevel error "${f%.mp3}.wav" && rm $in_audiofile\n' \
-'done\n' \
-"sed 's/\.mp3\t/\.wav\t/g' ${COVOST_ROOT}/**/*.tsv"
+    'for f in ${COVOST_ROOT}/*/clips/*.mp3; do\n' \
+    '    ffmpeg -i $f -ar 16000 -hide_banner -loglevel error "${f%.mp3}.wav" && rm $f\n' \
+    'done\n' \
+    "sed 's/\.mp3\t/\.wav\t/g' ${COVOST_ROOT}/**/*.tsv"
+
 
 class CoVoST(Dataset):
     """Create a Dataset for CoVoST (https://github.com/facebookresearch/covost).
@@ -237,8 +238,9 @@ def process(args):
             if args.use_audio_input:
                 audiofile = root / "clips" / dataset.data[i]["path"]
                 assert audiofile.suffix == '.wav', \
-                f"You must convert the audio files to WAV format " \
-                f"(and resampling to 16 kHz is recommended):\n\n{WAV_MESSAGE}\n"
+                    f"You must convert the audio files to WAV format " \
+                    f"(and resampling to 16 kHz is recommended):\n\n" \
+                    f"{WAV_MESSAGE}\n"
                 manifest["audio"].append(audiofile)
                 manifest["n_frames"].append(wav.size(1))
             else:
