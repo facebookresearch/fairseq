@@ -7,9 +7,7 @@ from typing import Dict, List, Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from examples.simultaneous_translation.utils.data_utils import (
-    lengths_to_encoder_padding_mask,
-)
+from fairseq.data.data_utils import lengths_to_padding_mask
 from fairseq import checkpoint_utils, utils
 from fairseq.models import (
     FairseqEncoder,
@@ -305,15 +303,13 @@ class ConvTransformerEncoder(FairseqEncoder):
         x = self.embed_scale * x
 
         subsampling_factor = int(max_seq_len * 1.0 / output_seq_len + 0.5)
-
+        input_len_0 = (src_lengths.float() / subsampling_factor).ceil().long()
+        input_len_1 = x.size(0) * torch.ones([src_lengths.size(0)]).long().to(input_len_0.device)
         input_lengths = torch.min(
-            (src_lengths.float() / subsampling_factor).ceil().long(),
-            x.size(0) * src_lengths.new_ones([src_lengths.size(0)]).long()
+            input_len_0, input_len_1
         )
 
-        encoder_padding_mask, _ = lengths_to_encoder_padding_mask(
-            input_lengths, batch_first=True
-        )
+        encoder_padding_mask = lengths_to_padding_mask(input_lengths)
 
         positions = self.embed_positions(encoder_padding_mask).transpose(0, 1)
         x += positions
@@ -326,6 +322,7 @@ class ConvTransformerEncoder(FairseqEncoder):
             maybe_encoder_padding_mask = None
         else:
             maybe_encoder_padding_mask = encoder_padding_mask
+
 
         return {
             "encoder_out": [x],

@@ -286,3 +286,11 @@ def load_state_dict(state_dict):
     for name, agg_state in state_dict.items():
         _aggregators[name] = MetersDict()
         _aggregators[name].load_state_dict(agg_state)
+
+
+def xla_metrics_report():
+    try:
+        import torch_xla.debug.metrics as met
+        print(met.metrics_report())
+    except ImportError:
+        return

@@ -222,6 +222,58 @@ $ python train.py /manifest/path --save-dir /model/path --num-workers 6 --fp16 -
 --max-sample-size 150000 --max-tokens 1500000 --skip-invalid-size-inputs-valid-test
 ```
 
+### Run wav2vec2 pre-training on Google Cloud TPUs:
+
+Wav2Vec2 is now supported on TPUs! It's currently pre-training only.
+
+#### Using hydra on a v3-8:
+
+```
+$ OMP_NUM_THREADS=1 fairseq-hydra-train \
+  task.data=/manifest/path \
+  --config-dir /PATH/TO/FAIRSEQ/examples/wav2vec/config/pretraining \
+  --config-name wav2vec2_large_librivox_tpu.yaml
+```
+
+#### Using command line arguments on a v3-8:
+
+```
+$ OMP_NUM_THREADS=1 python train.py /manifest/path --save-dir /model/path --num-workers 6 --fp16 --max-update 400000 --save-interval 1 --no-epoch-checkpoints \
+--arch wav2vec2 --task audio_pretraining --min-lr 1e-06 --stop-min-lr 1e-09 --optimizer adam --lr 0.005 --lr-scheduler cosine \
+--conv-feature-layers [(512, 10, 5), (512, 8, 4), (512, 4, 2), (512, 4, 2), (512, 4, 2), (512, 1, 1), (512, 1, 1)] \
+--conv-aggregator-layers [(512, 2, 1), (512, 3, 1), (512, 4, 1), (512, 5, 1), (512, 6, 1), (512, 7, 1), (512, 8, 1), (512, 9, 1), (512, 10, 1), (512, 11, 1), (512, 12, 1), (512, 13, 1)] \
+--skip-connections-agg --residual-scale 0.5 --log-compression --warmup-updates 500 --warmup-init-lr 1e-07 --criterion wav2vec --num-negatives 10 \
+--max-sample-size 150000 --max-tokens 1500000 --skip-invalid-size-inputs-valid-test \
+--tpu --distributed-world-size 8 --num-batch-buckets 3 --enable-padding \
+--encoder-layerdrop 0 --mask-channel-prob 0.1
+```
+
+#### Using hydra on a pod slice (v3-N with N > 8):
+
+```
+$ OMP_NUM_THREADS=1 fairseq-hydra-train \
+  task.data=/manifest/path \
+  --config-dir /PATH/TO/FAIRSEQ/examples/wav2vec/config/pretraining \
+  --config-name wav2vec2_large_librivox_tpu-pod.yaml  # edit distributed-world-size accordingly
+```
+
+#### Using command line arguments on a pod slice (v3-N with N > 8):
+
+
+```
+$ python -m torch_xla.distributed.xla_dist \
+  --tpu ${TPUNAME} --conda-env=torch-xla-${TORCH_XLA_VERSION} --env OMP_NUM_THREADS=1 \
+  -- \
+python train.py /manifest/path --save-dir /model/path --num-workers 6 --fp16 --max-update 400000 --save-interval 1 --no-epoch-checkpoints \
+--arch wav2vec2 --task audio_pretraining --min-lr 1e-06 --stop-min-lr 1e-09 --optimizer adam --lr 0.005 --lr-scheduler cosine \
+--conv-feature-layers [(512, 10, 5), (512, 8, 4), (512, 4, 2), (512, 4, 2), (512, 4, 2), (512, 1, 1), (512, 1, 1)] \
+--conv-aggregator-layers [(512, 2, 1), (512, 3, 1), (512, 4, 1), (512, 5, 1), (512, 6, 1), (512, 7, 1), (512, 8, 1), (512, 9, 1), (512, 10, 1), (512, 11, 1), (512, 12, 1), (512, 13, 1)] \
+--skip-connections-agg --residual-scale 0.5 --log-compression --warmup-updates 500 --warmup-init-lr 1e-07 --criterion wav2vec --num-negatives 10 \
+--max-sample-size 150000 --max-tokens 1500000 --skip-invalid-size-inputs-valid-test \
+--tpu --distributed-world-size ${WORLD_SIZE} --num-batch-buckets 3 --enable-padding \
+--encoder-layerdrop 0 --mask-channel-prob 0.1
+```
+
 ### Extract embeddings from the downstream task data:
 
 ```
