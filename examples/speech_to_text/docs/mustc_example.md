@@ -11,7 +11,7 @@
 `${MUSTC_ROOT}/en-${TARGET_LANG_ID}`, then preprocess it with
 ```bash
 # additional Python packages for S2T data processing/model training
-pip install pandas torchaudio sentencepiece
+pip install pandas torchaudio soundfile sentencepiece
 
 # Generate TSV manifests, features, vocabulary
 # and configuration for each language

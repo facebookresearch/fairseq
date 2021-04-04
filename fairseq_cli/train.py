@@ -24,6 +24,7 @@ from fairseq import (
     utils,
 )
 from fairseq.data import iterators
+from fairseq.data.plasma_utils import PlasmaStore
 from fairseq.dataclass.configs import FairseqConfig
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.distributed import fsdp_enable_wrap, fsdp_wrap, utils as distributed_utils
@@ -79,9 +80,6 @@ def main(cfg: FairseqConfig) -> None:
 
     # Setup task, e.g., translation, language modeling, etc.
     task = tasks.setup_task(cfg.task)
-    # Load valid dataset (we load training data below, based on the latest checkpoint)
-    for valid_sub_split in cfg.dataset.valid_subset.split(","):
-        task.load_dataset(valid_sub_split, combine=False, epoch=1)
 
     assert cfg.criterion, "Please specify criterion to train a model"
 
@@ -97,11 +95,23 @@ def main(cfg: FairseqConfig) -> None:
     logger.info("model: {}".format(model.__class__.__name__))
     logger.info("criterion: {}".format(criterion.__class__.__name__))
     logger.info(
-        "num. model params: {:,} (num. trained: {:,})".format(
-            sum(getattr(p, "_orig_size", p).numel() for p in model.parameters()),
-            sum(getattr(p, "_orig_size", p).numel() for p in model.parameters() if p.requires_grad),
+        "num. shared model params: {:,} (num. trained: {:,})".format(
+            sum(p.numel() for p in model.parameters() if not getattr(p, "expert", False)),
+            sum(p.numel() for p in model.parameters() if not getattr(p, "expert", False) and p.requires_grad)
         )
     )
+
+    logger.info(
+        "num. expert model params: {} (num. trained: {})".format(
+            sum(p.numel() for p in model.parameters() if getattr(p, "expert", False)),
+            sum(p.numel() for p in model.parameters() if getattr(p, "expert", False) and p.requires_grad),
+        )
+    )
+
+    # Load valid dataset (we load training data below, based on the latest checkpoint)
+    # We load the valid dataset AFTER building the model
+    for valid_sub_split in cfg.dataset.valid_subset.split(","):
+        task.load_dataset(valid_sub_split, combine=False, epoch=1)
 
     # (optionally) Configure quantization
     if cfg.common.quantization_config_path is not None:
@@ -118,14 +128,13 @@ def main(cfg: FairseqConfig) -> None:
         trainer = Trainer(cfg, task, model, criterion, quantizer)
     else:
         trainer = MegatronTrainer(cfg, task, model, criterion)
-
     logger.info(
         "training on {} devices (GPUs/TPUs)".format(
             cfg.distributed_training.distributed_world_size
         )
     )
     logger.info(
-        "max tokens per GPU = {} and batch size per GPU = {}".format(
+        "max tokens per device = {} and max sentences per device = {}".format(
             cfg.dataset.max_tokens,
             cfg.dataset.batch_size,
         )
@@ -139,6 +148,9 @@ def main(cfg: FairseqConfig) -> None:
         # don't cache epoch iterators for sharded datasets
         disable_iterator_cache=task.has_sharded_data("train"),
     )
+    if cfg.common.tpu:
+        import torch_xla.core.xla_model as xm
+        xm.rendezvous("load_checkpoint")  # wait for all workers
 
     max_epoch = cfg.optimization.max_epoch or math.inf
     lr = trainer.get_lr()
@@ -432,7 +444,9 @@ def validate(
         # create a new root metrics aggregator so validation metrics
         # don't pollute other aggregators (e.g., train meters)
         with metrics.aggregate(new_root=True) as agg:
-            for sample in progress:
+            for i, sample in enumerate(progress):
+                if cfg.dataset.max_valid_steps is not None and i > cfg.dataset.max_valid_steps:
+                    break
                 trainer.valid_step(sample)
 
         # log validation stats
@@ -465,12 +479,19 @@ def cli_main(
 
     cfg = convert_namespace_to_omegaconf(args)
 
+    if cfg.common.use_plasma_view:
+        server = PlasmaStore(path=cfg.common.plasma_path)
+        logger.info(f"Started plasma server pid {server.server.pid} {cfg.common.plasma_path}")
+
     if args.profile:
         with torch.cuda.profiler.profile():
             with torch.autograd.profiler.emit_nvtx():
                 distributed_utils.call_main(cfg, main)
     else:
         distributed_utils.call_main(cfg, main)
+
+    # if cfg.common.use_plasma_view:
+    #     server.server.kill()
 
 
 if __name__ == "__main__":

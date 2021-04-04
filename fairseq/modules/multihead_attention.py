@@ -147,8 +147,16 @@ class MultiheadAttention(nn.Module):
         is_tpu = query.device.type == "xla"
 
         tgt_len, bsz, embed_dim = query.size()
+        src_len = tgt_len
         assert embed_dim == self.embed_dim
         assert list(query.size()) == [tgt_len, bsz, embed_dim]
+        if key is not None:
+            src_len, key_bsz, key_embed_dim = key.size()
+            if not torch.jit.is_scripting():
+                assert (key_bsz, key_embed_dim) == (bsz, embed_dim)
+                assert value is not None
+                assert (src_len, bsz, embed_dim) == value.shape
+
 
         if (
             not self.onnx_trace
@@ -262,6 +270,7 @@ class MultiheadAttention(nn.Module):
                 else:
                     assert k is not None
                     k = torch.cat([prev_key, k], dim=1)
+                src_len = k.size(1)
             if "prev_value" in saved_state:
                 _prev_value = saved_state["prev_value"]
                 assert _prev_value is not None
@@ -290,7 +299,7 @@ class MultiheadAttention(nn.Module):
             assert incremental_state is not None
             incremental_state = self._set_input_buffer(incremental_state, saved_state)
         assert k is not None
-        src_len = k.size(1)
+        assert k.size(1) == src_len
 
         # This is part of a workaround to get around fork/join parallelism
         # not supporting Optional types.

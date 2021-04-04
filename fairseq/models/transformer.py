@@ -19,6 +19,7 @@ from fairseq.models import (
 )
 from fairseq.modules import (
     AdaptiveSoftmax,
+    BaseLayer,
     FairseqDropout,
     LayerDropModuleList,
     LayerNorm,
@@ -34,6 +35,9 @@ from torch import Tensor
 
 DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
+
+
+DEFAULT_MIN_PARAMS_TO_WRAP = int(1e8)
 
 
 @register_model("transformer")
@@ -191,6 +195,18 @@ class TransformerModel(FairseqEncoderDecoderModel):
                             help='block size of quantization noise at training time')
         parser.add_argument('--quant-noise-scalar', type=float, metavar='D', default=0,
                             help='scalar quantization noise and scalar quantization at training time')
+        # args for Fully Sharded Data Parallel (FSDP) training
+        parser.add_argument(
+            '--min-params-to-wrap', type=int, metavar='D', default=DEFAULT_MIN_PARAMS_TO_WRAP,
+            help=(
+                'minimum number of params for a layer to be wrapped with FSDP() when '
+                'training with --ddp-backend=fully_sharded. Smaller values will '
+                'improve memory efficiency, but may make torch.distributed '
+                'communication less efficient due to smaller input sizes. This option '
+                'is set to 0 (i.e., always wrap) when --checkpoint-activations or '
+                '--offload-activations are passed.'
+            )
+        )
         # fmt: on
 
     @classmethod
@@ -242,8 +258,12 @@ class TransformerModel(FairseqEncoderDecoderModel):
         encoder = cls.build_encoder(args, src_dict, encoder_embed_tokens)
         decoder = cls.build_decoder(args, tgt_dict, decoder_embed_tokens)
         if not args.share_all_embeddings:
-            encoder = fsdp_wrap(encoder, min_num_params=1e8)
-            decoder = fsdp_wrap(decoder, min_num_params=1e8)
+            min_params_to_wrap = getattr(
+                args, "min_params_to_wrap", DEFAULT_MIN_PARAMS_TO_WRAP
+            )
+            # fsdp_wrap is a no-op when --ddp-backend != fully_sharded
+            encoder = fsdp_wrap(encoder, min_num_params=min_params_to_wrap)
+            decoder = fsdp_wrap(decoder, min_num_params=min_params_to_wrap)
         return cls(args, encoder, decoder)
 
     @classmethod
@@ -387,10 +407,17 @@ class TransformerEncoder(FairseqEncoder):
 
     def build_encoder_layer(self, args):
         layer = TransformerEncoderLayer(args)
-        if getattr(args, "checkpoint_activations", False):
+        checkpoint = getattr(args, "checkpoint_activations", False)
+        if checkpoint:
             offload_to_cpu = getattr(args, "offload_activations", False)
             layer = checkpoint_wrapper(layer, offload_to_cpu=offload_to_cpu)
-        layer = fsdp_wrap(layer, min_num_params=1e8)
+        # if we are checkpointing, enforce that FSDP always wraps the
+        # checkpointed layer, regardless of layer size
+        min_params_to_wrap = (
+            getattr(args, "min_params_to_wrap", DEFAULT_MIN_PARAMS_TO_WRAP)
+            if not checkpoint else 0
+        )
+        layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
         return layer
 
     def forward_embedding(
@@ -485,7 +512,7 @@ class TransformerEncoder(FairseqEncoder):
         x, encoder_embedding = self.forward_embedding(src_tokens, token_embeddings)
 
         # account for padding while computing the representation
-        if encoder_padding_mask is not None:
+        if has_pads:
             x = x * (1 - encoder_padding_mask.unsqueeze(-1).type_as(x))
 
         # B x T x C -> T x B x C
@@ -618,7 +645,14 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             (default: False).
     """
 
-    def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False):
+    def __init__(
+        self,
+        args,
+        dictionary,
+        embed_tokens,
+        no_encoder_attn=False,
+        output_projection=None,
+    ):
         self.args = args
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
@@ -700,7 +734,11 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         )
 
         self.adaptive_softmax = None
-        self.output_projection = None
+        self.output_projection = output_projection
+        if self.output_projection is None:
+            self.build_output_projection(args, dictionary, embed_tokens)
+
+    def build_output_projection(self, args, dictionary, embed_tokens):
         if args.adaptive_softmax_cutoff is not None:
             self.adaptive_softmax = AdaptiveSoftmax(
                 len(dictionary),
@@ -725,13 +763,24 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             nn.init.normal_(
                 self.output_projection.weight, mean=0, std=self.output_embed_dim ** -0.5
             )
+        num_base_layers = getattr(args, "base_layers", 0)
+        for i in range(num_base_layers):
+            self.layers.insert(((i+1) * args.decoder_layers) // (num_base_layers + 1), BaseLayer(args))
+
 
     def build_decoder_layer(self, args, no_encoder_attn=False):
         layer = TransformerDecoderLayer(args, no_encoder_attn)
-        if getattr(args, "checkpoint_activations", False):
+        checkpoint = getattr(args, "checkpoint_activations", False)
+        if checkpoint:
             offload_to_cpu = getattr(args, "offload_activations", False)
             layer = checkpoint_wrapper(layer, offload_to_cpu=offload_to_cpu)
-        layer = fsdp_wrap(layer, min_num_params=1e8)
+        # if we are checkpointing, enforce that FSDP always wraps the
+        # checkpointed layer, regardless of layer size
+        min_params_to_wrap = (
+            getattr(args, "min_params_to_wrap", DEFAULT_MIN_PARAMS_TO_WRAP)
+            if not checkpoint else 0
+        )
+        layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
         return layer
 
     def forward(
@@ -751,7 +800,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             prev_output_tokens (LongTensor): previous decoder outputs of shape
                 `(batch, tgt_len)`, for teacher forcing
             encoder_out (optional): output from the encoder, used for
-                encoder-side attention
+                encoder-side attention, should be of size T x B x C
             incremental_state (dict): dictionary used for storing state during
                 :ref:`Incremental decoding`
             features_only (bool, optional): only return features without
@@ -764,6 +813,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 - the decoder's output of shape `(batch, tgt_len, vocab)`
                 - a dictionary with any model-specific outputs
         """
+
         x, extra = self.extract_features(
             prev_output_tokens,
             encoder_out=encoder_out,
@@ -772,6 +822,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             alignment_layer=alignment_layer,
             alignment_heads=alignment_heads,
         )
+
         if not features_only:
             x = self.output_layer(x)
         return x, extra
@@ -828,8 +879,18 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 - the decoder's features of shape `(batch, tgt_len, embed_dim)`
                 - a dictionary with any model-specific outputs
         """
+        bs, slen = prev_output_tokens.size()
         if alignment_layer is None:
             alignment_layer = self.num_layers - 1
+
+        enc: Optional[Tensor] = None
+        padding_mask: Optional[Tensor] = None
+        if encoder_out is not None:
+            enc = encoder_out["encoder_out"][0]
+            padding_mask = encoder_out["encoder_padding_mask"][0]
+            assert (
+                enc.size()[1] == bs
+            ), f"Expected enc.shape == (t, {bs}, c) got {enc.shape}"
 
         # embed positions
         positions = None
@@ -878,15 +939,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
             x, layer_attn, _ = layer(
                 x,
-                encoder_out["encoder_out"][0]
-                if (encoder_out is not None and len(encoder_out["encoder_out"]) > 0)
-                else None,
-                encoder_out["encoder_padding_mask"][0]
-                if (
-                    encoder_out is not None
-                    and len(encoder_out["encoder_padding_mask"]) > 0
-                )
-                else None,
+                enc,
+                padding_mask,
                 incremental_state,
                 self_attn_mask=self_attn_mask,
                 self_attn_padding_mask=self_attn_padding_mask,

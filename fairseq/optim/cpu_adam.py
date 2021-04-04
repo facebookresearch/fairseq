@@ -15,11 +15,20 @@ from omegaconf import II, DictConfig
 
 
 try:
-    from deepspeed.ops.op_builder import CPUAdamBuilder
-    has_deepspeed_cpu_adam = True
-except ImportError:
-    has_deepspeed_cpu_adam = False
+    import deepspeed
+    has_deepspeed = True
+except ImportError as e:
+    has_deepspeed = False
 
+
+def _get_cpu_adam():
+    try:
+        from deepspeed.ops.op_builder import CPUAdamBuilder
+        return CPUAdamBuilder().load()
+    except ImportError:
+        # fbcode
+        from deepspeed.ops.adam import DeepSpeedCPUAdam as ds_opt_adam
+        return ds_opt_adam
 
 @dataclass
 class FairseqCPUAdamConfig(FairseqDataclass):
@@ -95,13 +104,13 @@ class CPUAdam(torch.optim.Optimizer):
         self.use_fp16_stats = use_fp16_stats
         self.FLOAT16_MAX = 65504.0
 
-        if not has_deepspeed_cpu_adam:
+        if not has_deepspeed:
             raise ImportError("Please install DeepSpeed: pip install deepspeed")
 
         self.opt_id = CPUAdam.optimizer_id
         CPUAdam.optimizer_id = CPUAdam.optimizer_id + 1
 
-        self.ds_opt_adam = CPUAdamBuilder().load()
+        self.ds_opt_adam = _get_cpu_adam()
         adamw_mode = True
         self.ds_opt_adam.create_adam(
             self.opt_id, lr, betas[0], betas[1], eps, weight_decay, adamw_mode

@@ -39,7 +39,8 @@ jobs:
 
     - name: Install optional test requirements
       run: |
-        python -m pip install fairscale iopath transformers pyarrow
+        python -m pip install iopath transformers pyarrow
+        python -m pip install git+https://github.com/facebookresearch/fairscale.git@master
 
     - name: Lint with flake8
       run: |
