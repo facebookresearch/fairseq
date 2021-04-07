@@ -769,7 +769,11 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
 
     def build_decoder_layer(self, args, no_encoder_attn=False):
-        layer = TransformerDecoderLayer(args, no_encoder_attn)
+        try:
+            from deepspeed.somewhere import DecoderLayer
+            layer = DecoderLayer(args.decoder_embed_dim, args.decoder_ffn_dim)  # unpack args as needed
+        except ImportError:
+            layer = TransformerDecoderLayer(args, no_encoder_attn)
         checkpoint = getattr(args, "checkpoint_activations", False)
         if checkpoint:
             offload_to_cpu = getattr(args, "offload_activations", False)
