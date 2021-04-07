@@ -73,7 +73,7 @@ class EuroparlST(Dataset):
             segments = [{
                 'wav': r.split(' ')[0],
                 'offset': float(r.split(' ')[1]),
-                'duration': float(r.split(' ')[2].strip()),
+                'duration': float(r.split(' ')[2].strip()) - float(r.split(' ')[1]),
                 'speaker_id': spk_dict[r.split(' ')[0]],
             } for r in f]
 
@@ -166,7 +166,10 @@ def process(args):
             duration_ms = int(wav.size(1) / sr * 1000)
             manifest["duration_ms"].append(duration_ms)
             if args.use_audio_input:
-                manifest["audio"].append(dataset.data[i][0])
+                wav_filename, offset, n_frames = dataset.data[i][:3]
+                manifest["audio"].append(
+                    f"{wav_filename}:{offset}:{n_frames}"
+                )
                 manifest["n_frames"].append(wav.size(1))
             else:
                 manifest["audio"].append(zip_manifest[utt_id])

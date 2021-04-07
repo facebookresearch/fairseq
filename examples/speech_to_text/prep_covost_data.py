@@ -165,6 +165,9 @@ class CoVoST(Dataset):
         for e in data:
             try:
                 path = self.root / "clips" / e["path"]
+                if not path.exists() and path.with_suffix('.wav').exists():
+                    path = path.with_suffix('.wav')
+                    e["path"] = path.name
                 _ = torchaudio.info(path.as_posix())
                 self.data.append(e)
             except RuntimeError:
@@ -188,7 +191,7 @@ class CoVoST(Dataset):
         sentence = data["sentence"]
         translation = None if self.no_translation else data["translation"]
         speaker_id = data["client_id"]
-        _id = data["path"].with_suffix('').as_posix()
+        _id = Path(data["path"]).with_suffix('').as_posix()
         return waveform, sample_rate, sentence, translation, speaker_id, _id
 
     def __len__(self) -> int:

@@ -33,6 +33,13 @@ def gen_vocab(
     vocab_size=1000, special_symbols: Optional[List[str]] = None,
     overwrite=False
 ):
+    spm_filename = output_path_prefix.as_posix() + ".model"
+    dict_filename = output_path_prefix.as_posix() + ".txt"
+    if Path(spm_filename).exists() and Path(dict_filename).exists() \
+            and not overwrite:
+        print(f"Using an existing SentencePiece model: {spm_filename}")
+        print(f"Using an existing Fairseq dictionary: {dict_filename}")
+        return
     # Train SentencePiece Model
     arguments = [
         f"--input={input_path.as_posix()}",
@@ -49,11 +56,7 @@ def gen_vocab(
     if special_symbols is not None:
         _special_symbols = ",".join(special_symbols)
         arguments.append(f"--user_defined_symbols={_special_symbols}")
-    spm_filename = output_path_prefix.as_posix() + ".model"
-    if Path(spm_filename).exists() and not overwrite:
-        print(f"Using an existing SentencePiece model: {spm_filename}")
-    else:
-        sp.SentencePieceTrainer.Train(" ".join(arguments))
+    sp.SentencePieceTrainer.Train(" ".join(arguments))
     # Export fairseq dictionary
     spm = sp.SentencePieceProcessor()
     spm.Load(spm_filename)
@@ -69,13 +72,9 @@ def gen_vocab(
         for i, s in vocab.items()
         if s not in {UNK_TOKEN, BOS_TOKEN, EOS_TOKEN, PAD_TOKEN}
     }
-    dict_filename = output_path_prefix.as_posix() + ".txt"
-    if (Path(dict_filename).exists() and not overwrite):
-        print(f"Using an existing Fairseq dictionary: {spm_filename}")
-    else:
-        with open(dict_filename, "w") as f_out:
-            for _, s in sorted(vocab.items(), key=lambda x: x[0]):
-                f_out.write(f"{s} 1\n")
+    with open(dict_filename, "w") as f_out:
+        for _, s in sorted(vocab.items(), key=lambda x: x[0]):
+            f_out.write(f"{s} 1\n")
 
 
 def extract_fbank_features(
