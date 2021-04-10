@@ -22,12 +22,13 @@ logger = logging.getLogger(__name__)
 class OptimizerAndSchedulerConfig(FairseqDataclass):
     optimizer: Any = None
     lr_scheduler: Optional[Any] = None
-    lr: List[float] = II("optimization.lr")
+    lr: List = II("optimization.lr")
+    lr_float: Optional[float] = None  # this makes it easier to sweep on learning rate with auto sweepers
 
 
 @dataclass
 class CompositeOptimizerConfig(FairseqDataclass):
-    groups: Dict[str, OptimizerAndSchedulerConfig] = field(
+    groups: Dict[str, Any] = field(
         default_factory=lambda: {},
         metadata={
             "help": "optimizer name -> optimizer OptimizerAndSchedulerConfig. "
@@ -64,8 +65,12 @@ class FairseqCompositeOptimizer(FairseqOptimizer):
         for group, group_params in groupped_params.items():
             group_cfg = cfg.groups[group]
             with open_dict(group_cfg):
-                group_cfg.optimizer.lr = group_cfg.lr
-                group_cfg.lr_scheduler.lr = group_cfg.lr
+                if group_cfg.lr_float is not None:
+                    group_cfg.optimizer.lr = [group_cfg.lr_float]
+                    group_cfg.lr_scheduler.lr = [group_cfg.lr_float]
+                else:
+                    group_cfg.optimizer.lr = group_cfg.lr
+                    group_cfg.lr_scheduler.lr = group_cfg.lr
             self.optimizers[group] = _build_optimizer(group_cfg.optimizer, group_params)
             if group_cfg.lr_scheduler is not None:
                 self.lr_schedulers[group] = build_lr_scheduler(

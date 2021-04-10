@@ -26,7 +26,7 @@ from fairseq.modules import (
     TransposeLast,
 )
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
-from fairseq.utils import buffered_arange
+from fairseq.utils import buffered_arange, index_put, is_xla_tensor
 
 
 EXTRACTOR_MODE_CHOICES = ChoiceEnum(["default", "layer_norm"])
@@ -330,47 +330,52 @@ class Wav2Vec2Model(BaseFairseqModel):
 
         return cls(cfg)
 
-    def apply_mask(self, x, padding_mask):
+    def apply_mask(
+        self, x, padding_mask,
+        mask_indices=None, mask_channel_indices=None,
+    ):
         B, T, C = x.shape
         if self.mask_prob > 0:
-            mask_indices = compute_mask_indices(
-                (B, T),
-                padding_mask,
-                self.mask_prob,
-                self.mask_length,
-                self.mask_selection,
-                self.mask_other,
-                min_masks=2,
-                no_overlap=self.no_mask_overlap,
-                min_space=self.mask_min_space,
-            )
-            mask_indices = torch.from_numpy(mask_indices).to(x.device)
-            x[mask_indices] = self.mask_emb
+            if mask_indices is None:
+                mask_indices = compute_mask_indices(
+                    (B, T),
+                    padding_mask,
+                    self.mask_prob,
+                    self.mask_length,
+                    self.mask_selection,
+                    self.mask_other,
+                    min_masks=2,
+                    no_overlap=self.no_mask_overlap,
+                    min_space=self.mask_min_space,
+                )
+                mask_indices = torch.from_numpy(mask_indices).to(x.device)
+            x = index_put(x, mask_indices, self.mask_emb)
         else:
             mask_indices = None
 
         if self.mask_channel_prob > 0:
-            mask_channel_indices = compute_mask_indices(
-                (B, C),
-                None,
-                self.mask_channel_prob,
-                self.mask_channel_length,
-                self.mask_channel_selection,
-                self.mask_channel_other,
-                no_overlap=self.no_mask_channel_overlap,
-                min_space=self.mask_channel_min_space,
-            )
-            mask_channel_indices = (
-                torch.from_numpy(mask_channel_indices)
-                .to(x.device)
-                .unsqueeze(1)
-                .expand(-1, T, -1)
-            )
-            x[mask_channel_indices] = 0
+            if mask_channel_indices is None:
+                mask_channel_indices = compute_mask_indices(
+                    (B, C),
+                    None,
+                    self.mask_channel_prob,
+                    self.mask_channel_length,
+                    self.mask_channel_selection,
+                    self.mask_channel_other,
+                    no_overlap=self.no_mask_channel_overlap,
+                    min_space=self.mask_channel_min_space,
+                )
+                mask_channel_indices = (
+                    torch.from_numpy(mask_channel_indices)
+                    .to(x.device)
+                    .unsqueeze(1)
+                    .expand(-1, T, -1)
+                )
+            x = index_put(x, mask_channel_indices, 0)
 
         return x, mask_indices
 
-    def sample_negatives(self, y, num):
+    def sample_negatives(self, y, num, padding_count=None):
 
         if self.n_negatives == 0 and self.cross_sample_negatives == 0:
             return y.new(0)
@@ -378,8 +383,9 @@ class Wav2Vec2Model(BaseFairseqModel):
         bsz, tsz, fsz = y.shape
         y = y.view(-1, fsz)  # BTC => (BxT)C
 
+        # FIXME: what happens if padding_count is specified?
         cross_high = tsz * bsz
-        high = tsz
+        high = tsz - (padding_count or 0)
         with torch.no_grad():
             assert high > 1, f"{bsz,tsz,fsz}"
 
@@ -436,10 +442,17 @@ class Wav2Vec2Model(BaseFairseqModel):
 
         logits = torch.cosine_similarity(x.float(), targets.float(), dim=-1).type_as(x)
 
-        logits /= self.logit_temp
+        logits = logits / self.logit_temp
 
-        if neg_is_pos.any():
-            logits[1:][neg_is_pos] = float("-inf")
+        if is_xla_tensor(logits) or neg_is_pos.any():
+            fillval = -float(2**30)
+            if not hasattr(self, '_inftensor'):
+                self._inftensor = (
+                    torch.tensor(fillval).to(x.device)
+                    if is_xla_tensor(logits) else
+                    float("-inf")
+                )
+            logits[1:] = index_put(logits[1:], neg_is_pos, self._inftensor)
 
         return logits
 
@@ -458,7 +471,11 @@ class Wav2Vec2Model(BaseFairseqModel):
 
         return input_lengths.to(torch.long)
 
-    def forward(self, source, padding_mask=None, mask=True, features_only=False):
+    def forward(
+        self, source, padding_mask=None, mask=True, features_only=False,
+        mask_indices=None, mask_channel_indices=None,
+        padding_count=None,
+    ):
 
         if self.feature_grad_mult > 0:
             features = self.feature_extractor(source)
@@ -509,8 +526,14 @@ class Wav2Vec2Model(BaseFairseqModel):
             features = self.project_inp(features)
 
         if mask:
-            x, mask_indices = self.apply_mask(features, padding_mask)
-            if mask_indices is not None:
+            x, mask_indices = self.apply_mask(
+                features, padding_mask,
+                mask_indices=mask_indices,
+                mask_channel_indices=mask_channel_indices,
+            )
+            if not is_xla_tensor(x) and mask_indices is not None:
+                # tpu-comment: reducing the size in a dynamic way causes
+                # too many recompilations on xla.
                 y = unmasked_features[mask_indices].view(
                     unmasked_features.size(0), -1, unmasked_features.size(-1)
                 )
@@ -537,12 +560,18 @@ class Wav2Vec2Model(BaseFairseqModel):
             y = self.project_q(y)
 
             if self.negatives_from_everywhere:
-                neg_cands, *_ = self.quantizer(unmasked_features, produce_targets=False)
-                negs, _ = self.sample_negatives(neg_cands, y.size(1))
+                neg_cands = self.quantizer(
+                    unmasked_features, produce_targets=False
+                )["x"]
+                negs, _ = self.sample_negatives(
+                    neg_cands, y.size(1), padding_count=padding_count,
+                )
                 negs = self.project_q(negs)
 
             else:
-                negs, _ = self.sample_negatives(y, y.size(1))
+                negs, _ = self.sample_negatives(
+                    y, y.size(1), padding_count=padding_count,
+                )
 
             if self.codebook_negatives > 0:
                 cb_negs = self.quantizer.sample_from_codebook(
@@ -557,12 +586,20 @@ class Wav2Vec2Model(BaseFairseqModel):
             y = self.project_q(y)
 
             if self.negatives_from_everywhere:
-                negs, _ = self.sample_negatives(unmasked_features, y.size(1))
+                negs, _ = self.sample_negatives(
+                    unmasked_features, y.size(1),
+                    padding_count=padding_count,
+                )
                 negs = self.project_q(negs)
             else:
-                negs, _ = self.sample_negatives(y, y.size(1))
+                negs, _ = self.sample_negatives(
+                    y, y.size(1), padding_count=padding_count,
+                )
 
-        x = x[mask_indices].view(x.size(0), -1, x.size(-1))
+        if not is_xla_tensor(x):
+            # tpu-comment: reducing the size in a dynamic way causes
+            # too many recompilations on xla.
+            x = x[mask_indices].view(x.size(0), -1, x.size(-1))
 
         if self.target_glu:
             y = self.target_glu(y)
@@ -571,7 +608,9 @@ class Wav2Vec2Model(BaseFairseqModel):
         x = self.final_proj(x)
         x = self.compute_preds(x, y, negs)
 
-        result = {"x": x, "padding_mask": padding_mask, "features_pen": features_pen}
+        result = {
+            "x": x, "padding_mask": padding_mask, "features_pen": features_pen,
+        }
 
         if prob_ppl is not None:
             result["prob_perplexity"] = prob_ppl
@@ -759,11 +798,11 @@ class TransformerEncoder(nn.Module):
     def extract_features(self, x, padding_mask=None):
 
         if padding_mask is not None:
-            x[padding_mask] = 0
+            x = index_put(x, padding_mask, 0)
 
         x_conv = self.pos_conv(x.transpose(1, 2))
         x_conv = x_conv.transpose(1, 2)
-        x += x_conv
+        x = x + x_conv
 
         if not self.layer_norm_first:
             x = self.layer_norm(x)

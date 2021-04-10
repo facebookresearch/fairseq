@@ -14,7 +14,10 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 import sentencepiece as sp
-from fairseq.data.audio.audio_utils import _get_kaldi_fbank, _get_torchaudio_fbank
+from fairseq.data.audio.audio_utils import (
+    _convert_to_mono, _get_kaldi_fbank, _get_torchaudio_fbank
+)
+import torch
 from tqdm import tqdm
 
 
@@ -66,7 +69,7 @@ def gen_vocab(
 
 
 def extract_fbank_features(
-    waveform,
+    waveform: torch.FloatTensor,
     sample_rate: int,
     output_path: Optional[Path] = None,
     n_mel_bins: int = 80,
@@ -75,8 +78,9 @@ def extract_fbank_features(
     if output_path is not None and output_path.is_file() and not overwrite:
         return
 
-    _waveform = waveform * (2 ** 15)  # Kaldi compliance: 16-bit signed integers
-    _waveform = _waveform.squeeze().numpy()
+    _waveform = _convert_to_mono(waveform, sample_rate)
+    _waveform = _waveform * (2 ** 15)  # Kaldi compliance: 16-bit signed integers
+    _waveform = _waveform.numpy()
 
     features = _get_kaldi_fbank(_waveform, sample_rate, n_mel_bins)
     if features is None:
@@ -126,7 +130,9 @@ def gen_config_yaml(
     specaugment_policy: str = "lb",
     prepend_tgt_lang_tag: bool = False,
     sampling_alpha: float = 1.0,
-    audio_root: str = ""
+    audio_root: str = "",
+    cmvn_type: str = "utterance",
+    gcmvn_path: Optional[Path] = None,
 ):
     manifest_root = manifest_root.absolute()
     writer = S2TDataConfigWriter(manifest_root / yaml_filename)
@@ -151,8 +157,19 @@ def gen_config_yaml(
     if prepend_tgt_lang_tag:
         writer.set_prepend_tgt_lang_tag(True)
     writer.set_sampling_alpha(sampling_alpha)
-    writer.set_feature_transforms("_train", ["utterance_cmvn", "specaugment"])
-    writer.set_feature_transforms("*", ["utterance_cmvn"])
+
+    if cmvn_type not in ["global", "utterance"]:
+        raise NotImplementedError
+
+    writer.set_feature_transforms("_train", [f"{cmvn_type}_cmvn", "specaugment"])
+    writer.set_feature_transforms("*", [f"{cmvn_type}_cmvn"])
+
+    if cmvn_type == "global":
+        assert gcmvn_path is not None, (
+            'Please provide path of global cmvn file.'
+        )
+        writer.set_global_cmvn(str(gcmvn_path))
+
     if len(audio_root) > 0:
         writer.set_audio_root(audio_root)
     writer.flush()
@@ -204,6 +221,16 @@ def filter_manifest_df(
         + f", total {invalid.sum()} filtered, {valid.sum()} remained."
     )
     return df[valid]
+
+
+def cal_gcmvn_stats(features_list):
+    features = np.concatenate(features_list)
+    square_sums = (features ** 2).sum(axis=0)
+    mean = features.mean(axis=0)
+    features = np.subtract(features, mean)
+    var = square_sums / features.shape[0] - mean ** 2
+    std = np.sqrt(np.maximum(var, 1e-8))
+    return {"mean": mean.astype("float32"), "std": std.astype("float32")}
 
 
 class S2TDataConfigWriter(object):
@@ -296,6 +323,9 @@ class S2TDataConfigWriter(object):
 
     def set_bpe_tokenizer(self, bpe_tokenizer: Dict[str, Any]):
         self.config["bpe_tokenizer"] = bpe_tokenizer
+
+    def set_global_cmvn(self, stats_npz_path: str):
+        self.config["global_cmvn"] = {"stats_npz_path": stats_npz_path}
 
     def set_feature_transforms(self, split: str, transforms: List[str]):
         if "transforms" not in self.config:

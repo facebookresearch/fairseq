@@ -4,7 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
-from typing import Callable, List, Optional
+from pathlib import Path
+from typing import Callable, List, Optional, Union
 
 import torch
 from fairseq import utils
@@ -361,3 +362,18 @@ def add_model_args(parser):
                        help='model architecture')
     # fmt: on
     return group
+
+
+def get_args(
+    data: Union[str, Path],
+    task: str = "translation",
+    arch: str = "transformer",
+    **overrides
+):
+    parser = get_training_parser(task)
+    args = parse_args_and_arch(parser, [str(data), "--task", task, "--arch", arch])
+
+    for k, v in overrides.items():
+        setattr(args, k, v)
+
+    return args

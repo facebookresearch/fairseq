@@ -61,6 +61,9 @@ We provide reference implementations of various sequence modeling papers:
 
 ### What's New:
 
+* March 2021 [Added full parameter and optimizer state sharding + CPU offloading](examples/fully_sharded_data_parallel/README.md)
+* February 2021 [Added LASER training code](examples/laser/README.md)
+* December 2020: [Added Adaptive Attention Span code](examples/adaptive_span/README.md)
 * December 2020: [GottBERT model and code released](examples/gottbert/README.md)
 * November 2020: Adopted the [Hydra](https://github.com/facebookresearch/hydra) configuration framework
   * [see documentation explaining how to use it for new and existing projects](docs/hydra_integration.md)
@@ -68,14 +71,14 @@ We provide reference implementations of various sequence modeling papers:
 * October 2020: [Added R3F/R4F (Better Fine-Tuning) code](examples/rxf/README.md)
 * October 2020: [Deep Transformer with Latent Depth code released](examples/latent_depth/README.md)
 * October 2020: [Added CRISS models and code](examples/criss/README.md)
+
+<details><summary>Previous updates</summary><p>
+
 * September 2020: [Added Linformer code](examples/linformer/README.md)
 * September 2020: [Added pointer-generator networks](examples/pointer_generator/README.md)
 * August 2020: [Added lexically constrained decoding](examples/constrained_decoding/README.md)
 * August 2020: [wav2vec2 models and code released](examples/wav2vec/README.md)
 * July 2020: [Unsupervised Quality Estimation code released](examples/unsupervised_quality_estimation/README.md)
-
-<details><summary>Previous updates</summary><p>
-
 * May 2020: [Follow fairseq on Twitter](https://twitter.com/fairseq)
 * April 2020: [Monotonic Multihead Attention code released](examples/simultaneous_translation/README.md)
 * April 2020: [Quant-Noise code released](examples/quant_noise/README.md)
@@ -108,6 +111,8 @@ We provide reference implementations of various sequence modeling papers:
 * [mixed precision training](https://fairseq.readthedocs.io/en/latest/getting_started.html#training-with-half-precision-floating-point-fp16) (trains faster with less GPU memory on [NVIDIA tensor cores](https://developer.nvidia.com/tensor-cores))
 * [extensible](https://fairseq.readthedocs.io/en/latest/overview.html): easily register new models, criterions, tasks, optimizers and learning rate schedulers
 * [flexible configuration](docs/hydra_integration.md) based on [Hydra](https://github.com/facebookresearch/hydra) allowing a combination of code, command-line and file based configuration
+* [full parameter and optimizer state sharding](examples/fully_sharded_data_parallel/README.md)
+* [offloading parameters to CPU](examples/fully_sharded_data_parallel/README.md)
 
 We also provide [pre-trained models for translation and language modeling](#pre-trained-models-and-examples)
 with a convenient `torch.hub` interface:

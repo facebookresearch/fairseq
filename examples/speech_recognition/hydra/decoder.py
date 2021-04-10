@@ -250,7 +250,7 @@ class KenLMDecoder(BaseDecoder):
                         for token in spelling
                     ]
                     assert tgt_dict.unk() not in spelling_idxs, \
-                        f"{spelling} {spelling_idxs}"
+                        f"{word} {spelling} {spelling_idxs}"
                     self.trie.insert(spelling_idxs, word_idx, score)
             self.trie.smear(SmearingMode.MAX)
 
