@@ -930,6 +930,8 @@ class MonotonicMultiheadAttentionWaitK(
         max_src_len, bsz, _ = key.size()
 
         if max_src_len < self.waitk_lagging:
+            if incremental_state is not None:
+                tgt_len = 1
             return query.new_zeros(
                 bsz * self.num_heads, tgt_len, max_src_len
             )
