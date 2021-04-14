@@ -151,12 +151,11 @@ class MultiheadAttention(nn.Module):
         assert embed_dim == self.embed_dim
         assert list(query.size()) == [tgt_len, bsz, embed_dim]
         if key is not None:
-            src_len, key_bsz, key_embed_dim = key.size()
+            src_len, key_bsz, _ = key.size()
             if not torch.jit.is_scripting():
-                assert (key_bsz, key_embed_dim) == (bsz, embed_dim)
+                assert key_bsz == bsz
                 assert value is not None
-                assert (src_len, bsz, embed_dim) == value.shape
-
+                assert src_len, bsz == value.shape[:2]
 
         if (
             not self.onnx_trace
