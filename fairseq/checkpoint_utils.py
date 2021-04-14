@@ -120,6 +120,8 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
         for old_chk in checkpoints[cfg.keep_interval_updates :]:
             if os.path.lexists(old_chk):
                 os.remove(old_chk)
+            elif PathManager.exists(old_chk):
+                PathManager.rm(old_chk)
 
     if cfg.keep_last_epochs > 0:
         # remove old epoch checkpoints; checkpoints are sorted in descending order
@@ -394,7 +396,7 @@ def checkpoint_paths(path, pattern=r"checkpoint(\d+)\.pt"):
     descending order.
     """
     pt_regexp = re.compile(pattern)
-    files = os.listdir(path)
+    files = PathManager.ls(path)
 
     entries = []
     for i, f in enumerate(files):
