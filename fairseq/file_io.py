@@ -15,13 +15,13 @@ logger = logging.getLogger(__file__)
 
 
 try:
-    from fvcore.common.file_io import PathManager as FVCorePathManager
+    from iopath.common.file_io import g_pathmgr as IOPathManager
 
     try:
         # [FB only - for now] AWS PathHandler for PathManager
         from .fb_pathhandlers import S3PathHandler
 
-        FVCorePathManager.register_handler(S3PathHandler())
+        IOPathManager.register_handler(S3PathHandler())
     except KeyError:
         logging.warning("S3PathHandler already registered.")
     except ImportError:
@@ -30,15 +30,15 @@ try:
         )
 
 except ImportError:
-    FVCorePathManager = None
+    IOPathManager = None
 
-IOPathPathManager = None
+IOPathManager = None
 
 
 class PathManager:
     """
     Wrapper for insulating OSS I/O (using Python builtin operations) from
-    fvcore's PathManager abstraction (for transparently handling various
+    iopath's PathManager abstraction (for transparently handling various
     internal backends).
     """
 
@@ -51,8 +51,8 @@ class PathManager:
         errors: Optional[str] = None,
         newline: Optional[str] = None,
     ):
-        if FVCorePathManager:
-            return FVCorePathManager.open(
+        if IOPathManager:
+            return IOPathManager.open(
                 path=path,
                 mode=mode,
                 buffering=buffering,
@@ -71,46 +71,46 @@ class PathManager:
 
     @staticmethod
     def copy(src_path: str, dst_path: str, overwrite: bool = False) -> bool:
-        if FVCorePathManager:
-            return FVCorePathManager.copy(
+        if IOPathManager:
+            return IOPathManager.copy(
                 src_path=src_path, dst_path=dst_path, overwrite=overwrite
             )
         return shutil.copyfile(src_path, dst_path)
 
     @staticmethod
     def get_local_path(path: str, **kwargs) -> str:
-        if FVCorePathManager:
-            return FVCorePathManager.get_local_path(path, **kwargs)
+        if IOPathManager:
+            return IOPathManager.get_local_path(path, **kwargs)
         return path
 
     @staticmethod
     def exists(path: str) -> bool:
-        if FVCorePathManager:
-            return FVCorePathManager.exists(path)
+        if IOPathManager:
+            return IOPathManager.exists(path)
         return os.path.exists(path)
 
     @staticmethod
     def isfile(path: str) -> bool:
-        if FVCorePathManager:
-            return FVCorePathManager.isfile(path)
+        if IOPathManager:
+            return IOPathManager.isfile(path)
         return os.path.isfile(path)
 
     @staticmethod
     def ls(path: str) -> List[str]:
-        if FVCorePathManager:
-            return FVCorePathManager.ls(path)
+        if IOPathManager:
+            return IOPathManager.ls(path)
         return os.listdir(path)
 
     @staticmethod
     def mkdirs(path: str) -> None:
-        if FVCorePathManager:
-            return FVCorePathManager.mkdirs(path)
+        if IOPathManager:
+            return IOPathManager.mkdirs(path)
         os.makedirs(path, exist_ok=True)
 
     @staticmethod
     def rm(path: str) -> None:
-        if FVCorePathManager:
-            return FVCorePathManager.rm(path)
+        if IOPathManager:
+            return IOPathManager.rm(path)
         os.remove(path)
 
     @staticmethod
@@ -120,15 +120,15 @@ class PathManager:
 
     @staticmethod
     def register_handler(handler) -> None:
-        if FVCorePathManager:
-            return FVCorePathManager.register_handler(handler=handler)
+        if IOPathManager:
+            return IOPathManager.register_handler(handler=handler)
 
     @staticmethod
     def copy_from_local(
         local_path: str, dst_path: str, overwrite: bool = False, **kwargs
     ) -> None:
-        if FVCorePathManager:
-            return FVCorePathManager.copy_from_local(
+        if IOPathManager:
+            return IOPathManager.copy_from_local(
                 local_path=local_path, dst_path=dst_path, overwrite=overwrite, **kwargs
             )
         return shutil.copyfile(local_path, dst_path)
@@ -136,8 +136,8 @@ class PathManager:
     @staticmethod
     def path_requires_pathmanager(path: str) -> bool:
         """Do we require PathManager to access given path?"""
-        if FVCorePathManager:
-            for p in FVCorePathManager._path_handlers.keys():
+        if IOPathManager:
+            for p in IOPathManager._path_handlers.keys():
                 if path.startswith(p):
                     return True
         return False
@@ -166,15 +166,15 @@ class PathManager:
         """
         Return file descriptor with asynchronous write operations.
         """
-        global IOPathPathManager
-        if not IOPathPathManager:
+        global IOPathManager
+        if not IOPathManager:
             logging.info("ioPath is initializing PathManager.")
             try:
                 from iopath.common.file_io import PathManager
-                IOPathPathManager = PathManager()
+                IOPathManager = PathManager()
             except Exception:
                 logging.exception("Failed to initialize ioPath PathManager object.")
-        return IOPathPathManager.opena(
+        return IOPathManager.opena(
             path=path,
             mode=mode,
             buffering=buffering,
@@ -190,7 +190,7 @@ class PathManager:
         NOTE: `PathManager.async_close()` must be called at the end of any
         script that uses `PathManager.opena(...)`.
         """
-        global IOPathPathManager
-        if IOPathPathManager:
-            return IOPathPathManager.async_close()
+        global IOPathManager
+        if IOPathManager:
+            return IOPathManager.async_close()
         return False
