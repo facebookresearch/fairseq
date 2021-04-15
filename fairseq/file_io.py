@@ -32,8 +32,6 @@ try:
 except ImportError:
     IOPathManager = None
 
-IOPathManager = None
-
 
 class PathManager:
     """
