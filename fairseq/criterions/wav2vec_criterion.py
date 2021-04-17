@@ -13,6 +13,7 @@ from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import FairseqDataclass
 from fairseq.logging.meters import safe_round
+from fairseq.utils import is_xla_tensor
 
 
 @dataclass
@@ -31,7 +32,6 @@ class Wav2VecCriterionConfig(FairseqDataclass):
         default_factory=lambda: [],
         metadata={"help": "output keys to log"},
     )
-from fairseq.utils import index_put, is_xla_tensor
 
 @register_criterion("wav2vec", dataclass=Wav2VecCriterionConfig)
 class Wav2vecCriterion(FairseqCriterion):
