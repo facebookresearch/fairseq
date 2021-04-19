@@ -50,8 +50,6 @@ class TestFileIO(unittest.TestCase):
         # ioPath `PathManager` is initialized after the first `opena` call.
         try:
             from fairseq.file_io import IOPathManager, PathManager
-
-            self.assertIsNone(IOPathManager)
             _asyncfile = os.path.join(self._tmpdir, "async.txt")
             f = PathManager.opena(_asyncfile, "wb")
             f.close()
