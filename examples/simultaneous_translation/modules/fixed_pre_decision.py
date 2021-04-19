@@ -12,17 +12,24 @@ from .monotonic_multihead_attention import (
     MonotonicMultiheadAttentionInfiniteLookback,
 )
 from typing import Dict, Optional
+from examples.simultaneous_translation.utils import p_choose_strategy
 
 def fixed_pooling_monotonic_attention(monotonic_attention):
     def create_model(monotonic_attention, klass):
         class FixedStrideMonotonicAttention(monotonic_attention):
             def __init__(self, args):
+                self.waitk_lagging = 0
+                self.num_heads = 0
+                self.noise_mean = 0.0
+                self.noise_var = 0.0
                 super().__init__(args)
                 self.pre_decision_type = args.fixed_pre_decision_type
                 self.pre_decision_ratio = args.fixed_pre_decision_ratio
                 self.pre_decision_pad_threshold = args.fixed_pre_decision_pad_threshold
                 if self.pre_decision_ratio == 1:
                     return
+
+                self.strategy = args.simul_type
 
                 if args.fixed_pre_decision_type == "average":
                     self.pooling_layer = torch.nn.AvgPool1d(
@@ -143,12 +150,26 @@ def fixed_pooling_monotonic_attention(monotonic_attention):
                 batch_size = query.size(1)
 
                 if self.pre_decision_ratio == 1:
-                    return self.p_choose_waitk(
-                        query,
-                        key,
-                        key_padding_mask,
-                        incremental_state=incremental_state,
-                    )
+                    if self.strategy == "waitk":
+                        return p_choose_strategy.waitk(
+                            query,
+                            key,
+                            self.waitk_lagging,
+                            self.num_heads,
+                            key_padding_mask,
+                            incremental_state=incremental_state,
+                        )
+                    else:  # hard_aligned or infinite_lookback
+                        q_proj, k_proj, _ = self.input_projections(query, key, None, "monotonic")
+                        attn_energy = self.attn_energy(q_proj, k_proj, key_padding_mask)
+                        return p_choose_strategy.hard_aligned(
+                            q_proj,
+                            k_proj,
+                            attn_energy,
+                            self.noise_mean,
+                            self.noise_var,
+                            self.training
+                        )
 
                 key_pool = self.pooling_layer(key.transpose(0, 2)).transpose(0, 2)
 
