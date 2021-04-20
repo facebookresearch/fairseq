@@ -1,0 +1,73 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+
+
+    
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },  
+        {
+            "name": "P-C-train",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",//current work dir
+            "args":[
+                "/content/drive/MyDrive/dataset/libri/root",
+                "--save-dir","/content/drive/MyDrive/fairseq/s2t/libri/checkpoint_debug",
+                "--config-yaml","config.yaml", 
+                "--train-subset", "train-clean-100" ,
+                "--valid-subset", "test-clean",
+                "--num-workers", "4", 
+                "--max-tokens", "40000", 
+                "--max-update", "300000",
+                "--task","speech_to_text", 
+                "--criterion","label_smoothed_cross_entropy",
+                "--report-accuracy",
+                "--arch","s2t_transformer_s",
+                "--share-decoder-input-output-embed",
+                "--optimizer","adam",
+                "--lr","2e-3", 
+                "--lr-scheduler","inverse_sqrt",
+                "--warmup-updates","10000",
+                "--clip-norm","10.0", 
+                "--seed","1" ,
+                "--update-freq","8",
+                "--max-epoch","1"
+            ]
+        }, 
+        {
+            "name": "P-M-train",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",//current work dir
+            "module": "train",
+            "args": [
+                
+            ]
+        },
+        {
+            "name": "P-M-prep",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",//current work dir
+            "module": "examples.speech_to_text.prep_librispeech_data ",
+            "args": [
+                "--output-root","/content/drive/MyDrive/dataset/libri/root",
+                "--vocab-type","unigram",
+                "--vocab-size","10000"
+            ]
+        }
+
+    ]
+}
