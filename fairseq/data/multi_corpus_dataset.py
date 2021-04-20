@@ -165,9 +165,12 @@ class MultiCorpusDataset(FairseqDataset):
         """
         if len(samples) == 0:
             return None
-        _, key = self._map_index(samples[0]["full_id"])
-
-        return self.datasets[key].collater(samples)
+        if "full_id" in samples[0]:
+            _, key = self._map_index(samples[0]["full_id"])
+            return self.datasets[key].collater(samples)
+        else:
+            # Subclasses may override __getitem__ to not specify full_id
+            return list(self.datasets.values())[0].collater(samples)
 
     def num_tokens(self, index: int):
         index, key = self._map_index(index)
