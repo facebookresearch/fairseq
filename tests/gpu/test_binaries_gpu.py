@@ -56,7 +56,13 @@ class TestTranslationGPU(unittest.TestCase):
                 continue
         return logs
 
-    def test_resume_training(self):
+    def test_resume_training_fsdp(self):
+        self._test_resume_training(["--ddp-backend", "fully_sharded"])
+
+    def test_resume_training_noc10d(self):
+        self._test_resume_training([])
+
+    def _test_resume_training(self, extra_clargs, arch="fconv_iwslt_de_en"):
         flags = [
             "--fp16",
             "--log-format",
@@ -67,27 +73,22 @@ class TestTranslationGPU(unittest.TestCase):
             "2",
             "--log-interval",
             "1",
-            "--log-file",
-        ]
+        ] + extra_clargs
         world_size = min(torch.cuda.device_count(), 2)
-        arch = "fconv_iwslt_de_en"
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory("test_fp16") as data_dir:
                 log = os.path.join(data_dir, "train.log")
                 create_dummy_data(data_dir)
                 preprocess_translation_data(data_dir)
                 train_translation_model(
-                    data_dir, arch, flags + [log], world_size=world_size,
+                    data_dir, arch, flags + ["--log-file", log], world_size=world_size,
                 )
                 log2 = os.path.join(data_dir, "resume.log")
                 restore_file = os.path.join(data_dir, "checkpoint_1_2.pt")
-                assert os.path.exists(
-                    restore_file
-                ), f"{restore_file} not written. Choices: {os.listdir(data_dir)}"
                 train_translation_model(
                     data_dir,
                     arch,
-                    flags + [log2, "--restore-file", restore_file],
+                    flags + ["--log-file", log2, "--restore-file", restore_file],
                     world_size=world_size,
                 )
 

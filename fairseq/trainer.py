@@ -26,7 +26,7 @@ from fairseq.nan_detector import NanDetector
 from fairseq.optim import lr_scheduler
 
 from omegaconf import OmegaConf
-
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -331,14 +331,17 @@ class Trainer(object):
 
     def consolidate_optimizer(self):
         """For OSS, we need to consolidate the state dict."""
+        if self.cfg.checkpoint.no_save_optimizer_state:
+            return
         self._gathered_optim_state = None
         if hasattr(self.optimizer.optimizer, "consolidate_state_dict"):
             self.optimizer.optimizer.consolidate_state_dict()
 
-        elif self.cfg.distributed_training.ddp_backend == 'fully_sharded':
-            self._gathered_optim_state = self.model.gather_full_optim_state_dict(self.optimizer,
-                                                                                 recipient_rank=0)
-
+        elif self.cfg.distributed_training.ddp_backend == 'fully_sharded' and not self.model.use_sharded_state:
+            st = self.model.gather_full_optim_state_dict(self.optimizer) # only returns on rank 0
+            if st is None:
+                st = -1  # sentinel so that workers do not save optimizer.state_dict()
+            self._gathered_optim_state = st
 
     def state_dict(self):
         state_dict = {
@@ -423,6 +426,9 @@ class Trainer(object):
                     filename, load_on_all_ranks=load_on_all_ranks
                 )
                 last_optim_state = state.get("last_optimizer_state", None)
+                if last_optim_state == -1:
+                    master_path = re.sub("shard[0-9]+", "shard0", filename)
+                    last_optim_state = torch.load(master_path, map_location='cpu')['last_optimizer_state']
 
                 # If doing zero_sharding, do not broadcast global optimizer
                 # state. Later we will broadcast sharded states to each rank
