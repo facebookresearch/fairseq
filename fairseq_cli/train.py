@@ -59,6 +59,10 @@ def main(cfg: FairseqConfig) -> None:
     ), "Must specify batch size either with --max-tokens or --batch-size"
     metrics.reset()
 
+    if cfg.common.log_file is not None:
+        handler = logging.FileHandler(filename=cfg.common.log_file)
+        logger.addHandler(handler)
+
     np.random.seed(cfg.common.seed)
     utils.set_torch_seed(cfg.common.seed)
 
@@ -242,6 +246,7 @@ def train(
     progress = progress_bar.progress_bar(
         itr,
         log_format=cfg.common.log_format,
+        log_file=cfg.common.log_file,
         log_interval=cfg.common.log_interval,
         epoch=epoch_itr.epoch,
         tensorboard_logdir=(

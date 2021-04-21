@@ -95,6 +95,9 @@ class CommonConfig(FairseqDataclass):
     log_format: Optional[LOG_FORMAT_CHOICES] = field(
         default=None, metadata={"help": "log format to use"}
     )
+    log_file: Optional[str] = field(
+        default=None, metadata={"help": "log file to copy metrics to."}
+    )
     tensorboard_logdir: Optional[str] = field(
         default=None,
         metadata={
