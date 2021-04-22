@@ -95,9 +95,6 @@ class CommonConfig(FairseqDataclass):
     log_format: Optional[LOG_FORMAT_CHOICES] = field(
         default=None, metadata={"help": "log format to use"}
     )
-    log_file: Optional[str] = field(
-        default=None, metadata={"help": "log file to copy metrics to."}
-    )
     tensorboard_logdir: Optional[str] = field(
         default=None,
         metadata={
@@ -108,6 +105,14 @@ class CommonConfig(FairseqDataclass):
     wandb_project: Optional[str] = field(
         default=None,
         metadata={"help": "Weights and Biases project name to use for logging"},
+    )
+    aim_repo_path: Optional[str] = field(
+        default=None,
+        metadata={"help": "Path to save logs for Aim"},
+    )
+    aim_experiment_name: Optional[str] = field(
+        default=None,
+        metadata={"help": "The name of the Aim experiment"},
     )
     azureml_logging: Optional[bool] = field(
         default=False, metadata={"help": "Log scalars to AzureML context"},

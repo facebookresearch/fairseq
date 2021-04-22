@@ -59,10 +59,6 @@ def main(cfg: FairseqConfig) -> None:
     ), "Must specify batch size either with --max-tokens or --batch-size"
     metrics.reset()
 
-    if cfg.common.log_file is not None:
-        handler = logging.FileHandler(filename=cfg.common.log_file)
-        logger.addHandler(handler)
-
     np.random.seed(cfg.common.seed)
     utils.set_torch_seed(cfg.common.seed)
 
@@ -246,7 +242,6 @@ def train(
     progress = progress_bar.progress_bar(
         itr,
         log_format=cfg.common.log_format,
-        log_file=cfg.common.log_file,
         log_interval=cfg.common.log_interval,
         epoch=epoch_itr.epoch,
         tensorboard_logdir=(
@@ -262,6 +257,16 @@ def train(
         ),
         wandb_run_name=os.environ.get(
             "WANDB_NAME", os.path.basename(cfg.checkpoint.save_dir)
+        ),
+        aim_repo_path=(
+            cfg.common.aim_repo_path
+            if distributed_utils.is_master(cfg.distributed_training)
+            else None
+        ),
+        aim_experiment_name=(
+            cfg.common.aim_experiment_name
+            if distributed_utils.is_master(cfg.distributed_training)
+            else None
         ),
         azureml_logging=(
             cfg.common.azureml_logging
@@ -443,6 +448,16 @@ def validate(
             ),
             wandb_run_name=os.environ.get(
                 "WANDB_NAME", os.path.basename(cfg.checkpoint.save_dir)
+            ),
+            aim_repo_path=(
+                cfg.common.aim_repo_path
+                if distributed_utils.is_master(cfg.distributed_training)
+                else None
+            ),
+            aim_experiment_name=(
+                cfg.common.aim_experiment_name
+                if distributed_utils.is_master(cfg.distributed_training)
+                else None
             ),
         )
 

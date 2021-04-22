@@ -29,21 +29,18 @@ def progress_bar(
     iterator,
     log_format: Optional[str] = None,
     log_interval: int = 100,
-    log_file: Optional[str] = None,
     epoch: Optional[int] = None,
     prefix: Optional[str] = None,
     tensorboard_logdir: Optional[str] = None,
     default_log_format: str = "tqdm",
+    aim_repo_path: Optional[str] = None,
+    aim_experiment_name: Optional[str] = None,
     wandb_project: Optional[str] = None,
     wandb_run_name: Optional[str] = None,
     azureml_logging: Optional[bool] = False,
 ):
     if log_format is None:
         log_format = default_log_format
-    if log_file is not None:
-        handler = logging.FileHandler(filename=log_file)
-        logger.addHandler(handler)
-
     if log_format == "tqdm" and not sys.stderr.isatty():
         log_format = "simple"
 
@@ -70,6 +67,9 @@ def progress_bar(
 
     if wandb_project:
         bar = WandBProgressBarWrapper(bar, wandb_project, run_name=wandb_run_name)
+    
+    if aim_repo_path and aim_experiment_name:
+        bar = AimProgressBarWrapper(bar, aim_repo_path, aim_experiment_name)
 
     if azureml_logging:
         bar = AzureMLProgressBarWrapper(bar)
@@ -381,6 +381,75 @@ class TensorboardProgressBarWrapper(BaseProgressBar):
             elif torch.is_tensor(stats[key]) and stats[key].numel() == 1:
                 writer.add_scalar(key, stats[key].item(), step)
         writer.flush()
+
+
+try:
+    import aim
+except ImportError:
+    aim = None
+
+
+class AimProgressBarWrapper(BaseProgressBar):
+    """Log to Aim"""
+
+    def __init__(self, wrapped_bar, aim_repo_path, aim_experiment_name,
+                 system_tracking_interval=None):
+        self.wrapped_bar = wrapped_bar
+        if aim is None:
+            logger.warning("aim not found, pip install aim")
+            return
+
+        from aim.sdk.session.session import Session
+        from aim.engine.configs import DEFAULT_SYSTEM_TRACKING_INT
+        from aim.engine.utils import convert_to_py_number
+        self._convert_to_py_number = convert_to_py_number
+
+        self._system_tracking_interval = system_tracking_interval
+        if system_tracking_interval is None:
+            self._system_tracking_interval = DEFAULT_SYSTEM_TRACKING_INT
+
+        self._experiment_name = aim_experiment_name
+        self._aim_session = Session(
+            repo=aim_repo_path,
+            experiment=self._experiment_name,
+            system_tracking_interval=self._system_tracking_interval,
+        )
+
+    def __iter__(self):
+        return iter(self.wrapped_bar)
+
+    def log(self, stats, tag=None, step=None):
+        """Log intermediate stats to Aim."""
+        self._log_to_aim(stats, tag, step)
+        self.wrapped_bar.log(stats, tag=tag, step=step)
+
+    def print(self, stats, tag=None, step=None):
+        """Print end-of-epoch stats."""
+        self._log_to_aim(stats, tag, step)
+        self.wrapped_bar.print(stats, tag=tag, step=step)
+
+    def update_config(self, config):
+        """Log latest hparams."""
+        self._aim_session.set_params(config, name="hparams")
+        self.wrapped_bar.update_config(config)
+
+    def _log_to_aim(self, stats, tag=None, step=None):
+        if aim is None:
+            return
+        if step is None:
+            step = stats["num_updates"]
+
+        prefix = "" if tag is None else tag
+
+        for key in stats.keys() - {"num_updates"}:
+            value = stats[key]
+            if isinstance(stats[key], AverageMeter):
+                value = stats[key].val
+            value = self._convert_to_py_number(value)
+            context = {
+                "subset": prefix
+            }
+            self._aim_session.track(value, name=key, step=step, **context)
 
 
 try:
