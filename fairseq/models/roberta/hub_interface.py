@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from fairseq import utils
 from fairseq.data import encoders
+from fairseq.trainer import Trainer
 
 
 class RobertaHubInterface(nn.Module):
@@ -233,3 +234,26 @@ class RobertaHubInterface(nn.Module):
             return self.task.disambiguate_pronoun(
                 self.model, sentence, use_cuda=self.device.type == "cuda"
             )
+
+    def save(self, filename):
+        # get training config
+        cfg = self.cfg
+        # get task object
+        task = self.task
+        # get model weights
+        model = self.model
+
+        # override distributed_world_size to 1
+        cfg.distributed_training.distributed_world_size = 1
+        # no save optimizer state
+        cfg.checkpoint.no_save_optimizer_state = True
+        # init criterion
+        criterion = task.build_criterion(cfg.criterion)
+        # set quantizer to None
+        quantizer = None
+
+        # init
+        trainer = Trainer(cfg, task, model, criterion, quantizer)
+        extra_state = {}
+
+        trainer.save_checkpoint(filename, extra_state)
