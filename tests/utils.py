@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
+import json
 import os
 import random
 import sys
@@ -22,6 +23,8 @@ from fairseq.models import (
 from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.tasks import LegacyFairseqTask
 from fairseq_cli import generate, interactive, preprocess, train, validate
+import fairseq.distributed.utils as distributed_utils
+from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 
 
 def dummy_dictionary(vocab_size, prefix="token_"):
@@ -34,10 +37,7 @@ def dummy_dictionary(vocab_size, prefix="token_"):
 
 
 def dummy_dataloader(
-    samples,
-    padding_idx=1,
-    eos_idx=2,
-    batch_size=None,
+    samples, padding_idx=1, eos_idx=2, batch_size=None,
 ):
     if batch_size is None:
         batch_size = len(samples)
@@ -274,6 +274,43 @@ def preprocess_summarization_data(data_dir, extra_flags=None):
     preprocess.main(preprocess_args)
 
 
+def create_laser_data_and_config_json(data_dir):
+    src_langs = ["de", "fr", "ru", "tr", "zh"]
+    tgt_langs = ["en", "es"]
+    config_json = {}
+    config_train_json = []
+    src_vocab = None
+    tgt_vocab = None
+
+    for src_lang in src_langs:
+        for tgt_lang in tgt_langs:
+            langpair_folder = f"{src_lang}-{tgt_lang}"
+
+            langpair_path = os.path.join(data_dir, langpair_folder)
+            os.mkdir(langpair_path)
+            create_dummy_data(langpair_path)
+            preprocess_translation_data(langpair_path, ["--dataset-impl", "cached"])
+
+            src_vocab = os.path.join(langpair_path, "dict.in.txt")
+            tgt_vocab = os.path.join(langpair_path, "dict.out.txt")
+            config_train_json.append(
+                {
+                    "id": 0 if tgt_lang == "en" else 1,
+                    "src": os.path.join(langpair_path, "train.in-out.in"),
+                    "tgt": os.path.join(langpair_path, "train.in-out.out"),
+                }
+            )
+
+    config_json["src_vocab"] = src_vocab
+    config_json["tgt_vocab"] = tgt_vocab
+    config_json["train"] = config_train_json
+
+    with open(os.path.join(data_dir, "laserconfig.json"), "w") as config_file:
+        json.dump(config_json, config_file)
+
+    return config_file
+
+
 def train_translation_model(
     data_dir,
     arch,
@@ -282,6 +319,7 @@ def train_translation_model(
     run_validation=False,
     lang_flags=None,
     extra_valid_flags=None,
+    world_size=1,
 ):
     if lang_flags is None:
         lang_flags = [
@@ -311,14 +349,16 @@ def train_translation_model(
             "1",
             "--no-progress-bar",
             "--distributed-world-size",
-            "1",
+            str(world_size),
             "--num-workers",
             "0",
         ]
         + lang_flags
         + (extra_flags or []),
     )
-    train.main(train_args)
+
+    cfg = convert_namespace_to_omegaconf(train_args)
+    distributed_utils.call_main(cfg, train.main)
 
     if run_validation:
         # test validation
@@ -608,3 +648,70 @@ class TestAdditionalInputModel(FairseqEncoderDecoderModel):
             prev_output_tokens, encoder_out=encoder_out, **kwargs
         )
         return decoder_out
+
+
+def train_language_model(
+    data_dir,
+    arch,
+    extra_flags=None,
+    run_validation=False,
+    extra_valid_flags=None,
+    task="language_modeling",
+    world_size=1,
+):
+    train_parser = options.get_training_parser()
+    train_args = options.parse_args_and_arch(
+        train_parser,
+        [
+            "--task",
+            task,
+            data_dir,
+            "--arch",
+            arch,
+            "--optimizer",
+            "adam",
+            "--lr",
+            "0.0001",
+            "--max-tokens",
+            "500",
+            "--tokens-per-sample",
+            "500",
+            "--save-dir",
+            data_dir,
+            "--max-epoch",
+            "1",
+            "--no-progress-bar",
+            "--distributed-world-size",
+            str(world_size),
+            "--ddp-backend",
+            "no_c10d",
+            "--num-workers",
+            "0",
+        ]
+        + (extra_flags or []),
+    )
+    cfg = convert_namespace_to_omegaconf(train_args)
+    distributed_utils.call_main(cfg, train.main)
+
+    if run_validation:
+        # test validation
+        validate_parser = options.get_validation_parser()
+        validate_args = options.parse_args_and_arch(
+            validate_parser,
+            [
+                "--task",
+                task,
+                data_dir,
+                "--path",
+                os.path.join(data_dir, "checkpoint_last.pt"),
+                "--valid-subset",
+                "valid",
+                "--max-tokens",
+                "500",
+                "--no-progress-bar",
+                "--num-workers",
+                "0",
+            ]
+            + (extra_valid_flags or []),
+        )
+        validate.main(validate_args)

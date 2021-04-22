@@ -18,7 +18,7 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
-from fairseq.models.transformer import TransformerEncoder
+from fairseq.models.transformer import DEFAULT_MIN_PARAMS_TO_WRAP, TransformerEncoder
 from fairseq.modules import LayerNorm
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
@@ -122,6 +122,11 @@ class RobertaModel(FairseqEncoderModel):
             action="store_true",
             help="(re-)register and load heads when loading checkpoints",
         )
+        parser.add_argument(
+            "--untie-weights-roberta",
+            action="store_true",
+            help="Untie weights between embeddings and classifiers in RoBERTa",
+        )
         # args for "Reducing Transformer Depth on Demand with Structured Dropout" (Fan et al., 2019)
         parser.add_argument(
             "--encoder-layerdrop",
@@ -157,16 +162,27 @@ class RobertaModel(FairseqEncoderModel):
             default=0,
             help="scalar quantization noise and scalar quantization at training time",
         )
-        parser.add_argument(
-            "--untie-weights-roberta",
-            action="store_true",
-            help="Untie weights between embeddings and classifiers in RoBERTa",
-        )
+        # args for "Better Fine-Tuning by Reducing Representational Collapse" (Aghajanyan et al. 2020)
         parser.add_argument(
             "--spectral-norm-classification-head",
             action="store_true",
             default=False,
             help="Apply spectral normalization on the classification head",
+        )
+        # args for Fully Sharded Data Parallel (FSDP) training
+        parser.add_argument(
+            "--min-params-to-wrap",
+            type=int,
+            metavar="D",
+            default=DEFAULT_MIN_PARAMS_TO_WRAP,
+            help=(
+                "minimum number of params for a layer to be wrapped with FSDP() when "
+                "training with --ddp-backend=fully_sharded. Smaller values will "
+                "improve memory efficiency, but may make torch.distributed "
+                "communication less efficient due to smaller input sizes. This option "
+                "is set to 0 (i.e., always wrap) when --checkpoint-activations or "
+                "--offload-activations are passed."
+            )
         )
 
     @classmethod
@@ -188,7 +204,7 @@ class RobertaModel(FairseqEncoderModel):
         features_only=False,
         return_all_hiddens=False,
         classification_head_name=None,
-        **kwargs
+        **kwargs,
     ):
         if classification_head_name is not None:
             features_only = True
@@ -243,7 +259,7 @@ class RobertaModel(FairseqEncoderModel):
         checkpoint_file="model.pt",
         data_name_or_path=".",
         bpe="gpt2",
-        **kwargs
+        **kwargs,
     ):
         from fairseq import hub_utils
 
@@ -449,16 +465,13 @@ class RobertaEncoder(FairseqEncoder):
     def build_lm_head(self, embed_dim, output_dim, activation_fn, weight):
         return RobertaLMHead(embed_dim, output_dim, activation_fn, weight)
 
-    def build_lm_head(self, embed_dim, output_dim, activation_fn, weight):
-        return RobertaLMHead(embed_dim, output_dim, activation_fn, weight)
-
     def forward(
         self,
         src_tokens,
         features_only=False,
         return_all_hiddens=False,
         masked_tokens=None,
-        **unused
+        **unused,
     ):
         """
         Args:

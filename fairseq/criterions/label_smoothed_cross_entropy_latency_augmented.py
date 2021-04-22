@@ -3,7 +3,6 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from examples.simultaneous_translation.utils.latency import LatencyTraining
 from fairseq.criterions import register_criterion
 from fairseq.criterions.label_smoothed_cross_entropy import (
     LabelSmoothedCrossEntropyCriterion,
@@ -31,6 +30,7 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
         super().__init__(
             task, sentence_avg, label_smoothing, ignore_prefix_size, report_accuracy
         )
+        from examples.simultaneous_translation.utils.latency import LatencyTraining
         self.eps = label_smoothing
         self.latency_weight_avg = latency_weight_avg
         self.latency_weight_avg_type = latency_weight_avg_type
@@ -53,8 +53,28 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
             LatencyAugmentedLabelSmoothedCrossEntropyCriterion,
             LatencyAugmentedLabelSmoothedCrossEntropyCriterion,
         ).add_args(parser)
-        """Add criterion-specific arguments to the parser."""
         # fmt: off
+
+        """Add criterion-specific arguments to the parser."""
+        parser.add_argument(
+            "--label-smoothing",
+            default=0.0,
+            type=float,
+            metavar="D",
+            help="epsilon for label smoothing, 0 means no label smoothing",
+        )
+        parser.add_argument(
+            "--ignore_prefix_size",
+            default=0,
+            type=int,
+            help="ignore first N tokens",
+        )
+        parser.add_argument(
+            "--report-accuracy",
+            default=False,
+            type=bool,
+            help="report accuracy metric",
+        )
         parser.add_argument("--latency-weight-avg", default=0., type=float, metavar='D',
                             help="Average loss weight")
         parser.add_argument("--latency-weight-var", default=0., type=float, metavar='D',

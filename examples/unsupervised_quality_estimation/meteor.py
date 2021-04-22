@@ -85,19 +85,19 @@ def read_output(meteor_output_path, n_repeats):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input")
+    parser.add_argument("-i", "--infile")
     parser.add_argument("-n", "--repeat_times", type=int)
     parser.add_argument("-m", "--meteor")
     parser.add_argument("-o", "--output")
     args = parser.parse_args()
 
-    translations = read_translations(args.infile, args.repetitions)
+    translations = read_translations(args.infile, args.repeat_times)
     sys.stderr.write("\nGenerating input for Meteor...")
-    ref_path, mt_path = generate_input(translations, args.repetitions)
+    ref_path, mt_path = generate_input(translations, args.repeat_times)
     sys.stderr.write("\nRunning Meteor...")
     out_path = run_meteor(ref_path, mt_path, args.meteor)
     sys.stderr.write("\nReading output...")
-    scores = read_output(out_path, args.repetitions)
+    scores = read_output(out_path, args.repeat_times)
     sys.stderr.write("\nWriting results...")
     with open(args.output, "w") as o:
         for scr in scores:

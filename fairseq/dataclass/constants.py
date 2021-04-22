@@ -37,6 +37,7 @@ def ChoiceEnum(choices: List[str]):
 LOG_FORMAT_CHOICES = ChoiceEnum(["json", "none", "simple", "tqdm"])
 DDP_BACKEND_CHOICES = ChoiceEnum([
     "c10d",  # alias for pytorch_ddp
+    "fully_sharded",  # FullyShardedDataParallel from fairscale
     "legacy_ddp",
     "no_c10d",  # alias for legacy_ddp
     "pytorch_ddp",
