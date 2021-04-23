@@ -254,6 +254,8 @@ class RobertaHubInterface(nn.Module):
 
         # init
         trainer = Trainer(cfg, task, model, criterion, quantizer)
-        extra_state = {}
+        extra_state = {
+            "epoch": -1,
+        }
 
         trainer.save_checkpoint(filename, extra_state)
