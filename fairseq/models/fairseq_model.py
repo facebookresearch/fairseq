@@ -14,7 +14,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from fairseq import utils
-from fairseq.checkpoint_utils import prune_state_dict
 from fairseq.data import Dictionary
 from fairseq.dataclass.utils import (
     convert_namespace_to_omegaconf,
@@ -26,6 +25,14 @@ from torch import Tensor
 
 
 logger = logging.getLogger(__name__)
+
+
+def check_type(module, expected_type):
+    if hasattr(module, "unwrapped_module"):
+        assert isinstance(module.unwrapped_module, expected_type), \
+            f"{type(module.unwrapped_module)} != {expected_type}"
+    else:
+        assert isinstance(module, expected_type), f"{type(module)} != {expected_type}"
 
 
 class BaseFairseqModel(nn.Module):
@@ -111,6 +118,9 @@ class BaseFairseqModel(nn.Module):
             model_cfg = convert_namespace_to_omegaconf(args).model
 
         self.upgrade_state_dict(state_dict)
+
+        from fairseq.checkpoint_utils import prune_state_dict
+
         new_state_dict = prune_state_dict(state_dict, model_cfg)
         return super().load_state_dict(new_state_dict, strict)
 
@@ -143,12 +153,9 @@ class BaseFairseqModel(nn.Module):
 
     def set_num_updates(self, num_updates):
         """State from trainer to pass along to model at every update."""
-
-        def _apply(m):
+        for m in self.modules():
             if hasattr(m, "set_num_updates") and m != self:
                 m.set_num_updates(num_updates)
-
-        self.apply(_apply)
 
     def prepare_for_inference_(self, cfg: DictConfig):
         """Prepare model for inference."""
@@ -282,8 +289,9 @@ class FairseqEncoderDecoderModel(BaseFairseqModel):
 
         self.encoder = encoder
         self.decoder = decoder
-        assert isinstance(self.encoder, FairseqEncoder)
-        assert isinstance(self.decoder, FairseqDecoder)
+
+        check_type(self.encoder, FairseqEncoder)
+        check_type(self.decoder, FairseqDecoder)
 
     def forward(self, src_tokens, src_lengths, prev_output_tokens, **kwargs):
         """
@@ -363,8 +371,8 @@ class FairseqMultiModel(BaseFairseqModel):
         assert encoders.keys() == decoders.keys()
         self.keys = list(encoders.keys())
         for key in self.keys:
-            assert isinstance(encoders[key], FairseqEncoder)
-            assert isinstance(decoders[key], FairseqDecoder)
+            check_type(encoders[key], FairseqEncoder)
+            check_type(decoders[key], FairseqDecoder)
 
         self.models = nn.ModuleDict(
             {
@@ -450,6 +458,9 @@ class FairseqMultiModel(BaseFairseqModel):
             model_cfg = convert_namespace_to_omegaconf(args).model
 
         self.upgrade_state_dict(state_dict)
+
+        from fairseq.checkpoint_utils import prune_state_dict
+
         new_state_dict = prune_state_dict(state_dict, model_cfg)
         return super().load_state_dict(new_state_dict, strict)
 
@@ -464,7 +475,7 @@ class FairseqLanguageModel(BaseFairseqModel):
     def __init__(self, decoder):
         super().__init__()
         self.decoder = decoder
-        assert isinstance(self.decoder, FairseqDecoder)
+        check_type(self.decoder, FairseqDecoder)
 
     def forward(self, src_tokens, **kwargs):
         """
@@ -525,7 +536,7 @@ class FairseqEncoderModel(BaseFairseqModel):
     def __init__(self, encoder):
         super().__init__()
         self.encoder = encoder
-        assert isinstance(self.encoder, FairseqEncoder)
+        check_type(self.encoder, FairseqEncoder)
 
     def forward(self, src_tokens, src_lengths, **kwargs):
         """

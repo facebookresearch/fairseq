@@ -38,7 +38,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
         """Add task-specific arguments to the parser."""
         # fmt: off
         TranslationTask.add_args(parser)
-        parser.add_argument('--langs', required=True, metavar='LANG',
+        parser.add_argument('--langs',  type=str, metavar='LANG',
                             help='comma-separated list of monolingual language, '
                                  'for example, "en,de,fr". These should match the '
                                  'langs from pretraining (and be in the same order). '

@@ -102,6 +102,17 @@ try:
     extensions.extend(
         [
             cpp_extension.CppExtension(
+                "fairseq.libbase",
+                sources=[
+                    "fairseq/clib/libbase/balanced_assignment.cpp",
+                ],
+            )
+        ]
+    )
+
+    extensions.extend(
+        [
+            cpp_extension.CppExtension(
                 "fairseq.libnat",
                 sources=[
                     "fairseq/clib/libnat/edit_dist.cpp",
@@ -256,5 +267,5 @@ if __name__ == "__main__":
         }
         do_setup(package_data)
     finally:
-        if "build_ext" not in sys.argv[1:] and os.path.exists(fairseq_examples):
+        if "build_ext" not in sys.argv[1:] and os.path.islink(fairseq_examples):
             os.unlink(fairseq_examples)

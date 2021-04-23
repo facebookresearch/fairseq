@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from dataclasses import dataclass, field
 from omegaconf import MISSING, II, open_dict
-from typing import Any
+from typing import Optional, Any
 
 from fairseq import checkpoint_utils, tasks, utils
 from fairseq.dataclass import FairseqDataclass
@@ -127,7 +127,27 @@ class Wav2Vec2AsrConfig(FairseqDataclass):
 
 @dataclass
 class Wav2Vec2CtcConfig(Wav2Vec2AsrConfig):
-    pass
+    mask_min_space: Optional[int] = field(
+        default=1,
+        metadata={"help": "min space between spans (if no overlap is enabled)"},
+    )
+    mask_channel_min_space: Optional[int] = field(
+        default=1,
+        metadata={"help": "min space between spans (if no overlap is enabled)"},
+    )
+    conv_feature_layers: Optional[str] = field(
+        default="[(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512,2,2)] + [(512,2,2)]",
+        metadata={
+            "help": (
+                "string describing convolutional feature extraction "
+                "layers in form of a python list that contains "
+                "[(dim, kernel_size, stride), ...]"
+            ),
+        },
+    )
+    encoder_embed_dim: Optional[int] = field(
+        default=768, metadata={"help": "encoder embedding dimension"}
+    )
 
 
 @register_model("wav2vec_ctc", dataclass=Wav2Vec2CtcConfig)
@@ -158,7 +178,7 @@ class Wav2VecCtc(BaseFairseqModel):
 
     def get_logits(self, net_output):
         logits = net_output["encoder_out"]
-        padding = net_output["encoder_padding_mask"]
+        padding = net_output["padding_mask"]
         if padding is not None and padding.any():
             padding = padding.T
             logits[padding][...,0] = 0
@@ -220,6 +240,7 @@ class Wav2Vec2Seq2SeqConfig(Wav2Vec2AsrConfig):
     share_decoder_input_output_embed: bool  = field(
         default=False, metadata={"help": "share decoder input and output embeddings"}
     )
+    autoregressive: bool = II("task.autoregressive")
 
 
 @register_model("wav2vec_seq2seq", dataclass=Wav2Vec2Seq2SeqConfig)
@@ -230,6 +251,8 @@ class Wav2Vec2Seq2SeqModel(FairseqEncoderDecoderModel):
     @classmethod
     def build_model(cls, cfg: Wav2Vec2Seq2SeqConfig, task: FairseqTask):
         """Build a new model instance."""
+
+        assert cfg.autoregressive, "Please set task.autoregressive=true for seq2seq asr models"
 
         src_dict, tgt_dict = task.source_dictionary, task.target_dictionary
 
@@ -359,7 +382,7 @@ class Wav2VecEncoder(FairseqEncoder):
 
         return {
             "encoder_out": x,  # T x B x C
-            "encoder_padding_mask": padding_mask,  # B x T
+            "encoder_padding_mask": padding_mask.transpose(0, 1),  # T x B
             "padding_mask": padding_mask,
         }
 
@@ -539,7 +562,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 x, attn, _ = layer(
                     x,
                     encoder_out["encoder_out"] if encoder_out is not None else None,
-                    encoder_out["encoder_padding_mask"]
+                    encoder_out["padding_mask"]
                     if encoder_out is not None
                     else None,
                     incremental_state,

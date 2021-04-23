@@ -103,6 +103,19 @@ class TestExportModels(unittest.TestCase):
         scripted = torch.jit.script(model)
         _test_save_and_load(scripted)
 
+    @unittest.skipIf(
+        torch.__version__ < "1.6.0", "Targeting OSS scriptability for the 1.6 release"
+    )
+    def test_export_transformer_no_token_pos_emb(self):
+        task, parser = get_dummy_task_and_parser()
+        TransformerModel.add_args(parser)
+        args = parser.parse_args([])
+        args.no_token_positional_embeddings = True
+        model = TransformerModel.build_model(args, task)
+        scripted = torch.jit.script(model)
+        _test_save_and_load(scripted)
+
+
 
 if __name__ == "__main__":
     unittest.main()

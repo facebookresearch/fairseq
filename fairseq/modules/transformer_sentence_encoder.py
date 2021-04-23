@@ -32,18 +32,25 @@ def init_bert_params(module):
            the normal distribution (to be validated).
     """
 
+    def normal_(data):
+        # with FSDP, module params will be on CUDA, so we cast them back to CPU
+        # so that the RNG is consistent with and without FSDP
+        data.copy_(
+            data.cpu().normal_(mean=0.0, std=0.02).to(data.device)
+        )
+
     if isinstance(module, nn.Linear):
-        module.weight.data.normal_(mean=0.0, std=0.02)
+        normal_(module.weight.data)
         if module.bias is not None:
             module.bias.data.zero_()
     if isinstance(module, nn.Embedding):
-        module.weight.data.normal_(mean=0.0, std=0.02)
+        normal_(module.weight.data)
         if module.padding_idx is not None:
             module.weight.data[module.padding_idx].zero_()
     if isinstance(module, MultiheadAttention):
-        module.q_proj.weight.data.normal_(mean=0.0, std=0.02)
-        module.k_proj.weight.data.normal_(mean=0.0, std=0.02)
-        module.v_proj.weight.data.normal_(mean=0.0, std=0.02)
+        normal_(module.q_proj.weight.data)
+        normal_(module.k_proj.weight.data)
+        normal_(module.v_proj.weight.data)
 
 
 class TransformerSentenceEncoder(nn.Module):
@@ -226,6 +233,7 @@ class TransformerSentenceEncoder(nn.Module):
         last_state_only: bool = False,
         positions: Optional[torch.Tensor] = None,
         token_embeddings: Optional[torch.Tensor] = None,
+        attn_mask: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         is_tpu = tokens.device.type == "xla"
 
@@ -268,7 +276,7 @@ class TransformerSentenceEncoder(nn.Module):
             inner_states.append(x)
 
         for layer in self.layers:
-            x, _ = layer(x, self_attn_padding_mask=padding_mask)
+            x, _ = layer(x, self_attn_padding_mask=padding_mask, self_attn_mask=attn_mask)
             if not last_state_only:
                 inner_states.append(x)
 
