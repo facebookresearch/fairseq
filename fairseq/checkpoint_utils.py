@@ -494,7 +494,7 @@ def _upgrade_state_dict(state):
     # use stateful training data iterator
     if "train_iterator" not in state["extra_state"]:
         state["extra_state"]["train_iterator"] = {
-            "epoch": state["extra_state"]["epoch"],
+            "epoch": state["extra_state"].get("epoch", -1),
             "iterations_in_epoch": state["extra_state"].get("batch_offset", 0),
         }
 
