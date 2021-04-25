@@ -30,7 +30,7 @@ fairseq-train \
 ```
 
 ### Fast Structured Decoding for Sequence Models (NAT-CRF, Sun et al., 2019)
-Note that we implemented a low-rank appromixated CRF model by setting `--crf-lowrank-approx=32` and `--crf-beam-approx=64` as discribed in the original paper. All other settings are the same as the vanilla NAT model.
+Note that we implemented a low-rank appromixated CRF model by setting `--crf-lowrank-approx=32` and `--crf-beam-approx=64` as described in the original paper. All other settings are the same as the vanilla NAT model.
 ```bash
 fairseq-train \
     data-bin/wmt14_en_de_distill \

@@ -76,7 +76,7 @@ fairseq-train $path_2_data \
   --seed 222 --log-format simple --log-interval 2
 ```
 ## Generate
-The following command uses the multilingual task (translation_multi_simple_epoch) to generate translation  from $source_lang to $target_lang on the test dataset. During generaton, the source language tokens are added to source sentences and the target language tokens are added as the starting token to decode target sentences. Options --lang-dict and --lang-pairs are needed to tell the generation process the ordered list of languages and translation directions that the trained model are awared of; they will need to be consistent with the training.
+The following command uses the multilingual task (translation_multi_simple_epoch) to generate translation  from $source_lang to $target_lang on the test dataset. During generaton, the source language tokens are added to source sentences and the target language tokens are added as the starting token to decode target sentences. Options --lang-dict and --lang-pairs are needed to tell the generation process the ordered list of languages and translation directions that the trained model are aware of; they will need to be consistent with the training.
 
 ```bash
 model=<multilingual model>
