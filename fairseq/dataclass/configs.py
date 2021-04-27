@@ -576,7 +576,7 @@ class CheckpointConfig(FairseqDataclass):
         metadata={
             "help": "when used with --keep-interval-updates, skips deleting "
                     "any checkpoints with update X where "
-                    "X % keep_interval_updates_pattern == 0"
+                    "X %% keep_interval_updates_pattern == 0"
         },
     )
     keep_last_epochs: int = field(
