@@ -31,74 +31,52 @@ class CountingIterator(object):
         iterable (iterable): iterable to wrap
         start (int): starting iteration count. Note that this doesn't
             actually advance the iterator.
-        total (int): override the iterator length returned by
-            ``__len__``. This can be used to truncate *iterator*.
+        total (int): override the iterator length returned by ``__len``.
+            This can be used to truncate *iterator*.
 
     Attributes:
         n (int): number of elements consumed from this iterator
     """
 
     def __init__(self, iterable, start=None, total=None):
-        self.iterable = iterable
-        self.itr = iter(self)
-
-        if start is None:
-            self.n = getattr(iterable, "n", 0)
-        else:
-            self.n = start
-
-        if total is None:
-            self.total = self.n + len(iterable)
-        else:
-            self.total = total
+        self._itr = iter(iterable)
+        self.n = start or getattr(iterable, "n", 0)
+        self.total = total or self.n + len(iterable)
 
     def __len__(self):
         return self.total
 
     def __iter__(self):
-        for x in self.iterable:
-            if self.n >= self.total:
-                raise RuntimeError(
-                    "Mismatch between actual and expected iterable length. "
-                    "This may be caused by resuming training from a checkpoint using "
-                    "a different number of GPUs, in which case you can try the "
-                    "--reset-dataloader option. Alternatively you may have a train or "
-                    "validation set that is smaller than the number of GPUs. If none "
-                    "of these apply, please report this to the fairseq developers."
-                )
-            self.n += 1
-            yield x
+        return self
 
     def __next__(self):
-        return next(self.itr)
+        if not self.has_next():
+            raise StopIteration
+        try:
+            x = next(self._itr)
+        except StopIteration:
+            raise IndexError(f"Iterator expected to have length {self.total}, "
+                             "but exhausted at position {self.n}.")
+        self.n += 1
+        return x
 
     def has_next(self):
         """Whether the iterator has been exhausted."""
-        return self.n < len(self)
+        return self.n < self.total
 
-    def skip(self, num_to_skip):
-        """Fast-forward the iterator by skipping *num_to_skip* elements."""
-        next(itertools.islice(self.itr, num_to_skip, num_to_skip), None)
+    def skip(self, n):
+        """Fast-forward the iterator by skipping n elements."""
+        for _ in range(n):
+            next(self)
         return self
 
     def take(self, n):
-        """
-        Truncates the iterator to n elements at most.
-        """
+        """Truncate the iterator to n elements at most."""
         self.total = min(self.total, n)
-
         # Propagate this change to the underlying iterator
-        # Only take after what we have already consumed (i.e. after restarting
-        # from checkpoint mid epoch, we have to subtract self.n which is the
-        # starting point)
-        #
-        # This to maintain the invariant self.total = self.n + len(iterable),
-        # before calling __next__ or __iter__
-        propagated_take = max(n - self.n, 0)
-        if hasattr(self.iterable, "take"):
-            self.iterable.take(propagated_take)
-        else:
-            self.iterable = itertools.islice(self.iterable, propagated_take)
+        if hasattr(self._itr, "take"):
+            self._itr.take(max(n - self.n, 0))
+        return self
 
 
 class EpochBatchIterating(object):
@@ -620,10 +598,10 @@ class BufferedIterator(object):
 
     def take(self, n):
         self.total = min(self.total, n)
-
         # Propagate this change to the underlying iterator
         if hasattr(self._iterable, "take"):
             self._iterable.take(n)
+        return self
 
     def __next__(self):
         # Create consumer if not created yet
