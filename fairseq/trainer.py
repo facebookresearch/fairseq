@@ -428,7 +428,8 @@ class Trainer(object):
                 last_optim_state = state.get("last_optimizer_state", None)
                 if last_optim_state == -1:
                     master_path = re.sub("shard[0-9]+", "shard0", filename)
-                    last_optim_state = torch.load(master_path, map_location='cpu')['last_optimizer_state']
+                    local_master_path = PathManager.get_local_path(master_path)
+                    last_optim_state = torch.load(local_master_path, map_location='cpu')['last_optimizer_state']
 
                 # If doing zero_sharding, do not broadcast global optimizer
                 # state. Later we will broadcast sharded states to each rank
