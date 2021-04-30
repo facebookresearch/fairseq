@@ -27,8 +27,8 @@ from .denoising import DenoisingTask
 logger = logging.getLogger(__name__)
 
 
-@register_task("multilingual_denoising_roblox")
-class MultilingualDenoisingTask(DenoisingTask):
+@register_task("multilingual_denoising_rblox")
+class MultilingualDenoisingTaskRBLX(DenoisingTask):
     @staticmethod
     def add_args(parser):
         DenoisingTask.add_args(parser)
@@ -50,10 +50,12 @@ class MultilingualDenoisingTask(DenoisingTask):
             help="languages without spacing between words dont support whole word masking",
         )
         parser.add_argument(
-            "--universe_dict", 
-            type=str
+            "--universe-dict", 
+            type=str, 
+            default="", 
+            help="text file with all universe id's listed"
         )
-        
+
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -79,6 +81,14 @@ class MultilingualDenoisingTask(DenoisingTask):
                 dictionary.add_symbol("[{}]".format(lang))
 
         logger.info("dictionary: {} types".format(len(dictionary)))
+
+        # Parse all the universe ids
+        if args.universe_dict != "":
+            with open(args.universe_dict, 'r') as univ_file:
+                universe_ids = univ_file.readlines()
+                for universe in universe_ids:
+                    dictionary.add_symbol("[{}]".format(universe))
+
         if not hasattr(args, "shuffle_instance"):
             args.shuffle_instance = False
         return cls(args, dictionary)
