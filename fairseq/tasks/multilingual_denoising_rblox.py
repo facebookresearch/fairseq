@@ -27,8 +27,8 @@ from .denoising import DenoisingTask
 logger = logging.getLogger(__name__)
 
 
-@register_task("multilingual_denoising_roblox")
-class MultilingualDenoisingTask(DenoisingTask):
+@register_task("multilingual_denoising_rblox")
+class MultilingualDenoisingTaskRBLX(DenoisingTask):
     @staticmethod
     def add_args(parser):
         DenoisingTask.add_args(parser)
