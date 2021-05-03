@@ -70,6 +70,7 @@ class Dictionary:
         extra_symbols_to_ignore=None,
         unk_string=None,
         include_eos=False,
+        separator=" ",
     ):
         """Helper for converting a tensor of token indices to a string.
 
@@ -96,7 +97,7 @@ class Dictionary:
         if hasattr(self, "bos_index"):
             extra_symbols_to_ignore.add(self.bos())
 
-        sent = " ".join(
+        sent = separator.join(
             token_string(i)
             for i in tensor
             if utils.item(i) not in extra_symbols_to_ignore
