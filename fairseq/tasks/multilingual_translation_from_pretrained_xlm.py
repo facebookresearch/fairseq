@@ -5,20 +5,14 @@
 
 from dataclasses import dataclass
 from fairseq.data.legacy.masked_lm_dictionary import MaskedLMDictionary
-from fairseq.tasks.translation import TranslationConfig, MultilingualTranslationTask
+from fairseq.tasks.translation_multi_simple_epoch import TranslationMultiSimpleEpochTask
 
 from . import register_task
 
 
-@dataclass
-class TranslationFromPretrainedXLMConfig(TranslationConfig):
-    pass
 
-
-@register_task(
-    "multilingual_translation_from_pretrained_xlm", dataclass=TranslationFromPretrainedXLMConfig
-)
-class MultilingualTranslationFromPretrainedXLMTask(MultilingualTranslationTask):
+@register_task("multilingual_translation_from_pretrained_xlm")
+class MultilingualTranslationFromPretrainedXLMTask(TranslationMultiSimpleEpochTask):
     """
     Same as TranslationTask except use the MaskedLMDictionary class so that
     we can load data that was binarized with the MaskedLMDictionary class.
