@@ -262,6 +262,8 @@ class FileAudioDataset(RawAudioDataset):
         skipped = 0
         self.fnames = []
         sizes = []
+        self.skipped_indices = set()
+
         with open(manifest_path, "r") as f:
             self.root_dir = f.readline().strip()
             for i, line in enumerate(f):
@@ -270,6 +272,7 @@ class FileAudioDataset(RawAudioDataset):
                 sz = int(items[1])
                 if min_sample_size is not None and sz < min_sample_size:
                     skipped += 1
+                    self.skipped_indices.add(i)
                     continue
                 self.fnames.append(items[0])
                 sizes.append(sz)
