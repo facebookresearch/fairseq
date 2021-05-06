@@ -11,8 +11,8 @@ from . import register_task
 from .translation import TranslationTask, load_langpair_dataset
 
 
-@register_task("translation_from_pretrained_bart_rblx")
-class TranslationFromPretrainedBARTRBLXTask(TranslationTask):
+@register_task("translation_from_pretrained_bart_universe")
+class TranslationFromPretrainedBARTUniverseTask(TranslationTask):
     """
     Translate from source language to target language with a model initialized with a multilingual pretrain.
 
@@ -47,15 +47,27 @@ class TranslationFromPretrainedBARTRBLXTask(TranslationTask):
         parser.add_argument('--prepend-bos', action='store_true',
                             help='prepend bos token to each sentence, which matches '
                                  'mBART pretraining')
+        parser.add_argument(
+            "--universe-dict", 
+            type=str, 
+            default="", 
+            help="text file with all universe id's listed"
+        )
         # fmt: on
 
     def __init__(self, args, src_dict, tgt_dict):
         super().__init__(args, src_dict, tgt_dict)
         self.args = args
         self.langs = args.langs.split(",")
+        with open(args.universe_dict, 'r') as univ_file:
+            universe_ids = univ_file.readlines()
+        self.universes = universe_ids
         for d in [src_dict, tgt_dict]:
             for l in self.langs:
                 d.add_symbol("[{}]".format(l))
+            # Parse all the universe ids
+            for universe in self.universes:
+                d.add_symbol("[{}]".format(universe))
             d.add_symbol("<mask>")
 
     def load_dataset(self, split, epoch=1, combine=False, **kwargs):

@@ -27,8 +27,8 @@ from .denoising import DenoisingTask
 logger = logging.getLogger(__name__)
 
 
-@register_task("multilingual_denoising_rblox")
-class MultilingualDenoisingTaskRBLX(DenoisingTask):
+@register_task("multilingual_denoising_universe")
+class MultilingualDenoisingUniverseTask(DenoisingTask):
     @staticmethod
     def add_args(parser):
         DenoisingTask.add_args(parser)
@@ -83,11 +83,10 @@ class MultilingualDenoisingTaskRBLX(DenoisingTask):
         logger.info("dictionary: {} types".format(len(dictionary)))
 
         # Parse all the universe ids
-        if args.universe_dict != "":
-            with open(args.universe_dict, 'r') as univ_file:
-                universe_ids = univ_file.readlines()
-                for universe in universe_ids:
-                    dictionary.add_symbol("[{}]".format(universe))
+        with open(args.universe_dict, 'r') as univ_file:
+            universe_ids = univ_file.readlines()
+            for universe in universe_ids:
+                dictionary.add_symbol("[{}]".format(universe))
 
         if not hasattr(args, "shuffle_instance"):
             args.shuffle_instance = False
@@ -138,7 +137,13 @@ class MultilingualDenoisingTaskRBLX(DenoisingTask):
                 p = os.path.join(data_path, name)
                 assert os.path.exists(p), "data not found: {}".format(p)
 
+        if self.args.universe_dict != "ignore":
+            with open(self.args.universe_dict, 'r') as univ_file:
+                universes = univ_file.readlines()
+
+
         logger.info("Training on {0} languages: {1}".format(len(languages), languages))
+        logger.info("Training on {0} universes: {1}".format(len(universes), universes))
         logger.info(
             "Language to id mapping: ", {lang: id for id, lang in enumerate(languages)}
         )
@@ -147,59 +152,66 @@ class MultilingualDenoisingTaskRBLX(DenoisingTask):
         language_without_segmentations = self.args.no_whole_word_mask_langs.split(",")
         lang_datasets = []
         for language in languages:
-            split_path = os.path.join(data_path, language, split)
+            for universe in universes:
+                split_path = os.path.join(data_path, universe, language, split)
 
-            dataset = data_utils.load_indexed_dataset(
-                split_path,
-                self.source_dictionary,
-                self.args.dataset_impl,
-                combine=combine,
-            )
-            if dataset is None:
-                raise FileNotFoundError(
-                    "Dataset not found: {} ({})".format(split, split_path)
+                dataset = data_utils.load_indexed_dataset(
+                    split_path,
+                    self.source_dictionary,
+                    self.args.dataset_impl,
+                    combine=combine,
+                )
+                if dataset is None:
+                    raise FileNotFoundError(
+                        "Dataset not found: {} ({})".format(split, split_path)
+                    )
+
+                end_token = (
+                    self.source_dictionary.index("[{}]".format(language))
+                    if self.args.add_lang_token
+                    else self.source_dictionary.eos()
                 )
 
-            end_token = (
-                self.source_dictionary.index("[{}]".format(language))
-                if self.args.add_lang_token
-                else self.source_dictionary.eos()
-            )
+                # create continuous blocks of tokens
+                dataset = TokenBlockDataset(
+                    dataset,
+                    dataset.sizes,
+                    self.args.tokens_per_sample - 2,  # one less for <s>
+                    pad=self.source_dictionary.pad(),
+                    eos=end_token,
+                    break_mode=self.args.sample_break_mode,
+                )
+                logger.info("loaded {} blocks from: {}".format(len(dataset), split_path))
 
-            # create continuous blocks of tokens
-            dataset = TokenBlockDataset(
-                dataset,
-                dataset.sizes,
-                self.args.tokens_per_sample - 2,  # one less for <s>
-                pad=self.source_dictionary.pad(),
-                eos=end_token,
-                break_mode=self.args.sample_break_mode,
-            )
-            logger.info("loaded {} blocks from: {}".format(len(dataset), split_path))
+                # prepend beginning-of-sentence token (<s>, equiv. to [CLS] in BERT)
+                dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())
+                dataset = AppendTokenDataset(dataset, end_token)
+                
+                end_token = (
+                    self.source_dictionary.index("[{}]".format(universe))
+                )
 
-            # prepend beginning-of-sentence token (<s>, equiv. to [CLS] in BERT)
-            dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())
-            dataset = AppendTokenDataset(dataset, end_token)
+                dataset = AppendTokenDataset(dataset, end_token)
 
-            lang_mask_whole_words = (
-                mask_whole_words
-                if language not in language_without_segmentations
-                else None
-            )
-            lang_dataset = DenoisingDataset(
-                dataset,
-                dataset.sizes,
-                self.dictionary,
-                self.mask_idx,
-                lang_mask_whole_words,
-                shuffle=self.args.shuffle_instance,
-                seed=self.seed,
-                args=self.args,
-                eos=None
-                if not self.args.add_lang_token
-                else self.source_dictionary.index("[{}]".format(language)),
-            )
-            lang_datasets.append(lang_dataset)
+                lang_mask_whole_words = (
+                    mask_whole_words
+                    if language not in language_without_segmentations
+                    else None
+                )
+                lang_dataset = DenoisingDataset(
+                    dataset,
+                    dataset.sizes,
+                    self.dictionary,
+                    self.mask_idx,
+                    lang_mask_whole_words,
+                    shuffle=self.args.shuffle_instance,
+                    seed=self.seed,
+                    args=self.args,
+                    eos=None
+                    if not self.args.add_lang_token
+                    else self.source_dictionary.index("[{}]".format(language)),
+                )
+                lang_datasets.append(lang_dataset)
 
         dataset_lengths = np.array(
             [len(d) for d in lang_datasets],
