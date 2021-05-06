@@ -199,7 +199,7 @@ class AudioPretrainingTask(FairseqTask):
             if not hasattr(task_cfg, "autoregressive"):
                 task_cfg.autoregressive = not task_cfg.criterion == "ctc"
 
-        if task_cfg.binarized_dataset:
+        if getattr(task_cfg, 'binarized_dataset', False):
             self.datasets[split] = BinarizedAudioDataset(
                 data_path,
                 split=split,
