@@ -45,6 +45,7 @@ class MultiCorpusDataset(FairseqDataset):
         seed: int,
         sort_indices: bool = False,
         batch_sample: bool = False,
+        distributed_rank=None,
     ):
         super().__init__()
         assert isinstance(datasets, OrderedDict)
@@ -55,6 +56,7 @@ class MultiCorpusDataset(FairseqDataset):
         self.seed = seed
         self.sort_indices = sort_indices
         self.batch_sample = batch_sample
+        self.distributed_rank = distributed_rank
 
         # Avoid repeated conversions to list later
         self.dataset_list = list(datasets.values())
@@ -72,6 +74,7 @@ class MultiCorpusDataset(FairseqDataset):
     def ordered_indices(self):
         start = time.time()
         with data_utils.numpy_seed(self.seed, self.epoch):
+            logger.info(f"sampling new dataset with seed {self.seed} epoch {self.epoch}")
             sampled_indices = []
             num_selected_instances = 0
 
@@ -186,6 +189,7 @@ class MultiCorpusDataset(FairseqDataset):
 
     def set_epoch(self, epoch, **unused):
         super().set_epoch(epoch)
+        logger.info(f"setting epoch of multi_corpus_dataset to {epoch}")
         self.epoch = epoch
 
     @property
@@ -227,5 +231,10 @@ class MultiCorpusDataset(FairseqDataset):
             logger.info(f"Created {len(cur_batches)} batches for dataset {key}")
             batches += cur_batches
 
-        # Assume shuffling is handled in fairseq/data/iterators.py
+        # If this dataset is used in a distributed training setup,
+        # then shuffle such that the order is seeded by the distributed rank
+        # as well
+        if self.distributed_rank is not None:
+            with data_utils.numpy_seed(self.seed, self.epoch, self.distributed_rank):
+                np.random.shuffle(batches)
         return batches
