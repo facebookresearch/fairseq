@@ -12,6 +12,7 @@ import torch
 from fairseq.dataclass.constants import (
     DATASET_IMPL_CHOICES,
     DDP_BACKEND_CHOICES,
+    DDP_COMM_HOOK_CHOICES,
     GENERATION_CONSTRAINTS_CHOICES,
     GENERATION_DECODING_FORMAT_CHOICES,
     LOG_FORMAT_CHOICES,
@@ -243,6 +244,9 @@ class DistributedTrainingConfig(FairseqDataclass):
     )
     ddp_backend: DDP_BACKEND_CHOICES = field(
         default="pytorch_ddp", metadata={"help": "DistributedDataParallel backend"}
+    )
+    ddp_comm_hook: DDP_COMM_HOOK_CHOICES = field(
+        default="none", metadata={"help": "communication hook"}
     )
     bucket_cap_mb: int = field(
         default=25, metadata={"help": "bucket size for reduction"}
