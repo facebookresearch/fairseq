@@ -7,13 +7,13 @@ import contextlib
 from typing import Optional
 
 import torch
-
 from fairseq.dataclass.configs import DistributedTrainingConfig
 from fairseq.distributed import utils as dist_utils
 
 
 try:
     from fairscale.nn.data_parallel import FullyShardedDataParallel as FSDP
+
     has_FSDP = True
 except ImportError:
     FSDP = torch.nn.Module
@@ -50,7 +50,7 @@ class FullyShardedDataParallel(FSDP):
         else:
             return self.module
 
-    def state_dict(self, destination=None, prefix='', keep_vars=False):
+    def state_dict(self, destination=None, prefix="", keep_vars=False):
         if self.use_sharded_state:
             return super().local_state_dict(
                 destination=destination, prefix=prefix, keep_vars=keep_vars
@@ -90,6 +90,7 @@ def fsdp_enable_wrap(cfg: DistributedTrainingConfig, use_sharded_state: bool = F
     group = dist_utils.get_data_parallel_group()
     if group is None and cfg.distributed_world_size == 1:
         from fairscale.utils.testing import DummyProcessGroup
+
         group = DummyProcessGroup(rank=0, size=1)
     fsdp_config = {
         "process_group": group,
@@ -100,6 +101,7 @@ def fsdp_enable_wrap(cfg: DistributedTrainingConfig, use_sharded_state: bool = F
         "cpu_offload": cfg.cpu_offload,
         "compute_dtype": torch.float16 if cfg.fp16 else torch.float32,
         "bucket_cap_mb": cfg.bucket_cap_mb,
+        "state_dict_device": torch.device("cpu"),  # reduce GPU mem usage
     }
     with enable_wrap(
         wrapper_cls=FullyShardedDataParallel,
@@ -120,6 +122,7 @@ def fsdp_wrap(module, min_num_params: Optional[int] = None, **kwargs):
     """
     try:
         from fairscale.nn import wrap
+
         if min_num_params is not None:
             num_params = sum(p.numel() for p in module.parameters())
             if num_params >= min_num_params:
