@@ -907,7 +907,7 @@ class Trainer(object):
             sample, is_dummy_batch = self._prepare_sample(sample)
 
             try:
-                _loss, sample_size, logging_output = self.task.valid_step(
+                _loss, sample_size, logging_output, attn_list = self.task.valid_step(
                     sample, self.model, self.criterion
                 )
             except RuntimeError as e:
@@ -945,7 +945,7 @@ class Trainer(object):
             logging_outputs = self._xla_markstep_and_send_to_cpu(logging_outputs)
         logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
 
-        return logging_output
+        return logging_output, attn_list
 
     def zero_grad(self):
         self.optimizer.zero_grad()
