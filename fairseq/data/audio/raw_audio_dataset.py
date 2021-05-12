@@ -7,6 +7,7 @@
 import logging
 import os
 import sys
+import io
 
 import numpy as np
 import torch
@@ -14,6 +15,9 @@ import torch.nn.functional as F
 
 from .. import FairseqDataset, BaseWrapperDataset
 from ..data_utils import compute_mask_indices, get_buckets, get_bucketed_sizes
+from fairseq.data.audio.audio_utils import (
+    parse_path, read_from_stored_zip, is_sf_audio_data
+)
 
 
 logger = logging.getLogger(__name__)
@@ -295,8 +299,15 @@ class FileAudioDataset(RawAudioDataset):
     def __getitem__(self, index):
         import soundfile as sf
 
-        fname = os.path.join(self.root_dir, str(self.fnames[index]))
-        wav, curr_sample_rate = sf.read(fname)
+        path_or_fp = os.path.join(self.root_dir, self.fnames[index])
+        _path, slice_ptr = parse_path(path_or_fp)
+        if len(slice_ptr) == 2:
+            byte_data = read_from_stored_zip(_path, slice_ptr[0], slice_ptr[1])
+            assert is_sf_audio_data(byte_data)
+            path_or_fp = io.BytesIO(byte_data)
+
+        wav, curr_sample_rate = sf.read(path_or_fp, dtype="float32")
+
         feats = torch.from_numpy(wav).float()
         feats = self.postprocess(feats, curr_sample_rate)
         return {"id": index, "source": feats}

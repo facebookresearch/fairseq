@@ -19,7 +19,10 @@ from fairseq.data import (
     ResamplingDataset,
     data_utils as fairseq_data_utils,
 )
-from fairseq.data.audio.audio_utils import get_fbank, get_waveform
+from fairseq.data.audio.audio_utils import (
+    get_fbank, get_waveform, read_from_stored_zip, is_npy_data,
+    is_sf_audio_data, parse_path, FEATURE_OR_SF_AUDIO_FILE_EXTENSIONS
+)
 from fairseq.data.audio.feature_transforms import CompositeAudioFeatureTransform
 
 
@@ -120,39 +123,22 @@ class S2TDataConfig(object):
         return cfg
 
 
-def is_npy_data(data: bytes) -> bool:
-    return data[0] == 147 and data[1] == 78
-
-
-def is_flac_or_wav_data(data: bytes) -> bool:
-    is_flac = data[0] == 102 and data[1] == 76
-    is_wav = data[0] == 82 and data[1] == 73
-    return is_flac or is_wav
-
-
-def read_from_uncompressed_zip(file_path, offset, file_size) -> bytes:
-    with open(file_path, "rb") as f:
-        f.seek(offset)
-        data = f.read(file_size)
-    return data
-
-
 def get_features_from_npy_or_audio(path):
     ext = op.splitext(op.basename(path))[1]
-    if ext not in {".npy", ".flac", ".wav"}:
+    if ext not in FEATURE_OR_SF_AUDIO_FILE_EXTENSIONS:
         raise ValueError(f'Unsupported file format for "{path}"')
     return np.load(path) if ext == ".npy" else get_fbank(path)
 
 
-def get_features_or_waveform_from_uncompressed_zip(
+def get_features_or_waveform_from_stored_zip(
     path, byte_offset, byte_size, need_waveform=False
 ):
     assert path.endswith(".zip")
-    data = read_from_uncompressed_zip(path, byte_offset, byte_size)
+    data = read_from_stored_zip(path, byte_offset, byte_size)
     f = io.BytesIO(data)
     if is_npy_data(data):
         features_or_waveform = np.load(f)
-    elif is_flac_or_wav_data(data):
+    elif is_sf_audio_data(data):
         features_or_waveform = \
             get_waveform(f, always_2d=False)[0] if need_waveform else get_fbank(f)
     else:
@@ -173,18 +159,14 @@ def get_features_or_waveform(path: str, need_waveform=False):
     Returns:
         features_or_waveform (numpy.ndarray): speech features or waveform.
     """
-    _path, *extra = path.split(":")
-    if not op.exists(_path):
-        raise FileNotFoundError(f"File not found: {_path}")
-
-    if len(extra) == 0:
+    _path, slice_ptr = parse_path(path)
+    if len(slice_ptr) == 0:
         if need_waveform:
             return get_waveform(_path, always_2d=False)
         return get_features_from_npy_or_audio(_path)
-    elif len(extra) == 2:
-        extra = [int(i) for i in extra]
-        features_or_waveform = get_features_or_waveform_from_uncompressed_zip(
-            _path, extra[0], extra[1], need_waveform=need_waveform
+    elif len(slice_ptr) == 2:
+        features_or_waveform = get_features_or_waveform_from_stored_zip(
+            _path, slice_ptr[0], slice_ptr[1], need_waveform=need_waveform
         )
     else:
         raise ValueError(f"Invalid path: {path}")
