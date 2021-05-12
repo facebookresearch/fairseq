@@ -784,6 +784,7 @@ class EnsembleModel(nn.Module):
 
             attn: Optional[Tensor] = None
             decoder_len = len(decoder_out)
+            decoder_out[1]["attn"] = None
             if decoder_len > 1 and decoder_out[1] is not None:
                 if isinstance(decoder_out[1], Tensor):
                     attn = decoder_out[1]
