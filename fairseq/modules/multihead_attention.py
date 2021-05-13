@@ -123,6 +123,7 @@ class MultiheadAttention(nn.Module):
         attn_mask: Optional[Tensor] = None,
         before_softmax: bool = False,
         need_head_weights: bool = False,
+        encode: bool= True,
     ) -> Tuple[Tensor, Optional[Tensor]]:
         """Input shape: Time x Batch x Channel
 
@@ -333,7 +334,9 @@ class MultiheadAttention(nn.Module):
         attn_weights = self.apply_sparse_mask(attn_weights, tgt_len, src_len, bsz)
 
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
-        args= {'choose': 's'}#'Diagmask'}
+        args= {'choose': 'Diagmask'}
+        if encode == True:
+            args['choose'] = 'NN'
         if args['choose'] == 'norm_attn' or args['choose'] == 'NADM':
             attn_weights = F.layer_norm(attn_weights, (attn_weights.size()[-1],))
 
@@ -342,9 +345,10 @@ class MultiheadAttention(nn.Module):
             attn_output_weights_beta = attn_weights.clone()
 
         if args['choose']=='Diagmask' or args['choose'] == 'NADM':
-            I = torch.eye(query.size()[0]).to('cuda:0')
+            I = torch.eye(tgt_len).to('cuda:0')
             I[0,0] = 0
             I = I.masked_fill_(I==1, float("-inf"))
+            # print(attn_weights.size(),I.size(), query.size(), encode)
             attn_weights += I
 
         if attn_mask is not None:
@@ -403,7 +407,7 @@ class MultiheadAttention(nn.Module):
                 else:
                     fixed_weight += attn_mask
 
-            I = torch.eye(query.size()[0]).to('cuda:0')
+            I = torch.eye(tgt_len).to('cuda:0')
             I[0,0] = 0
             I = I.masked_fill_(I==1, float("-inf"))
             fixed_weight += I
