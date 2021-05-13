@@ -951,7 +951,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 need_attn=bool((idx == alignment_layer)),
                 need_head_weights=bool((idx == alignment_layer)),
             )
-            attn_list.append(layer_attn)
+            # attn_list.append(layer_attn.cpu())
             inner_states.append(x)
             if layer_attn is not None and idx == alignment_layer:
                 attn = layer_attn.float().to(x)

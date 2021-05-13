@@ -147,6 +147,7 @@ def main(cfg: FairseqConfig) -> None:
             cfg.dataset.batch_size,
         )
     )
+    # cfg.dataset.max_tokens /=2
 
     # Load the latest checkpoint if one is available and restore the
     # corresponding train iterator
@@ -281,7 +282,7 @@ def train(
     should_stop = False
     num_updates = trainer.get_num_updates()
     logger.info("Start iterating over samples")
-    valid_losses, should_stop = validate_and_save(
+    validate_and_save(
         cfg, trainer, task, epoch_itr, valid_subsets, True
     )
     for i, samples in enumerate(progress):
@@ -302,19 +303,19 @@ def train(
                 metrics.reset_meters("train_inner")
 
         end_of_epoch = not itr.has_next()
-        if end_of_epoch:
-            valid_losses, should_stop, analysis_tuple = validate_and_save(
-                cfg, trainer, task, epoch_itr, valid_subsets, end_of_epoch
-            )
-        else:
-            valid_losses, should_stop = validate_and_save(
-                cfg, trainer, task, epoch_itr, valid_subsets, end_of_epoch
-            )
+        # if end_of_epoch:
+        #     valid_losses, should_stop, analysis_tuple = validate_and_save(
+        #         cfg, trainer, task, epoch_itr, valid_subsets, end_of_epoch
+        #     )
+        # else:
+        valid_losses, should_stop = validate_and_save(
+            cfg, trainer, task, epoch_itr, valid_subsets, end_of_epoch
+        )
 
 
         if should_stop:
             break
-    print(analysis_tuple)
+    # print(analysis_tuple)
     # log end-of-epoch stats
     logger.info("end of epoch {} (average epoch stats below)".format(epoch_itr.epoch))
     stats = get_training_stats(metrics.get_smoothed_values("train"))
@@ -405,8 +406,8 @@ def validate_and_save(
             cfg.checkpoint, trainer, epoch_itr, valid_losses[0]
         )
 
-    if do_validate:
-        return valid_losses, should_stop, analysis_tuple
+    # if do_validate:
+    #     return valid_losses, should_stop, analysis_tuple
 
     return valid_losses, should_stop
 
@@ -471,60 +472,64 @@ def validate(
                 if cfg.dataset.max_valid_steps is not None and i > cfg.dataset.max_valid_steps:
                     break
                 out, attn_list = trainer.valid_step(sample)
-                diag_prob, other_probs = analysis_attn(attn_list)
-                diags.append(diag_prob)
-                others.append(other_probs)
+                # diag_prob, other_probs = analysis_attn(attn_list)
+                # diags.append(diag_prob)
+                # others.append(other_probs)
 
         # log validation stats
         stats = get_valid_stats(cfg, trainer, agg.get_smoothed_values())
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
 
         valid_losses.append(stats[cfg.checkpoint.best_checkpoint_metric])
-    return valid_losses, (sum(diags)/len(diags), sum(others)/len(others))
+        # [print(d.size()) for d in others]
+    return valid_losses#, (sum(diags)/len(diags), sum(others)/len(others))
 
 def analysis_attn( attn_list):#, sentences, embedding):
     probs_list = []
     seq_len = attn_list[0].size()[1]
-    ones = torch.diag(torch.ones(seq_len)).unsqueeze(0).to(args['device'])
+    ones = torch.diag(torch.ones(seq_len)).unsqueeze(0)
 
     utriu = 1- torch.triu(torch.ones(seq_len,seq_len))
-    utriu = utriu.unsqueeze(0).to(args['device'])
+    utriu = utriu.unsqueeze(0)
     other_list = []
     std_list = []
 
-    bigtriu = torch.triu(torch.ones(seq_len,seq_len)).transpose(0,1).unsqueeze(0).to(args['device'])
-    sen_embed = embedding(sentences.to(args['device'])) # bse
-    sa = torch.einsum('bse,bte->bst', sen_embed, sen_embed)
+    # bigtriu = torch.triu(torch.ones(seq_len,seq_len)).transpose(0,1).unsqueeze(0)
+    # sen_embed = embedding(sentences ) # bse
+    # sa = torch.einsum('bse,bte->bst', sen_embed, sen_embed)
 
-    current_comp = sa + bigtriu.float().masked_fill(bigtriu == 0, float('-inf')).masked_fill(bigtriu == 1, float(0.0))
-    next_comp = torch.clone(sa)
-    next_comp[:,:-1,:] = next_comp[:,1:,:]
-    next_comp = next_comp + bigtriu.float().masked_fill(bigtriu == 0, float('-inf')).masked_fill(bigtriu == 1, float(0.0))
+    # current_comp = sa + bigtriu.float().masked_fill(bigtriu == 0, float('-inf')).masked_fill(bigtriu == 1, float(0.0))
+    # next_comp = torch.clone(sa)
+    # next_comp[:,:-1,:] = next_comp[:,1:,:]
+    # next_comp = next_comp + bigtriu.float().masked_fill(bigtriu == 0, float('-inf')).masked_fill(bigtriu == 1, float(0.0))
     # print(current_comp)
-    current_comp = F.softmax(current_comp, dim = -1)
-    next_comp = F.softmax(next_comp, dim = -1)
+    # current_comp = F.softmax(current_comp, dim = -1)
+    # next_comp = F.softmax(next_comp, dim = -1)
     # print(current_comp)
 
     klcs=[]
     klns = []
 
     for attn in attn_list:
+        attn = attn.to('cpu')
         probs = attn * ones
         probs = probs.sum(2).mean()
         probs_list.append(probs)
 
         other_ori = attn * utriu
+        # print(other_ori.size(), attn.size(), utriu.size())
         tri_num = (seq_len**2 -seq_len) / 2
         tri_mean = other_ori.sum(2).sum(1) / tri_num
+        # print(tri_mean.size())
         other = tri_mean.mean()
         other_list.append(other)
 
-        mean = other_ori.sum(2)[:,1:] / utriu.sum(2)[:,1:]
-        res1 = ((attn[:,1:,:] - mean.unsqueeze(2))**2) * utriu[:,1:,:]
-        res1 = res1.sum(2) / utriu.sum(2)[:,1:]
-        # print(res1)
-        std = torch.sqrt(res1).mean()
-        std_list.append(std)
+        # mean = other_ori.sum(2)[:,1:] / utriu.sum(2)[:,1:]
+        # res1 = ((attn[:,1:,:] - mean.unsqueeze(2))**2) * utriu[:,1:,:]
+        # res1 = res1.sum(2) / utriu.sum(2)[:,1:]
+        # # print(res1)
+        # std = torch.sqrt(res1).mean()
+        # std_list.append(std)
 
         # for a in attn[5,:,:]:
         #     for b in a:
@@ -532,22 +537,23 @@ def analysis_attn( attn_list):#, sentences, embedding):
         #     print()
         # print(attn[5,:,:])
         # print(attn,current_comp)
-        klc = attn * torch.log(attn / (current_comp+1e-6) + 1e-6)
-        # print('klc',klc)
-        klc = klc.sum(2).mean()
+        # klc = attn * torch.log(attn / (current_comp+1e-6) + 1e-6)
+        # # print('klc',klc)
+        # klc = klc.sum(2).mean()
+        #
+        # kln = attn * torch.log(attn / (next_comp+1e-6) + 1e-6)
+        # kln = kln.sum(2).mean()
+        #
+        # klcs.append(klc)
+        # klns.append(kln)
 
-        kln = attn * torch.log(attn / (next_comp+1e-6) + 1e-6)
-        kln = kln.sum(2).mean()
-
-        klcs.append(klc)
-        klns.append(kln)
-
-    return torch.stack(probs_list), torch.stack(attn_list)
+    return torch.stack(probs_list), torch.stack(other_list)
 
 def get_valid_stats(
     cfg: DictConfig, trainer: Trainer, stats: Dict[str, Any]
 ) -> Dict[str, Any]:
     stats["num_updates"] = trainer.get_num_updates()
+    # stats['bleu'] = 0
     if hasattr(checkpoint_utils.save_checkpoint, "best"):
         key = "best_{0}".format(cfg.checkpoint.best_checkpoint_metric)
         best_function = max if cfg.checkpoint.maximize_best_checkpoint_metric else min
