@@ -279,7 +279,7 @@ class S2TTransformerEncoder(FairseqEncoder):
     def __init__(self, args):
         super().__init__(None)
 
-        self.encoder_freezing_updates = args.encoder_freezing_updates
+        self.encoder_freezing_updates = getattr(args, "encoder_freezing_updates", 0)
         self.num_updates = 0
 
         self.dropout_module = FairseqDropout(

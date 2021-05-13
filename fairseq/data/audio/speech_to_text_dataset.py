@@ -43,9 +43,9 @@ class S2TDataConfig(object):
                 with open(yaml_path) as f:
                     self.config = yaml.load(f, Loader=yaml.FullLoader)
             except Exception as e:
-                logger.info(f"Failed to load config from {yaml_path}: {e}")
+                raise Exception(f"Failed to load config from {yaml_path}: {e}")
         else:
-            logger.info(f"Cannot find {yaml_path}")
+            raise FileNotFoundError(f"{yaml_path} not found")
 
     @property
     def vocab_filename(self):
