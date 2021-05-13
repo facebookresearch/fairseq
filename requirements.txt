@@ -1,0 +1,5 @@
+hydra-core
+omegaconf
+fastBPE
+sacremoses
+subword_nmt

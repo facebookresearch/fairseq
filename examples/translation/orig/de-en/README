@@ -1,0 +1,101 @@
+IWSLT 2014 evaluation campaign: training/development data
+
+# Copyright: TED Conference LLC
+# License: Creative Commons Attribution-NonCommercial-NoDerivs 3.0
+
+For each language pair x-y, the in-domain parallel training data is
+provided through the following files:
+
+train.tags.x-y.x
+train.tags.x-y.y
+
+They include transcripts and manual translations of the talks
+available at the TED website for each pair x-y in January 2014. The
+talks included in the development (and forthcoming evaluation) sets
+have been removed.
+
+The transcripts are given as pure text (UTF8 encoding), one or more
+sentences per line, and are aligned (at language pair level, not
+across pairs). The simplified set of characters is employed for
+Chinese text, and no segmentation/preprocessing has been applied.
+
+Monolingual training data is included in the file:
+
+train.y
+
+while for tuning/development purposes, the following files are
+released:
+
+IWSLT14.TED.dev2010.x-y.x.xml
+IWSLT14.TED.dev2010.x-y.y.xml
+IWSLT14.TED.tst201[012].x-y.x.xml
+IWSLT14.TED.tst201[012].x-y.y.xml
+
+with the exception of the pairs: 
+- German-English: the TEDX.dev2012 is additionally released
+- Italian-English: the TEDX.dev2014 is additionally released
+- Slovenian-English: only two development sets (dev2012 and tst2012)
+  are released.
+
+Below further information about released files is provided.
+
+--------------------------------------------------------------------
+The files:
+
+train.tags.x-y.x
+train.tags.x-y.y
+
+include the talks allowed to be used for training, and some metadata;
+in particular, for each talk meta information is provided in between
+the following tags:
+
+<url> ... </url>
+<talkid> ... </talkid>
+<title> ... </title>
+<description> ... </description>
+<keywords> ... </keywords>
+
+The transcripts/translations are provided in between the tags </url>
+and <talkid>
+
+
+--------------------------------------------------------------------
+The file:
+
+train.y
+
+includes monolingual plain texts, without any meta information.
+
+--------------------------------------------------------------------
+The files:
+
+IWSLT14.TED.dev2010.x-y.x.xml
+IWSLT14.TED.dev2010.x-y.y.xml
+IWSLT14.TED.tst201[012].x-y.x.xml
+IWSLT14.TED.tst201[012].x-y.y.xml
+IWSLT14.TEDX.dev2012.de-en.*.xml
+IWSLT14.TEDX.dev2012.en-de.*.xml
+IWSLT14.TEDX.dev2014.it-en.*.xml
+IWSLT14.TEDX.dev2014.en-it.*.xml
+IWSLT14.TED.dev2012.sl-en.*.xml
+IWSLT14.TED.dev2012.en-sl.*.xml
+
+contain transcripts and manual translations of the talks that can be
+used for tuning/development purposes in IWSLT 2014 evaluation
+campaign.
+
+The released files are in xml format. Each talk defines a single
+document, for which the following tags are generally provided:
+
+<url>: the url of the page with the text
+<description>: a brief description of the talk
+<keywords>: keywords of the talk
+<talkid>: a numeric identfier of the talk
+<title>: the title of the talk
+
+Text is segmented in sentences. Segments can include more than a
+single sentence. Segments of files *.x-y.x.xml and *.x-y.y.xml are
+aligned.
+
+UTF8 encoding is used.  The simplified set of characters is employed
+for Chinese text, and no segmentation/preprocessing has been applied.
