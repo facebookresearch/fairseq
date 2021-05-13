@@ -333,6 +333,19 @@ class MultiheadAttention(nn.Module):
         attn_weights = self.apply_sparse_mask(attn_weights, tgt_len, src_len, bsz)
 
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
+        args= {'choose': 's'}#'Diagmask'}
+        if args['choose'] == 'norm_attn' or args['choose'] == 'NADM':
+            attn_weights = F.layer_norm(attn_weights, (attn_weights.size()[-1],))
+
+        if args['choose'] == 'BET':
+            # attn_output_weights = F.layer_norm(attn_output_weights,(attn_output_weights.size()[-1],))
+            attn_output_weights_beta = attn_weights.clone()
+
+        if args['choose']=='Diagmask' or args['choose'] == 'NADM':
+            I = torch.eye(query.size()[0]).to('cuda:0')
+            I[0,0] = 0
+            I = I.masked_fill_(I==1, float("-inf"))
+            attn_weights += I
 
         if attn_mask is not None:
             attn_mask = attn_mask.unsqueeze(0)
@@ -366,6 +379,7 @@ class MultiheadAttention(nn.Module):
         assert v is not None
         attn = torch.bmm(attn_probs, v)
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
+
         if self.onnx_trace and attn.size(1) == 1:
             # when ONNX tracing a single decoder step (sequence length == 1)
             # the transpose is a no-op copy before view, thus unnecessary
@@ -374,6 +388,38 @@ class MultiheadAttention(nn.Module):
             attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
         attn = self.out_proj(attn)
         attn_weights: Optional[Tensor] = None
+
+        if  args['choose'] == 'BET':
+            attn_output = attn
+            cat = torch.cat([q, attn_output.transpose(0,1)], dim = 2) # N S 2E
+            high = self.f(cat).squeeze() # N S (1)
+            fixed_weight = attn_output_weights_beta * high.unsqueeze(1)
+            # print(fixed_weight)
+
+            fixed_weight = F.layer_norm(fixed_weight,(fixed_weight.size()[-1],))
+            if attn_mask is not None:
+                if attn_mask.dtype == torch.bool:
+                    fixed_weight.masked_fill_(attn_mask, float("-inf"))
+                else:
+                    fixed_weight += attn_mask
+
+            I = torch.eye(query.size()[0]).to('cuda:0')
+            I[0,0] = 0
+            I = I.masked_fill_(I==1, float("-inf"))
+            fixed_weight += I
+            # print(fixed_weight)
+            fixed_weight = F.softmax(fixed_weight, dim=-1)
+            fixed_weight = F.dropout(fixed_weight, p=dropout_p, training=training)
+
+            attn_output = torch.bmm(fixed_weight, v)
+            assert list(attn_output.size()) == [bsz * num_heads, tgt_len, head_dim]
+            attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
+            attn_output = self.out_proj2(attn_output)
+            attn_output_weights = fixed_weight
+            attn = attn_output
+            attn_weights = attn_output_weights
+
+
         if need_weights:
             attn_weights = attn_weights_float.view(
                 bsz, self.num_heads, tgt_len, src_len
