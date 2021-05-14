@@ -583,6 +583,7 @@ def raise_if_valid_subsets_unintentionally_ignored(train_cfg) -> None:
         train_cfg.dataset.ignore_unused_valid_subsets
         or train_cfg.dataset.combine_valid_subsets
         or train_cfg.dataset.disable_validation
+        or not hasattr(train_cfg.task, "data")
     ):
         return
     other_paths = _find_extra_valid_paths(train_cfg.task.data)
