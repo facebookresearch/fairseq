@@ -496,7 +496,8 @@ class Trainer(object):
                 last_optim_state = self.optimizer.broadcast_global_state_dict(
                     last_optim_state
                 )
-            elif self.cfg.distributed_training.ddp_backend == 'fully_sharded':
+            elif self.cfg.distributed_training.ddp_backend == 'fully_sharded' and not self.model.use_sharded_state:
+                # if use_sharded_state, the last_optim_state is already sharded, skip this
                 last_optim_state = self.model.get_shard_from_optim_state_dict(last_optim_state)
 
             self.optimizer.load_state_dict(last_optim_state, optimizer_overrides)

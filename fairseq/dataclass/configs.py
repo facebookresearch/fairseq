@@ -379,6 +379,9 @@ class DistributedTrainingConfig(FairseqDataclass):
     cpu_offload: bool = field(
         default=False, metadata={"help": "offload FP32 params to CPU"}
     )
+    use_sharded_state: bool = field(
+        default=False, metadata={"help": "use sharded checkpoint files"},
+    )
 
 
 @dataclass

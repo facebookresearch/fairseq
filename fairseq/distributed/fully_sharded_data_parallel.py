@@ -77,7 +77,7 @@ class FullyShardedDataParallel(FSDP):
 
 
 @contextlib.contextmanager
-def fsdp_enable_wrap(cfg: DistributedTrainingConfig, use_sharded_state: bool = False):
+def fsdp_enable_wrap(cfg: DistributedTrainingConfig):
     try:
         from fairscale.nn import enable_wrap
     except ImportError:
@@ -105,7 +105,7 @@ def fsdp_enable_wrap(cfg: DistributedTrainingConfig, use_sharded_state: bool = F
     }
     with enable_wrap(
         wrapper_cls=FullyShardedDataParallel,
-        use_sharded_state=use_sharded_state,
+        use_sharded_state=cfg.use_sharded_state,
         **fsdp_config,
     ):
         yield

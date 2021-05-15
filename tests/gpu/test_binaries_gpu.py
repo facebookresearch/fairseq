@@ -59,6 +59,9 @@ class TestTranslationGPU(unittest.TestCase):
     def test_resume_training_fsdp(self):
         self._test_resume_training(["--ddp-backend", "fully_sharded"])
 
+    def test_resume_training_fsdp_sharded_state(self):
+        self._test_resume_training(["--ddp-backend", "fully_sharded", "--use-sharded-state"])
+
     def test_resume_training_noc10d(self):
         self._test_resume_training([])
 
