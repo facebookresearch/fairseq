@@ -282,7 +282,7 @@ class BerardEncoder(FairseqEncoder):
             input_lengths = (input_lengths.float() + 2 * p - k) / s + 1
             input_lengths = input_lengths.floor().long()
 
-        packed_x = nn.utils.rnn.pack_padded_sequence(x, input_lengths)
+        packed_x = nn.utils.rnn.pack_padded_sequence(x, input_lengths.cpu())
 
         h0 = x.new(2 * self.num_blstm_layers, bsz, self.lstm_size).zero_()
         c0 = x.new(2 * self.num_blstm_layers, bsz, self.lstm_size).zero_()
