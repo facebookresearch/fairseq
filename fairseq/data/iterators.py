@@ -214,6 +214,7 @@ class StreamingEpochBatchIterator(EpochBatchIterating):
             num_workers=self.num_workers,
             timeout=self.timeout,
             worker_init_fn=worker_init_fn,
+            pin_memory=True,
         )
 
         # Wrap with a BufferedIterator if needed
@@ -469,6 +470,7 @@ class EpochBatchIterator(EpochBatchIterating):
             batch_sampler=batches[offset:],
             num_workers=self.num_workers,
             timeout=self.timeout,
+            pin_memory=True,
         )
 
         # Wrap with a BufferedIterator if needed
@@ -546,15 +548,20 @@ class ShardedIterator(CountingIterator):
 
 
 class BackgroundConsumer(Thread):
-    def __init__(self, queue, source, max_len):
+    def __init__(self, queue, source, max_len, cuda_device):
         Thread.__init__(self)
 
         self._queue = queue
         self._source = source
         self._max_len = max_len
         self.count = 0
+        self.cuda_device = cuda_device
 
     def run(self):
+        # set_device to avoid creation of GPU0 context when using pin_memory
+        if self.cuda_device is not None:
+            torch.cuda.set_device(self.cuda_device)
+
         try:
             for item in self._source:
                 self._queue.put(item)
@@ -586,6 +593,7 @@ class BufferedIterator(object):
             self._queue,
             self._iterable,
             self.total,
+            torch.cuda.current_device() if torch.cuda.is_available() else None
         )
         self._consumer.daemon = True
         self._consumer.start()
