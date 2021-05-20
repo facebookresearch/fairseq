@@ -400,6 +400,12 @@ def _main(cfg: DictConfig, output_file):
 
 def cli_main():
     parser = options.get_generation_parser()
+    # TODO: replace this workaround with refactoring of `AudioPretraining`
+    parser.add_argument(
+        '--arch', '-a', metavar='ARCH', default="transformer",
+        help='Model architecture. For constructing tasks that rely on '
+             'model args (e.g. `AudioPretraining`)'
+    )
     args = options.parse_args_and_arch(parser)
     main(args)
 
