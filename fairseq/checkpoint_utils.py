@@ -45,6 +45,8 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
     trainer.consolidate_optimizer()  # TODO(SS): do we need this if no_save_optimizer_state
 
     if not trainer.should_save_checkpoint_on_current_rank:
+        if trainer.always_call_state_dict_during_save_checkpoint:
+            trainer.state_dict()
         return
 
     write_timer = meters.StopwatchMeter()

@@ -24,9 +24,7 @@ from fairseq.file_io import PathManager
 from fairseq.logging import meters, metrics
 from fairseq.nan_detector import NanDetector
 from fairseq.optim import lr_scheduler
-
 from omegaconf import OmegaConf
-import re
 
 logger = logging.getLogger(__name__)
 
@@ -185,8 +183,7 @@ class Trainer(object):
     @property
     def use_distributed_wrapper(self) -> bool:
         return (
-            self.data_parallel_world_size > 1
-            and not self.cfg.optimization.use_bmuf
+            self.data_parallel_world_size > 1 and not self.cfg.optimization.use_bmuf
         ) or (
             self.cfg.distributed_training.ddp_backend == "fully_sharded"
             and self.cfg.distributed_training.cpu_offload
@@ -195,26 +192,42 @@ class Trainer(object):
     @property
     def should_save_checkpoint_on_current_rank(self) -> bool:
         """Indicates whether to save checkpoints on the current DDP rank."""
-        if self.cfg.distributed_training.ddp_backend == "fully_sharded" or getattr(self.cfg.model, "base_layers", 0) > 0:
+        if (
+            self.cfg.distributed_training.ddp_backend == "fully_sharded"
+            and self.cfg.distributed_training.use_sharded_state
+        ) or getattr(self.cfg.model, "base_layers", 0) > 0:
             return True
         else:
             return self.is_data_parallel_master
 
     @property
+    def always_call_state_dict_during_save_checkpoint(self) -> bool:
+        if (
+            self.cfg.distributed_training.ddp_backend == "fully_sharded"
+            and not self.cfg.distributed_training.use_sharded_state
+        ):
+            # FSDP calls communication collective when consolidating checkpoints
+            return True
+        else:
+            return False
+
+    @property
     def checkpoint_suffix(self) -> str:
         """Suffix to add to the checkpoint file name."""
-        if self.cfg.distributed_training.ddp_backend == "fully_sharded":
-            return self.cfg.checkpoint.checkpoint_suffix + "-shard{0}".format(self.data_parallel_rank)
+        if (
+            self.cfg.distributed_training.ddp_backend == "fully_sharded"
+            and self.cfg.distributed_training.use_sharded_state
+        ):
+            return self.cfg.checkpoint.checkpoint_suffix + "-shard{0}".format(
+                self.data_parallel_rank
+            )
         else:
             return self.cfg.checkpoint.checkpoint_suffix or ""
 
     @property
     def criterion(self):
         if self._wrapped_criterion is None:
-            if (
-                utils.has_parameters(self._criterion)
-                and self.use_distributed_wrapper
-            ):
+            if utils.has_parameters(self._criterion) and self.use_distributed_wrapper:
                 self._wrapped_criterion = models.DistributedFairseqModel(
                     self.cfg.distributed_training,
                     self._criterion,
@@ -293,8 +306,9 @@ class Trainer(object):
             self._optimizer = optim.build_optimizer(self.cfg.optimizer, params)
 
         if self.cfg.distributed_training.ddp_backend == "fully_sharded":
-            assert not self.cfg.optimization.use_bmuf, \
-                "--ddp-backend=fully_sharded is not compatible with BMUF"
+            assert (
+                not self.cfg.optimization.use_bmuf
+            ), "--ddp-backend=fully_sharded is not compatible with BMUF"
             assert self._optimizer.supports_flat_params, (
                 "--ddp-backend=fully_sharded is only compatible with pointwise "
                 "optimizers (e.g., Adam, AdamW, Adadelta, Adamax, SGD, etc.). "
@@ -337,10 +351,13 @@ class Trainer(object):
         if hasattr(self.optimizer.optimizer, "consolidate_state_dict"):
             self.optimizer.optimizer.consolidate_state_dict()
 
-        elif self.cfg.distributed_training.ddp_backend == 'fully_sharded' and not self.model.use_sharded_state:
-            st = self.model.gather_full_optim_state_dict(self.optimizer) # only returns on rank 0
-            if st is None:
-                st = -1  # sentinel so that workers do not save optimizer.state_dict()
+        elif (
+            self.cfg.distributed_training.ddp_backend == "fully_sharded"
+            and not self.model.use_sharded_state
+        ):
+            st = self.model.gather_full_optim_state_dict(
+                self.optimizer
+            )  # only returns on rank 0
             self._gathered_optim_state = st
 
     def state_dict(self):
@@ -348,12 +365,14 @@ class Trainer(object):
             "args": None,  # legacy
             "cfg": (
                 OmegaConf.to_container(self.cfg)
-                if OmegaConf.is_config(self.cfg) else self.cfg
+                if OmegaConf.is_config(self.cfg)
+                else self.cfg
             ),
             "model": self.model.state_dict(),
             "criterion": (
                 self.criterion.state_dict()
-                if utils.has_parameters(self.criterion) else None
+                if utils.has_parameters(self.criterion)
+                else None
             ),
             "optimizer_history": (self._optim_history or [])
             + [
@@ -368,7 +387,7 @@ class Trainer(object):
             "extra_state": {
                 "metrics": metrics.state_dict(),
                 "previous_training_time": self.cumulative_training_time(),
-            }
+            },
         }
         if not self.cfg.checkpoint.no_save_optimizer_state:
             if self._gathered_optim_state is not None:
@@ -417,7 +436,10 @@ class Trainer(object):
                 # on every worker for now
                 or self.tpu
                 # FSDP requires loading checkpoint shards on all ranks
-                or self.cfg.distributed_training.ddp_backend == "fully_sharded"
+                or (
+                    self.cfg.distributed_training.ddp_backend == "fully_sharded"
+                    and self.cfg.distributed_training.use_sharded_state
+                )
                 or getattr(self.cfg.model, "base_layers", 0) > 0
             )
 
@@ -426,10 +448,6 @@ class Trainer(object):
                     filename, load_on_all_ranks=load_on_all_ranks
                 )
                 last_optim_state = state.get("last_optimizer_state", None)
-                if last_optim_state == -1:
-                    master_path = re.sub("shard[0-9]+", "shard0", filename)
-                    local_master_path = PathManager.get_local_path(master_path)
-                    last_optim_state = torch.load(local_master_path, map_location='cpu')['last_optimizer_state']
 
                 # If doing zero_sharding, do not broadcast global optimizer
                 # state. Later we will broadcast sharded states to each rank
@@ -492,13 +510,18 @@ class Trainer(object):
             if not reset_lr_scheduler:
                 self.lr_scheduler.load_state_dict(last_optim["lr_scheduler_state"])
 
-            if not load_on_all_ranks and is_distributed:
+            if (
+                self.cfg.distributed_training.ddp_backend == "fully_sharded"
+                and not self.model.use_sharded_state
+            ):
+                # if use_sharded_state, the last_optim_state is already sharded, skip this
+                last_optim_state = self.model.get_shard_from_optim_state_dict(
+                    last_optim_state
+                )
+            elif not load_on_all_ranks and is_distributed:
                 last_optim_state = self.optimizer.broadcast_global_state_dict(
                     last_optim_state
                 )
-            elif self.cfg.distributed_training.ddp_backend == 'fully_sharded' and not self.model.use_sharded_state:
-                # if use_sharded_state, the last_optim_state is already sharded, skip this
-                last_optim_state = self.model.get_shard_from_optim_state_dict(last_optim_state)
 
             self.optimizer.load_state_dict(last_optim_state, optimizer_overrides)
 
@@ -514,7 +537,10 @@ class Trainer(object):
 
             self.lr_step(epoch)
 
-            if itr_state.get("version", 1) >= 2 and itr_state["iterations_in_epoch"] == 0:
+            if (
+                itr_state.get("version", 1) >= 2
+                and itr_state["iterations_in_epoch"] == 0
+            ):
                 # reset meters at start of epoch
                 reset_meters = True
 
@@ -801,7 +827,9 @@ class Trainer(object):
             raise
         except OverflowError as e:
             overflow = True
-            logger.info(f"NOTE: gradient overflow detected, ignoring gradient, {str(e)}")
+            logger.info(
+                f"NOTE: gradient overflow detected, ignoring gradient, {str(e)}"
+            )
             grad_norm = torch.tensor(0.0).cuda()
             self.zero_grad()
         except RuntimeError as e:
@@ -846,7 +874,9 @@ class Trainer(object):
                     metrics.log_scalar(
                         "gb_total", gb_total, priority=1600, round=1, weight=0
                     )
-                    logging_outputs = self._xla_markstep_and_send_to_cpu(logging_outputs)
+                    logging_outputs = self._xla_markstep_and_send_to_cpu(
+                        logging_outputs
+                    )
                     logging_output = self._reduce_and_log_stats(
                         logging_outputs, sample_size, grad_norm
                     )
@@ -899,6 +929,7 @@ class Trainer(object):
         """Do forward pass in evaluation mode."""
         if self.tpu:
             import torch_xla.core.xla_model as xm
+
             xm.rendezvous("valid_step")  # wait for all workers
 
         with torch.no_grad():
@@ -1040,7 +1071,6 @@ class Trainer(object):
         metrics.log_scalar("num_updates", self._num_updates, weight=0, priority=200)
 
     def clip_grad_norm(self, clip_norm):
-
         def agg_norm_fn(total_norm):
             total_norm = total_norm.cuda().float() ** 2
             total_norm = distributed_utils.all_reduce(
@@ -1190,7 +1220,10 @@ class Trainer(object):
         return logging_outputs, extra_stats_to_sum
 
     def _fast_stat_sync_sum(
-        self, logging_outputs: List[Dict[str, Any]], *extra_stats_to_sum, ignore=False,
+        self,
+        logging_outputs: List[Dict[str, Any]],
+        *extra_stats_to_sum,
+        ignore=False,
     ):
         """
         Sync logging outputs across workers. fast_stat_sync_sum is
@@ -1323,9 +1356,11 @@ class Trainer(object):
 
     def _xla_markstep_and_send_to_cpu(self, data=None):
         import torch_xla.core.xla_model as xm
+
         xm.mark_step()
         if data is not None:
             from fairseq.utils import xla_device_to_cpu
+
             return xla_device_to_cpu(data)
 
 
