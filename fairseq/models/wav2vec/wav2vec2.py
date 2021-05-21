@@ -165,6 +165,7 @@ class Wav2Vec2Config(FairseqDataclass):
     mask_channel_prob: float = field(
         default=0.0, metadata={"help": "probability of replacing a feature with 0"}
     )
+    mask_channel_before: bool = False
     mask_channel_selection: MASKING_DISTRIBUTION_CHOICES = field(
         default="static",
         metadata={"help": "how to choose mask length for channel masking"},
@@ -249,6 +250,7 @@ class Wav2Vec2Model(BaseFairseqModel):
         self.mask_min_space = cfg.mask_min_space
 
         self.mask_channel_prob = cfg.mask_channel_prob
+        self.mask_channel_before = cfg.mask_channel_before
         self.mask_channel_selection = cfg.mask_channel_selection
         self.mask_channel_other = cfg.mask_channel_other
         self.mask_channel_length = cfg.mask_channel_length
@@ -331,10 +333,33 @@ class Wav2Vec2Model(BaseFairseqModel):
         return cls(cfg)
 
     def apply_mask(
-        self, x, padding_mask,
-        mask_indices=None, mask_channel_indices=None,
+        self,
+        x,
+        padding_mask,
+        mask_indices=None,
+        mask_channel_indices=None,
     ):
         B, T, C = x.shape
+
+        if self.mask_channel_prob > 0 and self.mask_channel_before:
+            mask_channel_indices = compute_mask_indices(
+                (B, C),
+                None,
+                self.mask_channel_prob,
+                self.mask_channel_length,
+                self.mask_channel_selection,
+                self.mask_channel_other,
+                no_overlap=self.no_mask_channel_overlap,
+                min_space=self.mask_channel_min_space,
+            )
+            mask_channel_indices = (
+                torch.from_numpy(mask_channel_indices)
+                .to(x.device)
+                .unsqueeze(1)
+                .expand(-1, T, -1)
+            )
+            x[mask_channel_indices] = 0
+
         if self.mask_prob > 0:
             if mask_indices is None:
                 mask_indices = compute_mask_indices(
@@ -353,7 +378,7 @@ class Wav2Vec2Model(BaseFairseqModel):
         else:
             mask_indices = None
 
-        if self.mask_channel_prob > 0:
+        if self.mask_channel_prob > 0 and not self.mask_channel_before:
             if mask_channel_indices is None:
                 mask_channel_indices = compute_mask_indices(
                     (B, C),
@@ -445,12 +470,12 @@ class Wav2Vec2Model(BaseFairseqModel):
         logits = logits / self.logit_temp
 
         if is_xla_tensor(logits) or neg_is_pos.any():
-            fillval = -float(2**30)
-            if not hasattr(self, '_inftensor'):
+            fillval = -float(2 ** 30)
+            if not hasattr(self, "_inftensor"):
                 self._inftensor = (
                     torch.tensor(fillval).to(x.device)
-                    if is_xla_tensor(logits) else
-                    float("-inf")
+                    if is_xla_tensor(logits)
+                    else float("-inf")
                 )
             logits[1:] = index_put(logits[1:], neg_is_pos, self._inftensor)
 
@@ -467,13 +492,21 @@ class Wav2Vec2Model(BaseFairseqModel):
         conv_cfg_list = eval(self.cfg.conv_feature_layers)
 
         for i in range(len(conv_cfg_list)):
-            input_lengths = _conv_out_length(input_lengths, conv_cfg_list[i][1], conv_cfg_list[i][2])
+            input_lengths = _conv_out_length(
+                input_lengths, conv_cfg_list[i][1], conv_cfg_list[i][2]
+            )
 
         return input_lengths.to(torch.long)
 
     def forward(
-        self, source, padding_mask=None, mask=True, features_only=False,
-        mask_indices=None, mask_channel_indices=None,
+        self,
+        source,
+        padding_mask=None,
+        mask=True,
+        features_only=False,
+        layer=None,
+        mask_indices=None,
+        mask_channel_indices=None,
         padding_count=None,
     ):
 
@@ -491,7 +524,7 @@ class Wav2Vec2Model(BaseFairseqModel):
         features = self.layer_norm(features)
         unmasked_features = features.clone()
 
-        if padding_mask is not None:
+        if padding_mask is not None and padding_mask.any():
             input_lengths = (1 - padding_mask.long()).sum(-1)
             # apply conv formula to get real output_lengths
             output_lengths = self._get_feat_extract_output_lengths(input_lengths)
@@ -502,8 +535,15 @@ class Wav2Vec2Model(BaseFairseqModel):
 
             # these two operations makes sure that all values
             # before the output lengths indices are attended to
-            padding_mask[(torch.arange(padding_mask.shape[0], device=padding_mask.device), output_lengths - 1)] = 1
+            padding_mask[
+                (
+                    torch.arange(padding_mask.shape[0], device=padding_mask.device),
+                    output_lengths - 1,
+                )
+            ] = 1
             padding_mask = (1 - padding_mask.flip([-1]).cumsum(-1).flip([-1])).bool()
+        else:
+            padding_mask = None
 
         if self.post_extract_proj is not None:
             features = self.post_extract_proj(features)
@@ -527,7 +567,8 @@ class Wav2Vec2Model(BaseFairseqModel):
 
         if mask:
             x, mask_indices = self.apply_mask(
-                features, padding_mask,
+                features,
+                padding_mask,
                 mask_indices=mask_indices,
                 mask_channel_indices=mask_channel_indices,
             )
@@ -544,10 +585,15 @@ class Wav2Vec2Model(BaseFairseqModel):
             y = unmasked_features
             mask_indices = None
 
-        x = self.encoder(x, padding_mask=padding_mask)
+        x, layer_results = self.encoder(x, padding_mask=padding_mask, layer=layer)
 
         if features_only:
-            return {"x": x, "padding_mask": padding_mask}
+            return {
+                "x": x,
+                "padding_mask": padding_mask,
+                "features": unmasked_features,
+                "layer_results": layer_results,
+            }
 
         if self.quantizer:
             q = self.quantizer(y, produce_targets=False)
@@ -560,17 +606,21 @@ class Wav2Vec2Model(BaseFairseqModel):
             y = self.project_q(y)
 
             if self.negatives_from_everywhere:
-                neg_cands = self.quantizer(
-                    unmasked_features, produce_targets=False
-                )["x"]
+                neg_cands = self.quantizer(unmasked_features, produce_targets=False)[
+                    "x"
+                ]
                 negs, _ = self.sample_negatives(
-                    neg_cands, y.size(1), padding_count=padding_count,
+                    neg_cands,
+                    y.size(1),
+                    padding_count=padding_count,
                 )
                 negs = self.project_q(negs)
 
             else:
                 negs, _ = self.sample_negatives(
-                    y, y.size(1), padding_count=padding_count,
+                    y,
+                    y.size(1),
+                    padding_count=padding_count,
                 )
 
             if self.codebook_negatives > 0:
@@ -587,13 +637,16 @@ class Wav2Vec2Model(BaseFairseqModel):
 
             if self.negatives_from_everywhere:
                 negs, _ = self.sample_negatives(
-                    unmasked_features, y.size(1),
+                    unmasked_features,
+                    y.size(1),
                     padding_count=padding_count,
                 )
                 negs = self.project_q(negs)
             else:
                 negs, _ = self.sample_negatives(
-                    y, y.size(1), padding_count=padding_count,
+                    y,
+                    y.size(1),
+                    padding_count=padding_count,
                 )
 
         if not is_xla_tensor(x):
@@ -609,7 +662,9 @@ class Wav2Vec2Model(BaseFairseqModel):
         x = self.compute_preds(x, y, negs)
 
         result = {
-            "x": x, "padding_mask": padding_mask, "features_pen": features_pen,
+            "x": x,
+            "padding_mask": padding_mask,
+            "features_pen": features_pen,
         }
 
         if prob_ppl is not None:
@@ -627,9 +682,11 @@ class Wav2Vec2Model(BaseFairseqModel):
         x = self.layer_norm(x)
         return self.quantizer.forward_idx(x)
 
-    def extract_features(self, source, padding_mask, mask=False):
-        res = self.forward(source, padding_mask, mask=mask, features_only=True)
-        return res["x"], res["padding_mask"]
+    def extract_features(self, source, padding_mask, mask=False, layer=None):
+        res = self.forward(
+            source, padding_mask, mask=mask, features_only=True, layer=layer
+        )
+        return res
 
     def get_logits(self, net_output):
         logits = net_output["x"]
@@ -787,15 +844,15 @@ class TransformerEncoder(nn.Module):
 
         self.apply(init_bert_params)
 
-    def forward(self, x, padding_mask=None):
-        x = self.extract_features(x, padding_mask)
+    def forward(self, x, padding_mask=None, layer=None):
+        x, layer_results = self.extract_features(x, padding_mask, layer)
 
-        if self.layer_norm_first:
+        if self.layer_norm_first and layer is None:
             x = self.layer_norm(x)
 
-        return x
+        return x, layer_results
 
-    def extract_features(self, x, padding_mask=None):
+    def extract_features(self, x, padding_mask=None, tgt_layer=None):
 
         if padding_mask is not None:
             x = index_put(x, padding_mask, 0)
@@ -813,16 +870,24 @@ class TransformerEncoder(nn.Module):
         x = x.transpose(0, 1)
 
         layer_results = []
+        r = None
         for i, layer in enumerate(self.layers):
             dropout_probability = np.random.random()
             if not self.training or (dropout_probability > self.layerdrop):
                 x, z = layer(x, self_attn_padding_mask=padding_mask, need_weights=False)
-                layer_results.append(x)
+                if tgt_layer is not None:
+                    layer_results.append((x, z))
+            if i == tgt_layer:
+                r = x
+                break
+
+        if r is not None:
+            x = r
 
         # T x B x C -> B x T x C
         x = x.transpose(0, 1)
 
-        return x
+        return x, layer_results
 
     def max_positions(self):
         """Maximum output length supported by the encoder."""
@@ -901,7 +966,6 @@ class TransformerSentenceEncoderLayer(nn.Module):
                 key=x,
                 value=x,
                 key_padding_mask=self_attn_padding_mask,
-                need_weights=False,
                 attn_mask=self_attn_mask,
             )
             x = self.dropout1(x)
@@ -920,7 +984,6 @@ class TransformerSentenceEncoderLayer(nn.Module):
                 key=x,
                 value=x,
                 key_padding_mask=self_attn_padding_mask,
-                need_weights=need_weights,
             )
 
             x = self.dropout1(x)

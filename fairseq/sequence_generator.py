@@ -5,6 +5,7 @@
 
 import math
 from typing import Dict, List, Optional
+import sys
 
 import torch
 import torch.nn as nn
@@ -214,8 +215,15 @@ class SequenceGenerator(nn.Module):
                 if net_input["padding_mask"] is not None
                 else torch.tensor(src_tokens.size(-1)).to(src_tokens)
             )
+        elif "features" in net_input:
+            src_tokens = net_input["features"]
+            src_lengths = (
+                net_input["padding_mask"].size(-1) - net_input["padding_mask"].sum(-1)
+                if net_input["padding_mask"] is not None
+                else torch.tensor(src_tokens.size(-1)).to(src_tokens)
+            )
         else:
-            raise Exception("expected src_tokens or source in net input")
+            raise Exception("expected src_tokens or source in net input. input keys: " + str(net_input.keys()))
 
         # bsz: total number of sentences in beam
         # Note that src_tokens may have more than 2 dimensions (i.e. audio features)
@@ -750,7 +758,7 @@ class EnsembleModel(nn.Module):
         return self.has_incremental
 
     def max_decoder_positions(self):
-        return min([m.max_decoder_positions() for m in self.models])
+        return min([m.max_decoder_positions() for m in self.models if hasattr(m, "max_decoder_positions")] + [sys.maxsize])
 
     @torch.jit.export
     def forward_encoder(self, net_input: Dict[str, Tensor]):
@@ -780,7 +788,10 @@ class EnsembleModel(nn.Module):
                     incremental_state=incremental_states[i],
                 )
             else:
-                decoder_out = model.decoder.forward(tokens, encoder_out=encoder_out)
+                if hasattr(model, "decoder"):
+                    decoder_out = model.decoder.forward(tokens, encoder_out=encoder_out)
+                else:
+                    decoder_out = model.forward(tokens)
 
             attn: Optional[Tensor] = None
             decoder_len = len(decoder_out)
@@ -800,7 +811,6 @@ class EnsembleModel(nn.Module):
                 decoder_out[0][:, -1:, :].div_(temperature),
                 None if decoder_len <= 1 else decoder_out[1],
             )
-
             probs = model.get_normalized_probs(
                 decoder_out_tuple, log_probs=True, sample=None
             )

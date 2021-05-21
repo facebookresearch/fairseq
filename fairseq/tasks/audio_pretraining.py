@@ -137,7 +137,7 @@ class AudioPretrainingConfig(FairseqDataclass):
 
 @register_task("audio_pretraining", dataclass=AudioPretrainingConfig)
 class AudioPretrainingTask(FairseqTask):
-    """"""
+    """ """
 
     cfg: AudioPretrainingConfig
 
@@ -199,7 +199,7 @@ class AudioPretrainingTask(FairseqTask):
             if not hasattr(task_cfg, "autoregressive"):
                 task_cfg.autoregressive = not task_cfg.criterion == "ctc"
 
-        if getattr(task_cfg, 'binarized_dataset', False):
+        if getattr(task_cfg, "binarized_dataset", False):
             self.datasets[split] = BinarizedAudioDataset(
                 data_path,
                 split=split,
@@ -236,13 +236,9 @@ class AudioPretrainingTask(FairseqTask):
 
         if task_cfg.labels:
             label_path = os.path.join(data_path, f"{split}.{task_cfg.labels}")
-            skipped_indices = getattr(self.datasets[split], 'skipped_indices', set())
+            skipped_indices = getattr(self.datasets[split], "skipped_indices", set())
             with open(label_path, "r") as f:
-                labels = [
-                    line
-                    for i, line in enumerate(f)
-                    if i not in skipped_indices
-                ]
+                labels = [line for i, line in enumerate(f) if i not in skipped_indices]
 
             assert len(labels) == len(self.datasets[split]), (
                 f"labels length ({len(labels)}) and dataset length "
@@ -360,7 +356,7 @@ class AudioPretrainingTask(FairseqTask):
         metrics.log_scalar("_num_chars", num_chars)
         metrics.log_scalar("_num_word_errors", num_word_errors)
         metrics.log_scalar("_num_words", num_words)
-        if num_words > 0:
+        if num_chars > 0:
             metrics.log_derived(
                 "uer",
                 lambda meters: meters["_num_char_errors"].sum
@@ -369,6 +365,7 @@ class AudioPretrainingTask(FairseqTask):
                 if meters["_num_chars"].sum > 0
                 else float("nan"),
             )
+        if num_words > 0:
             metrics.log_derived(
                 "wer",
                 lambda meters: meters["_num_word_errors"].sum

@@ -286,6 +286,8 @@ def add_preprocess_args(parser):
                        help="Pad dictionary size to be multiple of N")
     group.add_argument("--workers", metavar="N", default=1, type=int,
                        help="number of parallel workers")
+    group.add_argument("--dict-only", action='store_true',
+                       help="if true, only builds a dictionary and then exits")
     # fmt: on
     return parser
 

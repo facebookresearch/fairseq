@@ -18,7 +18,6 @@ from fairseq.distributed import (
     ModuleProxyWrapper,
     TPUDistributedDataParallel,
 )
-from torch.distributed.algorithms.ddp_comm_hooks import register_ddp_comm_hook, DDPCommHookType
 
 
 logger = logging.getLogger(__name__)
@@ -65,8 +64,19 @@ def DistributedFairseqModel(args, model, process_group, device):
             process_group=process_group,
             find_unused_parameters=args.find_unused_parameters,
         )
-        if args.ddp_comm_hook == 'fp16':
+        if args.ddp_comm_hook == "fp16":
             logger.info("enable fp16 communication hook in DDP")
+            try:
+                from torch.distributed.algorithms.ddp_comm_hooks import (
+                    register_ddp_comm_hook,
+                    DDPCommHookType,
+                )
+            except:
+                logger.error(
+                    "Could not import from torch.distributed.algorithms.ddp_comm_hooks; you may need to update your pytorch version"
+                )
+                raise
+
             register_ddp_comm_hook(DDPCommHookType.FP16_COMPRESS, wrapped_model)
         # forward missing getattr and state_dict/load_state_dict to orig model
         wrapped_model = ModuleProxyWrapper(wrapped_model)

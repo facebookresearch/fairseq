@@ -373,6 +373,10 @@ def post_process(sentence: str, symbol: str):
         sentence = sentence.replace(" ", "").replace("_", " ").strip()
     elif symbol == "letter":
         sentence = sentence.replace(" ", "").replace("|", " ").strip()
+    elif symbol == "silence":
+        import re
+        sentence = sentence.replace("<SIL>", "")
+        sentence = re.sub(' +', ' ', sentence).strip()
     elif symbol == "_EOW":
         sentence = sentence.replace(" ", "").replace("_EOW", " ").strip()
     elif symbol in {"subword_nmt", "@@ ", "@@"}:

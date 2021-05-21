@@ -162,6 +162,7 @@ def main(cfg: FairseqConfig) -> None:
 
     max_epoch = cfg.optimization.max_epoch or math.inf
     lr = trainer.get_lr()
+
     train_meter = meters.StopwatchMeter()
     train_meter.start()
     while epoch_itr.next_epoch_idx <= max_epoch:
@@ -381,7 +382,7 @@ def validate_and_save(
             and num_updates > 0
             and num_updates % cfg.dataset.validate_interval_updates == 0
         )
-    ) and not cfg.dataset.disable_validation
+    ) and not cfg.dataset.disable_validation and num_updates >= cfg.dataset.validate_after_updates
 
     # Validate
     valid_losses = [None]
@@ -460,6 +461,10 @@ def validate(
 
         # log validation stats
         stats = get_valid_stats(cfg, trainer, agg.get_smoothed_values())
+
+        if hasattr(task, "post_validate"):
+            task.post_validate(trainer.get_model(), stats, agg)
+
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
 
         valid_losses.append(stats[cfg.checkpoint.best_checkpoint_metric])

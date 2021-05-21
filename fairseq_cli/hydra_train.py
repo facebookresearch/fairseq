@@ -6,12 +6,12 @@
 
 import logging
 import os
-import sys
 
 from fairseq.dataclass.initialize import add_defaults, hydra_init
 from fairseq_cli.train import main as pre_main
 from fairseq import distributed_utils, metrics
 from fairseq.dataclass.configs import FairseqConfig
+from fairseq.utils import reset_logging
 
 import hydra
 from hydra.core.hydra_config import HydraConfig
@@ -61,21 +61,6 @@ def hydra_main(cfg: FairseqConfig) -> float:
         best_val = float("inf")
 
     return best_val
-
-
-def reset_logging():
-    root = logging.getLogger()
-    for handler in root.handlers:
-        root.removeHandler(handler)
-    root.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(
-        logging.Formatter(
-            fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
-    )
-    root.addHandler(handler)
 
 
 def cli_main():

@@ -7,7 +7,7 @@ import logging
 import math
 from collections.abc import Collection
 from dataclasses import dataclass, field
-from typing import List
+from typing import Any, List
 
 import torch
 import torch.distributed as dist
@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class FairseqAdamConfig(FairseqDataclass):
-    adam_betas: str = field(
-        default="(0.9, 0.999)", metadata={"help": "betas for Adam optimizer"}
+    adam_betas: Any = field(
+        default=(0.9, 0.999), metadata={"help": "betas for Adam optimizer"}
     )
     adam_eps: float = field(
         default=1e-8, metadata={"help": "epsilon for Adam optimizer"}
@@ -47,7 +47,7 @@ class FairseqAdam(FairseqOptimizer):
     analogous to torch.optim.AdamW from PyTorch.
     """
 
-    def __init__(self, cfg: DictConfig, params):
+    def __init__(self, cfg: FairseqAdamConfig, params):
         super().__init__(cfg)
         fused_adam_cls = get_fused_adam_class()
         use_fused_adam = (
@@ -77,7 +77,7 @@ class FairseqAdam(FairseqOptimizer):
             "lr": self.cfg.lr[0]
             if isinstance(self.cfg.lr, Collection)
             else self.cfg.lr,
-            "betas": eval(self.cfg.adam_betas),
+            "betas": eval(self.cfg.adam_betas) if isinstance(self.cfg.adam_betas, str) else self.cfg.adam_betas,
             "eps": self.cfg.adam_eps,
             "weight_decay": self.cfg.weight_decay,
         }

@@ -13,10 +13,12 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from .. import FairseqDataset, BaseWrapperDataset
+from .. import FairseqDataset
 from ..data_utils import compute_mask_indices, get_buckets, get_bucketed_sizes
 from fairseq.data.audio.audio_utils import (
-    parse_path, read_from_stored_zip, is_sf_audio_data
+    parse_path,
+    read_from_stored_zip,
+    is_sf_audio_data,
 )
 
 
@@ -212,11 +214,15 @@ class RawAudioDataset(FairseqDataset):
 
         if self.shuffle:
             order = [np.random.permutation(len(self))]
+            order.append(
+                np.minimum(
+                    np.array(self.sizes),
+                    self.max_sample_size,
+                )
+            )
+            return np.lexsort(order)[::-1]
         else:
-            order = [np.arange(len(self))]
-
-        order.append(self.sizes)
-        return np.lexsort(order)[::-1]
+            return np.arange(len(self))
 
     def set_bucket_info(self, num_buckets):
         self.num_buckets = num_buckets

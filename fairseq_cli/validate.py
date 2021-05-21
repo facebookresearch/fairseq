@@ -66,6 +66,7 @@ def main(cfg: DictConfig, override_args=None):
 
     # Move models to GPU
     for model in models:
+        model.eval()
         if use_fp16:
             model.half()
         if use_cuda:
