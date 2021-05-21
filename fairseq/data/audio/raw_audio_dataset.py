@@ -299,7 +299,7 @@ class FileAudioDataset(RawAudioDataset):
     def __getitem__(self, index):
         import soundfile as sf
 
-        path_or_fp = os.path.join(self.root_dir, self.fnames[index])
+        path_or_fp = os.path.join(self.root_dir, str(self.fnames[index]))
         _path, slice_ptr = parse_path(path_or_fp)
         if len(slice_ptr) == 2:
             byte_data = read_from_stored_zip(_path, slice_ptr[0], slice_ptr[1])
