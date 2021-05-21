@@ -417,7 +417,8 @@ class TransformerEncoder(FairseqEncoder):
         # checkpointed layer, regardless of layer size
         min_params_to_wrap = (
             getattr(args, "min_params_to_wrap", DEFAULT_MIN_PARAMS_TO_WRAP)
-            if not checkpoint else 0
+            if not checkpoint
+            else 0
         )
         layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
         return layer
@@ -468,10 +469,9 @@ class TransformerEncoder(FairseqEncoder):
                   hidden states of shape `(src_len, batch, embed_dim)`.
                   Only populated if *return_all_hiddens* is True.
         """
-        return self.forward_scriptable(src_tokens,
-                                       src_lengths,
-                                       return_all_hiddens,
-                                       token_embeddings)
+        return self.forward_scriptable(
+            src_tokens, src_lengths, return_all_hiddens, token_embeddings
+        )
 
     # TorchScript doesn't support super() method so that the scriptable Subclass
     # can't access the base class model in Torchscript.
@@ -509,7 +509,7 @@ class TransformerEncoder(FairseqEncoder):
         """
         # compute padding mask
         encoder_padding_mask = src_tokens.eq(self.padding_idx)
-        has_pads = (src_tokens.device.type == "xla" or encoder_padding_mask.any())
+        has_pads = src_tokens.device.type == "xla" or encoder_padding_mask.any()
 
         x, encoder_embedding = self.forward_embedding(src_tokens, token_embeddings)
 
@@ -767,8 +767,10 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             )
         num_base_layers = getattr(args, "base_layers", 0)
         for i in range(num_base_layers):
-            self.layers.insert(((i+1) * args.decoder_layers) // (num_base_layers + 1), BaseLayer(args))
-
+            self.layers.insert(
+                ((i + 1) * args.decoder_layers) // (num_base_layers + 1),
+                BaseLayer(args),
+            )
 
     def build_decoder_layer(self, args, no_encoder_attn=False):
         layer = TransformerDecoderLayer(args, no_encoder_attn)
@@ -780,7 +782,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         # checkpointed layer, regardless of layer size
         min_params_to_wrap = (
             getattr(args, "min_params_to_wrap", DEFAULT_MIN_PARAMS_TO_WRAP)
-            if not checkpoint else 0
+            if not checkpoint
+            else 0
         )
         layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
         return layer
