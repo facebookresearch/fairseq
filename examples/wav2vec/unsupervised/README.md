@@ -70,6 +70,6 @@ fairseq.dataset.gen_subset=valid results_path=/where/to/save/transcriptions
 After the GAN training provides a first unsupervised model, we can then progressively refine the quality of transcriptions using several iterations of semi-supervised learning. We perform two iterations: first, pseudo-label the training data with the unsupervised GAN model and train an HMM on the pseudo-labels. Second, we relabel the training data with the HMM and then fine-tune the original wav2vec 2.0 model using the HMM pseudo-labels with a CTC loss. Note that HMM models use phonemes as output, while wav2vec 2.0 use letter. Both are decoded using WFST decoders into words.
 
 
-Please see [this README](http://github.com/pytorch/fairseq/tree/master/examples/wav2vec/unsupervised/kaldi_st) for more instructions on how to do iterative self-training + Kaldi LM-decoding.
+Please see [this README](kaldi_self_train/README.md) for more instructions on how to do iterative self-training + Kaldi LM-decoding.
 
 *** Note: these instructions are a work in progress and will be updated over the next few days
