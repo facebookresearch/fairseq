@@ -13,6 +13,7 @@ from .base_wrapper_dataset import BaseWrapperDataset
 from .add_target_dataset import AddTargetDataset
 from .append_token_dataset import AppendTokenDataset
 from .audio.raw_audio_dataset import BinarizedAudioDataset, FileAudioDataset
+from .audio.hubert_dataset import HubertDataset
 from .backtranslation_dataset import BacktranslationDataset
 from .bucket_pad_length_dataset import BucketPadLengthDataset
 from .colorize_dataset import ColorizeDataset
@@ -82,7 +83,9 @@ __all__ = [
     "FairseqDataset",
     "FairseqIterableDataset",
     "FastaDataset",
+    "FileAudioDataset",
     "GroupedIterator",
+    "HubertDataset",
     "IdDataset",
     "IndexedCachedDataset",
     "IndexedDataset",
@@ -104,12 +107,12 @@ __all__ = [
     "PadDataset",
     "PrependDataset",
     "PrependTokenDataset",
-    "ReplaceDataset",
-    "RollDataset",
-    "FileAudioDataset",
+    "RandomCropDataset",
     "RawLabelDataset",
     "ResamplingDataset",
+    "ReplaceDataset",
     "RightPadDataset",
+    "RollDataset",
     "RoundRobinZipDatasets",
     "SampledMultiDataset",
     "SampledMultiEpochDataset",
