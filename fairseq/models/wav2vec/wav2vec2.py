@@ -119,6 +119,16 @@ class Wav2Vec2Config(FairseqDataclass):
     feature_grad_mult: float = field(
         default=1.0, metadata={"help": "multiply feature extractor var grads by this"}
     )
+    quantizer_depth: int = field(
+        default=1,
+        metadata={"help": "number of quantizer layers"},
+    )
+    quantizer_factor: int = field(
+        default=3,
+        metadata={
+            "help": "dimensionality increase for inner quantizer layers (if depth > 1)"
+        },
+    )
     latent_vars: int = field(
         default=320,
         metadata={"help": "number of latent variables V in each group of the codebook"},
@@ -284,6 +294,8 @@ class Wav2Vec2Model(BaseFairseqModel):
                 combine_groups=False,
                 vq_dim=vq_dim,
                 time_first=True,
+                weight_proj_depth=cfg.quantizer_depth,
+                weight_proj_factor=cfg.quantizer_factor,
             )
             self.project_q = nn.Linear(vq_dim, final_dim)
         else:
@@ -303,6 +315,8 @@ class Wav2Vec2Model(BaseFairseqModel):
                     combine_groups=False,
                     vq_dim=vq_dim,
                     time_first=True,
+                    weight_proj_depth=cfg.quantizer_depth,
+                    weight_proj_factor=cfg.quantizer_factor,
                 )
             self.project_inp = nn.Linear(vq_dim, cfg.encoder_embed_dim)
 
