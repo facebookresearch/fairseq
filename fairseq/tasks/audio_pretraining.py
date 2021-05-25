@@ -303,6 +303,12 @@ class AudioPretrainingTask(FairseqTask):
                 self.tokenizer = encoders.build_tokenizer(self.cfg.eval_wer_tokenizer)
             else:
                 self.tokenizer = None
+
+        actualized_cfg = getattr(model, "cfg")
+        if actualized_cfg is not None:
+            if "w2v_args" in actualized_cfg:
+                model_cfg.w2v_args = actualized_cfg.w2v_args
+
         return model
 
     def _inference_with_wer(self, generator, sample, model):
