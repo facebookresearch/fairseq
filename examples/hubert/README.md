@@ -3,11 +3,12 @@
 ## Pre-trained and fine-tuned (ASR) models
 Model | Pretraining Data | Finetuning Dataset | Model
 |---|---|---|---
-HuBERT Base | [Librispeech](http://www.openslr.org/12) 960 hr | No finetuning | [download](https://dl.fbaipublicfiles.com/hubert/hubert_base_ls960.pt)
-HuBERT Large | [Libri-Light](https://github.com/facebookresearch/libri-light) 60k hr | No finetuning | [download](https://dl.fbaipublicfiles.com/hubert/hubert_large_ll60k.pt)
+HuBERT Base (~95M params) | [Librispeech](http://www.openslr.org/12) 960 hr | No finetuning (Pretrained Model) | [download](https://dl.fbaipublicfiles.com/hubert/hubert_base_ls960.pt)
+HuBERT Large (~316M params) | [Libri-Light](https://github.com/facebookresearch/libri-light) 60k hr | No finetuning (Pretrained Model) | [download](https://dl.fbaipublicfiles.com/hubert/hubert_large_ll60k.pt)
+HuBERT Extra Large (~1B params) | [Libri-Light](https://github.com/facebookresearch/libri-light) 60k hr |  No finetuning (Pretrained Model) | [download](https://dl.fbaipublicfiles.com/hubert/hubert_xtralarge_ll60k.pt)
 HuBERT Large | [Libri-Light](https://github.com/facebookresearch/libri-light) 60k hr | [Librispeech](http://www.openslr.org/12) 960 hr | [download](https://dl.fbaipublicfiles.com/hubert/hubert_large_ll60k_finetune_ls960.pt)
-HuBERT Extra Large | [Libri-Light](https://github.com/facebookresearch/libri-light) 60k hr |  No finetuning | [download](https://dl.fbaipublicfiles.com/hubert/hubert_xtralarge_ll60k.pt)
 HuBERT Extra Large | [Libri-Light](https://github.com/facebookresearch/libri-light) 60k hr | [Librispeech](http://www.openslr.org/12) 960 hr | [download](https://dl.fbaipublicfiles.com/hubert/hubert_xtralarge_ll60k_finetune_ls960.pt)
+
 
 ## Train a new model
 
