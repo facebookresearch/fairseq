@@ -14,6 +14,7 @@ import torch
 from fairseq import checkpoint_utils, distributed_utils, options, utils
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.logging import metrics, progress_bar
+from fairseq.utils import reset_logging
 from omegaconf import DictConfig
 
 
@@ -31,6 +32,8 @@ def main(cfg: DictConfig, override_args=None):
         cfg = convert_namespace_to_omegaconf(cfg)
 
     utils.import_user_module(cfg.common)
+
+    reset_logging()
 
     assert (
         cfg.dataset.max_tokens is not None or cfg.dataset.batch_size is not None

@@ -17,25 +17,20 @@ task:
   normalize: ???
 
 decoding:
-  exp_dir: ???
-  decoder:
-    name: kenlm
-    lexicon: ???
-    lmpath: ???
-    beamthreshold: 100
-    beam: 500
-    lmweight: 2
-    wordscore: -1
-    silweight: 0
-  write_sentences: true
+  type: kenlm
+  lexicon: ???
+  lmpath: ???
+  beamthreshold: 100
+  beam: 500
+  lmweight: 2
+  wordscore: -1
+  silweight: 0
   unique_wer_file: true
+  beam: 500
 common_eval:
-  results_path: ${decoding.exp_dir}/decode/${decoding.decoder.name}/${dataset.gen_subset}
+  results_path: ???
   path: ???
   post_process: letter
-generation:
-  nbest: 1
-  beam: 500
 dataset:
   max_tokens: 1100000
   gen_subset: ???

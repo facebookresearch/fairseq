@@ -10,25 +10,32 @@ import logging
 import os
 import shutil
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import editdistance
 import torch
 import torch.distributed as dist
-from examples.speech_recognition.hydra.decoder import Decoder, DecoderConfig
-from fairseq import (checkpoint_utils, distributed_utils, progress_bar, tasks,
-                     utils)
+from examples.speech_recognition.new.decoders.decoder_config import (
+    DecoderConfig,
+    FlashlightDecoderConfig,
+)
+from examples.speech_recognition.new.decoders.decoder import Decoder
+from fairseq import checkpoint_utils, distributed_utils, progress_bar, tasks, utils
 from fairseq.data.data_utils import post_process
-from fairseq.dataclass.configs import (CheckpointConfig, CommonConfig,
-                                       CommonEvalConfig, DatasetConfig,
-                                       DistributedTrainingConfig,
-                                       FairseqDataclass, GenerationConfig)
+from fairseq.dataclass.configs import (
+    CheckpointConfig,
+    CommonConfig,
+    CommonEvalConfig,
+    DatasetConfig,
+    DistributedTrainingConfig,
+    FairseqDataclass,
+)
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
 from fairseq.logging.progress_bar import BaseProgressBar
 from fairseq.models.fairseq_model import FairseqModel
-from omegaconf import MISSING, OmegaConf
+from omegaconf import OmegaConf
 
 import hydra
 from hydra.core.config_store import ConfigStore
@@ -41,20 +48,17 @@ config_path = Path(__file__).resolve().parent / "conf"
 
 
 @dataclass
-class DecodingConfig(FairseqDataclass):
-    exp_dir: str = field(
-        default=MISSING,
-        metadata={"help": "Path to the experiment directory"},
-    )
+class DecodingConfig(DecoderConfig, FlashlightDecoderConfig):
     unique_wer_file: bool = field(
         default=False,
         metadata={"help": "If set, use a unique file for storing WER"},
     )
-    write_sentences: bool = field(
-        default=True,
-        metadata={"help": "If set, write hypothesis and reference sentences"},
+    results_path: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "If set, write hypothesis and reference sentences into this directory"
+        },
     )
-    decoder: DecoderConfig = DecoderConfig()
 
 
 @dataclass
@@ -64,9 +68,14 @@ class InferConfig(FairseqDataclass):
     common: CommonConfig = CommonConfig()
     common_eval: CommonEvalConfig = CommonEvalConfig()
     checkpoint: CheckpointConfig = CheckpointConfig()
-    generation: GenerationConfig = GenerationConfig()
     distributed_training: DistributedTrainingConfig = DistributedTrainingConfig()
     dataset: DatasetConfig = DatasetConfig()
+    is_ax: bool = field(
+        default=False,
+        metadata={
+            "help": "if true, assumes we are using ax for tuning and returns a tuple for ax to consume"
+        },
+    )
 
 
 def reset_logging():
@@ -85,6 +94,8 @@ def reset_logging():
 
 
 class InferenceProcessor:
+    cfg: InferConfig
+
     def __init__(self, cfg: InferConfig) -> None:
         self.cfg = cfg
         self.task = tasks.setup_task(cfg.task)
@@ -98,7 +109,7 @@ class InferenceProcessor:
             self.cfg.dataset.gen_subset,
             task_cfg=saved_cfg.task,
         )
-        self.generator = Decoder(cfg.decoding.decoder, self.tgt_dict)
+        self.generator = Decoder(cfg.decoding, self.tgt_dict)
         self.gen_timer = StopwatchMeter()
         self.wps_meter = TimeMeter()
         self.num_sentences = 0
@@ -113,7 +124,7 @@ class InferenceProcessor:
         self.progress_bar = self.build_progress_bar()
 
     def __enter__(self) -> "InferenceProcessor":
-        if self.cfg.decoding.write_sentences:
+        if self.cfg.decoding.results_path is not None:
             self.hypo_words_file = self.get_res_file("hypo.word")
             self.hypo_units_file = self.get_res_file("hypo.units")
             self.ref_words_file = self.get_res_file("ref.word")
@@ -121,7 +132,7 @@ class InferenceProcessor:
         return self
 
     def __exit__(self, *exc) -> bool:
-        if self.cfg.decoding.write_sentences:
+        if self.cfg.decoding.results_path is not None:
             self.hypo_words_file.close()
             self.hypo_units_file.close()
             self.ref_words_file.close()
@@ -145,6 +156,7 @@ class InferenceProcessor:
         self.progress_bar.print(*args, **kwargs)
 
     def get_res_file(self, fname: str) -> None:
+        fname = os.path.join(self.cfg.decoding.results_path, fname)
         if self.data_parallel_world_size > 1:
             fname = f"{fname}.{self.data_parallel_rank}"
         return open(fname, "w", buffering=1)
@@ -156,7 +168,9 @@ class InferenceProcessor:
         num_shards = self.data_parallel_world_size
 
         if self.data_parallel_world_size > 1:
+
             def merge_shards_with_root(fname: str) -> None:
+                fname = os.path.join(self.cfg.decoding.results_path, fname)
                 logger.info("Merging %s on shard %d", fname, shard_id)
                 base_fpath = Path(f"{fname}.0")
                 with open(base_fpath, "a") as out_file:
@@ -180,11 +194,7 @@ class InferenceProcessor:
             dist.barrier()
 
     def optimize_model(self, model: FairseqModel) -> None:
-        gcfg = self.cfg.generation
-        model.make_generation_fast_(
-            beamable_mm_beam_size=None if gcfg.no_beamable_mm else gcfg.beam,
-            need_attn=gcfg.print_alignment,
-        )
+        model.make_generation_fast_()
         if self.cfg.common.fp16:
             model.half()
         if not self.cfg.common.cpu:
@@ -193,7 +203,7 @@ class InferenceProcessor:
     def load_model_ensemble(self) -> Tuple[List[FairseqModel], FairseqDataclass]:
         arg_overrides = ast.literal_eval(self.cfg.common_eval.model_overrides)
         models, saved_cfg = checkpoint_utils.load_model_ensemble(
-            utils.split_paths(self.cfg.common_eval.path),
+            utils.split_paths(self.cfg.common_eval.path, separator="\\"),
             arg_overrides=arg_overrides,
             task=self.task,
             suffix=self.cfg.checkpoint.checkpoint_suffix,
@@ -268,20 +278,23 @@ class InferenceProcessor:
         if "words" in hypo:
             hyp_words = " ".join(hypo["words"])
         else:
-            hyp_words = post_process(hyp_pieces,
-                                     self.cfg.common_eval.post_process)
+            hyp_words = post_process(hyp_pieces, self.cfg.common_eval.post_process)
 
         # Processes target.
         target_tokens = utils.strip_pad(toks, self.tgt_dict.pad())
         tgt_pieces = self.tgt_dict.string(target_tokens.int().cpu())
-        tgt_words = post_process(tgt_pieces,
-                                 self.cfg.common_eval.post_process)
+        tgt_words = post_process(tgt_pieces, self.cfg.common_eval.post_process)
 
-        if self.cfg.decoding.write_sentences:
+        if self.cfg.decoding.results_path is not None:
             print(f"{hyp_pieces} ({speaker}-{sid})", file=self.hypo_units_file)
             print(f"{hyp_words} ({speaker}-{sid})", file=self.hypo_words_file)
             print(f"{tgt_pieces} ({speaker}-{sid})", file=self.ref_units_file)
             print(f"{tgt_words} ({speaker}-{sid})", file=self.ref_words_file)
+
+        if not self.cfg.common_eval.quiet:
+            logger.info(f"HYPO: {hyp_words}")
+            logger.info(f"REF: {tgt_words}")
+            logger.info("---------------------")
 
         hyp_words, tgt_words = hyp_words.split(), tgt_words.split()
 
@@ -315,11 +328,15 @@ class InferenceProcessor:
             self.num_sentences += sample["id"].numel()
 
     def log_generation_time(self) -> None:
-        logger.info("Processed %d sentences (%d tokens) in %.1fs %.2f "
-                    "sentences per second, %.2f tokens per second)",
-                    self.num_sentences, self.gen_timer.n, self.gen_timer.sum,
-                    self.num_sentences / self.gen_timer.sum,
-                    1.0 / self.gen_timer.avg)
+        logger.info(
+            "Processed %d sentences (%d tokens) in %.1fs %.2f "
+            "sentences per second, %.2f tokens per second)",
+            self.num_sentences,
+            self.gen_timer.n,
+            self.gen_timer.sum,
+            self.num_sentences / self.gen_timer.sum,
+            1.0 / self.gen_timer.avg,
+        )
 
 
 def parse_wer(wer_file: Path) -> float:
@@ -329,12 +346,16 @@ def parse_wer(wer_file: Path) -> float:
 
 def get_wer_file(cfg: InferConfig) -> Path:
     """Hashes the decoding parameters to a unique file ID."""
+    base_path = "wer"
+    if cfg.decoding.results_path is not None:
+        base_path = os.path.join(cfg.decoding.results_path, base_path)
+
     if cfg.decoding.unique_wer_file:
         yaml_str = OmegaConf.to_yaml(cfg.decoding)
         fid = int(hashlib.md5(yaml_str.encode("utf-8")).hexdigest(), 16)
-        return Path(f"wer.{fid % 1000000}")
+        return Path(f"{base_path}.{fid % 1000000}")
     else:
-        return Path("wer")
+        return Path(base_path)
 
 
 def main(cfg: InferConfig) -> float:
@@ -356,8 +377,6 @@ def main(cfg: InferConfig) -> float:
         cfg.dataset.max_tokens = 4000000
     if not cfg.common.cpu and not torch.cuda.is_available():
         raise ValueError("CUDA not found; set `cpu=True` to run without CUDA")
-    if cfg.generation.nbest > 1:
-        raise ValueError("`nbest > 1` not implemented yet")
 
     with InferenceProcessor(cfg) as processor:
         for sample in processor:
@@ -365,7 +384,7 @@ def main(cfg: InferConfig) -> float:
 
         processor.log_generation_time()
 
-        if cfg.decoding.write_sentences:
+        if cfg.decoding.results_path is not None:
             processor.merge_shards()
 
         errs_t, leng_t = processor.total_errors, processor.total_length
@@ -381,17 +400,19 @@ def main(cfg: InferConfig) -> float:
 
         if distributed_utils.is_master(cfg.distributed_training):
             with open(wer_file, "w") as f:
-                f.write((
-                    f"WER: {wer}\n"
-                    f"err / num_ref_words = {errs_t} / {leng_t}\n\n"
-                    f"{yaml_str}"
-                ))
+                f.write(
+                    (
+                        f"WER: {wer}\n"
+                        f"err / num_ref_words = {errs_t} / {leng_t}\n\n"
+                        f"{yaml_str}"
+                    )
+                )
 
         return wer
 
 
 @hydra.main(config_path=config_path, config_name="infer")
-def hydra_main(cfg: InferConfig) -> None:
+def hydra_main(cfg: InferConfig) -> Union[float, Tuple[float, Optional[float]]]:
     container = OmegaConf.to_container(cfg, resolve=True, enum_to_str=True)
     cfg = OmegaConf.create(container)
     OmegaConf.set_struct(cfg, True)
@@ -399,8 +420,7 @@ def hydra_main(cfg: InferConfig) -> None:
     if cfg.common.reset_logging:
         reset_logging()
 
-    logger.info("Config:\n%s", OmegaConf.to_yaml(cfg))
-    logger.info("Working directory: %s", Path.cwd())
+    # logger.info("Config:\n%s", OmegaConf.to_yaml(cfg))
     wer = float("inf")
 
     try:
@@ -419,13 +439,18 @@ def hydra_main(cfg: InferConfig) -> None:
             logger.error("Crashed! %s", str(e))
 
     logger.info("Word error rate: %.4f", wer)
+    if cfg.is_ax:
+        return wer, None
+
     return wer
 
 
 def cli_main() -> None:
     try:
-        from hydra._internal.utils import \
-            get_args  # pylint: disable=import-outside-toplevel
+        from hydra._internal.utils import (
+            get_args,
+        )  # pylint: disable=import-outside-toplevel
+
         cfg_name = get_args().config_name or "infer"
     except ImportError:
         logger.warning("Failed to get config name from hydra args")
@@ -435,12 +460,9 @@ def cli_main() -> None:
     cs.store(name=cfg_name, node=InferConfig)
 
     for k in InferConfig.__dataclass_fields__:
-        v = InferConfig.__dataclass_fields__[k].default
-        try:
+        if is_dataclass(InferConfig.__dataclass_fields__[k].type):
+            v = InferConfig.__dataclass_fields__[k].default
             cs.store(name=k, node=v)
-        except BaseException:
-            logger.error(f"{k} - {v}")
-            raise
 
     hydra_main()  # pylint: disable=no-value-for-parameter
 

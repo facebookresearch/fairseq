@@ -57,9 +57,9 @@ class FileContentsAction(argparse.Action):
         setattr(namespace, self.dest, argument)
 
 
-def split_paths(paths: str) -> List[str]:
+def split_paths(paths: str, separator=os.pathsep) -> List[str]:
     return (
-        paths.split(os.pathsep)
+        paths.split(separator)
         if "://" not in paths
         else paths.split(MANIFOLD_PATH_SEP)
     )

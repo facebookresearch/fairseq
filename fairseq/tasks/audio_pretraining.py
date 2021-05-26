@@ -12,9 +12,8 @@ import torch
 
 from argparse import Namespace
 from dataclasses import dataclass, field
-import numpy as np
 from typing import Optional, Any
-from omegaconf import MISSING, II
+from omegaconf import MISSING, II, OmegaConf
 
 from fairseq.data import (
     AddTargetDataset,
@@ -42,6 +41,27 @@ class LabelEncoder(object):
         return self.dictionary.encode_line(
             label, append_eos=False, add_if_not_exist=False
         )
+
+
+@dataclass
+class InferredW2vConfig:
+    # The following are needed to precompute mask and mask channel indices
+    #   before model's forward.
+    mask_length: Optional[int] = II("model.mask_length")
+    mask_prob: Optional[float] = II("model.mask_prob")
+    mask_selection: Optional[str] = II("model.mask_selection")
+    mask_other: Optional[float] = II("model.mask_other")
+    no_mask_overlap: Optional[bool] = II("model.no_mask_overlap")
+    mask_min_space: Optional[int] = II("model.mask_min_space")
+    mask_channel_length: Optional[int] = II("model.mask_channel_length")
+    mask_channel_prob: Optional[float] = II("model.mask_channel_prob")
+    mask_channel_selection: Optional[str] = II("model.mask_channel_selection")
+    mask_channel_other: Optional[float] = II("model.mask_channel_other")
+    no_mask_channel_overlap: Optional[bool] = II("model.no_mask_channel_overlap")
+    mask_channel_min_space: Optional[int] = II("model.mask_channel_min_space")
+
+    conv_feature_layers: Optional[str] = II("model.conv_feature_layers")
+    encoder_embed_dim: Optional[int] = II("model.encoder_embed_dim")
 
 
 @dataclass
@@ -114,23 +134,13 @@ class AudioPretrainingConfig(FairseqDataclass):
             "help": "flag to compute mask indices in data preparation.",
         },
     )
-    # The following are needed to precompute mask and mask channel indices
-    #   before model's forward.
-    mask_length: Optional[int] = II("model.mask_length")
-    mask_prob: Optional[float] = II("model.mask_prob")
-    mask_selection: Optional[str] = II("model.mask_selection")
-    mask_other: Optional[float] = II("model.mask_other")
-    no_mask_overlap: Optional[bool] = II("model.no_mask_overlap")
-    mask_min_space: Optional[int] = II("model.mask_min_space")
-    mask_channel_length: Optional[int] = II("model.mask_channel_length")
-    mask_channel_prob: Optional[float] = II("model.mask_channel_prob")
-    mask_channel_selection: Optional[str] = II("model.mask_channel_selection")
-    mask_channel_other: Optional[float] = II("model.mask_channel_other")
-    no_mask_channel_overlap: Optional[bool] = II("model.no_mask_channel_overlap")
-    mask_channel_min_space: Optional[int] = II("model.mask_channel_min_space")
 
-    conv_feature_layers: Optional[str] = II("model.conv_feature_layers")
-    encoder_embed_dim: Optional[int] = II("model.encoder_embed_dim")
+    inferred_w2v_config: Optional[InferredW2vConfig] = field(
+        default=None,
+        metadata={
+            "help": "wav2vec 2.0 masking arguments used to pre-compute masks (required for TPU)",
+        },
+    )
 
     tpu: bool = II("common.tpu")
 
@@ -170,23 +180,12 @@ class AudioPretrainingTask(FairseqTask):
 
     def _get_mask_precompute_kwargs(self, cfg):
         if self.cfg.precompute_mask_indices or self.cfg.tpu:
-            args = [
-                "mask_length",
-                "mask_prob",
-                "mask_selection",
-                "mask_other",
-                "no_mask_overlap",
-                "mask_min_space",
-                "mask_channel_length",
-                "mask_channel_prob",
-                "mask_channel_selection",
-                "mask_channel_other",
-                "no_mask_channel_overlap",
-                "mask_channel_min_space",
-                "encoder_embed_dim",
-                "conv_feature_layers",
-            ]
-            return {arg: cfg[arg] for arg in args}
+            assert (
+                cfg.inferred_w2v_config is not None
+            ), "inferred_w2v_config must be set"
+            return OmegaConf.to_container(
+                cfg.inferred_w2v_config, resolve=True, enum_to_str=True
+            )
         else:
             return {}
 

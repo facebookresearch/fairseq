@@ -66,7 +66,11 @@ class CtcCriterionConfig(FairseqDataclass):
 class CtcCriterion(FairseqCriterion):
     def __init__(self, cfg: CtcCriterionConfig, task: FairseqTask):
         super().__init__(task)
-        self.blank_idx = task.target_dictionary.index(task.blank_symbol) if hasattr(task, 'blank_symbol') else 0
+        self.blank_idx = (
+            task.target_dictionary.index(task.blank_symbol)
+            if hasattr(task, "blank_symbol")
+            else 0
+        )
         self.pad_idx = task.target_dictionary.pad()
         self.eos_idx = task.target_dictionary.eos()
         self.post_process = cfg.post_process
@@ -111,8 +115,13 @@ class CtcCriterion(FairseqCriterion):
         if "src_lengths" in sample["net_input"]:
             input_lengths = sample["net_input"]["src_lengths"]
         else:
-            non_padding_mask = ~net_output["padding_mask"]
-            input_lengths = non_padding_mask.long().sum(-1)
+            if net_output["padding_mask"] is not None:
+                non_padding_mask = ~net_output["padding_mask"]
+                input_lengths = non_padding_mask.long().sum(-1)
+            else:
+                input_lengths = lprobs.new_full(
+                    (lprobs.size(1),), lprobs.size(0), dtype=torch.long
+                )
 
         pad_mask = (sample["target"] != self.pad_idx) & (
             sample["target"] != self.eos_idx

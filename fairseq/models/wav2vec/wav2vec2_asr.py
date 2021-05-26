@@ -31,7 +31,6 @@ from fairseq.modules import (
     LayerNorm,
     PositionalEmbedding,
     TransformerDecoderLayer,
-    SamePad,
 )
 
 

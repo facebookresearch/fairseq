@@ -65,7 +65,7 @@ Decoding results will be saved at
 `/path/to/experiment/directory/decode/viterbi/test`.
 
 ```sh
-$ python examples/speech_recognition/hydra/infer.py \
+$ python examples/speech_recognition/new/infer.py \
   --config-dir /path/to/fairseq-py/examples/hubert/config/decode \
   --config-name infer_viterbi \
   task.data=/path/to/data \
@@ -82,7 +82,7 @@ Suppose the pronunciation lexicon and the n-gram LM are saved at
 saved at `/path/to/experiment/directory/decode/kenlm/test`.
 
 ```sh
-$ python examples/speech_recognition/hydra/infer.py \
+$ python examples/speech_recognition/new/infer.py \
   --config-dir /path/to/fairseq-py/examples/hubert/config/decode \
   --config-name infer_kenlm \
   task.data=/path/to/data \

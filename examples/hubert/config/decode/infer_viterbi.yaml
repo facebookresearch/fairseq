@@ -17,13 +17,10 @@ task:
   normalize: ???
 
 decoding:
-  exp_dir: ???
-  decoder:
-    name: viterbi
-  write_sentences: true
+  type: viterbi
   unique_wer_file: true
 common_eval:
-  results_path: ${decoding.exp_dir}/decode/${decoding.decoder.name}/${dataset.gen_subset}
+  results_path: ???
   path: ???
   post_process: letter
 generation:

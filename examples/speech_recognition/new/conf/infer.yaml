@@ -11,12 +11,15 @@ hydra:
     dir: ${common_eval.results_path}
     subdir: ${dataset.gen_subset}
 common_eval:
-  results_path: ${decoding.exp_dir}/decode/${decoding.decoder.name}
-  path: ${decoding.exp_dir}/checkpoint_best.pt
+  results_path: null
+  path: null
   post_process: letter
-generation:
-  nbest: 1
-  beam: 500
+  quiet: true
 dataset:
   max_tokens: 1000000
   gen_subset: test
+distributed_training:
+  distributed_world_size: 1
+decoding:
+  beam: 5
+  type: viterbi
