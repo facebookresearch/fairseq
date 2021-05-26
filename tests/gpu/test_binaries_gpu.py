@@ -142,6 +142,40 @@ class TestTranslationGPU(unittest.TestCase):
                 )
                 generate_main(data_dir)
 
+    @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
+    def test_amp(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_amp") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, "fconv_iwslt_de_en", ["--amp"])
+                generate_main(data_dir)
+
+    @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
+    def test_transformer_amp(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_transformer") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(
+                    data_dir,
+                    "transformer_iwslt_de_en",
+                    [
+                        "--encoder-layers",
+                        "2",
+                        "--decoder-layers",
+                        "2",
+                        "--encoder-embed-dim",
+                        "64",
+                        "--decoder-embed-dim",
+                        "64",
+                        "--amp",
+                    ],
+                    run_validation=True,
+                )
+                generate_main(data_dir)
+
+    @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
     def test_levenshtein_transformer(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory(
