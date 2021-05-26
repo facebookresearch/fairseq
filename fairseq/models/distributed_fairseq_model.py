@@ -6,6 +6,8 @@
 import inspect
 
 import torch
+import torch.distributed as dist
+import torch.distributed.algorithms.ddp_comm_hooks.powerSGD_hook as powerSGD
 import torch.nn as nn
 
 from fairseq import distributed_utils
@@ -111,7 +113,17 @@ def DistributedFairseqModel(args, model, process_group):
                 return getattr(wrapped_module, name)
             return super().__getattr__(name)
 
-    return _DistributedFairseqModel(**init_kwargs)
+    # Register a PowerSGD communication hook, by assuming that:
+    # ``args.distributed_wrapper`` is 'DDP' and ``args.ddp_backend`` is 'c10d'.
+    ddp_model = _DistributedFairseqModel(**init_kwargs)
+    state = powerSGD.PowerSGDState(
+        process_group=dist.group.WORLD,
+        matrix_approximation_rank=1,
+        start_powerSGD_iter=1_000,
+    )
+    ddp_model.register_comm_hook(state=state, hook=powerSGD.powerSGD_hook)
+    
+    return ddp_model
 
 
 class TPUDistributedDataParallel(nn.Module):
