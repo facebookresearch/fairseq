@@ -9,6 +9,7 @@ import contextlib
 import logging
 import os
 import re
+import time
 import traceback
 from collections import OrderedDict
 from typing import Any, Dict, Optional, Union
@@ -20,6 +21,7 @@ from fairseq.dataclass.utils import (
     convert_namespace_to_omegaconf,
     overwrite_args_by_name,
 )
+from fairseq.distributed.fully_sharded_data_parallel import FSDP, has_FSDP
 from fairseq.file_io import PathManager
 from fairseq.models import FairseqDecoder, FairseqEncoder
 from omegaconf import Container, DictConfig, open_dict, OmegaConf
@@ -134,9 +136,15 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
             )
         else:
             checkpoints = checkpoint_paths(
-                cfg.save_dir, pattern=r"checkpoint_\d+_(\d+){}\.pt".format(suffix), keep_match=True
+                cfg.save_dir,
+                pattern=r"checkpoint_\d+_(\d+){}\.pt".format(suffix),
+                keep_match=True,
             )
-            checkpoints = [x[0] for x in checkpoints if x[1] % cfg.keep_interval_updates_pattern != 0]
+            checkpoints = [
+                x[0]
+                for x in checkpoints
+                if x[1] % cfg.keep_interval_updates_pattern != 0
+            ]
 
         for old_chk in checkpoints[cfg.keep_interval_updates :]:
             if os.path.lexists(old_chk):
@@ -146,7 +154,9 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
 
     if cfg.keep_last_epochs > 0:
         # remove old epoch checkpoints; checkpoints are sorted in descending order
-        checkpoints = checkpoint_paths(cfg.save_dir, pattern=r"checkpoint(\d+){}\.pt".format(suffix))
+        checkpoints = checkpoint_paths(
+            cfg.save_dir, pattern=r"checkpoint(\d+){}\.pt".format(suffix)
+        )
         for old_chk in checkpoints[cfg.keep_last_epochs :]:
             if os.path.lexists(old_chk):
                 os.remove(old_chk)
@@ -351,6 +361,21 @@ def load_model_ensemble(
     return ensemble, args
 
 
+def get_maybe_sharded_checkpoint_filename(
+    filename: str, suffix: str, shard_idx: int, num_shards: int
+) -> str:
+    orig_filename = filename
+    filename = filename.replace(".pt", suffix + ".pt")
+    fsdp_filename = filename[:-3] + f"-shard{shard_idx}.pt"
+    model_parallel_filename = orig_filename[:-3] + f"_part{shard_idx}.pt"
+    if PathManager.exists(fsdp_filename):
+        return fsdp_filename
+    elif num_shards > 1:
+        return model_parallel_filename
+    else:
+        return filename
+
+
 def load_model_ensemble_and_task(
     filenames,
     arg_overrides: Optional[Dict[str, Any]] = None,
@@ -371,12 +396,13 @@ def load_model_ensemble_and_task(
     cfg = None
     for filename in filenames:
         orig_filename = filename
+        model_shard_state = {"shard_weights": [], "shard_metadata": []}
         assert num_shards > 0
+        st = time.time()
         for shard_idx in range(num_shards):
-            if num_shards == 1:
-                filename = filename.replace(".pt", suffix + ".pt")
-            else:
-                filename = orig_filename[:-3] + f"_part{shard_idx}.pt"
+            filename = get_maybe_sharded_checkpoint_filename(
+                orig_filename, suffix, shard_idx, num_shards
+            )
 
             if not PathManager.exists(filename):
                 raise IOError("Model file not found: {}".format(filename))
@@ -397,14 +423,38 @@ def load_model_ensemble_and_task(
             if "task_state" in state:
                 task.load_state_dict(state["task_state"])
 
-            # build model for ensemble
-            model = task.build_model(cfg.model)
-
-            model.load_state_dict(state["model"], strict=strict, model_cfg=cfg.model)
+            if "fsdp_metadata" in state and num_shards > 1:
+                model_shard_state["shard_weights"].append(state["model"])
+                model_shard_state["shard_metadata"].append(state["fsdp_metadata"])
+                # check FSDP import before the code goes too far
+                if not has_FSDP:
+                    raise ImportError(
+                        "Cannot find FullyShardedDataParallel. "
+                        "Please install fairscale with: pip install fairscale"
+                    )
+                if shard_idx == num_shards - 1:
+                    consolidated_model_state = FSDP.consolidate_shard_weights(
+                        shard_weights=model_shard_state["shard_weights"],
+                        shard_metadata=model_shard_state["shard_metadata"],
+                    )
+                    model = task.build_model(cfg.model)
+                    model.load_state_dict(
+                        consolidated_model_state, strict=strict, model_cfg=cfg.model
+                    )
+            else:
+                # model parallel checkpoint or unsharded checkpoint
+                model = task.build_model(cfg.model)
+                model.load_state_dict(
+                    state["model"], strict=strict, model_cfg=cfg.model
+                )
 
             # reset state so it gets loaded for the next model in ensemble
             state = None
+            if shard_idx % 10 == 0 and shard_idx > 0:
+                elapsed = time.time() - st
+                logger.info(f"Loaded {shard_idx} shards in {elapsed:.2f}s, {elapsed / (shard_idx+1):.2f}s/shard")
 
+        # build model for ensemble
         ensemble.append(model)
     return ensemble, cfg, task
 
@@ -500,8 +550,10 @@ def _upgrade_state_dict(state):
     if "num_updates" not in state["optimizer_history"][-1]:
         state["optimizer_history"][-1]["num_updates"] = 0
     # old model checkpoints may not have separate source/target positions
-    if "args" in state and hasattr(state["args"], "max_positions") and not hasattr(
-        state["args"], "max_source_positions"
+    if (
+        "args" in state
+        and hasattr(state["args"], "max_positions")
+        and not hasattr(state["args"], "max_source_positions")
     ):
         state["args"].max_source_positions = state["args"].max_positions
         state["args"].max_target_positions = state["args"].max_positions

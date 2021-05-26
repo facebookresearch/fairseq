@@ -395,6 +395,9 @@ class Trainer(object):
                 self._gathered_optim_state = None
             else:
                 state_dict["last_optimizer_state"] = self.optimizer.state_dict()
+        if self.cfg.distributed_training.ddp_backend == "fully_sharded":
+            # save meta data for recombining checkpoint upon loading
+            state_dict["fsdp_metadata"] = self.model.local_metadata_dict()
         return state_dict
 
     def save_checkpoint(self, filename, extra_state):
