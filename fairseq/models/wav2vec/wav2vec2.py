@@ -980,6 +980,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
                 key=x,
                 value=x,
                 key_padding_mask=self_attn_padding_mask,
+                need_weights=need_weights,
                 attn_mask=self_attn_mask,
             )
             x = self.dropout1(x)
@@ -998,6 +999,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
                 key=x,
                 value=x,
                 key_padding_mask=self_attn_padding_mask,
+                need_weights=need_weights,
             )
 
             x = self.dropout1(x)
