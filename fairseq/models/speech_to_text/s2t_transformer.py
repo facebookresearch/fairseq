@@ -203,7 +203,6 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
         )
         parser.add_argument(
             '--encoder-freezing-updates',
-            default=None,
             type=int,
             metavar='N',
             help='freeze encoder for first N updates'
@@ -279,7 +278,7 @@ class S2TTransformerEncoder(FairseqEncoder):
     def __init__(self, args):
         super().__init__(None)
 
-        self.encoder_freezing_updates = getattr(args, "encoder_freezing_updates", 0)
+        self.encoder_freezing_updates = args.encoder_freezing_updates
         self.num_updates = 0
 
         self.dropout_module = FairseqDropout(

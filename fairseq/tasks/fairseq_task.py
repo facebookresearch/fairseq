@@ -14,6 +14,7 @@ from fairseq import metrics, search, tokenizer, utils
 from fairseq.data import Dictionary, FairseqDataset, data_utils, encoders, iterators
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import gen_parser_from_dataclass
+from fairseq.optim.amp_optimizer import AMPOptimizer
 from omegaconf import DictConfig
 
 
@@ -340,8 +341,32 @@ class FairseqTask(object):
         return criterions.build_criterion(cfg, self)
 
     def build_generator(
-        self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None
+        self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None, prefix_allowed_tokens_fn=None,
     ):
+        """
+        Build a :class:`~fairseq.SequenceGenerator` instance for this
+        task.
+
+        Args:
+            models (List[~fairseq.models.FairseqModel]): ensemble of models
+            args (fairseq.dataclass.configs.GenerationConfig):
+                configuration object (dataclass) for generation
+            extra_gen_cls_kwargs (Dict[str, Any]): extra options to pass
+                through to SequenceGenerator
+            prefix_allowed_tokens_fn (Callable[[int, torch.Tensor], List[int]]):
+                If provided, this function constrains the beam search to
+                allowed tokens only at each step. The provided function
+                should take 2 arguments: the batch ID (`batch_id: int`)
+                and a unidimensional tensor of token ids (`inputs_ids:
+                torch.Tensor`). It has to return a `List[int]` with the
+                allowed tokens for the next generation step conditioned
+                on the previously generated tokens (`inputs_ids`) and
+                the batch ID (`batch_id`). This argument is useful for
+                constrained generation conditioned on the prefix, as
+                described in "Autoregressive Entity Retrieval"
+                (https://arxiv.org/abs/2010.00904) and
+                https://github.com/facebookresearch/GENRE.
+        """
         if getattr(args, "score_reference", False):
             from fairseq.sequence_scorer import SequenceScorer
 
@@ -368,7 +393,8 @@ class FairseqTask(object):
         match_source_len = getattr(args, "match_source_len", False)
         diversity_rate = getattr(args, "diversity_rate", -1)
         constrained = getattr(args, "constraints", False)
-        prefix_allowed_tokens_fn = getattr(args, "prefix_allowed_tokens_fn", None)
+        if prefix_allowed_tokens_fn is None:
+            prefix_allowed_tokens_fn = getattr(args, "prefix_allowed_tokens_fn", None)
         if (
             sum(
                 int(cond)
@@ -472,7 +498,8 @@ class FairseqTask(object):
         model.train()
         model.set_num_updates(update_num)
         with torch.autograd.profiler.record_function("forward"):
-            loss, sample_size, logging_output = criterion(model, sample)
+            with torch.cuda.amp.autocast(enabled=(isinstance(optimizer, AMPOptimizer))):
+                loss, sample_size, logging_output = criterion(model, sample)
         if ignore_grad:
             loss *= 0
         with torch.autograd.profiler.record_function("backward"):

@@ -10,18 +10,20 @@ from .utils import create_dummy_data, preprocess_lm_data, train_language_model
 
 
 def make_lm_config(
-    data_dir,
+    data_dir=None,
     extra_flags=None,
     task="language_modeling",
     arch="transformer_lm_gpt2_tiny",
 ):
+    task_args = [task]
+    if data_dir is not None:
+        task_args += [data_dir]
     train_parser = options.get_training_parser()
     train_args = options.parse_args_and_arch(
         train_parser,
         [
             "--task",
-            task,
-            data_dir,
+            *task_args,
             "--arch",
             arch,
             "--optimizer",
@@ -96,6 +98,10 @@ class TestValidSubsetsErrors(unittest.TestCase):
     def test_disable_validation(self):
         self._test_case([], ["--disable-validation"])
         self._test_case(["valid", "valid1"], ["--disable-validation"])
+
+    def test_dummy_task(self):
+        cfg = make_lm_config(task="dummy_lm")
+        raise_if_valid_subsets_unintentionally_ignored(cfg)
 
 
 class TestCombineValidSubsets(unittest.TestCase):

@@ -373,6 +373,10 @@ def post_process(sentence: str, symbol: str):
         sentence = sentence.replace(" ", "").replace("_", " ").strip()
     elif symbol == "letter":
         sentence = sentence.replace(" ", "").replace("|", " ").strip()
+    elif symbol == "silence":
+        import re
+        sentence = sentence.replace("<SIL>", "")
+        sentence = re.sub(' +', ' ', sentence).strip()
     elif symbol == "_EOW":
         sentence = sentence.replace(" ", "").replace("_EOW", " ").strip()
     elif symbol in {"subword_nmt", "@@ ", "@@"}:
@@ -579,6 +583,7 @@ def raise_if_valid_subsets_unintentionally_ignored(train_cfg) -> None:
         train_cfg.dataset.ignore_unused_valid_subsets
         or train_cfg.dataset.combine_valid_subsets
         or train_cfg.dataset.disable_validation
+        or not hasattr(train_cfg.task, "data")
     ):
         return
     other_paths = _find_extra_valid_paths(train_cfg.task.data)

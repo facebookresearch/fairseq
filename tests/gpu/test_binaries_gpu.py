@@ -142,6 +142,40 @@ class TestTranslationGPU(unittest.TestCase):
                 )
                 generate_main(data_dir)
 
+    @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
+    def test_amp(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_amp") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, "fconv_iwslt_de_en", ["--amp"])
+                generate_main(data_dir)
+
+    @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
+    def test_transformer_amp(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_transformer") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(
+                    data_dir,
+                    "transformer_iwslt_de_en",
+                    [
+                        "--encoder-layers",
+                        "2",
+                        "--decoder-layers",
+                        "2",
+                        "--encoder-embed-dim",
+                        "64",
+                        "--decoder-embed-dim",
+                        "64",
+                        "--amp",
+                    ],
+                    run_validation=True,
+                )
+                generate_main(data_dir)
+
+    @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
     def test_levenshtein_transformer(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory(
@@ -183,6 +217,38 @@ class TestTranslationGPU(unittest.TestCase):
                         ]
                     ),
                 )
+
+    def test_fsdp_checkpoint_generate(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_fsdp_sharded") as data_dir:
+                log = os.path.join(data_dir, "train.log")
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                world_size = min(torch.cuda.device_count(), 2)
+                train_translation_model(
+                    data_dir,
+                    "fconv_iwslt_de_en",
+                    ["--log-file", log, "--ddp-backend", "fully_sharded"],
+                    world_size=world_size,
+                )
+                generate_main(data_dir)
+                assert os.path.exists(log)
+
+    def test_fsdp_sharded_checkpoint_generate(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_fsdp_sharded") as data_dir:
+                log = os.path.join(data_dir, "train.log")
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                world_size = min(torch.cuda.device_count(), 2)
+                train_translation_model(
+                    data_dir,
+                    "fconv_iwslt_de_en",
+                    ["--log-file", log, "--ddp-backend", "fully_sharded", "--use-sharded-state"],
+                    world_size=world_size,
+                )
+                generate_main(data_dir, ["--checkpoint-shard-count", str(world_size)])
+                assert os.path.exists(log)
 
 
 def _quantize_language_model(data_dir, arch, extra_flags=None, run_validation=False):

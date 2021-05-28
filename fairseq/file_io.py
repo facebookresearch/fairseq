@@ -29,14 +29,6 @@ try:
             "S3PathHandler couldn't be imported. Either missing fb-only files, or boto3 module."
         )
 
-    try:
-        # [FB only] Add extra FB only PathHandlers for PathManager
-        import fairseq.fb_file_io as fb_file_io
-
-        fb_file_io.update_path_manager(IOPathManager)
-    except ImportError:
-        pass
-
 except ImportError:
     IOPathManager = None
 

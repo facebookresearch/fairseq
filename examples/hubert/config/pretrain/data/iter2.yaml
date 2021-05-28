@@ -1,0 +1,8 @@
+# @package _global_
+
+task:
+  label_dir: ???
+  labels: ["km"]
+
+model:
+  label_rate: 50
