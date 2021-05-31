@@ -369,7 +369,7 @@ class Trainer(object):
         state_dict = {
             "args": None,  # legacy
             "cfg": (
-                OmegaConf.to_container(self.cfg)
+                OmegaConf.to_container(self.cfg, resolve=True, enum_to_str=True)
                 if OmegaConf.is_config(self.cfg)
                 else self.cfg
             ),
