@@ -303,7 +303,7 @@ class AudioPretrainingTask(FairseqTask):
             else:
                 self.tokenizer = None
 
-        actualized_cfg = getattr(model, "cfg")
+        actualized_cfg = getattr(model, "cfg", None)
         if actualized_cfg is not None:
             if "w2v_args" in actualized_cfg:
                 model_cfg.w2v_args = actualized_cfg.w2v_args
