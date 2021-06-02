@@ -225,7 +225,7 @@ def get_parser(desc, default_task="translation"):
     parser.add_argument('--cpu', action='store_true', help='use CPU instead of CUDA')
     parser.add_argument('--tpu', action='store_true', help='use TPU instead of CUDA')
     parser.add_argument('--bf16', action='store_true', help='use bfloat16; implies --tpu')
-    parser.add_argument('--fp16', action='store_true', help='use FP16')
+    parser.add_argument('--fp16', default=False, action='store_true', help='use FP16')
     parser.add_argument('--memory-efficient-bf16', action='store_true',
                         help='use a memory-efficient version of BF16 training; implies --bf16')
     parser.add_argument('--memory-efficient-fp16', action='store_true',
