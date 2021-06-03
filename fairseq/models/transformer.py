@@ -378,9 +378,9 @@ class TransformerEncoder(FairseqEncoder):
             if not args.no_token_positional_embeddings
             else None
         )
-
+        export = getattr(args, "export", False)
         if getattr(args, "layernorm_embedding", False):
-            self.layernorm_embedding = LayerNorm(embed_dim)
+            self.layernorm_embedding = LayerNorm(embed_dim, export=export)
         else:
             self.layernorm_embedding = None
 
@@ -403,7 +403,7 @@ class TransformerEncoder(FairseqEncoder):
         self.num_layers = len(self.layers)
 
         if args.encoder_normalize_before:
-            self.layer_norm = LayerNorm(embed_dim)
+            self.layer_norm = LayerNorm(embed_dim, export=export)
         else:
             self.layer_norm = None
 
@@ -702,9 +702,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             if not args.no_token_positional_embeddings
             else None
         )
-
+        export = getattr(args, "export", False)
         if getattr(args, "layernorm_embedding", False):
-            self.layernorm_embedding = LayerNorm(embed_dim)
+            self.layernorm_embedding = LayerNorm(embed_dim, export=export)
         else:
             self.layernorm_embedding = None
 
@@ -725,7 +725,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         if args.decoder_normalize_before and not getattr(
             args, "no_decoder_final_norm", False
         ):
-            self.layer_norm = LayerNorm(embed_dim)
+            self.layer_norm = LayerNorm(embed_dim, export=export)
         else:
             self.layer_norm = None
 
