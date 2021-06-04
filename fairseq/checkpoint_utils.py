@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional, Union
 from random import randint
 
 import torch
-from fairseq.dataclass.configs import CheckpointConfig, FairseqConfig
+from fairseq.dataclass.configs import CheckpointConfig
 from fairseq.dataclass.utils import (
     convert_namespace_to_omegaconf,
     overwrite_args_by_name,
@@ -24,7 +24,7 @@ from fairseq.dataclass.utils import (
 from fairseq.distributed.fully_sharded_data_parallel import FSDP, has_FSDP
 from fairseq.file_io import PathManager
 from fairseq.models import FairseqDecoder, FairseqEncoder
-from omegaconf import Container, DictConfig, open_dict, OmegaConf
+from omegaconf import DictConfig, open_dict, OmegaConf
 
 
 logger = logging.getLogger(__name__)
@@ -512,7 +512,6 @@ def _torch_persistent_save(obj, f):
 
 def _upgrade_state_dict(state):
     """Helper for upgrading old model checkpoints."""
-    from fairseq import models, registry, tasks
 
     # add optimizer_history
     if "optimizer_history" not in state:
@@ -586,12 +585,18 @@ def _upgrade_state_dict(state):
         if hasattr(state["args"], "min_lr"):
             state["args"].stop_min_lr = state["args"].min_lr
             del state["args"].min_lr
-        # binary_cross_entropy => wav2vec criterion
+        # binary_cross_entropy / kd_binary_cross_entropy => wav2vec criterion
         if (
             hasattr(state["args"], "criterion")
-            and state["args"].criterion == "binary_cross_entropy"
+            and state["args"].criterion in [
+                "binary_cross_entropy",
+                "kd_binary_cross_entropy",
+            ]
         ):
             state["args"].criterion = "wav2vec"
+        # remove log_keys if it's None (criteria will supply a default value of [])
+        if hasattr(state["args"], "log_keys") and state["args"].log_keys is None:
+            delattr(state["args"], "log_keys")
         # speech_pretraining => audio pretraining
         if (
             hasattr(state["args"], "task")
