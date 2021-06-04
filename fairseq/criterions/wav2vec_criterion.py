@@ -82,7 +82,7 @@ class Wav2vecCriterion(FairseqCriterion):
             )
             loss = (loss * mi).sum() if reduce else (loss * mi)
 
-        if 'sample_size' in sample and self.infonce:
+        if 'sample_size' in sample:
             sample_size = sample['sample_size']
         elif 'mask_indices' in sample['net_input']:
             sample_size = sample['net_input']['mask_indices'].sum()
