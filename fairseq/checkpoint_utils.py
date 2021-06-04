@@ -611,6 +611,15 @@ def _upgrade_state_dict(state):
             and len(state["args"].data) > 0
         ):
             state["args"].data = state["args"].data[0]
+        # remove keys in state["args"] related to teacher-student learning
+        for key in [
+            "static_teachers",
+            "static_teacher_weights",
+            "dynamic_teachers",
+            "dynamic_teacher_weights",
+        ]:
+            if key in state["args"]:
+                delattr(state["args"], key)
 
         state["cfg"] = convert_namespace_to_omegaconf(state["args"])
 
