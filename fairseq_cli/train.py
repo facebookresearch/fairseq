@@ -14,6 +14,15 @@ import os
 import sys
 from typing import Dict, Optional, Any, List, Tuple, Callable
 
+# We need to setup root logger before importing any fairseq libraries.
+logging.basicConfig(
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=os.environ.get("LOGLEVEL", "INFO").upper(),
+    stream=sys.stdout,
+)
+logger = logging.getLogger("fairseq_cli.train")
+
 import numpy as np
 import torch
 from fairseq import (
@@ -35,13 +44,6 @@ from fairseq.trainer import Trainer
 from omegaconf import DictConfig, OmegaConf
 
 
-logging.basicConfig(
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    level=os.environ.get("LOGLEVEL", "INFO").upper(),
-    stream=sys.stdout,
-)
-logger = logging.getLogger("fairseq_cli.train")
 
 
 def main(cfg: FairseqConfig) -> None:
