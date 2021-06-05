@@ -7,6 +7,7 @@ import inspect
 
 import torch
 import torch.distributed as dist
+from torch.distributed.algorithms.ddp_comm_hooks import default_hooks as default
 import torch.distributed.algorithms.ddp_comm_hooks.powerSGD_hook as powerSGD
 import torch.nn as nn
 
@@ -113,15 +114,22 @@ def DistributedFairseqModel(args, model, process_group):
                 return getattr(wrapped_module, name)
             return super().__getattr__(name)
 
+    ddp_model = _DistributedFairseqModel(**init_kwargs)
     # Register a PowerSGD communication hook, by assuming that:
     # ``args.distributed_wrapper`` is 'DDP' and ``args.ddp_backend`` is 'c10d'.
-    ddp_model = _DistributedFairseqModel(**init_kwargs)
+    """
     state = powerSGD.PowerSGDState(
         process_group=dist.group.WORLD,
         matrix_approximation_rank=1,
         start_powerSGD_iter=1_000,
     )
     ddp_model.register_comm_hook(state=state, hook=powerSGD.powerSGD_hook)
+    """
+    
+    # Register a FP16 compression communication hook, by assuming that:
+    # ``args.distributed_wrapper`` is 'DDP' and ``args.ddp_backend`` is 'c10d'.    
+    ddp.register_comm_hook(state=group.WORLD, hook=default.fp16_compress_hook)
+    
     
     return ddp_model
 
