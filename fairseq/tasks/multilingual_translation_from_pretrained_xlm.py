@@ -1,8 +1,3 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
-
 from dataclasses import dataclass
 from fairseq.data.legacy.masked_lm_dictionary import MaskedLMDictionary
 from fairseq.tasks.translation_multi_simple_epoch import TranslationMultiSimpleEpochTask
@@ -14,7 +9,7 @@ from . import register_task
 @register_task("multilingual_translation_from_pretrained_xlm")
 class MultilingualTranslationFromPretrainedXLMTask(TranslationMultiSimpleEpochTask):
     """
-    Same as TranslationTask except use the MaskedLMDictionary class so that
+    Same as TranslationMultiSimpleEpochTask except use the MaskedLMDictionary class so that
     we can load data that was binarized with the MaskedLMDictionary class.
 
     This task should be used for the entire training pipeline when we want to

@@ -119,9 +119,13 @@ class MultilingualDenoisingTask(DenoisingTask):
             )
         else:
             languages = self.langs.split(",")
+            dsets = []
             for name in languages:
                 p = os.path.join(data_path, name)
-                assert os.path.exists(p), "data not found: {}".format(p)
+                if os.path.exists(p): dsets += [name]
+                print(p)
+                print(os.path.exists(p))
+                #assert os.path.exists(p), "data not found: {}".format(p)
 
         logger.info("Training on {0} languages: {1}".format(len(languages), languages))
         logger.info(
@@ -131,19 +135,20 @@ class MultilingualDenoisingTask(DenoisingTask):
         mask_whole_words = get_whole_word_mask(self.args, self.dictionary)
         language_without_segmentations = self.args.no_whole_word_mask_langs.split(",")
         lang_datasets = []
-        for language in languages:
+        for language in dsets:
             split_path = os.path.join(data_path, language, split)
-
+            
             dataset = data_utils.load_indexed_dataset(
                 split_path,
                 self.source_dictionary,
                 self.args.dataset_impl,
                 combine=combine,
             )
-            if dataset is None:
-                raise FileNotFoundError(
-                    "Dataset not found: {} ({})".format(split, split_path)
-                )
+            
+            #if dataset is None:
+                #raise FileNotFoundError(
+                #    "Dataset not found: {} ({})".format(split, split_path)
+                #)
 
             end_token = (
                 self.source_dictionary.index("[{}]".format(language))
