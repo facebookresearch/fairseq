@@ -123,8 +123,6 @@ class MultilingualDenoisingTask(DenoisingTask):
             for name in languages:
                 p = os.path.join(data_path, name)
                 if os.path.exists(p): dsets += [name]
-                print(p)
-                print(os.path.exists(p))
                 #assert os.path.exists(p), "data not found: {}".format(p)
 
         logger.info("Training on {0} languages: {1}".format(len(languages), languages))
@@ -207,7 +205,7 @@ class MultilingualDenoisingTask(DenoisingTask):
                 "Sample probability by language: {}".format(
                     {
                         lang: "{0:.4f}".format(sample_probs[id])
-                        for id, lang in enumerate(languages)
+                        for id, lang in enumerate(dsets)
                     }
                 )
             )
@@ -216,7 +214,7 @@ class MultilingualDenoisingTask(DenoisingTask):
                 "Up/Down Sampling ratio by language: {}".format(
                     {
                         lang: "{0:.2f}".format(size_ratio[id])
-                        for id, lang in enumerate(languages)
+                        for id, lang in enumerate(dsets)
                     }
                 )
             )
