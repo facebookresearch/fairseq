@@ -135,11 +135,11 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
             languages = self.langs.split(",")
             for name in languages:
                 p = os.path.join(data_path, name)
-                assert os.path.exists(p), "data not found: {}".format(p)
+                #assert os.path.exists(p), "data not found: {}".format(p)
 
         if self.args.universe_dict != "ignore":
             with open(self.args.universe_dict, 'r') as univ_file:
-                universes = univ_file.readlines()
+                universes = [x.rstrip() for x in univ_file.readlines()]
 
 
         logger.info("Training on {0} languages: {1}".format(len(languages), languages))
@@ -151,26 +151,28 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
         mask_whole_words = get_whole_word_mask(self.args, self.dictionary)
         language_without_segmentations = self.args.no_whole_word_mask_langs.split(",")
         lang_datasets = []
+        dsets = []
         for language in languages:
             for universe in universes:
                 split_path = os.path.join(data_path, universe, language, split)
-
+                if os.path.exists(os.path.join(data_path, universe, language)) == False:
+                    continue
+                dsets += [universe + language]
                 dataset = data_utils.load_indexed_dataset(
                     split_path,
                     self.source_dictionary,
                     self.args.dataset_impl,
                     combine=combine,
                 )
-                if dataset is None:
-                    raise FileNotFoundError(
-                        "Dataset not found: {} ({})".format(split, split_path)
-                    )
+                #if dataset is None:
+                #    raise FileNotFoundError(
+                #        "Dataset not found: {} ({})".format(split, split_path)
+                #    )
 
                 end_token = (
-                    self.source_dictionary.index("[{}]".format(language))
-                    if self.args.add_lang_token
-                    else self.source_dictionary.eos()
+                    self.source_dictionary.index("[{}]".format(universe))
                 )
+
 
                 # create continuous blocks of tokens
                 dataset = TokenBlockDataset(
@@ -188,9 +190,11 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                 dataset = AppendTokenDataset(dataset, end_token)
                 
                 end_token = (
-                    self.source_dictionary.index("[{}]".format(universe))
+                    self.source_dictionary.index("[{}]".format(language))
+                    if self.args.add_lang_token
+                    else self.source_dictionary.eos()
                 )
-
+                
                 dataset = AppendTokenDataset(dataset, end_token)
 
                 lang_mask_whole_words = (
@@ -229,7 +233,7 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                 "Sample probability by language: {}".format(
                     {
                         lang: "{0:.4f}".format(sample_probs[id])
-                        for id, lang in enumerate(languages)
+                        for id, lang in enumerate(dsets)
                     }
                 )
             )
@@ -238,7 +242,7 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                 "Up/Down Sampling ratio by language: {}".format(
                     {
                         lang: "{0:.2f}".format(size_ratio[id])
-                        for id, lang in enumerate(languages)
+                        for id, lang in enumerate(dsets)
                     }
                 )
             )

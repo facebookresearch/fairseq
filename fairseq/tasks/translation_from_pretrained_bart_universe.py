@@ -11,6 +11,7 @@ from . import register_task
 from .translation import TranslationTask, load_langpair_dataset
 
 
+
 @register_task("translation_from_pretrained_bart_universe")
 class TranslationFromPretrainedBARTUniverseTask(TranslationTask):
     """
@@ -61,6 +62,7 @@ class TranslationFromPretrainedBARTUniverseTask(TranslationTask):
         self.langs = args.langs.split(",")
         with open(args.universe_dict, 'r') as univ_file:
             universe_ids = univ_file.readlines()
+
         self.universes = universe_ids
         for d in [src_dict, tgt_dict]:
             for l in self.langs:
