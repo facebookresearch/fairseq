@@ -107,19 +107,19 @@ class HubertPretrainingTask(FairseqTask):
     def __init__(
         self,
         cfg: HubertPretrainingConfig,
-        dictionaries: Dict[str, Dictionary],
     ) -> None:
         super().__init__(cfg)
 
         logger.info(f"current directory is {os.getcwd()}")
         logger.info(f"HubertPretrainingTask Config {cfg}")
-        self._dictionaries = dictionaries
+        
+        self.state.add_factory("dictionaries", lambda: self.dictionaries_factory(cfg))
+        self.state.add_factory("target_dictionary", self.target_dictionary_factory)
 
+        self._dictionaries = self.state.dictionaries
+        self._target_dictionary = self.state.target_dictionary
         self._source_dictionary = None
-        self._target_dictionary = None
 
-        if len(self.dictionaries) == 1:
-            self._target_dictionary = self.dictionaries[0]
         self.blank_symbol = "<s>"
 
     @property
@@ -138,14 +138,22 @@ class HubertPretrainingTask(FairseqTask):
     def setup_task(
         cls, cfg: HubertPretrainingConfig, **kwargs
     ) -> "HubertPretrainingTask":
+        return cls(cfg)
+        
+    def dictionaries_factory(self, cfg: HubertPretrainingConfig):
         label_dir = cfg.data if cfg.label_dir is None else cfg.label_dir
-        dictionaries = {
+        return {
             label: Dictionary.load(f"{label_dir}/dict.{label}.txt")
             if os.path.exists(f"{label_dir}/dict.{label}.txt")
             else None
             for label in cfg.labels
         }
-        return cls(cfg, dictionaries)
+
+    def target_dictionary_factory(self):
+        if len(self._dictionaries) == 1:
+            logger.info(self._dictionaries)
+            return self._dictionaries[list(self._dictionaries)[0]]
+        return None
 
     def get_label_dir(self) -> str:
         if self.cfg.label_dir is None:
