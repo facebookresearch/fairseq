@@ -5,8 +5,7 @@ from io import StringIO
 
 import numpy as np
 
-from tests.test_binaries import train_language_model
-from tests.utils import create_dummy_data, preprocess_lm_data
+from tests.utils import create_dummy_data, preprocess_lm_data, train_language_model
 
 try:
     from pyarrow import plasma
@@ -16,7 +15,7 @@ try:
 except ImportError:
     PYARROW_AVAILABLE = False
 
-dummy_path = 'dummy'
+dummy_path = "dummy"
 
 
 @unittest.skipUnless(PYARROW_AVAILABLE, "")
@@ -24,7 +23,7 @@ class TestPlasmaView(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp_file = tempfile.NamedTemporaryFile()  # noqa: P201
         self.path = self.tmp_file.name
-        self.server = PlasmaStore.start(path=self.path)
+        self.server = PlasmaStore.start(path=self.path, nbytes=10000)
         self.client = plasma.connect(self.path, num_retries=10)
 
     def tearDown(self) -> None:

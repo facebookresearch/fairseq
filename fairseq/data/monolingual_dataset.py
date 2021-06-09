@@ -9,7 +9,7 @@ import torch
 from . import FairseqDataset, data_utils
 
 
-def collate(samples, pad_idx, eos_idx):
+def collate(samples, pad_idx, eos_idx, fixed_pad_length=None, pad_to_bsz=None):
     if len(samples) == 0:
         return {}
 
@@ -23,6 +23,8 @@ def collate(samples, pad_idx, eos_idx):
                         pad_idx,
                         eos_idx,
                         left_pad=False,
+                        pad_to_length=fixed_pad_length,
+                        pad_to_bsz=pad_to_bsz,
                     )
                 )
             return res
@@ -32,6 +34,8 @@ def collate(samples, pad_idx, eos_idx):
                 pad_idx,
                 eos_idx,
                 left_pad=False,
+                pad_to_length=fixed_pad_length,
+                pad_to_bsz=pad_to_bsz,
             )
 
     src_tokens = merge("source")
@@ -75,6 +79,10 @@ class MonolingualDataset(FairseqDataset):
         shuffle=False,
         targets=None,
         add_bos_token=False,
+        fixed_pad_length=None,
+        pad_to_bsz=None,
+        src_lang_idx=None,
+        tgt_lang_idx=None,
     ):
         self.dataset = dataset
         self.sizes = np.array(sizes)
@@ -83,6 +91,10 @@ class MonolingualDataset(FairseqDataset):
         self.add_eos_for_other_targets = add_eos_for_other_targets
         self.shuffle = shuffle
         self.add_bos_token = add_bos_token
+        self.fixed_pad_length = fixed_pad_length
+        self.pad_to_bsz = pad_to_bsz
+        self.src_lang_idx = src_lang_idx
+        self.tgt_lang_idx = tgt_lang_idx
 
         assert targets is None or all(
             t in {"self", "future", "past"} for t in targets
@@ -165,6 +177,11 @@ class MonolingualDataset(FairseqDataset):
                 target = torch.cat([target.new([self.tgt_vocab.bos()]), target])
         return source, target
 
+    def num_tokens_vec(self, indices):
+        """Return the number of tokens for a set of positions defined by indices.
+        This value is used to enforce ``--max-tokens`` during batching."""
+        return self.sizes[indices]
+
     def _filter_vocab(self, target):
         if len(self.tgt_vocab) != len(self.vocab):
 
@@ -200,7 +217,13 @@ class MonolingualDataset(FairseqDataset):
                   target sentence of shape `(bsz, tgt_len)`. Padding will appear
                   on the right.
         """
-        return collate(samples, self.vocab.pad(), self.vocab.eos())
+        return collate(
+            samples,
+            self.vocab.pad(),
+            self.vocab.eos(),
+            self.fixed_pad_length,
+            self.pad_to_bsz,
+        )
 
     def num_tokens(self, index):
         """Return the number of tokens in a sample. This value is used to

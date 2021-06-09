@@ -281,7 +281,6 @@ def distributed_init(cfg: FairseqConfig):
         cfg.distributed_training.device_id = xm.get_local_ordinal()
         cfg.distributed_training.distributed_rank = xm.get_ordinal()
         xm.rendezvous("distributed_init")  # wait for all workers
-        xm.mark_step()
 
     if is_master(cfg.distributed_training):
         logging.getLogger().setLevel(logging.INFO)
@@ -306,6 +305,9 @@ def distributed_init(cfg: FairseqConfig):
         model_parallel_cuda_manual_seed(cfg.common.seed)
         model_part_number = get_model_parallel_rank()
         cfg.checkpoint.checkpoint_suffix += "-model_part-{0}".format(model_part_number)
+
+    if hasattr(cfg,  "model") and getattr(cfg.model, "base_layers", 0) > 0:
+        cfg.checkpoint.checkpoint_suffix = f"-rank-{cfg.distributed_training.distributed_rank}"
 
     return cfg.distributed_training.distributed_rank
 
@@ -357,7 +359,10 @@ def call_main(cfg: FairseqConfig, main, **kwargs):
         xmp.spawn(
             fn=distributed_main,
             args=(main, cfg, kwargs),
-            nprocs=8,  # use all 8 TPU cores
+            # tpu-comment:
+            #   8 devices in one TPU VM, is the max processes to be spawned.
+            #   The rest is driven by xm.distributed.xla_dist
+            nprocs=min(cfg.distributed_training.distributed_world_size, 8),
         )
     else:
         # single GPU main

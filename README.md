@@ -61,6 +61,7 @@ We provide reference implementations of various sequence modeling papers:
 
 ### What's New:
 
+* June 2021 [Released XLMR-XL and XLMR-XXL models](examples/xlmr/README.md)
 * March 2021 [Added full parameter and optimizer state sharding + CPU offloading](examples/fully_sharded_data_parallel/README.md)
 * February 2021 [Added LASER training code](examples/laser/README.md)
 * December 2020: [Added Adaptive Attention Span code](examples/adaptive_span/README.md)

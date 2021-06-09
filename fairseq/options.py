@@ -4,7 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
-from typing import Callable, List, Optional
+from pathlib import Path
+from typing import Callable, List, Optional, Union
 
 import torch
 from fairseq import utils
@@ -285,6 +286,8 @@ def add_preprocess_args(parser):
                        help="Pad dictionary size to be multiple of N")
     group.add_argument("--workers", metavar="N", default=1, type=int,
                        help="number of parallel workers")
+    group.add_argument("--dict-only", action='store_true',
+                       help="if true, only builds a dictionary and then exits")
     # fmt: on
     return parser
 
@@ -361,3 +364,18 @@ def add_model_args(parser):
                        help='model architecture')
     # fmt: on
     return group
+
+
+def get_args(
+    data: Union[str, Path],
+    task: str = "translation",
+    arch: str = "transformer",
+    **overrides
+):
+    parser = get_training_parser(task)
+    args = parse_args_and_arch(parser, [str(data), "--task", task, "--arch", arch])
+
+    for k, v in overrides.items():
+        setattr(args, k, v)
+
+    return args

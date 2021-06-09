@@ -12,6 +12,7 @@ import torch
 from fairseq.dataclass.constants import (
     DATASET_IMPL_CHOICES,
     DDP_BACKEND_CHOICES,
+    DDP_COMM_HOOK_CHOICES,
     GENERATION_CONSTRAINTS_CHOICES,
     GENERATION_DECODING_FORMAT_CHOICES,
     LOG_FORMAT_CHOICES,
@@ -95,6 +96,9 @@ class CommonConfig(FairseqDataclass):
     log_format: Optional[LOG_FORMAT_CHOICES] = field(
         default=None, metadata={"help": "log format to use"}
     )
+    log_file: Optional[str] = field(
+        default=None, metadata={"help": "log file to copy metrics to."}
+    )
     tensorboard_logdir: Optional[str] = field(
         default=None,
         metadata={
@@ -146,10 +150,22 @@ class CommonConfig(FairseqDataclass):
     )
     min_loss_scale: float = field(
         default=1e-4,
-        metadata={"help": "minimum FP16 loss scale, after which training is stopped"},
+        metadata={"help": "minimum FP16/AMP loss scale, after which training is stopped"},
     )
     threshold_loss_scale: Optional[float] = field(
         default=None, metadata={"help": "threshold FP16 loss scale from below"}
+    )
+    amp: bool = field(default=False, metadata={"help": "use automatic mixed precision"})
+    amp_batch_retries: int = field(
+        default=2,
+        metadata={"help": "number of retries of same batch after reducing loss scale with AMP"},
+    )
+    amp_init_scale: int = field(
+        default=2 ** 7, metadata={"help": "default AMP loss scale"}
+    )
+    amp_scale_window: Optional[int] = field(
+        default=None,
+        metadata={"help": "number of updates before increasing AMP loss scale"},
     )
     user_dir: Optional[str] = field(
         default=None,
@@ -240,6 +256,9 @@ class DistributedTrainingConfig(FairseqDataclass):
     )
     ddp_backend: DDP_BACKEND_CHOICES = field(
         default="pytorch_ddp", metadata={"help": "DistributedDataParallel backend"}
+    )
+    ddp_comm_hook: DDP_COMM_HOOK_CHOICES = field(
+        default="none", metadata={"help": "communication hook"}
     )
     bucket_cap_mb: int = field(
         default=25, metadata={"help": "bucket size for reduction"}
@@ -372,6 +391,9 @@ class DistributedTrainingConfig(FairseqDataclass):
     cpu_offload: bool = field(
         default=False, metadata={"help": "offload FP32 params to CPU"}
     )
+    use_sharded_state: bool = field(
+        default=False, metadata={"help": "use sharded checkpoint files"},
+    )
 
 
 @dataclass
@@ -419,6 +441,19 @@ class DatasetConfig(FairseqDataclass):
             " (e.g. train, valid, test)"
         },
     )
+    combine_valid_subsets: Optional[bool] = field(
+        default=None,
+        metadata={
+            "help": "comma separated list of data subsets to use for validation"
+                    " (e.g. train, valid, test)",
+            "argparse_alias": "--combine-val",
+        },
+    )
+    ignore_unused_valid_subsets: Optional[bool] = field(
+        default=False,
+        metadata={"help": "do not raise error if valid subsets are ignored"},
+    )
+
     validate_interval: int = field(
         default=1, metadata={"help": "validate every N epochs"}
     )
@@ -448,6 +483,8 @@ class DatasetConfig(FairseqDataclass):
             "argparse_alias": "--max-sentences-valid",
         },
     )
+    max_valid_steps: Optional[int] = field(default=None, metadata={'help': 'How many batches to evaluate',
+                                                                   "argparse_alias": "--nval"})
     curriculum: int = field(
         default=0, metadata={"help": "don't shuffle batches for first N epochs"}
     )
@@ -564,6 +601,14 @@ class CheckpointConfig(FairseqDataclass):
         default=-1,
         metadata={
             "help": "keep the last N checkpoints saved with --save-interval-updates"
+        },
+    )
+    keep_interval_updates_pattern: int = field(
+        default=-1,
+        metadata={
+            "help": "when used with --keep-interval-updates, skips deleting "
+                    "any checkpoints with update X where "
+                    "X %% keep_interval_updates_pattern == 0"
         },
     )
     keep_last_epochs: int = field(

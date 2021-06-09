@@ -5,6 +5,7 @@
 
 import math
 from typing import Dict, List, Optional
+import sys
 
 import torch
 import torch.nn as nn
@@ -23,6 +24,7 @@ class SequenceGenerator(nn.Module):
         beam_size=1,
         max_len_a=0,
         max_len_b=200,
+        max_len=0,
         min_len=1,
         normalize_scores=True,
         len_penalty=1.0,
@@ -44,6 +46,8 @@ class SequenceGenerator(nn.Module):
             beam_size (int, optional): beam width (default: 1)
             max_len_a/b (int, optional): generate sequences of maximum length
                 ax + b, where x is the source length
+            max_len (int, optional): the maximum length of the generated output
+                (not including end-of-sentence)
             min_len (int, optional): the minimum length of the generated output
                 (not including end-of-sentence)
             normalize_scores (bool, optional): normalize scores by the length
@@ -79,6 +83,7 @@ class SequenceGenerator(nn.Module):
         self.max_len_a = max_len_a
         self.max_len_b = max_len_b
         self.min_len = min_len
+        self.max_len = max_len or self.model.max_decoder_positions()
 
         self.normalize_scores = normalize_scores
         self.len_penalty = len_penalty
@@ -166,7 +171,7 @@ class SequenceGenerator(nn.Module):
                 yield id, src, ref, hypos[i]
 
     @torch.no_grad()
-    def generate(self, models, sample: Dict[str, Dict[str, Tensor]], **kwargs):
+    def generate(self, models, sample: Dict[str, Dict[str, Tensor]], **kwargs) -> List[List[Dict[str, Tensor]]]:
         """Generate translations. Match the api of other fairseq generators.
 
         Args:
@@ -210,8 +215,15 @@ class SequenceGenerator(nn.Module):
                 if net_input["padding_mask"] is not None
                 else torch.tensor(src_tokens.size(-1)).to(src_tokens)
             )
+        elif "features" in net_input:
+            src_tokens = net_input["features"]
+            src_lengths = (
+                net_input["padding_mask"].size(-1) - net_input["padding_mask"].sum(-1)
+                if net_input["padding_mask"] is not None
+                else torch.tensor(src_tokens.size(-1)).to(src_tokens)
+            )
         else:
-            raise Exception("expected src_tokens or source in net input")
+            raise Exception("expected src_tokens or source in net input. input keys: " + str(net_input.keys()))
 
         # bsz: total number of sentences in beam
         # Note that src_tokens may have more than 2 dimensions (i.e. audio features)
@@ -232,8 +244,7 @@ class SequenceGenerator(nn.Module):
         else:
             max_len = min(
                 int(self.max_len_a * src_len + self.max_len_b),
-                # exclude the EOS marker
-                self.model.max_decoder_positions() - 1,
+                self.max_len - 1,
             )
         assert (
             self.min_len <= max_len
@@ -275,9 +286,8 @@ class SequenceGenerator(nn.Module):
             [torch.jit.annotate(List[Dict[str, Tensor]], []) for i in range(bsz)],
         )  # contains lists of dictionaries of infomation about the hypothesis being finalized at each step
 
-        finished = [
-            False for i in range(bsz)
-        ]  # a boolean array indicating if the sentence at the index is finished or not
+        # a boolean array indicating if the sentence at the index is finished or not
+        finished = [False for i in range(bsz)]
         num_remaining_sent = bsz  # number of sentences remaining
 
         # number of candidate hypos per step
@@ -748,7 +758,7 @@ class EnsembleModel(nn.Module):
         return self.has_incremental
 
     def max_decoder_positions(self):
-        return min([m.max_decoder_positions() for m in self.models])
+        return min([m.max_decoder_positions() for m in self.models if hasattr(m, "max_decoder_positions")] + [sys.maxsize])
 
     @torch.jit.export
     def forward_encoder(self, net_input: Dict[str, Tensor]):
@@ -778,7 +788,10 @@ class EnsembleModel(nn.Module):
                     incremental_state=incremental_states[i],
                 )
             else:
-                decoder_out = model.decoder.forward(tokens, encoder_out=encoder_out)
+                if hasattr(model, "decoder"):
+                    decoder_out = model.decoder.forward(tokens, encoder_out=encoder_out)
+                else:
+                    decoder_out = model.forward(tokens)
 
             attn: Optional[Tensor] = None
             decoder_len = len(decoder_out)
@@ -798,7 +811,6 @@ class EnsembleModel(nn.Module):
                 decoder_out[0][:, -1:, :].div_(temperature),
                 None if decoder_len <= 1 else decoder_out[1],
             )
-
             probs = model.get_normalized_probs(
                 decoder_out_tuple, log_probs=True, sample=None
             )

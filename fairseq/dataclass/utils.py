@@ -9,7 +9,7 @@ import logging
 import os
 import re
 from argparse import ArgumentError, ArgumentParser, Namespace
-from dataclasses import _MISSING_TYPE, MISSING
+from dataclasses import _MISSING_TYPE, MISSING, is_dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Type
 
@@ -457,7 +457,19 @@ def overwrite_args_by_name(cfg: DictConfig, overrides: Dict[str, any]):
                     cfg[k] = overrides[k]
 
 
-def merge_with_parent(dc: FairseqDataclass, cfg: FairseqDataclass):
+def merge_with_parent(dc: FairseqDataclass, cfg: DictConfig, remove_missing=True):
+    if remove_missing:
+
+        if is_dataclass(dc):
+            target_keys = set(dc.__dataclass_fields__.keys())
+        else:
+            target_keys = set(dc.keys())
+
+        with open_dict(cfg):
+            for k in list(cfg.keys()):
+                if k not in target_keys:
+                    del cfg[k]
+
     merged_cfg = OmegaConf.merge(dc, cfg)
     merged_cfg.__dict__["_parent"] = cfg.__dict__["_parent"]
     OmegaConf.set_struct(merged_cfg, True)

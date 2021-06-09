@@ -3,7 +3,6 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from examples.simultaneous_translation.utils.latency import LatencyTraining
 from fairseq.criterions import register_criterion
 from fairseq.criterions.label_smoothed_cross_entropy import (
     LabelSmoothedCrossEntropyCriterion,
@@ -31,6 +30,7 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
         super().__init__(
             task, sentence_avg, label_smoothing, ignore_prefix_size, report_accuracy
         )
+        from examples.simultaneous_translation.utils.latency import LatencyTraining
         self.eps = label_smoothing
         self.latency_weight_avg = latency_weight_avg
         self.latency_weight_avg_type = latency_weight_avg_type

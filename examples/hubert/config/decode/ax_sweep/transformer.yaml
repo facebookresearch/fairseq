@@ -1,0 +1,33 @@
+# @package _global_
+
+common_eval:
+  results_path: ${decoding.exp_dir}/decode/${decoding.decoder.name}_ax/${dataset.gen_subset}
+
+hydra:
+  sweeper:
+    ax_config:
+      max_trials: 60
+      early_stop:
+        minimize: true
+        max_epochs_without_improvement: 10
+        epsilon: 0.025
+      experiment:
+        name: ${dataset.gen_subset}
+        objective_name: wer
+        minimize: true
+        parameter_constraints: null
+        outcome_constraints: null
+        status_quo: null
+      client:
+        verbose_logging: false
+        random_seed: null
+      params:
+        decoding.decoder.lmweight:
+          type: range
+          bounds: [0.0, 4.0]
+        decoding.decoder.wordscore:
+          type: range
+          bounds: [-5.0, 5.0]
+        decoding.decoder.silweight:
+          type: range
+          bounds: [-8.0, 0.0]

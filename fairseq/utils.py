@@ -57,9 +57,9 @@ class FileContentsAction(argparse.Action):
         setattr(namespace, self.dest, argument)
 
 
-def split_paths(paths: str) -> List[str]:
+def split_paths(paths: str, separator=os.pathsep) -> List[str]:
     return (
-        paths.split(os.pathsep)
+        paths.split(separator)
         if "://" not in paths
         else paths.split(MANIFOLD_PATH_SEP)
     )
@@ -118,6 +118,18 @@ def move_to_cpu(sample):
         return tensor.cpu()
 
     return apply_to_sample(_move_to_cpu, sample)
+
+
+def move_to_tpu(sample):
+
+    import torch_xla.core.xla_model as xm
+
+    device = xm.xla_device()
+
+    def _move_to_tpu(tensor):
+        return tensor.to(device)
+
+    return apply_to_sample(_move_to_tpu, sample)
 
 
 def get_incremental_state(
@@ -289,6 +301,9 @@ def convert_padding_direction(
 
 
 def item(tensor):
+    # tpu-comment: making this a no-op for xla devices.
+    if torch.is_tensor(tensor) and tensor.device.type == "xla":
+        return tensor.detach()
     if hasattr(tensor, "item"):
         return tensor.item()
     if hasattr(tensor, "__getitem__"):
@@ -324,10 +339,19 @@ def multi_tensor_total_norm(grads, chunk_size=2048 * 32) -> torch.Tensor:
 
 @torch.no_grad()
 def clip_grad_norm_(params, max_norm, aggregate_norm_fn=None) -> torch.Tensor:
+    def grad_exists(p):
+        return p is not None and getattr(p, "grad", None) is not None
+
     if isinstance(params, torch.Tensor):
         params = [params]
     params = list(params)
-    grads = [p.grad.detach() for p in filter(lambda p: p.grad is not None, params)]
+    grads = [
+        p.grad.detach() for p in params if grad_exists(p) and not hasattr(p, "expert")
+    ]
+    expert_grads = [
+        p.grad.detach() for p in params if grad_exists(p) and hasattr(p, "expert")
+    ]
+
     if len(grads) == 0:
         if len(params) > 0:
             return params[0].new_tensor(0.0)
@@ -362,7 +386,7 @@ def clip_grad_norm_(params, max_norm, aggregate_norm_fn=None) -> torch.Tensor:
     if max_norm > 0:
         max_norm = float(max_norm)
         clip_coef = (max_norm / (total_norm + 1e-6)).clamp_(max=1)
-        for g in grads:
+        for g in grads + expert_grads:
             g.mul_(clip_coef)
     return total_norm
 
@@ -435,7 +459,9 @@ def import_user_module(args):
     module_path = getattr(args, "user_dir", None)
     if module_path is not None:
         module_path = os.path.abspath(args.user_dir)
-        if not os.path.exists(module_path) and not os.path.isfile(os.path.dirname(module_path)):
+        if not os.path.exists(module_path) and not os.path.isfile(
+            os.path.dirname(module_path)
+        ):
             fairseq_rel_path = os.path.join(os.path.dirname(__file__), args.user_dir)
             if os.path.exists(fairseq_rel_path):
                 module_path = fairseq_rel_path
@@ -496,7 +522,7 @@ def deprecation_warning(message, stacklevel=3):
 
 
 def get_activation_fn(activation: str) -> Callable:
-    """ Returns the activation function corresponding to `activation` """
+    """Returns the activation function corresponding to `activation`"""
     from fairseq.modules import gelu, gelu_accurate
 
     if activation == "relu":
@@ -634,18 +660,13 @@ def extract_hard_alignment(attn, src_sent, tgt_sent, pad, eos):
 
 
 def extract_soft_alignment(attn, src_sent, tgt_sent, pad, eos):
-    tgt_valid = (
-        ((tgt_sent != pad)).nonzero(as_tuple=False)
-    )
-    src_valid = (
-        ((src_sent != pad)).nonzero(as_tuple=False).squeeze(dim=-1)
-    )
+    tgt_valid = ((tgt_sent != pad)).nonzero(as_tuple=False)
+    src_valid = ((src_sent != pad)).nonzero(as_tuple=False).squeeze(dim=-1)
     alignment = []
     if len(tgt_valid) != 0 and len(src_valid) != 0:
         attn_valid = attn[tgt_valid, src_valid]
         alignment = [
-            ["{:.6f}".format(p) for p in src_probs.tolist()]
-            for src_probs in attn_valid
+            ["{:.6f}".format(p) for p in src_probs.tolist()] for src_probs in attn_valid
         ]
     return alignment
 
@@ -677,6 +698,28 @@ def tpu_data_loader(itr):
         start=getattr(itr, "n", 0),
         total=len(itr),
     )
+
+
+def is_xla_tensor(tensor):
+    return torch.is_tensor(tensor) and tensor.device.type == "xla"
+
+
+def index_put(tensor, indices, value):
+    if is_xla_tensor(tensor):
+        for _ in range(indices.dim(), tensor.dim()):
+            indices = indices.unsqueeze(-1)
+        if indices.size(-1) < tensor.size(-1):
+            indices = indices.expand_as(tensor)
+        tensor = torch.mul(tensor, ~indices) + torch.mul(value, indices)
+    else:
+        tensor[indices] = value
+    return tensor
+
+
+def xla_device_to_cpu(dat):
+    import torch_xla.core.xla_model as xm
+
+    return xm._maybe_convert_to_cpu(dat)
 
 
 class CudaEnvironment(object):
@@ -738,3 +781,18 @@ def eval_bool(x, default=False):
         return bool(eval(x))
     except TypeError:
         return default
+
+
+def reset_logging():
+    root = logging.getLogger()
+    for handler in root.handlers:
+        root.removeHandler(handler)
+    root.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(
+        logging.Formatter(
+            fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    root.addHandler(handler)

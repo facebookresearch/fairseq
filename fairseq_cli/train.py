@@ -14,6 +14,15 @@ import os
 import sys
 from typing import Dict, Optional, Any, List, Tuple, Callable
 
+# We need to setup root logger before importing any fairseq libraries.
+logging.basicConfig(
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=os.environ.get("LOGLEVEL", "INFO").upper(),
+    stream=sys.stdout,
+)
+logger = logging.getLogger("fairseq_cli.train")
+
 import numpy as np
 import torch
 from fairseq import (
@@ -23,7 +32,7 @@ from fairseq import (
     tasks,
     utils,
 )
-from fairseq.data import iterators
+from fairseq.data import iterators, data_utils
 from fairseq.data.plasma_utils import PlasmaStore
 from fairseq.dataclass.configs import FairseqConfig
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
@@ -35,13 +44,6 @@ from fairseq.trainer import Trainer
 from omegaconf import DictConfig, OmegaConf
 
 
-logging.basicConfig(
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    level=os.environ.get("LOGLEVEL", "INFO").upper(),
-    stream=sys.stdout,
-)
-logger = logging.getLogger("fairseq_cli.train")
 
 
 def main(cfg: FairseqConfig) -> None:
@@ -58,6 +60,10 @@ def main(cfg: FairseqConfig) -> None:
         cfg.dataset.max_tokens is not None or cfg.dataset.batch_size is not None
     ), "Must specify batch size either with --max-tokens or --batch-size"
     metrics.reset()
+
+    if cfg.common.log_file is not None:
+        handler = logging.FileHandler(filename=cfg.common.log_file)
+        logger.addHandler(handler)
 
     np.random.seed(cfg.common.seed)
     utils.set_torch_seed(cfg.common.seed)
@@ -80,9 +86,6 @@ def main(cfg: FairseqConfig) -> None:
 
     # Setup task, e.g., translation, language modeling, etc.
     task = tasks.setup_task(cfg.task)
-    # Load valid dataset (we load training data below, based on the latest checkpoint)
-    for valid_sub_split in cfg.dataset.valid_subset.split(","):
-        task.load_dataset(valid_sub_split, combine=False, epoch=1)
 
     assert cfg.criterion, "Please specify criterion to train a model"
 
@@ -98,11 +101,27 @@ def main(cfg: FairseqConfig) -> None:
     logger.info("model: {}".format(model.__class__.__name__))
     logger.info("criterion: {}".format(criterion.__class__.__name__))
     logger.info(
-        "num. model params: {:,} (num. trained: {:,})".format(
-            sum(getattr(p, "_orig_size", p).numel() for p in model.parameters()),
-            sum(getattr(p, "_orig_size", p).numel() for p in model.parameters() if p.requires_grad),
+        "num. shared model params: {:,} (num. trained: {:,})".format(
+            sum(p.numel() for p in model.parameters() if not getattr(p, "expert", False)),
+            sum(p.numel() for p in model.parameters() if not getattr(p, "expert", False) and p.requires_grad)
         )
     )
+
+    logger.info(
+        "num. expert model params: {} (num. trained: {})".format(
+            sum(p.numel() for p in model.parameters() if getattr(p, "expert", False)),
+            sum(p.numel() for p in model.parameters() if getattr(p, "expert", False) and p.requires_grad),
+        )
+    )
+
+    # Load valid dataset (we load training data below, based on the latest checkpoint)
+    # We load the valid dataset AFTER building the model
+    data_utils.raise_if_valid_subsets_unintentionally_ignored(cfg)
+    if cfg.dataset.combine_valid_subsets:
+        task.load_dataset("valid", combine=True, epoch=1)
+    else:
+        for valid_sub_split in cfg.dataset.valid_subset.split(","):
+            task.load_dataset(valid_sub_split, combine=False, epoch=1)
 
     # (optionally) Configure quantization
     if cfg.common.quantization_config_path is not None:
@@ -125,7 +144,7 @@ def main(cfg: FairseqConfig) -> None:
         )
     )
     logger.info(
-        "max tokens per GPU = {} and batch size per GPU = {}".format(
+        "max tokens per device = {} and max sentences per device = {}".format(
             cfg.dataset.max_tokens,
             cfg.dataset.batch_size,
         )
@@ -139,9 +158,13 @@ def main(cfg: FairseqConfig) -> None:
         # don't cache epoch iterators for sharded datasets
         disable_iterator_cache=task.has_sharded_data("train"),
     )
+    if cfg.common.tpu:
+        import torch_xla.core.xla_model as xm
+        xm.rendezvous("load_checkpoint")  # wait for all workers
 
     max_epoch = cfg.optimization.max_epoch or math.inf
     lr = trainer.get_lr()
+
     train_meter = meters.StopwatchMeter()
     train_meter.start()
     while epoch_itr.next_epoch_idx <= max_epoch:
@@ -230,6 +253,7 @@ def train(
     progress = progress_bar.progress_bar(
         itr,
         log_format=cfg.common.log_format,
+        log_file=cfg.common.log_file,
         log_interval=cfg.common.log_interval,
         epoch=epoch_itr.epoch,
         tensorboard_logdir=(
@@ -360,7 +384,7 @@ def validate_and_save(
             and num_updates > 0
             and num_updates % cfg.dataset.validate_interval_updates == 0
         )
-    ) and not cfg.dataset.disable_validation
+    ) and not cfg.dataset.disable_validation and num_updates >= cfg.dataset.validate_after_updates
 
     # Validate
     valid_losses = [None]
@@ -432,11 +456,17 @@ def validate(
         # create a new root metrics aggregator so validation metrics
         # don't pollute other aggregators (e.g., train meters)
         with metrics.aggregate(new_root=True) as agg:
-            for sample in progress:
+            for i, sample in enumerate(progress):
+                if cfg.dataset.max_valid_steps is not None and i > cfg.dataset.max_valid_steps:
+                    break
                 trainer.valid_step(sample)
 
         # log validation stats
         stats = get_valid_stats(cfg, trainer, agg.get_smoothed_values())
+
+        if hasattr(task, "post_validate"):
+            task.post_validate(trainer.get_model(), stats, agg)
+
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
 
         valid_losses.append(stats[cfg.checkpoint.best_checkpoint_metric])

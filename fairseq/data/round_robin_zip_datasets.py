@@ -141,7 +141,7 @@ class RoundRobinZipDatasets(FairseqDataset):
                     f"{len(ignored)} samples from {key} have invalid sizes and will be skipped, "
                     f"max_positions={max_positions[key]}, first few sample ids={ignored[:10]}"
                 )
-        # Since we are modifiying in place the _ordered_indices,
+        # Since we are modifying in place the _ordered_indices,
         # it's not possible anymore to return valid ignored indices.
         # Hopefully the extra debug information print above should be enough to debug.
         # Ideally we would receive ignore_invalid_inputs so that we could have
