@@ -112,16 +112,16 @@ class HubertPretrainingTask(FairseqTask):
 
         logger.info(f"current directory is {os.getcwd()}")
         logger.info(f"HubertPretrainingTask Config {cfg}")
-        
+
         self.state.add_factory("dictionaries", lambda: self.dictionaries_factory(cfg))
 
         self._dictionaries = self.state.dictionaries
         if len(self._dictionaries) == 1:
-            self._target_dictionary =  self._dictionaries[list(self._dictionaries)[0]]
+            self._target_dictionary = self._dictionaries[list(self._dictionaries)[0]]
         else:
             logger.info("Multiple Dictionaries, cannot pick single target.")
-            self._target_dictionary =  {}
-        
+            self._target_dictionary = {}
+
         self._source_dictionary = None
 
         self.blank_symbol = "<s>"
@@ -143,7 +143,7 @@ class HubertPretrainingTask(FairseqTask):
         cls, cfg: HubertPretrainingConfig, **kwargs
     ) -> "HubertPretrainingTask":
         return cls(cfg)
-        
+
     def dictionaries_factory(self, cfg: HubertPretrainingConfig):
         label_dir = cfg.data if cfg.label_dir is None else cfg.label_dir
         return {
