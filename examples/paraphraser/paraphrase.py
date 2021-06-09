@@ -39,7 +39,7 @@ def main():
         args.user_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),  # examples/
             "translation_moe",
-            "src",
+            "translation_moe_src",
         )
         if os.path.exists(args.user_dir):
             logging.info("found user_dir:" + args.user_dir)
