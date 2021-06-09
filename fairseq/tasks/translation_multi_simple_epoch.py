@@ -203,7 +203,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         seq_gen_cls=None,
         extra_gen_cls_kwargs=None,
     ):
-        if not getattr(args, "keep_inference_langtok", False):
+        if not getattr(self.args, "keep_inference_langtok", False):
             _, tgt_langtok_spec = self.args.langtoks["main"]
             if tgt_langtok_spec:
                 tgt_lang_tok = self.data_manager.get_decoder_langtok(
