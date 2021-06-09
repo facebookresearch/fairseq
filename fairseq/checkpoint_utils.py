@@ -625,6 +625,14 @@ def _upgrade_state_dict(state):
         ]:
             if key in state["args"]:
                 delattr(state["args"], key)
+        if hasattr(state["args"], "mean_pool_gating_network_dropout"):
+	    if (
+            (state["args"].mean_pool_gating_network_dropout == None)
+                and
+            (state["args"].mean_pool_gating_network_encoder_dim == None)
+            ):
+                state["args"].mean_pool_gating_network_dropout = 0
+                state["args"].mean_pool_gating_network_encoder_dim = 0
 
         state["cfg"] = convert_namespace_to_omegaconf(state["args"])
 
