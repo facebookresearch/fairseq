@@ -37,6 +37,9 @@ class HubertPretrainingConfig(FairseqDataclass):
     data: str = field(
         default=MISSING, metadata={"help": "path to data directory"}
     )
+    fine_tuning: bool = field(
+        default=False, metadata={"help": "set to true if fine-tuning Hubert"}
+    )
     labels: List[str] = field(
         default_factory=lambda: ["ltr"],
         metadata={
@@ -56,7 +59,6 @@ class HubertPretrainingConfig(FairseqDataclass):
         default=-1,
         metadata={"help": "label frame rate. -1 for sequence label"},
     )
-
     sample_rate: int = field(
         default=16_000,
         metadata={
@@ -112,10 +114,14 @@ class HubertPretrainingTask(FairseqTask):
 
         logger.info(f"current directory is {os.getcwd()}")
         logger.info(f"HubertPretrainingTask Config {cfg}")
+        
+        if cfg.fine_tuning:
+            self.state.add_factory("ft_dictionaries", lambda: self.dictionaries_factory(cfg))
+            self._dictionaries = self.state.ft_dictionaries
+        else:
+            self.state.add_factory("pt_dictionaries", lambda: self.dictionaries_factory(cfg))
+            self._dictionaries = self.state.pt_dictionaries
 
-        self.state.add_factory("dictionaries", lambda: self.dictionaries_factory(cfg))
-
-        self._dictionaries = self.state.dictionaries
         if len(self._dictionaries) == 1:
             self._target_dictionary = self._dictionaries[list(self._dictionaries)[0]]
         else:
@@ -137,6 +143,18 @@ class HubertPretrainingTask(FairseqTask):
     @property
     def dictionaries(self) -> List[Dictionary]:
         return [self._dictionaries[l] for l in self.cfg.labels]
+
+    @property
+    def pt_dictionaries(self) -> Optional[Dictionary]:
+        if cfg.fine_tuning:
+            logger.warning("Attempting to access pre-training dictionary during fine-tuning")
+        return self.state.pt_dictionaries
+
+    @property
+    def ft_dictioanries(self) -> Optional[Dictionary]:
+        if not cfg.fine_tuning:
+            logger.warning("Attempting to access fine-tuning dictionary during pre-training")
+        return self.state.ft_dictionaries        
 
     @classmethod
     def setup_task(
