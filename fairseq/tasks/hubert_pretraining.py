@@ -114,7 +114,9 @@ class HubertPretrainingTask(FairseqTask):
 
         logger.info(f"current directory is {os.getcwd()}")
         logger.info(f"HubertPretrainingTask Config {cfg}")
-        
+
+        self.fine_tuning = cfg.fine_tuning
+
         if cfg.fine_tuning:
             self.state.add_factory("ft_dictionaries", lambda: self.dictionaries_factory(cfg))
             self._dictionaries = self.state.ft_dictionaries
@@ -146,15 +148,15 @@ class HubertPretrainingTask(FairseqTask):
 
     @property
     def pt_dictionaries(self) -> Optional[Dictionary]:
-        if cfg.fine_tuning:
+        if self.fine_tuning:
             logger.warning("Attempting to access pre-training dictionary during fine-tuning")
         return self.state.pt_dictionaries
 
     @property
     def ft_dictioanries(self) -> Optional[Dictionary]:
-        if not cfg.fine_tuning:
+        if not self.fine_tuning:
             logger.warning("Attempting to access fine-tuning dictionary during pre-training")
-        return self.state.ft_dictionaries        
+        return self.state.ft_dictionaries
 
     @classmethod
     def setup_task(
