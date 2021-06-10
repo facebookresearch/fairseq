@@ -484,23 +484,16 @@ class Trainer(object):
                     last_optim_state = state.get("last_optimizer_state", None)
 
             # load model parameters
-            try:
-                self.model.load_state_dict(
-                    state["model"], strict=True, model_cfg=self.cfg.model
+            self.model.load_state_dict(
+                state["model"], strict=True, model_cfg=self.cfg.model
+            )
+            # save memory for later steps
+            del state["model"]
+            if utils.has_parameters(self.get_criterion()):
+                self.get_criterion().load_state_dict(
+                    state["criterion"], strict=True
                 )
-                # save memory for later steps
-                del state["model"]
-                if utils.has_parameters(self.get_criterion()):
-                    self.get_criterion().load_state_dict(
-                        state["criterion"], strict=True
-                    )
-                    del state["criterion"]
-
-            except Exception:
-                raise Exception(
-                    "Cannot load model parameters from checkpoint {}; "
-                    "please ensure that the architectures match.".format(filename)
-                )
+                del state["criterion"]
             extra_state = state["extra_state"]
             self._optim_history = state["optimizer_history"]
 
