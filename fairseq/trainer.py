@@ -436,6 +436,8 @@ class Trainer(object):
 
         logger.info(f"Preparing to load checkpoint {filename}")
         is_distributed = self.data_parallel_world_size > 1
+        logger.info(f"is distributed {is_distributed} ")
+        logger.info(f"use_sharded_state {self.cfg.distributed_training.use_sharded_state} ")
         bexists = PathManager.isfile(filename)
         if bexists:
             load_on_all_ranks = (
