@@ -203,6 +203,48 @@ loss = model(input_values, labels=labels).loss
 loss.backward()
 ```
 
+## Deploying wav2vec 2.0 with torchaudio
+
+`torchaudio` has added wav2vec 2.0 model definition that supports TorchScript, alongside of function to import model instances from `fairseq` or 🤗Transformers. By using TorchScript, you can deploy your wav2vec 2.0 model to ONNX runtime, [C++](https://github.com/pytorch/audio/tree/master/examples/libtorchaudio/speech_recognition), [iOS](https://github.com/pytorch/ios-demo-app/tree/master/SpeechRecognition), and [Android](https://github.com/pytorch/android-demo-app/tree/master/SpeechRecognition).
+
+The following code snipet illustrates the process to import a model and convert it to deployable TorchScript object.
+
+### Import a fine-tuned model from `fairseq`
+
+```python
+import fairseq
+from torchaudio.models.wav2vec2.utils import import_fairseq_model
+
+original, _, _ = fairseq.checkpoint_utils.load_model_ensemble_and_task(
+    ["wav2vec_small_960h.pt"], arg_overrides={'data': "<DIRECTORY_WITH_DICTIONARY>"})
+imported = import_fairseq_model(original[0].w2v_encoder)
+```
+
+### Import a fine-tuned model from 🤗Transformers
+
+```python
+import transformers
+from torchaudio.models.wav2vec2.utils import import_huggingface_model
+
+original = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-base-960h")
+imported = import_huggingface_model(original)
+```
+
+### Convert the imported model to deployable package
+
+```python
+import torch
+# Need to invoke __prepare_script__ hook so that weight normalizatoin is removed.
+torch.jit.script(imported_model)
+
+quantized_model = torch.quantization.quantize_dynamic(
+    imported_model, qconfig_spec={torch.nn.Linear}, dtype=torch.qint8)
+scripted_model = torch.jit.script(quantized_model)
+optimized_model = optimize_for_mobile(scripted_model)
+optimized_model.save("model_for_deployment.pt")
+```
+
+
 # wav2vec
 
 Example to train a wav2vec model as described in [wav2vec: Unsupervised Pre-training for Speech Recognition (Schneider et al., 2019)](https://arxiv.org/abs/1904.05862).
