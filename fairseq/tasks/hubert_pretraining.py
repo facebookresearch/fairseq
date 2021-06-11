@@ -118,17 +118,9 @@ class HubertPretrainingTask(FairseqTask):
         self.fine_tuning = cfg.fine_tuning
 
         if cfg.fine_tuning:
-            self.state.add_factory("ft_dictionaries", lambda: self.dictionaries_factory(cfg))
-            self._dictionaries = self.state.ft_dictionaries
+            self.state.add_factory("target_dictionary", lambda: self.load_dictionaries(cfg)[0])
         else:
-            self.state.add_factory("pt_dictionaries", lambda: self.dictionaries_factory(cfg))
-            self._dictionaries = self.state.pt_dictionaries
-
-        if len(self._dictionaries) == 1:
-            self._target_dictionary = self._dictionaries[list(self._dictionaries)[0]]
-        else:
-            logger.info("Multiple Dictionaries, cannot pick single target.")
-            self._target_dictionary = {}
+            self.state.add_factory("dictionaries", lambda: self.load_dictionaries(cfg))
 
         self._source_dictionary = None
 
@@ -140,11 +132,11 @@ class HubertPretrainingTask(FairseqTask):
 
     @property
     def target_dictionary(self) -> Optional[Dictionary]:
-        return self._target_dictionary
+        return self.state.target_dictionary
 
     @property
     def dictionaries(self) -> List[Dictionary]:
-        return [self._dictionaries[l] for l in self.cfg.labels]
+        return self.state.dictionaries
 
     @classmethod
     def setup_task(
@@ -152,14 +144,9 @@ class HubertPretrainingTask(FairseqTask):
     ) -> "HubertPretrainingTask":
         return cls(cfg)
 
-    def dictionaries_factory(self, cfg: HubertPretrainingConfig):
+    def load_dictionaries(self, cfg: HubertPretrainingConfig):
         label_dir = cfg.data if cfg.label_dir is None else cfg.label_dir
-        return {
-            label: Dictionary.load(f"{label_dir}/dict.{label}.txt")
-            if os.path.exists(f"{label_dir}/dict.{label}.txt")
-            else None
-            for label in cfg.labels
-        }
+        return [Dictionary.load(f"{label_dir}/dict.{label}.txt") for label in cfg.labels]
 
     def get_label_dir(self) -> str:
         if self.cfg.label_dir is None:
@@ -168,9 +155,10 @@ class HubertPretrainingTask(FairseqTask):
 
     def load_dataset(self, split: str, **kwargs) -> None:
         manifest = f"{self.cfg.data}/{split}.tsv"
-        pad_list = [self._dictionaries[l].pad() for l in self.cfg.labels]
-        eos_list = [self._dictionaries[l].eos() for l in self.cfg.labels]
-        procs = [LabelEncoder(self._dictionaries[l]) for l in self.cfg.labels]
+        dicts = [self.target_dictionary] if self.cfg.fine_tuning else self.dictionaries
+        pad_list = [dict.pad() for dict in dicts]
+        eos_list = [dict.eos() for dict in dicts]
+        procs = [LabelEncoder(dict) for dict in dicts]
         paths = [
             f"{self.get_label_dir()}/{split}.{l}" for l in self.cfg.labels
         ]
