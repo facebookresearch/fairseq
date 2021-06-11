@@ -146,18 +146,6 @@ class HubertPretrainingTask(FairseqTask):
     def dictionaries(self) -> List[Dictionary]:
         return [self._dictionaries[l] for l in self.cfg.labels]
 
-    @property
-    def pt_dictionaries(self) -> Optional[Dictionary]:
-        if self.fine_tuning:
-            logger.warning("Attempting to access pre-training dictionary during fine-tuning")
-        return self.state.pt_dictionaries
-
-    @property
-    def ft_dictioanries(self) -> Optional[Dictionary]:
-        if not self.fine_tuning:
-            logger.warning("Attempting to access fine-tuning dictionary during pre-training")
-        return self.state.ft_dictionaries
-
     @classmethod
     def setup_task(
         cls, cfg: HubertPretrainingConfig, **kwargs
