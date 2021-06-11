@@ -18,5 +18,4 @@ fairseq:
     batch_size: 1
 
 w2l_decoder: VITERBI
-lm_model: ???
 post_process: silence

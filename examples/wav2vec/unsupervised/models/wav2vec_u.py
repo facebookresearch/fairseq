@@ -76,7 +76,6 @@ class Wav2vec_UConfig(FairseqDataclass):
     hard_gumbel: bool = True
     temp: Tuple[float, float, float] = (2, 0.1, 0.99995)
     input_dim: int = 128
-    wgan_loss: bool = False
 
     segmentation: SegmentationConfig = SegmentationConfig()
 
@@ -397,12 +396,7 @@ class Wav2vec_U(BaseFairseqModel):
         )
 
     def discrim_step(self, num_updates):
-        if num_updates < self.zero_pretrain_updates:
-            return False
-        if self.dynamic_step_thresh <= 0 or self.last_acc is None:
-            return num_updates % 2 == 1
-        else:
-            return self.last_acc < self.dynamic_step_thresh
+        return num_updates % 2 == 1
 
     def get_groups_for_update(self, num_updates):
         return "discriminator" if self.discrim_step(num_updates) else "generator"
@@ -413,7 +407,6 @@ class Wav2vec_U(BaseFairseqModel):
         self.cfg = cfg
         self.zero_index = target_dict.index("<SIL>") if "<SIL>" in target_dict else 0
         self.smoothness_weight = cfg.smoothness_weight
-        self.wgan_loss = cfg.wgan_loss
 
         output_size = len(target_dict)
         self.pad = target_dict.pad()
@@ -432,7 +425,7 @@ class Wav2vec_U(BaseFairseqModel):
         self.blank_index = target_dict.index("<SIL>") if cfg.blank_is_sil else 0
         assert self.blank_index != target_dict.unk()
 
-        self.discriminator = self.Discriminator(output_size, cfg)
+        self.discriminator = Discriminator(output_size, cfg)
         for p in self.discriminator.parameters():
             p.param_group = "discriminator"
 
@@ -441,9 +434,7 @@ class Wav2vec_U(BaseFairseqModel):
 
         self.segmenter = SEGMENT_FACTORY[cfg.segmentation.type](cfg.segmentation)
 
-        self.generator = self.Generator(
-            d, output_size, cfg, lambda x: self.normalize(x)[0]
-        )
+        self.generator = Generator(d, output_size, cfg)
 
         for p in self.generator.parameters():
             p.param_group = "generator"
@@ -589,20 +580,16 @@ class Wav2vec_U(BaseFairseqModel):
         code_pen = None
 
         if d_step:
-            if self.wgan_loss:
-                loss_dense = dense_y.sum()
-                loss_token = -1 * token_y.sum()
-            else:
-                loss_dense = F.binary_cross_entropy_with_logits(
-                    dense_y,
-                    dense_y.new_ones(dense_y.shape) - fake_smooth,
-                    reduction="sum",
-                )
-                loss_token = F.binary_cross_entropy_with_logits(
-                    token_y,
-                    token_y.new_zeros(token_y.shape) + real_smooth,
-                    reduction="sum",
-                )
+            loss_dense = F.binary_cross_entropy_with_logits(
+                dense_y,
+                dense_y.new_ones(dense_y.shape) - fake_smooth,
+                reduction="sum",
+            )
+            loss_token = F.binary_cross_entropy_with_logits(
+                token_y,
+                token_y.new_zeros(token_y.shape) + real_smooth,
+                reduction="sum",
+            )
             if self.training and self.gradient_penalty > 0:
                 grad_pen = self.calc_gradient_penalty(token_x, dense_x)
                 grad_pen = grad_pen.sum() * self.gradient_penalty
@@ -611,23 +598,15 @@ class Wav2vec_U(BaseFairseqModel):
         else:
             grad_pen = None
             loss_token = None
-            if self.update_num >= self.zero_pretrain_updates:
-                if self.wgan_loss:
-                    loss_dense = -1 * dense_y.sum()
-                else:
-                    loss_dense = F.binary_cross_entropy_with_logits(
-                        dense_y,
-                        dense_y.new_zeros(dense_y.shape) + fake_smooth,
-                        reduction="sum",
-                    )
-                num_vars = dense_x.size(-1)
-                if prob_perplexity is not None:
-                    code_pen = (num_vars - prob_perplexity) / num_vars
-                    if self.exponential_code_pen:
-                        code_pen = (1 - 1 / code_pen ** 2).exp()
-                    code_pen = code_pen * sample_size * self.code_penalty
-            else:
-                loss_dense = None
+            loss_dense = F.binary_cross_entropy_with_logits(
+                dense_y,
+                dense_y.new_zeros(dense_y.shape) + fake_smooth,
+                reduction="sum",
+            )
+            num_vars = dense_x.size(-1)
+            if prob_perplexity is not None:
+                code_pen = (num_vars - prob_perplexity) / num_vars
+                code_pen = code_pen * sample_size * self.code_penalty
 
             if self.smoothness_weight > 0:
                 smoothness_loss = F.mse_loss(

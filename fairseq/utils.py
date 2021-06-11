@@ -10,7 +10,6 @@ import importlib
 import logging
 import os
 import sys
-import tempfile
 import warnings
 from itertools import accumulate
 from typing import Callable, Dict, List, Optional
@@ -59,9 +58,7 @@ class FileContentsAction(argparse.Action):
 
 def split_paths(paths: str, separator=os.pathsep) -> List[str]:
     return (
-        paths.split(separator)
-        if "://" not in paths
-        else paths.split(MANIFOLD_PATH_SEP)
+        paths.split(separator) if "://" not in paths else paths.split(MANIFOLD_PATH_SEP)
     )
 
 
@@ -483,6 +480,18 @@ def import_user_module(args):
             if module_name not in sys.modules:
                 sys.path.insert(0, module_parent)
                 importlib.import_module(module_name)
+
+                tasks_path = os.path.join(module_path, "tasks")
+                if os.path.exists(tasks_path):
+                    from fairseq.tasks import import_tasks
+
+                    import_tasks(tasks_path, f"{module_name}.tasks")
+
+                models_path = os.path.join(module_path, "models")
+                if os.path.exists(models_path):
+                    from fairseq.models import import_models
+
+                    import_models(models_path, f"{module_name}.models")
             else:
                 raise ImportError(
                     "Failed to import --user-dir={} because the corresponding module name "

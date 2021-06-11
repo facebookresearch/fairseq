@@ -27,13 +27,14 @@ def get_parser():
     parser.add_argument('--split', help='which split to read', required=True)
     parser.add_argument('--save-dir', help='where to save the output', required=True)
     parser.add_argument('--checkpoint', type=str, help='checkpoint for wav2vec ctc model', required=True)
+    parser.add_argument('--layer', type=int, default=14, help='which layer to use')
     # fmt: on
 
     return parser
 
 
 class Wav2VecFeatureReader(object):
-    def __init__(self, cp_file):
+    def __init__(self, cp_file, layer):
         model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task(
             [cp_file]
         )
@@ -42,6 +43,7 @@ class Wav2VecFeatureReader(object):
         model.cuda()
         self.model = model
         self.task = task
+        self.layer = layer
 
     def read_audio(self, fname):
         """Load an audio file and return PCM along with the sample rate"""
@@ -60,7 +62,7 @@ class Wav2VecFeatureReader(object):
                     source = F.layer_norm(source, source.shape)
             source = source.view(1, -1)
 
-            m_res = self.model(source=source, mask=False, features_only=True, layer=14)
+            m_res = self.model(source=source, mask=False, features_only=True, layer=self.layer)
             return m_res["x"].squeeze(0).cpu()
 
 
@@ -71,7 +73,7 @@ def get_iterator(args):
         files = [osp.join(root, line.split("\t")[0]) for line in lines if len(line) > 0]
 
         num = len(files)
-        reader = Wav2VecFeatureReader(args.checkpoint)
+        reader = Wav2VecFeatureReader(args.checkpoint, args.layer)
 
         def iterate():
             for fname in files:

@@ -681,6 +681,9 @@ def hydra_main(cfg):
     )
     OmegaConf.set_struct(cfg, True)
     logger.info(cfg)
+
+    utils.import_user_module(cfg.fairseq.common)
+
     _, score = main(cfg)
 
     if cfg.is_ax:
