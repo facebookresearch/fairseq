@@ -4,10 +4,9 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import argparse
 import sys
 
-sys.path.append("/path/to/rVADfast_py_2.0")
-import speechproc
 from copy import deepcopy
 from scipy.signal import lfilter
 
@@ -17,7 +16,19 @@ import soundfile as sf
 import os.path as osp
 
 
-def rvad(path):
+def get_parser():
+    parser = argparse.ArgumentParser(description="compute vad segments")
+    parser.add_argument(
+        "--rvad-home",
+        "-r",
+        help="path to rvad home (see https://github.com/zhenghuatan/rVADfast)",
+        required=True,
+    )
+
+    return parser
+
+
+def rvad(speechproc, path):
     winlen, ovrlen, pre_coef, nfilter, nftt = 0.025, 0.01, 0.97, 20, 512
     ftThres = 0.5
     vadThres = 0.4
@@ -56,12 +67,18 @@ def rvad(path):
 
 
 def main():
+    parser = get_parser()
+    args = parser.parse_args()
+
+    sys.path.append(args.rvad_home)
+    import speechproc
+
     stride = 160
     lines = sys.stdin.readlines()
     root = lines[0].rstrip()
     for fpath in tqdm(lines[1:]):
         path = osp.join(root, fpath.split()[0])
-        vads, wav = rvad(path)
+        vads, wav = rvad(speechproc, path)
 
         start = None
         vad_segs = []

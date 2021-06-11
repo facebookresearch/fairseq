@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
+import os
 import os.path as osp
 import numpy as np
 import tqdm
@@ -33,13 +34,21 @@ def get_parser():
 
 
 def get_iterator(args):
-    with open(osp.join(args.data, f"{args.split}.tsv"), "r") as fp, open(
-        osp.join(args.data, f"{args.split}.{args.labels}"), "r"
-    ) as lp:
+    label_path = osp.join(args.data, f"{args.split}.{args.labels}")
+    if osp.exists(label_path):
+        lp = open(label_path, "r")
+    else:
+        lp = None
+
+    with open(osp.join(args.data, f"{args.split}.tsv"), "r") as fp:
         lines = fp.read().split("\n")
         root = lines.pop(0).strip()
         files = [line.rstrip() for line in lines if len(line) > 0]
-        lbls = [line.rstrip() for line in lp]
+
+        if lp is not None:
+            lbls = [line.rstrip() for line in lp]
+        else:
+            lbls = [None] * len(files)
 
         num = len(files)
         reader = Wav2VecFeatureReader(args.checkpoint, args.layer)
@@ -87,10 +96,13 @@ def main():
     generator, num, root = get_iterator(args)
     iterator = generator()
 
+    had_labels = False
+    label_path = osp.join(args.path, f"{args.split}.{args.labels}")
+
     with torch.no_grad():
         with open(osp.join(args.path, f"{args.split}.src"), "w") as fp, open(
             osp.join(args.path, f"{args.split}.tsv"), "w"
-        ) as pp, open(osp.join(args.path, f"{args.split}.{args.labels}"), "w") as lp:
+        ) as pp, open(label_path, "w") as lp:
             print(root, file=pp)
             for f, fname, lbl in tqdm.tqdm(iterator, total=num):
                 if faiss_spec.pca:
@@ -104,7 +116,12 @@ def main():
 
                 print(" ".join(str(x.item()) for x in z), file=fp)
                 print(fname, file=pp)
-                print(lbl, file=lp)
+
+                if lbl is not None:
+                    print(lbl, file=lp)
+                    had_labels = True
+    if not had_labels:
+        os.remove(label_path)
 
 
 if __name__ == "__main__":
