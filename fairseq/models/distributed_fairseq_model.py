@@ -115,21 +115,29 @@ def DistributedFairseqModel(args, model, process_group):
             return super().__getattr__(name)
 
     ddp_model = _DistributedFairseqModel(**init_kwargs)
-    # Register a PowerSGD communication hook, by assuming that:
+    # Assume that:
     # ``args.distributed_wrapper`` is 'DDP' and ``args.ddp_backend`` is 'c10d'.
-    """
+    
+    # 1) Register a FP16 compression communication hook. 
+    # ddp.register_comm_hook(state=group.WORLD, hook=default.fp16_compress_hook)
+    
+    # 2) Register a PowerSGD communication hook:
     state = powerSGD.PowerSGDState(
         process_group=dist.group.WORLD,
         matrix_approximation_rank=1,
         start_powerSGD_iter=1_000,
     )
     ddp_model.register_comm_hook(state=state, hook=powerSGD.powerSGD_hook)
+    
+    # 3) Register a FP16+PowerSGD communication hook:
     """
-    
-    # Register a FP16 compression communication hook, by assuming that:
-    # ``args.distributed_wrapper`` is 'DDP' and ``args.ddp_backend`` is 'c10d'.    
-    ddp.register_comm_hook(state=group.WORLD, hook=default.fp16_compress_hook)
-    
+    state = powerSGD.PowerSGDState(
+        process_group=dist.group.WORLD,
+        matrix_approximation_rank=1,
+        start_powerSGD_iter=1_000,
+    )
+    ddp_model.register_comm_hook(state, default.fp16_compress_wrapper(powerSGD.powerSGD_hook))
+    """
     
     return ddp_model
 
