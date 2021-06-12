@@ -1124,6 +1124,25 @@ class Trainer(object):
         """Aggregate training time in seconds."""
         return time.time() - self._start_time + self._previous_training_time
 
+    def _fp_convert_sample(self, sample):
+        def apply_half(t):
+            if t.dtype is torch.float32:
+                return t.to(dtype=torch.half)
+            return t
+
+        def apply_bfloat16(t):
+            if t.dtype is torch.float32:
+                return t.to(dtype=torch.bfloat16)
+            return t
+
+        if self.cfg.common.fp16:
+            sample = utils.apply_to_sample(apply_half, sample)
+
+        if self.cfg.common.bf16:
+            sample = utils.apply_to_sample(apply_bfloat16, sample)
+
+        return sample
+
     def _prepare_sample(self, sample, is_dummy=False):
         if sample == "DUMMY":
             raise Exception(
@@ -1139,33 +1158,25 @@ class Trainer(object):
             sample, _ = self._prepare_sample(self._dummy_batch, is_dummy=True)
             return sample, True
 
+        # Given that PCIe/NVLink bandwidth is significantly smaller than DRAM bandwidth
+        # it makes sense to do the format conversion on the CPU and then transfer
+        # a smaller buffer to the device. This also saves GPU memory capacity.
+
+        if self.cfg.common.on_cpu_convert_precision:
+            sample = self._fp_convert_sample(sample)
+
         if self.cuda:
             if self.pipeline_model_parallel:
-                if "target" in sample:
-                    sample["target"] = utils.move_to_cuda(
-                        sample["target"], device=self.last_device
-                    )
+                if 'target' in sample:
+                    sample['target'] = utils.move_to_cuda(sample['target'], device=self.last_device)
             else:
                 sample = utils.move_to_cuda(sample)
         elif self.tpu and is_dummy:
             # the dummy batch may not be on the appropriate device
             sample = utils.move_to_cuda(sample, device=self.device)
 
-        def apply_half(t):
-            if t.dtype is torch.float32:
-                return t.half()
-            return t
-
-        def apply_bfloat16(t):
-            if t.dtype is torch.float32:
-                return t.to(dtype=torch.bfloat16)
-            return t
-
-        if self.cfg.common.fp16:
-            sample = utils.apply_to_sample(apply_half, sample)
-
-        if self.cfg.common.bf16:
-            sample = utils.apply_to_sample(apply_bfloat16, sample)
+        if not self.cfg.common.on_cpu_convert_precision:
+            sample = self._fp_convert_sample(sample)
 
         if self._dummy_batch == "DUMMY":
             self._dummy_batch = sample
