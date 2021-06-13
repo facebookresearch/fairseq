@@ -1,0 +1,20 @@
+# @package _global_
+
+hydra:
+  launcher:
+    cpus_per_task: 8
+    gpus_per_node: 8
+    tasks_per_node: ${hydra.launcher.gpus_per_node}
+    nodes: 1
+    comment: null
+    mem_gb: 384
+    timeout_min: 4320
+    max_num_timeout: 100
+    constraint: volta32gb
+    name: ${hydra.job.config_name}/${hydra.job.override_dirname}
+    submitit_folder: ${hydra.sweep.dir}/submitit/%j
+
+distributed_training:
+  distributed_world_size: 8
+  distributed_port: 29671
+  nprocs_per_node: 8

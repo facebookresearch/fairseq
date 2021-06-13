@@ -101,6 +101,8 @@ class TransformerModel(FairseqEncoderDecoderModel):
             'transformer.wmt20.ta-en': spm('https://dl.fbaipublicfiles.com/fairseq/models/wmt20.ta-en.single.tar.gz'),
             'transformer.wmt20.iu-en.news': spm('https://dl.fbaipublicfiles.com/fairseq/models/wmt20.iu-en.news.single.tar.gz'),
             'transformer.wmt20.iu-en.nh': spm('https://dl.fbaipublicfiles.com/fairseq/models/wmt20.iu-en.nh.single.tar.gz'),
+            'transformer.flores101.mm100.615M': spm('https://dl.fbaipublicfiles.com/flores101/pretrained_models/flores101_mm100_615M.tar.gz'),
+            'transformer.flores101.mm100.175M': spm('https://dl.fbaipublicfiles.com/flores101/pretrained_models/flores101_mm100_175M.tar.gz'),
         }
         # fmt: on
 
@@ -376,9 +378,9 @@ class TransformerEncoder(FairseqEncoder):
             if not args.no_token_positional_embeddings
             else None
         )
-
+        export = getattr(args, "export", False)
         if getattr(args, "layernorm_embedding", False):
-            self.layernorm_embedding = LayerNorm(embed_dim)
+            self.layernorm_embedding = LayerNorm(embed_dim, export=export)
         else:
             self.layernorm_embedding = None
 
@@ -401,7 +403,7 @@ class TransformerEncoder(FairseqEncoder):
         self.num_layers = len(self.layers)
 
         if args.encoder_normalize_before:
-            self.layer_norm = LayerNorm(embed_dim)
+            self.layer_norm = LayerNorm(embed_dim, export=export)
         else:
             self.layer_norm = None
 
@@ -415,7 +417,8 @@ class TransformerEncoder(FairseqEncoder):
         # checkpointed layer, regardless of layer size
         min_params_to_wrap = (
             getattr(args, "min_params_to_wrap", DEFAULT_MIN_PARAMS_TO_WRAP)
-            if not checkpoint else 0
+            if not checkpoint
+            else 0
         )
         layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
         return layer
@@ -466,10 +469,9 @@ class TransformerEncoder(FairseqEncoder):
                   hidden states of shape `(src_len, batch, embed_dim)`.
                   Only populated if *return_all_hiddens* is True.
         """
-        return self.forward_scriptable(src_tokens,
-                                       src_lengths,
-                                       return_all_hiddens,
-                                       token_embeddings)
+        return self.forward_scriptable(
+            src_tokens, src_lengths, return_all_hiddens, token_embeddings
+        )
 
     # TorchScript doesn't support super() method so that the scriptable Subclass
     # can't access the base class model in Torchscript.
@@ -507,7 +509,7 @@ class TransformerEncoder(FairseqEncoder):
         """
         # compute padding mask
         encoder_padding_mask = src_tokens.eq(self.padding_idx)
-        has_pads = (src_tokens.device.type == "xla" or encoder_padding_mask.any())
+        has_pads = src_tokens.device.type == "xla" or encoder_padding_mask.any()
 
         x, encoder_embedding = self.forward_embedding(src_tokens, token_embeddings)
 
@@ -700,9 +702,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             if not args.no_token_positional_embeddings
             else None
         )
-
+        export = getattr(args, "export", False)
         if getattr(args, "layernorm_embedding", False):
-            self.layernorm_embedding = LayerNorm(embed_dim)
+            self.layernorm_embedding = LayerNorm(embed_dim, export=export)
         else:
             self.layernorm_embedding = None
 
@@ -723,7 +725,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         if args.decoder_normalize_before and not getattr(
             args, "no_decoder_final_norm", False
         ):
-            self.layer_norm = LayerNorm(embed_dim)
+            self.layer_norm = LayerNorm(embed_dim, export=export)
         else:
             self.layer_norm = None
 
@@ -765,8 +767,10 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             )
         num_base_layers = getattr(args, "base_layers", 0)
         for i in range(num_base_layers):
-            self.layers.insert(((i+1) * args.decoder_layers) // (num_base_layers + 1), BaseLayer(args))
-
+            self.layers.insert(
+                ((i + 1) * args.decoder_layers) // (num_base_layers + 1),
+                BaseLayer(args),
+            )
 
     def build_decoder_layer(self, args, no_encoder_attn=False):
         layer = TransformerDecoderLayer(args, no_encoder_attn)
@@ -778,7 +782,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         # checkpointed layer, regardless of layer size
         min_params_to_wrap = (
             getattr(args, "min_params_to_wrap", DEFAULT_MIN_PARAMS_TO_WRAP)
-            if not checkpoint else 0
+            if not checkpoint
+            else 0
         )
         layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
         return layer
@@ -885,12 +890,13 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         enc: Optional[Tensor] = None
         padding_mask: Optional[Tensor] = None
-        if encoder_out is not None:
+        if encoder_out is not None and len(encoder_out["encoder_out"]) > 0:
             enc = encoder_out["encoder_out"][0]
-            padding_mask = encoder_out["encoder_padding_mask"][0]
             assert (
                 enc.size()[1] == bs
             ), f"Expected enc.shape == (t, {bs}, c) got {enc.shape}"
+        if encoder_out is not None and len(encoder_out["encoder_padding_mask"]) > 0:
+            padding_mask = encoder_out["encoder_padding_mask"][0]
 
         # embed positions
         positions = None

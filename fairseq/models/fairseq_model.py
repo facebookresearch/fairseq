@@ -153,12 +153,9 @@ class BaseFairseqModel(nn.Module):
 
     def set_num_updates(self, num_updates):
         """State from trainer to pass along to model at every update."""
-
-        def _apply(m):
+        for m in self.modules():
             if hasattr(m, "set_num_updates") and m != self:
                 m.set_num_updates(num_updates)
-
-        self.apply(_apply)
 
     def prepare_for_inference_(self, cfg: DictConfig):
         """Prepare model for inference."""

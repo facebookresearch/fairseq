@@ -151,12 +151,11 @@ class MultiheadAttention(nn.Module):
         assert embed_dim == self.embed_dim
         assert list(query.size()) == [tgt_len, bsz, embed_dim]
         if key is not None:
-            src_len, key_bsz, key_embed_dim = key.size()
+            src_len, key_bsz, _ = key.size()
             if not torch.jit.is_scripting():
-                assert (key_bsz, key_embed_dim) == (bsz, embed_dim)
+                assert key_bsz == bsz
                 assert value is not None
-                assert (src_len, bsz, embed_dim) == value.shape
-
+                assert src_len, bsz == value.shape[:2]
 
         if (
             not self.onnx_trace
@@ -404,21 +403,27 @@ class MultiheadAttention(nn.Module):
         # leaves the frame, there will be a time when prev or current
         # is None
         elif prev_key_padding_mask is not None:
-            filler = torch.zeros(
-                (batch_size, src_len - prev_key_padding_mask.size(1)),
-                device=prev_key_padding_mask.device,
-            )
-            new_key_padding_mask = torch.cat(
-                [prev_key_padding_mask.float(), filler.float()], dim=1
-            )
+            if src_len > prev_key_padding_mask.size(1):
+                filler = torch.zeros(
+                    (batch_size, src_len - prev_key_padding_mask.size(1)),
+                    device=prev_key_padding_mask.device,
+                )
+                new_key_padding_mask = torch.cat(
+                    [prev_key_padding_mask.float(), filler.float()], dim=1
+                )
+            else:
+                new_key_padding_mask = prev_key_padding_mask.float()
         elif key_padding_mask is not None:
-            filler = torch.zeros(
-                (batch_size, src_len - key_padding_mask.size(1)),
-                device=key_padding_mask.device,
-            )
-            new_key_padding_mask = torch.cat(
-                [filler.float(), key_padding_mask.float()], dim=1
-            )
+            if src_len > key_padding_mask.size(1):
+                filler = torch.zeros(
+                    (batch_size, src_len - key_padding_mask.size(1)),
+                    device=key_padding_mask.device,
+                )
+                new_key_padding_mask = torch.cat(
+                    [filler.float(), key_padding_mask.float()], dim=1
+                )
+            else:
+                new_key_padding_mask = key_padding_mask.float()
         else:
             new_key_padding_mask = prev_key_padding_mask
         return new_key_padding_mask

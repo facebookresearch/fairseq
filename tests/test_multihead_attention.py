@@ -35,6 +35,18 @@ class TestMultiheadAttention(unittest.TestCase):
                 torch.tensor([[0, 1, 0]]).bool(),
                 torch.tensor([[0, 1, 0, 1]]).bool(),
             ),
+            # prev_key_padding_mask already full
+            (
+                torch.tensor([[0, 1, 0, 1]]).bool(),
+                None,
+                torch.tensor([[0, 1, 0, 1]]).bool(),
+            ),
+            # key_padding_mask already full
+            (
+                None,
+                torch.tensor([[0, 1, 0, 1]]).bool(),
+                torch.tensor([[0, 1, 0, 1]]).bool(),
+            ),
         ]
         for c in cases:
             key_padding_mask = MultiheadAttention._append_prev_key_padding_mask(

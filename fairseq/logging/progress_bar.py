@@ -29,6 +29,7 @@ def progress_bar(
     iterator,
     log_format: Optional[str] = None,
     log_interval: int = 100,
+    log_file: Optional[str] = None,
     epoch: Optional[int] = None,
     prefix: Optional[str] = None,
     tensorboard_logdir: Optional[str] = None,
@@ -39,6 +40,10 @@ def progress_bar(
 ):
     if log_format is None:
         log_format = default_log_format
+    if log_file is not None:
+        handler = logging.FileHandler(filename=log_file)
+        logger.addHandler(handler)
+
     if log_format == "tqdm" and not sys.stderr.isatty():
         log_format = "simple"
 
@@ -473,13 +478,13 @@ class AzureMLProgressBarWrapper(BaseProgressBar):
         if Run is None:
             return
         if step is None:
-            step = stats['num_updates']
+            step = stats["num_updates"]
 
-        prefix = '' if tag is None else tag + '/'
+        prefix = "" if tag is None else tag + "/"
 
-        for key in stats.keys() - {'num_updates'}:
+        for key in stats.keys() - {"num_updates"}:
             name = prefix + key
             if isinstance(stats[key], AverageMeter):
-                self.run.log_row(name=name, **{'step': step, key: stats[key].val})
+                self.run.log_row(name=name, **{"step": step, key: stats[key].val})
             elif isinstance(stats[key], Number):
-                self.run.log_row(name=name, **{'step': step, key: stats[key]})
+                self.run.log_row(name=name, **{"step": step, key: stats[key]})

@@ -54,11 +54,17 @@ def main(args):
     search_path = os.path.join(dir_path, "**/*." + args.ext)
     rand = random.Random(args.seed)
 
-    with open(os.path.join(args.dest, "train.tsv"), "w") as train_f, open(
-        os.path.join(args.dest, "valid.tsv"), "w"
-    ) as valid_f:
+    valid_f = (
+        open(os.path.join(args.dest, "valid.tsv"), "w")
+        if args.valid_percent > 0
+        else None
+    )
+
+    with open(os.path.join(args.dest, "train.tsv"), "w") as train_f:
         print(dir_path, file=train_f)
-        print(dir_path, file=valid_f)
+
+        if valid_f is not None:
+            print(dir_path, file=valid_f)
 
         for fname in glob.iglob(search_path, recursive=True):
             file_path = os.path.realpath(fname)
@@ -71,6 +77,8 @@ def main(args):
             print(
                 "{}\t{}".format(os.path.relpath(file_path, dir_path), frames), file=dest
             )
+    if valid_f is not None:
+        valid_f.close()
 
 
 if __name__ == "__main__":

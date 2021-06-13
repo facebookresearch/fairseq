@@ -149,31 +149,54 @@ To get raw numbers, use --w2l-decoder viterbi and omit the lexicon. To use the t
 
 ## Use wav2vec 2.0 with 🤗Transformers:
 
-Wav2Vec2 is also available in the [🤗Transformers library](https://github.com/huggingface/transformers) since version 4.3.
+Wav2Vec2 is also available in the [🤗Transformers library](https://github.com/huggingface/transformers) since version 4.4.
 
-Pretrained Models can be found on the [hub](https://huggingface.co/models?filter=wav2vec2) 
+Pretrained Models can be found on the [hub](https://huggingface.co/models?filter=wav2vec2)
 and documentation can be found [here](https://huggingface.co/transformers/master/model_doc/wav2vec2.html).
 
 Usage example:
 
 ```python
 # !pip install transformers
+# !pip install datasets
 import soundfile as sf
 import torch
-from transformers import Wav2Vec2ForMaskedLM, Wav2Vec2Tokenizer
+from datasets import load_dataset
+from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
 
 # load pretrained model
-tokenizer = Wav2Vec2Tokenizer.from_pretrained("facebook/wav2vec2-base-960h")
-model = Wav2Vec2ForMaskedLM.from_pretrained("facebook/wav2vec2-base-960h")
+processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
+model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-base-960h")
+
+
+librispeech_samples_ds = load_dataset("patrickvonplaten/librispeech_asr_dummy", "clean", split="validation")
 
 # load audio
-audio_input, _ = sf.read("path/to/audio/file")
+audio_input, sample_rate = sf.read(librispeech_samples_ds[0]["file"])
 
-# transcribe
-input_values = tokenizer(audio_input, return_tensors="pt").input_values
+# pad input values and return pt tensor
+input_values = processor(audio_input, sampling_rate=sample_rate, return_tensors="pt").input_values
+
+# INFERENCE
+
+# retrieve logits & take argmax
 logits = model(input_values).logits
 predicted_ids = torch.argmax(logits, dim=-1)
-transcription = tokenizer.batch_decode(predicted_ids)[0]
+
+# transcribe
+transcription = processor.decode(predicted_ids[0])
+
+# FINE-TUNE
+
+target_transcription = "A MAN SAID TO THE UNIVERSE I EXIST"
+
+# encode labels
+with processor.as_target_processor():
+	labels = processor(target_transcription, return_tensors="pt").input_ids
+
+# compute loss by passing labels
+loss = model(input_values, labels=labels).loss
+loss.backward()
 ```
 
 # wav2vec

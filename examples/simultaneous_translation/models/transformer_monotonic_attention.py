@@ -152,7 +152,8 @@ class TransformerMonotonicDecoder(TransformerDecoder):
         encoder_out = encoder_out_dict["encoder_out"][0]
         encoder_padding_mask = (
             encoder_out_dict["encoder_padding_mask"][0]
-            if len(encoder_out_dict["encoder_padding_mask"]) > 0
+            if encoder_out_dict["encoder_padding_mask"]
+            and len(encoder_out_dict["encoder_padding_mask"]) > 0
             else None
         )
 

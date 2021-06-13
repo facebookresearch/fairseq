@@ -13,6 +13,7 @@ from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import FairseqDataclass
 from fairseq.logging.meters import safe_round
+from fairseq.utils import is_xla_tensor
 
 
 @dataclass
@@ -31,7 +32,6 @@ class Wav2VecCriterionConfig(FairseqDataclass):
         default_factory=lambda: [],
         metadata={"help": "output keys to log"},
     )
-from fairseq.utils import index_put, is_xla_tensor
 
 @register_criterion("wav2vec", dataclass=Wav2VecCriterionConfig)
 class Wav2vecCriterion(FairseqCriterion):
@@ -82,7 +82,7 @@ class Wav2vecCriterion(FairseqCriterion):
             )
             loss = (loss * mi).sum() if reduce else (loss * mi)
 
-        if 'sample_size' in sample and self.infonce:
+        if 'sample_size' in sample:
             sample_size = sample['sample_size']
         elif 'mask_indices' in sample['net_input']:
             sample_size = sample['net_input']['mask_indices'].sum()
@@ -121,7 +121,13 @@ class Wav2vecCriterion(FairseqCriterion):
                     logging_output["logits"] = logits.cpu().numpy()
             elif lk == "target":
                 if not self.training:
-                    logging_output["target"] = target.cpu().numpy()
+                    # If the targets have been mixed with the predictions of
+                    # teacher models, find the original targets
+                    if hasattr(model, "get_original_targets"):
+                        original_target = model.get_original_targets(sample, net_output)
+                    else:
+                        original_target = target
+                    logging_output["target"] = original_target.cpu().numpy()
             elif lk in net_output:
                 value = net_output[lk]
                 if not is_xla_tensor(value):
