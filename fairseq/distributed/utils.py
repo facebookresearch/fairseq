@@ -306,7 +306,7 @@ def distributed_init(cfg: FairseqConfig):
         model_part_number = get_model_parallel_rank()
         cfg.checkpoint.checkpoint_suffix += "-model_part-{0}".format(model_part_number)
 
-    if getattr(cfg.model, "base_layers", 0) > 0:
+    if hasattr(cfg,  "model") and getattr(cfg.model, "base_layers", 0) > 0:
         cfg.checkpoint.checkpoint_suffix = f"-rank-{cfg.distributed_training.distributed_rank}"
 
     return cfg.distributed_training.distributed_rank

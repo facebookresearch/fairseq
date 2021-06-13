@@ -5,6 +5,7 @@
 
 import contextlib
 import logging
+import json
 import os
 import tempfile
 import unittest
@@ -22,6 +23,7 @@ from tests.utils import (
 )
 
 
+@unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
 class TestTranslationGPU(unittest.TestCase):
     def setUp(self):
         logging.disable(logging.CRITICAL)
@@ -29,16 +31,84 @@ class TestTranslationGPU(unittest.TestCase):
     def tearDown(self):
         logging.disable(logging.NOTSET)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
-    def test_fp16(self):
+    def test_fp16_multigpu(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory("test_fp16") as data_dir:
+                log = os.path.join(data_dir, "train.log")
                 create_dummy_data(data_dir)
                 preprocess_translation_data(data_dir)
-                train_translation_model(data_dir, "fconv_iwslt_de_en", ["--fp16"])
+                train_translation_model(
+                    data_dir,
+                    "fconv_iwslt_de_en",
+                    ["--fp16", "--log-file", log],
+                    world_size=min(torch.cuda.device_count(), 2),
+                )
                 generate_main(data_dir)
+                assert os.path.exists(log)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
+    @staticmethod
+    def parse_logs(logfile):
+        logs = []
+        for ln in open(logfile, "r").readlines():
+            try:
+                logs.append(json.loads(ln))
+            except json.JSONDecodeError:
+                continue
+        return logs
+
+    def test_resume_training_fsdp(self):
+        self._test_resume_training(["--ddp-backend", "fully_sharded"])
+
+    def test_resume_training_fsdp_sharded_state(self):
+        self._test_resume_training(["--ddp-backend", "fully_sharded", "--use-sharded-state"])
+
+    def test_resume_training_noc10d(self):
+        self._test_resume_training([])
+
+    def _test_resume_training(self, extra_clargs, arch="fconv_iwslt_de_en"):
+        flags = [
+            "--fp16",
+            "--log-format",
+            "json",
+            "--max-update",
+            "10",
+            "--save-interval-updates",
+            "2",
+            "--log-interval",
+            "1",
+        ] + extra_clargs
+        world_size = min(torch.cuda.device_count(), 2)
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_fp16") as data_dir:
+                log = os.path.join(data_dir, "train.log")
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(
+                    data_dir, arch, flags + ["--log-file", log], world_size=world_size,
+                )
+                log2 = os.path.join(data_dir, "resume.log")
+                restore_file = os.path.join(data_dir, "checkpoint_1_2.pt")
+                train_translation_model(
+                    data_dir,
+                    arch,
+                    flags + ["--log-file", log2, "--restore-file", restore_file],
+                    world_size=world_size,
+                )
+
+                l1 = self.parse_logs(log)
+                l2 = self.parse_logs(log2)
+                assert int(l2[0]["num_updates"]) == 3, f"{l1}\n\n {l2}"
+                for k in [
+                    "train_loss",
+                    "train_num_updates",
+                    "train_ppl",
+                    "train_gnorm",
+                ]:
+                    from_scratch, resumed = l1[-1][k], l2[-1][k]
+                    assert (
+                        from_scratch == resumed
+                    ), f"difference at {k} {from_scratch} != {resumed}"
+
     def test_memory_efficient_fp16(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory("test_memory_efficient_fp16") as data_dir:
@@ -49,7 +119,6 @@ class TestTranslationGPU(unittest.TestCase):
                 )
                 generate_main(data_dir)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
     def test_transformer_fp16(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory("test_transformer") as data_dir:
@@ -68,6 +137,39 @@ class TestTranslationGPU(unittest.TestCase):
                         "--decoder-embed-dim",
                         "64",
                         "--fp16",
+                    ],
+                    run_validation=True,
+                )
+                generate_main(data_dir)
+
+    @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
+    def test_amp(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_amp") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(data_dir, "fconv_iwslt_de_en", ["--amp"])
+                generate_main(data_dir)
+
+    @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
+    def test_transformer_amp(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_transformer") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                train_translation_model(
+                    data_dir,
+                    "transformer_iwslt_de_en",
+                    [
+                        "--encoder-layers",
+                        "2",
+                        "--decoder-layers",
+                        "2",
+                        "--encoder-embed-dim",
+                        "64",
+                        "--decoder-embed-dim",
+                        "64",
+                        "--amp",
                     ],
                     run_validation=True,
                 )
@@ -108,11 +210,45 @@ class TestTranslationGPU(unittest.TestCase):
                 generate_main(
                     data_dir,
                     gen_config,
-                    path=os.pathsep.join([
-                        os.path.join(data_dir, "checkpoint_last.pt"),
-                        os.path.join(data_dir, "checkpoint_last.pt"),
-                    ]),
+                    path=os.pathsep.join(
+                        [
+                            os.path.join(data_dir, "checkpoint_last.pt"),
+                            os.path.join(data_dir, "checkpoint_last.pt"),
+                        ]
+                    ),
                 )
+
+    def test_fsdp_checkpoint_generate(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_fsdp_sharded") as data_dir:
+                log = os.path.join(data_dir, "train.log")
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                world_size = min(torch.cuda.device_count(), 2)
+                train_translation_model(
+                    data_dir,
+                    "fconv_iwslt_de_en",
+                    ["--log-file", log, "--ddp-backend", "fully_sharded"],
+                    world_size=world_size,
+                )
+                generate_main(data_dir)
+                assert os.path.exists(log)
+
+    def test_fsdp_sharded_checkpoint_generate(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_fsdp_sharded") as data_dir:
+                log = os.path.join(data_dir, "train.log")
+                create_dummy_data(data_dir)
+                preprocess_translation_data(data_dir)
+                world_size = min(torch.cuda.device_count(), 2)
+                train_translation_model(
+                    data_dir,
+                    "fconv_iwslt_de_en",
+                    ["--log-file", log, "--ddp-backend", "fully_sharded", "--use-sharded-state"],
+                    world_size=world_size,
+                )
+                generate_main(data_dir, ["--checkpoint-shard-count", str(world_size)])
+                assert os.path.exists(log)
 
 
 def _quantize_language_model(data_dir, arch, extra_flags=None, run_validation=False):
@@ -237,6 +373,7 @@ def _quantize_language_model(data_dir, arch, extra_flags=None, run_validation=Fa
     train.main(quantize_args)
 
 
+@unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
 class TestQuantization(unittest.TestCase):
     def setUp(self):
         logging.disable(logging.CRITICAL)
@@ -244,7 +381,6 @@ class TestQuantization(unittest.TestCase):
     def tearDown(self):
         logging.disable(logging.NOTSET)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
     def test_quantization(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory("test_quantization") as data_dir:
@@ -254,6 +390,7 @@ class TestQuantization(unittest.TestCase):
                 _quantize_language_model(data_dir, "transformer_lm")
 
 
+@unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
 class TestOptimizersGPU(unittest.TestCase):
     def setUp(self):
         logging.disable(logging.CRITICAL)
@@ -261,7 +398,6 @@ class TestOptimizersGPU(unittest.TestCase):
     def tearDown(self):
         logging.disable(logging.NOTSET)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
     def test_flat_grads(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory("test_flat_grads") as data_dir:

@@ -45,7 +45,7 @@ En-De as example:
 fairseq-train ${MUSTC_ROOT}/en-de \
   --config-yaml config_asr.yaml --train-subset train_asr --valid-subset dev_asr \
   --save-dir ${ASR_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-update 100000 \
-  --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
+  --task speech_to_text --criterion label_smoothed_cross_entropy --label-smoothing 0.1 --report-accuracy \
   --arch s2t_transformer_s --optimizer adam --lr 1e-3 --lr-scheduler inverse_sqrt \
   --warmup-updates 10000 --clip-norm 10.0 --seed 1 --update-freq 8
 ```
@@ -56,7 +56,7 @@ fairseq-train ${MUSTC_ROOT} \
   --train-subset train_de_asr,train_nl_asr,train_es_asr,train_fr_asr,train_it_asr,train_pt_asr,train_ro_asr,train_ru_asr \
   --valid-subset dev_de_asr,dev_nl_asr,dev_es_asr,dev_fr_asr,dev_it_asr,dev_pt_asr,dev_ro_asr,dev_ru_asr \
   --save-dir ${JOINT_ASR_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-update 100000 \
-  --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
+  --task speech_to_text --criterion label_smoothed_cross_entropy --label-smoothing 0.1 --report-accuracy \
   --arch s2t_transformer_s --optimizer adam --lr 1e-3 --lr-scheduler inverse_sqrt \
   --warmup-updates 10000 --clip-norm 10.0 --seed 1 --update-freq 8
 ```
@@ -98,7 +98,7 @@ En-De as example:
 fairseq-train ${MUSTC_ROOT}/en-de \
   --config-yaml config_st.yaml --train-subset train_st --valid-subset dev_st \
   --save-dir ${ST_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-update 100000 \
-  --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
+  --task speech_to_text --criterion label_smoothed_cross_entropy --label-smoothing 0.1 --report-accuracy \
   --arch s2t_transformer_s --optimizer adam --lr 2e-3 --lr-scheduler inverse_sqrt \
   --warmup-updates 10000 --clip-norm 10.0 --seed 1 --update-freq 8 \
   --load-pretrained-encoder-from ${ASR_SAVE_DIR}/${CHECKPOINT_FILENAME}
@@ -110,7 +110,7 @@ fairseq-train ${MUSTC_ROOT} \
   --train-subset train_de_st,train_nl_st,train_es_st,train_fr_st,train_it_st,train_pt_st,train_ro_st,train_ru_st \
   --valid-subset dev_de_st,dev_nl_st,dev_es_st,dev_fr_st,dev_it_st,dev_pt_st,dev_ro_st,dev_ru_st \
   --save-dir ${MULTILINGUAL_ST_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-update 100000 \
-  --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
+  --task speech_to_text --criterion label_smoothed_cross_entropy --label-smoothing 0.1 --report-accuracy \
   --arch s2t_transformer_s --ignore-prefix-size 1 --optimizer adam --lr 2e-3 --lr-scheduler inverse_sqrt \
   --warmup-updates 10000 --clip-norm 10.0 --seed 1 --update-freq 8 \
   --load-pretrained-encoder-from ${JOINT_ASR_SAVE_DIR}/${CHECKPOINT_FILENAME}
