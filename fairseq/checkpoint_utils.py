@@ -647,6 +647,8 @@ def _upgrade_state_dict(state):
                 and (
                     hasattr(cfg.model.w2v_args, "task") or "task" in cfg.model.w2v_args
                 )
+                and hasattr(cfg.model.w2v_args.task, "eval_wer_config")
+                and cfg.model.w2v_args.task.eval_wer_config is not None
                 and isinstance(
                     cfg.model.w2v_args.task.eval_wer_config.print_alignment, bool
                 )

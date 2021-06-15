@@ -73,7 +73,10 @@ class Trainer(object):
                     "option (it's already built in)"
                 )
         else:
-            if self.cfg.distributed_training.cpu_offload:
+            if (
+                hasattr(self.cfg.distributed_training, "cpu_offload")
+                and self.cfg.distributed_training.cpu_offload
+            ):
                 raise ValueError("--cpu-offload requires --ddp-backend=fully_sharded")
 
         # copy model and criterion to current device/dtype

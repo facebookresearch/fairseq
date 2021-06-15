@@ -229,6 +229,12 @@ class DistributedTrainingConfig(FairseqDataclass):
             "help": "total number of GPUs across all nodes (default: all visible GPUs)"
         },
     )
+    distributed_num_procs: Optional[int] = field(
+        default=max(1, torch.cuda.device_count()),
+        metadata={
+            "help": "total number of processes to fork (default: all visible GPUs)"
+        },
+    )
     distributed_rank: Optional[int] = field(
         default=0, metadata={"help": "rank of the current worker"}
     )
