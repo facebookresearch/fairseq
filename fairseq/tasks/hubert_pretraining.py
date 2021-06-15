@@ -115,12 +115,13 @@ class HubertPretrainingTask(FairseqTask):
         logger.info(f"current directory is {os.getcwd()}")
         logger.info(f"HubertPretrainingTask Config {cfg}")
 
+        self.cfg = cfg
         self.fine_tuning = cfg.fine_tuning
 
         if cfg.fine_tuning:
-            self.state.add_factory("target_dictionary", lambda: self.load_dictionaries(cfg)[0])
+            self.state.add_factory("target_dictionary", lambda: self.load_dictionaries)
         else:
-            self.state.add_factory("dictionaries", lambda: self.load_dictionaries(cfg))
+            self.state.add_factory("dictionaries", lambda: self.load_dictionaries)
 
         self._source_dictionary = None
 
@@ -144,9 +145,10 @@ class HubertPretrainingTask(FairseqTask):
     ) -> "HubertPretrainingTask":
         return cls(cfg)
 
-    def load_dictionaries(self, cfg: HubertPretrainingConfig):
-        label_dir = cfg.data if cfg.label_dir is None else cfg.label_dir
-        return [Dictionary.load(f"{label_dir}/dict.{label}.txt") for label in cfg.labels]
+    def load_dictionaries(self):
+        label_dir = self.cfg.data if self.cfg.label_dir is None else self.cfg.label_dir
+        dictionaries = return [Dictionary.load(f"{label_dir}/dict.{label}.txt") for label in self.cfg.labels]
+        return dictionaries[0] if self.cfg.fine_tuning else dictionaries
 
     def get_label_dir(self) -> str:
         if self.cfg.label_dir is None:
