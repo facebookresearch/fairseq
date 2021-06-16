@@ -153,6 +153,7 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
         lang_datasets = []
         dsets = []
         for language in languages:
+            loaded_datasets = []
             for universe in universes:
                 split_path = os.path.join(data_path, universe, language, split)
                 if os.path.exists(os.path.join(data_path, universe, language)) == False:
@@ -202,7 +203,7 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                     if language not in language_without_segmentations
                     else None
                 )
-                lang_dataset = DenoisingDataset(
+                lang_universe_dataset = DenoisingDataset(
                     dataset,
                     dataset.sizes,
                     self.dictionary,
@@ -215,7 +216,10 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                     if not self.args.add_lang_token
                     else self.source_dictionary.index("[{}]".format(language)),
                 )
-                lang_datasets.append(lang_dataset)
+                loaded_datasets.append(lang_universe_dataset)
+                
+            lang_dataset = ConcatDataset(loaded_datasets) 
+            lang_datasets.append(lang_dataset)
 
         dataset_lengths = np.array(
             [len(d) for d in lang_datasets],
