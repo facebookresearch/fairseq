@@ -92,7 +92,13 @@ def main(cfg: FairseqConfig) -> None:
     # Build model and criterion
     if cfg.distributed_training.ddp_backend == "fully_sharded":
         with fsdp_enable_wrap(cfg.distributed_training):
-            model = fsdp_wrap(task.build_model(cfg.model))
+            model = task.build_model(cfg.model)
+            from torch.nn import Embedding, Linear
+            embed_length = 250054 #len(task.src_dict) - 3 
+            model.encoder.embed_tokens = Embedding(embed_length, 1024)
+            model.decoder.embed_tokens = Embedding(embed_length, 1024)
+            model.decoder.output_projection = Linear(1024, embed_length, False)
+            model = fsdp_wrap(model)
     else:
         model = task.build_model(cfg.model)
     criterion = task.build_criterion(cfg.criterion)
