@@ -90,7 +90,7 @@ def main(cfg: FairseqConfig) -> None:
     assert cfg.criterion, "Please specify criterion to train a model"
 
     added_embeddings = 0
-    if cfg.task._name == "multilingual_denoising_roblox":
+    if cfg.task._name == "multilingual_denoising_universe":
         with open(cfg.task.universe_dict, 'r+') as univ_file:
             universes = univ_file.readlines()
         logger.info(f"Entending The Embedding Matrix by {len(universes)}")
@@ -103,6 +103,10 @@ def main(cfg: FairseqConfig) -> None:
         cfg.checkpoint = "/opt/ml/input/data/model/mbart50.pretrained/model_extended.pt"
         added_embeddings = len(universes)
 
+    if cfg.task._name == "translation_from_pretrained_bart_universe":
+        with open(cfg.task.universe_dict, 'r+') as univ_file:
+            universes = univ_file.readlines()
+            added_embeddings = len(universes)
 
     # Build model and criterion
     if cfg.distributed_training.ddp_backend == "fully_sharded":
