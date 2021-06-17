@@ -89,12 +89,27 @@ def main(cfg: FairseqConfig) -> None:
 
     assert cfg.criterion, "Please specify criterion to train a model"
 
+    added_embeddings = 0
+    if cfg.task._name == "multilingual_denoising_roblox":
+        with open(cfg.task.universe_dict, 'r+') as univ_file:
+            universes = univ_file.readlines()
+        logger.info(f"Entending The Embedding Matrix by {len(universes)}")
+        pt_checkpoint = torch.load(cfg.checkpoint)
+        added_embeddings = torch.empty(len(universes), 1024)
+        torch.nn.init.xavier_normal_(added_embeddings)
+        pt_checkpoint['model']['encoder.embed_tokens.weight'] = torch.cat([pt_checkpoint['model']['encoder.embed_tokens.weight'], added_embeddings])
+        pt_checkpoint['model']['decoder.embed_tokens.weight']= torch.cat([pt_checkpoint['model']['decoder.embed_tokens.weight'], added_embeddings])
+        torch.save("/opt/ml/input/data/model/mbart50.pretrained/model_extended.pt")
+        cfg.checkpoint = "/opt/ml/input/data/model/mbart50.pretrained/model_extended.pt"
+        added_embeddings = len(universes)
+
+
     # Build model and criterion
     if cfg.distributed_training.ddp_backend == "fully_sharded":
         with fsdp_enable_wrap(cfg.distributed_training):
             model = task.build_model(cfg.model)
             from torch.nn import Embedding, Linear
-            embed_length = 250054 #len(task.src_dict) - 3 
+            embed_length = 250054 + added_embeddings
             model.encoder.embed_tokens = Embedding(embed_length, 1024)
             model.decoder.embed_tokens = Embedding(embed_length, 1024)
             model.decoder.output_projection = Linear(1024, embed_length, False)
