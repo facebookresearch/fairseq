@@ -12,6 +12,7 @@ Flashlight decoders.
 import gc
 import itertools as it
 import os.path as osp
+from typing import List
 import warnings
 from collections import deque, namedtuple
 
@@ -194,6 +195,26 @@ class W2lKenLMDecoder(W2lDecoder):
                 self.decoder_opts, self.lm, self.silence, self.blank, []
             )
 
+    def get_timesteps(self, token_idxs: List[int]) -> List[int]:
+        """Returns frame numbers corresponding to every non-blank token.
+
+        Parameters
+        ----------
+        token_idxs : List[int]
+            IDs of decoded tokens.
+
+        Returns
+        -------
+        List[int]
+            Frame numbers corresponding to every non-blank token.
+        """
+        timesteps = []
+        for i, token_idx in enumerate(token_idxs):
+            if token_idx == self.blank:
+                continue
+            if i == 0 or token_idx != token_idxs[i-1]:
+                timesteps.append(i)
+        return timesteps
 
     def decode(self, emissions):
         B, T, N = emissions.size()
@@ -208,6 +229,7 @@ class W2lKenLMDecoder(W2lDecoder):
                     {
                         "tokens": self.get_tokens(result.tokens),
                         "score": result.score,
+                        "timesteps": self.get_timesteps(result.tokens),
                         "words": [
                             self.word_dict.get_entry(x) for x in result.words if x >= 0
                         ],
