@@ -725,7 +725,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         if args.decoder_normalize_before and not getattr(
             args, "no_decoder_final_norm", False
         ):
-            self.layer_norm = LayerNorm(embed_dim, export=export)
+            self.layer_norm = LayerNorm(
+                embed_dim, export=getattr(args, "char_inputs", False)
+            )
         else:
             self.layer_norm = None
 

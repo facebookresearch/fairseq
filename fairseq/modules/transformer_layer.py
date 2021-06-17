@@ -33,8 +33,8 @@ class TransformerEncoderLayer(nn.Module):
         super().__init__()
         self.args = args
         self.embed_dim = args.encoder_embed_dim
-        self.quant_noise = getattr(args, 'quant_noise_pq', 0)
-        self.quant_noise_block_size = getattr(args, 'quant_noise_pq_block_size', 8) or 8
+        self.quant_noise = getattr(args, "quant_noise_pq", 0)
+        self.quant_noise_block_size = getattr(args, "quant_noise_pq_block_size", 8) or 8
         self.self_attn = self.build_self_attention(self.embed_dim, args)
         export = getattr(args, "export", False)
         self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=export)
@@ -42,7 +42,7 @@ class TransformerEncoderLayer(nn.Module):
             args.dropout, module_name=self.__class__.__name__
         )
         self.activation_fn = utils.get_activation_fn(
-            activation=getattr(args, 'activation_fn', 'relu') or "relu"
+            activation=getattr(args, "activation_fn", "relu") or "relu"
         )
         activation_dropout_p = getattr(args, "activation_dropout", 0) or 0
         if activation_dropout_p == 0:
@@ -104,7 +104,12 @@ class TransformerEncoderLayer(nn.Module):
                     state_dict["{}.{}.{}".format(name, new, m)] = state_dict[k]
                     del state_dict[k]
 
-    def forward(self, x, encoder_padding_mask: Optional[Tensor], attn_mask: Optional[Tensor] = None):
+    def forward(
+        self,
+        x,
+        encoder_padding_mask: Optional[Tensor],
+        attn_mask: Optional[Tensor] = None,
+    ):
         """
         Args:
             x (Tensor): input to the layer of shape `(seq_len, batch, embed_dim)`
@@ -208,7 +213,7 @@ class TransformerDecoderLayer(nn.Module):
         )
         self.normalize_before = args.decoder_normalize_before
 
-        export = getattr(args, "export", False)
+        export = getattr(args, "char_inputs", False)
         self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=export)
 
         if no_encoder_attn:
