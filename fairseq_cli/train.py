@@ -93,14 +93,21 @@ def main(cfg: FairseqConfig) -> None:
     if cfg.task._name == "multilingual_denoising_universe":
         with open(cfg.task.universe_dict, 'r+') as univ_file:
             universes = univ_file.readlines()
-        logger.info(f"Entending The Embedding Matrix by {len(universes)}")
-        pt_checkpoint = torch.load(cfg.checkpoint)
+        logger.info(f"Extending The Embedding Matrix by {len(universes)}")
+        print(logger.info(cfg.checkpoint.finetune_from_model))
+        pt_checkpoint = torch.load(cfg.checkpoint.finetune_from_model)
         added_embeddings = torch.empty(len(universes), 1024)
+        output_projection=torch.empty(len(universes), 1024)
         torch.nn.init.xavier_normal_(added_embeddings)
+        torch.nn.init.xavier_normal_(output_projection)
         pt_checkpoint['model']['encoder.embed_tokens.weight'] = torch.cat([pt_checkpoint['model']['encoder.embed_tokens.weight'], added_embeddings])
         pt_checkpoint['model']['decoder.embed_tokens.weight']= torch.cat([pt_checkpoint['model']['decoder.embed_tokens.weight'], added_embeddings])
-        torch.save("/opt/ml/input/data/model/mbart50.pretrained/model_extended.pt")
-        cfg.checkpoint = "/opt/ml/input/data/model/mbart50.pretrained/model_extended.pt"
+        pt_checkpoint['model']['decoder.output_projection.weight']= torch.cat([pt_checkpoint['model']['decoder.output_projection.weight'], output_projection])
+
+        logger.info(pt_checkpoint['model']['encoder.embed_tokens.weight'].size() )
+        torch.save(pt_checkpoint, cfg.checkpoint.finetune_from_model[:-3]+"_extended.pt")
+        
+        cfg.checkpoint.finetune_from_model = cfg.checkpoint.finetune_from_model[:-3]+"_extended.pt"
         added_embeddings = len(universes)
 
     if cfg.task._name == "translation_from_pretrained_bart_universe":
@@ -108,18 +115,20 @@ def main(cfg: FairseqConfig) -> None:
             universes = univ_file.readlines()
             added_embeddings = len(universes)
 
+    model = task.build_model(cfg.model)
+    from torch.nn import Embedding, Linear
+    embed_length = 250054 + added_embeddings
+    model.encoder.embed_tokens = Embedding(embed_length, 1024)
+    model.decoder.embed_tokens = Embedding(embed_length, 1024)
+    model.decoder.output_projection = Linear(1024, embed_length, False)
+    logger.info(embed_length)
+
     # Build model and criterion
     if cfg.distributed_training.ddp_backend == "fully_sharded":
         with fsdp_enable_wrap(cfg.distributed_training):
-            model = task.build_model(cfg.model)
-            from torch.nn import Embedding, Linear
-            embed_length = 250054 + added_embeddings
-            model.encoder.embed_tokens = Embedding(embed_length, 1024)
-            model.decoder.embed_tokens = Embedding(embed_length, 1024)
-            model.decoder.output_projection = Linear(1024, embed_length, False)
             model = fsdp_wrap(model)
-    else:
-        model = task.build_model(cfg.model)
+
+    
     criterion = task.build_criterion(cfg.criterion)
     logger.info(model)
     logger.info("task: {}".format(task.__class__.__name__))
