@@ -151,7 +151,7 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
         mask_whole_words = get_whole_word_mask(self.args, self.dictionary)
         language_without_segmentations = self.args.no_whole_word_mask_langs.split(",")
         lang_datasets = []
-        dsets = []
+        dset_langs = []
         for language in languages:
             loaded_datasets = []
             for universe in universes:
@@ -226,6 +226,7 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
             if len(loaded_datasets) > 0:    
                 lang_dataset = ConcatDataset(loaded_datasets) 
                 lang_datasets.append(lang_dataset)
+                dset_langs.append(language)
 
         dataset_lengths = np.array(
             [len(d) for d in lang_datasets],
@@ -243,7 +244,7 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                 "Sample probability by language: {}".format(
                     {
                         lang: "{0:.4f}".format(sample_probs[id])
-                        for id, lang in enumerate(dsets)
+                        for id, lang in enumerate(dset_langs)
                     }
                 )
             )
@@ -252,7 +253,7 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                 "Up/Down Sampling ratio by language: {}".format(
                     {
                         lang: "{0:.2f}".format(size_ratio[id])
-                        for id, lang in enumerate(dsets)
+                        for id, lang in enumerate(dset_langs)
                     }
                 )
             )
