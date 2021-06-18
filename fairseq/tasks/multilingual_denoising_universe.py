@@ -225,8 +225,7 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
             if len(loaded_datasets) > 0:    
                 lang_dataset = ConcatDataset(loaded_datasets) 
                 lang_datasets.append(lang_dataset)
-                dset_langs.append(language)
-                dsets += [language]
+                dsets.append(language)
 
         dataset_lengths = np.array(
             [len(d) for d in lang_datasets],
@@ -244,7 +243,7 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                 "Sample probability by language: {}".format(
                     {
                         lang: "{0:.4f}".format(sample_probs[id])
-                        for id, lang in enumerate(dset_langs)
+                        for id, lang in enumerate(dsets)
                     }
                 )
             )
@@ -253,7 +252,7 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                 "Up/Down Sampling ratio by language: {}".format(
                     {
                         lang: "{0:.2f}".format(size_ratio[id])
-                        for id, lang in enumerate(dset_langs)
+                        for id, lang in enumerate(dsets)
                     }
                 )
             )
