@@ -151,7 +151,7 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
         mask_whole_words = get_whole_word_mask(self.args, self.dictionary)
         language_without_segmentations = self.args.no_whole_word_mask_langs.split(",")
         lang_datasets = []
-        dset_langs = []
+        dsets = []
         for language in languages:
             loaded_datasets = []
             for universe in universes:
@@ -162,7 +162,6 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                     continue
                 try:
                     logger.info(os.path.join(data_path, universe, language))
-                    dsets += [universe + language]
                     dataset = data_utils.load_indexed_dataset(
                         split_path,
                         self.source_dictionary,
@@ -227,6 +226,7 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                 lang_dataset = ConcatDataset(loaded_datasets) 
                 lang_datasets.append(lang_dataset)
                 dset_langs.append(language)
+                dsets += [language]
 
         dataset_lengths = np.array(
             [len(d) for d in lang_datasets],
