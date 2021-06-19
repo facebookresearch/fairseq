@@ -90,7 +90,6 @@ def main(cfg: FairseqConfig) -> None:
     assert cfg.criterion, "Please specify criterion to train a model"
 
     added_embeddings = 0
-    if cfg.checkpoint.finetune_from_model is not None:
     if cfg.task._name == "multilingual_denoising_universe":
         with open(cfg.task.universe_dict, 'r+') as univ_file:
             universes = univ_file.readlines()
