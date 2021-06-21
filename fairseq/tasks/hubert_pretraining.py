@@ -119,9 +119,9 @@ class HubertPretrainingTask(FairseqTask):
         self.fine_tuning = cfg.fine_tuning
 
         if cfg.fine_tuning:
-            self.state.add_factory("target_dictionary", lambda: self.load_dictionaries)
+            self.state.add_factory("target_dictionary", self.load_dictionaries)
         else:
-            self.state.add_factory("dictionaries", lambda: self.load_dictionaries)
+            self.state.add_factory("dictionaries", self.load_dictionaries)
 
         self._source_dictionary = None
 
