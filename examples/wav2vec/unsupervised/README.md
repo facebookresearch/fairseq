@@ -48,6 +48,16 @@ The fifth argument is which phonemizer to use. Supported values are [espeak](htt
 
 Pre-trained fasttext LID models can be downloaded [here](https://fasttext.cc/docs/en/language-identification.html).
 
+### Prepare TIMIT data
+TIMIT transcripts include silence. Therefore VAD is not used for audio preprocessing, and we do not wrap transcripts with silences or insert random silence in between words.
+
+To prepare TIMIT data for both the matched an unmatched setup:
+```shell
+bash scripts/prepare_timit.sh /dir/to/timit/raw/data /output/dir /path/to/wav2vec2/model.pt
+```
+
+Note that we assume the TIMIT distribution with capitalized directories and filenames are used (e.g., `TRAIN/DR1/FCJF0/SA1.PHN`).
+
 ## Generative adversarial training (GAN)
 
 We then use a GAN model to build a first unsupervised ASR model. The data preparation above of both speech features and text data is a necessary procedure that enables the generator to match speech to text in an unsupervised way. 
