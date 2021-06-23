@@ -26,6 +26,11 @@ from fairseq.nan_detector import NanDetector
 from fairseq.optim import lr_scheduler
 from omegaconf import OmegaConf
 
+try:
+    import torch.profiler as profiler
+except ImportError:
+    import torch.autograd.profiler as profiler
+
 logger = logging.getLogger(__name__)
 
 
@@ -586,33 +591,36 @@ class Trainer(object):
         """Return an EpochBatchIterator over the training set for a given epoch."""
         if load_dataset:
             logger.info("loading train data for epoch {}".format(epoch))
-            self.task.load_dataset(
-                self.cfg.dataset.train_subset,
+            with profiler.record_function("load_train_dataset"):
+                self.task.load_dataset(
+                    self.cfg.dataset.train_subset,
+                    epoch=epoch,
+                    combine=combine,
+                    data_selector=data_selector,
+                    tpu=self.tpu,
+                )
+        with profiler.record_function("get_batch_iterator"):
+            batch_iterator = self.task.get_batch_iterator(
+                dataset=self.task.dataset(self.cfg.dataset.train_subset),
+                max_tokens=self.cfg.dataset.max_tokens,
+                max_sentences=self.cfg.dataset.batch_size,
+                max_positions=utils.resolve_max_positions(
+                    self.task.max_positions(),
+                    self.model.max_positions(),
+                    self.cfg.dataset.max_tokens,
+                ),
+                ignore_invalid_inputs=True,
+                required_batch_size_multiple=self.cfg.dataset.required_batch_size_multiple,
+                seed=self.cfg.common.seed,
+                num_shards=self.data_parallel_world_size if shard_batch_itr else 1,
+                shard_id=self.data_parallel_rank if shard_batch_itr else 0,
+                num_workers=self.cfg.dataset.num_workers,
                 epoch=epoch,
-                combine=combine,
-                data_selector=data_selector,
-                tpu=self.tpu,
+                data_buffer_size=self.cfg.dataset.data_buffer_size,
+                disable_iterator_cache=disable_iterator_cache,
             )
-        batch_iterator = self.task.get_batch_iterator(
-            dataset=self.task.dataset(self.cfg.dataset.train_subset),
-            max_tokens=self.cfg.dataset.max_tokens,
-            max_sentences=self.cfg.dataset.batch_size,
-            max_positions=utils.resolve_max_positions(
-                self.task.max_positions(),
-                self.model.max_positions(),
-                self.cfg.dataset.max_tokens,
-            ),
-            ignore_invalid_inputs=True,
-            required_batch_size_multiple=self.cfg.dataset.required_batch_size_multiple,
-            seed=self.cfg.common.seed,
-            num_shards=self.data_parallel_world_size if shard_batch_itr else 1,
-            shard_id=self.data_parallel_rank if shard_batch_itr else 0,
-            num_workers=self.cfg.dataset.num_workers,
-            epoch=epoch,
-            data_buffer_size=self.cfg.dataset.data_buffer_size,
-            disable_iterator_cache=disable_iterator_cache,
-        )
-        self.reset_dummy_batch(batch_iterator.first_batch)
+        with profiler.record_function("reset_dummy_batch"):
+            self.reset_dummy_batch(batch_iterator.first_batch)
         return batch_iterator
 
     def get_valid_iterator(

@@ -43,7 +43,10 @@ from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from fairseq.trainer import Trainer
 from omegaconf import DictConfig, OmegaConf
 
-
+try:
+    import torch.profiler as profiler
+except ImportError:
+    import torch.autograd.profiler as profiler
 
 
 def main(cfg: FairseqConfig) -> None:
@@ -116,12 +119,13 @@ def main(cfg: FairseqConfig) -> None:
 
     # Load valid dataset (we load training data below, based on the latest checkpoint)
     # We load the valid dataset AFTER building the model
-    data_utils.raise_if_valid_subsets_unintentionally_ignored(cfg)
-    if cfg.dataset.combine_valid_subsets:
-        task.load_dataset("valid", combine=True, epoch=1)
-    else:
-        for valid_sub_split in cfg.dataset.valid_subset.split(","):
-            task.load_dataset(valid_sub_split, combine=False, epoch=1)
+    with profiler.record_function("load_valid_dataset"):
+        data_utils.raise_if_valid_subsets_unintentionally_ignored(cfg)
+        if cfg.dataset.combine_valid_subsets:
+            task.load_dataset("valid", combine=True, epoch=1)
+        else:
+            for valid_sub_split in cfg.dataset.valid_subset.split(","):
+                task.load_dataset(valid_sub_split, combine=False, epoch=1)
 
     # (optionally) Configure quantization
     if cfg.common.quantization_config_path is not None:
@@ -134,33 +138,35 @@ def main(cfg: FairseqConfig) -> None:
         quantizer = None
 
     # Build trainer
-    if cfg.common.model_parallel_size == 1:
-        trainer = Trainer(cfg, task, model, criterion, quantizer)
-    else:
-        trainer = MegatronTrainer(cfg, task, model, criterion)
-    logger.info(
-        "training on {} devices (GPUs/TPUs)".format(
-            cfg.distributed_training.distributed_world_size
+    with profiler.record_function("build_trainer"):
+        if cfg.common.model_parallel_size == 1:
+            trainer = Trainer(cfg, task, model, criterion, quantizer)
+        else:
+            trainer = MegatronTrainer(cfg, task, model, criterion)
+        logger.info(
+            "training on {} devices (GPUs/TPUs)".format(
+                cfg.distributed_training.distributed_world_size
+            )
         )
-    )
-    logger.info(
-        "max tokens per device = {} and max sentences per device = {}".format(
-            cfg.dataset.max_tokens,
-            cfg.dataset.batch_size,
+        logger.info(
+            "max tokens per device = {} and max sentences per device = {}".format(
+                cfg.dataset.max_tokens,
+                cfg.dataset.batch_size,
+            )
         )
-    )
 
     # Load the latest checkpoint if one is available and restore the
     # corresponding train iterator
-    extra_state, epoch_itr = checkpoint_utils.load_checkpoint(
-        cfg.checkpoint,
-        trainer,
-        # don't cache epoch iterators for sharded datasets
-        disable_iterator_cache=task.has_sharded_data("train"),
-    )
-    if cfg.common.tpu:
-        import torch_xla.core.xla_model as xm
-        xm.rendezvous("load_checkpoint")  # wait for all workers
+    with profiler.record_function("load_checkpoint"):
+        extra_state, epoch_itr = checkpoint_utils.load_checkpoint(
+            cfg.checkpoint,
+            trainer,
+            # don't cache epoch iterators for sharded datasets
+            disable_iterator_cache=task.has_sharded_data("train"),
+        )
+        if cfg.common.tpu:
+            import torch_xla.core.xla_model as xm
+            xm.rendezvous("load_checkpoint")  # wait for all workers
 
     max_epoch = cfg.optimization.max_epoch or math.inf
     lr = trainer.get_lr()
@@ -177,12 +183,14 @@ def main(cfg: FairseqConfig) -> None:
             break
 
         # train for one epoch
-        valid_losses, should_stop = train(cfg, trainer, task, epoch_itr)
-        if should_stop:
-            break
+        with profiler.record_function("train"):
+            valid_losses, should_stop = train(cfg, trainer, task, epoch_itr)
+            if should_stop:
+                break
 
         # only use first validation loss to update the learning rate
-        lr = trainer.lr_step(epoch_itr.epoch, valid_losses[0])
+        with profiler.record_function("lr_step"):
+            lr = trainer.lr_step(epoch_itr.epoch, valid_losses[0])
 
         epoch_itr = trainer.get_train_iterator(
             epoch_itr.next_epoch_idx,
@@ -238,10 +246,11 @@ def train(
 ) -> Tuple[List[Optional[float]], bool]:
     """Train the model for one epoch and return validation losses."""
     # Initialize data iterator
-    itr = epoch_itr.next_epoch_itr(
-        fix_batches_to_gpus=cfg.distributed_training.fix_batches_to_gpus,
-        shuffle=(epoch_itr.next_epoch_idx > cfg.dataset.curriculum),
-    )
+    with profiler.record_function("fairseq::next_epoch_itr"):
+        itr = epoch_itr.next_epoch_itr(
+            fix_batches_to_gpus=cfg.distributed_training.fix_batches_to_gpus,
+            shuffle=(epoch_itr.next_epoch_idx > cfg.dataset.curriculum),
+        )
     update_freq = (
         cfg.optimization.update_freq[epoch_itr.epoch - 1]
         if epoch_itr.epoch <= len(cfg.optimization.update_freq)
@@ -285,7 +294,7 @@ def train(
     num_updates = trainer.get_num_updates()
     logger.info("Start iterating over samples")
     for i, samples in enumerate(progress):
-        with metrics.aggregate("train_inner"), torch.autograd.profiler.record_function(
+        with metrics.aggregate("train_inner"), profiler.record_function(
             "train_step-%d" % i
         ):
             log_output = trainer.train_step(samples)
@@ -500,9 +509,10 @@ def cli_main(
         logger.info(f"Started plasma server pid {server.server.pid} {cfg.common.plasma_path}")
 
     if args.profile:
-        with torch.cuda.profiler.profile():
-            with torch.autograd.profiler.emit_nvtx():
-                distributed_utils.call_main(cfg, main)
+        with profiler.profile() as prof:
+            distributed_utils.call_main(cfg, main)
+        prof.export_chrome_trace("trace.json")
+
     else:
         distributed_utils.call_main(cfg, main)
 

@@ -16,6 +16,10 @@ import numpy as np
 import torch
 from fairseq.data import data_utils
 
+try:
+    import torch.profiler as profiler
+except ImportError:
+    import torch.autograd.profiler as profiler
 
 logger = logging.getLogger(__name__)
 
@@ -310,18 +314,19 @@ class EpochBatchIterator(EpochBatchIterating):
 
     @property
     def first_batch(self):
-        if len(self.frozen_batches) == 0:
-            raise Exception(
-                "The dataset is empty. This could indicate "
-                "that all elements in the dataset have been skipped. "
-                "Try increasing the max number of allowed tokens or using "
-                "a larger dataset."
-            )
+        with profiler.record_function("first_batch"):
+            if len(self.frozen_batches) == 0:
+                raise Exception(
+                    "The dataset is empty. This could indicate "
+                    "that all elements in the dataset have been skipped. "
+                    "Try increasing the max number of allowed tokens or using "
+                    "a larger dataset."
+                )
 
-        if getattr(self.dataset, "supports_fetch_outside_dataloader", True):
-            return self.collate_fn([self.dataset[i] for i in self.frozen_batches[0]])
-        else:
-            return "DUMMY"
+            if getattr(self.dataset, "supports_fetch_outside_dataloader", True):
+                return self.collate_fn([self.dataset[i] for i in self.frozen_batches[0]])
+            else:
+                return "DUMMY"
 
     def __len__(self):
         return int(math.ceil(len(self.frozen_batches) / float(self.num_shards)))

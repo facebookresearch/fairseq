@@ -26,6 +26,11 @@ from fairseq.file_io import PathManager
 from fairseq.models import FairseqDecoder, FairseqEncoder
 from omegaconf import DictConfig, open_dict, OmegaConf
 
+try:
+    import torch.profiler as profiler
+except ImportError:
+    import torch.autograd.profiler as profiler
+
 
 logger = logging.getLogger(__name__)
 
@@ -234,13 +239,14 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
             "can not be specified together: " + str(cfg)
         )
 
-    extra_state = trainer.load_checkpoint(
-        checkpoint_path,
-        reset_optimizer,
-        reset_lr_scheduler,
-        optimizer_overrides,
-        reset_meters=reset_meters,
-    )
+    with profiler.record_function("load_checkpoint"):
+        extra_state = trainer.load_checkpoint(
+            checkpoint_path,
+            reset_optimizer,
+            reset_lr_scheduler,
+            optimizer_overrides,
+            reset_meters=reset_meters,
+        )
 
     if (
         extra_state is not None
@@ -253,16 +259,20 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
     if extra_state is not None and not reset_dataloader:
         # restore iterator from checkpoint
         itr_state = extra_state["train_iterator"]
-        epoch_itr = trainer.get_train_iterator(
-            epoch=itr_state["epoch"], load_dataset=True, **passthrough_args
-        )
-        epoch_itr.load_state_dict(itr_state)
+        with profiler.record_function("get_train_iterator"):
+            epoch_itr = trainer.get_train_iterator(
+                epoch=itr_state["epoch"], load_dataset=True, **passthrough_args
+            )
+        with profiler.record_function("load_state_dict"):
+            epoch_itr.load_state_dict(itr_state)
     else:
-        epoch_itr = trainer.get_train_iterator(
-            epoch=1, load_dataset=True, **passthrough_args
-        )
+        with profiler.record_function("get_train_iterator"):
+            epoch_itr = trainer.get_train_iterator(
+                epoch=1, load_dataset=True, **passthrough_args
+            )
 
-    trainer.lr_step(epoch_itr.epoch)
+    with profiler.record_function("lr_step"):
+        trainer.lr_step(epoch_itr.epoch)
 
     return extra_state, epoch_itr
 

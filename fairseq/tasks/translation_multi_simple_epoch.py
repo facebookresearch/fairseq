@@ -22,6 +22,10 @@ from fairseq.data.multilingual.sampling_method import SamplingMethod
 from fairseq.tasks import LegacyFairseqTask, register_task
 from fairseq.utils import FileContentsAction
 
+try:
+    import torch.profiler as profiler
+except ImportError:
+    import torch.autograd.profiler as profiler
 
 ###
 def get_time_gap(s, e):
@@ -294,7 +298,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
             start_time = time.time()
             logger.info(f"start batch sampler: mem usage: {data_utils.get_mem_usage()}")
 
-            with data_utils.numpy_seed(seed):
+            with data_utils.numpy_seed(seed), profiler.record_function("fairseq::batch_sampler::ordered_indices"):
                 indices = dataset.ordered_indices()
             logger.info(
                 f"[{split}] @batch_sampler order indices time: {get_time_gap(start_time, time.time())}"
@@ -304,9 +308,10 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
             # filter examples that are too large
             if max_positions is not None:
                 my_time = time.time()
-                indices = self.filter_indices_by_size(
-                    indices, dataset, max_positions, ignore_invalid_inputs
-                )
+                with profiler.record_function("fairseq::batch_sampler::filter_indices_by_size"):
+                    indices = self.filter_indices_by_size(
+                        indices, dataset, max_positions, ignore_invalid_inputs
+                    )
                 logger.info(
                     f"[{split}] @batch_sampler filter_by_size time: {get_time_gap(my_time, time.time())}"
                 )
@@ -314,12 +319,13 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
 
             # create mini-batches with given size constraints
             my_time = time.time()
-            batch_sampler = dataset.batch_by_size(
-                indices,
-                max_tokens=max_tokens,
-                max_sentences=max_sentences,
-                required_batch_size_multiple=required_batch_size_multiple,
-            )
+            with profiler.record_function("fairseq::batch_sampler::batch_by_size"):
+                batch_sampler = dataset.batch_by_size(
+                    indices,
+                    max_tokens=max_tokens,
+                    max_sentences=max_sentences,
+                    required_batch_size_multiple=required_batch_size_multiple,
+                )
 
             logger.info(
                 f"[{split}] @batch_sampler batch_by_size time: {get_time_gap(my_time, time.time())}"
