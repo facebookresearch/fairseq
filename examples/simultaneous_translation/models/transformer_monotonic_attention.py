@@ -34,6 +34,7 @@ TransformerMonotonicDecoderOut = NamedTuple(
     "TransformerMonotonicDecoderOut",
     [
         ("action", int),
+        ("p_choose", Optional[Tensor]),
         ("attn_list", Optional[List[Optional[Dict[str, Tensor]]]]),
         ("step_list", Optional[List[Optional[Tensor]]]),
         ("encoder_out", Optional[Dict[str, List[Tensor]]]),
@@ -150,12 +151,16 @@ class TransformerMonotonicDecoder(TransformerDecoder):
         x = x.transpose(0, 1)
 
         encoder_out = encoder_out_dict["encoder_out"][0]
-        encoder_padding_mask = (
-            encoder_out_dict["encoder_padding_mask"][0]
-            if encoder_out_dict["encoder_padding_mask"]
-            and len(encoder_out_dict["encoder_padding_mask"]) > 0
-            else None
-        )
+
+        if "encoder_padding_mask" in encoder_out_dict:
+            encoder_padding_mask = (
+                encoder_out_dict["encoder_padding_mask"][0]
+                if encoder_out_dict["encoder_padding_mask"]
+                and len(encoder_out_dict["encoder_padding_mask"]) > 0
+                else None
+            )
+        else:
+            encoder_padding_mask = None
 
         return x, encoder_out, encoder_padding_mask
 
@@ -215,6 +220,8 @@ class TransformerMonotonicDecoder(TransformerDecoder):
         attn_list: List[Optional[Dict[str, Tensor]]] = []
         step_list: List[Optional[Tensor]] = []
 
+        p_choose = torch.tensor([1.0])
+
         for i, layer in enumerate(self.layers):
 
             x, attn, _ = layer(
@@ -255,6 +262,7 @@ class TransformerMonotonicDecoder(TransformerDecoder):
 
                         return x, TransformerMonotonicDecoderOut(
                             action=0,
+                            p_choose=p_choose,
                             attn_list=None,
                             step_list=None,
                             encoder_out=None,
@@ -265,6 +273,7 @@ class TransformerMonotonicDecoder(TransformerDecoder):
 
         return x, TransformerMonotonicDecoderOut(
             action=1,
+            p_choose=p_choose,
             attn_list=attn_list,
             step_list=step_list,
             encoder_out=encoder_out,
