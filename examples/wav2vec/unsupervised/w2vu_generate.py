@@ -428,8 +428,6 @@ def generate(cfg: UnsupGenerateConfig, models, saved_cfg, use_cuda):
                 )
                 hypo_futures.append(hypos)
                 samples.append(sample)
-                if cfg.debug:
-                    break
         itr = list(zip(hypo_futures, samples))
         start = 0
         end = len(itr)
