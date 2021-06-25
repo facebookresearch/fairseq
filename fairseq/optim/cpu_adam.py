@@ -126,7 +126,8 @@ class CPUAdam(torch.optim.Optimizer):
         if closure is not None:
             with torch.enable_grad():
                 loss = closure()
-
+                
+        torch.cuda.synchronize()        
         for group_id, group in enumerate(self.param_groups):
             for param_id, p in enumerate(group["params"]):
                 if p.grad is None:
