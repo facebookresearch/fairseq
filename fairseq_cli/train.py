@@ -350,7 +350,7 @@ def train(
     logger.info("end of epoch {} (average epoch stats below)".format(epoch_itr.epoch))
     stats = get_training_stats(metrics.get_smoothed_values("train"))
     progress.print(stats, tag="train", step=num_updates)
-
+    logger.info(f"train_loss={stats['loss']}")
     # reset epoch-level meters
     metrics.reset_meters("train")
     return valid_losses, should_stop
@@ -505,6 +505,7 @@ def validate(
             task.post_validate(trainer.get_model(), stats, agg)
 
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
+        logger.info(f"valid_loss={stats['loss']}")
 
         valid_losses.append(stats[cfg.checkpoint.best_checkpoint_metric])
     return valid_losses
