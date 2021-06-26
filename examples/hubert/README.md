@@ -9,13 +9,12 @@ HuBERT Extra Large (~1B params) | [Libri-Light](https://github.com/facebookresea
 HuBERT Large | [Libri-Light](https://github.com/facebookresearch/libri-light) 60k hr | [Librispeech](http://www.openslr.org/12) 960 hr | [download](https://dl.fbaipublicfiles.com/hubert/hubert_large_ll60k_finetune_ls960.pt)
 HuBERT Extra Large | [Libri-Light](https://github.com/facebookresearch/libri-light) 60k hr | [Librispeech](http://www.openslr.org/12) 960 hr | [download](https://dl.fbaipublicfiles.com/hubert/hubert_xtralarge_ll60k_finetune_ls960.pt)
 
-## Load a pretrained model
+## Load a model
 ```
 ckpt_path = "/path/to/the/checkpoint.pt"
-models, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([ckpt_path], strict=False)
+models, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([ckpt_path])
 model = models[0]
 ```
-** We will follow-up with a patch such that you wouldn't need to pass `strict=False` for loading the checkpoint in future.
 
 ## Train a new model
 
