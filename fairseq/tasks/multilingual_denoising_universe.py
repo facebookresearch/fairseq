@@ -139,7 +139,7 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
 
         if self.args.universe_dict != "ignore":
             with open(self.args.universe_dict, 'r') as univ_file:
-                universes = [x.rstrip() for x in univ_file.readlines()]
+                universes = [x.rstrip().replace('\n', '') for x in univ_file.readlines()]
 
 
         logger.info("Training on {0} languages: {1}".format(len(languages), languages))
@@ -183,9 +183,12 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                         break_mode=self.args.sample_break_mode,
                     )
                     logger.info("loaded {} blocks from: {}".format(len(dataset), split_path))
-
+                    if universe == '000000000':
+                        bos_token = self.source_dictionary.bos()
+                    else:
+                        bos_token = self.source_dictionary.index("[{}]".format(universe))
                     # prepend beginning-of-sentence token (<s>, equiv. to [CLS] in BERT)
-                    dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())
+                    dataset = PrependTokenDataset(dataset, bos_token)
                     
                     end_token = (
                         self.source_dictionary.index("[{}]".format(language))
