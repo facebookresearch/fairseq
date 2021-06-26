@@ -217,7 +217,8 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                         else self.source_dictionary.index("[{}]".format(language)),
                     )
                     loaded_datasets.append(lang_universe_dataset)
-                except:
+                except Exception as e:
+                    print(e)
                     logger.info(f"Failed to load universe {universe}")
             if len(loaded_datasets) > 0:    
                 lang_dataset = ConcatDataset(loaded_datasets) 
