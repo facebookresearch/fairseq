@@ -139,7 +139,7 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
 
         if self.args.universe_dict != "ignore":
             with open(self.args.universe_dict, 'r') as univ_file:
-                universes = [x.rstrip().replace('\n', '') for x in univ_file.readlines()]
+                universes = [x.rstrip() for x in univ_file.readlines()]
 
 
         logger.info("Training on {0} languages: {1}".format(len(languages), languages))
