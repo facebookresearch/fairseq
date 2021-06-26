@@ -436,6 +436,8 @@ class Trainer(object):
 
         logger.info(f"Preparing to load checkpoint {filename}")
         is_distributed = self.data_parallel_world_size > 1
+        logger.info(f"is distributed {is_distributed} ")
+        logger.info(f"use_sharded_state {self.cfg.distributed_training.use_sharded_state} ")
         bexists = PathManager.isfile(filename)
         if bexists:
             load_on_all_ranks = (
@@ -482,23 +484,16 @@ class Trainer(object):
                     last_optim_state = state.get("last_optimizer_state", None)
 
             # load model parameters
-            try:
-                self.model.load_state_dict(
-                    state["model"], strict=True, model_cfg=self.cfg.model
+            self.model.load_state_dict(
+                state["model"], strict=True, model_cfg=self.cfg.model
+            )
+            # save memory for later steps
+            del state["model"]
+            if utils.has_parameters(self.get_criterion()):
+                self.get_criterion().load_state_dict(
+                    state["criterion"], strict=True
                 )
-                # save memory for later steps
-                del state["model"]
-                if utils.has_parameters(self.get_criterion()):
-                    self.get_criterion().load_state_dict(
-                        state["criterion"], strict=True
-                    )
-                    del state["criterion"]
-
-            except Exception:
-                raise Exception(
-                    "Cannot load model parameters from checkpoint {}; "
-                    "please ensure that the architectures match.".format(filename)
-                )
+                del state["criterion"]
             extra_state = state["extra_state"]
             self._optim_history = state["optimizer_history"]
 
@@ -682,7 +677,7 @@ class Trainer(object):
         logging_outputs, sample_size, ooms = [], 0, 0
         for i, sample in enumerate(samples):  # delayed update loop
             sample, is_dummy_batch = self._prepare_sample(sample)
-
+            #logger.info(f" dp_size {self.data_parallel_world_size} , i {i} , len {len(samples)}")
             def maybe_no_sync():
                 """
                 Whenever *samples* contains more than one mini-batch, we
