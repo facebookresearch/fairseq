@@ -173,11 +173,6 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                     #        "Dataset not found: {} ({})".format(split, split_path)
                     #    )
 
-                    end_token = (
-                        self.source_dictionary.index("[{}]".format(universe))
-                    )
-
-
                     # create continuous blocks of tokens
                     dataset = TokenBlockDataset(
                         dataset,
@@ -191,7 +186,6 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
 
                     # prepend beginning-of-sentence token (<s>, equiv. to [CLS] in BERT)
                     dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())
-                    dataset = AppendTokenDataset(dataset, end_token)
                     
                     end_token = (
                         self.source_dictionary.index("[{}]".format(language))
