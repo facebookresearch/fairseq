@@ -90,7 +90,7 @@ def main(cfg: FairseqConfig) -> None:
     assert cfg.criterion, "Please specify criterion to train a model"
 
     added_embeddings = 0
-    if cfg.task == 'translation_multi_simple_epoch':
+    if cfg.task._name == 'translation_multi_simple_epoch':
         added_embeddings += 1
     if cfg.task._name == "multilingual_denoising_universe":
         with open(cfg.task.universe_dict, 'r+') as univ_file:
