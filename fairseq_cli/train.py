@@ -89,7 +89,7 @@ def main(cfg: FairseqConfig) -> None:
 
     assert cfg.criterion, "Please specify criterion to train a model"
 
-    added_embeddings = 1
+    added_embeddings = 0
     if cfg.task._name == "multilingual_denoising_universe":
         with open(cfg.task.universe_dict, 'r+') as univ_file:
             universes = univ_file.readlines()
@@ -121,7 +121,7 @@ def main(cfg: FairseqConfig) -> None:
 
     model = task.build_model(cfg.model)
     from torch.nn import Embedding, Linear
-    embed_length = 250053 + added_embeddings
+    embed_length = 250054 + added_embeddings
     logger.info(f"embed_length {embed_length}")
     model.encoder.embed_tokens = Embedding(embed_length, 1024)
     model.decoder.embed_tokens = Embedding(embed_length, 1024)
