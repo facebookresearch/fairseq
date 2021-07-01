@@ -90,7 +90,7 @@ class MultilingualDenoisingTask(DenoisingTask):
 
     def _get_sample_prob(self, dataset_lens):
         """
-        Get smoothed sampling porbability by languages. This helps low resource
+        Get smoothed sampling probability by languages. This helps low resource
         languages by upsampling them.
         """
         prob = dataset_lens / dataset_lens.sum()

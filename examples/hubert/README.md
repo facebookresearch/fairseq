@@ -9,6 +9,12 @@ HuBERT Extra Large (~1B params) | [Libri-Light](https://github.com/facebookresea
 HuBERT Large | [Libri-Light](https://github.com/facebookresearch/libri-light) 60k hr | [Librispeech](http://www.openslr.org/12) 960 hr | [download](https://dl.fbaipublicfiles.com/hubert/hubert_large_ll60k_finetune_ls960.pt)
 HuBERT Extra Large | [Libri-Light](https://github.com/facebookresearch/libri-light) 60k hr | [Librispeech](http://www.openslr.org/12) 960 hr | [download](https://dl.fbaipublicfiles.com/hubert/hubert_xtralarge_ll60k_finetune_ls960.pt)
 
+## Load a model
+```
+ckpt_path = "/path/to/the/checkpoint.pt"
+models, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([ckpt_path])
+model = models[0]
+```
 
 ## Train a new model
 

@@ -50,8 +50,12 @@ def main():
 
     copyfile(source_path + ".tsv", save_path + ".tsv")
     copyfile(data_poth + ".lengths", save_path + ".lengths")
-    copyfile(source_path + ".phn", save_path + ".phn")
-    copyfile(source_path + ".wrd", save_path + ".wrd")
+
+    if osp.exists(source_path + ".phn"):
+        copyfile(source_path + ".phn", save_path + ".phn")
+
+    if osp.exists(source_path + ".wrd"):
+        copyfile(source_path + ".wrd", save_path + ".wrd")
 
     if osp.exists(save_path + ".npy"):
         os.remove(save_path + ".npy")

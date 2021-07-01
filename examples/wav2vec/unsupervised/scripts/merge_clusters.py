@@ -62,14 +62,16 @@ def main():
     save_path = osp.join(args.save_dir, args.split)
 
     copyfile(source_path + ".tsv", save_path + ".tsv")
-    copyfile(source_path + ".phn", save_path + ".phn")
-    if os.path.exists(source_path + ".phnsc"):
-        copyfile(source_path + ".phnsc", save_path + ".phnsc")
+
+    if os.path.exists(source_path + ".phn"):
+        copyfile(source_path + ".phn", save_path + ".phn")
+    if os.path.exists(osp.join(args.source, "dict.phn.txt")):
         copyfile(
-            osp.join(args.source, "dict.phnsc.txt"),
-            osp.join(args.save_dir, "dict.phnsc.txt"),
+            osp.join(args.source, "dict.phn.txt"),
+            osp.join(args.save_dir, "dict.phn.txt"),
         )
-    copyfile(source_path + ".wrd", save_path + ".wrd")
+    if os.path.exists(source_path + ".wrd"):
+        copyfile(source_path + ".wrd", save_path + ".wrd")
 
     if osp.exists(save_path + ".npy"):
         os.remove(save_path + ".npy")

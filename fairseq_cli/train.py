@@ -121,11 +121,11 @@ def main(cfg: FairseqConfig) -> None:
 
     model = task.build_model(cfg.model)
     from torch.nn import Embedding, Linear
-    embed_length = 250054 + added_embeddings
+    embed_length = 250053 + added_embeddings
+    logger.info(f"embed_length {embed_length}")
     model.encoder.embed_tokens = Embedding(embed_length, 1024)
     model.decoder.embed_tokens = Embedding(embed_length, 1024)
-    model.decoder.output_projection = Linear(1024, embed_length, False)
-
+    #model.decoder.output_projection = Linear(1024, embed_length, False)
     # Build model and criterion
     if cfg.distributed_training.ddp_backend == "fully_sharded":
         with fsdp_enable_wrap(cfg.distributed_training):
@@ -333,7 +333,7 @@ def train(
             if num_updates % cfg.common.log_interval == 0:
                 stats = get_training_stats(metrics.get_smoothed_values("train_inner"))
                 progress.log(stats, tag="train_inner", step=num_updates)
-
+                logger.info(f"train_loss={stats['loss']};")
                 # reset mid-epoch stats after each log interval
                 # the end-of-epoch stats will still be preserved
                 metrics.reset_meters("train_inner")
@@ -350,7 +350,7 @@ def train(
     logger.info("end of epoch {} (average epoch stats below)".format(epoch_itr.epoch))
     stats = get_training_stats(metrics.get_smoothed_values("train"))
     progress.print(stats, tag="train", step=num_updates)
-
+    
     # reset epoch-level meters
     metrics.reset_meters("train")
     return valid_losses, should_stop
@@ -505,6 +505,7 @@ def validate(
             task.post_validate(trainer.get_model(), stats, agg)
 
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
+        logger.info(f"valid_loss={stats['loss']};")
 
         valid_losses.append(stats[cfg.checkpoint.best_checkpoint_metric])
     return valid_losses

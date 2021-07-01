@@ -139,7 +139,7 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
 
         if self.args.universe_dict != "ignore":
             with open(self.args.universe_dict, 'r') as univ_file:
-                universes = [x.rstrip().replace('\n', '') for x in univ_file.readlines()]
+                universes = [x.rstrip() for x in univ_file.readlines()]
 
 
         logger.info("Training on {0} languages: {1}".format(len(languages), languages))
@@ -172,6 +172,12 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                     #    raise FileNotFoundError(
                     #        "Dataset not found: {} ({})".format(split, split_path)
                     #    )
+                    end_token = (
+                        self.source_dictionary.index("[{}]".format(language))
+                        if self.args.add_lang_token
+                        else self.source_dictionary.eos()
+                    )
+                    
 
                     # create continuous blocks of tokens
                     dataset = TokenBlockDataset(
@@ -187,15 +193,8 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                         bos_token = self.source_dictionary.bos()
                     else:
                         bos_token = self.source_dictionary.index("[{}]".format(universe))
-                    # prepend beginning-of-sentence token (<s>, equiv. to [CLS] in BERT)
+
                     dataset = PrependTokenDataset(dataset, bos_token)
-                    
-                    end_token = (
-                        self.source_dictionary.index("[{}]".format(language))
-                        if self.args.add_lang_token
-                        else self.source_dictionary.eos()
-                    )
-                    
                     dataset = AppendTokenDataset(dataset, end_token)
 
                     lang_mask_whole_words = (
@@ -203,6 +202,7 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                         if language not in language_without_segmentations
                         else None
                     )
+                    
                     lang_universe_dataset = DenoisingDataset(
                         dataset,
                         dataset.sizes,
@@ -217,7 +217,8 @@ class MultilingualDenoisingUniverseTask(DenoisingTask):
                         else self.source_dictionary.index("[{}]".format(language)),
                     )
                     loaded_datasets.append(lang_universe_dataset)
-                except:
+                except Exception as e:
+                    print(e)
                     logger.info(f"Failed to load universe {universe}")
             if len(loaded_datasets) > 0:    
                 lang_dataset = ConcatDataset(loaded_datasets) 

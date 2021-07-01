@@ -9,8 +9,8 @@ from multiprocessing import Pool
 
 import torch
 from fairseq import utils
-from fairseq.binarizer import safe_readline
 from fairseq.data import data_utils
+from fairseq.file_chunker_utils import Chunker, find_offsets
 from fairseq.file_io import PathManager
 from fairseq.tokenizer import tokenize_line
 
@@ -48,6 +48,9 @@ class Dictionary:
             return self.symbols[idx]
         return self.unk_word
 
+    def get_count(self, idx):
+        return self.count[idx]
+
     def __len__(self):
         """Returns the number of symbols in the dictionary"""
         return len(self.symbols)
@@ -78,7 +81,13 @@ class Dictionary:
         """
         if torch.is_tensor(tensor) and tensor.dim() == 2:
             return "\n".join(
-                self.string(t, bpe_symbol, escape_unk, extra_symbols_to_ignore, include_eos=include_eos)
+                self.string(
+                    t,
+                    bpe_symbol,
+                    escape_unk,
+                    extra_symbols_to_ignore,
+                    include_eos=include_eos,
+                )
                 for t in tensor
             )
 
@@ -320,31 +329,18 @@ class Dictionary:
 
     @staticmethod
     def _add_file_to_dictionary_single_worker(
-        filename, tokenize, eos_word, worker_id=0, num_workers=1
+        filename,
+        tokenize,
+        eos_word,
+        start_offset,
+        end_offset,
     ):
         counter = Counter()
-        with open(PathManager.get_local_path(filename), "r", encoding="utf-8") as f:
-            size = os.fstat(f.fileno()).st_size
-            chunk_size = size // num_workers
-            offset = worker_id * chunk_size
-            end = offset + chunk_size
-            f.seek(offset)
-            if offset > 0:
-                safe_readline(f)  # drop first incomplete line
-            line = f.readline()
-            while line:
+        with Chunker(filename, start_offset, end_offset) as line_iterator:
+            for line in line_iterator:
                 for word in tokenize(line):
                     counter.update([word])
                 counter.update([eos_word])
-                # f.tell() returns only an opaque number which can
-                # return to the position in the file via f.seek()
-                # and does not necessarily represent a byte position
-                # in the file. However, f.tell() is faithful to the
-                # byte position _most of the time_. Thus we can just
-                # check against the file size to prevent early exit.
-                if f.tell() > end and f.tell() < size:
-                    break
-                line = f.readline()
         return counter
 
     @staticmethod
@@ -353,14 +349,23 @@ class Dictionary:
             for w, c in sorted(counter.items()):
                 dict.add_symbol(w, c)
 
+        local_file = PathManager.get_local_path(filename)
+        offsets = find_offsets(local_file, num_workers)
         if num_workers > 1:
+            chunks = zip(offsets, offsets[1:])
             pool = Pool(processes=num_workers)
             results = []
-            for worker_id in range(num_workers):
+            for (start_offset, end_offset) in chunks:
                 results.append(
                     pool.apply_async(
                         Dictionary._add_file_to_dictionary_single_worker,
-                        (filename, tokenize, dict.eos_word, worker_id, num_workers),
+                        (
+                            local_file,
+                            tokenize,
+                            dict.eos_word,
+                            start_offset,
+                            end_offset,
+                        ),
                     )
                 )
             pool.close()
@@ -370,7 +375,7 @@ class Dictionary:
         else:
             merge_result(
                 Dictionary._add_file_to_dictionary_single_worker(
-                    filename, tokenize, dict.eos_word
+                    local_file, tokenize, dict.eos_word, offsets[0], offsets[1]
                 )
             )
 

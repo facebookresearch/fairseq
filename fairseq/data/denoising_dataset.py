@@ -204,7 +204,7 @@ class DenoisingDataset(FairseqDataset):
         assert (source >= 0).all()
         assert (source[1:-1] >= 1).all()
         assert (source <= len(self.vocab)).all()
-        assert source[0] == self.vocab.bos()
+        #assert source[0] == self.vocab.bos()
         assert source[-1] == self.eos
         return {
             "id": index,

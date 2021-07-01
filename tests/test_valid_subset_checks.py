@@ -103,6 +103,10 @@ class TestValidSubsetsErrors(unittest.TestCase):
         cfg = make_lm_config(task="dummy_lm")
         raise_if_valid_subsets_unintentionally_ignored(cfg)
 
+    def test_masked_dummy_task(self):
+        cfg = make_lm_config(task="dummy_masked_lm")
+        raise_if_valid_subsets_unintentionally_ignored(cfg)
+
 
 class TestCombineValidSubsets(unittest.TestCase):
     def _train(self, extra_flags):

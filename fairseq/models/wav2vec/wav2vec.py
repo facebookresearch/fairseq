@@ -50,7 +50,7 @@ class Wav2VecConfig(FairseqDataclass):
         default=0, metadata={"help": "num of cross sampled negatives"}
     )
     num_negatives: int = field(
-        default=10, metadata={"help": "num of cross sampled negatives"}
+        default=10, metadata={"help": "num of sampled negatives"}
     )
     conv_feature_layers: str = field(
         default="[(512, 10, 5), (512, 8, 4), (512, 4, 2), (512, 4, 2), (512, 4, 2), (512, 1, 1), (512, 1, 1), (512, 1, 1)]",
