@@ -121,7 +121,7 @@ def main(cfg: FairseqConfig) -> None:
 
     model = task.build_model(cfg.model)
     from torch.nn import Embedding, Linear
-    embed_length = 250054 + added_embeddings
+    embed_length = 250053 + added_embeddings
     model.encoder.embed_tokens.weight = Embedding(embed_length, 1024)
     model.decoder.embed_tokens.weight = Embedding(embed_length, 1024)
     model.decoder.output_projection.weight = Linear(1024, embed_length, False)
