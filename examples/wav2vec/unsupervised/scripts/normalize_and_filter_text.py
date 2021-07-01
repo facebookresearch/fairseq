@@ -6,6 +6,7 @@
 
 import argparse
 import fasttext as ft
+import os
 import regex
 import sys
 
@@ -39,17 +40,31 @@ def main():
     lg_label = f"__label__{lg}"
     thresh = args.lid_threshold
 
-    model = ft.load_model(args.fasttext_model)
+    if os.path.exists(args.fasttext_model):
+        model = ft.load_model(args.fasttext_model)
+    else:
+        print(
+            f"fasttext language id model {args.fasttext_model} not found. Proceeding without language filtering. "
+            f"To enable language filtering, please download the latest language id model "
+            f"from https://fasttext.cc/docs/en/language-identification.html",
+            file=sys.stderr,
+        )
+        model = None
+
     for line in sys.stdin:
         line = line.strip()
         line = filter_r.sub(" ", line)
         line = " ".join(line.split())
-        lid, prob = model.predict(line, k=100)
-        try:
-            target_idx = lid.index(lg_label)
-        except ValueError:
-            continue
-        if target_idx == 0 or prob[target_idx] >= thresh:
+
+        if model is not None:
+            lid, prob = model.predict(line, k=100)
+            try:
+                target_idx = lid.index(lg_label)
+            except ValueError:
+                continue
+            if target_idx == 0 or prob[target_idx] >= thresh:
+                print(line)
+        else:
             print(line)
 
 

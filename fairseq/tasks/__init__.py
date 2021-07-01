@@ -39,7 +39,9 @@ def setup_task(cfg: FairseqDataclass, **kwargs):
             cfg = merge_with_parent(dc(), cfg)
             task = TASK_REGISTRY[task_name]
 
-    assert task is not None, f"Could not infer task type from {cfg}. Available tasks: {TASK_REGISTRY.keys()}"
+    assert (
+        task is not None
+    ), f"Could not infer task type from {cfg}. Available tasks: {TASK_REGISTRY.keys()}"
 
     return task.setup_task(cfg, **kwargs)
 
@@ -103,26 +105,32 @@ def get_task(name):
     return TASK_REGISTRY[name]
 
 
+def import_tasks(tasks_dir, namespace):
+    for file in os.listdir(tasks_dir):
+        path = os.path.join(tasks_dir, file)
+        if (
+            not file.startswith("_")
+            and not file.startswith(".")
+            and (file.endswith(".py") or os.path.isdir(path))
+        ):
+            task_name = file[: file.find(".py")] if file.endswith(".py") else file
+            importlib.import_module(namespace + "." + task_name)
+
+            # expose `task_parser` for sphinx
+            if task_name in TASK_REGISTRY:
+                parser = argparse.ArgumentParser(add_help=False)
+                group_task = parser.add_argument_group("Task name")
+                # fmt: off
+                group_task.add_argument('--task', metavar=task_name,
+                                        help='Enable this task with: ``--task=' + task_name + '``')
+                # fmt: on
+                group_args = parser.add_argument_group(
+                    "Additional command-line arguments"
+                )
+                TASK_REGISTRY[task_name].add_args(group_args)
+                globals()[task_name + "_parser"] = parser
+
+
 # automatically import any Python files in the tasks/ directory
 tasks_dir = os.path.dirname(__file__)
-for file in os.listdir(tasks_dir):
-    path = os.path.join(tasks_dir, file)
-    if (
-        not file.startswith("_")
-        and not file.startswith(".")
-        and (file.endswith(".py") or os.path.isdir(path))
-    ):
-        task_name = file[: file.find(".py")] if file.endswith(".py") else file
-        module = importlib.import_module("fairseq.tasks." + task_name)
-
-        # expose `task_parser` for sphinx
-        if task_name in TASK_REGISTRY:
-            parser = argparse.ArgumentParser(add_help=False)
-            group_task = parser.add_argument_group("Task name")
-            # fmt: off
-            group_task.add_argument('--task', metavar=task_name,
-                                    help='Enable this task with: ``--task=' + task_name + '``')
-            # fmt: on
-            group_args = parser.add_argument_group("Additional command-line arguments")
-            TASK_REGISTRY[task_name].add_args(group_args)
-            globals()[task_name + "_parser"] = parser
+import_tasks(tasks_dir, "fairseq.tasks")

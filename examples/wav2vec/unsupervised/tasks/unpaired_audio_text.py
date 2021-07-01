@@ -83,7 +83,7 @@ class UnpairedAudioTextConfig(FairseqDataclass):
     decoding_config: DecodingConfig = DecodingConfig()
 
 
-@register_task("gan_audio_pretraining_feats", dataclass=UnpairedAudioTextConfig)
+@register_task("unpaired_audio_text", dataclass=UnpairedAudioTextConfig)
 class UnpairedAudioText(FairseqTask):
     """ """
 
@@ -194,12 +194,13 @@ class UnpairedAudioText(FairseqTask):
         for i, (x, t, id) in enumerate(
             zip(
                 z,
-                sample["target"],
+                sample["target"] if "target" in sample else [None] * len(z),
                 sample["id"],
             )
         ):
 
-            t = t[(t >= self.target_dictionary.nspecial)]
+            if t is not None:
+                t = t[(t >= self.target_dictionary.nspecial)]
             x = x[
                 (x >= self.target_dictionary.nspecial)
                 & (x < (self.num_symbols + self.target_dictionary.nspecial))
@@ -215,27 +216,36 @@ class UnpairedAudioText(FairseqTask):
                 pred_units_arr = pred_units_arr[pred_units_arr != 0]
 
             if id == 0:
-                logger.info(f"REF: {self.target_dictionary.string(t)}")
+                if t is not None:
+                    logger.info(f"REF: {self.target_dictionary.string(t)}")
                 logger.info(f"HYP: {self.target_dictionary.string(pred_units_arr)}")
 
                 if self.kenlm is not None:
-                    ref_lm_s = self.compute_lm_score(self.target_dictionary.string(t))
+                    if t is not None:
+                        ref_lm_s = self.compute_lm_score(
+                            self.target_dictionary.string(t)
+                        )
+                        logger.info(
+                            f"LM [REF]: {ref_lm_s}, {math.pow(10, -ref_lm_s / (len(t) + 1))}"
+                        )
+
                     hyp_lm_s = self.compute_lm_score(
                         self.target_dictionary.string(pred_units_arr)
                     )
                     logger.info(
-                        f"LM [REF]: {ref_lm_s}, {math.pow(10, ref_lm_s / (len(t) + 1))}"
-                    )
-                    logger.info(
-                        f"LM [HYP]: {hyp_lm_s}, {math.pow(10, hyp_lm_s / (len(pred_units_arr) + 1))}"
+                        f"LM [HYP]: {hyp_lm_s}, {math.pow(10, -hyp_lm_s / (len(pred_units_arr) + 1))}"
                     )
 
             pred_units_arr = pred_units_arr.tolist()
 
-            t = t.tolist()
-            c_err += editdistance.eval(pred_units_arr, t)
-            c_len += len(t)
             pred_c_len += len(pred_units_arr)
+
+            if t is not None:
+                t = t.tolist()
+                c_err += editdistance.eval(pred_units_arr, t)
+                c_len += len(t)
+            else:
+                c_len = pred_c_len
 
             if self.kenlm is not None:
                 pred_str = self.target_dictionary.string(pred_units_arr)

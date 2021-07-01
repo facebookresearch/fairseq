@@ -337,6 +337,8 @@ class Wav2VecEncoder(FairseqEncoder):
             w2v_args = state.get("cfg", None)
             if w2v_args is None:
                 w2v_args = convert_namespace_to_omegaconf(state["args"])
+            w2v_args.criterion = None
+            w2v_args.lr_scheduler = None
             cfg.w2v_args = w2v_args
         else:
             state = None

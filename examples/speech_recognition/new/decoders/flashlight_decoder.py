@@ -118,6 +118,27 @@ class KenLMDecoder(BaseDecoder):
                 self.decoder_opts, self.lm, self.silence, self.blank, []
             )
 
+    def get_timesteps(self, token_idxs: List[int]) -> List[int]:
+        """Returns frame numbers corresponding to every non-blank token.
+
+        Parameters
+        ----------
+        token_idxs : List[int]
+            IDs of decoded tokens.
+
+        Returns
+        -------
+        List[int]
+            Frame numbers corresponding to every non-blank token.
+        """
+        timesteps = []
+        for i, token_idx in enumerate(token_idxs):
+            if token_idx == self.blank:
+                continue
+            if i == 0 or token_idx != token_idxs[i-1]:
+                timesteps.append(i)
+        return timesteps
+
     def decode(
         self,
         emissions: torch.FloatTensor,
@@ -134,6 +155,7 @@ class KenLMDecoder(BaseDecoder):
                     {
                         "tokens": self.get_tokens(result.tokens),
                         "score": result.score,
+                        "timesteps": self.get_timesteps(result.tokens),
                         "words": [
                             self.word_dict.get_entry(x) for x in result.words if x >= 0
                         ],

@@ -12,6 +12,7 @@ Flashlight decoders.
 import gc
 import itertools as it
 import os.path as osp
+from typing import List
 import warnings
 from collections import deque, namedtuple
 
@@ -52,29 +53,19 @@ class W2lDecoder(object):
         self.nbest = args.nbest
 
         # criterion-specific init
-        if args.criterion == "ctc":
-            self.criterion_type = CriterionType.CTC
-            self.blank = (
-                tgt_dict.index("<ctc_blank>")
-                if "<ctc_blank>" in tgt_dict.indices
-                else tgt_dict.bos()
-            )
-            if "<sep>" in tgt_dict.indices:
-                self.silence = tgt_dict.index("<sep>")
-            elif "|" in tgt_dict.indices:
-                self.silence = tgt_dict.index("|")
-            else:
-                self.silence = tgt_dict.eos()
-            self.asg_transitions = None
-        elif args.criterion == "asg_loss":
-            self.criterion_type = CriterionType.ASG
-            self.blank = -1
-            self.silence = -1
-            self.asg_transitions = args.asg_transitions
-            self.max_replabel = args.max_replabel
-            assert len(self.asg_transitions) == self.vocab_size ** 2
+        self.criterion_type = CriterionType.CTC
+        self.blank = (
+            tgt_dict.index("<ctc_blank>")
+            if "<ctc_blank>" in tgt_dict.indices
+            else tgt_dict.bos()
+        )
+        if "<sep>" in tgt_dict.indices:
+            self.silence = tgt_dict.index("<sep>")
+        elif "|" in tgt_dict.indices:
+            self.silence = tgt_dict.index("|")
         else:
-            raise RuntimeError(f"unknown criterion: {args.criterion}")
+            self.silence = tgt_dict.eos()
+        self.asg_transitions = None
 
     def generate(self, models, sample, **unused):
         """Generate a batch of inferences."""
@@ -90,23 +81,16 @@ class W2lDecoder(object):
         """Run encoder and normalize emissions"""
         model = models[0]
         encoder_out = model(**encoder_input)
-        if self.criterion_type == CriterionType.CTC:
-            if hasattr(model, "get_logits"):
-                emissions = model.get_logits(encoder_out) # no need to normalize emissions
-            else:
-                emissions = model.get_normalized_probs(encoder_out, log_probs=True)
-        elif self.criterion_type == CriterionType.ASG:
-            emissions = encoder_out["encoder_out"]
+        if hasattr(model, "get_logits"):
+            emissions = model.get_logits(encoder_out) # no need to normalize emissions
+        else:
+            emissions = model.get_normalized_probs(encoder_out, log_probs=True)
         return emissions.transpose(0, 1).float().cpu().contiguous()
 
     def get_tokens(self, idxs):
         """Normalize tokens by handling CTC blank, ASG replabels, etc."""
         idxs = (g[0] for g in it.groupby(idxs))
-        if self.criterion_type == CriterionType.CTC:
-            idxs = filter(lambda x: x != self.blank, idxs)
-        elif self.criterion_type == CriterionType.ASG:
-            idxs = filter(lambda x: x >= 0, idxs)
-            idxs = unpack_replabels(list(idxs), self.tgt_dict, self.max_replabel)
+        idxs = filter(lambda x: x != self.blank, idxs)
         return torch.LongTensor(list(idxs))
 
 
@@ -211,6 +195,26 @@ class W2lKenLMDecoder(W2lDecoder):
                 self.decoder_opts, self.lm, self.silence, self.blank, []
             )
 
+    def get_timesteps(self, token_idxs: List[int]) -> List[int]:
+        """Returns frame numbers corresponding to every non-blank token.
+
+        Parameters
+        ----------
+        token_idxs : List[int]
+            IDs of decoded tokens.
+
+        Returns
+        -------
+        List[int]
+            Frame numbers corresponding to every non-blank token.
+        """
+        timesteps = []
+        for i, token_idx in enumerate(token_idxs):
+            if token_idx == self.blank:
+                continue
+            if i == 0 or token_idx != token_idxs[i-1]:
+                timesteps.append(i)
+        return timesteps
 
     def decode(self, emissions):
         B, T, N = emissions.size()
@@ -225,6 +229,7 @@ class W2lKenLMDecoder(W2lDecoder):
                     {
                         "tokens": self.get_tokens(result.tokens),
                         "score": result.score,
+                        "timesteps": self.get_timesteps(result.tokens),
                         "words": [
                             self.word_dict.get_entry(x) for x in result.words if x >= 0
                         ],

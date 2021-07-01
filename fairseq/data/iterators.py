@@ -356,6 +356,7 @@ class EpochBatchIterator(EpochBatchIterating):
         """
         if self.disable_shuffling:
             shuffle = False
+        prev_epoch = self.epoch
         self.epoch = self.next_epoch_idx
         if set_dataset_epoch and hasattr(self.dataset, "set_epoch"):
             self.dataset.set_epoch(self.epoch)
@@ -363,7 +364,7 @@ class EpochBatchIterator(EpochBatchIterating):
             self._cur_epoch_itr = self._next_epoch_itr
             self._next_epoch_itr = None
         else:
-            if callable(self.batch_sampler):
+            if callable(self.batch_sampler) and prev_epoch != self.epoch:
                 # reset _frozen_batches to refresh the next epoch
                 self._frozen_batches = None
             self._cur_epoch_itr = self._get_iterator_for_epoch(
