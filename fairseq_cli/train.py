@@ -91,7 +91,7 @@ def main(cfg: FairseqConfig) -> None:
 
     added_embeddings = 0
     if cfg.task._name == 'translation_multi_simple_epoch':
-        added_embeddings += 1
+        added_embeddings += -1
     if cfg.task._name == "multilingual_denoising_universe":
         with open(cfg.task.universe_dict, 'r+') as univ_file:
             universes = univ_file.readlines()
