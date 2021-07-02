@@ -121,10 +121,10 @@ def main(cfg: FairseqConfig) -> None:
 
     model = task.build_model(cfg.model)
     from torch.nn import Embedding, Linear
-    embed_length = 250053 + added_embeddings
-    logger.info(f"embed_length {embed_length}")
-    model.encoder.embed_tokens = Embedding(embed_length, 1024)
-    model.decoder.embed_tokens = Embedding(embed_length, 1024)
+    #embed_length = 250053 + added_embeddings
+    ##logger.info(f"embed_length {embed_length}")
+    #model.encoder.embed_tokens = Embedding(embed_length, 1024)
+    #model.decoder.embed_tokens = Embedding(embed_length, 1024)
     #model.decoder.output_projection = Linear(1024, embed_length, False)
     # Build model and criterion
     if cfg.distributed_training.ddp_backend == "fully_sharded":
