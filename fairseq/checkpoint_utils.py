@@ -203,7 +203,7 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
         cfg.restore_file == "checkpoint_last.pt"
     ):  # default value of restore_file is 'checkpoint_last.pt'
         checkpoint_path = os.path.join(
-            cfg.get("save_dir"), "checkpoint_last{}.pt".format(suffix)
+            cfg.save_dir, "checkpoint_last{}.pt".format(suffix)
         )
         first_launch = not PathManager.exists(checkpoint_path)
         if cfg.finetune_from_model is not None and first_launch:
