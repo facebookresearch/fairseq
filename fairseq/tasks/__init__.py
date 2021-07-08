@@ -41,7 +41,7 @@ def setup_task(cfg: FairseqDataclass, **kwargs):
 
     assert (
         task is not None
-    ), f"Could not infer task type from {cfg}. Available tasks: {TASK_REGISTRY.keys()}"
+    ), f"Could not infer task type from {cfg}. Available argparse tasks: {TASK_REGISTRY.keys()}. Available hydra tasks: {TASK_DATACLASS_REGISTRY.keys()}"
 
     return task.setup_task(cfg, **kwargs)
 

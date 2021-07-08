@@ -189,13 +189,24 @@ class RobertaModel(FairseqEncoderModel):
     def build_model(cls, args, task):
         """Build a new model instance."""
 
+        from omegaconf import OmegaConf
+
+        if OmegaConf.is_config(args):
+            OmegaConf.set_struct(args, False)
+
         # make sure all arguments are present
         base_architecture(args)
 
         if not hasattr(args, "max_positions"):
+            if not hasattr(args, "tokens_per_sample"):
+                args.tokens_per_sample = task.max_positions()
             args.max_positions = args.tokens_per_sample
 
         encoder = RobertaEncoder(args, task.source_dictionary)
+
+        if OmegaConf.is_config(args):
+            OmegaConf.set_struct(args, True)
+
         return cls(args, encoder)
 
     def forward(
@@ -508,54 +519,62 @@ class RobertaEncoder(FairseqEncoder):
         return self.args.max_positions
 
 
+def safe_getattr(obj, k, default=None):
+    from omegaconf import OmegaConf
+
+    if OmegaConf.is_config(obj):
+        return obj.k if k in obj and obj.k is not None else default
+
+    return getattr(obj, k, default)
+
 @register_model_architecture("roberta", "roberta")
 def base_architecture(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 12)
-    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 768)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 3072)
-    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 12)
+    args.encoder_layers = safe_getattr(args, "encoder_layers", 12)
+    args.encoder_embed_dim = safe_getattr(args, "encoder_embed_dim", 768)
+    args.encoder_ffn_embed_dim = safe_getattr(args, "encoder_ffn_embed_dim", 3072)
+    args.encoder_attention_heads = safe_getattr(args, "encoder_attention_heads", 12)
 
-    args.dropout = getattr(args, "dropout", 0.1)
-    args.attention_dropout = getattr(args, "attention_dropout", 0.1)
-    args.activation_dropout = getattr(args, "activation_dropout", 0.0)
-    args.pooler_dropout = getattr(args, "pooler_dropout", 0.0)
+    args.dropout = safe_getattr(args, "dropout", 0.1)
+    args.attention_dropout = safe_getattr(args, "attention_dropout", 0.1)
+    args.activation_dropout = safe_getattr(args, "activation_dropout", 0.0)
+    args.pooler_dropout = safe_getattr(args, "pooler_dropout", 0.0)
 
-    args.max_source_positions = getattr(args, "max_positions", 512)
-    args.no_token_positional_embeddings = getattr(
+    args.max_source_positions = safe_getattr(args, "max_positions", 512)
+    args.no_token_positional_embeddings = safe_getattr(
         args, "no_token_positional_embeddings", False
     )
 
     # BERT has a few structural differences compared to the original Transformer
-    args.encoder_learned_pos = getattr(args, "encoder_learned_pos", True)
-    args.layernorm_embedding = getattr(args, "layernorm_embedding", True)
-    args.no_scale_embedding = getattr(args, "no_scale_embedding", True)
-    args.activation_fn = getattr(args, "activation_fn", "gelu")
-    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", False)
-    args.pooler_activation_fn = getattr(args, "pooler_activation_fn", "tanh")
-    args.untie_weights_roberta = getattr(args, "untie_weights_roberta", False)
+    args.encoder_learned_pos = safe_getattr(args, "encoder_learned_pos", True)
+    args.layernorm_embedding = safe_getattr(args, "layernorm_embedding", True)
+    args.no_scale_embedding = safe_getattr(args, "no_scale_embedding", True)
+    args.activation_fn = safe_getattr(args, "activation_fn", "gelu")
+    args.encoder_normalize_before = safe_getattr(args, "encoder_normalize_before", False)
+    args.pooler_activation_fn = safe_getattr(args, "pooler_activation_fn", "tanh")
+    args.untie_weights_roberta = safe_getattr(args, "untie_weights_roberta", False)
 
     # Adaptive input config
-    args.adaptive_input = getattr(args, "adaptive_input", False)
+    args.adaptive_input = safe_getattr(args, "adaptive_input", False)
 
     # LayerDrop config
-    args.encoder_layerdrop = getattr(args, "encoder_layerdrop", 0.0)
-    args.encoder_layers_to_keep = getattr(args, "encoder_layers_to_keep", None)
+    args.encoder_layerdrop = safe_getattr(args, "encoder_layerdrop", 0.0)
+    args.encoder_layers_to_keep = safe_getattr(args, "encoder_layers_to_keep", None)
 
     # Quantization noise config
-    args.quant_noise_pq = getattr(args, "quant_noise_pq", 0)
-    args.quant_noise_pq_block_size = getattr(args, "quant_noise_pq_block_size", 8)
-    args.quant_noise_scalar = getattr(args, "quant_noise_scalar", 0)
+    args.quant_noise_pq = safe_getattr(args, "quant_noise_pq", 0)
+    args.quant_noise_pq_block_size = safe_getattr(args, "quant_noise_pq_block_size", 8)
+    args.quant_noise_scalar = safe_getattr(args, "quant_noise_scalar", 0)
 
     # R4F config
-    args.spectral_norm_classification_head = getattr(
+    args.spectral_norm_classification_head = safe_getattr(
         args, "spectral_norm_classification_head", False
     )
 
 
 @register_model_architecture("roberta", "roberta_prenorm")
 def roberta_prenorm_architecture(args):
-    args.layernorm_embedding = getattr(args, "layernorm_embedding", False)
-    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", True)
+    args.layernorm_embedding = safe_getattr(args, "layernorm_embedding", False)
+    args.encoder_normalize_before = safe_getattr(args, "encoder_normalize_before", True)
     base_architecture(args)
 
 
@@ -566,17 +585,17 @@ def roberta_base_architecture(args):
 
 @register_model_architecture("roberta", "roberta_large")
 def roberta_large_architecture(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 24)
-    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 1024)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 4096)
-    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 16)
+    args.encoder_layers = safe_getattr(args, "encoder_layers", 24)
+    args.encoder_embed_dim = safe_getattr(args, "encoder_embed_dim", 1024)
+    args.encoder_ffn_embed_dim = safe_getattr(args, "encoder_ffn_embed_dim", 4096)
+    args.encoder_attention_heads = safe_getattr(args, "encoder_attention_heads", 16)
     base_architecture(args)
 
 
 @register_model_architecture("roberta", "xlm")
 def xlm_architecture(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 16)
-    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 1280)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 1280 * 4)
-    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 16)
+    args.encoder_layers = safe_getattr(args, "encoder_layers", 16)
+    args.encoder_embed_dim = safe_getattr(args, "encoder_embed_dim", 1280)
+    args.encoder_ffn_embed_dim = safe_getattr(args, "encoder_ffn_embed_dim", 1280 * 4)
+    args.encoder_attention_heads = safe_getattr(args, "encoder_attention_heads", 16)
     base_architecture(args)
