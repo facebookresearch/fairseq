@@ -48,6 +48,8 @@ We provide reference implementations of various sequence modeling papers:
   + [Linformer: Self-Attention with Linear Complexity (Wang et al., 2020)](examples/linformer/README.md)
   + [Cross-lingual Retrieval for Iterative Self-Supervised Training (Tran et al., 2020)](examples/criss/README.md)
   + [Deep Transformers with Latent Depth (Li et al., 2020)](examples/latent_depth/README.md)
+  + [Unsupervised Cross-lingual Representation Learning for Speech Recognition (Conneau et al., 2020)](https://arxiv.org/abs/2006.13979) 
+  + [Robust wav2vec 2.0: Analyzing Domain Shift in Self-Supervised Pre-Training (Hsu, et al., 2021)](https://arxiv.org/abs/2104.01027)
 * **Non-autoregressive Transformers**
   + Non-Autoregressive Neural Machine Translation (Gu et al., 2017)
   + Deterministic Non-Autoregressive Neural Sequence Modeling by Iterative Refinement (Lee et al. 2018)
@@ -61,6 +63,7 @@ We provide reference implementations of various sequence modeling papers:
 
 ### What's New:
 
+* July 2021 [Released Robust wav2vec 2.0 model](examples/wav2vec/README.md)
 * June 2021 [Released XLMR-XL and XLMR-XXL models](examples/xlmr/README.md)
 * March 2021 [Added full parameter and optimizer state sharding + CPU offloading](examples/fully_sharded_data_parallel/README.md)
 * February 2021 [Added LASER training code](examples/laser/README.md)
