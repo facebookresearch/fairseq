@@ -105,7 +105,7 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
         extra_state.update({"best": save_checkpoint.best})
 
     checkpoints = [
-        os.path.abspath(os.path.join(cfg.save_dir, fn)) for fn, cond in checkpoint_conds.items() if cond
+        os.path.join(cfg.save_dir, fn) for fn, cond in checkpoint_conds.items() if cond
     ]
     if len(checkpoints) > 0:
         trainer.save_checkpoint(checkpoints[0], extra_state)
