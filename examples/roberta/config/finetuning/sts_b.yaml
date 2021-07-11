@@ -5,6 +5,8 @@ common:
   fp16_init_scale: 4
   threshold_loss_scale: 1
   fp16_scale_window: 128
+  log_format: json
+  log_interval: 200
 
 task:
   _name: sentence_prediction
@@ -19,7 +21,7 @@ checkpoint:
   reset_optimizer: true
   reset_dataloader: true
   reset_meters: true
-  best_checkpoint_metric: accuracy
+  no_epoch_checkpoints: true
 
 distributed_training:
   find_unused_parameters: true
@@ -51,6 +53,6 @@ optimization:
   max_epoch: 10
 
 model:
-  _name: roberta_large
+  _name: roberta
   dropout: 0.1
   attention_dropout: 0.1

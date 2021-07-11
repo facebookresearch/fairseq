@@ -523,7 +523,7 @@ def safe_getattr(obj, k, default=None):
     from omegaconf import OmegaConf
 
     if OmegaConf.is_config(obj):
-        return obj.k if k in obj and obj.k is not None else default
+        return obj[k] if k in obj and obj[k] is not None else default
 
     return getattr(obj, k, default)
 

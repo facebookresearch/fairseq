@@ -7,10 +7,12 @@
 import argparse
 import importlib
 import os
+from contextlib import ExitStack
 
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import merge_with_parent, populate_dataclass
 from hydra.core.config_store import ConfigStore
+from omegaconf import open_dict, OmegaConf
 
 from .composite_encoder import CompositeEncoder
 from .distributed_fairseq_model import DistributedFairseqModel
@@ -80,10 +82,19 @@ def build_model(cfg: FairseqDataclass, task):
     if model_type in MODEL_DATACLASS_REGISTRY:
         # set defaults from dataclass. note that arch name and model name can be the same
         dc = MODEL_DATACLASS_REGISTRY[model_type]
+
         if isinstance(cfg, argparse.Namespace):
             cfg = populate_dataclass(dc(), cfg)
         else:
             cfg = merge_with_parent(dc(), cfg)
+    else:
+        if model_type in ARCH_CONFIG_REGISTRY:
+            with open_dict(cfg) if OmegaConf.is_config(cfg) else ExitStack():
+                # this calls the different "arch" functions (like base_architecture()) that you indicate
+                # if you specify --arch on the command line. this is only applicable to the old argparse based models
+                # hydra models should expose different architectures via different config files
+                # it will modify the cfg object and default parameters according to the arch
+                ARCH_CONFIG_REGISTRY[model_type](cfg)
 
     assert model is not None, (
         f"Could not infer model type from {cfg}. "
