@@ -21,10 +21,10 @@ logging.basicConfig(
     level=os.environ.get("LOGLEVEL", "INFO").upper(),
     stream=sys.stdout,
 )
-logger = logging.getLogger("dump_hubert_feature")
+logger = logging.getLogger("dump_w2v2_feature")
 
 
-class HubertFeatureReader(object):
+class Wav2Vec2FeatureReader(object):
     def __init__(self, ckpt_path, layer, max_chunk=1600000):
         (
             model,
@@ -33,10 +33,11 @@ class HubertFeatureReader(object):
         ) = fairseq.checkpoint_utils.load_model_ensemble_and_task([ckpt_path])
         self.model = model[0].eval().cuda()
         self.task = task
-        self.layer = layer
+        self.layer = layer  # assume this is 1-based like HuBERT
         self.max_chunk = max_chunk
         logger.info(f"TASK CONFIG:\n{self.task.cfg}")
         logger.info(f" max_chunk = {self.max_chunk}")
+        logger.info(f" model:\n{self.model}")
 
     def read_audio(self, path, ref_len=None):
         wav, sr = sf.read(path)
@@ -59,18 +60,19 @@ class HubertFeatureReader(object):
             feat = []
             for start in range(0, x.size(1), self.max_chunk):
                 x_chunk = x[:, start: start + self.max_chunk]
-                feat_chunk, _ = self.model.extract_features(
+                res = self.model.extract_features(
                     source=x_chunk,
                     padding_mask=None,
                     mask=False,
-                    output_layer=self.layer,
+                    layer=self.layer - 1,
                 )
+                feat_chunk = res["x"]
                 feat.append(feat_chunk)
         return torch.cat(feat, 1).squeeze(0)
 
 
 def main(tsv_dir, split, ckpt_path, layer, nshard, rank, feat_dir, max_chunk):
-    reader = HubertFeatureReader(ckpt_path, layer, max_chunk)
+    reader = Wav2Vec2FeatureReader(ckpt_path, layer, max_chunk)
     generator, num = get_path_iterator(f"{tsv_dir}/{split}.tsv", nshard, rank)
     dump_feature(reader, generator, num, split, nshard, rank, feat_dir)
 
