@@ -114,31 +114,31 @@ def DistributedFairseqModel(args, model, process_group):
                 return getattr(wrapped_module, name)
             return super().__getattr__(name)
 
-    ddp_model = _DistributedFairseqModel(**init_kwargs)
-    # Assume that:
+    #return _DistributedFairseqModel(**init_kwargs)
+
+    print("Activating powerSGD ...")
+
+    # Register a PowerSGD communication hook, by assuming that:
     # ``args.distributed_wrapper`` is 'DDP' and ``args.ddp_backend`` is 'c10d'.
-    
-    # 1) Register a FP16 compression communication hook. 
-    # ddp.register_comm_hook(state=process_group, hook=default.fp16_compress_hook)
-    
-    # 2) Register a PowerSGD communication hook:
+    ddp_model = _DistributedFairseqModel(**init_kwargs)
     state = powerSGD.PowerSGDState(
+        #process_group=dist.group.WORLD,
         process_group=process_group,
         matrix_approximation_rank=1,
-        start_powerSGD_iter=1_000,
+        start_powerSGD_iter=2,
     )
+    #    start_powerSGD_iter=1_000,
     ddp_model.register_comm_hook(state=state, hook=powerSGD.powerSGD_hook)
+    #ddp_model.register_comm_hook(state, default.fp16_compress_wrapper(powerSGD.powerSGD_hook))
+    #ddp_model.register_comm_hook(state, default.fp16_compress_wrapper(powerSGD.batched_powerSGD_hook))
+    #ddp_model.register_comm_hook(state, powerSGD.batched_powerSGD_hook)
+    #ddp_model.register_comm_hook(state=process_group, hook=default.fp16_compress_hook)
+
+    print(" =================================================== ")
+    print("Power SGD is activated")
+    print(" =================================================== ")
     
-    # 3) Register a FP16+PowerSGD communication hook:
-    """
-    state = powerSGD.PowerSGDState(
-        process_group=process_group,
-        matrix_approximation_rank=1,
-        start_powerSGD_iter=1_000,
-    )
-    ddp_model.register_comm_hook(state, default.fp16_compress_wrapper(powerSGD.powerSGD_hook))
-    """
-    
+
     return ddp_model
 
 
