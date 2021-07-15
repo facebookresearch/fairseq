@@ -4,27 +4,32 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+from dataclasses import dataclass, field
 
 import torch
 import torch.nn.functional as F
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
+from fairseq.dataclass import FairseqDataclass
 
 
-@register_criterion("sentence_prediction")
+@dataclass
+class SentencePredictionConfig(FairseqDataclass):
+    classification_head_name: str = field(
+        default="sentence_classification_head",
+        metadata={"help": "name of the classification head to use"},
+    )
+    regression_target: bool = field(
+        default=False,
+    )
+
+
+@register_criterion("sentence_prediction", dataclass=SentencePredictionConfig)
 class SentencePredictionCriterion(FairseqCriterion):
-    def __init__(self, task, classification_head_name, regression_target):
+    def __init__(self, cfg: SentencePredictionConfig, task):
         super().__init__(task)
-        self.classification_head_name = classification_head_name
-        self.regression_target = regression_target
-
-    @staticmethod
-    def add_args(parser):
-        # fmt: off
-        parser.add_argument('--classification-head-name',
-                            default='sentence_classification_head',
-                            help='name of the classification head to use')
-        # fmt: on
+        self.classification_head_name = cfg.classification_head_name
+        self.regression_target = cfg.regression_target
 
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.

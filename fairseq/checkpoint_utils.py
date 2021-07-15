@@ -92,8 +92,9 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
         # add random digits to resolve ties
         rand_sfx = randint(0, cfg.keep_best_checkpoints)
         checkpoint_conds[
-            "checkpoint.best_{}_{:.3f}{}.pt".format(cfg.best_checkpoint_metric,
-                                                    val_loss, rand_sfx)
+            "checkpoint.best_{}_{:.3f}{}.pt".format(
+                cfg.best_checkpoint_metric, val_loss, rand_sfx
+            )
         ] = worst_best is None or is_better(val_loss, worst_best)
     checkpoint_conds[
         "checkpoint_last{}.pt".format(suffix)
@@ -203,7 +204,7 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
         cfg.restore_file == "checkpoint_last.pt"
     ):  # default value of restore_file is 'checkpoint_last.pt'
         checkpoint_path = os.path.join(
-            cfg.get("save_dir"), "checkpoint_last{}.pt".format(suffix)
+            cfg.save_dir, "checkpoint_last{}.pt".format(suffix)
         )
         first_launch = not PathManager.exists(checkpoint_path)
         if cfg.finetune_from_model is not None and first_launch:
@@ -452,7 +453,9 @@ def load_model_ensemble_and_task(
             state = None
             if shard_idx % 10 == 0 and shard_idx > 0:
                 elapsed = time.time() - st
-                logger.info(f"Loaded {shard_idx} shards in {elapsed:.2f}s, {elapsed / (shard_idx+1):.2f}s/shard")
+                logger.info(
+                    f"Loaded {shard_idx} shards in {elapsed:.2f}s, {elapsed / (shard_idx+1):.2f}s/shard"
+                )
 
         # build model for ensemble
         ensemble.append(model)
@@ -508,6 +511,7 @@ def _torch_persistent_save(obj, f):
         except Exception:
             if i == 2:
                 logger.error(traceback.format_exc())
+                raise
 
 
 def _upgrade_state_dict(state):

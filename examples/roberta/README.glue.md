@@ -17,54 +17,19 @@ Use `ALL` for preprocessing all the glue tasks.
 ### 3) Fine-tuning on GLUE task:
 Example fine-tuning cmd for `RTE` task
 ```bash
-TOTAL_NUM_UPDATES=2036  # 10 epochs through RTE for bsz 16
-WARMUP_UPDATES=122      # 6 percent of the number of updates
-LR=2e-05                # Peak LR for polynomial LR scheduler.
-NUM_CLASSES=2
-MAX_SENTENCES=16        # Batch size.
 ROBERTA_PATH=/path/to/roberta/model.pt
 
-CUDA_VISIBLE_DEVICES=0 fairseq-train RTE-bin/ \
-    --restore-file $ROBERTA_PATH \
-    --max-positions 512 \
-    --batch-size $MAX_SENTENCES \
-    --max-tokens 4400 \
-    --task sentence_prediction \
-    --reset-optimizer --reset-dataloader --reset-meters \
-    --required-batch-size-multiple 1 \
-    --init-token 0 --separator-token 2 \
-    --arch roberta_large \
-    --criterion sentence_prediction \
-    --num-classes $NUM_CLASSES \
-    --dropout 0.1 --attention-dropout 0.1 \
-    --weight-decay 0.1 --optimizer adam --adam-betas "(0.9, 0.98)" --adam-eps 1e-06 \
-    --clip-norm 0.0 \
-    --lr-scheduler polynomial_decay --lr $LR --total-num-update $TOTAL_NUM_UPDATES --warmup-updates $WARMUP_UPDATES \
-    --fp16 --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
-    --max-epoch 10 \
-    --find-unused-parameters \
-    --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric;
+CUDA_VISIBLE_DEVICES=0 fairseq-hydra-train -config-dir examples/roberta/config/finetuning --config-name rte \
+task.data=RTE-bin checkpoint.restore_file=$ROBERTA_PATH
 ```
 
-For each of the GLUE task, you will need to use following cmd-line arguments:
-
-Model | MNLI | QNLI | QQP | RTE | SST-2 | MRPC | CoLA | STS-B
----|---|---|---|---|---|---|---|---
-`--num-classes` | 3 | 2 | 2 | 2 | 2 | 2 | 2 | 1
-`--lr` | 1e-5 | 1e-5 | 1e-5 | 2e-5 | 1e-5 | 1e-5 | 1e-5 | 2e-5
-`--batch-size` | 32 | 32 | 32 | 16 | 32 | 16 | 16 | 16
-`--total-num-update` | 123873 | 33112 | 113272 | 2036 | 20935 | 2296 | 5336 | 3598
-`--warmup-updates` | 7432 | 1986 | 28318 | 122 | 1256 | 137 | 320 | 214
-
-For `STS-B` additionally add `--regression-target --best-checkpoint-metric loss` and remove `--maximize-best-checkpoint-metric`.
+There are additional config files for each of the GLUE tasks in the examples/roberta/config/finetuning directory.
 
 **Note:**
 
-a) `--total-num-updates` is used by `--polynomial_decay` scheduler and is calculated for `--max-epoch=10` and `--batch-size=16/32` depending on the task.
+a) Above cmd-args and hyperparams are tested on one Nvidia `V100` GPU with `32gb` of memory for each task. Depending on the GPU memory resources available to you, you can use increase `--update-freq` and reduce `--batch-size`.
 
-b) Above cmd-args and hyperparams are tested on one Nvidia `V100` GPU with `32gb` of memory for each task. Depending on the GPU memory resources available to you, you can use increase `--update-freq` and reduce `--batch-size`.
-
-c) All the settings in above table are suggested settings based on our hyperparam search within a fixed search space (for careful comparison across models). You might be able to find better metrics with wider hyperparam search.  
+b) All the settings in above table are suggested settings based on our hyperparam search within a fixed search space (for careful comparison across models). You might be able to find better metrics with wider hyperparam search.
 
 ### Inference on GLUE task
 After training the model as mentioned in previous step, you can perform inference with checkpoints in `checkpoints/` directory using following python code snippet:

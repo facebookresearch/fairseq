@@ -250,7 +250,8 @@ class SequenceGenerator(nn.Module):
             self.min_len <= max_len
         ), "min_len cannot be larger than max_len, please adjust these!"
         # compute the encoder output for each beam
-        encoder_outs = self.model.forward_encoder(net_input)
+        with torch.autograd.profiler.record_function("EnsembleModel: forward_encoder"):
+            encoder_outs = self.model.forward_encoder(net_input)
 
         # placeholder of indices for bsz * beam_size to hold tokens and accumulative scores
         new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)
@@ -327,13 +328,13 @@ class SequenceGenerator(nn.Module):
                 encoder_outs = self.model.reorder_encoder_out(
                     encoder_outs, reorder_state
                 )
-
-            lprobs, avg_attn_scores = self.model.forward_decoder(
-                tokens[:, : step + 1],
-                encoder_outs,
-                incremental_states,
-                self.temperature,
-            )
+            with torch.autograd.profiler.record_function("EnsembleModel: forward_decoder"):
+                lprobs, avg_attn_scores = self.model.forward_decoder(
+                    tokens[:, : step + 1],
+                    encoder_outs,
+                    incremental_states,
+                    self.temperature,
+                )
 
             if self.lm_model is not None:
                 lm_out = self.lm_model(tokens[:, : step + 1])
