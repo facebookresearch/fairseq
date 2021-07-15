@@ -89,12 +89,49 @@ def main(cfg: FairseqConfig) -> None:
 
     assert cfg.criterion, "Please specify criterion to train a model"
 
+    added_embeddings = 0
+    if cfg.task._name == "multilingual_denoising_universe":
+        with open(cfg.task.universe_dict, 'r+') as univ_file:
+            universes = univ_file.readlines()
+        logger.info(f"Extending The Embedding Matrix by {len(universes)}")
+        if cfg.checkpoint.finetune_from_model is not None:
+            pt_checkpoint = torch.load(cfg.checkpoint.finetune_from_model)
+        else:
+            pt_checkpoint = torch.load(cfg.checkpoint.restore_file)
+        added_embeddings = torch.empty(len(universes), 1024)
+        output_projection=torch.empty(len(universes), 1024)
+        torch.nn.init.xavier_normal_(added_embeddings)
+        torch.nn.init.xavier_normal_(output_projection)
+        pt_checkpoint['model']['encoder.embed_tokens.weight'] = torch.cat([pt_checkpoint['model']['encoder.embed_tokens.weight'], added_embeddings])
+        pt_checkpoint['model']['decoder.embed_tokens.weight']= torch.cat([pt_checkpoint['model']['decoder.embed_tokens.weight'], added_embeddings])
+        pt_checkpoint['model']['decoder.output_projection.weight']= torch.cat([pt_checkpoint['model']['decoder.output_projection.weight'], output_projection])
+        
+        #if cfg.checkpoint.finetune_from_model is not None:
+            #torch.save(pt_checkpoint, cfg.checkpoint.finetune_from_model[:-3]+"_extended.pt")
+            #cfg.checkpoint.finetune_from_model = cfg.checkpoint.finetune_from_model[:-3]+"_extended.pt"
+        #else:
+        #    torch.save(pt_checkpoint, cfg.checkpoint.restore_file[:-3]+"_extended.pt")
+        #    cfg.checkpoint.restore_file = cfg.checkpoint.restore_file[:-3]+"_extended.pt"
+        added_embeddings = len(universes)
+
+    if cfg.task._name == "translation_from_pretrained_bart_universe":
+        with open(cfg.task.universe_dict, 'r+') as univ_file:
+            universes = univ_file.readlines()
+            added_embeddings = len(universes)
+
+    model = task.build_model(cfg.model)
+    from torch.nn import Embedding, Linear
+    #embed_length = 250053 + added_embeddings
+    ##logger.info(f"embed_length {embed_length}")
+    #model.encoder.embed_tokens = Embedding(embed_length, 1024)
+    #model.decoder.embed_tokens = Embedding(embed_length, 1024)
+    #model.decoder.output_projection = Linear(1024, embed_length, False)
     # Build model and criterion
     if cfg.distributed_training.ddp_backend == "fully_sharded":
         with fsdp_enable_wrap(cfg.distributed_training):
-            model = fsdp_wrap(task.build_model(cfg.model))
-    else:
-        model = task.build_model(cfg.model)
+            model = fsdp_wrap(model)
+
+    
     criterion = task.build_criterion(cfg.criterion)
     logger.info(model)
     logger.info("task: {}".format(task.__class__.__name__))
@@ -296,7 +333,7 @@ def train(
             if num_updates % cfg.common.log_interval == 0:
                 stats = get_training_stats(metrics.get_smoothed_values("train_inner"))
                 progress.log(stats, tag="train_inner", step=num_updates)
-
+                logger.info(f"train_loss={stats['loss']};")
                 # reset mid-epoch stats after each log interval
                 # the end-of-epoch stats will still be preserved
                 metrics.reset_meters("train_inner")
@@ -313,7 +350,7 @@ def train(
     logger.info("end of epoch {} (average epoch stats below)".format(epoch_itr.epoch))
     stats = get_training_stats(metrics.get_smoothed_values("train"))
     progress.print(stats, tag="train", step=num_updates)
-
+    
     # reset epoch-level meters
     metrics.reset_meters("train")
     return valid_losses, should_stop
@@ -468,6 +505,7 @@ def validate(
             task.post_validate(trainer.get_model(), stats, agg)
 
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
+        logger.info(f"valid_loss={stats['loss']};")
 
         valid_losses.append(stats[cfg.checkpoint.best_checkpoint_metric])
     return valid_losses
