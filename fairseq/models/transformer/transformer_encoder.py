@@ -3,7 +3,6 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-
 import math
 from typing import Dict, List, Optional
 
@@ -19,16 +18,26 @@ from fairseq.modules import (
     PositionalEmbedding,
     SinusoidalPositionalEmbedding,
 )
-from fairseq.modules.transformer_layer import TransformerEncoderLayer
+from fairseq.modules import transformer_layer
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 from torch import Tensor
-from fairseq.models.transformer import transformer_model
+from fairseq.models.transformer import (
+    TransformerConfig,
+)
 
 
-class TransformerEncoder(FairseqEncoder):
+# rewrite name for backward compatibility in `make_generation_fast_`
+def module_name_fordropout(module_name: str) -> str:
+    if module_name == 'TransformerEncoderBase':
+        return 'TransformerEncoder'
+    else:
+        return module_name
+
+
+class TransformerEncoderBase(FairseqEncoder):
     """
-    Transformer encoder consisting of *args.encoder_layers* layers. Each layer
+    Transformer encoder consisting of *cfg.encoder.layers* layers. Each layer
     is a :class:`TransformerEncoderLayer`.
 
     Args:
@@ -37,45 +46,44 @@ class TransformerEncoder(FairseqEncoder):
         embed_tokens (torch.nn.Embedding): input embedding
     """
 
-    def __init__(self, args, dictionary, embed_tokens):
-        self.args = args
+    def __init__(self, cfg, dictionary, embed_tokens):
+        self.cfg = cfg
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
 
         self.dropout_module = FairseqDropout(
-            args.dropout, module_name=self.__class__.__name__
+            cfg.dropout, module_name=module_name_fordropout(self.__class__.__name__)
         )
-        self.encoder_layerdrop = args.encoder_layerdrop
+        self.encoder_layerdrop = cfg.encoder.layerdrop
 
         embed_dim = embed_tokens.embedding_dim
         self.padding_idx = embed_tokens.padding_idx
-        self.max_source_positions = args.max_source_positions
+        self.max_source_positions = cfg.max_source_positions
 
         self.embed_tokens = embed_tokens
 
-        self.embed_scale = 1.0 if args.no_scale_embedding else math.sqrt(embed_dim)
+        self.embed_scale = 1.0 if cfg.no_scale_embedding else math.sqrt(embed_dim)
 
         self.embed_positions = (
             PositionalEmbedding(
-                args.max_source_positions,
+                cfg.max_source_positions,
                 embed_dim,
                 self.padding_idx,
-                learned=args.encoder_learned_pos,
+                learned=cfg.encoder.learned_pos,
             )
-            if not args.no_token_positional_embeddings
+            if not cfg.no_token_positional_embeddings
             else None
         )
-        export = getattr(args, "export", False)
-        if getattr(args, "layernorm_embedding", False):
-            self.layernorm_embedding = LayerNorm(embed_dim, export=export)
+        if cfg.layernorm_embedding:
+            self.layernorm_embedding = LayerNorm(embed_dim, export=cfg.export)
         else:
             self.layernorm_embedding = None
 
-        if not args.adaptive_input and args.quant_noise_pq > 0:
+        if not cfg.adaptive_input and cfg.quant_noise.pq > 0:
             self.quant_noise = apply_quant_noise_(
                 nn.Linear(embed_dim, embed_dim, bias=False),
-                args.quant_noise_pq,
-                args.quant_noise_pq_block_size,
+                cfg.quant_noise.pq,
+                cfg.quant_noise.pq_block_size,
             )
         else:
             self.quant_noise = None
@@ -85,28 +93,24 @@ class TransformerEncoder(FairseqEncoder):
         else:
             self.layers = nn.ModuleList([])
         self.layers.extend(
-            [self.build_encoder_layer(args) for i in range(args.encoder_layers)]
+            [self.build_encoder_layer(cfg) for i in range(cfg.encoder.layers)]
         )
         self.num_layers = len(self.layers)
 
-        if args.encoder_normalize_before:
-            self.layer_norm = LayerNorm(embed_dim, export=export)
+        if cfg.encoder.normalize_before:
+            self.layer_norm = LayerNorm(embed_dim, export=cfg.export)
         else:
             self.layer_norm = None
 
-    def build_encoder_layer(self, args):
-        layer = TransformerEncoderLayer(args)
-        checkpoint = getattr(args, "checkpoint_activations", False)
+    def build_encoder_layer(self, cfg):
+        layer = transformer_layer.TransformerEncoderLayerBase(cfg)
+        checkpoint = cfg.checkpoint_activations
         if checkpoint:
-            offload_to_cpu = getattr(args, "offload_activations", False)
+            offload_to_cpu = cfg.offload_activations
             layer = checkpoint_wrapper(layer, offload_to_cpu=offload_to_cpu)
         # if we are checkpointing, enforce that FSDP always wraps the
         # checkpointed layer, regardless of layer size
-        min_params_to_wrap = (
-            getattr(args, "min_params_to_wrap", transformer_model.DEFAULT_MIN_PARAMS_TO_WRAP)
-            if not checkpoint
-            else 0
-        )
+        min_params_to_wrap = cfg.min_params_to_wrap if not checkpoint else 0
         layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
         return layer
 
@@ -320,3 +324,18 @@ class TransformerEncoder(FairseqEncoder):
             self.normalize = False
             state_dict[version_key] = torch.Tensor([1])
         return state_dict
+
+
+class TransformerEncoder(TransformerEncoderBase):
+    def __init__(self, args, dictionary, embed_tokens):
+        self.args = args
+        super().__init__(
+            TransformerConfig.from_namespace(args),
+            dictionary,
+            embed_tokens,
+        )
+
+    def build_encoder_layer(self, args):
+        return super().build_encoder_layer(
+            TransformerConfig.from_namespace(args),
+        )
