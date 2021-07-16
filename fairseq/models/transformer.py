@@ -244,9 +244,9 @@ class TransformerModel(FairseqEncoderDecoderModel):
                     "--share-all-embeddings not compatible with --decoder-embed-path"
                 )
             
-            encoder_embed_tokens = cls.build_embedding(
+            encoder_embed_tokens = fsdp_wrap(cls.build_embedding(
                 args, src_dict, args.encoder_embed_dim, args.encoder_embed_path
-            )
+            ))
             decoder_embed_tokens = encoder_embed_tokens
             args.share_decoder_input_output_embed = True
         else:
@@ -753,7 +753,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 factor=args.adaptive_softmax_factor,
                 tie_proj=args.tie_adaptive_proj,
             )
-        elif self.share_decoder_input_output_embed:
+        elif self.share_input_output_embed:
             self.output_projection = nn.Linear(
                 self.embed_tokens.weight.shape[1],
                 self.embed_tokens.weight.shape[0],
