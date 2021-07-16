@@ -79,6 +79,22 @@ class FairseqDataclass:
     def _get_choices(self, attribute_name: str) -> Any:
         return self._get_meta(attribute_name, "choices")
 
+    @classmethod
+    def from_namespace(cls, args):
+        if isinstance(args, cls):
+            return args
+        else:
+            config = cls()
+            for k in config.__dataclass_fields__.keys():
+                if k.startswith("_"):
+                    # private member, skip
+                    continue
+                if hasattr(args, k):
+                    setattr(config, k, getattr(args, k))
+
+            return config
+
+
 
 @dataclass
 class CommonConfig(FairseqDataclass):

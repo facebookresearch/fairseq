@@ -419,20 +419,6 @@ def convert_namespace_to_omegaconf(args: Namespace) -> DictConfig:
     return cfg
 
 
-def populate_dataclass(
-    dataclass: FairseqDataclass,
-    args: Namespace,
-) -> FairseqDataclass:
-    for k in dataclass.__dataclass_fields__.keys():
-        if k.startswith("_"):
-            # private member, skip
-            continue
-        if hasattr(args, k):
-            setattr(dataclass, k, getattr(args, k))
-
-    return dataclass
-
-
 def overwrite_args_by_name(cfg: DictConfig, overrides: Dict[str, any]):
     # this will be deprecated when we get rid of argparse and model_overrides logic
 

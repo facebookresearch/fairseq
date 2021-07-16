@@ -7,7 +7,7 @@ from argparse import Namespace
 
 from typing import Union
 from fairseq.dataclass import FairseqDataclass
-from fairseq.dataclass.utils import populate_dataclass, merge_with_parent
+from fairseq.dataclass.utils import merge_with_parent
 from hydra.core.config_store import ConfigStore
 from omegaconf import DictConfig
 
@@ -45,7 +45,7 @@ def setup_registry(registry_name: str, base_class=None, default=None, required=F
         else:
             choice = getattr(cfg, registry_name, None)
             if choice in DATACLASS_REGISTRY:
-                cfg = populate_dataclass(DATACLASS_REGISTRY[choice](), cfg)
+                cfg = DATACLASS_REGISTRY[choice].from_namespace(cfg)
 
         if choice is None:
             if required:
