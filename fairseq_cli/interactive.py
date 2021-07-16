@@ -167,6 +167,7 @@ def main(cfg: FairseqConfig):
 
     # Initialize generator
     generator = task.build_generator(models, cfg.generation)
+    print(generator)
 
     # Handle tokenization and BPE
     tokenizer = task.build_tokenizer(cfg.tokenizer)
