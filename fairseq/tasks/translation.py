@@ -515,7 +515,11 @@ class TranslationTask(FairseqTask):
         model = super().build_model(cfg)
         if self.cfg.eval_bleu:
             detok_args = json.loads(self.cfg.eval_bleu_detok_args)
+<<<<<<< Updated upstream
             self.tokenizer = encoders.build_tokenizer(
+=======
+            self.tokenizer = self.build_tokenizer(
+>>>>>>> Stashed changes
                 Namespace(tokenizer=self.cfg.eval_bleu_detok, **detok_args)
             )
 
@@ -599,7 +603,6 @@ class TranslationTask(FairseqTask):
 
     def _inference_with_bleu(self, generator, sample, model):
         import sacrebleu
-
         def decode(toks, escape_unk=False):
             s = self.tgt_dict.string(
                 toks.int().cpu(),
