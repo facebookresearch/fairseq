@@ -12,9 +12,12 @@ from fairseq.modules import LayerNorm, MultiheadAttention
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
 from torch import Tensor
+from fairseq.models.transformer import (
+    TransformerConfig,
+)
 
 
-class TransformerEncoderLayer(nn.Module):
+class TransformerEncoderLayerBase(nn.Module):
     """Encoder layer block.
 
     In the original paper each operation (multi-head attention or FFN) is
@@ -23,49 +26,46 @@ class TransformerEncoderLayer(nn.Module):
     preprocessing each layer with layernorm and postprocessing with:
     `dropout -> add residual`. We default to the approach in the paper, but the
     tensor2tensor approach can be enabled by setting
-    *args.encoder_normalize_before* to ``True``.
+    *cfg.encoder.normalize_before* to ``True``.
 
     Args:
         args (argparse.Namespace): parsed command-line arguments
     """
 
-    def __init__(self, args):
+    def __init__(self, cfg):
         super().__init__()
-        self.args = args
-        self.embed_dim = args.encoder_embed_dim
-        self.quant_noise = getattr(args, "quant_noise_pq", 0)
-        self.quant_noise_block_size = getattr(args, "quant_noise_pq_block_size", 8) or 8
-        self.self_attn = self.build_self_attention(self.embed_dim, args)
-        export = getattr(args, "export", False)
-        self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=export)
+        self.cfg = cfg
+        self.embed_dim = cfg.encoder.embed_dim
+        self.quant_noise = cfg.quant_noise.pq
+        self.quant_noise_block_size = cfg.quant_noise.pq_block_size
+        self.self_attn = self.build_self_attention(self.embed_dim, cfg)
+        self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
         self.dropout_module = FairseqDropout(
-            args.dropout, module_name=self.__class__.__name__
+            cfg.dropout, module_name=self.__class__.__name__
         )
-        self.activation_fn = utils.get_activation_fn(
-            activation=getattr(args, "activation_fn", "relu") or "relu"
-        )
-        activation_dropout_p = getattr(args, "activation_dropout", 0) or 0
+        self.activation_fn = utils.get_activation_fn(activation=cfg.activation_fn)
+        activation_dropout_p = cfg.activation_dropout
         if activation_dropout_p == 0:
-            # for backwards compatibility with models that use args.relu_dropout
-            activation_dropout_p = getattr(args, "relu_dropout", 0) or 0
+            # for backwards compatibility with models that use cfg.relu_dropout
+            activation_dropout_p = cfg.relu_dropout or 0
         self.activation_dropout_module = FairseqDropout(
             float(activation_dropout_p), module_name=self.__class__.__name__
         )
-        self.normalize_before = args.encoder_normalize_before
+        self.normalize_before = cfg.encoder.normalize_before
         self.fc1 = self.build_fc1(
             self.embed_dim,
-            args.encoder_ffn_embed_dim,
+            cfg.encoder.ffn_embed_dim,
             self.quant_noise,
             self.quant_noise_block_size,
         )
         self.fc2 = self.build_fc2(
-            args.encoder_ffn_embed_dim,
+            cfg.encoder.ffn_embed_dim,
             self.embed_dim,
             self.quant_noise,
             self.quant_noise_block_size,
         )
 
-        self.final_layer_norm = LayerNorm(self.embed_dim, export=export)
+        self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
         return quant_noise(
@@ -77,11 +77,11 @@ class TransformerEncoderLayer(nn.Module):
             nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size
         )
 
-    def build_self_attention(self, embed_dim, args):
+    def build_self_attention(self, embed_dim, cfg):
         return MultiheadAttention(
             embed_dim,
-            args.encoder_attention_heads,
-            dropout=args.attention_dropout,
+            cfg.encoder.attention_heads,
+            dropout=cfg.attention_dropout,
             self_attention=True,
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
@@ -162,7 +162,19 @@ class TransformerEncoderLayer(nn.Module):
         return x
 
 
-class TransformerDecoderLayer(nn.Module):
+# backward compatible with the legacy argparse format
+class TransformerEncoderLayer(TransformerEncoderLayerBase):
+    def __init__(self, args):
+        super().__init__(TransformerConfig.from_namespace(args))
+        self.args = args
+
+    def build_self_attention(self, embed_dim, args):
+        return super().build_self_attention(
+            embed_dim, TransformerConfig.from_namespace(args)
+        )
+
+
+class TransformerDecoderLayerBase(nn.Module):
     """Decoder layer block.
 
     In the original paper each operation (multi-head attention, encoder
@@ -171,7 +183,7 @@ class TransformerDecoderLayer(nn.Module):
     robust when preprocessing each layer with layernorm and postprocessing with:
     `dropout -> add residual`. We default to the approach in the paper, but the
     tensor2tensor approach can be enabled by setting
-    *args.decoder_normalize_before* to ``True``.
+    *cfg.decoder.normalize_before* to ``True``.
 
     Args:
         args (argparse.Namespace): parsed command-line arguments
@@ -180,63 +192,58 @@ class TransformerDecoderLayer(nn.Module):
     """
 
     def __init__(
-        self, args, no_encoder_attn=False, add_bias_kv=False, add_zero_attn=False
+        self, cfg, no_encoder_attn=False, add_bias_kv=False, add_zero_attn=False
     ):
         super().__init__()
-        self.embed_dim = args.decoder_embed_dim
+        self.embed_dim = cfg.decoder.embed_dim
         self.dropout_module = FairseqDropout(
-            args.dropout, module_name=self.__class__.__name__
+            cfg.dropout, module_name=self.__class__.__name__
         )
-        self.quant_noise = getattr(args, "quant_noise_pq", 0)
-        self.quant_noise_block_size = getattr(args, "quant_noise_pq_block_size", 8)
+        self.quant_noise = cfg.quant_noise.pq
+        self.quant_noise_block_size = cfg.quant_noise.pq_block_size
 
-        self.cross_self_attention = getattr(args, "cross_self_attention", False)
+        self.cross_self_attention = cfg.cross_self_attention
 
         self.self_attn = self.build_self_attention(
             self.embed_dim,
-            args,
+            cfg,
             add_bias_kv=add_bias_kv,
             add_zero_attn=add_zero_attn,
         )
 
-        self.activation_fn = utils.get_activation_fn(
-            activation=str(args.activation_fn)
-            if getattr(args, "activation_fn", None) is not None
-            else "relu"
-        )
-        activation_dropout_p = getattr(args, "activation_dropout", 0) or 0
+        self.activation_fn = utils.get_activation_fn(activation=cfg.activation_fn)
+        activation_dropout_p = cfg.activation_dropout
         if activation_dropout_p == 0:
-            # for backwards compatibility with models that use args.relu_dropout
-            activation_dropout_p = getattr(args, "relu_dropout", 0) or 0
+            # for backwards compatibility with models that use cfg.relu_dropout
+            activation_dropout_p = cfg.relu_dropout or 0
         self.activation_dropout_module = FairseqDropout(
             float(activation_dropout_p), module_name=self.__class__.__name__
         )
-        self.normalize_before = args.decoder_normalize_before
+        self.normalize_before = cfg.decoder.normalize_before
 
-        export = getattr(args, "export", False)
-        self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=export)
+        self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
 
         if no_encoder_attn:
             self.encoder_attn = None
             self.encoder_attn_layer_norm = None
         else:
-            self.encoder_attn = self.build_encoder_attention(self.embed_dim, args)
-            self.encoder_attn_layer_norm = LayerNorm(self.embed_dim, export=export)
+            self.encoder_attn = self.build_encoder_attention(self.embed_dim, cfg)
+            self.encoder_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
 
         self.fc1 = self.build_fc1(
             self.embed_dim,
-            args.decoder_ffn_embed_dim,
+            cfg.decoder.ffn_embed_dim,
             self.quant_noise,
             self.quant_noise_block_size,
         )
         self.fc2 = self.build_fc2(
-            args.decoder_ffn_embed_dim,
+            cfg.decoder.ffn_embed_dim,
             self.embed_dim,
             self.quant_noise,
             self.quant_noise_block_size,
         )
 
-        self.final_layer_norm = LayerNorm(self.embed_dim, export=export)
+        self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
         self.need_attn = True
 
         self.onnx_trace = False
@@ -248,26 +255,26 @@ class TransformerDecoderLayer(nn.Module):
         return quant_noise(nn.Linear(input_dim, output_dim), q_noise, qn_block_size)
 
     def build_self_attention(
-        self, embed_dim, args, add_bias_kv=False, add_zero_attn=False
+        self, embed_dim, cfg, add_bias_kv=False, add_zero_attn=False
     ):
         return MultiheadAttention(
             embed_dim,
-            args.decoder_attention_heads,
-            dropout=args.attention_dropout,
+            cfg.decoder.attention_heads,
+            dropout=cfg.attention_dropout,
             add_bias_kv=add_bias_kv,
             add_zero_attn=add_zero_attn,
-            self_attention=not getattr(args, "cross_self_attention", False),
+            self_attention=not cfg.cross_self_attention,
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
         )
 
-    def build_encoder_attention(self, embed_dim, args):
+    def build_encoder_attention(self, embed_dim, cfg):
         return MultiheadAttention(
             embed_dim,
-            args.decoder_attention_heads,
-            kdim=getattr(args, "encoder_embed_dim", None),
-            vdim=getattr(args, "encoder_embed_dim", None),
-            dropout=args.attention_dropout,
+            cfg.decoder.attention_heads,
+            kdim=cfg.encoder.embed_dim,
+            vdim=cfg.encoder.embed_dim,
+            dropout=cfg.attention_dropout,
             encoder_decoder_attention=True,
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
@@ -417,3 +424,33 @@ class TransformerDecoderLayer(nn.Module):
 
     def make_generation_fast_(self, need_attn: bool = False, **kwargs):
         self.need_attn = need_attn
+
+
+# backward compatible with the legacy argparse format
+class TransformerDecoderLayer(TransformerDecoderLayerBase):
+    def __init__(
+        self, args, no_encoder_attn=False, add_bias_kv=False, add_zero_attn=False
+    ):
+        super().__init__(
+            TransformerConfig.from_namespace(args),
+            no_encoder_attn=no_encoder_attn,
+            add_bias_kv=add_bias_kv,
+            add_zero_attn=add_zero_attn,
+        )
+        self.args = args
+
+    def build_self_attention(
+        self, embed_dim, args, add_bias_kv=False, add_zero_attn=False
+    ):
+        return super().build_self_attention(
+            embed_dim,
+            TransformerConfig.from_namespace(args),
+            add_bias_kv=add_bias_kv,
+            add_zero_attn=add_zero_attn,
+        )
+
+    def build_encoder_attention(self, embed_dim, args):
+        return super().build_encoder_attention(
+            embed_dim,
+            TransformerConfig.from_namespace(args),
+        )

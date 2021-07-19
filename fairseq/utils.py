@@ -12,13 +12,14 @@ import os
 import sys
 import warnings
 from itertools import accumulate
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, TYPE_CHECKING
 
 import torch
 import torch.nn.functional as F
-from fairseq.modules.multihead_attention import MultiheadAttention
 from torch import Tensor
 
+if TYPE_CHECKING:
+    from fairseq.modules.multihead_attention import MultiheadAttention
 
 try:
     from amp_C import multi_tensor_l2norm
@@ -130,7 +131,7 @@ def move_to_tpu(sample):
 
 
 def get_incremental_state(
-    module: MultiheadAttention,
+    module: "MultiheadAttention",
     incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
     key: str,
 ) -> Optional[Dict[str, Optional[Tensor]]]:
@@ -139,7 +140,7 @@ def get_incremental_state(
 
 
 def set_incremental_state(
-    module: MultiheadAttention,
+    module: "MultiheadAttention",
     incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
     key: str,
     value: Dict[str, Optional[Tensor]],

@@ -9,7 +9,7 @@ import importlib
 import os
 
 from fairseq.dataclass import FairseqDataclass
-from fairseq.dataclass.utils import merge_with_parent, populate_dataclass
+from fairseq.dataclass.utils import merge_with_parent
 from hydra.core.config_store import ConfigStore
 
 from .fairseq_task import FairseqTask, LegacyFairseqTask  # noqa
@@ -30,7 +30,7 @@ def setup_task(cfg: FairseqDataclass, **kwargs):
         task = TASK_REGISTRY[task_name]
         if task_name in TASK_DATACLASS_REGISTRY:
             dc = TASK_DATACLASS_REGISTRY[task_name]
-            cfg = populate_dataclass(dc(), cfg)
+            cfg = dc.from_namespace(cfg)
     else:
         task_name = getattr(cfg, "_name", None)
 
