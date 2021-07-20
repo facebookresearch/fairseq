@@ -72,6 +72,12 @@ class Trainer(object):
                     "FullyShardedDataParallel is not compatible with --zero-sharding "
                     "option (it's already built in)"
                 )
+            if self.cfg.optimization.update_freq[0] > 1:
+                logger.warning(
+                    "Combining --update-freq with FullyShardedDataParallel will "
+                    "result in increased memory usage, since full-sized gradients "
+                    "will be accumulated on each GPU!"
+                )
         else:
             if (
                 hasattr(self.cfg.distributed_training, "cpu_offload")
