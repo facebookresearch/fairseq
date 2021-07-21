@@ -528,6 +528,7 @@ class TranslationTask(FairseqTask):
             self.sequence_generator = self.build_generator(
                 [model], Namespace(**gen_args)
             )
+            logger.info(self.tokenizer)
         return model
 
     def valid_step(self, sample, model, criterion):
