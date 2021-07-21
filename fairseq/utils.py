@@ -550,7 +550,7 @@ def get_activation_fn(activation: str) -> Callable:
     elif activation == "linear":
         return lambda x: x
     elif activation == "silu":
-        return torch.nn.SiLu
+        return torch.nn.SiLU
     else:
         raise RuntimeError("--activation-fn {} not supported".format(activation))
 
