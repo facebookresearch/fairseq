@@ -549,6 +549,8 @@ def get_activation_fn(activation: str) -> Callable:
         return torch.tanh
     elif activation == "linear":
         return lambda x: x
+    elif activation == "silu":
+        return torch.nn.SiLu
     else:
         raise RuntimeError("--activation-fn {} not supported".format(activation))
 
@@ -561,6 +563,7 @@ def get_available_activation_fns() -> List:
         "gelu_accurate",
         "tanh",
         "linear",
+        "silu"
     ]
 
 
