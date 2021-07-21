@@ -19,6 +19,8 @@ from collections import namedtuple
 
 import numpy as np
 import torch
+from fairseq.data import encoders
+from argparse import Namespace
 from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
 from fairseq.dataclass.configs import FairseqConfig
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
