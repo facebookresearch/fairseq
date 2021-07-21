@@ -215,8 +215,7 @@ The following code snipet illustrates the process to import a model and convert 
 import fairseq
 from torchaudio.models.wav2vec2.utils import import_fairseq_model
 
-original, _, _ = fairseq.checkpoint_utils.load_model_ensemble_and_task(
-    ["wav2vec_small_960h.pt"], arg_overrides={'data': "<DIRECTORY_WITH_DICTIONARY>"})
+original, _, _ = fairseq.checkpoint_utils.load_model_ensemble_and_task([<PATH_TO_YOUR_MODEL>])
 imported = import_fairseq_model(original[0].w2v_encoder)
 ```
 
