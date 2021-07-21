@@ -62,9 +62,13 @@ class SinusoidalPositionalEmbedding(nn.Module):
         input,
         incremental_state: Optional[Any] = None,
         timestep: Optional[Tensor] = None,
-        positions: Optional[Any] = None,
+        positions: Optional[Tensor] = None,
     ):
         """Input is expected to be of size [bsz x seqlen]."""
+        assert (positions is None) or (
+            self.padding_idx is None
+        ), "If positions is pre-computed then padding_idx should not be set."
+
         bspair = torch.onnx.operators.shape_as_tensor(input)
         bsz, seq_len = bspair[0], bspair[1]
         max_pos = self.padding_idx + 1 + seq_len
@@ -86,9 +90,10 @@ class SinusoidalPositionalEmbedding(nn.Module):
                 )
             return self.weights[self.padding_idx + pos, :].expand(bsz, 1, -1)
 
-        positions = utils.make_positions(
-            input, self.padding_idx, onnx_trace=self.onnx_trace
-        )
+        if positions is None:
+            positions = utils.make_positions(
+                input, self.padding_idx, onnx_trace=self.onnx_trace
+            )
         if self.onnx_trace:
             flat_embeddings = self.weights.detach().index_select(0, positions.view(-1))
             embedding_shape = torch.cat(
