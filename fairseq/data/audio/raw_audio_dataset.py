@@ -20,6 +20,7 @@ from fairseq.data.audio.audio_utils import (
     read_from_stored_zip,
     is_sf_audio_data,
 )
+from fairseq.data.text_compressor import TextCompressor, TextCompressionLevel
 
 
 logger = logging.getLogger(__name__)
@@ -256,6 +257,7 @@ class FileAudioDataset(RawAudioDataset):
         normalize=False,
         num_buckets=0,
         compute_mask_indices=False,
+        text_compression_level=TextCompressionLevel.none,
         **mask_compute_kwargs,
     ):
         super().__init__(
@@ -268,6 +270,8 @@ class FileAudioDataset(RawAudioDataset):
             compute_mask_indices=compute_mask_indices,
             **mask_compute_kwargs,
         )
+
+        self.text_compressor = TextCompressor(level=text_compression_level)
 
         skipped = 0
         self.fnames = []
@@ -284,7 +288,7 @@ class FileAudioDataset(RawAudioDataset):
                     skipped += 1
                     self.skipped_indices.add(i)
                     continue
-                self.fnames.append(items[0])
+                self.fnames.append(self.text_compressor.compress(items[0]))
                 sizes.append(sz)
         logger.info(f"loaded {len(self.fnames)}, skipped {skipped} samples")
 
@@ -304,8 +308,10 @@ class FileAudioDataset(RawAudioDataset):
 
     def __getitem__(self, index):
         import soundfile as sf
-
-        path_or_fp = os.path.join(self.root_dir, str(self.fnames[index]))
+        fn = self.fnames[index]
+        fn = fn if isinstance(self.fnames, list) else fn.as_py()
+        fn = self.text_compressor.decompress(fn)
+        path_or_fp = os.path.join(self.root_dir, fn)
         _path, slice_ptr = parse_path(path_or_fp)
         if len(slice_ptr) == 2:
             byte_data = read_from_stored_zip(_path, slice_ptr[0], slice_ptr[1])
