@@ -605,17 +605,16 @@ class TranslationTask(FairseqTask):
     def _inference_with_bleu(self, generator, sample, model):
         import sacrebleu
         def decode(toks, escape_unk=False):
-            #s = self.tgt_dict.string(
-            #    toks.int().cpu(),
-            #    self.cfg.eval_bleu_remove_bpe,
+            s = self.tgt_dict.string(
+                toks.int().cpu(),
+                self.cfg.common_eval.post_process,
                 # The default unknown string in fairseq is `<unk>`, but
                 # this is tokenized by sacrebleu as `< unk >`, inflating
                 # BLEU scores. Instead, we use a somewhat more verbose
                 # alternative that is unlikely to appear in the real
                 # reference, but doesn't get split into multiple tokens.
-            #    unk_string=("UNKNOWNTOKENINREF" if escape_unk else "UNKNOWNTOKENINHYP"),
-            #)
-            s = toks
+                unk_string=("UNKNOWNTOKENINREF" if escape_unk else "UNKNOWNTOKENINHYP"),
+            )
             if self.tokenizer:
                 s = self.tokenizer.decode(s)
             return s
