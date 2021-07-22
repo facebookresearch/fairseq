@@ -100,7 +100,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
             )
         else:
             from fairseq.sequence_generator import SequenceGenerator
-
+            
             return SequenceGenerator(
                 models,
                 self.target_dictionary,
