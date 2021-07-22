@@ -517,7 +517,7 @@ class TranslationTask(FairseqTask):
         if self.cfg.eval_bleu:
             detok_args = json.loads(self.cfg.eval_bleu_detok_args)
             if self.cfg.eval_bleu_detok == 'sentencepiece':
-                self.bpe = encoders.build_bpe(
+                self.tokenizer = encoders.build_bpe(
                     Namespace(bpe=self.cfg.eval_bleu_detok, **detok_args)
                 )
             else:
