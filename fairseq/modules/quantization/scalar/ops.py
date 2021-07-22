@@ -20,6 +20,7 @@ def quantize(w, scale, zero_point):
 def emulate_int8_histogram(w, scale=None, zero_point=None):
     if scale is None:
         obs = torch.quantization.observer.HistogramObserver()
+        obs.to(device=w.device)
         _ = obs(w.float())
         scale, zero_point = obs.calculate_qparams()
         scale = scale.cuda().type_as(w)
@@ -32,6 +33,7 @@ def emulate_int8_channel(w, scale=None, zero_point=None):
         obs = torch.quantization.observer.PerChannelMinMaxObserver(
             ch_axis=-1, qscheme=torch.per_channel_symmetric
         )
+        obs.to(device=w.device)
         _ = obs(w)
         scale, zero_point, ch_axis = obs.get_qparams()
         scale = scale.cuda().type_as(w)
@@ -42,6 +44,7 @@ def emulate_int8_channel(w, scale=None, zero_point=None):
 def emulate_int8_tensor(w, scale=None, zero_point=None):
     if scale is None:
         obs = torch.quantization.observer.MinMaxObserver()
+        obs.to(device=w.device)
         _ = obs(w)
         scale, zero_point = obs.calculate_qparams()
         scale = scale.cuda().type_as(w)
