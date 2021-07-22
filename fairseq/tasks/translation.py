@@ -536,6 +536,7 @@ class TranslationTask(FairseqTask):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
         if self.cfg.eval_bleu:
             bleu = self._inference_with_bleu(self.sequence_generator, sample, model)
+            logger.info(f"eval_bleu={bleu.score};")
             logging_output["_bleu_sys_len"] = bleu.sys_len
             logging_output["_bleu_ref_len"] = bleu.ref_len
             # we split counts into separate entries so that they can be
