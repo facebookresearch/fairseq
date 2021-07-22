@@ -502,7 +502,6 @@ class TranslationTask(FairseqTask):
             shuffle=(split != "test"),
             pad_to_multiple=self.cfg.required_seq_len_multiple,
         )
-
     def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
         return LanguagePairDataset(
             src_tokens,
@@ -536,7 +535,7 @@ class TranslationTask(FairseqTask):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
         if self.cfg.eval_bleu:
             bleu = self._inference_with_bleu(self.sequence_generator, sample, model)
-            logger.info(f"eval_bleu={bleu.score};")
+            
             logging_output["_bleu_sys_len"] = bleu.sys_len
             logging_output["_bleu_ref_len"] = bleu.ref_len
             # we split counts into separate entries so that they can be
@@ -639,8 +638,8 @@ class TranslationTask(FairseqTask):
                     remove_bpe='sentencepiece',
                     extra_symbols_to_ignore=get_symbols_to_strip_from_output(generator),
                 )
-            detok_hypo_str = self.tokenizer.decode(hypo_str)
-            hyps.append(detok_hypo_str)
+            #detok_hypo_str = self.tokenizer.decode(hypo_str)
+            hyps.append(hypo_str)
             refs.append(
                 decode(
                     utils.strip_pad(sample["target"][i], self.tgt_dict.pad()),
