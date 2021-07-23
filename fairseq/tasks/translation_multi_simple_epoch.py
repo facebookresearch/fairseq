@@ -513,7 +513,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         def decode(toks):
             s = self.source_dictionary.string(
                 toks.int().cpu(),
-                self.args.eval_bleu_remove_bpe,
+                None, #self.args.eval_bleu_remove_bpe,
                 escape_unk=True, 
                 # The default unknown string in fairseq is `<unk>`, but
                 # this is tokenized by sacrebleu as `< unk >`, inflating
