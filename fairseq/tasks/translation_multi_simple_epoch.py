@@ -520,9 +520,9 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
                 # BLEU scores. Instead, we use a somewhat more verbose
                 # alternative that is unlikely to appear in the real
                 # reference, but doesn't get split into multiple tokens.
-                extra_symbols_to_ignore=get_symbols_to_strip_from_output(
-                            generator
-                        )
+                #extra_symbols_to_ignore=get_symbols_to_strip_from_output(
+                #            generator
+                #        )
             )
             if self.tokenizer:
                 s = self.tokenizer.decode(s)
