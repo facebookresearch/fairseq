@@ -12,7 +12,7 @@ from .translation import TranslationTask, load_langpair_dataset
 
 
 @register_task("translation_from_pretrained_multi_bart")
-class TranslationFromPretrainedBARTTask(TranslationTask):
+class TranslationFromPretrainedMultiBARTTask(TranslationTask):
     """
     Translate from source language to target language with a model initialized with a multilingual pretrain.
 
