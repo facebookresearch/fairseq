@@ -49,7 +49,7 @@ from omegaconf import DictConfig, OmegaConf
 def main(cfg: FairseqConfig) -> None:
     if isinstance(cfg, argparse.Namespace):
         cfg = convert_namespace_to_omegaconf(cfg)
-
+    
     utils.import_user_module(cfg.common)
 
     if distributed_utils.is_master(cfg.distributed_training) and "job_logging_cfg" in cfg:
@@ -193,6 +193,20 @@ def main(cfg: FairseqConfig) -> None:
         )
     train_meter.stop()
     logger.info("done training in {:.1f} seconds".format(train_meter.sum))
+    if cfg.distributed_training.distributed_rank in [-1, 0]:
+        from torch.utils.tensorboard import SummaryWriter
+        base_lr = cfg.optimization.lr[-1]
+        tb_writer = SummaryWriter(log_dir="/opt/tensorboard/hparams")
+        tb_writer.add_hparams(
+            {
+                "lr": base_lr,
+                "update_freq": cfg.optimization.update_freq[0] 
+            },
+            {"bleu": max(valid_losses)},
+        )
+
+        tb_writer.close()
+        logger.info(f"valid_loss=00, valid_bleu={max(valid_losses)},")
 
     # ioPath implementation to wait for all asynchronous file writes to complete.
     if cfg.checkpoint.write_checkpoints_asynchronously:

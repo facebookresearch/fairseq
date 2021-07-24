@@ -59,9 +59,12 @@ fairseq-train /Users/csinclair/src/translation-models-data/data/datasets/process
 
 
 fairseq-interactive /Users/csinclair/src/translation-models-data/data/datasets/processed/fairseq/mbart/baseline/bin \
---path /Users/csinclair/Downloads/model_serving/checkpoint_best.pt \
-  --task translation_from_pretrained_bart \
+--path /Users/csinclair/Downloads/mbart50.ft.1n/model.pt \
+  --task translation_multi_simple_epoch \
   --target-lang es_XX --source-lang en_XX \
-  --bpe 'sentencepiece' --sentencepiece-model /Users/csinclair/Downloads/model_serving/sentence.bpe.model \
+  --bpe 'sentencepiece' --sentencepiece-model /Users/csinclair/Downloads/mbart50.ft.1n/sentence.bpe.model \
    --remove-bpe 'sentencepiece' \
+   --encoder-langtok "src" \
+  --decoder-langtok \
+  --lang-pairs "en_XX-es_XX" \
 --langs ar_AR,cs_CZ,de_DE,en_XX,es_XX,et_EE,fi_FI,fr_XX,gu_IN,hi_IN,it_IT,ja_XX,kk_KZ,ko_KR,lt_LT,lv_LV,my_MM,ne_NP,nl_XX,ro_RO,ru_RU,si_LK,tr_TR,vi_VN,zh_CN,af_ZA,az_AZ,bn_IN,fa_IR,he_IL,hr_HR,id_ID,ka_GE,km_KH,mk_MK,ml_IN,mn_MN,mr_IN,pl_PL,ps_AF,pt_XX,sv_SE,sw_KE,ta_IN,te_IN,th_TH,tl_XX,uk_UA,ur_PK,xh_ZA,gl_ES,sl_SI 
