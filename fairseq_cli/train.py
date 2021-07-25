@@ -521,7 +521,7 @@ def cli_main(
 
     # if cfg.common.use_plasma_view:
     #     server.server.kill()
-
+    raise ValueError
 
 if __name__ == "__main__":
     cli_main()
