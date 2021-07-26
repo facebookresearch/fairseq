@@ -76,6 +76,9 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         parser.add_argument('--lang-pairs', default=None, metavar='PAIRS',
                             help='comma-separated list of language pairs (in training order): en-de,en-fr,de-fr',
                             action=FileContentsAction)
+        parser.add_argument('--valid-lang-pairs', default=None, metavar='PAIRS',
+                            help='comma-separated list of language pairs (in training order): en-de,en-fr,de-fr',
+                            action=FileContentsAction)
         parser.add_argument('--keep-inference-langtok', action='store_true',
                             help='keep language tokens in inference output (e.g. for analysis or debugging)')
         parser.add_argument('--eval-bleu', action = 'store_true')
@@ -253,7 +256,6 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
     def valid_step(self, sample, model, criterion):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
         if self.args.eval_bleu:
-            logger.info(sample)
             bleu = self._inference_with_bleu(self.sequence_generator, sample, model)
             
             logging_output["_bleu_sys_len"] = bleu.sys_len
@@ -536,7 +538,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
             src_tokens = utils.strip_pad(
                     sample["net_input"]["src_tokens"][i, :], self.target_dictionary.pad()
                 )
-            src_str = self.source_dictionary.string(src_tokens, 'sentencepiece')
+            src_str = self.source_dictionary.string(src_tokens[1:], 'sentencepiece')
             hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
                     hypo_tokens=gen_out[i][0]["tokens"],
                     src_str=src_str, 
@@ -557,4 +559,4 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         if self.args.eval_bleu_print_samples:
             logger.info("example hypothesis: " + hyps[0])
             logger.info("example reference: " + refs[0])
-        return sacrebleu.corpus_bleu(hyps, [refs])
+        return sacrebleu.corpus_bleu(hyps[9:], [refs[9:]])
