@@ -228,7 +228,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         #        )
         #        extra_gen_cls_kwargs = extra_gen_cls_kwargs or {}
         #        extra_gen_cls_kwargs["symbols_to_strip_from_output"] = {tgt_lang_tok}
-
+        extra_gen_cls_kwargs["symbols_to_strip_from_output"] = {self.source_dictionary.index(f"[{x}]") for x in self.langs.split(",")}
         return super().build_generator(
             models, args, seq_gen_cls=None, extra_gen_cls_kwargs=extra_gen_cls_kwargs
         )
@@ -559,4 +559,4 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         if self.args.eval_bleu_print_samples:
             logger.info("example hypothesis: " + hyps[0])
             logger.info("example reference: " + refs[0])
-        return sacrebleu.corpus_bleu(hyps[9:], [refs[9:]])
+        return sacrebleu.corpus_bleu(hyps, [refs])

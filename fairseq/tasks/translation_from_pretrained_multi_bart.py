@@ -146,6 +146,7 @@ class TranslationFromPretrainedMultiBARTTask(TranslationTask):
                 match_source_len=getattr(args, "match_source_len", False),
                 no_repeat_ngram_size=getattr(args, "no_repeat_ngram_size", 0),
                 #eos=self.tgt_dict.index("[{}]".format(self.args.target_lang)),
+                symbols_to_strip_from_output={self.tgt_dict.index("[{}]".format(self.args.target_lang))}
             )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
@@ -209,4 +210,4 @@ class TranslationFromPretrainedMultiBARTTask(TranslationTask):
         if self.cfg.eval_bleu_print_samples:
             logger.info("example hypothesis: " + hyps[0])
             logger.info("example reference: " + refs[0])
-        return sacrebleu.corpus_bleu(hyps[9:], [refs[9:]])
+        return sacrebleu.corpus_bleu(hyps, [refs])
