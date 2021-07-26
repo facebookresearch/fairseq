@@ -34,7 +34,7 @@ fairseq-train /Users/csinclair/src/translation-models-data/data/datasets/process
 --task translation_multi_simple_epoch --adam-eps 1e-06 --dropout 0.3 \
 --encoder-normalize-before --no-save-optimizer-state --log-format simple \
 --max-target-positions 1024 --best-checkpoint-metric bleu \
---max-sentences 1 \
+--max-sentences 5 \
 --criterion label_smoothed_cross_entropy --seed 42 \
 --finetune-from-model /Users/csinclair/Downloads/mbart50.ft.1n/model.pt \
 --attention-dropout 0.1 \

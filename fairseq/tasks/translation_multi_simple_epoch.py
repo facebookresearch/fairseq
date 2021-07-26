@@ -281,7 +281,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
                     src_tokens = sample["net_input"]["src_tokens"]
                     bsz = src_tokens.size(0)
                     prefix_tokens = (
-                        torch.LongTensor([sample["target"][:, 0]]).expand(bsz, 1).to(src_tokens)
+                        sample["target"][:, 0].reshape(bsz, 1).to(src_tokens)
                     )
                 return generator.generate(
                     models,
