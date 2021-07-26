@@ -219,7 +219,8 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
             _, tgt_langtok_spec = self.args.langtoks["main"]
             if tgt_langtok_spec:
                 tgt_lang_tok = self.data_manager.get_decoder_langtok(
-                    self.args.target_lang, tgt_langtok_spec
+                    #self.args.target_lang, tgt_langtok_spec
+                    tgt_langtok_spec
                 )
                 extra_gen_cls_kwargs = extra_gen_cls_kwargs or {}
                 extra_gen_cls_kwargs["symbols_to_strip_from_output"] = {tgt_lang_tok}
