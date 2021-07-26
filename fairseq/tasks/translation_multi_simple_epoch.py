@@ -5,6 +5,7 @@
 
 import datetime
 import logging
+from sys import prefix
 import time
 import json 
 import numpy as np
@@ -215,15 +216,15 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         seq_gen_cls=None,
         extra_gen_cls_kwargs=None,
     ):
-        if not getattr(args, "keep_inference_langtok", False):
-            _, tgt_langtok_spec = self.args.langtoks["main"]
-            if tgt_langtok_spec:
-                tgt_lang_tok = self.data_manager.get_decoder_langtok(
+        #if not getattr(args, "keep_inference_langtok", False):
+        #    _, tgt_langtok_spec = self.args.langtoks["main"]
+        #    if tgt_langtok_spec:
+        #        tgt_lang_tok = self.data_manager.get_decoder_langtok(
                     #self.args.target_lang, tgt_langtok_spec
-                    tgt_langtok_spec
-                )
-                extra_gen_cls_kwargs = extra_gen_cls_kwargs or {}
-                extra_gen_cls_kwargs["symbols_to_strip_from_output"] = {tgt_lang_tok}
+        #            tgt_langtok_spec
+        #        )
+        #        extra_gen_cls_kwargs = extra_gen_cls_kwargs or {}
+        #        extra_gen_cls_kwargs["symbols_to_strip_from_output"] = {tgt_lang_tok}
 
         return super().build_generator(
             models, args, seq_gen_cls=None, extra_gen_cls_kwargs=extra_gen_cls_kwargs
@@ -252,6 +253,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
     def valid_step(self, sample, model, criterion):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
         if self.args.eval_bleu:
+            logger.info(sample)
             bleu = self._inference_with_bleu(self.sequence_generator, sample, model)
             
             logging_output["_bleu_sys_len"] = bleu.sys_len
@@ -267,17 +269,18 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
     def inference_step(
         self, generator, models, sample, prefix_tokens=None, constraints=None
     ):
+        logger.info(sample["target"][0])
         with torch.no_grad():
             _, tgt_langtok_spec = self.args.langtoks["main"]
             if not self.args.lang_tok_replacing_bos_eos:
                 if prefix_tokens is None and tgt_langtok_spec:
-                    tgt_lang_tok = self.data_manager.get_decoder_langtok(
-                        self.args.target_lang, tgt_langtok_spec
-                    )
+                    #tgt_lang_tok = self.data_manager.get_decoder_langtok(
+                    #    target_lang, tgt_langtok_spec
+                    #)
                     src_tokens = sample["net_input"]["src_tokens"]
                     bsz = src_tokens.size(0)
                     prefix_tokens = (
-                        torch.LongTensor([[tgt_lang_tok]]).expand(bsz, 1).to(src_tokens)
+                        torch.LongTensor([sample["target"][:, 0]]).expand(bsz, 1).to(src_tokens)
                     )
                 return generator.generate(
                     models,
@@ -291,7 +294,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
                     sample,
                     prefix_tokens=prefix_tokens,
                     bos_token=self.data_manager.get_decoder_langtok(
-                        self.args.target_lang, tgt_langtok_spec
+                        target_lang, tgt_langtok_spec
                     )
                     if tgt_langtok_spec
                     else self.target_dictionary.eos(),
