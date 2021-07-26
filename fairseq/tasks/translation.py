@@ -625,8 +625,8 @@ class TranslationTask(FairseqTask):
                             generator
                         )
             )
-            if self.tokenizer:
-                s = self.tokenizer.decode(s)
+            #if self.tokenizer:
+            #    s = self.tokenizer.decode(s)
             return s
         gen_out = self.inference_step(generator, [model], sample)
         hyps, refs = [], []
