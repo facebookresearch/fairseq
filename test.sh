@@ -14,14 +14,14 @@ fairseq-train /Users/csinclair/src/translation-models-data/data/datasets/process
 --finetune-from-model /Users/csinclair/Downloads/mbart50.ft.1n/model.pt \
 --attention-dropout 0.1 \
 --optimizer adam --layernorm-embedding \
+--source-lang en_XX --target-lang es_XX \
 --cpu \
 --patience 5  --keep-interval-updates 1 \
 --langs ar_AR,cs_CZ,de_DE,en_XX,es_XX,et_EE,fi_FI,fr_XX,gu_IN,hi_IN,it_IT,ja_XX,kk_KZ,ko_KR,lt_LT,lv_LV,my_MM,ne_NP,nl_XX,ro_RO,ru_RU,si_LK,tr_TR,vi_VN,zh_CN,af_ZA,az_AZ,bn_IN,fa_IR,he_IL,hr_HR,id_ID,ka_GE,km_KH,mk_MK,ml_IN,mn_MN,mr_IN,pl_PL,ps_AF,pt_XX,sv_SE,sw_KE,ta_IN,te_IN,th_TH,tl_XX,uk_UA,ur_PK,xh_ZA,gl_ES,sl_SI \
 --max-tokens 1024 --no-epoch-checkpoints --skip-invalid-size-inputs-valid-test --scoring sacrebleu \
 --max-update 0 --validate-interval-updates 1 --max-tokens-valid 1024 \
 --eval-bleu  --label-smoothing 0.2 --update-freq 1 --arch mbart_large \
---no-last-checkpoints --eval-bleu-print-samples \
---prepend-bos 
+--no-last-checkpoints --eval-bleu-print-samples 
 
 
 

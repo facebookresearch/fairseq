@@ -295,7 +295,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
                     sample,
                     prefix_tokens=prefix_tokens,
                     bos_token=self.data_manager.get_decoder_langtok(
-                        target_lang, tgt_langtok_spec
+                        self.args.target_lang, tgt_langtok_spec
                     )
                     if tgt_langtok_spec
                     else self.target_dictionary.eos(),

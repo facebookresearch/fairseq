@@ -95,13 +95,29 @@ class TranslationFromPretrainedMultiBARTTask(TranslationTask):
             max_source_positions=getattr(self.args, "max_source_positions", 1024),
             max_target_positions=getattr(self.args, "max_target_positions", 1024),
             load_alignments=self.args.load_alignments,
-            prepend_bos=False, #getattr(self.args, "prepend_bos", False),
-            append_source_id=True,
+            prepend_bos=getattr(self.args, "prepend_bos", False),
+            prepend_lang_id=True,
         )
 
         self.datasets[split] = ds
 
-        
+    def inference_step(
+        self, generator, models, sample, prefix_tokens=None, constraints=None
+    ):
+        with torch.no_grad():
+            src_tokens = sample["net_input"]["src_tokens"]
+            bsz = src_tokens.size(0)
+            prefix_tokens = (
+                torch.LongTensor([[self.tgt_dict.index("[{}]".format(self.args.target_lang))]]).expand(bsz, 1).to(src_tokens)
+            )
+            return generator.generate(
+                models,
+                sample,
+                prefix_tokens=prefix_tokens,
+                constraints=constraints,
+            )
+            
+
     def build_generator(self, models, args, **unused):
         if getattr(args, "score_reference", False):
             from fairseq.sequence_scorer import SequenceScorer
@@ -126,7 +142,7 @@ class TranslationFromPretrainedMultiBARTTask(TranslationTask):
                 temperature=getattr(args, "temperature", 1.0),
                 match_source_len=getattr(args, "match_source_len", False),
                 no_repeat_ngram_size=getattr(args, "no_repeat_ngram_size", 0),
-                eos=self.tgt_dict.index("[{}]".format(self.args.target_lang)),
+                #eos=self.tgt_dict.index("[{}]".format(self.args.target_lang)),
             )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
