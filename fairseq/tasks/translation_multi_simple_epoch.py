@@ -269,7 +269,6 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
     def inference_step(
         self, generator, models, sample, prefix_tokens=None, constraints=None
     ):
-        logger.info(sample["target"][0])
         with torch.no_grad():
             _, tgt_langtok_spec = self.args.langtoks["main"]
             if not self.args.lang_tok_replacing_bos_eos:
