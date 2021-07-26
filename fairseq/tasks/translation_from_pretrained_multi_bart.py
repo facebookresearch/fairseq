@@ -5,10 +5,17 @@
 
 import torch
 from fairseq import utils
-from fairseq.data import LanguagePairDataset
+from fairseq.data import LanguagePairDataset, TransformEosLangPairDataset
 
 from . import register_task
 from .translation import TranslationTask, load_langpair_dataset
+from fairseq.data.multilingual.multilingual_utils import (
+    EncoderLangtok,
+    LangTokSpec,
+    LangTokStyle,
+    augment_dictionary,
+    get_lang_tok,
+)
 
 
 @register_task("translation_from_pretrained_multi_bart")
@@ -47,6 +54,8 @@ class TranslationFromPretrainedMultiBARTTask(TranslationTask):
         parser.add_argument('--prepend-bos', action='store_true',
                             help='prepend bos token to each sentence, which matches '
                                  'mBART pretraining')
+
+                        
         # fmt: on
 
     def __init__(self, args, src_dict, tgt_dict):
@@ -71,7 +80,7 @@ class TranslationFromPretrainedMultiBARTTask(TranslationTask):
         # infer langcode
         src, tgt = self.args.source_lang, self.args.target_lang
 
-        self.datasets[split] = load_langpair_dataset(
+        ds = load_langpair_dataset(
             data_path,
             split,
             src,
@@ -86,10 +95,13 @@ class TranslationFromPretrainedMultiBARTTask(TranslationTask):
             max_source_positions=getattr(self.args, "max_source_positions", 1024),
             max_target_positions=getattr(self.args, "max_target_positions", 1024),
             load_alignments=self.args.load_alignments,
-            prepend_bos=getattr(self.args, "prepend_bos", False),
+            prepend_bos=False, #getattr(self.args, "prepend_bos", False),
             append_source_id=True,
         )
 
+        self.datasets[split] = ds
+
+        
     def build_generator(self, models, args, **unused):
         if getattr(args, "score_reference", False):
             from fairseq.sequence_scorer import SequenceScorer

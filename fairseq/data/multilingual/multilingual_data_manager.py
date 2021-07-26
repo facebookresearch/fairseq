@@ -946,29 +946,32 @@ class MultilingualDatasetManager(object):
             ]
             lang_dirs = [x if len(x) > 1 else (x[0], x[0]) for x in lang_dirs]
             for src, tgt in lang_dirs:
-                assert src is not None or data_category == "mono_dae", (
-                    f"error: src={src}, " "tgt={tgt} for data_category={data_category}"
-                )
-                # logger.info(f"preparing param for {data_category}: {src} - {tgt}")
-                key = self.get_dataset_key(data_category, src, tgt)
-                data_path = self.get_split_data_path(
-                    paths, epoch, shard_epoch, split_num_shards_dict[key]
-                )
-                param_list.append(
-                    {
-                        "key": key,
-                        "data_path": data_path,
-                        "split": split,
-                        "src": src,
-                        "src_dict": self.get_source_dictionary(src)
-                        if src and data_category != "mono_dae"
-                        else None,
-                        "tgt": tgt,
-                        "tgt_dict": self.get_target_dictionary(tgt),
-                        "data_category": data_category,
-                        "langtok_spec": lang_tok_spec,
-                    }
-                )
+                try:
+                    assert src is not None or data_category == "mono_dae", (
+                        f"error: src={src}, " "tgt={tgt} for data_category={data_category}"
+                    )
+                    # logger.info(f"preparing param for {data_category}: {src} - {tgt}")
+                    key = self.get_dataset_key(data_category, src, tgt)
+                    data_path = self.get_split_data_path(
+                        paths, epoch, shard_epoch, split_num_shards_dict[key]
+                    )
+                    param_list.append(
+                        {
+                            "key": key,
+                            "data_path": data_path,
+                            "split": split,
+                            "src": src,
+                            "src_dict": self.get_source_dictionary(src)
+                            if src and data_category != "mono_dae"
+                            else None,
+                            "tgt": tgt,
+                            "tgt_dict": self.get_target_dictionary(tgt),
+                            "data_category": data_category,
+                            "langtok_spec": lang_tok_spec,
+                        }
+                    )
+                except: 
+                    print("t")
         return param_list
 
     def get_train_dataset_sizes(

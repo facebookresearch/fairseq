@@ -6,13 +6,13 @@ fairseq-train /Users/csinclair/src/translation-models-data/data/datasets/process
 --eval-bleu-detok 'sentencepiece' \
 --eval-bleu-detok-args '{"sentencepiece_model": "/Users/csinclair/Downloads/mbart50.ft.1n/sentence.bpe.model"}' \
 --eval-bleu-remove-bpe 'sentencepiece' \
---task translation_from_pretrained_bart --adam-eps 1e-06 --dropout 0.3 \
+--task translation_from_pretrained_multi_bart --adam-eps 1e-06 --dropout 0.3 \
 --encoder-normalize-before --no-save-optimizer-state --log-format simple \
 --max-target-positions 1024 --best-checkpoint-metric bleu \
 --max-sentences 1 \
 --criterion label_smoothed_cross_entropy --seed 42 \
 --finetune-from-model /Users/csinclair/Downloads/mbart50.ft.1n/model.pt \
---attention-dropout 0.1 --source-lang en_XX --target-lang es_XX \
+--attention-dropout 0.1 \
 --optimizer adam --layernorm-embedding \
 --cpu \
 --patience 5  --keep-interval-updates 1 \
@@ -20,7 +20,8 @@ fairseq-train /Users/csinclair/src/translation-models-data/data/datasets/process
 --max-tokens 1024 --no-epoch-checkpoints --skip-invalid-size-inputs-valid-test --scoring sacrebleu \
 --max-update 0 --validate-interval-updates 1 --max-tokens-valid 1024 \
 --eval-bleu  --label-smoothing 0.2 --update-freq 1 --arch mbart_large \
---no-last-checkpoints --eval-bleu-print-samples 
+--no-last-checkpoints --eval-bleu-print-samples \
+--prepend-bos 
 
 
 
@@ -30,16 +31,13 @@ fairseq-train /Users/csinclair/src/translation-models-data/data/datasets/process
 --log-interval 10 --adam-betas '(0.9, 0.98)' --save-interval 1000 --lr 3e-05 --warmup-updates 2500 \
 --save-interval-updates 1000  --weight-decay 0.0 --keep-best-checkpoints 1 \
 --validate-interval 10000 --lr-scheduler inverse_sqrt --max-source-positions 1024 \
---eval-bleu-detok 'sentencepiece' \
---eval-bleu-detok-args '{"sentencepiece_model": "/Users/csinclair/Downloads/mbart50.ft.1n/sentence.bpe.model"}' \
---eval-bleu-remove-bpe 'sentencepiece' \
 --task translation_multi_simple_epoch --adam-eps 1e-06 --dropout 0.3 \
 --encoder-normalize-before --no-save-optimizer-state --log-format simple \
 --max-target-positions 1024 --best-checkpoint-metric bleu \
 --max-sentences 1 \
 --criterion label_smoothed_cross_entropy --seed 42 \
 --finetune-from-model /Users/csinclair/Downloads/mbart50.ft.1n/model.pt \
---attention-dropout 0.1 --source-lang en_XX --target-lang es_XX \
+--attention-dropout 0.1 \
 --optimizer adam --layernorm-embedding \
 --patience 5 \
 --cpu \
@@ -49,11 +47,16 @@ fairseq-train /Users/csinclair/src/translation-models-data/data/datasets/process
 --decoder-langtok \
 --patience 5  --keep-interval-updates 1 \
 --lang-dict /Users/csinclair/Downloads/mbart50.ft.1n/ML50_langs.txt \
---lang-pairs 'en_XX-es_XX' \
+--lang-pairs 'en_XX-af_ZA,en_XX-ar_AR,en_XX-az_AZ,en_XX-bn_IN,en_XX-cs_CZ,en_XX-de_DE,en_XX-es_XX,en_XX-et_EE,en_XX-fa_IR,en_XX-fi_FI,en_XX-fr_XX,en_XX-gl_ES,en_XX-gu_IN,en_XX-he_IL,en_XX-hi_IN,en_XX-hr_HR,en_XX-id_ID,en_XX-it_IT,en_XX-ja_XX,en_XX-ka_GE,en_XX-kk_KZ,en_XX-km_KH,en_XX-ko_KR,en_XX-lt_LT,en_XX-lv_LV,en_XX-mk_MK,en_XX-ml_IN,en_XX-mn_MN,en_XX-mr_IN,en_XX-my_MM,en_XX-ne_NP,en_XX-nl_XX,en_XX-pl_PL,en_XX-ps_AF,en_XX-pt_XX,en_XX-ro_RO,en_XX-ru_RU,en_XX-si_LK,en_XX-sl_SI,en_XX-sv_SE,en_XX-ta_IN,en_XX-te_IN,en_XX-th_TH,en_XX-tr_TR,en_XX-uk_UA,en_XX-ur_PK,en_XX-vi_VN,en_XX-xh_ZA,en_XX-zh_CN' \
 --max-tokens 1024 --no-epoch-checkpoints --skip-invalid-size-inputs-valid-test --scoring sacrebleu \
 --max-update 0 --validate-interval-updates 1 --max-tokens-valid 1024 \
---eval-bleu  --label-smoothing 0.2 --update-freq 1 --arch mbart_large \
---no-last-checkpoints --eval-bleu-print-samples 
+--label-smoothing 0.2 --update-freq 1 --arch mbart_large \
+--no-last-checkpoints --eval-bleu-print-samples   \
+--eval-bleu \
+--eval-bleu-detok 'sentencepiece' \
+--eval-bleu-detok-args '{"sentencepiece_model": "/Users/csinclair/Downloads/mbart50.ft.1n/sentence.bpe.model"}' \
+--eval-bleu-remove-bpe 'sentencepiece' \
+
 
 
 

@@ -60,6 +60,7 @@ def load_langpair_dataset(
     shuffle=True,
     pad_to_multiple=1,
     prepend_bos_src=None,
+    prepend_tgt=False
 ):
     def split_exists(split, src, tgt, lang, data_path):
         filename = os.path.join(data_path, "{}.{}-{}.{}".format(split, src, tgt, lang))
@@ -137,7 +138,7 @@ def load_langpair_dataset(
 
     eos = None
     if append_source_id:
-        src_dataset = AppendTokenDataset(
+        src_dataset = PrependTokenDataset(
             src_dataset, src_dict.index("[{}]".format(src))
         )
         if tgt_dataset is not None:
