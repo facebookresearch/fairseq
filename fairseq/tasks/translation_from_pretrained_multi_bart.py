@@ -16,7 +16,10 @@ from fairseq.data.multilingual.multilingual_utils import (
     augment_dictionary,
     get_lang_tok,
 )
+from fairseq_cli.generate import get_symbols_to_strip_from_output
+import logging
 
+logger = logging.getLogger(__name__)
 
 @register_task("translation_from_pretrained_multi_bart")
 class TranslationFromPretrainedMultiBARTTask(TranslationTask):
@@ -159,3 +162,51 @@ class TranslationFromPretrainedMultiBARTTask(TranslationTask):
             constraints=constraints,
         )
         return dataset
+    
+    def _inference_with_bleu(self, generator, sample, model):
+        import sacrebleu
+        def decode(toks):
+            s = self.tgt_dict.string(
+                toks.int().cpu(),
+                self.cfg.eval_bleu_remove_bpe,
+                escape_unk=True, 
+                # The default unknown string in fairseq is `<unk>`, but
+                # this is tokenized by sacrebleu as `< unk >`, inflating
+                # BLEU scores. Instead, we use a somewhat more verbose
+                # alternative that is unlikely to appear in the real
+                # reference, but doesn't get split into multiple tokens.
+                extra_symbols_to_ignore=get_symbols_to_strip_from_output(
+                            generator
+                        )
+            )
+            #if self.tokenizer:
+            #    s = self.tokenizer.decode(s)
+            return s
+        gen_out = self.inference_step(generator, [model], sample)
+        hyps, refs = [], []
+        for i in range(len(gen_out)):
+            src_tokens = utils.strip_pad(
+                    sample["net_input"]["src_tokens"][i, :], self.target_dictionary.pad()
+                )
+            src_str = self.source_dictionary.string(src_tokens, 'sentencepiece')
+            hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
+                    hypo_tokens=gen_out[i][0]["tokens"],
+                    src_str=src_str, 
+                    alignment=gen_out[i][0]["alignment"],
+                    align_dict=None,
+                    tgt_dict=self.target_dictionary,
+                    remove_bpe='sentencepiece',
+                    extra_symbols_to_ignore=get_symbols_to_strip_from_output(generator),
+                )
+            #detok_hypo_str = self.tokenizer.decode(hypo_str)
+            hyps.append(hypo_str)
+            refs.append(
+                decode(
+                    utils.strip_pad(sample["target"][i], self.tgt_dict.pad()),
+                    #escape_unk=False,  # don't count <unk> as matches to the hypo
+                )
+            )
+        if self.cfg.eval_bleu_print_samples:
+            logger.info("example hypothesis: " + hyps[0])
+            logger.info("example reference: " + refs[0])
+        return sacrebleu.corpus_bleu(hyps[9:], [refs[9:]])
