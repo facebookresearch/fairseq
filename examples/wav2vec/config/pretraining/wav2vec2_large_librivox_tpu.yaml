@@ -20,6 +20,11 @@ task:
   num_batch_buckets: 3
   precompute_mask_indices: true
   enable_padding: true
+  inferred_w2v_config:
+      mask_prob: 0.65
+      mask_selection: 'static'
+      mask_other: 0
+      mask_channel_prob: 0.1
 
 dataset:
   num_workers: 6

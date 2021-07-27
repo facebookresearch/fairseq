@@ -242,7 +242,7 @@ class AudioPretrainingTask(FairseqTask):
                 **self._get_mask_precompute_kwargs(task_cfg),
             )
 
-        if self.cfg.tpu and task_cfg["mask_channel_prob"] == 0.0:
+        if self.cfg.tpu and task_cfg.inferred_w2v_config.mask_channel_prob == 0.0:
             logger.info(
                 "Pretraining on TPUs may suffer convergence "
                 "issues when training with `mask_channel_prob` value of "

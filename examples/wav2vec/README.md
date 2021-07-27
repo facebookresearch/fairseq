@@ -196,7 +196,7 @@ target_transcription = "A MAN SAID TO THE UNIVERSE I EXIST"
 
 # encode labels
 with processor.as_target_processor():
-	labels = processor(target_transcription, return_tensors="pt").input_ids
+  labels = processor(target_transcription, return_tensors="pt").input_ids
 
 # compute loss by passing labels
 loss = model(input_values, labels=labels).loss
@@ -263,6 +263,7 @@ $ OMP_NUM_THREADS=1 fairseq-hydra-train \
 ```
 
 #### Using command line arguments on a v3-8:
+Note: Commandline arguments way of execution has a [known-problem](https://github.com/pytorch/fairseq/issues/3741) currently.
 
 ```
 $ OMP_NUM_THREADS=1 python train.py /manifest/path --save-dir /model/path --num-workers 6 --fp16 --max-update 400000 --save-interval 1 --no-epoch-checkpoints \
@@ -285,7 +286,7 @@ $ OMP_NUM_THREADS=1 fairseq-hydra-train \
 ```
 
 #### Using command line arguments on a pod slice (v3-N with N > 8):
-
+Note: Commandline arguments way of execution has a [known-problem](https://github.com/pytorch/fairseq/issues/3741) currently.
 
 ```
 $ python -m torch_xla.distributed.xla_dist \
