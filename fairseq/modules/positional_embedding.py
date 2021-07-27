@@ -27,9 +27,11 @@ def PositionalEmbedding(
         if padding_idx is not None:
             nn.init.constant_(m.weight[padding_idx], 0)
     else:
+        if padding_idx is not None:
+            num_embeddings = num_embeddings + padding_idx + 1
         m = SinusoidalPositionalEmbedding(
             embedding_dim,
             padding_idx,
-            init_size=num_embeddings + padding_idx + 1,
+            init_size=num_embeddings,
         )
     return m
