@@ -6,9 +6,10 @@
 import csv
 import io
 import logging
-import os.path as op
 import re
-from typing import Dict, List, Optional, Tuple
+from collections import defaultdict
+from pathlib import Path
+from typing import Dict, List, Optional, NamedTuple
 
 import numpy as np
 import torch
@@ -20,8 +21,13 @@ from fairseq.data import (
     data_utils as fairseq_data_utils,
 )
 from fairseq.data.audio.audio_utils import (
-    get_fbank, get_waveform, read_from_stored_zip, is_npy_data,
-    is_sf_audio_data, parse_path, FEATURE_OR_SF_AUDIO_FILE_EXTENSIONS
+    get_fbank,
+    get_waveform,
+    read_from_stored_zip,
+    is_npy_data,
+    is_sf_audio_data,
+    parse_path,
+    FEATURE_OR_SF_AUDIO_FILE_EXTENSIONS,
 )
 from fairseq.data.audio.feature_transforms import CompositeAudioFeatureTransform
 
@@ -32,20 +38,22 @@ logger = logging.getLogger(__name__)
 class S2TDataConfig(object):
     """Wrapper class for data config YAML"""
 
-    def __init__(self, yaml_path):
+    def __init__(self, yaml_path: Path):
         try:
             import yaml
         except ImportError:
-            print("Please install PyYAML to load YAML files for " "S2T data config")
+            print("Please install PyYAML to load YAML files for S2T data config")
         self.config = {}
-        if op.isfile(yaml_path):
+        if yaml_path.is_file():
             try:
                 with open(yaml_path) as f:
                     self.config = yaml.load(f, Loader=yaml.FullLoader)
             except Exception as e:
-                raise Exception(f"Failed to load config from {yaml_path}: {e}")
+                raise Exception(
+                    f"Failed to load config from {yaml_path.as_posix()}: {e}"
+                )
         else:
-            raise FileNotFoundError(f"{yaml_path} not found")
+            raise FileNotFoundError(f"{yaml_path.as_posix()} not found")
 
     @property
     def vocab_filename(self):
@@ -103,6 +111,12 @@ class S2TDataConfig(object):
         return self.config.get("use_audio_input", False)
 
     @property
+    def use_sample_rate(self):
+        """Needed by the dataset loader to see if the model requires
+        raw audio with specific sample rate as inputs."""
+        return self.config.get("use_sample_rate", 16000)
+
+    @property
     def audio_root(self):
         """Audio paths in the manifest TSV can be relative and this provides
         the root path. Set this to empty string when using absolute paths."""
@@ -124,14 +138,18 @@ class S2TDataConfig(object):
 
 
 def get_features_from_npy_or_audio(path):
-    ext = op.splitext(op.basename(path))[1]
+    ext = Path(path).suffix
     if ext not in FEATURE_OR_SF_AUDIO_FILE_EXTENSIONS:
         raise ValueError(f'Unsupported file format for "{path}"')
     return np.load(path) if ext == ".npy" else get_fbank(path)
 
 
 def get_features_or_waveform_from_stored_zip(
-    path, byte_offset, byte_size, need_waveform=False
+    path,
+    byte_offset,
+    byte_size,
+    need_waveform=False,
+    use_sample_rate=-1,
 ):
     assert path.endswith(".zip")
     data = read_from_stored_zip(path, byte_offset, byte_size)
@@ -139,14 +157,17 @@ def get_features_or_waveform_from_stored_zip(
     if is_npy_data(data):
         features_or_waveform = np.load(f)
     elif is_sf_audio_data(data):
-        features_or_waveform = \
-            get_waveform(f, always_2d=False)[0] if need_waveform else get_fbank(f)
+        features_or_waveform = (
+            get_waveform(f, always_2d=False, output_sample_rate=use_sample_rate)[0]
+            if need_waveform
+            else get_fbank(f)
+        )
     else:
         raise ValueError(f'Unknown file format for "{path}"')
     return features_or_waveform
 
 
-def get_features_or_waveform(path: str, need_waveform=False):
+def get_features_or_waveform(path: str, need_waveform=False, use_sample_rate=-1):
     """Get speech features from .npy file or waveform from .wav/.flac file.
     The file may be inside an uncompressed ZIP file and is accessed via byte
     offset and length.
@@ -155,6 +176,7 @@ def get_features_or_waveform(path: str, need_waveform=False):
         path (str): File path in the format of "<.npy/.wav/.flac path>" or
         "<zip path>:<byte offset>:<byte length>".
         need_waveform (bool): return waveform instead of features.
+        use_sample_rate (int): change sample rate for the input wave file
 
     Returns:
         features_or_waveform (numpy.ndarray): speech features or waveform.
@@ -162,11 +184,17 @@ def get_features_or_waveform(path: str, need_waveform=False):
     _path, slice_ptr = parse_path(path)
     if len(slice_ptr) == 0:
         if need_waveform:
-            return get_waveform(_path, always_2d=False)
+            return get_waveform(
+                _path, always_2d=False, output_sample_rate=use_sample_rate
+            )[0]
         return get_features_from_npy_or_audio(_path)
     elif len(slice_ptr) == 2:
         features_or_waveform = get_features_or_waveform_from_stored_zip(
-            _path, slice_ptr[0], slice_ptr[1], need_waveform=need_waveform
+            _path,
+            slice_ptr[0],
+            slice_ptr[1],
+            need_waveform=need_waveform,
+            use_sample_rate=use_sample_rate,
         )
     else:
         raise ValueError(f"Invalid path: {path}")
@@ -195,6 +223,12 @@ def _collate_frames(
     return out
 
 
+class SpeechToTextDatasetItem(NamedTuple):
+    index: int
+    source: torch.Tensor
+    target: Optional[torch.Tensor] = None
+
+
 class SpeechToTextDataset(FairseqDataset):
     LANG_TAG_TEMPLATE = "<lang:{}>"
 
@@ -202,7 +236,7 @@ class SpeechToTextDataset(FairseqDataset):
         self,
         split: str,
         is_train_split: bool,
-        data_cfg: S2TDataConfig,
+        cfg: S2TDataConfig,
         audio_paths: List[str],
         n_frames: List[int],
         src_texts: Optional[List[str]] = None,
@@ -216,7 +250,7 @@ class SpeechToTextDataset(FairseqDataset):
         bpe_tokenizer=None,
     ):
         self.split, self.is_train_split = split, is_train_split
-        self.data_cfg = data_cfg
+        self.cfg = cfg
         self.audio_paths, self.n_frames = audio_paths, n_frames
         self.n_samples = len(audio_paths)
         assert len(n_frames) == self.n_samples > 0
@@ -234,22 +268,42 @@ class SpeechToTextDataset(FairseqDataset):
         self.tgt_dict = tgt_dict
         self.check_tgt_lang_tag()
         self.ids = ids
-        self.shuffle = data_cfg.shuffle if is_train_split else False
+        self.shuffle = cfg.shuffle if is_train_split else False
 
         self.feature_transforms = CompositeAudioFeatureTransform.from_config_dict(
-            self.data_cfg.get_feature_transforms(split, is_train_split)
+            self.cfg.get_feature_transforms(split, is_train_split)
         )
 
         self.pre_tokenizer = pre_tokenizer
         self.bpe_tokenizer = bpe_tokenizer
 
+        self.tgt_lens = self.get_tgt_lens_and_check_oov()
+
         logger.info(self.__repr__())
+
+    def get_tgt_lens_and_check_oov(self):
+        if self.tgt_texts is None:
+            return [0 for _ in range(self.n_samples)]
+        tgt_lens = []
+        n_tokens, n_oov_tokens = 0, 0
+        for i in range(self.n_samples):
+            tokenized = self.get_tokenized_tgt_text(i).split(" ")
+            oov_tokens = [
+                t
+                for t in tokenized
+                if self.tgt_dict.index(t) == self.tgt_dict.unk_index
+            ]
+            n_tokens += len(tokenized)
+            n_oov_tokens += len(oov_tokens)
+            tgt_lens.append(len(tokenized))
+        logger.info(f"'{self.split}' has {n_oov_tokens / n_tokens * 100:.2f}% OOV")
+        return tgt_lens
 
     def __repr__(self):
         return (
             self.__class__.__name__
             + f'(split="{self.split}", n_samples={self.n_samples}, '
-            f"prepend_tgt_lang_tag={self.data_cfg.prepend_tgt_lang_tag}, "
+            f"prepend_tgt_lang_tag={self.cfg.prepend_tgt_lang_tag}, "
             f"shuffle={self.shuffle}, transforms={self.feature_transforms})"
         )
 
@@ -259,55 +313,65 @@ class SpeechToTextDataset(FairseqDataset):
         return re.match(pattern, token)
 
     def check_tgt_lang_tag(self):
-        if self.data_cfg.prepend_tgt_lang_tag:
+        if self.cfg.prepend_tgt_lang_tag:
             assert self.tgt_langs is not None and self.tgt_dict is not None
             tgt_lang_tags = [
                 self.LANG_TAG_TEMPLATE.format(t) for t in set(self.tgt_langs)
             ]
             assert all(t in self.tgt_dict for t in tgt_lang_tags)
 
-    def tokenize_text(self, text: str):
-        if self.pre_tokenizer is not None:
-            text = self.pre_tokenizer.encode(text)
-        if self.bpe_tokenizer is not None:
-            text = self.bpe_tokenizer.encode(text)
+    @classmethod
+    def tokenize(cls, tokenizer, text: str):
+        return text if tokenizer is None else tokenizer.encode(text)
+
+    def get_tokenized_tgt_text(self, index: int):
+        text = self.tokenize(self.pre_tokenizer, self.tgt_texts[index])
+        text = self.tokenize(self.bpe_tokenizer, text)
         return text
 
-    def __getitem__(
-        self, index: int
-    ) -> Tuple[int, torch.Tensor, Optional[torch.Tensor]]:
+    @classmethod
+    def get_lang_tag_idx(cls, lang: str, dictionary: Dictionary):
+        lang_tag_idx = dictionary.index(cls.LANG_TAG_TEMPLATE.format(lang))
+        assert lang_tag_idx != dictionary.unk()
+        return lang_tag_idx
+
+    def __getitem__(self, index: int) -> SpeechToTextDatasetItem:
         source = get_features_or_waveform(
-            self.audio_paths[index], need_waveform=self.data_cfg.use_audio_input
+            self.audio_paths[index],
+            need_waveform=self.cfg.use_audio_input,
+            use_sample_rate=self.cfg.use_sample_rate,
         )
         if self.feature_transforms is not None:
-            assert not self.data_cfg.use_audio_input
+            assert not self.cfg.use_audio_input
             source = self.feature_transforms(source)
         source = torch.from_numpy(source).float()
 
         target = None
         if self.tgt_texts is not None:
-            tokenized = self.tokenize_text(self.tgt_texts[index])
+            tokenized = self.get_tokenized_tgt_text(index)
             target = self.tgt_dict.encode_line(
                 tokenized, add_if_not_exist=False, append_eos=True
             ).long()
-            if self.data_cfg.prepend_tgt_lang_tag:
-                lang_tag = self.LANG_TAG_TEMPLATE.format(self.tgt_langs[index])
-                lang_tag_idx = self.tgt_dict.index(lang_tag)
+            if self.cfg.prepend_tgt_lang_tag:
+                lang_tag_idx = self.get_lang_tag_idx(
+                    self.tgt_langs[index], self.tgt_dict
+                )
                 target = torch.cat((torch.LongTensor([lang_tag_idx]), target), 0)
-        return index, source, target
+
+        return SpeechToTextDatasetItem(index=index, source=source, target=target)
 
     def __len__(self):
         return self.n_samples
 
-    def collater(self, samples: List[Tuple[int, torch.Tensor, torch.Tensor]]) -> Dict:
+    def collater(
+        self, samples: List[SpeechToTextDatasetItem], return_order: bool = False
+    ) -> Dict:
         if len(samples) == 0:
             return {}
-        indices = torch.tensor([i for i, _, _ in samples], dtype=torch.long)
-        frames = _collate_frames(
-            [s for _, s, _ in samples], self.data_cfg.use_audio_input
-        )
+        indices = torch.tensor([x.index for x in samples], dtype=torch.long)
+        frames = _collate_frames([x.source for x in samples], self.cfg.use_audio_input)
         # sort samples by descending number of frames
-        n_frames = torch.tensor([s.size(0) for _, s, _ in samples], dtype=torch.long)
+        n_frames = torch.tensor([x.source.size()[0] for x in samples], dtype=torch.long)
         n_frames, order = n_frames.sort(descending=True)
         indices = indices.index_select(0, order)
         frames = frames.index_select(0, order)
@@ -317,7 +381,7 @@ class SpeechToTextDataset(FairseqDataset):
         ntokens = None
         if self.tgt_texts is not None:
             target = fairseq_data_utils.collate_tokens(
-                [t for _, _, t in samples],
+                [x.target for x in samples],
                 self.tgt_dict.pad(),
                 self.tgt_dict.eos(),
                 left_pad=False,
@@ -325,41 +389,40 @@ class SpeechToTextDataset(FairseqDataset):
             )
             target = target.index_select(0, order)
             target_lengths = torch.tensor(
-                [t.size(0) for _, _, t in samples], dtype=torch.long
+                [x.target.size()[0] for x in samples], dtype=torch.long
             ).index_select(0, order)
             prev_output_tokens = fairseq_data_utils.collate_tokens(
-                [t for _, _, t in samples],
+                [x.target for x in samples],
                 self.tgt_dict.pad(),
                 self.tgt_dict.eos(),
                 left_pad=False,
                 move_eos_to_beginning=True,
             )
             prev_output_tokens = prev_output_tokens.index_select(0, order)
-            ntokens = sum(t.size(0) for _, _, t in samples)
+            ntokens = sum(x.target.size()[0] for x in samples)
 
+        net_input = {
+            "src_tokens": frames,
+            "src_lengths": n_frames,
+            "prev_output_tokens": prev_output_tokens,
+        }
         out = {
             "id": indices,
-            "net_input": {
-                "src_tokens": frames,
-                "src_lengths": n_frames,
-                "prev_output_tokens": prev_output_tokens,
-            },
+            "net_input": net_input,
             "target": target,
             "target_lengths": target_lengths,
             "ntokens": ntokens,
             "nsentences": len(samples),
         }
+        if return_order:
+            out["order"] = order
         return out
 
     def num_tokens(self, index):
         return self.n_frames[index]
 
     def size(self, index):
-        t_len = 0
-        if self.tgt_texts is not None:
-            tokenized = self.tokenize_text(self.tgt_texts[index])
-            t_len = len(tokenized.split(" "))
-        return self.n_frames[index], t_len
+        return self.n_frames[index], self.tgt_lens[index]
 
     @property
     def sizes(self):
@@ -397,67 +460,111 @@ class SpeechToTextDatasetCreator(object):
         cls,
         split_name: str,
         is_train_split,
-        samples: List[List[Dict]],
-        data_cfg: S2TDataConfig,
+        samples: List[Dict],
+        cfg: S2TDataConfig,
         tgt_dict,
         pre_tokenizer,
         bpe_tokenizer,
     ) -> SpeechToTextDataset:
-        audio_paths, n_frames, src_texts, tgt_texts, ids = [], [], [], [], []
-        speakers, src_langs, tgt_langs = [], [], []
-        for s in samples:
-            ids.extend([ss[cls.KEY_ID] for ss in s])
-            audio_paths.extend(
-                [op.join(data_cfg.audio_root, ss[cls.KEY_AUDIO]) for ss in s]
-            )
-            n_frames.extend([int(ss[cls.KEY_N_FRAMES]) for ss in s])
-            tgt_texts.extend([ss[cls.KEY_TGT_TEXT] for ss in s])
-            src_texts.extend(
-                [ss.get(cls.KEY_SRC_TEXT, cls.DEFAULT_SRC_TEXT) for ss in s]
-            )
-            speakers.extend([ss.get(cls.KEY_SPEAKER, cls.DEFAULT_SPEAKER) for ss in s])
-            src_langs.extend([ss.get(cls.KEY_SRC_LANG, cls.DEFAULT_LANG) for ss in s])
-            tgt_langs.extend([ss.get(cls.KEY_TGT_LANG, cls.DEFAULT_LANG) for ss in s])
+        audio_root = Path(cfg.audio_root)
+        ids = [s[cls.KEY_ID] for s in samples]
+        audio_paths = [(audio_root / s[cls.KEY_AUDIO]).as_posix() for s in samples]
+        n_frames = [int(s[cls.KEY_N_FRAMES]) for s in samples]
+        tgt_texts = [s[cls.KEY_TGT_TEXT] for s in samples]
+        src_texts = [s.get(cls.KEY_SRC_TEXT, cls.DEFAULT_SRC_TEXT) for s in samples]
+        speakers = [s.get(cls.KEY_SPEAKER, cls.DEFAULT_SPEAKER) for s in samples]
+        src_langs = [s.get(cls.KEY_SRC_LANG, cls.DEFAULT_LANG) for s in samples]
+        tgt_langs = [s.get(cls.KEY_TGT_LANG, cls.DEFAULT_LANG) for s in samples]
         return SpeechToTextDataset(
             split_name,
             is_train_split,
-            data_cfg,
+            cfg,
             audio_paths,
             n_frames,
-            src_texts,
-            tgt_texts,
-            speakers,
-            src_langs,
-            tgt_langs,
-            ids,
-            tgt_dict,
-            pre_tokenizer,
-            bpe_tokenizer,
+            src_texts=src_texts,
+            tgt_texts=tgt_texts,
+            speakers=speakers,
+            src_langs=src_langs,
+            tgt_langs=tgt_langs,
+            ids=ids,
+            tgt_dict=tgt_dict,
+            pre_tokenizer=pre_tokenizer,
+            bpe_tokenizer=bpe_tokenizer,
         )
 
     @classmethod
-    def _get_size_ratios(cls, ids: List[str], sizes: List[int], alpha: float = 1.0):
+    def get_size_ratios(
+        cls, datasets: List[SpeechToTextDataset], alpha: float = 1.0
+    ) -> List[float]:
         """Size ratios for temperature-based sampling
         (https://arxiv.org/abs/1907.05019)"""
-        _sizes = np.array(sizes)
-        prob = _sizes / _sizes.sum()
-        smoothed_prob = prob ** alpha
-        smoothed_prob = smoothed_prob / smoothed_prob.sum()
-        size_ratio = (smoothed_prob * _sizes.sum()) / _sizes
 
-        o_str = str({_i: f"{prob[i]:.3f}" for i, _i in enumerate(ids)})
-        logger.info(f"original sampling probability: {o_str}")
-        p_str = str({_i: f"{smoothed_prob[i]:.3f}" for i, _i in enumerate(ids)})
-        logger.info(f"balanced sampling probability: {p_str}")
-        sr_str = str({_id: f"{size_ratio[i]:.3f}" for i, _id in enumerate(ids)})
-        logger.info(f"balanced sampling size ratio: {sr_str}")
-        return size_ratio.tolist()
+        id_to_lp, lp_to_sz = {}, defaultdict(int)
+        for ds in datasets:
+            lang_pairs = {f"{s}->{t}" for s, t in zip(ds.src_langs, ds.tgt_langs)}
+            assert len(lang_pairs) == 1
+            lang_pair = list(lang_pairs)[0]
+            id_to_lp[ds.split] = lang_pair
+            lp_to_sz[lang_pair] += sum(ds.n_frames)
+
+        sz_sum = sum(v for v in lp_to_sz.values())
+        lp_to_prob = {k: v / sz_sum for k, v in lp_to_sz.items()}
+        lp_to_tgt_prob = {k: v ** alpha for k, v in lp_to_prob.items()}
+        prob_sum = sum(v for v in lp_to_tgt_prob.values())
+        lp_to_tgt_prob = {k: v / prob_sum for k, v in lp_to_tgt_prob.items()}
+        lp_to_sz_ratio = {
+            k: (lp_to_tgt_prob[k] * sz_sum) / v for k, v in lp_to_sz.items()
+        }
+        size_ratio = [lp_to_sz_ratio[id_to_lp[ds.split]] for ds in datasets]
+
+        p_formatted = {
+            k: f"{lp_to_prob[k]:.3f}->{lp_to_tgt_prob[k]:.3f}" for k in lp_to_sz
+        }
+        logger.info(f"sampling probability balancing: {p_formatted}")
+        sr_formatted = {ds.split: f"{r:.3f}" for ds, r in zip(datasets, size_ratio)}
+        logger.info(f"balanced sampling size ratio: {sr_formatted}")
+        return size_ratio
+
+    @classmethod
+    def _load_samples_from_tsv(cls, root: str, split: str):
+        tsv_path = Path(root) / f"{split}.tsv"
+        if not tsv_path.is_file():
+            raise FileNotFoundError(f"Dataset not found: {tsv_path}")
+        with open(tsv_path) as f:
+            reader = csv.DictReader(
+                f,
+                delimiter="\t",
+                quotechar=None,
+                doublequote=False,
+                lineterminator="\n",
+                quoting=csv.QUOTE_NONE,
+            )
+            samples = [dict(e) for e in reader]
+        if len(samples) == 0:
+            raise ValueError(f"Empty manifest: {tsv_path}")
+        return samples
+
+    @classmethod
+    def _from_tsv(
+        cls,
+        root: str,
+        cfg: S2TDataConfig,
+        split: str,
+        tgt_dict,
+        is_train_split: bool,
+        pre_tokenizer,
+        bpe_tokenizer,
+    ) -> SpeechToTextDataset:
+        samples = cls._load_samples_from_tsv(root, split)
+        return cls._from_list(
+            split, is_train_split, samples, cfg, tgt_dict, pre_tokenizer, bpe_tokenizer
+        )
 
     @classmethod
     def from_tsv(
         cls,
         root: str,
-        data_cfg: S2TDataConfig,
+        cfg: S2TDataConfig,
         splits: str,
         tgt_dict,
         pre_tokenizer,
@@ -466,46 +573,21 @@ class SpeechToTextDatasetCreator(object):
         epoch: int,
         seed: int,
     ) -> SpeechToTextDataset:
-        samples = []
-        _splits = splits.split(",")
-        for split in _splits:
-            tsv_path = op.join(root, f"{split}.tsv")
-            if not op.isfile(tsv_path):
-                raise FileNotFoundError(f"Dataset not found: {tsv_path}")
-            with open(tsv_path) as f:
-                reader = csv.DictReader(
-                    f,
-                    delimiter="\t",
-                    quotechar=None,
-                    doublequote=False,
-                    lineterminator="\n",
-                    quoting=csv.QUOTE_NONE,
-                )
-                samples.append([dict(e) for e in reader])
-                assert len(samples) > 0
-
         datasets = [
-            cls._from_list(
-                name,
-                is_train_split,
-                [s],
-                data_cfg,
-                tgt_dict,
-                pre_tokenizer,
-                bpe_tokenizer,
+            cls._from_tsv(
+                root, cfg, split, tgt_dict, is_train_split, pre_tokenizer, bpe_tokenizer
             )
-            for name, s in zip(_splits, samples)
+            for split in splits.split(",")
         ]
 
-        if is_train_split and len(_splits) > 1 and data_cfg.sampling_alpha != 1.0:
+        if is_train_split and len(datasets) > 1 and cfg.sampling_alpha != 1.0:
             # temperature-based sampling
-            size_ratios = cls._get_size_ratios(
-                _splits, [len(s) for s in samples], alpha=data_cfg.sampling_alpha
-            )
+            size_ratios = cls.get_size_ratios(datasets, alpha=cfg.sampling_alpha)
             datasets = [
                 ResamplingDataset(
                     d, size_ratio=r, seed=seed, epoch=epoch, replace=(r >= 1.0)
                 )
-                for d, r in zip(datasets, size_ratios)
+                for r, d in zip(size_ratios, datasets)
             ]
-        return ConcatDataset(datasets)
+
+        return ConcatDataset(datasets) if len(datasets) > 1 else datasets[0]

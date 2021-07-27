@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
-import os.path as op
+from pathlib import Path
 from argparse import Namespace
 
 from fairseq.data import Dictionary, encoders
@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 @register_task("speech_to_text")
 class SpeechToTextTask(LegacyFairseqTask):
-    @staticmethod
-    def add_args(parser):
+    @classmethod
+    def add_args(cls, parser):
         parser.add_argument("data", help="manifest root path")
         parser.add_argument(
             "--config-yaml",
@@ -49,15 +49,15 @@ class SpeechToTextTask(LegacyFairseqTask):
     def __init__(self, args, tgt_dict):
         super().__init__(args)
         self.tgt_dict = tgt_dict
-        self.data_cfg = S2TDataConfig(op.join(args.data, args.config_yaml))
+        self.data_cfg = S2TDataConfig(Path(args.data) / args.config_yaml)
 
     @classmethod
     def setup_task(cls, args, **kwargs):
-        data_cfg = S2TDataConfig(op.join(args.data, args.config_yaml))
-        dict_path = op.join(args.data, data_cfg.vocab_filename)
-        if not op.isfile(dict_path):
-            raise FileNotFoundError(f"Dict not found: {dict_path}")
-        tgt_dict = Dictionary.load(dict_path)
+        data_cfg = S2TDataConfig(Path(args.data) / args.config_yaml)
+        dict_path = Path(args.data) / data_cfg.vocab_filename
+        if not dict_path.is_file():
+            raise FileNotFoundError(f"Dict not found: {dict_path.as_posix()}")
+        tgt_dict = Dictionary.load(dict_path.as_posix())
         logger.info(
             f"dictionary size ({data_cfg.vocab_filename}): " f"{len(tgt_dict):,}"
         )
@@ -126,7 +126,10 @@ class SpeechToTextTask(LegacyFairseqTask):
             for s, i in self.tgt_dict.indices.items()
             if SpeechToTextDataset.is_lang_tag(s)
         }
-        extra_gen_cls_kwargs = {"symbols_to_strip_from_output": lang_token_ids}
+        if extra_gen_cls_kwargs is None:
+            extra_gen_cls_kwargs = {"symbols_to_strip_from_output": lang_token_ids}
+        else:
+            extra_gen_cls_kwargs["symbols_to_strip_from_output"] = lang_token_ids
         return super().build_generator(
             models, args, seq_gen_cls=None, extra_gen_cls_kwargs=extra_gen_cls_kwargs
         )
