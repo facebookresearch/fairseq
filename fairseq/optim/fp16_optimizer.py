@@ -479,7 +479,7 @@ class MemoryEfficientFP16Optimizer(
                 "Unsupported optimizer: {}".format(optimizer.__class__.__name__)
             )
 
-        super().__init__(cfg.optimizer)
+        super().__init__(getattr(cfg, "optimizer", None))
         self.wrapped_optimizer = optimizer
 
         if getattr(cfg.common, "fp16_scale_window", None) is None:

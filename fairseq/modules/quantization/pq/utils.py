@@ -152,7 +152,7 @@ def quantize_model_(
     return quantized_layers
 
 
-def get_layers(model, filter_regexp):
+def get_layers(model, filter_regexp, remove_weights=False):
     """
     Filters out the layers according to a regexp. Note that
     we omit biases.
@@ -181,6 +181,10 @@ def get_layers(model, filter_regexp):
 
     # remove .weight in all other names (or .weight_orig is spectral norm)
     all_layers = map(lambda x: x.replace(".weight_orig", ""), all_layers)
+    # remove weights indicates whether the weights extension should be removed, in addition to
+    # weight_orig and weight extension on names
+    if remove_weights:
+        all_layers = map(lambda x: x.replace(".weights", ""), all_layers)
     all_layers = map(lambda x: x.replace(".weight", ""), all_layers)
 
     # return filtered layers

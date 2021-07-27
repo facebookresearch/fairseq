@@ -22,8 +22,9 @@ from fairseq.data import (
     FileAudioDataset,
     encoders,
 )
-from fairseq.dataclass import FairseqDataclass
+from fairseq.dataclass import FairseqDataclass, ChoiceEnum
 from fairseq.dataclass.configs import GenerationConfig
+from fairseq.data.text_compressor import TextCompressor, TextCompressionLevel
 
 from . import FairseqTask, register_task
 from .. import utils
@@ -41,6 +42,10 @@ class LabelEncoder(object):
         return self.dictionary.encode_line(
             label, append_eos=False, add_if_not_exist=False
         )
+
+
+def label_len_fn(label):
+    return len(label.split(" "))
 
 
 @dataclass
@@ -143,6 +148,13 @@ class AudioPretrainingConfig(FairseqDataclass):
     )
 
     tpu: bool = II("common.tpu")
+    text_compression_level: ChoiceEnum([x.name for x in TextCompressionLevel]) = field(
+        default="none",
+        metadata={
+            "help": "compression level for texts (e.g. audio filenames, "
+                    "target texts): none/low/high (default: none). "
+        }
+    )
 
 
 @register_task("audio_pretraining", dataclass=AudioPretrainingConfig)
@@ -198,6 +210,9 @@ class AudioPretrainingTask(FairseqTask):
             if not hasattr(task_cfg, "autoregressive"):
                 task_cfg.autoregressive = not task_cfg.criterion == "ctc"
 
+        text_compression_level = getattr(
+            TextCompressionLevel, str(self.cfg.text_compression_level)
+        )
         if getattr(task_cfg, "binarized_dataset", False):
             self.datasets[split] = BinarizedAudioDataset(
                 data_path,
@@ -223,6 +238,7 @@ class AudioPretrainingTask(FairseqTask):
                 normalize=task_cfg.normalize,
                 num_buckets=self.cfg.num_batch_buckets or int(self.cfg.tpu),
                 compute_mask_indices=(self.cfg.precompute_mask_indices or self.cfg.tpu),
+                text_compression_level=text_compression_level,
                 **self._get_mask_precompute_kwargs(task_cfg),
             )
 
@@ -236,8 +252,12 @@ class AudioPretrainingTask(FairseqTask):
         if task_cfg.labels:
             label_path = os.path.join(data_path, f"{split}.{task_cfg.labels}")
             skipped_indices = getattr(self.datasets[split], "skipped_indices", set())
+            text_compressor = TextCompressor(level=text_compression_level)
             with open(label_path, "r") as f:
-                labels = [line for i, line in enumerate(f) if i not in skipped_indices]
+                labels = [
+                    text_compressor.compress(l)
+                    for i, l in enumerate(f) if i not in skipped_indices
+                ]
 
             assert len(labels) == len(self.datasets[split]), (
                 f"labels length ({len(labels)}) and dataset length "
@@ -253,7 +273,9 @@ class AudioPretrainingTask(FairseqTask):
                 eos=self.target_dictionary.eos(),
                 batch_targets=True,
                 process_label=process_label,
+                label_len_fn=label_len_fn,
                 add_to_input=task_cfg.get("autoregressive", False),
+                text_compression_level=text_compression_level
             )
 
     @property

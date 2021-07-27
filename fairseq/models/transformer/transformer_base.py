@@ -49,6 +49,10 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
     def build_model(cls, cfg, task):
         """Build a new model instance."""
 
+        # hacky fixes for issue with II
+        cfg.decoder.input_dim = int(cfg.decoder.input_dim)
+        cfg.decoder.output_dim = int(cfg.decoder.output_dim)
+
         if cfg.encoder.layers_to_keep:
             cfg.encoder.layers = len(cfg.encoder.layers_to_keep.split(','))
         if cfg.decoder.layers_to_keep:

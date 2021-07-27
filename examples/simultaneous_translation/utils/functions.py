@@ -6,12 +6,23 @@
 import torch
 
 
+def prob_check(tensor):
+    assert not torch.isnan(tensor).any(), (
+        "Nan in a probability tensor."
+    )
+    assert tensor.le(1.0).all() and tensor.ge(0.0).all(), (
+        "Incorrect values in a probability tensor"
+        ", 0.0 <= tensor <= 1.0"
+    )
+
+
 def exclusive_cumprod(tensor, dim: int, eps: float = 1e-10):
     """
     Implementing exclusive cumprod.
     There is cumprod in pytorch, however there is no exclusive mode.
     cumprod(x) = [x1, x1x2, x2x3x4, ..., prod_{i=1}^n x_i]
-    exclusive means cumprod(x) = [1, x1, x1x2, x1x2x3, ..., prod_{i=1}^{n-1} x_i]
+    exclusive means
+    cumprod(x) = [1, x1, x1x2, x1x2x3, ..., prod_{i=1}^{n-1} x_i]
     """
     tensor_size = list(tensor.size())
     tensor_size[dim] = 1
@@ -28,7 +39,9 @@ def exclusive_cumprod(tensor, dim: int, eps: float = 1e-10):
     elif dim == 2:
         return return_tensor[:, :, :-1]
     else:
-        raise RuntimeError("Cumprod on dimension 3 and more is not implemented")
+        raise RuntimeError(
+            "Cumprod on dimension 3 and more is not implemented"
+        )
 
 
 def safe_cumprod(tensor, dim: int, eps: float = 1e-10):
@@ -50,42 +63,6 @@ def safe_cumprod(tensor, dim: int, eps: float = 1e-10):
     cumsum_log_tensor = torch.cumsum(log_tensor, dim)
     exp_cumsum_log_tensor = torch.exp(cumsum_log_tensor)
     return exp_cumsum_log_tensor
-
-
-def lengths_to_mask(lengths, max_len: int, dim: int = 0, negative_mask: bool = False):
-    """
-    Convert a tensor of lengths to mask
-    For example, lengths = [[2, 3, 4]], max_len = 5
-    mask =
-       [[1, 1, 1],
-        [1, 1, 1],
-        [0, 1, 1],
-        [0, 0, 1],
-        [0, 0, 0]]
-    """
-    assert len(lengths.size()) <= 2
-    if len(lengths) == 2:
-        if dim == 1:
-            lengths = lengths.t()
-        lengths = lengths
-    else:
-        lengths = lengths.unsqueeze(1)
-
-    # lengths : batch_size, 1
-    lengths = lengths.view(-1, 1)
-
-    batch_size = lengths.size(0)
-    # batch_size, max_len
-    mask = torch.arange(max_len).expand(batch_size, max_len).type_as(lengths) < lengths
-
-    if negative_mask:
-        mask = ~mask
-
-    if dim == 0:
-        # max_len, batch_size
-        mask = mask.t()
-
-    return mask
 
 
 def moving_sum(x, start_idx: int, end_idx: int):
@@ -126,24 +103,22 @@ def moving_sum(x, start_idx: int, end_idx: int):
         [ 7, 17, 27],
         [ 4,  9, 14]]
     """
+    # TODO: Make dimension configurable
     assert start_idx > 0 and end_idx > 0
-    assert len(x.size()) == 2
-    src_len, batch_size = x.size()
+    batch_size, tgt_len, src_len = x.size()
+    x = x.view(-1, src_len).unsqueeze(1)
     # batch_size, 1, src_len
-    x = x.t().unsqueeze(1)
-    # batch_size, 1, src_len
-    moving_sum_weight = x.new_ones([1, 1, end_idx + start_idx - 1])
+    moving_sum_weight = torch.ones([1, 1, end_idx + start_idx - 1]).type_as(x)
 
-    moving_sum = (
-        torch.nn.functional.conv1d(
-            x, moving_sum_weight, padding=start_idx + end_idx - 1
-        )
-        .squeeze(1)
-        .t()
-    )
-    moving_sum = moving_sum[end_idx:-start_idx]
+    moving_sum = torch.nn.functional.conv1d(
+        x, moving_sum_weight, padding=start_idx + end_idx - 1
+    ).squeeze(1)
 
-    assert src_len == moving_sum.size(0)
-    assert batch_size == moving_sum.size(1)
+    moving_sum = moving_sum[:, end_idx:-start_idx]
+
+    assert src_len == moving_sum.size(1)
+    assert batch_size * tgt_len == moving_sum.size(0)
+
+    moving_sum = moving_sum.view(batch_size, tgt_len, src_len)
 
     return moving_sum

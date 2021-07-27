@@ -6,30 +6,32 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#include <map>
 #include <array>
-#include <cstring>
 #include <cstdio>
+#include <cstring>
+#include <map>
 
-typedef struct
-{
-    size_t reflen;
-    size_t predlen;
-    size_t match1;
-    size_t count1;
-    size_t match2;
-    size_t count2;
-    size_t match3;
-    size_t count3;
-    size_t match4;
-    size_t count4;
+// NOLINTNEXTLINE
+typedef struct {
+  size_t reflen;
+  size_t predlen;
+  size_t match1;
+  size_t count1;
+  size_t match2;
+  size_t count2;
+  size_t match3;
+  size_t count3;
+  size_t match4;
+  size_t count4;
 } bleu_stat;
 
 // left trim (remove pad)
 void bleu_ltrim(size_t* len, int** sent, int pad) {
   size_t start = 0;
-  while(start < *len) {
-    if (*(*sent + start) != pad) { break; }
+  while (start < *len) {
+    if (*(*sent + start) != pad) {
+      break;
+    }
     start++;
   }
   *sent += start;
@@ -40,7 +42,9 @@ void bleu_ltrim(size_t* len, int** sent, int pad) {
 void bleu_rtrim(size_t* len, int** sent, int pad, int eos) {
   size_t end = *len - 1;
   while (end > 0) {
-    if (*(*sent + end) != eos && *(*sent + end) != pad) { break; }
+    if (*(*sent + end) != eos && *(*sent + end) != pad) {
+      break;
+    }
     end--;
   }
   *len = end + 1;
@@ -53,10 +57,10 @@ void bleu_trim(size_t* len, int** sent, int pad, int eos) {
 }
 
 size_t bleu_hash(int len, int* data) {
-  size_t h     = 14695981039346656037ul;
+  size_t h = 14695981039346656037ul;
   size_t prime = 0x100000001b3;
-  char* b      = (char*) data;
-  size_t blen  = sizeof(int) * len;
+  char* b = (char*)data;
+  size_t blen = sizeof(int) * len;
 
   while (blen-- > 0) {
     h ^= *b++;
@@ -67,15 +71,23 @@ size_t bleu_hash(int len, int* data) {
 }
 
 void bleu_addngram(
-    size_t *ntotal, size_t *nmatch, size_t n,
-    size_t reflen, int* ref, size_t predlen, int* pred) {
-
-  if (predlen < n) { return; }
+    size_t* ntotal,
+    size_t* nmatch,
+    size_t n,
+    size_t reflen,
+    int* ref,
+    size_t predlen,
+    int* pred) {
+  if (predlen < n) {
+    return;
+  }
 
   predlen = predlen - n + 1;
   (*ntotal) += predlen;
 
-  if (reflen < n) { return; }
+  if (reflen < n) {
+    return;
+  }
 
   reflen = reflen - n + 1;
 
@@ -90,7 +102,7 @@ void bleu_addngram(
     size_t w = bleu_hash(n, ref++);
     if (count[w] > 0) {
       (*nmatch)++;
-      count[w] -=1;
+      count[w] -= 1;
     }
     reflen--;
   }
@@ -99,16 +111,16 @@ void bleu_addngram(
 extern "C" {
 
 #ifdef _WIN64
-__declspec(dllexport) 
+__declspec(dllexport)
 #endif
-void bleu_zero_init(bleu_stat* stat) {
+    void bleu_zero_init(bleu_stat* stat) {
   std::memset(stat, 0, sizeof(bleu_stat));
 }
 
 #ifdef _WIN64
-__declspec(dllexport) 
+__declspec(dllexport)
 #endif
-void bleu_one_init(bleu_stat* stat) {
+    void bleu_one_init(bleu_stat* stat) {
   bleu_zero_init(stat);
   stat->count1 = 0;
   stat->count2 = 1;
@@ -121,11 +133,16 @@ void bleu_one_init(bleu_stat* stat) {
 }
 
 #ifdef _WIN64
-__declspec(dllexport) 
+__declspec(dllexport)
 #endif
-void bleu_add(
-    bleu_stat* stat,
-    size_t reflen, int* ref, size_t predlen, int* pred, int pad, int eos) {
+    void bleu_add(
+        bleu_stat* stat,
+        size_t reflen,
+        int* ref,
+        size_t predlen,
+        int* pred,
+        int pad,
+        int eos) {
 
   bleu_trim(&reflen, &ref, pad, eos);
   bleu_trim(&predlen, &pred, pad, eos);
@@ -137,5 +154,4 @@ void bleu_add(
   bleu_addngram(&stat->count3, &stat->match3, 3, reflen, ref, predlen, pred);
   bleu_addngram(&stat->count4, &stat->match4, 4, reflen, ref, predlen, pred);
 }
-
 }
