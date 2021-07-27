@@ -13,6 +13,7 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
+from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models.transformer import (
     FairseqEncoderDecoderModel,
     TransformerDecoder, 
@@ -72,6 +73,7 @@ class HuggingFaceMarianEncoder(FairseqEncoder):
         self.model = MarianMTModel.from_pretrained(cfg.common_eval.path).get_encoder()
         self.dictionary = dictionary
         self.config = config
+        self.padding_idx = dictionary.pad_index
 
     
     def forward(self, src_tokens, src_lengths=None, return_all_hiddens=False, ):
@@ -92,12 +94,80 @@ class HuggingFaceMarianEncoder(FairseqEncoder):
                   states have shape `(src_len, batch, vocab)`.
         """
         x, extra = self.extract_features(src_tokens, return_all_hiddens=return_all_hiddens)
-        return x, extra
+        # compute padding mask
+        encoder_padding_mask = src_tokens.eq(self.padding_idx)
+
+        encoder_states = [] if return_all_hiddens else None
+        return EncoderOut(
+            encoder_out=x,  # T x B x C
+            encoder_padding_mask=encoder_padding_mask,  # B x T
+            encoder_embedding=None,   # B x T x C
+            encoder_states=encoder_states,  # List[T x B x C]
+            src_tokens=None,
+            src_lengths=None,
+        )
 
     def extract_features(self, src_tokens, return_all_hiddens=False, **unused):
-        inner_states = self.model(**src_tokens)
+        inner_states = self.model.forward(src_tokens)
         features = inner_states[0].float()
         return features, {'inner_states': inner_states[2] if return_all_hiddens else None}
+
+    @torch.jit.export
+    def reorder_encoder_out(self, encoder_out: EncoderOut, new_order):
+        """
+        Reorder encoder output according to *new_order*.
+
+        Args:
+            encoder_out: output from the ``forward()`` method
+            new_order (LongTensor): desired order
+
+        Returns:
+            *encoder_out* rearranged according to *new_order*
+        """
+        """
+        Since encoder_padding_mask and encoder_embedding are both of type
+        Optional[Tensor] in EncoderOut, they need to be copied as local
+        variables for Torchscript Optional refinement
+        """
+        encoder_padding_mask: Optional[Tensor] = encoder_out.encoder_padding_mask
+        encoder_embedding: Optional[Tensor] = encoder_out.encoder_embedding
+
+        new_encoder_out = (
+            encoder_out.encoder_out
+            if encoder_out.encoder_out is None
+            else encoder_out.encoder_out.index_select(1, new_order)
+        )
+        new_encoder_padding_mask = (
+            encoder_padding_mask
+            if encoder_padding_mask is None
+            else encoder_padding_mask.index_select(0, new_order)
+        )
+        new_encoder_embedding = (
+            encoder_embedding
+            if encoder_embedding is None
+            else encoder_embedding.index_select(0, new_order)
+        )
+        src_tokens = encoder_out.src_tokens
+        if src_tokens is not None:
+            src_tokens = src_tokens.index_select(0, new_order)
+
+        src_lengths = encoder_out.src_lengths
+        if src_lengths is not None:
+            src_lengths = src_lengths.index_select(0, new_order)
+
+        encoder_states = encoder_out.encoder_states
+        if encoder_states is not None:
+            for idx, state in enumerate(encoder_states):
+                encoder_states[idx] = state.index_select(1, new_order)
+
+        return EncoderOut(
+            encoder_out=new_encoder_out,  # T x B x C
+            encoder_padding_mask=new_encoder_padding_mask,  # B x T
+            encoder_embedding=new_encoder_embedding,  # B x T x C
+            encoder_states=encoder_states,  # List[T x B x C]
+            src_tokens=src_tokens,  # B x T
+            src_lengths=src_lengths,  # B x 1
+        )
 
 
         
@@ -109,6 +179,7 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
         self.model = MarianMTModel.from_pretrained(cfg.common_eval.path).get_decoder()
         self.dictionary = dictionary
         self.config = config
+        self.padding_idx = dictionary.pad_index
 
 
     def forward(
@@ -119,8 +190,8 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
         encoder_out=None,
     ):
         features = self.extract_features(prev_output_tokens, incremental_state)
-        lm_logits = self.model.lm_head(features)
-        return (lm_logits,)
+
+        return features, None
 
     def extract_features(
         self,
@@ -133,7 +204,7 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
             past = None
 
         # don't attend to padding symbols
-        attention_mask = prev_output_tokens.ne(self.pad_idx).int()
+        attention_mask = prev_output_tokens.ne(self.padding_idx).int()
 
         # set position ids to exclude padding symbols
         position_ids = attention_mask * (
@@ -142,11 +213,9 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
             .repeat(prev_output_tokens.size(0), 1)
         )
 
-        outputs = self.model.transformer(
+        outputs = self.model(
             input_ids=prev_output_tokens,
-            past=past,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
+            attention_mask=attention_mask
         )
         last_hidden_states = outputs[0]
 
