@@ -10,31 +10,22 @@ from fairseq.data import (
     data_utils,
     TokenizerDictionary,
     RawLabelDataset,
-    BertTokenizerDataset,
+    MarianTokenizerDataset,
 )
-from fairseq.tasks import FairseqTask, register_task
+from fairseq.tasks import  register_task
+from .translation import TranslationTask, load_langpair_dataset
 
 
 logger = logging.getLogger(__name__)
 
 
 @register_task('translation_marian')
-class SentencePredictionChineseBertTask(FairseqTask):
+class HuggingFaceTranslationTask(TranslationTask):
     @staticmethod
     def add_args(parser):
         """Add task-specific arguments to the parser."""
         parser.add_argument('data', metavar='FILE',
                             help='file prefix for data')
-        parser.add_argument('--num-classes', type=int, default=-1,
-                            help='number of classes or regression targets')
-        parser.add_argument('--regression-target', action='store_true', default=False)
-        parser.add_argument('--no-shuffle', action='store_true', default=False)
-        parser.add_argument('--shorten-method', default='none',
-                            choices=['none', 'truncate', 'random_crop'],
-                            help='if not none, shorten sequences that exceed --tokens-per-sample')
-        parser.add_argument('--shorten-data-split-list', default='',
-                            help='comma-separated list of dataset splits to apply shortening to, '
-                                 'e.g., "train,valid" (default: all dataset splits)')
 
     def __init__(self, args, data_dictionary):
         super().__init__(args)
