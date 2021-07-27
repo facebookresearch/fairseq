@@ -71,3 +71,9 @@ class AddTargetDataset(BaseWrapperDataset):
             ).long()
             collated["ntokens"] += target.size(0)
         return collated
+
+    def filter_indices_by_size(self, indices, max_sizes):
+        indices, ignored = data_utils._filter_by_size_dynamic(
+            indices, self.size, max_sizes
+        )
+        return indices, ignored

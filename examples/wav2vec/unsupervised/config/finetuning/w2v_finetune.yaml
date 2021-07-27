@@ -11,7 +11,7 @@ checkpoint:
   save_interval_updates: 20000
 
 task:
-  _name: audio_pretraining
+  _name: audio_finetuning
   data: ???
   normalize: true
   labels: ltr
