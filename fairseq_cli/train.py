@@ -206,7 +206,7 @@ def main(cfg: FairseqConfig) -> None:
         )
 
         tb_writer.close()
-        logger.info(f"valid_loss=00, valid_bleu={max_bleu},")
+        logger.info(f"Done, valid_bleu={max_bleu},")
 
     # ioPath implementation to wait for all asynchronous file writes to complete.
     if cfg.checkpoint.write_checkpoints_asynchronously:
