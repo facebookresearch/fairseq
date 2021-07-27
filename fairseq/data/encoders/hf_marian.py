@@ -22,13 +22,16 @@ class MarianTokenizer(object):
             raise ImportError(
                 "Please install transformers with: pip install transformers"
             )
-        self.marian_tokenzier = MarianTokenizer.from_pretrained(cfg.tokenizer_path)
+        self.marian_tokenizer = MarianTokenizer.from_pretrained(cfg.tokenizer_path)
 
     def encode(self, x: str) -> str:
-        return self.marian_tokenizer(x, return_tensors = "pt", padding = True)
+        return " ".join(self.marian_tokenizer.tokenize(x))
+
 
     def decode(self, x: str) -> str:
-        return self.marian_tokenizer.decode(x)
+        return self.marian_tokenizer.clean_up_tokenization(
+            self.marian_tokenizer.convert_tokens_to_string(x.split(" "))
+        )
 
     def is_beginning_of_word(self, x: str) -> bool:
         return not x.startswith("##")

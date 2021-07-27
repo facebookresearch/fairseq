@@ -5,6 +5,8 @@
 """isort:skip_file"""
 
 from .dictionary import Dictionary, TruncatedDictionary
+from .tokenizer_dictionary import TokenizerDictionary
+
 
 from .fairseq_dataset import FairseqDataset, FairseqIterableDataset
 

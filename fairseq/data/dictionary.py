@@ -31,7 +31,7 @@ class Dictionary:
         self.symbols = []
         self.count = []
         self.indices = {}
-        self.bos_index = None # self.add_symbol(bos)
+        self.bos_index = 0 # self.add_symbol(bos)
         self.pad_index = 58100
         self.eos_index = 0
         self.unk_index = 1

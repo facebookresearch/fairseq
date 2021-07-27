@@ -13,4 +13,4 @@ import torch
 import torch.nn as nn
 
 def silu(x: torch.Tensor) -> torch.Tensor:
-    return torch.nn.SiLU(x.float()).type_as(x)
+    return torch.nn.SiLU(x.float())

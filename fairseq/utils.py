@@ -532,7 +532,7 @@ def deprecation_warning(message, stacklevel=3):
 
 def get_activation_fn(activation: str) -> Callable:
     """Returns the activation function corresponding to `activation`"""
-    from fairseq.modules import gelu, gelu_accurate
+    from fairseq.modules import gelu, gelu_accurate, silu
 
     if activation == "relu":
         return F.relu
@@ -550,7 +550,7 @@ def get_activation_fn(activation: str) -> Callable:
     elif activation == "linear":
         return lambda x: x
     elif activation == "silu":
-        return torch.nn.SiLU
+        return F.silu
     else:
         raise RuntimeError("--activation-fn {} not supported".format(activation))
 
