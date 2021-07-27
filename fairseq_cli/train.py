@@ -178,8 +178,10 @@ def main(cfg: FairseqConfig) -> None:
 
         # train for one epoch
         valid_losses, should_stop = train(cfg, trainer, task, epoch_itr)
-        if valid_losses is not None:
+        try:
             max_bleu = max(max(valid_losses), max_bleu)
+        except:
+            max_bleu = 0
         if should_stop:
             break
 
