@@ -211,6 +211,7 @@ def main(cfg: FairseqConfig) -> None:
         tb_writer.close()
         logger.info(f"Done, valid_bleu={max_bleu},")
 
+
     # ioPath implementation to wait for all asynchronous file writes to complete.
     if cfg.checkpoint.write_checkpoints_asynchronously:
         logger.info(
@@ -219,6 +220,7 @@ def main(cfg: FairseqConfig) -> None:
         )
         PathManager.async_close()
         logger.info("ioPath PathManager finished waiting.")
+    raise ValueError # to kill traiing 
 
 
 def should_stop_early(cfg: DictConfig, valid_loss: float) -> bool:
@@ -525,7 +527,7 @@ def cli_main(
 
     # if cfg.common.use_plasma_view:
     #     server.server.kill()
-    raise ValueError
+    
 
 if __name__ == "__main__":
     cli_main()
