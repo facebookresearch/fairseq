@@ -210,6 +210,7 @@ def main(cfg: FairseqConfig) -> None:
 
         tb_writer.close()
         logger.info(f"Done, valid_bleu={max_bleu},")
+        raise ValueError # to kill traiing 
 
 
     # ioPath implementation to wait for all asynchronous file writes to complete.
@@ -220,7 +221,7 @@ def main(cfg: FairseqConfig) -> None:
         )
         PathManager.async_close()
         logger.info("ioPath PathManager finished waiting.")
-    raise ValueError # to kill traiing 
+    
 
 
 def should_stop_early(cfg: DictConfig, valid_loss: float) -> bool:
