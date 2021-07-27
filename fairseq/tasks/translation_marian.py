@@ -12,8 +12,8 @@ from fairseq.data import (
     RawLabelDataset,
     MarianTokenizerDataset,
 )
-from fairseq.tasks import  register_task
-from .translation import TranslationTask, load_langpair_dataset
+from fairseq.tasks import FairseqTask,  register_task
+from .translation import TranslationTask, TranslationConfig
 
 
 logger = logging.getLogger(__name__)
@@ -21,85 +21,34 @@ logger = logging.getLogger(__name__)
 
 @register_task('translation_marian')
 class HuggingFaceTranslationTask(TranslationTask):
-    @staticmethod
-    def add_args(parser):
-        """Add task-specific arguments to the parser."""
-        parser.add_argument('data', metavar='FILE',
-                            help='file prefix for data')
-
     def __init__(self, args, data_dictionary):
-        super().__init__(args)
+        super().__init__(args, data_dictionary, data_dictionary)
         self.dictionary = data_dictionary
-        if not hasattr(args, 'max_positions'):
-            self._max_positions = args.max_source_positions
-        else:
-            self._max_positions = args.max_positions
-        args.tokens_per_sample = self._max_positions
         self.tokenizer = data_dictionary.tokenizer
         self.args = args
 
     @classmethod
-    def load_dictionary(cls, args, model_path):
+    def load_dictionary(cls,  model_path):
         dictionary = TokenizerDictionary.load(model_path)
         return dictionary
 
     @classmethod
-    def setup_task(cls, args, **kwargs):
-        assert args.num_classes > 0, 'Must set --num-classes'
+    def setup_task(cls, cfg, **kwargs):
 
         # load data dictionary
         data_dict = cls.load_dictionary(
-            args,
-            args.load_hf_bert_from,
+            cfg.path
         )
+        return HuggingFaceTranslationTask(cfg, data_dict)
 
-        return SentencePredictionChineseBertTask(args, data_dict)
 
-    def load_dataset(self, split, combine=False, **kwargs):
-        """Load a given dataset split (e.g., train, valid, test)."""
-        def get_path(type, split):
-            return os.path.join(self.args.data, type, split)
-
-        def make_raw_dataset(type):
-            split_path = get_path(type, split)
-            dataset = data_utils.load_indexed_raw_str_dataset(
-                split_path,
-            )
-            return dataset
-
-        input0 = make_raw_dataset('input0')
-        assert input0 is not None, 'could not find dataset: {}'.format(get_path('input0', split))
-        src_raw = input0
-        tgt_raw = None
-        label_path = "{0}.label".format(get_path('label', split))
-        if os.path.exists(label_path):
-            def parse_target(i, line):
-                l = int(line.strip())
-                return l
-
-            with open(label_path) as h:
-                tgt_raw = RawLabelDataset([
-                    parse_target(i, line.strip())
-                    for i, line in enumerate(h.readlines())
-                ])
-
-        self.datasets[split] = BertTokenizerDataset(src_raw, tgt_raw, self.tokenizer)
-        return self.datasets[split]
-
-    def build_model(self, args):
+    def build_model(self, cfg):
         from fairseq import models
-        # logger.info("=" * 100 + " task.build_model " + "=" * 100)
-        model = models.build_model(args, self)
-
-        model.register_classification_head(
-            getattr(args, 'classification_head_name', 'sentence_classification_head'),
-            num_classes=self.args.num_classes,
-        )
-
+        cfg._name = 'hf_marian'
+        logger.info(cfg)
+        model = models.build_model(cfg, self)
         return model
 
-    def max_positions(self):
-        return self._max_positions
 
     @property
     def source_dictionary(self):
@@ -112,3 +61,6 @@ class HuggingFaceTranslationTask(TranslationTask):
     @property
     def label_dictionary(self):
         return self._label_dictionary
+
+    def max_positions(self):
+        return (512, 512)

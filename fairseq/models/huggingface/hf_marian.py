@@ -23,7 +23,8 @@ try:
     from transformers.models.marian.modeling_marian import (
         MarianEncoder, 
         MarianDecoder, 
-        MarianConfig
+        MarianConfig, 
+        MarianMTModel
     )
 except ImportError:
     raise ImportError(
@@ -39,37 +40,41 @@ DEFAULT_MAX_TARGET_POSITIONS = 1024
 
 @register_model("hf_marian")
 class HuggingFaceMarianNMT(FairseqEncoderDecoderModel):
-    def __init__(self, args, encoder, decoder):
+    def __init__(self, cfg, encoder, decoder):
         super().__init__(encoder, decoder)
-        self.args = args
-        
-    @staticmethod
-    def add_args(parser):
-        """add model locations"""
-        # fmt: off
-        parser.add_argument('--model-path', type=int, metavar='N',
-                            help='folder location for pretrained mdoel')
+        self.cfg = cfg
+        self.hf_config = MarianConfig.from_pretrained(cfg.common_eval.path)
+
 
     @classmethod
-    def build_model(cls, args, task):
+    def build_model(cls, cfg, task):
         """Build a new model instance."""
+        logger.info(cfg.common)
+        encoder = HuggingFaceMarianEncoder(cfg, task.dictionary)
+        decoder = HuggingFaceMarianDecoder(cfg, task.dictionary)
+        return cls(cfg, encoder, decoder)
 
-        encoder = HuggingFaceMarianEncoder(args, task.dictionary)
-        decoder = HuggingFaceMarianDecoder(args, task.dictionary)
-        return cls(args, encoder, decoder)
+
+    def max_positions(self):
+        return 512
+
+    def max_source_positions(self):
+        return 512
+
+    def max_target_positions(self):
+        return 512
 
 
 class HuggingFaceMarianEncoder(FairseqEncoder):
-    def __init__(self, args, dictionary):
+    def __init__(self, cfg, dictionary):
         super().__init__(dictionary)
-        config = MarianConfig.from_pretrained(args.model_path)
-        self.model = MarianEncoder.from_pretrained(args.model_path)
-        self.args = args
+        config = MarianConfig.from_pretrained(cfg.common_eval.path)
+        self.model = MarianMTModel.from_pretrained(cfg.common_eval.path).get_encoder()
         self.dictionary = dictionary
         self.config = config
 
     
-    def forward(self, src_tokens, return_all_hiddens=False, ):
+    def forward(self, src_tokens, src_lengths=None, return_all_hiddens=False, ):
         """
         Args:
             src_tokens (LongTensor): input tokens of shape `(batch, src_len)`
@@ -94,19 +99,14 @@ class HuggingFaceMarianEncoder(FairseqEncoder):
         features = inner_states[0].float()
         return features, {'inner_states': inner_states[2] if return_all_hiddens else None}
 
-    def max_positions(self):
-        """Maximum output length supported by the encoder."""
-        return min(self.args.max_positions, self.model.config.max_position_embeddings - 2)
-
 
         
 
 class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
-    def __init__(self, args, dictionary):
+    def __init__(self, cfg, dictionary):
         super().__init__(dictionary)
-        config = MarianConfig.from_pretrained(args.model_path)
-        self.model = MarianDecoder.from_pretrained(args.model_path)
-        self.args = args
+        config = MarianConfig.from_pretrained(cfg.common_eval.path)
+        self.model = MarianMTModel.from_pretrained(cfg.common_eval.path).get_decoder()
         self.dictionary = dictionary
         self.config = config
 
@@ -155,6 +155,10 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
 
         return last_hidden_states
 
-    def max_positions(self):
-        return self.model.config.n_positions - 1
+    
 
+
+@register_model_architecture('hf_marian', 'hf_marian')
+def default_architecture(args):
+    args.max_target_positions = getattr(args, 'max_target_positions', 512)
+    args.max_source_positions = getattr(args, 'max_source_positions', 512)

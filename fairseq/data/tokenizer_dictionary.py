@@ -29,12 +29,12 @@ class TokenizerDictionary(Dictionary):
         self.count = []
         # self.indices = {}
 
-        self.symbols = self.tokenizer.vocab.keys()
-        self.indices = self.tokenizer.vocab.values()
+        self.symbols = self.tokenizer.get_vocab().keys()
+        self.indices = self.tokenizer.get_vocab().values()
 
         self.bos_index = tokenizer.cls_token_id
         self.pad_index = tokenizer.pad_token_id
-        self.eos_index = tokenizer.sep_token_id
+        self.eos_index = tokenizer.eos_token_id
         self.unk_index = tokenizer.unk_token_id
         self.nspecial = 4
 
@@ -175,7 +175,7 @@ class TokenizerDictionary(Dictionary):
     def dummy_sentence(self, length):
         raise NotImplementedError("dummy_sentence is not be supported yet")
 
-    def encode_line(self, line):
+    def encode_line(self, line, add_if_not_exist=False):
         words = self.tokenizer.encode(line)
         nwords = len(words)
         ids = torch.IntTensor(nwords)
