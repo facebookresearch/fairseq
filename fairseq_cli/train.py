@@ -164,7 +164,7 @@ def main(cfg: FairseqConfig) -> None:
 
     max_epoch = cfg.optimization.max_epoch or math.inf
     lr = trainer.get_lr()
-
+    max_bleu = 0
     train_meter = meters.StopwatchMeter()
     train_meter.start()
     while epoch_itr.next_epoch_idx <= max_epoch:
@@ -178,6 +178,7 @@ def main(cfg: FairseqConfig) -> None:
 
         # train for one epoch
         valid_losses, should_stop = train(cfg, trainer, task, epoch_itr)
+        max_bleu = max(valid_losses, max_bleu)
         if should_stop:
             break
 
@@ -201,11 +202,11 @@ def main(cfg: FairseqConfig) -> None:
                 "lr": base_lr,
                 "update_freq": cfg.optimization.update_freq[0] 
             },
-            {"bleu": max(valid_losses)},
+            {"bleu": max_bleu},
         )
 
         tb_writer.close()
-        logger.info(f"valid_loss=00, valid_bleu={max(valid_losses)},")
+        logger.info(f"valid_loss=00, valid_bleu={max_bleu},")
 
     # ioPath implementation to wait for all asynchronous file writes to complete.
     if cfg.checkpoint.write_checkpoints_asynchronously:
