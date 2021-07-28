@@ -181,7 +181,7 @@ def main(cfg: FairseqConfig) -> None:
         try:
             max_bleu = max(max(valid_losses), max_bleu)
         except:
-            max_bleu = 0
+            max_bleu = max_bleu
         if should_stop:
             break
 
@@ -195,6 +195,8 @@ def main(cfg: FairseqConfig) -> None:
             # don't cache epoch iterators for sharded datasets
             disable_iterator_cache=task.has_sharded_data("train"),
         )
+    with metrics.aggregate(new_root=True) as agg:
+        stats = get_valid_stats(cfg, trainer, agg.get_smoothed_values())
     train_meter.stop()
     logger.info("done training in {:.1f} seconds".format(train_meter.sum))
     if cfg.distributed_training.distributed_rank in [-1, 0]:
@@ -205,12 +207,12 @@ def main(cfg: FairseqConfig) -> None:
                 "lr": base_lr,
                 "update_freq": cfg.optimization.update_freq[0] 
             },
-            {"bleu": max_bleu},
+            {"bleu": stats['best_bleu']},
         )
 
         tb_writer.close()
-        logger.info(f"Done, valid_bleu={max_bleu},")
-        raise ValueError # to kill traiing 
+        logger.info(f"Done, valid_bleu={stats['best_bleu']},")
+    raise ValueError # to kill traiing 
 
 
     # ioPath implementation to wait for all asynchronous file writes to complete.
@@ -488,7 +490,7 @@ def validate(
             task.post_validate(trainer.get_model(), stats, agg)
 
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
-        logger.info(f"valid_loss={stats['loss']}, valid_bleu={stats['bleu']},")
+        logger.info(f"valid_loss={stats['loss']}, valid_bleu={stats['bleu']}")
         valid_losses.append(stats[cfg.checkpoint.best_checkpoint_metric])
     return valid_losses
 
