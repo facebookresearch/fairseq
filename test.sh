@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 fairseq-interactive  \
   --path /Users/csinclair/src/translation-models/notebooks/conversion/all/ \
   --task translation_marian 
@@ -8,16 +8,13 @@ fairseq-interactive  \
   --path 
 
 
-<<<<<<< Updated upstream
-fairseq-interactive wmt14.en-fr \
+fairseq-interactive wmt19.en-ru.ensemble \
 --task translation \
---path wmt14.en-fr/model.pt \
+--path wmt19.en-ru.ensemble/model1.pt \
 --source-lang en \
---target-lang fr \
+--target-lang ru \
 --beam 5 
-=======
-<<<<<<< Updated upstream
-=======
+
 fairseq-train /Users/csinclair/src/translation-models-data/data/datasets/processed/fairseq/mbart/baseline/bin \
 --decoder-normalize-before --maximize-best-checkpoint-metric \
 --log-interval 10 --adam-betas '(0.9, 0.98)' --save-interval 1000 --lr 3e-05 --warmup-updates 2500 \

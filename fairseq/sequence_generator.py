@@ -779,9 +779,11 @@ class EnsembleModel(nn.Module):
         log_probs = []
         avg_attn: Optional[Tensor] = None
         encoder_out: Optional[Dict[str, List[Tensor]]] = None
+
         for i, model in enumerate(self.models):
             if self.has_encoder():
                 encoder_out = encoder_outs[i]
+                print(encoder_out)
             # decode each model
             if self.has_incremental_states():
                 decoder_out = model.decoder.forward(
@@ -808,7 +810,7 @@ class EnsembleModel(nn.Module):
                         attn = attn_holder[0]
                 if attn is not None:
                     attn = attn[:, -1, :]
-
+            print(decoder_out[0].shape)
             decoder_out_tuple = (
                 decoder_out[0][:, -1:, :].div_(temperature),
                 None if decoder_len <= 1 else decoder_out[1],

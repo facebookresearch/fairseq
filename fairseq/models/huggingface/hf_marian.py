@@ -223,7 +223,7 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
         attention_mask = prev_output_tokens.ne(self.padding_idx).int()
 
 
-        x = self.model(
+        x = self.model.forward(
             input_ids=prev_output_tokens,
             attention_mask=attention_mask
         )
@@ -232,7 +232,7 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
         if incremental_state:
             self.set_incremental_state(incremental_state, "past", x[1])
 
-        return x, None
+        return x[0], None
 
     
 
