@@ -11,8 +11,12 @@ from fairseq import utils
 from fairseq.dataclass.utils import gen_parser_from_dataclass
 from fairseq.distributed import fsdp_wrap
 from fairseq.models import FairseqEncoderDecoderModel
+from fairseq.models.transformer import (
+    TransformerEncoderBase,
+    TransformerDecoderBase,
+    TransformerConfig,
+)
 from torch import Tensor
-from fairseq.models.transformer import (TransformerEncoderBase, TransformerDecoderBase, TransformerConfig)
 
 
 class TransformerModelBase(FairseqEncoderDecoderModel):
@@ -49,14 +53,16 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
     def build_model(cls, cfg, task):
         """Build a new model instance."""
 
-        # hacky fixes for issue with II
+        # --  TODO T96535332
+        #  bug caused by interaction between OmegaConf II and argparsing
         cfg.decoder.input_dim = int(cfg.decoder.input_dim)
         cfg.decoder.output_dim = int(cfg.decoder.output_dim)
+        # --
 
         if cfg.encoder.layers_to_keep:
-            cfg.encoder.layers = len(cfg.encoder.layers_to_keep.split(','))
+            cfg.encoder.layers = len(cfg.encoder.layers_to_keep.split(","))
         if cfg.decoder.layers_to_keep:
-            cfg.decoder.layers = len(cfg.decoder.layers_to_keep.split(','))
+            cfg.decoder.layers = len(cfg.decoder.layers_to_keep.split(","))
 
         src_dict, tgt_dict = task.source_dictionary, task.target_dictionary
 
