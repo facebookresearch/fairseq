@@ -28,6 +28,7 @@ from fairseq.data import (
 from fairseq.data.indexed_dataset import get_available_dataset_impl
 from fairseq.dataclass import ChoiceEnum, FairseqDataclass
 from fairseq.tasks import FairseqTask, register_task
+from fairseq_cli.generate import get_symbols_to_strip_from_output
 
 
 EVAL_BLEU_ORDER = 4
@@ -58,7 +59,7 @@ def load_langpair_dataset(
     num_buckets=0,
     shuffle=True,
     pad_to_multiple=1,
-    prepend_bos_src=None,
+    prepend_lang_id=False
 ):
     def split_exists(split, src, tgt, lang, data_path):
         filename = os.path.join(data_path, "{}.{}-{}.{}".format(split, src, tgt, lang))
@@ -130,9 +131,7 @@ def load_langpair_dataset(
         src_dataset = PrependTokenDataset(src_dataset, src_dict.bos())
         if tgt_dataset is not None:
             tgt_dataset = PrependTokenDataset(tgt_dataset, tgt_dict.bos())
-    elif prepend_bos_src is not None:
-        logger.info(f"prepending src bos: {prepend_bos_src}")
-        src_dataset = PrependTokenDataset(src_dataset, prepend_bos_src)
+
 
     eos = None
     if append_source_id:
@@ -144,6 +143,14 @@ def load_langpair_dataset(
                 tgt_dataset, tgt_dict.index("[{}]".format(tgt))
             )
         eos = tgt_dict.index("[{}]".format(tgt))
+    if prepend_lang_id:
+        src_dataset = PrependTokenDataset(
+            src_dataset, src_dict.index("[{}]".format(src))
+        )
+        if tgt_dataset is not None:
+            tgt_dataset = PrependTokenDataset(
+                tgt_dataset, tgt_dict.index("[{}]".format(tgt))
+            )
 
     align_dataset = None
     if load_alignments:
@@ -503,7 +510,6 @@ class TranslationTask(FairseqTask):
             shuffle=(split != "test"),
             pad_to_multiple=self.cfg.required_seq_len_multiple,
         )
-
     def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
         return LanguagePairDataset(
             src_tokens,
@@ -517,20 +523,27 @@ class TranslationTask(FairseqTask):
         model = super().build_model(cfg)
         if self.cfg.eval_bleu:
             detok_args = json.loads(self.cfg.eval_bleu_detok_args)
-            self.tokenizer = encoders.build_tokenizer(
-                Namespace(tokenizer=self.cfg.eval_bleu_detok, **detok_args)
-            )
+            if self.cfg.eval_bleu_detok == 'sentencepiece':
+                self.tokenizer = encoders.build_bpe(
+                    Namespace(bpe=self.cfg.eval_bleu_detok, **detok_args)
+                )
+            else:
+                self.tokenizer = encoders.build_tokenizer(
+                    Namespace(tokenizer=self.cfg.eval_bleu_detok, **detok_args)
+                )
 
             gen_args = json.loads(self.cfg.eval_bleu_args)
             self.sequence_generator = self.build_generator(
                 [model], Namespace(**gen_args)
             )
+            
         return model
 
     def valid_step(self, sample, model, criterion):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
         if self.cfg.eval_bleu:
             bleu = self._inference_with_bleu(self.sequence_generator, sample, model)
+            
             logging_output["_bleu_sys_len"] = bleu.sys_len
             logging_output["_bleu_ref_len"] = bleu.ref_len
             # we split counts into separate entries so that they can be
@@ -600,30 +613,45 @@ class TranslationTask(FairseqTask):
 
     def _inference_with_bleu(self, generator, sample, model):
         import sacrebleu
-
-        def decode(toks, escape_unk=False):
+        def decode(toks):
             s = self.tgt_dict.string(
                 toks.int().cpu(),
                 self.cfg.eval_bleu_remove_bpe,
+                escape_unk=True, 
                 # The default unknown string in fairseq is `<unk>`, but
                 # this is tokenized by sacrebleu as `< unk >`, inflating
                 # BLEU scores. Instead, we use a somewhat more verbose
                 # alternative that is unlikely to appear in the real
                 # reference, but doesn't get split into multiple tokens.
-                unk_string=("UNKNOWNTOKENINREF" if escape_unk else "UNKNOWNTOKENINHYP"),
+                extra_symbols_to_ignore=get_symbols_to_strip_from_output(
+                            generator
+                        )
             )
-            if self.tokenizer:
-                s = self.tokenizer.decode(s)
+            #if self.tokenizer:
+            #    s = self.tokenizer.decode(s)
             return s
-
-        gen_out = self.inference_step(generator, [model], sample, prefix_tokens=None)
+        gen_out = self.inference_step(generator, [model], sample)
         hyps, refs = [], []
         for i in range(len(gen_out)):
-            hyps.append(decode(gen_out[i][0]["tokens"]))
+            src_tokens = utils.strip_pad(
+                    sample["net_input"]["src_tokens"][i, :], self.target_dictionary.pad()
+                )
+            src_str = self.source_dictionary.string(src_tokens, 'sentencepiece')
+            hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
+                    hypo_tokens=gen_out[i][0]["tokens"],
+                    src_str=src_str, 
+                    alignment=gen_out[i][0]["alignment"],
+                    align_dict=None,
+                    tgt_dict=self.target_dictionary,
+                    remove_bpe='sentencepiece',
+                    extra_symbols_to_ignore=get_symbols_to_strip_from_output(generator),
+                )
+            #detok_hypo_str = self.tokenizer.decode(hypo_str)
+            hyps.append(hypo_str)
             refs.append(
                 decode(
                     utils.strip_pad(sample["target"][i], self.tgt_dict.pad()),
-                    escape_unk=True,  # don't count <unk> as matches to the hypo
+                    #escape_unk=False,  # don't count <unk> as matches to the hypo
                 )
             )
         if self.cfg.eval_bleu_print_samples:

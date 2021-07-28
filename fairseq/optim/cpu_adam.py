@@ -22,13 +22,13 @@ except ImportError as e:
 
 
 def _get_cpu_adam():
-    try:
-        from deepspeed.ops.op_builder import CPUAdamBuilder
-        return CPUAdamBuilder().load()
-    except ImportError:
+
+    from deepspeed.ops.op_builder import CPUAdamBuilder
+    return CPUAdamBuilder().load()
+    #except ImportError:
         # fbcode
-        from deepspeed.ops.adam import DeepSpeedCPUAdam as ds_opt_adam
-        return ds_opt_adam
+    #    from deepspeed.ops.adam import DeepSpeedCPUAdam as ds_opt_adam
+    #    return ds_opt_adam
 
 @dataclass
 class FairseqCPUAdamConfig(FairseqDataclass):
