@@ -106,7 +106,7 @@ class HuggingFaceMarianEncoder(FairseqEncoder):
             'encoder_padding_mask':[encoder_padding_mask],  # B x T
             'encoder_embedding':[embeds],   # B x T x C
             'encoder_states':encoder_states,  # List[T x B x C]
-            'src_tokens':[], 
+            'src_tokens':[src_tokens], 
             'src_lengths':[src_lengths],
         }
 
@@ -176,7 +176,7 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
     def __init__(self, cfg, dictionary):
         super().__init__(dictionary)
         config = MarianConfig.from_pretrained(cfg.common_eval.path)
-        self.model = MarianMTModel.from_pretrained(cfg.common_eval.path).get_decoder()
+        self.model = MarianMTModel.from_pretrained(cfg.common_eval.path)
         self.dictionary = dictionary
         self.config = config
         self.padding_idx = dictionary.pad_index
@@ -219,27 +219,30 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
         else:
             past = None
 
-
+        print(past)
+        print(prev_output_tokens)
         # don't attend to padding symbols
-        attention_mask = prev_output_tokens.ne(self.padding_idx).int()
+        attention_mask = encoder_out['src_tokens'][0].ne(self.padding_idx).int()
 
         #print(prev_output_tokens)
         #print(attention_mask)
         #print(encoder_out['encoder_out'])
+        #print(encoder_out['src_tokens'])
         x = self.model(
-            input_ids=prev_output_tokens,
-            attention_mask=attention_mask, 
-            encoder_hidden_states=encoder_out['encoder_out'][0], 
-            output_hidden_states=True, 
-            return_dict=True
+            encoder_out['src_tokens'], 
+            attention_mask= attention_mask, 
+            past_key_values = past, 
+            decoder_input_ids=prev_output_tokens,
+            encoder_outputs=encoder_out['encoder_out'][0].transpose(1, 0)
         )
-        for layer in x['hidden_states']:
-            print(x)
+        
+        print(x[1])
+        
 
         if incremental_state:
             self.set_incremental_state(incremental_state, "past", x[1])
 
-        return x[0], None
+        return x.logits, None
 
     
 

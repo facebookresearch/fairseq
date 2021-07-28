@@ -201,7 +201,7 @@ class SequenceGenerator(nn.Module):
             ],
         )
         net_input = sample["net_input"]
-        print(net_input)
+        #print(net_input)
         if "src_tokens" in net_input:
             src_tokens = net_input["src_tokens"]
             # length of the source text being the character length except EndOfSentence and pad
@@ -337,7 +337,7 @@ class SequenceGenerator(nn.Module):
                     incremental_states,
                     self.temperature,
                 )
-            print(lprobs.shape)
+            #print(lprobs.shape)
             if self.lm_model is not None:
                 lm_out = self.lm_model(tokens[:, : step + 1])
                 probs = self.lm_model.get_normalized_probs(
