@@ -144,7 +144,7 @@ def main(cfg: FairseqConfig):
     # Load ensemble
     overrides = ast.literal_eval(cfg.common_eval.model_overrides)
     logger.info("loading model(s) from {}".format(cfg.common_eval.path))
-    if False:
+    if True:
         models, _model_args = checkpoint_utils.load_model_ensemble(
             utils.split_paths(cfg.common_eval.path),
             arg_overrides=overrides,

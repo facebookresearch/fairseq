@@ -201,7 +201,7 @@ class SequenceGenerator(nn.Module):
             ],
         )
         net_input = sample["net_input"]
-
+        print(net_input)
         if "src_tokens" in net_input:
             src_tokens = net_input["src_tokens"]
             # length of the source text being the character length except EndOfSentence and pad
@@ -224,7 +224,7 @@ class SequenceGenerator(nn.Module):
             )
         else:
             raise Exception("expected src_tokens or source in net input. input keys: " + str(net_input.keys()))
-
+        print(src_tokens)
         # bsz: total number of sentences in beam
         # Note that src_tokens may have more than 2 dimensions (i.e. audio features)
         bsz, src_len = src_tokens.size()[:2]
@@ -252,7 +252,7 @@ class SequenceGenerator(nn.Module):
         # compute the encoder output for each beam
         with torch.autograd.profiler.record_function("EnsembleModel: forward_encoder"):
             encoder_outs = self.model.forward_encoder(net_input)
-
+        print(encoder_outs[0]['encoder_out'][0].shape)
         # placeholder of indices for bsz * beam_size to hold tokens and accumulative scores
         new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)
         new_order = new_order.to(src_tokens.device).long()
@@ -783,7 +783,6 @@ class EnsembleModel(nn.Module):
         for i, model in enumerate(self.models):
             if self.has_encoder():
                 encoder_out = encoder_outs[i]
-                print(encoder_out)
             # decode each model
             if self.has_incremental_states():
                 decoder_out = model.decoder.forward(
@@ -810,7 +809,6 @@ class EnsembleModel(nn.Module):
                         attn = attn_holder[0]
                 if attn is not None:
                     attn = attn[:, -1, :]
-            print(decoder_out[0].shape)
             decoder_out_tuple = (
                 decoder_out[0][:, -1:, :].div_(temperature),
                 None if decoder_len <= 1 else decoder_out[1],
