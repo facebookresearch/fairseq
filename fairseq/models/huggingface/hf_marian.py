@@ -6,9 +6,10 @@
 import logging
 import os
 import sys
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 import torch
+from torch import Tensor
 from fairseq.models import (
     register_model,
     register_model_architecture,
@@ -93,81 +94,79 @@ class HuggingFaceMarianEncoder(FairseqEncoder):
                   is a list of hidden states. Note that the hidden
                   states have shape `(src_len, batch, vocab)`.
         """
-        x, extra = self.extract_features(src_tokens, return_all_hiddens=return_all_hiddens)
+
+        x, embeds, extra = self.extract_features(src_tokens, return_all_hiddens=return_all_hiddens)
+
         # compute padding mask
         encoder_padding_mask = src_tokens.eq(self.padding_idx)
 
-        encoder_states = [] if return_all_hiddens else None
-        return EncoderOut(
-            encoder_out=x,  # T x B x C
-            encoder_padding_mask=encoder_padding_mask,  # B x T
-            encoder_embedding=None,   # B x T x C
-            encoder_states=encoder_states,  # List[T x B x C]
-            src_tokens=None,
-            src_lengths=None,
-        )
+        encoder_states = []
+        src_lengths = src_tokens.ne(self.padding_idx).sum(dim=1, dtype=torch.int32).reshape(-1, 1).contiguous()
+        return {
+            'encoder_out':[x],  # T x B x C
+            'encoder_padding_mask':[encoder_padding_mask],  # B x T
+            'encoder_embedding':[embeds],   # B x T x C
+            'encoder_states':encoder_states,  # List[T x B x C]
+            'src_tokens':[], 
+            'src_lengths':[src_lengths],
+        }
 
     def extract_features(self, src_tokens, return_all_hiddens=False, **unused):
+        inputs_embeds = self.model.embed_tokens(src_tokens) * self.model.embed_scale
         inner_states = self.model.forward(src_tokens)
         features = inner_states[0].float()
-        return features, {'inner_states': inner_states[2] if return_all_hiddens else None}
+        return features, inputs_embeds, {'inner_states': inner_states[2] if return_all_hiddens else None}
 
     @torch.jit.export
-    def reorder_encoder_out(self, encoder_out: EncoderOut, new_order):
+    def reorder_encoder_out(self, encoder_out: Dict[str, List[Tensor]], new_order):
         """
         Reorder encoder output according to *new_order*.
-
         Args:
             encoder_out: output from the ``forward()`` method
             new_order (LongTensor): desired order
-
         Returns:
             *encoder_out* rearranged according to *new_order*
         """
-        """
-        Since encoder_padding_mask and encoder_embedding are both of type
-        Optional[Tensor] in EncoderOut, they need to be copied as local
-        variables for Torchscript Optional refinement
-        """
-        encoder_padding_mask: Optional[Tensor] = encoder_out.encoder_padding_mask
-        encoder_embedding: Optional[Tensor] = encoder_out.encoder_embedding
+        if len(encoder_out["encoder_out"]) == 0:
+            new_encoder_out = []
+        else:
+            new_encoder_out = [encoder_out["encoder_out"][0].index_select(1, new_order)]
+        if len(encoder_out["encoder_padding_mask"]) == 0:
+            new_encoder_padding_mask = []
+        else:
+            new_encoder_padding_mask = [
+                encoder_out["encoder_padding_mask"][0].index_select(0, new_order)
+            ]
+        if len(encoder_out["encoder_embedding"]) == 0:
+            new_encoder_embedding = []
+        else:
+            new_encoder_embedding = [
+                encoder_out["encoder_embedding"][0].index_select(0, new_order)
+            ]
 
-        new_encoder_out = (
-            encoder_out.encoder_out
-            if encoder_out.encoder_out is None
-            else encoder_out.encoder_out.index_select(1, new_order)
-        )
-        new_encoder_padding_mask = (
-            encoder_padding_mask
-            if encoder_padding_mask is None
-            else encoder_padding_mask.index_select(0, new_order)
-        )
-        new_encoder_embedding = (
-            encoder_embedding
-            if encoder_embedding is None
-            else encoder_embedding.index_select(0, new_order)
-        )
-        src_tokens = encoder_out.src_tokens
-        if src_tokens is not None:
-            src_tokens = src_tokens.index_select(0, new_order)
+        if len(encoder_out["src_tokens"]) == 0:
+            src_tokens = []
+        else:
+            src_tokens = [(encoder_out["src_tokens"][0]).index_select(0, new_order)]
 
-        src_lengths = encoder_out.src_lengths
-        if src_lengths is not None:
-            src_lengths = src_lengths.index_select(0, new_order)
+        if len(encoder_out["src_lengths"]) == 0:
+            src_lengths = []
+        else:
+            src_lengths = [(encoder_out["src_lengths"][0]).index_select(0, new_order)]
 
-        encoder_states = encoder_out.encoder_states
-        if encoder_states is not None:
+        encoder_states = encoder_out["encoder_states"]
+        if len(encoder_states) > 0:
             for idx, state in enumerate(encoder_states):
                 encoder_states[idx] = state.index_select(1, new_order)
 
-        return EncoderOut(
-            encoder_out=new_encoder_out,  # T x B x C
-            encoder_padding_mask=new_encoder_padding_mask,  # B x T
-            encoder_embedding=new_encoder_embedding,  # B x T x C
-            encoder_states=encoder_states,  # List[T x B x C]
-            src_tokens=src_tokens,  # B x T
-            src_lengths=src_lengths,  # B x 1
-        )
+        return {
+            "encoder_out": new_encoder_out,  # T x B x C
+            "encoder_padding_mask": new_encoder_padding_mask,  # B x T
+            "encoder_embedding": new_encoder_embedding,  # B x T x C
+            "encoder_states": encoder_states,  # List[T x B x C]
+            "src_tokens": src_tokens,  # B x T
+            "src_lengths": src_lengths,  # B x 1
+        }
 
 
         
@@ -185,44 +184,55 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
     def forward(
         self,
         prev_output_tokens,
-        src_lengths=None,
-        incremental_state: Optional[Dict[str, List[torch.Tensor]]] = None,
-        encoder_out=None,
+        encoder_out, 
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
+        features_only: bool = False,
+        full_context_alignment: bool = False,
+        alignment_layer: Optional[int] = None,
+        alignment_heads: Optional[int] = None,
+        src_lengths: Optional[Any] = None,
+        return_all_hiddens: bool = False,
     ):
-        features = self.extract_features(prev_output_tokens, incremental_state)
-
-        return features, None
+        x, extra = self.extract_features(
+            prev_output_tokens,
+            encoder_out=encoder_out,
+            incremental_state=incremental_state,
+            full_context_alignment=None,
+            alignment_layer=None,
+            alignment_heads=None, 
+        )
+        
+        return x, extra
 
     def extract_features(
         self,
         prev_output_tokens,
+        encoder_out, 
         incremental_state: Optional[Dict[str, List[torch.Tensor]]] = None,
+        full_context_alignment: bool = False,
+        alignment_layer: Optional[int] = None,
+        alignment_heads: Optional[int] = None,
     ):
         if incremental_state:
             past = self.get_incremental_state("past")
         else:
             past = None
 
+
         # don't attend to padding symbols
         attention_mask = prev_output_tokens.ne(self.padding_idx).int()
 
-        # set position ids to exclude padding symbols
-        position_ids = attention_mask * (
-            torch.arange(1, 1 + prev_output_tokens.size(1))
-            .to(prev_output_tokens)
-            .repeat(prev_output_tokens.size(0), 1)
-        )
 
-        outputs = self.model(
+        x = self.model(
             input_ids=prev_output_tokens,
             attention_mask=attention_mask
         )
-        last_hidden_states = outputs[0]
+
 
         if incremental_state:
-            self.set_incremental_state(incremental_state, "past", outputs[1])
+            self.set_incremental_state(incremental_state, "past", x[1])
 
-        return last_hidden_states
+        return x, None
 
     
 

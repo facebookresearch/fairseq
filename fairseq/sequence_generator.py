@@ -334,6 +334,7 @@ class SequenceGenerator(nn.Module):
                 incremental_states,
                 self.temperature,
             )
+            
 
             if self.lm_model is not None:
                 lm_out = self.lm_model(tokens[:, : step + 1])
