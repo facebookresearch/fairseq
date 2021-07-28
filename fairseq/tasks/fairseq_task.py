@@ -23,8 +23,9 @@ logger = logging.getLogger(__name__)
 
 class StatefulContainer(object):
 
-    _state: Dict[str, Any] = dict()
-    _factories: Dict[str, Callable[[], Any]] = dict()
+    def __init__(self):
+        self._state = dict()
+        self._factories = dict()
 
     def add_factory(self, name, factory: Callable[[], Any]):
         self._factories[name] = factory
@@ -77,11 +78,6 @@ class FairseqTask(object):
         Setting this to True will improves distributed training speed.
         """
         return criterion.logging_outputs_can_be_summed()
-
-    cfg: FairseqDataclass
-    datasets: Dict[str, FairseqDataset]
-    dataset_to_epoch_iter: Dict[FairseqDataset, Any]
-    state: StatefulContainer = None
 
     def __init__(self, cfg: FairseqDataclass, **kwargs):
         self.cfg = cfg
@@ -622,6 +618,7 @@ class FairseqTask(object):
 
 class LegacyFairseqTask(FairseqTask):
     def __init__(self, args: Namespace):
+        super().__init__(None)
         self.args = args
         self.datasets = {}
         self.dataset_to_epoch_iter = {}

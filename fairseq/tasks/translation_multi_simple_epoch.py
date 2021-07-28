@@ -5,8 +5,10 @@
 
 import datetime
 import logging
+from sys import prefix
 import time
-
+import json 
+import numpy as np
 import torch
 from fairseq.data import (
     FairseqDataset,
@@ -14,13 +16,17 @@ from fairseq.data import (
     ListDataset,
     data_utils,
     iterators,
+    encoders
 )
 from fairseq.data.multilingual.multilingual_data_manager import (
     MultilingualDatasetManager,
 )
+from fairseq import metrics, utils
 from fairseq.data.multilingual.sampling_method import SamplingMethod
 from fairseq.tasks import LegacyFairseqTask, register_task
 from fairseq.utils import FileContentsAction
+from argparse import Namespace
+from fairseq_cli.generate import get_symbols_to_strip_from_output
 
 
 ###
@@ -30,7 +36,7 @@ def get_time_gap(s, e):
     ).__str__()
 
 
-###
+EVAL_BLEU_ORDER = 4
 
 
 logger = logging.getLogger(__name__)
@@ -70,8 +76,18 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         parser.add_argument('--lang-pairs', default=None, metavar='PAIRS',
                             help='comma-separated list of language pairs (in training order): en-de,en-fr,de-fr',
                             action=FileContentsAction)
+        parser.add_argument('--valid-lang-pairs', default=None, metavar='PAIRS',
+                            help='comma-separated list of language pairs (in training order): en-de,en-fr,de-fr',
+                            action=FileContentsAction)
         parser.add_argument('--keep-inference-langtok', action='store_true',
                             help='keep language tokens in inference output (e.g. for analysis or debugging)')
+        parser.add_argument('--eval-bleu', action = 'store_true')
+        parser.add_argument('--eval-bleu-args', default = '{}')
+        parser.add_argument('--eval-bleu-detok', default = '')
+        parser.add_argument('--eval-bleu-detok-args', default = '{}')
+        parser.add_argument('--eval-bleu-remove-bpe', default = '')
+        parser.add_argument('--eval-bleu-print-samples', action = 'store_true')
+   
 
         SamplingMethod.add_arguments(parser)
         MultilingualDatasetManager.add_args(parser)
@@ -203,24 +219,54 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         seq_gen_cls=None,
         extra_gen_cls_kwargs=None,
     ):
-        if not getattr(args, "keep_inference_langtok", False):
-            _, tgt_langtok_spec = self.args.langtoks["main"]
-            if tgt_langtok_spec:
-                tgt_lang_tok = self.data_manager.get_decoder_langtok(
-                    self.args.target_lang, tgt_langtok_spec
-                )
-                extra_gen_cls_kwargs = extra_gen_cls_kwargs or {}
-                extra_gen_cls_kwargs["symbols_to_strip_from_output"] = {tgt_lang_tok}
-
+        #if not getattr(args, "keep_inference_langtok", False):
+        #    _, tgt_langtok_spec = self.args.langtoks["main"]
+        #    if tgt_langtok_spec:
+        #        tgt_lang_tok = self.data_manager.get_decoder_langtok(
+                    #self.args.target_lang, tgt_langtok_spec
+        #            tgt_langtok_spec
+        #        )
+        #        extra_gen_cls_kwargs = extra_gen_cls_kwargs or {}
+        #        extra_gen_cls_kwargs["symbols_to_strip_from_output"] = {tgt_lang_tok}
+        extra_gen_cls_kwargs ={}
+        extra_gen_cls_kwargs["symbols_to_strip_from_output"] = {self.source_dictionary.index("__{}__".format(x)) for x in self.langs}
         return super().build_generator(
             models, args, seq_gen_cls=None, extra_gen_cls_kwargs=extra_gen_cls_kwargs
         )
 
     def build_model(self, args):
-        return super().build_model(args)
+        model = super().build_model(args)
+        if self.args.eval_bleu:
+            detok_args = json.loads(self.args.eval_bleu_detok_args)
+            if self.args.eval_bleu_detok == 'sentencepiece':
+                self.tokenizer = encoders.build_bpe(
+                    Namespace(bpe=self.args.eval_bleu_detok, **detok_args)
+                )
+            else:
+                self.tokenizer = encoders.build_tokenizer(
+                    Namespace(tokenizer=self.args.eval_bleu_detok, **detok_args)
+                )
+
+            gen_args = json.loads(self.args.eval_bleu_args)
+            self.sequence_generator = self.build_generator(
+                [model], Namespace(**gen_args)
+            )
+            
+        return model
 
     def valid_step(self, sample, model, criterion):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
+        if self.args.eval_bleu:
+            bleu = self._inference_with_bleu(self.sequence_generator, sample, model)
+            
+            logging_output["_bleu_sys_len"] = bleu.sys_len
+            logging_output["_bleu_ref_len"] = bleu.ref_len
+            # we split counts into separate entries so that they can be
+            # summed efficiently across workers using fast-stat-sync
+            assert len(bleu.counts) == EVAL_BLEU_ORDER
+            for i in range(EVAL_BLEU_ORDER):
+                logging_output["_bleu_counts_" + str(i)] = bleu.counts[i]
+                logging_output["_bleu_totals_" + str(i)] = bleu.totals[i]
         return loss, sample_size, logging_output
 
     def inference_step(
@@ -230,13 +276,13 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
             _, tgt_langtok_spec = self.args.langtoks["main"]
             if not self.args.lang_tok_replacing_bos_eos:
                 if prefix_tokens is None and tgt_langtok_spec:
-                    tgt_lang_tok = self.data_manager.get_decoder_langtok(
-                        self.args.target_lang, tgt_langtok_spec
-                    )
+                    #tgt_lang_tok = self.data_manager.get_decoder_langtok(
+                    #    target_lang, tgt_langtok_spec
+                    #)
                     src_tokens = sample["net_input"]["src_tokens"]
                     bsz = src_tokens.size(0)
                     prefix_tokens = (
-                        torch.LongTensor([[tgt_lang_tok]]).expand(bsz, 1).to(src_tokens)
+                        sample["target"][:, 0].reshape(bsz, 1).to(src_tokens)
                     )
                 return generator.generate(
                     models,
@@ -258,6 +304,46 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
 
     def reduce_metrics(self, logging_outputs, criterion):
         super().reduce_metrics(logging_outputs, criterion)
+        if self.args.eval_bleu:
+
+            def sum_logs(key):
+                import torch
+                result = sum(log.get(key, 0) for log in logging_outputs)
+                if torch.is_tensor(result):
+                    result = result.cpu()
+                return result
+
+            counts, totals = [], []
+            for i in range(EVAL_BLEU_ORDER):
+                counts.append(sum_logs("_bleu_counts_" + str(i)))
+                totals.append(sum_logs("_bleu_totals_" + str(i)))
+
+            if max(totals) > 0:
+                # log counts as numpy arrays -- log_scalar will sum them correctly
+                metrics.log_scalar("_bleu_counts", np.array(counts))
+                metrics.log_scalar("_bleu_totals", np.array(totals))
+                metrics.log_scalar("_bleu_sys_len", sum_logs("_bleu_sys_len"))
+                metrics.log_scalar("_bleu_ref_len", sum_logs("_bleu_ref_len"))
+
+                def compute_bleu(meters):
+                    import inspect
+                    import sacrebleu
+
+                    fn_sig = inspect.getfullargspec(sacrebleu.compute_bleu)[0]
+                    if "smooth_method" in fn_sig:
+                        smooth = {"smooth_method": "exp"}
+                    else:
+                        smooth = {"smooth": "exp"}
+                    bleu = sacrebleu.compute_bleu(
+                        correct=meters["_bleu_counts"].sum,
+                        total=meters["_bleu_totals"].sum,
+                        sys_len=meters["_bleu_sys_len"].sum,
+                        ref_len=meters["_bleu_ref_len"].sum,
+                        **smooth
+                    )
+                    return round(bleu.score, 2)
+
+                metrics.log_derived("bleu", compute_bleu)
 
     def max_positions(self):
         """Return the max sentence length allowed by the task."""
@@ -428,3 +514,50 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
             epoch=epoch,
         )
         return epoch_iter
+    def _inference_with_bleu(self, generator, sample, model):
+        import sacrebleu
+        def decode(toks):
+            s = self.source_dictionary.string(
+                toks.int().cpu(),
+                None, #self.args.eval_bleu_remove_bpe,
+                escape_unk=True, 
+                # The default unknown string in fairseq is `<unk>`, but
+                # this is tokenized by sacrebleu as `< unk >`, inflating
+                # BLEU scores. Instead, we use a somewhat more verbose
+                # alternative that is unlikely to appear in the real
+                # reference, but doesn't get split into multiple tokens.
+                extra_symbols_to_ignore=get_symbols_to_strip_from_output(
+                            generator
+                        )
+            )
+            if self.tokenizer:
+                s = self.tokenizer.decode(s)
+            return s
+        gen_out = self.inference_step(generator, [model], sample)
+        hyps, refs = [], []
+        for i in range(len(gen_out)):
+            src_tokens = utils.strip_pad(
+                    sample["net_input"]["src_tokens"][i, :], self.target_dictionary.pad()
+                )
+            src_str = self.source_dictionary.string(src_tokens[1:], 'sentencepiece')
+            hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
+                    hypo_tokens=gen_out[i][0]["tokens"],
+                    src_str=src_str, 
+                    alignment=gen_out[i][0]["alignment"],
+                    align_dict=None,
+                    tgt_dict=self.target_dictionary,
+                    remove_bpe='sentencepiece',
+                    extra_symbols_to_ignore=get_symbols_to_strip_from_output(generator),
+                )
+            #detok_hypo_str = self.tokenizer.decode(hypo_str)
+            hyps.append(hypo_str)
+            refs.append(
+                decode(
+                    utils.strip_pad(sample["target"][i], self.target_dictionary.pad()),
+                    #escape_unk=False,  # don't count <unk> as matches to the hypo
+                )
+            )
+        if self.args.eval_bleu_print_samples:
+            logger.info("example hypothesis: " + hyps[0])
+            logger.info("example reference: " + refs[0])
+        return sacrebleu.corpus_bleu(hyps, [refs])
