@@ -224,7 +224,7 @@ class SequenceGenerator(nn.Module):
             )
         else:
             raise Exception("expected src_tokens or source in net input. input keys: " + str(net_input.keys()))
-        print(src_tokens)
+
         # bsz: total number of sentences in beam
         # Note that src_tokens may have more than 2 dimensions (i.e. audio features)
         bsz, src_len = src_tokens.size()[:2]
@@ -252,7 +252,9 @@ class SequenceGenerator(nn.Module):
         # compute the encoder output for each beam
         with torch.autograd.profiler.record_function("EnsembleModel: forward_encoder"):
             encoder_outs = self.model.forward_encoder(net_input)
-        print(encoder_outs[0]['encoder_out'][0].shape)
+        #print(encoder_outs[0])
+        #print(encoder_outs[0]['encoder_out'][0].shape)
+        #print(encoder_outs[0]['encoder_embedding'][0].shape)
         # placeholder of indices for bsz * beam_size to hold tokens and accumulative scores
         new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)
         new_order = new_order.to(src_tokens.device).long()
@@ -335,7 +337,7 @@ class SequenceGenerator(nn.Module):
                     incremental_states,
                     self.temperature,
                 )
-
+            print(lprobs.shape)
             if self.lm_model is not None:
                 lm_out = self.lm_model(tokens[:, : step + 1])
                 probs = self.lm_model.get_normalized_probs(
