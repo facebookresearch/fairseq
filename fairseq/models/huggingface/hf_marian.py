@@ -231,9 +231,10 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
             attention_mask=attention_mask, 
             encoder_hidden_states=encoder_out['encoder_out'][0], 
             output_hidden_states=True, 
+            return_dict=True
         )
         for layer in x['hidden_states']:
-            print(x.shape)
+            print(x)
 
         if incremental_state:
             self.set_incremental_state(incremental_state, "past", x[1])
