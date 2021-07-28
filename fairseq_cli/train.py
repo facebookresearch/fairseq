@@ -212,6 +212,7 @@ def main(cfg: FairseqConfig) -> None:
 
         tb_writer.close()
         logger.info(f"Done, valid_bleu={stats['best_bleu']},")
+        raise ValueError # to kill traiing 
     raise ValueError # to kill traiing 
 
 
