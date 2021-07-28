@@ -95,8 +95,11 @@ class HuggingFaceMarianEncoder(FairseqEncoder):
                   states have shape `(src_len, batch, vocab)`.
         """
 
+        print(src_tokens)
+        print(src_lengths)
         x, embeds, extra = self.extract_features(src_tokens, return_all_hiddens=return_all_hiddens)
-
+        print(x)
+        print(embeds)
         # compute padding mask
         encoder_padding_mask = src_tokens.eq(self.padding_idx)
 
@@ -113,7 +116,7 @@ class HuggingFaceMarianEncoder(FairseqEncoder):
 
     def extract_features(self, src_tokens, return_all_hiddens=False, **unused):
         inputs_embeds = self.model.embed_tokens(src_tokens) * self.model.embed_scale
-        inner_states = self.model.forward(src_tokens)
+        inner_states = self.model(src_tokens)
         features = inner_states[0].float()
         return features, inputs_embeds, {'inner_states': inner_states[2] if return_all_hiddens else None}
 

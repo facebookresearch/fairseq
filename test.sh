@@ -120,15 +120,12 @@ fairseq-generate test_set \
   --lang-dict model/mbart50.ft.1n/ML50_langs.txt \
  --lang-pairs 'en_XX-af_ZA,en_XX-ar_AR,en_XX-az_AZ,en_XX-bn_IN,en_XX-cs_CZ,en_XX-de_DE,en_XX-es_XX,en_XX-et_EE,en_XX-fa_IR,en_XX-fi_FI,en_XX-fr_XX,en_XX-gl_ES,en_XX-gu_IN,en_XX-he_IL,en_XX-hi_IN,en_XX-hr_HR,en_XX-id_ID,en_XX-it_IT,en_XX-ja_XX,en_XX-ka_GE,en_XX-kk_KZ,en_XX-km_KH,en_XX-ko_KR,en_XX-lt_LT,en_XX-lv_LV,en_XX-mk_MK,en_XX-ml_IN,en_XX-mn_MN,en_XX-mr_IN,en_XX-my_MM,en_XX-ne_NP,en_XX-nl_XX,en_XX-pl_PL,en_XX-ps_AF,en_XX-pt_XX,en_XX-ro_RO,en_XX-ru_RU,en_XX-si_LK,en_XX-sl_SI,en_XX-sv_SE,en_XX-ta_IN,en_XX-te_IN,en_XX-th_TH,en_XX-tr_TR,en_XX-uk_UA,en_XX-ur_PK,en_XX-vi_VN,en_XX-xh_ZA,en_XX-zh_CN' > generic_en_XX-es_XX.tgt
 
-<<<<<<< HEAD
-=======
 fairseq-interactive wmt19.en-ru.ensemble \
 --task translation \
 --path wmt19.en-ru.ensemble/model_test.pt \
 --source-lang en \
 --target-lang ru \
 --beam 5 
->>>>>>> Stashed changes
 >>>>>>> Stashed changes
 =======
 >>>>>>> f003703bf0ce7f884ec1c359a5741c270ebe044a
