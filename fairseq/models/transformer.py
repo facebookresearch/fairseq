@@ -889,7 +889,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         bs, slen = prev_output_tokens.size()
         if alignment_layer is None:
             alignment_layer = self.num_layers - 1
-
+        print(f"inc_shape {len(incremental_state)}")
         enc: Optional[Tensor] = None
         padding_mask: Optional[Tensor] = None
         if encoder_out is not None and len(encoder_out["encoder_out"]) > 0:

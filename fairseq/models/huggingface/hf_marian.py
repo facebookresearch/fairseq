@@ -96,6 +96,7 @@ class HuggingFaceMarianEncoder(FairseqEncoder):
         """
 
         x, embeds, extra = self.extract_features(src_tokens, return_all_hiddens=return_all_hiddens)
+        #logger.info(x.shape)
         # compute padding mask
         encoder_padding_mask = src_tokens.eq(self.padding_idx)
 
@@ -115,7 +116,9 @@ class HuggingFaceMarianEncoder(FairseqEncoder):
         inner_states = self.model(src_tokens)
         #for x in inner_states:
         #print("features" , inner_states['last_hidden_state'].shape)
-        features = inner_states[0].float().transpose(0, 1)
+        features = inner_states[0].float()
+        #print(f"encoder_out {features.shape}")
+        features = features.transpose(0, 1)
         return features, inputs_embeds, {'inner_states': inner_states[2] if return_all_hiddens else None}
 
     @torch.jit.export
@@ -214,33 +217,37 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
         alignment_layer: Optional[int] = None,
         alignment_heads: Optional[int] = None,
     ):
+
         if incremental_state:
-            past = self.get_incremental_state("past")
+            prev_output_tokens = prev_output_tokens[:][:, -1].tolist()
+            past = self.get_incremental_state(incremental_state, "past")
+            prev_output_tokens = torch.LongTensor([prev_output_tokens]).reshape(5, 1)
         else:
             past = None
+            prev_output_tokens = torch.LongTensor([[self.config.pad_token_id]]).expand(5, 1)
 
-        print(past)
-        print(prev_output_tokens)
+        
         # don't attend to padding symbols
+        #print(f"src_tokens {encoder_out['src_tokens'][0][0]}")
+        #print(len(encoder_out['encoder_out']))
         attention_mask = encoder_out['src_tokens'][0].ne(self.padding_idx).int()
-
-        #print(prev_output_tokens)
+        encoder_out['encoder_out'][0] = encoder_out['encoder_out'][0].transpose(1, 0)
+        #print(f"encoder_out {encoder_out['encoder_out'].shape}")
+        #print(f"encoder_out {encoder_out['encoder_out'][0].transpose(1, 0).shape}")
         #print(attention_mask)
         #print(encoder_out['encoder_out'])
         #print(encoder_out['src_tokens'])
+        #print(f"decoder_input_ids {prev_output_tokens}")
         x = self.model(
-            encoder_out['src_tokens'], 
+            encoder_out['src_tokens'][0], 
             attention_mask= attention_mask, 
             past_key_values = past, 
             decoder_input_ids=prev_output_tokens,
-            encoder_outputs=encoder_out['encoder_out'][0].transpose(1, 0)
+            encoder_outputs=encoder_out['encoder_out']
         )
         
-        print(x[1])
-        
-
-        if incremental_state:
-            self.set_incremental_state(incremental_state, "past", x[1])
+        #if incremental_state:
+        self.set_incremental_state(incremental_state, "past", x.past_key_values)
 
         return x.logits, None
 

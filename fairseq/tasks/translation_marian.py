@@ -37,7 +37,7 @@ class HuggingFaceTranslationTask(TranslationTask):
 
         # load data dictionary
         data_dict = cls.load_dictionary(
-            cfg.path
+            cfg.path.split(':')[0]
         )
         return HuggingFaceTranslationTask(cfg, data_dict)
 

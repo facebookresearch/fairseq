@@ -1,14 +1,14 @@
 
-fairseq-interactive  \
-  --path /Users/csinclair/src/translation-models/notebooks/conversion/all/ \
-  --task translation_marian 
-
+/Users/csinclair/opt/anaconda3/envs/fairseq/bin/fairseq-interactive  \
+  --path model_1/:model_2/:model_3/ \
+  --task translation_marian \
+  --beam 5
 
   fairseq-interactive \
   --path 
 
 
-fairseq-interactive wmt19.en-ru.ensemble \
+/Users/csinclair/opt/anaconda3/envs/fairseq/bin/fairseq-interactive  wmt19.en-ru.ensemble \
 --task translation \
 --path wmt19.en-ru.ensemble/model1.pt \
 --source-lang en \

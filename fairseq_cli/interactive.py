@@ -154,7 +154,14 @@ def main(cfg: FairseqConfig):
             num_shards=cfg.checkpoint.checkpoint_shard_count,
         )
     except:
-        models = [task.build_model(cfg)]
+        if len(cfg.common_eval.path.split(':')) > 0:
+            models = []
+            for path in cfg.common_eval.path.split(':'):
+                newcfg = cfg.copy()
+                newcfg.common_eval.path = path
+                models.append(task.build_model(newcfg))
+        else:
+            models = [task.build_model(cfg)]
 
 
 

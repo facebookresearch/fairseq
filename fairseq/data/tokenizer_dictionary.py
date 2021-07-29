@@ -32,7 +32,7 @@ class TokenizerDictionary(Dictionary):
         self.symbols = self.tokenizer.get_vocab().keys()
         self.indices = self.tokenizer.get_vocab().values()
 
-        self.bos_index = tokenizer.cls_token_id
+        self.bos_index = tokenizer.pad_token_id
         self.pad_index = tokenizer.pad_token_id
         self.eos_index = tokenizer.eos_token_id
         self.unk_index = tokenizer.unk_token_id

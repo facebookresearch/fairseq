@@ -253,7 +253,7 @@ class SequenceGenerator(nn.Module):
         with torch.autograd.profiler.record_function("EnsembleModel: forward_encoder"):
             encoder_outs = self.model.forward_encoder(net_input)
         #print(encoder_outs[0])
-        #print(encoder_outs[0]['encoder_out'][0].shape)
+        #print(f"transposed {encoder_outs[0]['encoder_out'][0].shape}")
         #print(encoder_outs[0]['encoder_embedding'][0].shape)
         # placeholder of indices for bsz * beam_size to hold tokens and accumulative scores
         new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)
