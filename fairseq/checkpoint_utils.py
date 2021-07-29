@@ -7,15 +7,16 @@ import ast
 import collections
 import contextlib
 import logging
+import numpy as np
 import os
 import re
 import time
 import traceback
 from collections import OrderedDict
 from typing import Any, Dict, Optional, Union
-from random import randint
 
 import torch
+from fairseq.data import data_utils
 from fairseq.dataclass.configs import CheckpointConfig
 from fairseq.dataclass.utils import (
     convert_namespace_to_omegaconf,
@@ -90,7 +91,9 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
             p = chkpts[-1] if cfg.maximize_best_checkpoint_metric else chkpts[0]
             worst_best = float(p.rsplit("_")[-1].replace("{}.pt".format(suffix), ""))
         # add random digits to resolve ties
-        rand_sfx = randint(0, cfg.keep_best_checkpoints)
+        with data_utils.numpy_seed(epoch, updates, val_loss):
+            rand_sfx = np.random.randint(0, cfg.keep_best_checkpoints)
+
         checkpoint_conds[
             "checkpoint.best_{}_{:.3f}{}{}.pt".format(
                 cfg.best_checkpoint_metric,
