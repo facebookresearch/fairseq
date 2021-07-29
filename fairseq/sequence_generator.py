@@ -654,44 +654,38 @@ class SequenceGenerator(nn.Module):
                 prev += 1
             else:
                 cum_unfin.append(prev)
+        cum_fin_tensor = torch.tensor(cum_unfin, dtype=torch.int).to(bbsz_idx)
 
-        # The keys here are of the form "{sent}_{unfin_idx}", where
+        unfin_idx = bbsz_idx // beam_size
+        sent = unfin_idx + torch.index_select(cum_fin_tensor, 0, unfin_idx)
+
+        # Create a set of "{sent}{unfin_idx}", where
         # "unfin_idx" is the index in the current (possibly reduced)
         # list of sentences, and "sent" is the index in the original,
         # unreduced batch
-        # set() is not supported in script export
-        sents_seen: Dict[str, Optional[Tensor]] = {}
-
         # For every finished beam item
+        # sentence index in the current (possibly reduced) batch
+        seen = (sent << 32) + unfin_idx
+        unique_seen: List[int] = torch.unique(seen).tolist()
+
+        if self.match_source_len:
+            condition = step > torch.index_select(src_lengths, 0, unfin_idx)
+            eos_scores = torch.where(condition, torch.tensor(-math.inf), eos_scores)
+        sent_list: List[int] = sent.tolist()
         for i in range(bbsz_idx.size()[0]):
-            idx = bbsz_idx[i]
-            score = eos_scores[i]
-            # sentence index in the current (possibly reduced) batch
-            unfin_idx = idx // beam_size
-            # sentence index in the original (unreduced) batch
-            sent = unfin_idx + cum_unfin[unfin_idx]
-            # Cannot create dict for key type '(int, int)' in torchscript.
-            # The workaround is to cast int to string
-            seen = str(sent.item()) + "_" + str(unfin_idx.item())
-            if seen not in sents_seen:
-                sents_seen[seen] = None
-
-            if self.match_source_len and step > src_lengths[unfin_idx]:
-                score = torch.tensor(-math.inf).to(score)
-
             # An input sentence (among those in a batch) is finished when
             # beam_size hypotheses have been collected for it
-            if len(finalized[sent]) < beam_size:
+            if len(finalized[sent_list[i]]) < beam_size:
                 if attn_clone is not None:
                     # remove padding tokens from attn scores
                     hypo_attn = attn_clone[i]
                 else:
                     hypo_attn = torch.empty(0)
 
-                finalized[sent].append(
+                finalized[sent_list[i]].append(
                     {
                         "tokens": tokens_clone[i],
-                        "score": score,
+                        "score": eos_scores[i],
                         "attention": hypo_attn,  # src_len x tgt_len
                         "alignment": torch.empty(0),
                         "positional_scores": pos_scores[i],
@@ -699,17 +693,16 @@ class SequenceGenerator(nn.Module):
                 )
 
         newly_finished: List[int] = []
-
-        for seen in sents_seen.keys():
+        for unique_s in unique_seen:
             # check termination conditions for this sentence
-            sent: int = int(float(seen.split("_")[0]))
-            unfin_idx: int = int(float(seen.split("_")[1]))
+            unique_sent: int = unique_s >> 32
+            unique_unfin_idx: int = unique_s - (unique_sent << 32)
 
-            if not finished[sent] and self.is_finished(
-                step, unfin_idx, max_len, len(finalized[sent]), beam_size
+            if not finished[unique_sent] and self.is_finished(
+                step, unique_unfin_idx, max_len, len(finalized[unique_sent]), beam_size
             ):
-                finished[sent] = True
-                newly_finished.append(unfin_idx)
+                finished[unique_sent] = True
+                newly_finished.append(unique_unfin_idx)
 
         return newly_finished
 
