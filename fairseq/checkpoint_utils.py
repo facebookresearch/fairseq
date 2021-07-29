@@ -164,6 +164,8 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
         for old_chk in checkpoints[cfg.keep_last_epochs :]:
             if os.path.lexists(old_chk):
                 os.remove(old_chk)
+            elif PathManager.exists(old_chk):
+                PathManager.rm(old_chk)
 
     if cfg.keep_best_checkpoints > 0:
         # only keep the best N checkpoints according to validation metric
@@ -178,6 +180,8 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
         for old_chk in checkpoints[cfg.keep_best_checkpoints :]:
             if os.path.lexists(old_chk):
                 os.remove(old_chk)
+            elif PathManager.exists(old_chk):
+                PathManager.rm(old_chk)
 
 
 def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
