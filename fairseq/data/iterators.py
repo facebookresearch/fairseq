@@ -638,3 +638,128 @@ class BufferedIterator(object):
         if item is _sentinel:
             raise StopIteration()
         return item
+
+class GroupedEpochBatchIterator(EpochBatchIterator):
+    """Grouped version of EpochBatchIterator
+    It takes several samplers from different datasets.
+    Each epoch shuffle the dataset wise sampler individually with different
+    random seed. The those sub samplers are combined with into
+    one big samplers with deterministic permutation to mix batches from
+    different datasets. It will act like EpochBatchIterator but make sure
+    1) data from one data set each time
+    2) for different workers, they use the same order to fetch the data
+    so they will use data from the same dataset everytime
+    mult_rate is used for update_freq > 1 case where we want to make sure update_freq
+    mini-batches come from same source
+    """
+
+    def __init__(
+        self,
+        dataset,
+        collate_fn,
+        batch_samplers,
+        seed=1,
+        num_shards=1,
+        shard_id=0,
+        num_workers=0,
+        epoch=0,
+        mult_rate=1,
+        buffer_size=0,
+    ):
+        super().__init__(
+            dataset,
+            collate_fn,
+            batch_samplers,
+            seed,
+            num_shards,
+            shard_id,
+            num_workers,
+            epoch,
+            buffer_size,
+        )
+        # level 0: sub-samplers 1: batch_idx 2: batches
+        self._frozen_batches = tuple([tuple(sub_batch) for sub_batch in batch_samplers])
+        self.step_size = mult_rate * num_shards
+
+        self.lengths = [
+            (len(x) // self.step_size) * self.step_size for x in self.frozen_batches
+        ]
+
+    def __len__(self):
+        return sum(self.lengths)
+
+    @property
+    def first_batch(self):
+        if len(self.frozen_batches) == 0:
+            raise Exception(
+                "The dataset is empty. This could indicate "
+                "that all elements in the dataset have been skipped. "
+                "Try increasing the max number of allowed tokens or using "
+                "a larger dataset."
+            )
+
+        if self.dataset.supports_fetch_outside_dataloader:
+            return self.collate_fn([self.dataset[i] for i in self.frozen_batches[0][0]])
+        else:
+            return "DUMMY"
+
+    def _get_iterator_for_epoch(
+        self, epoch, shuffle, fix_batches_to_gpus=False, offset=0
+    ):
+        def shuffle_batches(batches, seed):
+            with data_utils.numpy_seed(seed):
+                np.random.shuffle(batches)
+            return batches
+
+        def return_full_batches(batch_sets, seed, shuffle):
+            if shuffle:
+                batch_sets = [shuffle_batches(list(x), seed) for x in batch_sets]
+
+            batch_sets = [
+                batch_sets[i][: self.lengths[i]] for i in range(len(batch_sets))
+            ]
+            batches = list(itertools.chain.from_iterable(batch_sets))
+
+            if shuffle:
+                with data_utils.numpy_seed(seed):
+                    idx = np.random.permutation(len(batches) // self.step_size)
+                    if len(idx) * self.step_size != len(batches):
+                        raise ValueError(
+                            "ERROR: %d %d %d %d"
+                            % (len(idx), self.step_size, len(batches), self.shard_id),
+                            ":".join(["%d" % x for x in self.lengths]),
+                        )
+                    mini_shards = [
+                        batches[i * self.step_size : (i + 1) * self.step_size]
+                        for i in idx
+                    ]
+                    batches = list(itertools.chain.from_iterable(mini_shards))
+
+            return batches
+
+        if self._supports_prefetch:
+            raise NotImplementedError("To be implemented")
+        else:
+            batches = return_full_batches(
+                self.frozen_batches, self.seed + epoch, shuffle
+            )
+            batches = list(
+                ShardedIterator(batches, self.num_shards, self.shard_id, fill_value=[])
+            )
+
+        if offset > 0 and offset >= len(batches):
+            return None
+
+        if self.num_workers > 0:
+            os.environ["PYTHONWARNINGS"] = "ignore:semaphore_tracker:UserWarning"
+
+        itr = torch.utils.data.DataLoader(
+            self.dataset,
+            collate_fn=self.collate_fn,
+            batch_sampler=batches[offset:],
+            num_workers=self.num_workers,
+        )
+        if self.buffer_size > 0:
+            itr = BufferedIterator(self.buffer_size, itr)
+
+        return CountingIterator(itr, start=offset)
