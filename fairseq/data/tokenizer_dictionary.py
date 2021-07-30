@@ -79,7 +79,7 @@ class TokenizerDictionary(Dictionary):
     ):
         assert unk_string is None, "unk_string is not supported"
         assert bpe_symbol is None, "bpe_symbols is not supported"
-        assert extra_symbols_to_ignore is None, "extra_symbols_to_ignore is not supported"
+        #assert extra_symbols_to_ignore is None, "extra_symbols_to_ignore is not supported"
         assert escape_unk is False, "escape_unk is not supported, use skip_special_tokens=True"
         assert include_eos is False, "include_eos is not used"
 
