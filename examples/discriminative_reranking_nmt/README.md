@@ -1,4 +1,6 @@
 # Discriminative Reranking for Neural Machine Translation
+https://aclanthology.org/2021.acl-long.563/
+
 This folder contains source code for training DrNMT, a discriminatively trained reranker for neural machine translation.
 
 ## Data preparation
