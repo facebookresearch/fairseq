@@ -6,7 +6,7 @@
 import logging
 import re
 from operator import attrgetter, itemgetter
-
+import torch
 import numpy as np
 import torch.distributed as dist
 import torch.nn as nn
@@ -25,7 +25,9 @@ def quantize_model_(
     n_iter=15,
     eps=1e-6,
     max_tentatives=100,
+    remove_weights=False,
     verbose=True,
+    state_dict=None,
 ):
     """
     Quantize a model in-place by stages. All the targeted
@@ -58,7 +60,7 @@ def quantize_model_(
           to layers_to_quantize[step]
     """
 
-    quantized_layers = get_layers(model, layers_to_quantize[step])
+    quantized_layers = get_layers(model, layers_to_quantize[step], remove_weights=remove_weights)
 
     for layer in quantized_layers:
 
@@ -95,6 +97,37 @@ def quantize_model_(
         quantizer.encode()
         centroids = quantizer.centroids.contiguous()
         assignments = quantizer.assignments.contiguous()
+
+        # If n_iter = 0 and state_dict is provided, then
+        # we initialize random assignments and centroids to
+        # random values of the appropriate dimensions
+        # because the quantized model parameters will
+        # overwritten by the state_dict later on.
+        if n_iter == 0 and state_dict:
+            # Initialize random centroids of the correct size
+            centroids = torch.rand(centroids.size())
+            centroids.cuda()
+            # Get counts and assignment keys from layer in loaded checkpoint.
+            counts_key = layer+"."+"counts"
+            assignment_key = layer+"."+"assignments"
+            # Get number of different bins to include.
+            counts = list(state_dict[counts_key].shape)[0]
+            print(layer)
+            print(state_dict[counts_key])
+            print(counts)
+            # Initialize random assignments of the correct size
+            # with an appropriate number of bins.
+            num_assignments = list(state_dict[assignment_key].shape)[0]
+            num_extra = num_assignments - counts
+            print(num_assignments)
+            print(num_extra)
+            assignments_bins = torch.arange(counts)
+            assignments_rand = torch.randint(0, counts-1, (num_extra, ))
+            assignments = torch.cat((assignments_bins, assignments_rand), 0)
+            # assignments = assignments.type(torch.IntTensor)
+            assignments.cuda()
+            print("assignments")
+            print(assignments)
 
         # broadcast results to make sure weights are up-to-date
         if dist.is_initialized():
