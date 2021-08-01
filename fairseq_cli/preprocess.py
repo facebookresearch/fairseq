@@ -252,10 +252,7 @@ def main(args):
     def make_dataset(vocab, input_prefix, output_prefix, lang, num_workers=1):
         if args.dataset_impl == "raw":
             # Copy original text file to destination folder
-            output_text_file = dest_path(
-                output_prefix + ".{}-{}".format(args.source_lang, args.target_lang),
-                lang,
-            )
+            output_text_file = dataset_dest_prefix(args, output_prefix, lang)
             shutil.copyfile(file_name(input_prefix, lang), output_text_file)
         else:
             make_binary_dataset(vocab, input_prefix, output_prefix, lang, num_workers)
