@@ -653,7 +653,7 @@ def _upgrade_state_dict(state):
             ):
                 cfg.task.eval_wer_config.print_alignment = "hard"
             if "generation" in cfg and isinstance(cfg.generation.print_alignment, bool):
-                cfg.generation.print_alignment = "hard"
+                cfg.generation.print_alignment = "hard" if cfg.generation.print_alignment else None
             if (
                 "model" in cfg
                 and "w2v_args" in cfg.model
