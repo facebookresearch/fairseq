@@ -1,6 +1,6 @@
 
 /Users/csinclair/opt/anaconda3/envs/fairseq/bin/fairseq-interactive  \
-  --path model_1/:model_2/:model_3/ \
+  --path hf/  \
   --task translation_marian \
   --beam 5
 

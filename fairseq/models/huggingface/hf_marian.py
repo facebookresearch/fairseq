@@ -14,6 +14,7 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
+import torch.nn as nn 
 from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models.transformer import (
     FairseqEncoderDecoderModel,
@@ -207,6 +208,12 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
         )
         
         return x, extra
+    def adjust_logits_during_generation(self, logits: torch.FloatTensor, **kwargs) -> torch.FloatTensor:
+        """
+        Implement in subclasses of :class:`~transformers.PreTrainedModel` for custom behavior to adjust the logits in
+        the generate method.
+        """
+        return logits
 
     def extract_features(
         self,
@@ -217,14 +224,14 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
         alignment_layer: Optional[int] = None,
         alignment_heads: Optional[int] = None,
     ):
-
+        batch_beam_size, cur_len = prev_output_tokens.shape
         if incremental_state:
             prev_output_tokens = prev_output_tokens[:][:, -1].tolist()
             past = self.get_incremental_state(incremental_state, "past")
-            prev_output_tokens = torch.LongTensor([prev_output_tokens]).reshape(5, 1)
+            prev_output_tokens = torch.LongTensor([prev_output_tokens]).reshape(2, 1)
         else:
             past = None
-            prev_output_tokens = torch.LongTensor([[self.config.pad_token_id]]).expand(5, 1)
+            prev_output_tokens = torch.LongTensor([[self.config.pad_token_id]]).expand(2, 1)
 
         
         # don't attend to padding symbols
@@ -245,11 +252,17 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
             decoder_input_ids=prev_output_tokens,
             encoder_outputs=encoder_out['encoder_out']
         )
-        
-        #if incremental_state:
-        self.set_incremental_state(incremental_state, "past", x.past_key_values)
 
-        return x.logits, None
+        #next_token_logits = x.logits[:, -1, :]
+        next_token_logits = self.adjust_logits_during_generation(x.logits, cur_len=cur_len)
+        #next_token_scores = nn.functional.log_softmax(
+        #        next_token_logits, dim=-1
+        #    ) 
+        past = self.model._reorder_cache(x.past_key_values, torch.IntTensor([0, cur_len % 2]))
+        #if incremental_state:
+        self.set_incremental_state(incremental_state, "past", past)
+
+        return next_token_logits, None
 
     
 
