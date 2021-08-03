@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from examples.speech_recognition import new
 import logging
 import os
 import sys
@@ -245,6 +246,7 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
         #print(encoder_out['encoder_out'])
         #print(encoder_out['src_tokens'])
         #print(f"decoder_input_ids {prev_output_tokens}")
+        #print(prev_output_tokens)
         x = self.model(
             encoder_out['src_tokens'][0], 
             attention_mask= attention_mask, 
@@ -258,11 +260,21 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
         #next_token_scores = nn.functional.log_softmax(
         #        next_token_logits, dim=-1
         #    ) 
-        past = self.model._reorder_cache(x.past_key_values, torch.IntTensor([0, cur_len % 2]))
+        #past = self.model._reorder_cache(x.past_key_values, torch.IntTensor([0, cur_len % 2]))
         #if incremental_state:
-        self.set_incremental_state(incremental_state, "past", past)
+        self.set_incremental_state(incremental_state, "past", x.past_key_values)
 
         return next_token_logits, None
+
+    def reorder_incremental_state(self, incremental_state: Dict[str, Dict[str, Optional[Tensor]]], new_order: Tensor):
+        past = self.get_incremental_state(incremental_state, "past")
+        if past is not None:
+            past = self.model._reorder_cache(past, new_order)
+            #if incremental_state:
+            self.set_incremental_state(incremental_state, "past", past)
+            return
+        else:
+            return 
 
     
 
