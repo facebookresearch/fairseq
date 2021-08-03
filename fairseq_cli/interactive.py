@@ -144,7 +144,7 @@ def main(cfg: FairseqConfig):
     # Load ensemble
     overrides = ast.literal_eval(cfg.common_eval.model_overrides)
     logger.info("loading model(s) from {}".format(cfg.common_eval.path))
-    try:
+    if True:
         models, _model_args = checkpoint_utils.load_model_ensemble(
             utils.split_paths(cfg.common_eval.path),
             arg_overrides=overrides,
@@ -153,7 +153,7 @@ def main(cfg: FairseqConfig):
             strict=(cfg.checkpoint.checkpoint_shard_count == 1),
             num_shards=cfg.checkpoint.checkpoint_shard_count,
         )
-    except:
+    else:
         if len(cfg.common_eval.path.split(':')) > 0:
             models = []
             for path in cfg.common_eval.path.split(':'):
