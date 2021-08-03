@@ -228,10 +228,10 @@ class HuggingFaceMarianDecoder(FairseqIncrementalDecoder):
         if incremental_state:
             prev_output_tokens = prev_output_tokens[:][:, -1].tolist()
             past = self.get_incremental_state(incremental_state, "past")
-            prev_output_tokens = torch.LongTensor([prev_output_tokens]).reshape(2, 1)
+            prev_output_tokens = torch.LongTensor([prev_output_tokens]).reshape(5, 1)
         else:
             past = None
-            prev_output_tokens = torch.LongTensor([[self.config.pad_token_id]]).expand(2, 1)
+            prev_output_tokens = torch.LongTensor([[self.config.pad_token_id]]).expand(5, 1)
 
         
         # don't attend to padding symbols
