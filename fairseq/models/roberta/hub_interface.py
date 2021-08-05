@@ -235,7 +235,7 @@ class RobertaHubInterface(nn.Module):
                 self.model, sentence, use_cuda=self.device.type == "cuda"
             )
 
-    def save(self, filename):
+    def save(self, filename, cpu=True, fp16=False):
         # get training config
         cfg = self.cfg
         # get task object
@@ -249,13 +249,16 @@ class RobertaHubInterface(nn.Module):
         cfg.checkpoint.no_save_optimizer_state = True
         # init criterion
         criterion = task.build_criterion(cfg.criterion)
+        # use cpu
+        cfg.common.cpu = cpu
+        # disable fp16
+        cfg.common.fp16 = fp16
         # set quantizer to None
         quantizer = None
 
-        # init
         trainer = Trainer(cfg, task, model, criterion, quantizer)
         extra_state = {
             "epoch": -1,
         }
-
+        
         trainer.save_checkpoint(filename, extra_state)
