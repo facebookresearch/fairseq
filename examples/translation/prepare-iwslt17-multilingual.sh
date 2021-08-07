@@ -41,20 +41,19 @@ else
     gdown "$URL"
 fi
 
-if [ -e "2017-01-trnted" ]; then
-    echo "2017-01-trnted already exists, skipping extraction"
+ARCHIVE_FOLDER=${ARCHIVE::-4}
+if [ -e "$ARCHIVE_FOLDER" ]; then
+    echo "$ARCHIVE_FOLDER already exists, skipping extraction"
 else
     tar -xzvf "$ARCHIVE"
 fi
 
 for SRC in "${SRCS[@]}"; do
-    for LANG in "${SRC}" "${TGT}"; do
-        if [ -e "$ORIG/$SRC-TGT" ]; then
-            echo "$ORIG/$SRC-TGT already exists, skipping extraction"
-	else
-            tar -C "$ORIG" -xzvf "2017-01-trnted/texts/$SRC/$TGT/$SRC-$TGT.tgz"
-        fi
-    done
+    if [ -e "$ORIG/$SRC-$TGT" ]; then
+        echo "$ORIG/$SRC-$TGT already exists, skipping extraction"
+    else
+        tar -C "$ORIG" -xzvf "$ARCHIVE_FOLDER/texts/$SRC/$TGT/$SRC-$TGT.tgz"
+    fi
 done
 
 
