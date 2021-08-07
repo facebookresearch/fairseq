@@ -22,12 +22,12 @@ class TruncateDataset(BaseWrapperDataset):
         item = self.dataset[index]
         item_len = item.size(0)
         if item_len > self.truncation_length:
-            item = item[: self.truncation_length]
+            item = item[: self.truncation_length-1]
         return item
 
     @property
     def sizes(self):
-        return np.minimum(self.dataset.sizes, self.truncation_length)
+        return np.minimum(self.dataset.sizes, self.truncation_length-1)
 
     def __len__(self):
         return len(self.dataset)
