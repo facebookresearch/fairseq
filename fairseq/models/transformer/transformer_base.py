@@ -41,8 +41,8 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
         self.cfg = cfg
         self.supports_align_args = True
 
-    @staticmethod
-    def add_args(parser):
+    @classmethod
+    def add_args(cls, parser):
         """Add model-specific arguments to the parser."""
         # we want to build the args recursively in this case.
         gen_parser_from_dataclass(
