@@ -10,7 +10,7 @@ except ImportError:
 import contextlib
 import itertools
 import logging
-import os
+import re
 import warnings
 from typing import Optional, Tuple
 
@@ -18,7 +18,8 @@ import numpy as np
 import torch
 
 from fairseq.file_io import PathManager
-
+from fairseq import utils
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -41,13 +42,16 @@ def collate_tokens(
     move_eos_to_beginning=False,
     pad_to_length=None,
     pad_to_multiple=1,
+    pad_to_bsz=None,
 ):
     """Convert a list of 1d tensors into a padded 2d tensor."""
     size = max(v.size(0) for v in values)
     size = size if pad_to_length is None else max(size, pad_to_length)
     if pad_to_multiple != 1 and size % pad_to_multiple != 0:
         size = int(((size - 0.1) // pad_to_multiple + 1) * pad_to_multiple)
-    res = values[0].new(len(values), size).fill_(pad_idx)
+
+    batch_size = len(values) if pad_to_bsz is None else max(len(values), pad_to_bsz)
+    res = values[0].new(batch_size, size).fill_(pad_idx)
 
     def copy_tensor(src, dst):
         assert dst.numel() == src.numel()
@@ -64,7 +68,6 @@ def collate_tokens(
     for i, v in enumerate(values):
         copy_tensor(v, res[i][size - len(v) :] if left_pad else res[i][: len(v)])
     return res
-
 
 def load_indexed_dataset(
     path, dictionary=None, dataset_impl=None, combine=False, default="cached"
@@ -345,7 +348,6 @@ def batch_by_size(
                 max_sentences,
                 bsz_mult,
             )
-
     else:
         fixed_shapes = np.array(fixed_shapes, dtype=np.int64)
         sort_order = np.lexsort(
@@ -524,3 +526,33 @@ def lengths_to_padding_mask(lens: torch.LongTensor) -> torch.BoolTensor:
 
 def lengths_to_mask(lens: torch.LongTensor) -> torch.BoolTensor:
     return ~lengths_to_padding_mask(lens)
+
+
+def _find_extra_valid_paths(dataset_path: str) -> set:
+    paths = utils.split_paths(dataset_path)
+    all_valid_paths = set()
+    for sub_dir in paths:
+        contents = PathManager.ls(sub_dir)
+        valid_paths = [c for c in contents if re.match("valid*[0-9].*", c) is not None]
+        all_valid_paths |= {os.path.basename(p) for p in valid_paths}
+    # Remove .bin, .idx etc
+    roots = {os.path.splitext(p)[0] for p in all_valid_paths}
+    return roots
+
+
+def raise_if_valid_subsets_unintentionally_ignored(train_cfg) -> None:
+    """Raises if there are paths matching 'valid*[0-9].*' which are not combined or ignored."""
+    if (
+        train_cfg.dataset.ignore_unused_valid_subsets
+        or train_cfg.dataset.combine_valid_subsets
+        or train_cfg.dataset.disable_validation
+        or getattr(train_cfg.task, "data", None) is None
+    ):
+        return
+    other_paths = _find_extra_valid_paths(train_cfg.task.data)
+    specified_subsets = train_cfg.dataset.valid_subset.split(",")
+    ignored_paths = [p for p in other_paths if p not in specified_subsets]
+    if ignored_paths:
+        advice = "Set --combine-val to combine them or --ignore-unused-valid-subsets to ignore them."
+        msg = f"Valid paths {ignored_paths} will be ignored. {advice}"
+        raise ValueError(msg)

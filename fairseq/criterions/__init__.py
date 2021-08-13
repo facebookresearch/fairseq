@@ -11,6 +11,8 @@ from fairseq import registry
 from fairseq.criterions.fairseq_criterion import (  # noqa
     FairseqCriterion,
     LegacyFairseqCriterion,
+    MoECriterion,
+    MoECriterionConfig,
 )
 from omegaconf import DictConfig
 

@@ -29,6 +29,10 @@ class FairseqAdafactor(LegacyFairseqOptimizer):
                             help='decay rate of the second moment estimator')
         parser.add_argument('--beta1', type=float, default=None, metavar="B",
                             help='beta for first moment estimator. Optional')
+        parser.add_argument('--first-moment-fp16', action='store_true',
+                            help='store momentum in fp16')
+        parser.add_argument('--no-relative-lr', action='store_true',
+                            help='skip section 8 of the paper')
         parser.add_argument('--weight-decay', '--wd', default=0.0, type=float, metavar='WD',
                             help='weight decay')
         parser.add_argument('--scale-parameter', action='store_true',
@@ -60,9 +64,11 @@ class FairseqAdafactor(LegacyFairseqOptimizer):
             "scale_parameter": self.args.scale_parameter,  # defaults to False
             "relative_step": self.args.relative_step,  # defaults to False
             "warmup_init": self.args.warmup_init,
+            "first_moment_fp16": self.args.first_moment_fp16,
+            "no_relative_lr": self.args.no_relative_lr,
         }
 
-
+FLOAT16_MAX = 65504.0
 class Adafactor(torch.optim.Optimizer):
     """Implements Adafactor algorithm.
 
@@ -109,6 +115,8 @@ class Adafactor(torch.optim.Optimizer):
         scale_parameter=True,
         relative_step=True,
         warmup_init=False,
+        first_moment_fp16=False,
+        no_relative_lr=False,
     ):
         if lr is not None and relative_step:
             raise ValueError("Cannot combine manual lr and relative_step options")
@@ -125,7 +133,10 @@ class Adafactor(torch.optim.Optimizer):
             scale_parameter=scale_parameter,
             relative_step=relative_step,
             warmup_init=warmup_init,
+            first_moment_fp16=first_moment_fp16,
+
         )
+        self.no_relative_lr = no_relative_lr
         super(Adafactor, self).__init__(params, defaults)
 
     @property
@@ -138,7 +149,8 @@ class Adafactor(torch.optim.Optimizer):
 
     def _get_lr(self, param_group, param_state):
         rel_step_sz = param_group["lr"]
-        if param_group["relative_step"]:
+        if param_group["relative_step"]:  # NOTE(SS): disable this
+            # disable scaling of learning rate relative to weight norms, which is the default feature in Adafactor.
             min_step = (
                 1e-6 * param_state["step"] if param_group["warmup_init"] else 1e-2
             )
@@ -151,7 +163,8 @@ class Adafactor(torch.optim.Optimizer):
     def _get_options(self, param_group, param_shape):
         factored = len(param_shape) >= 2
         use_first_moment = param_group["beta1"] is not None
-        return factored, use_first_moment
+        first_moment_fp16 = param_group['first_moment_fp16']
+        return factored, use_first_moment, first_moment_fp16
 
     def _rms(self, tensor):
         return tensor.norm(2) / (tensor.numel() ** 0.5)
@@ -181,6 +194,9 @@ class Adafactor(torch.optim.Optimizer):
                 if p.grad is None:
                     continue
                 grad = p.grad.data
+                p_data_fp32 = p.data
+                if p.data.dtype in {torch.float16, torch.bfloat16}:
+                    p_data_fp32 = p_data_fp32.float()
                 if grad.dtype in {torch.float16, torch.bfloat16}:
                     grad = grad.float()
                 if grad.is_sparse:
@@ -189,7 +205,7 @@ class Adafactor(torch.optim.Optimizer):
                 state = self.state[p]
                 grad_shape = grad.shape
 
-                factored, use_first_moment = self._get_options(group, grad_shape)
+                factored, use_first_moment, first_moment_fp16 = self._get_options(group, grad_shape)
                 # State Initialization
                 if len(state) == 0:
                     state["step"] = 0
@@ -197,11 +213,10 @@ class Adafactor(torch.optim.Optimizer):
                     if use_first_moment:
                         # Exponential moving average of gradient values
                         state["exp_avg"] = torch.zeros_like(grad)
+                        state["exp_avg_scale"] = 1.0
                     if factored:
                         state["exp_avg_sq_row"] = torch.zeros(grad_shape[:-1]).to(grad)
-                        state["exp_avg_sq_col"] = torch.zeros(
-                            grad_shape[:-2] + grad_shape[-1:]
-                        ).to(grad)
+                        state["exp_avg_sq_col"] = torch.zeros(grad_shape[:-2] + grad_shape[-1:]).to(grad)
                     else:
                         state["exp_avg_sq"] = torch.zeros_like(grad)
 
@@ -215,13 +230,11 @@ class Adafactor(torch.optim.Optimizer):
                     else:
                         state["exp_avg_sq"] = state["exp_avg_sq"].to(grad)
 
-                p_data_fp32 = p.data
-                if p.data.dtype in {torch.float16, torch.bfloat16}:
-                    p_data_fp32 = p_data_fp32.float()
 
                 state["step"] += 1
                 state["RMS"] = self._rms(p_data_fp32)
-                group["lr"] = self._get_lr(group, state)
+                if not self.no_relative_lr:
+                    group["lr"] = self._get_lr(group, state)
 
                 beta2t = 1.0 - math.pow(state["step"], group["decay_rate"])
                 update = (grad ** 2) + group["eps"][0]
@@ -251,7 +264,7 @@ class Adafactor(torch.optim.Optimizer):
                 update.mul_(group["lr"])
 
                 if use_first_moment:
-                    exp_avg = state["exp_avg"]
+                    exp_avg = state["exp_avg"].float() * state["exp_avg_scale"]
                     exp_avg.mul_(group["beta1"]).add_(update, alpha=1 - group["beta1"])
                     update = exp_avg
 
@@ -264,5 +277,12 @@ class Adafactor(torch.optim.Optimizer):
 
                 if p.data.dtype in {torch.float16, torch.bfloat16}:
                     p.data.copy_(p_data_fp32)
+
+
+                # copied idea from fp16_adam_stats implem
+                # which copied from github.com/openai/jukebox/blob/master/jukebox/utils/fp16.py
+                if first_moment_fp16:
+                    state["exp_avg_scale"] = 1e-8 + torch.norm(exp_avg, float('inf')) / FLOAT16_MAX
+                    state["exp_avg"] = (exp_avg / state["exp_avg_scale"]).half()
 
         return loss

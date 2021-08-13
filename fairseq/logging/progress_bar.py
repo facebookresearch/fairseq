@@ -29,6 +29,7 @@ def progress_bar(
     iterator,
     log_format: Optional[str] = None,
     log_interval: int = 100,
+    log_file: Optional[str] = None,
     epoch: Optional[int] = None,
     prefix: Optional[str] = None,
     tensorboard_logdir: Optional[str] = None,
@@ -39,6 +40,10 @@ def progress_bar(
 ):
     if log_format is None:
         log_format = default_log_format
+    if log_file is not None:
+        handler = logging.FileHandler(filename=log_file)
+        logger.addHandler(handler)
+
     if log_format == "tqdm" and not sys.stderr.isatty():
         log_format = "simple"
 
@@ -343,6 +348,9 @@ class TensorboardProgressBarWrapper(BaseProgressBar):
             _writers[key] = SummaryWriter(os.path.join(self.tensorboard_logdir, key))
             _writers[key].add_text("sys.argv", " ".join(sys.argv))
         return _writers[key]
+
+    def __len__(self):
+        return len(self.wrapped_bar)
 
     def __iter__(self):
         return iter(self.wrapped_bar)

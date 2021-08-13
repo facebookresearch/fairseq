@@ -58,8 +58,7 @@ def gen_parser_from_dataclass(
     """convert a dataclass instance to tailing parser arguments"""
 
     def argparse_name(name: str):
-        if name == "data":
-            # normally data is positional args
+        if name in dataclass_instance.positional_args():
             return name
         if name == "_name":
             # private member, skip

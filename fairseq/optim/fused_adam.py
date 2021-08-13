@@ -80,6 +80,7 @@ class FusedAdamV1(torch.optim.Optimizer):
         weight_decay=0.0,
         max_grad_norm=0.0,
         amsgrad=False,
+        use_fp16_stats=False,
     ):
         global fused_adam_cuda
         import importlib
@@ -98,6 +99,9 @@ class FusedAdamV1(torch.optim.Optimizer):
         }
         super().__init__(params, defaults)
         self.eps_mode = 0 if eps_inside_sqrt else 1
+
+        self.use_fp16_stats = use_fp16_stats
+        self.FLOAT16_MAX = 65504.0
 
     @property
     def supports_memory_efficient_fp16(self):
@@ -173,29 +177,42 @@ class FusedAdamV1(torch.optim.Optimizer):
                         "please consider SparseAdam instead"
                     )
 
-                p_data_fp32 = p.data.float()
+                if p.device.type == "cpu":
+                    p_data_fp32 = p.data.cuda(non_blocking=True).float()
+                    out_p = torch.tensor([], dtype = torch.float)
+                else:
+                    p_data_fp32 = p.data.float()
+                    out_p = p.data
 
                 state = self.state[p]
 
                 # State initialization
+                dtype = torch.float16 if self.use_fp16_stats else p_data_fp32.dtype
                 if len(state) == 0:
                     state["step"] = 0
                     # Exponential moving average of gradient values
-                    state["exp_avg"] = torch.zeros_like(p_data_fp32)
+                    state["exp_avg"] = torch.zeros_like(p_data_fp32, dtype=dtype)
                     # Exponential moving average of squared gradient values
-                    state["exp_avg_sq"] = torch.zeros_like(p_data_fp32)
+                    state["exp_avg_sq"] = torch.zeros_like(p_data_fp32, dtype=dtype)
+                    if self.use_fp16_stats:
+                        state["exp_avg_scale"] = 1.0
+                        state["exp_avg_sq_scale"] = 1.0
                 else:
-                    state["exp_avg"] = state["exp_avg"].to(p_data_fp32)
-                    state["exp_avg_sq"] = state["exp_avg_sq"].to(p_data_fp32)
+                    device = p_data_fp32.device
+                    state["exp_avg"] = state["exp_avg"].to(device, dtype)
+                    state["exp_avg_sq"] = state["exp_avg_sq"].to(device, dtype)
 
                 exp_avg = state["exp_avg"]
                 exp_avg_sq = state["exp_avg_sq"]
+                if self.use_fp16_stats:
+                    assert exp_avg.dtype == torch.float16
+                    exp_avg = exp_avg.float() * state["exp_avg_scale"]
+                    exp_avg_sq = exp_avg_sq.float() * state["exp_avg_sq_scale"]
                 beta1, beta2 = group["betas"]
 
                 state["step"] += 1
 
-                out_p = p.data
-                with torch.cuda.device(p.device):
+                with torch.cuda.device(p_data_fp32.device):
                     fused_adam_cuda.adam(
                         p_data_fp32,
                         out_p,
@@ -213,6 +230,23 @@ class FusedAdamV1(torch.optim.Optimizer):
                         group["weight_decay"],
                     )
 
+                if p.device.type == "cpu":
+                    p.data.copy_(p_data_fp32, non_blocking=True)
+
+                if self.use_fp16_stats:
+                    def inf_norm(t):
+                        return torch.norm(t, float("inf"))
+
+                    # from github.com/openai/jukebox/blob/master/jukebox/utils/fp16.py
+                    state["exp_avg_scale"], state["exp_avg_sq_scale"] = (
+                        1e-8 + inf_norm(exp_avg) / self.FLOAT16_MAX,
+                        1e-8 + inf_norm(exp_avg_sq) / self.FLOAT16_MAX,
+                    )
+                    state["exp_avg"], state["exp_avg_sq"] = (
+                        (exp_avg / state["exp_avg_scale"]).half(),
+                        (exp_avg_sq / state["exp_avg_sq_scale"]).half(),
+                    )
+
         return loss
 
 
@@ -226,7 +260,9 @@ try:
         and params to FP32 internally to support ``--memory-efficient-fp16``.
         """
 
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args, use_fp16_stats=False, **kwargs):
+            if use_fp16_stats:
+                raise NotImplementedError("--fp16-adam-stats is only supported with FusedAdamV1")
             super().__init__(*args, **kwargs)
             if not hasattr(self, "multi_tensor_adam"):
                 raise Exception(

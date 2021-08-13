@@ -20,6 +20,7 @@ from fairseq.dataclass.utils import (
     gen_parser_from_dataclass,
 )
 from fairseq.models import FairseqDecoder, FairseqEncoder
+from fairseq.modules.moe import MOELayer
 from omegaconf import DictConfig
 from torch import Tensor
 
@@ -29,9 +30,10 @@ logger = logging.getLogger(__name__)
 
 def check_type(module, expected_type):
     if hasattr(module, "unwrapped_module"):
-        assert isinstance(module.unwrapped_module, expected_type)
+        assert isinstance(module.unwrapped_module, expected_type), \
+            f"{type(module.unwrapped_module)} != {expected_type}"
     else:
-        assert isinstance(module, expected_type)
+        assert isinstance(module, expected_type), f"{type(module)} != {expected_type}"
 
 
 class BaseFairseqModel(nn.Module):
@@ -152,14 +154,11 @@ class BaseFairseqModel(nn.Module):
 
     def set_num_updates(self, num_updates):
         """State from trainer to pass along to model at every update."""
-
-        def _apply(m):
+        for m in self.modules():
             if hasattr(m, "set_num_updates") and m != self:
                 m.set_num_updates(num_updates)
 
-        self.apply(_apply)
-
-    def prepare_for_inference_(self, cfg: DictConfig):
+    def prepare_for_inference_(self, cfg: DictConfig, moe_disable_padding=True):
         """Prepare model for inference."""
         kwargs = {}
         kwargs["beamable_mm_beam_size"] = (
@@ -172,6 +171,9 @@ class BaseFairseqModel(nn.Module):
             kwargs["retain_dropout"] = cfg.generation.retain_dropout
             kwargs["retain_dropout_modules"] = cfg.generation.retain_dropout_modules
         self.make_generation_fast_(**kwargs)
+        for n, m in self.named_modules():
+             if isinstance(m, MOELayer) and moe_disable_padding:
+                 m.prepare_for_inference_()
 
     def make_generation_fast_(self, **kwargs):
         """
@@ -238,6 +240,8 @@ class BaseFairseqModel(nn.Module):
         model_name_or_path,
         checkpoint_file="model.pt",
         data_name_or_path=".",
+        moe_disable_padding=True,
+        skip_prepare_for_inference=False,
         **kwargs,
     ):
         """
@@ -271,7 +275,13 @@ class BaseFairseqModel(nn.Module):
             **kwargs,
         )
         logger.info(x["args"])
-        return hub_utils.GeneratorHubInterface(x["args"], x["task"], x["models"])
+        return hub_utils.GeneratorHubInterface(
+            x["args"],
+            x["task"],
+            x["models"],
+            moe_disable_padding=moe_disable_padding,
+            skip_prepare_for_inference=skip_prepare_for_inference,
+        )
 
     @classmethod
     def hub_models(cls):
