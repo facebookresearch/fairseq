@@ -95,7 +95,11 @@ def collate(
         ntokens = tgt_lengths.sum().item()
 
         if samples[0].get("prev_output_tokens", None) is not None:
-            prev_output_tokens = merge("prev_output_tokens", left_pad=left_pad_target)
+            prev_output_tokens = merge(
+                "prev_output_tokens",
+                left_pad=left_pad_target,
+                pad_to_length=pad_to_length["target"] if pad_to_length is not None else None,
+            )
         elif input_feeding:
             # we create a shifted version of targets for feeding the
             # previous output token(s) into the next decoder step
@@ -223,6 +227,7 @@ class LanguagePairDataset(FairseqDataset):
         src_lang_id=None,
         tgt_lang_id=None,
         pad_to_multiple=1,
+        fixed_pad_length=None,
     ):
         if tgt_dict is not None:
             assert src_dict.pad() == tgt_dict.pad()
@@ -294,6 +299,7 @@ class LanguagePairDataset(FairseqDataset):
         else:
             self.buckets = None
         self.pad_to_multiple = pad_to_multiple
+        self.fixed_pad_length = fixed_pad_length
 
     def get_batch_shapes(self):
         return self.buckets
@@ -338,6 +344,7 @@ class LanguagePairDataset(FairseqDataset):
     def __len__(self):
         return len(self.src)
 
+    # Note: self.fixed_pad_length overrides pad_to_length
     def collater(self, samples, pad_to_length=None):
         """Merge a list of samples to form a mini-batch.
 
@@ -381,7 +388,7 @@ class LanguagePairDataset(FairseqDataset):
             left_pad_source=self.left_pad_source,
             left_pad_target=self.left_pad_target,
             input_feeding=self.input_feeding,
-            pad_to_length=pad_to_length,
+            pad_to_length=self.fixed_pad_length or pad_to_length,
             pad_to_multiple=self.pad_to_multiple,
         )
         if self.src_lang_id is not None or self.tgt_lang_id is not None:

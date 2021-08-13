@@ -10,7 +10,7 @@ from argparse import Namespace
 from typing import Any, Callable, Dict, List
 
 import torch
-from fairseq import metrics, search, tokenizer, utils
+from fairseq import metrics, search, tokenizer, utils, distributed_utils
 from fairseq.data import Dictionary, FairseqDataset, data_utils, encoders, iterators
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import gen_parser_from_dataclass
@@ -210,7 +210,7 @@ class FairseqTask(object):
 
     def get_batch_iterator(
         self,
-        dataset,
+        dataset: FairseqDataset,
         max_tokens=None,
         max_sentences=None,
         max_positions=None,
@@ -223,6 +223,7 @@ class FairseqTask(object):
         epoch=1,
         data_buffer_size=0,
         disable_iterator_cache=False,
+        batch_by_size=True,
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
@@ -255,6 +256,9 @@ class FairseqTask(object):
             disable_iterator_cache (bool, optional): don't cache the
                 EpochBatchIterator (ignores `FairseqTask::can_reuse_epoch_itr`)
                 (default: False).
+            batch_by_size (bool, optional):
+                batch sequences of similar length together to reduce padding.
+                If false, each batch will be of size max_sentences.
         Returns:
             ~fairseq.iterators.EpochBatchIterator: a batched iterator over the
                 given dataset split
@@ -281,14 +285,18 @@ class FairseqTask(object):
                 indices, dataset, max_positions, ignore_invalid_inputs
             )
 
-        # create mini-batches with given size constraints
-        batch_sampler = dataset.batch_by_size(
-            indices,
-            max_tokens=max_tokens,
-            max_sentences=max_sentences,
-            required_batch_size_multiple=required_batch_size_multiple,
-        )
-
+        if batch_by_size:
+            # create mini-batches with given size constraints
+            batch_sampler = dataset.batch_by_size(
+                indices,
+                max_tokens=max_tokens,
+                max_sentences=max_sentences,
+                required_batch_size_multiple=required_batch_size_multiple,
+            )
+        else:
+            assert max_sentences is not None, 'If batch_by_size=False, max_sentences must be passed. Got None'
+            starts = indices[::max_sentences]
+            batch_sampler = [indices[s: s + max_sentences] for s in starts]
         # return a reusable, sharded iterator
         epoch_iter = iterators.EpochBatchIterator(
             dataset=dataset,
@@ -348,6 +356,7 @@ class FairseqTask(object):
             return SequenceScorer(
                 self.target_dictionary,
                 compute_alignment=getattr(args, "print_alignment", False),
+                compute_vocab_dist=getattr(args, "compute_vocab_dist", False)
             )
 
         from fairseq.sequence_generator import (

@@ -33,9 +33,13 @@ class FairseqAdamConfig(FairseqDataclass):
     use_old_adam: bool = field(
         default=False, metadata={"help": "Use fairseq.optim.adam.Adam"}
     )
+    fp16_adam_stats: bool = field(
+        default=False, metadata={"help": "use FP16 stats (with automatic scaling)"}
+    )
     # TODO common vars below in parent
     tpu: bool = II("common.tpu")
     lr: List[float] = II("optimization.lr")
+    block_wise: bool = field(default=False, metadata={"help": "Enables block-wise optimization for 8-bit Adam"})
 
 
 @register_optimizer("adam", dataclass=FairseqAdamConfig)
@@ -56,13 +60,21 @@ class FairseqAdam(FairseqOptimizer):
             and torch.cuda.is_available()
         )
         if getattr(cfg, "tpu", False):
+            if self.cfg.fp16_adam_stats:
+                raise NotImplementedError("--fp16-adam-stats is only supported on GPU")
             # on TPUs we use the Adam defined here, since it
             # automatically casts gradients to FP32
             self._optimizer = Adam(params, **self.optimizer_config)
         elif use_fused_adam:
             logger.info("using FusedAdam")
-            self._optimizer = fused_adam_cls(params, **self.optimizer_config)
+            self._optimizer = fused_adam_cls(
+                params,
+                use_fp16_stats=self.cfg.fp16_adam_stats,
+                **self.optimizer_config
+            )
         else:
+            if self.cfg.fp16_adam_stats:
+                raise NotImplementedError("--fp16-adam-stats is only supported with FusedAdamV1")
             self._optimizer = Adam(params, **self.optimizer_config)
 
     @property
@@ -83,7 +95,7 @@ class FairseqAdam(FairseqOptimizer):
         }
 
     def average_params(self):
-        """Reduce Params is only used during BMUF distributed training."""
+        """average Params is only used during BMUF distributed training."""
         state_dict = self.optimizer.state_dict()
         total_gpus = float(dist.get_world_size())
 
@@ -92,6 +104,37 @@ class FairseqAdam(FairseqOptimizer):
             value["exp_avg_sq"] /= total_gpus
             dist.all_reduce(value["exp_avg"], op=dist.ReduceOp.SUM)
             dist.all_reduce(value["exp_avg_sq"], op=dist.ReduceOp.SUM)
+
+@register_optimizer("adam8bit", dataclass=FairseqAdamConfig)
+class FairseqAdam8Bit(FairseqOptimizer):
+    def __init__(self, cfg: DictConfig, params):
+        super().__init__(cfg)
+        try:
+            import bitsandbytes as bnb
+        except ImportError:
+            raise ImportError('adam8bit requires bits and bytes: see https://gist.github.com/TimDettmers/c4ffe346f095ee4481aa3d4b4ad2ffe0')
+        bnb.optim.GlobalOptimManager.get_instance().register_parameters(params)
+        self._optimizer = bnb.optim.Adam(params, optim_bits=8, **self.optimizer_config)  # equivalent
+
+    @property
+    def optimizer_config(self):
+        return {
+            "lr": self.cfg.lr[0]
+            if isinstance(self.cfg.lr, Collection)
+            else self.cfg.lr,
+            "betas": eval(self.cfg.adam_betas),
+            "eps": self.cfg.adam_eps,
+            "weight_decay": self.cfg.weight_decay,
+            "block_wise": self.cfg.block_wise,
+        }
+
+    @property
+    def supports_memory_efficient_fp16(self):
+        return True
+
+    @property
+    def supports_flat_params(self):
+        return True
 
 
 class Adam(torch.optim.Optimizer):
