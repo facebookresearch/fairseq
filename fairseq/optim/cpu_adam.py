@@ -117,6 +117,10 @@ class CPUAdam(torch.optim.Optimizer):
         )
 
     @property
+    def supports_memory_efficient_fp16(self):
+        return True
+
+    @property
     def supports_flat_params(self):
         return True
 

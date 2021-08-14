@@ -47,7 +47,7 @@ def add_defaults(cfg: DictConfig) -> None:
                 field_cfg = DictConfig({"_name": field_cfg})
                 field_cfg.__dict__["_parent"] = field_cfg.__dict__["_parent"]
 
-            name = field_cfg.get("_name")
+            name = getattr(field_cfg, "_name", None)
 
             if k == "task":
                 dc = TASK_DATACLASS_REGISTRY.get(name)
