@@ -49,7 +49,7 @@ from omegaconf import DictConfig, OmegaConf
 def main(cfg: FairseqConfig) -> None:
     if isinstance(cfg, argparse.Namespace):
         cfg = convert_namespace_to_omegaconf(cfg)
-
+    base_lr = cfg.optimization.lr[-1]
     utils.import_user_module(cfg.common)
 
     if distributed_utils.is_master(cfg.distributed_training) and "job_logging_cfg" in cfg:
@@ -89,49 +89,12 @@ def main(cfg: FairseqConfig) -> None:
 
     assert cfg.criterion, "Please specify criterion to train a model"
 
-    added_embeddings = 0
-    if cfg.task._name == "multilingual_denoising_universe":
-        with open(cfg.task.universe_dict, 'r+') as univ_file:
-            universes = univ_file.readlines()
-        logger.info(f"Extending The Embedding Matrix by {len(universes)}")
-        if cfg.checkpoint.finetune_from_model is not None:
-            pt_checkpoint = torch.load(cfg.checkpoint.finetune_from_model)
-        else:
-            pt_checkpoint = torch.load(cfg.checkpoint.restore_file)
-        added_embeddings = torch.empty(len(universes), 1024)
-        output_projection=torch.empty(len(universes), 1024)
-        torch.nn.init.xavier_normal_(added_embeddings)
-        torch.nn.init.xavier_normal_(output_projection)
-        pt_checkpoint['model']['encoder.embed_tokens.weight'] = torch.cat([pt_checkpoint['model']['encoder.embed_tokens.weight'], added_embeddings])
-        pt_checkpoint['model']['decoder.embed_tokens.weight']= torch.cat([pt_checkpoint['model']['decoder.embed_tokens.weight'], added_embeddings])
-        pt_checkpoint['model']['decoder.output_projection.weight']= torch.cat([pt_checkpoint['model']['decoder.output_projection.weight'], output_projection])
-        
-        #if cfg.checkpoint.finetune_from_model is not None:
-            #torch.save(pt_checkpoint, cfg.checkpoint.finetune_from_model[:-3]+"_extended.pt")
-            #cfg.checkpoint.finetune_from_model = cfg.checkpoint.finetune_from_model[:-3]+"_extended.pt"
-        #else:
-        #    torch.save(pt_checkpoint, cfg.checkpoint.restore_file[:-3]+"_extended.pt")
-        #    cfg.checkpoint.restore_file = cfg.checkpoint.restore_file[:-3]+"_extended.pt"
-        added_embeddings = len(universes)
-
-    if cfg.task._name == "translation_from_pretrained_bart_universe":
-        with open(cfg.task.universe_dict, 'r+') as univ_file:
-            universes = univ_file.readlines()
-            added_embeddings = len(universes)
-
-    model = task.build_model(cfg.model)
-    from torch.nn import Embedding, Linear
-    #embed_length = 250053 + added_embeddings
-    ##logger.info(f"embed_length {embed_length}")
-    #model.encoder.embed_tokens = Embedding(embed_length, 1024)
-    #model.decoder.embed_tokens = Embedding(embed_length, 1024)
-    #model.decoder.output_projection = Linear(1024, embed_length, False)
     # Build model and criterion
     if cfg.distributed_training.ddp_backend == "fully_sharded":
         with fsdp_enable_wrap(cfg.distributed_training):
-            model = fsdp_wrap(model)
-
-    
+            model = fsdp_wrap(task.build_model(cfg.model))
+    else:
+        model = task.build_model(cfg.model)
     criterion = task.build_criterion(cfg.criterion)
     logger.info(model)
     logger.info("task: {}".format(task.__class__.__name__))
@@ -201,7 +164,7 @@ def main(cfg: FairseqConfig) -> None:
 
     max_epoch = cfg.optimization.max_epoch or math.inf
     lr = trainer.get_lr()
-
+    max_bleu = 0
     train_meter = meters.StopwatchMeter()
     train_meter.start()
     while epoch_itr.next_epoch_idx <= max_epoch:
@@ -215,6 +178,10 @@ def main(cfg: FairseqConfig) -> None:
 
         # train for one epoch
         valid_losses, should_stop = train(cfg, trainer, task, epoch_itr)
+        try:
+            max_bleu = max(max(valid_losses), max_bleu)
+        except:
+            max_bleu = max_bleu
         if should_stop:
             break
 
@@ -228,8 +195,28 @@ def main(cfg: FairseqConfig) -> None:
             # don't cache epoch iterators for sharded datasets
             disable_iterator_cache=task.has_sharded_data("train"),
         )
+    with metrics.aggregate(new_root=True) as agg:
+        stats = get_valid_stats(cfg, trainer, agg.get_smoothed_values())
     train_meter.stop()
     logger.info("done training in {:.1f} seconds".format(train_meter.sum))
+    if cfg.distributed_training.distributed_rank in [-1, 0]:
+        from torch.utils.tensorboard import SummaryWriter
+        tb_writer = SummaryWriter(log_dir="/opt/tensorboard/hparams")
+        tb_writer.add_hparams(
+            {
+                "lr": base_lr,
+                "update_freq": cfg.optimization.update_freq[0] 
+            },
+            {"bleu": stats['best_bleu']},
+        )
+
+        tb_writer.close()
+        logger.info(f"Done, valid_bleu={stats['best_bleu']},")
+        a = '1' > 0
+        raise ValueError # to kill traiing 
+    a = '1' > 0
+    raise ValueError # to kill traiing 
+
 
     # ioPath implementation to wait for all asynchronous file writes to complete.
     if cfg.checkpoint.write_checkpoints_asynchronously:
@@ -239,6 +226,7 @@ def main(cfg: FairseqConfig) -> None:
         )
         PathManager.async_close()
         logger.info("ioPath PathManager finished waiting.")
+    
 
 
 def should_stop_early(cfg: DictConfig, valid_loss: float) -> bool:
@@ -333,7 +321,7 @@ def train(
             if num_updates % cfg.common.log_interval == 0:
                 stats = get_training_stats(metrics.get_smoothed_values("train_inner"))
                 progress.log(stats, tag="train_inner", step=num_updates)
-                logger.info(f"train_loss={stats['loss']};")
+                logger.info(f"train_loss={stats['loss']},")
                 # reset mid-epoch stats after each log interval
                 # the end-of-epoch stats will still be preserved
                 metrics.reset_meters("train_inner")
@@ -350,7 +338,7 @@ def train(
     logger.info("end of epoch {} (average epoch stats below)".format(epoch_itr.epoch))
     stats = get_training_stats(metrics.get_smoothed_values("train"))
     progress.print(stats, tag="train", step=num_updates)
-    
+
     # reset epoch-level meters
     metrics.reset_meters("train")
     return valid_losses, should_stop
@@ -505,8 +493,7 @@ def validate(
             task.post_validate(trainer.get_model(), stats, agg)
 
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
-        logger.info(f"valid_loss={stats['loss']};")
-
+        logger.info(f"valid_loss={stats['loss']}, valid_bleu={stats['bleu']}")
         valid_losses.append(stats[cfg.checkpoint.best_checkpoint_metric])
     return valid_losses
 
@@ -546,7 +533,7 @@ def cli_main(
 
     # if cfg.common.use_plasma_view:
     #     server.server.kill()
-
+    
 
 if __name__ == "__main__":
     cli_main()

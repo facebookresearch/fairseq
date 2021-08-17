@@ -19,6 +19,8 @@ from collections import namedtuple
 
 import numpy as np
 import torch
+from fairseq.data import encoders
+from argparse import Namespace
 from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
 from fairseq.dataclass.configs import FairseqConfig
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
@@ -142,14 +144,26 @@ def main(cfg: FairseqConfig):
     # Load ensemble
     overrides = ast.literal_eval(cfg.common_eval.model_overrides)
     logger.info("loading model(s) from {}".format(cfg.common_eval.path))
-    models, _model_args = checkpoint_utils.load_model_ensemble(
-        utils.split_paths(cfg.common_eval.path),
-        arg_overrides=overrides,
-        task=task,
-        suffix=cfg.checkpoint.checkpoint_suffix,
-        strict=(cfg.checkpoint.checkpoint_shard_count == 1),
-        num_shards=cfg.checkpoint.checkpoint_shard_count,
-    )
+    if True:
+        models, _model_args = checkpoint_utils.load_model_ensemble(
+            utils.split_paths(cfg.common_eval.path),
+            arg_overrides=overrides,
+            task=task,
+            suffix=cfg.checkpoint.checkpoint_suffix,
+            strict=(cfg.checkpoint.checkpoint_shard_count == 1),
+            num_shards=cfg.checkpoint.checkpoint_shard_count,
+        )
+    else:
+        if len(cfg.common_eval.path.split(':')) > 0:
+            models = []
+            for path in cfg.common_eval.path.split(':'):
+                newcfg = cfg.copy()
+                newcfg.common_eval.path = path
+                models.append(task.build_model(newcfg))
+        else:
+            models = [task.build_model(cfg)]
+
+
 
     # Set dictionaries
     src_dict = task.source_dictionary
@@ -167,6 +181,7 @@ def main(cfg: FairseqConfig):
 
     # Initialize generator
     generator = task.build_generator(models, cfg.generation)
+
 
     # Handle tokenization and BPE
     tokenizer = task.build_tokenizer(cfg.tokenizer)
@@ -270,7 +285,7 @@ def main(cfg: FairseqConfig):
                     align_dict=align_dict,
                     tgt_dict=tgt_dict,
                     remove_bpe=cfg.common_eval.post_process,
-                    extra_symbols_to_ignore=get_symbols_to_strip_from_output(generator),
+                    extra_symbols_to_ignore=None #get_symbols_to_strip_from_output(generator),
                 )
                 detok_hypo_str = decode_fn(hypo_str)
                 score = hypo["score"] / math.log(2)  # convert to base 2

@@ -47,6 +47,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
         parser.add_argument('--prepend-bos', action='store_true',
                             help='prepend bos token to each sentence, which matches '
                                  'mBART pretraining')
+        parser.add_argument
         # fmt: on
 
     def __init__(self, args, src_dict, tgt_dict):
@@ -100,7 +101,7 @@ class TranslationFromPretrainedBARTTask(TranslationTask):
             )
         else:
             from fairseq.sequence_generator import SequenceGenerator
-
+            
             return SequenceGenerator(
                 models,
                 self.target_dictionary,

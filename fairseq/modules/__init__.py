@@ -75,4 +75,5 @@ __all__ = [
     "TransposeLast",
     "VGGBlock",
     "unfold1d",
+    "silu", 
 ]

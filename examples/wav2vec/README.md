@@ -6,6 +6,8 @@ We learned speech representations in multiple languages as well in [Unsupervised
 
 We also combined wav2vec 2.0 with self-training in [Self-training and Pre-training are Complementary for Speech Recognition (Xu et al., 2020)](https://arxiv.org/abs/2010.11430).
 
+We combined speech data from multiple domains in [Robust wav2vec 2.0: Analyzing Domain Shift in Self-Supervised Pre-Training (Hsu, et al., 2021)](https://arxiv.org/abs/2104.01027)
+
 ## Pre-trained models
 
 Model | Finetuning split | Dataset | Model
@@ -25,8 +27,10 @@ Wav2Vec 2.0 Large (LV-60)* | 960 hours | [Libri-Light](https://github.com/facebo
 Wav2Vec 2.0 Large (LV-60) + Self Training * | 10 minutes | [Libri-Light](https://github.com/facebookresearch/libri-light) + [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox_10m_pl.pt)
 Wav2Vec 2.0 Large (LV-60) + Self Training * | 100 hours | [Libri-Light](https://github.com/facebookresearch/libri-light) + [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox_100h_pl.pt)
 Wav2Vec 2.0 Large (LV-60) + Self Training * | 960 hours | [Libri-Light](https://github.com/facebookresearch/libri-light) + [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox_960h_pl.pt)
+Wav2Vec 2.0 Large (LV-60 + CV + SWBD + FSH) ** | No finetuning | [Libri-Light](https://github.com/facebookresearch/libri-light) + [CommonVoice](https://commonvoice.mozilla.org/en/languages) + [Switchboard](https://catalog.ldc.upenn.edu/LDC97S62) + [Fisher](https://catalog.ldc.upenn.edu/LDC2004T19) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/w2v_large_lv_fsh_swbd_cv.pt)
 
-\* updated (Oct. 24, 2020)
+\* updated (Oct. 24, 2020)\
+** updated (Jul. 8, 2021)
 
 We also release multilingual pre-trained wav2vec 2.0 (XLSR) models:
 

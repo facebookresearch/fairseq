@@ -229,7 +229,6 @@ class TransformerModel(FairseqEncoderDecoderModel):
             args.max_target_positions = DEFAULT_MAX_TARGET_POSITIONS
 
         src_dict, tgt_dict = task.source_dictionary, task.target_dictionary
-
         if args.share_all_embeddings:
             if src_dict != tgt_dict:
                 raise ValueError("--share-all-embeddings requires a joined dictionary")
@@ -243,6 +242,7 @@ class TransformerModel(FairseqEncoderDecoderModel):
                 raise ValueError(
                     "--share-all-embeddings not compatible with --decoder-embed-path"
                 )
+            
             encoder_embed_tokens = cls.build_embedding(
                 args, src_dict, args.encoder_embed_dim, args.encoder_embed_path
             )
@@ -729,7 +729,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             self.layer_norm = LayerNorm(embed_dim, export=export)
         else:
             self.layer_norm = None
-
+        print(embed_dim)
+        print(self.output_embed_dim)
         self.project_out_dim = (
             Linear(embed_dim, self.output_embed_dim, bias=False)
             if embed_dim != self.output_embed_dim and not args.tie_adaptive_weights
@@ -888,7 +889,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         bs, slen = prev_output_tokens.size()
         if alignment_layer is None:
             alignment_layer = self.num_layers - 1
-
+        
         enc: Optional[Tensor] = None
         padding_mask: Optional[Tensor] = None
         if encoder_out is not None and len(encoder_out["encoder_out"]) > 0:

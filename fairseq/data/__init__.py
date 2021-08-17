@@ -5,6 +5,8 @@
 """isort:skip_file"""
 
 from .dictionary import Dictionary, TruncatedDictionary
+from .tokenizer_dictionary import TokenizerDictionary
+
 
 from .fairseq_dataset import FairseqDataset, FairseqIterableDataset
 
@@ -32,6 +34,7 @@ from .list_dataset import ListDataset
 from .lm_context_window_dataset import LMContextWindowDataset
 from .lru_cache_dataset import LRUCacheDataset
 from .mask_tokens_dataset import MaskTokensDataset
+from .marian_tokenizer_dataset import MarianTokenizerDataset
 from .monolingual_dataset import MonolingualDataset
 from .multi_corpus_sampled_dataset import MultiCorpusSampledDataset
 from .nested_dictionary_dataset import NestedDictionaryDataset

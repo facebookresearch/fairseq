@@ -1,0 +1,59 @@
+# @package _group_
+
+common:
+  fp16: true
+  fp16_init_scale: 4
+  threshold_loss_scale: 1
+  fp16_scale_window: 128
+  log_format: json
+  log_interval: 200
+
+task:
+  _name: sentence_prediction
+  data: ???
+  init_token: 0
+  separator_token: 2
+  num_classes: 3
+  max_positions: 512
+
+checkpoint:
+  restore_file: ???
+  reset_optimizer: true
+  reset_dataloader: true
+  reset_meters: true
+  best_checkpoint_metric: accuracy
+  maximize_best_checkpoint_metric: true
+  no_epoch_checkpoints: true
+
+distributed_training:
+  find_unused_parameters: true
+  distributed_world_size: 1
+
+criterion:
+  _name: sentence_prediction
+
+dataset:
+  batch_size: 32
+  required_batch_size_multiple: 1
+  max_tokens: 4400
+
+optimizer:
+  _name: adam
+  weight_decay: 0.1
+  adam_betas: (0.9,0.98)
+  adam_eps: 1e-06
+
+lr_scheduler:
+  _name: polynomial_decay
+  warmup_updates: 7432
+
+optimization:
+  clip_norm: 0.0
+  lr: [1e-05]
+  max_update: 123873
+  max_epoch: 10
+
+model:
+  _name: roberta
+  dropout: 0.1
+  attention_dropout: 0.1
