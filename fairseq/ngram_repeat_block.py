@@ -110,7 +110,7 @@ class NGramRepeatBlock(nn.Module):
     @staticmethod
     def custom_index_put_(A: torch.Tensor, indx: torch.Tensor, value):
         """ Custom index_put_ implementation compatible with Torchscript """
-        indices: List[Tensor] = [i for i in indx]
+        indices: List[torch.Tensor] = [i for i in indx]
         A.index_put_(indices=indices, values=value)
         return A
 
