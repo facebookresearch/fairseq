@@ -5,8 +5,7 @@
 import torch
 from torch import nn
 
-import math
-from typing import Dict, List, Optional
+from typing import List
 import warnings
 
 try:
@@ -92,7 +91,7 @@ class NGramRepeatBlock(nn.Module):
                 beam_size,
                 step,
             )
-    
+
     @staticmethod
     def custom_index_select(A: torch.Tensor, indx: torch.Tensor):
         """ Custom index_select implementation compatible with Torchscript """
@@ -123,8 +122,7 @@ class NGramRepeatBlock(nn.Module):
         step: int
     ) -> torch.Tensor:
         """For each hypothesis generate a list of previous ngrams and set associated lprobs to -inf"""
-        
-        num_ngrams = step - self.no_repeat_ngram_size + 2 # Number of ngrams generated so far
+        num_ngrams = step - self.no_repeat_ngram_size + 2  # Number of ngrams generated so far
 
         if num_ngrams > 0:
             # Expand tokens tensor. The resulting gen_ngrams have shape (num_sequences, num_ngrams, ngram_size)
@@ -133,32 +131,30 @@ class NGramRepeatBlock(nn.Module):
             for n in range(1, self.no_repeat_ngram_size):
                 shift = torch.roll(expand_tokens, shifts=-n, dims=2)
                 gen_ngrams = torch.cat((gen_ngrams, shift), dim=1)
-            
             # Now we transpose gen_ngrams and truncate at the maximum number of ngrams generated so far
-            gen_ngrams = torch.transpose(gen_ngrams[:, :, :num_ngrams ], dim0=2, dim1=1)
+            gen_ngrams = torch.transpose(gen_ngrams[:, :, :num_ngrams], dim0=2, dim1=1)
 
             # Keep the preceding tokens generated till step is reached on every batch/beam
-            last_generated_ngram = tokens[:, step + 2 - self.no_repeat_ngram_size : step + 1]
+            last_generated_ngram = tokens[:, step + 2 - self.no_repeat_ngram_size: step + 1]
 
-            # Now we need to look for last_generated_ngram in our gen_ngrams matrix. 
+            # Now we need to look for last_generated_ngram in our gen_ngrams matrix.
             # All matches should return next token (the ones we need to avoid).
             expand_lgn = torch.unsqueeze(last_generated_ngram, dim=1).repeat(1, num_ngrams, 1)
 
             matches_mask = torch.all(gen_ngrams[:, :, :-1] == expand_lgn, dim=2).to(tokens)
             indices = torch.nonzero(matches_mask).to(tokens)
 
-            #If there are no matches, then we can just return lprobs as it is
+            # If there are no matches, then we can just return lprobs as it is
             if indices.size()[0] == 0:
                 return lprobs
-            
-            # Tensor containing the tokens we need to avoid. 
+            # Tensor containing the tokens we need to avoid.
             # Running "banned_tokens = gen_ngrams[indices][:, -1]" is not compatible with TS".
             banned_tokens = self.custom_index_select(gen_ngrams, indices.t())[:, -1]
 
             # Tensor to keep track of which batch/beam we are
             positions = torch.arange(bsz*beam_size).unsqueeze(-1).repeat(1, num_ngrams).to(tokens)
 
-            #Where does the banned_tokens belong? Let's find out:
+            # Where does the banned_tokens belong? Let's find out:
             selected_positions = self.custom_index_select(positions, indices.t())
             final_positions = torch.stack((selected_positions, banned_tokens), dim=1)
             final_positions = torch.unique(final_positions, dim=0)

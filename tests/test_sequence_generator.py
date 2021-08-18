@@ -351,7 +351,7 @@ class TestRepeatNgramBlocking(TestSequenceGeneratorBase):
         )
         blocker = NGramRepeatBlock(2, use_extension=False)
         base_result = blocker(generated_tok, lprobs.clone(), bsz, beam_size, step)
-        
+
         self.assertTensorEqual(base_result, desired_result)
 
     @unittest.skipIf(torch.__version__ < "1.6.0", JIT_MSG)
