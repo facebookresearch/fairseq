@@ -66,6 +66,8 @@ class _FP16OptimizerMixin(object):
                 p32 = torch.nn.Parameter(p.data.float())
                 if hasattr(p, 'expert'):
                     p32.expert = True
+                elif hasattr(p, 'base_expert'):
+                    p32.base_expert = True
                 p32.grad = torch.zeros_like(p32.data)
                 if hasattr(p, "param_group"):
                     p32.param_group = p.param_group
