@@ -327,8 +327,51 @@ class TestSequenceGenerator(TestSequenceGeneratorBase):
         self.assertHypoScore(hypos[0][0], [0.9, 1.0])
 
 
-@unittest.skipUnless(torch.cuda.is_available(), "")
 class TestRepeatNgramBlocking(TestSequenceGeneratorBase):
+    @classmethod
+    def setUpClass(cls):
+        (
+            cls.tgt_dict,
+            cls.w1,
+            cls.w2,
+            src_tokens,
+            src_lengths,
+            cls.model,
+        ) = test_utils.sequence_generator_setup()
+        return cls
+
+    def test_finds_repetitive_tokens(self):
+        bsz, vocab_size, beam_size, step = 2, 4, 1, 3
+        generated_tok = torch.tensor(
+            [[2, 2, 2, 2], [3, 3, 3, 3]], dtype=torch.long,
+        )
+        lprobs = torch.zeros((beam_size * bsz, vocab_size),)
+        desired_result = lprobs.new_tensor(
+            [[0.0, 0.0, -math.inf, 0.0], [0.0, 0.0, 0.0, -math.inf]]
+        )
+        blocker = NGramRepeatBlock(2, use_extension=False)
+        base_result = blocker(generated_tok, lprobs.clone(), bsz, beam_size, step)
+        
+        self.assertTensorEqual(base_result, desired_result)
+
+    @unittest.skipIf(torch.__version__ < "1.6.0", JIT_MSG)
+    def test_jit_no_extension(self):
+        bsz, vocab_size, beam_size, step = 2, 4, 1, 3
+        generated_tok = torch.tensor(
+            [[2, 2, 2, 2], [3, 3, 3, 3]], dtype=torch.long,
+        )
+        lprobs = torch.zeros((beam_size * bsz, vocab_size))
+        blocker = NGramRepeatBlock(2, use_extension=False)
+        base_result = blocker(generated_tok, lprobs.clone(), bsz, beam_size, step)
+        scripted_blocker = torch.jit.script(blocker)
+        jit_result = scripted_blocker(
+            generated_tok, lprobs.clone(), bsz, beam_size, step
+        )
+        self.assertTensorEqual(base_result, jit_result)
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "")
+class TestRepeatNgramBlockingWithCudaKernel(TestSequenceGeneratorBase):
     @classmethod
     def setUpClass(cls):
         (
