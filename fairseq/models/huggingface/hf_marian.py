@@ -3,7 +3,6 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from examples.speech_recognition import new
 import logging
 import os
 import sys
@@ -18,7 +17,7 @@ from fairseq.models import (
 import torch.nn as nn 
 from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models.transformer import (
-    FairseqEncoderDecoderModel,
+    TransformerModel,
     TransformerDecoder, 
     FairseqEncoder, 
     FairseqIncrementalDecoder
@@ -43,9 +42,9 @@ DEFAULT_MAX_TARGET_POSITIONS = 1024
 
 
 @register_model("hf_marian")
-class HuggingFaceMarianNMT(FairseqEncoderDecoderModel):
+class HuggingFaceMarianNMT(TransformerModel):
     def __init__(self, cfg, encoder, decoder):
-        super().__init__(encoder, decoder)
+        super().__init__(cfg, encoder, decoder)
         self.cfg = cfg
         self.hf_config = MarianConfig.from_pretrained(cfg.common_eval.path)
 
