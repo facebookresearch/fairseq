@@ -45,7 +45,7 @@ class HuggingFaceTranslationTask(TranslationTask):
     def build_model(self, cfg, name):
         from fairseq import models
         #logger.info(cfg)
-        cfg._name == 'name'
+        cfg._name = 'name'
         model = models.build_model(cfg, self)
         return model
 
