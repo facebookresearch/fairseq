@@ -1,7 +1,8 @@
 
-/Users/csinclair/opt/anaconda3/envs/fairseq/bin/fairseq-interactive  \
+/Users/csinclair/opt/anaconda3/envs/fairseq/bin/fairseq-interactive scipted \
   --path scripted  \
   --task translation_marian \
+  --traced \
   --beam 5
 
   fairseq-interactive \

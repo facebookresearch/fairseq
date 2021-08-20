@@ -7,13 +7,10 @@ import logging
 import os
 
 from fairseq.data import (
-    data_utils,
     TokenizerDictionary,
-    RawLabelDataset,
-    MarianTokenizerDataset,
 )
-from fairseq.tasks import FairseqTask,  register_task
-from .translation import TranslationTask, TranslationConfig
+from fairseq.tasks import register_task
+from .translation import TranslationTask
 
 
 logger = logging.getLogger(__name__)
@@ -21,6 +18,14 @@ logger = logging.getLogger(__name__)
 
 @register_task('translation_marian')
 class HuggingFaceTranslationTask(TranslationTask):
+    @staticmethod
+    def add_args(parser):
+        """Add task-specific arguments to the parser."""
+        # fmt: off
+        TranslationTask.add_args(parser)
+        parser.add_argument('--traced', action='store_true',
+                            help='whether to use traced model or not')
+
     def __init__(self, args, data_dictionary):
         super().__init__(args, data_dictionary, data_dictionary)
         self.dictionary = data_dictionary
@@ -44,8 +49,10 @@ class HuggingFaceTranslationTask(TranslationTask):
 
     def build_model(self, cfg):
         from fairseq import models
-        #logger.info(cfg)
-        if cfg._name is None:
+        logger.info(cfg)
+        if self.args.traced:
+            cfg._name = 'hf_marian_traced'
+        else:
             cfg._name = 'hf_marian'
         model = models.build_model(cfg, self)
         return model
