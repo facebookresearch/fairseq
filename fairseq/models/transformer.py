@@ -729,8 +729,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             self.layer_norm = LayerNorm(embed_dim, export=export)
         else:
             self.layer_norm = None
-        print(embed_dim)
-        print(self.output_embed_dim)
         self.project_out_dim = (
             Linear(embed_dim, self.output_embed_dim, bias=False)
             if embed_dim != self.output_embed_dim and not args.tie_adaptive_weights
