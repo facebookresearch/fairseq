@@ -418,14 +418,14 @@ class TranslationTask(FairseqTask):
 
                 def compute_bleu(meters):
                     import inspect
-                    import sacrebleu
+                    from sacrebleu.metrics import BLEU
 
-                    fn_sig = inspect.getfullargspec(sacrebleu.compute_bleu)[0]
+                    fn_sig = inspect.getfullargspec(BLEU.compute_bleu)[0]
                     if "smooth_method" in fn_sig:
                         smooth = {"smooth_method": "exp"}
                     else:
                         smooth = {"smooth": "exp"}
-                    bleu = sacrebleu.compute_bleu(
+                    bleu = BLEU.compute_bleu(
                         correct=meters["_bleu_counts"].sum,
                         total=meters["_bleu_totals"].sum,
                         sys_len=meters["_bleu_sys_len"].sum,
