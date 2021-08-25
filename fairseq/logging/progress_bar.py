@@ -21,7 +21,6 @@ import torch
 
 from .meters import AverageMeter, StopwatchMeter, TimeMeter
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -62,6 +61,7 @@ def progress_bar(
         try:
             # [FB only] custom wrapper for TensorBoard
             import palaas  # noqa
+
             from .fb_tbmf_wrapper import FbTbmfWrapper
 
             bar = FbTbmfWrapper(bar, log_interval)
@@ -324,6 +324,9 @@ def _close_writers():
     for w in _tensorboard_writers.values():
         w.close()
 
+def clear_tb_writers():
+    _close_writers()
+    _tensorboard_writers.clear()
 
 atexit.register(_close_writers)
 
