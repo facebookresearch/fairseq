@@ -262,6 +262,12 @@ class TranslationConfig(FairseqDataclass):
     eval_bleu_print_samples: bool = field(
         default=False, metadata={"help": "print sample generations during validation"}
     )
+    eval_bleu_tokenizer: Optional[str] = field(
+        default='13a',
+        metadata={
+            "help": "Tokenization method to use for SacreBLEU. Specific `zh` for Chinese and `ja-mecab` for Japanese . Choices: {none,zh,13a,char,intl,ja-mecab}"
+        }
+    )
 
 
 @register_task("translation", dataclass=TranslationConfig)
@@ -484,4 +490,8 @@ class TranslationTask(FairseqTask):
         if self.cfg.eval_tokenized_bleu:
             return sacrebleu.corpus_bleu(hyps, [refs], tokenize="none")
         else:
-            return sacrebleu.corpus_bleu(hyps, [refs])
+            if self.cfg.target_lang == 'zh' and self.cfg.eval_bleu_tokenizer != 'zh':
+                logger.warning("You should use the 'zh' tokenizer for Chinese. Use --eval-bleu-tokenizer zh")
+            if self.cfg.target_lang == 'ja' and self.cfg.eval_bleu_tokenizer != 'ja-mecab':
+                logger.warning("You should use the 'ja-mecab' tokenizer for Chinese. Use --eval-bleu-tokenizer ja-mecab")
+            return sacrebleu.corpus_bleu(hyps, [refs], tokenize=self.cfg.eval_bleu_tokenizer)
