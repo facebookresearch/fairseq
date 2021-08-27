@@ -493,5 +493,5 @@ class TranslationTask(FairseqTask):
             if self.cfg.target_lang == 'zh' and self.cfg.eval_bleu_tokenizer != 'zh':
                 logger.warning("You should use the 'zh' tokenizer for Chinese. Use --eval-bleu-tokenizer zh")
             if self.cfg.target_lang == 'ja' and self.cfg.eval_bleu_tokenizer != 'ja-mecab':
-                logger.warning("You should use the 'ja-mecab' tokenizer for Chinese. Use --eval-bleu-tokenizer ja-mecab")
+                logger.warning("You should use the 'ja-mecab' tokenizer for Japanese. Use --eval-bleu-tokenizer ja-mecab")
             return sacrebleu.corpus_bleu(hyps, [refs], tokenize=self.cfg.eval_bleu_tokenizer)
