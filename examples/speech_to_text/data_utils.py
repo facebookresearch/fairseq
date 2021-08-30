@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import sentencepiece as sp
 from fairseq.data.audio.audio_utils import (
-    _convert_to_mono, _get_kaldi_fbank, _get_torchaudio_fbank
+    convert_to_mono, _get_kaldi_fbank, _get_torchaudio_fbank
 )
 import torch
 from tqdm import tqdm
