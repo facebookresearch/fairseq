@@ -33,7 +33,7 @@ def _sox_convert(
     return ta_sox.apply_effects_tensor(waveform, sample_rate, effects)[0]
 
 
-def convert_to_mono(waveform: np.ndarray, sample_rate: int) -> np.ndarray:
+def _convert_to_mono(waveform: np.ndarray, sample_rate: int) -> np.ndarray:
     if waveform.shape[0] > 1:
         _waveform = torch.from_numpy(waveform)
         effects = [["channels", "1"]]
@@ -79,7 +79,7 @@ def get_waveform(
     )
     waveform = waveform.T  # T x C -> C x T
     if mono and waveform.shape[0] > 1:
-        waveform = convert_to_mono(waveform, sample_rate)
+        waveform = _convert_to_mono(waveform, sample_rate)
     if output_sample_rate > 0:
         waveform = update_sample_rate(waveform, sample_rate, output_sample_rate)
         sample_rate = output_sample_rate
