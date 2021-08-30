@@ -78,7 +78,7 @@ def extract_fbank_features(
     if output_path is not None and output_path.is_file() and not overwrite:
         return
 
-    _waveform = _convert_to_mono(waveform, sample_rate)
+    _waveform = convert_to_mono(waveform, sample_rate)
     _waveform = _waveform * (2 ** 15)  # Kaldi compliance: 16-bit signed integers
     _waveform = _waveform.numpy()
 
