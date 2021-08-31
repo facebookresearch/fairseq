@@ -44,7 +44,7 @@ DDP_BACKEND_CHOICES = ChoiceEnum([
     "slow_mo",
 ])
 DDP_COMM_HOOK_CHOICES = ChoiceEnum(["none", "fp16"])
-DATASET_IMPL_CHOICES = ChoiceEnum(["raw", "lazy", "cached", "mmap", "fasta"])
+DATASET_IMPL_CHOICES = ChoiceEnum(["raw", "lazy", "cached", "mmap", "fasta", "huffman"])
 GENERATION_CONSTRAINTS_CHOICES = ChoiceEnum(["ordered", "unordered"])
 GENERATION_DECODING_FORMAT_CHOICES = ChoiceEnum(
     ["unigram", "ensemble", "vote", "dp", "bs"]

@@ -267,7 +267,7 @@ class Dictionary:
                 self.add_symbol(word, n=count, overwrite=overwrite)
             except ValueError:
                 raise ValueError(
-                    "Incorrect dictionary format, expected '<token> <cnt> [flags]'"
+                    f"Incorrect dictionary format, expected '<token> <cnt> [flags]': \"{line}\""
                 )
 
     def _save(self, f, kv_iterator):
