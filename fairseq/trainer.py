@@ -62,6 +62,7 @@ class Trainer(object):
             self.device = torch.device("cpu")
 
         if self.is_fsdp:
+            import fairscale
             if self.cfg.common.bf16:
                 raise ValueError(
                     "FullyShardedDataParallel is not compatible with --bf16 or "
@@ -71,6 +72,11 @@ class Trainer(object):
                 raise ValueError(
                     "FullyShardedDataParallel is not compatible with --zero-sharding "
                     "option (it's already built in)"
+                )
+            if max(self.cfg.optimization.update_freq) > 1 and fairscale.__version__ < "0.4.0":
+                raise RuntimeError(
+                    "Please update to fairscale 0.4.0 or newer when combining "
+                    "--update-freq with FullyShardedDataParallel"
                 )
         else:
             if (
