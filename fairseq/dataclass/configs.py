@@ -985,6 +985,36 @@ class InteractiveConfig(FairseqDataclass):
 
 
 @dataclass
+class EMAConfig(FairseqDataclass):
+    store_ema: bool = field(
+        default=False, metadata={
+            help: "store exponential moving average shadow model"
+        }
+    )
+    ema_decay: float = field(
+        default=0.9999, metadata={
+            "help": 'decay for exponential moving average model'
+        }
+    )
+    ema_start_update : int = field(
+        default=0, metadata={"help": "start EMA update after this many model updates"}
+    )
+    ema_seed_model : Optional[str] = field(
+        default=None, metadata={
+            "help": "Seed to load EMA model from. "
+            "Used to load EMA model separately from the actual model."
+        }
+    )
+    ema_update_freq : int = field(
+        default=1, metadata={"help": "Do EMA update every this many model updates"}
+    )
+    ema_fp32: bool = field(
+        default=False,
+        metadata={"help": "If true, store EMA model in fp32 even if model is in fp16"},
+    )
+
+
+@dataclass
 class FairseqConfig(FairseqDataclass):
     common: CommonConfig = CommonConfig()
     common_eval: CommonEvalConfig = CommonEvalConfig()
@@ -1004,3 +1034,4 @@ class FairseqConfig(FairseqDataclass):
     scoring: Any = None
     bpe: Any = None
     tokenizer: Any = None
+    ema: EMAConfig = EMAConfig()
