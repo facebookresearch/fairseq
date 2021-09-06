@@ -106,6 +106,11 @@ salloc --gpus-per-node 8 --ntasks-per-node 8 --cpus-per-task 12 --nodes 8 --mem-
 NUM_EXPERTS=64
 TOKENS_PER_SAMPLE=1024
 
+# we want 12 sequences per GPU. On <= 128 GPUs we can fit 6 sequences and use
+# gradient accumulation to reach this target.
+BATCH_SIZE=6
+GRAD_ACC=2
+
 # launch the job (adjust port and --cpu-bind if needed)
 DISTRIBUTED_PORT=12345
 srun --cpu-bind=mask_cpu:000000ffffff000000ffffff,000000ffffff000000ffffff,000000ffffff000000ffffff,000000ffffff000000ffffff,ffffff000000ffffff000000,ffffff000000ffffff000000,ffffff000000ffffff000000,ffffff000000ffffff000000 \
@@ -125,7 +130,16 @@ srun --cpu-bind=mask_cpu:000000ffffff000000ffffff,000000ffffff000000ffffff,00000
   --optimizer adam --fp16-adam-stats --adam-betas '(0.9, 0.98)' --clip-norm 0.0 \
   --lr 0.0005 --warmup-updates 750 \
   --dropout 0.1 --attention-dropout 0.1 \
-  --batch-size 12 --update-freq 1 \
+  --batch-size $BATCH_SIZE --update-freq $GRAD_ACC \
   --max-update 250 --disable-validation \
   --log-format json --log-interval 10
 ```
+
+#### Expected performance on IB interconnect
+
+| num GPUs | num experts | batch size (x grad acc.) | words per second (wps) |
+| -- | -- | -- | -- |
+| 32 | 32 | 6 (x2) | 33k |
+| 64 | 64 | 6 (x2) | 82k |
+| 128 | 128 | 6 (x2) | 191k |
+| 512 | 512 | 12 (x1) | 638k |
