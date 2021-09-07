@@ -343,7 +343,6 @@ class SequenceGenerator(nn.Module):
                 )
                 probs = probs[:, -1, :] * self.lm_weight
                 lprobs += probs
-
             # handle prefix tokens (possibly with different lengths)
             if (
                 prefix_tokens is not None
@@ -568,7 +567,7 @@ class SequenceGenerator(nn.Module):
         prefix_toks = prefix_tokens[:, step].unsqueeze(-1).repeat(1, beam_size).view(-1)
         prefix_lprobs = lprobs.gather(-1, prefix_toks.unsqueeze(-1))
         prefix_mask = prefix_toks.ne(self.pad)
-        lprobs[prefix_mask] = torch.min(prefix_lprobs)
+        lprobs[prefix_mask] = torch.min(prefix_lprobs) - 1
         lprobs[prefix_mask] = lprobs[prefix_mask].scatter(
             -1, prefix_toks[prefix_mask].unsqueeze(-1), prefix_lprobs[prefix_mask]
         )
