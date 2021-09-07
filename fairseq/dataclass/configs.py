@@ -306,6 +306,13 @@ class DistributedTrainingConfig(FairseqDataclass):
             "--ddp-backend=legacy_ddp)"
         },
     )
+    gradient_as_bucket_view: bool = field(
+        default=False,
+        metadata={
+            "help": "when set to True, gradients will be views pointing to different offsets of allreduce communication buckets. This can reduce peak memory usage, where the saved memory size will be equal to the total gradients size. "
+            "--gradient-as-bucket-view=gradient_as_bucket_view)"
+        },
+    )
     fast_stat_sync: bool = field(
         default=False,
         metadata={"help": "[deprecated] this is now defined per Criterion"},
