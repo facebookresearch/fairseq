@@ -733,7 +733,7 @@ class Trainer(object):
         self.criterion.train()
         self.zero_grad()
 
-        metrics.log_start_time("train_wall", priority=800, round=0)
+        metrics.log_start_time("train_wall", priority=800, round=3)
 
         # forward and backward pass
         logging_outputs, sample_size, ooms = [], 0, 0
