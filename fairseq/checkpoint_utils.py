@@ -31,7 +31,7 @@ from omegaconf import DictConfig, open_dict, OmegaConf
 logger = logging.getLogger(__name__)
 
 
-def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
+def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss, save_metadata=False):
     from fairseq import meters
 
     # only one worker should attempt to create the required dir
@@ -114,7 +114,7 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
         os.path.join(cfg.save_dir, fn) for fn, cond in checkpoint_conds.items() if cond
     ]
     if len(checkpoints) > 0:
-        trainer.save_checkpoint(checkpoints[0], extra_state)
+        trainer.save_checkpoint(checkpoints[0], extra_state, save_metadata)
         for cp in checkpoints[1:]:
             if cfg.write_checkpoints_asynchronously:
                 # TODO[ioPath]: Need to implement a delayed asynchronous
@@ -455,8 +455,35 @@ def load_model_ensemble_and_task(
             else:
                 # model parallel checkpoint or unsharded checkpoint
                 model = task.build_model(cfg.model)
+                new_state_model = state["model"]
+
+                '''=====The following if-else statement is a work-around =====
+                # the current metadata loading/saving of pytorch.
+                # In Pytorch, if state["model"]["_metadata"] exists as dictionary, then model.load_state_dict(strict=True)
+                # will throw an error for unexpected "_metadata" key. To avoid this error, we need the state_dict to be
+                # in orderedDict format, which has new_state_model._metadata attribute but not as key.
+                # TODO yuansg@ This issue should be fixed in pytorch ideally.
+                '''
+                if new_state_model.get("_metadata", None) is not None:
+                    new_metadata = new_state_model.get("_metadata", None)
+                    del state["model"]["_metadata"]
+                else:
+                    new_metadata = None
+                # Construct state dict content.
+                contents = OrderedDict(new_state_model)
+                # We explicitly set _metadata for the state models. The _metadata is implicitly stored for pytorch models.
+                # calling state["model"] in fairseq will not invoke metadata storage.
+                if new_metadata is None:
+                    logger.warning("===Jit: state[\"model\"] does not contain key \"_metadata\"=====")
+                    logger.warning("===Jit: we will be filling in with current model's meta-data instead.")
+                    # For models trained before this diff, we do the following to be backward compatible.
+                    contents.__setattr__("_metadata", model.state_dict()._metadata)
+                else:
+                    contents.__setattr__("_metadata", new_metadata)
+                '''====End of work-around logic====='''
+
                 model.load_state_dict(
-                    state["model"], strict=strict, model_cfg=cfg.model
+                    contents, strict=strict, model_cfg=cfg.model
                 )
 
             # reset state so it gets loaded for the next model in ensemble
@@ -683,6 +710,7 @@ def prune_state_dict(state_dict, model_cfg: Optional[DictConfig]):
     It's called by functions that load models from checkpoints and does not
     need to be called directly.
     """
+    state_meta_data = state_dict.get("_metadata", None)
     arch = None
     if model_cfg is not None:
         arch = (
@@ -762,6 +790,9 @@ def prune_state_dict(state_dict, model_cfg: Optional[DictConfig]):
         if hasattr(model_cfg, "decoder_layers_to_keep"):
             model_cfg.decoder_layers_to_keep = None
 
+    # Ensure metadata is stored.
+    if state_meta_data is not None:
+        new_state_dict["_metadata"] = state_meta_data
     return new_state_dict
 
 
