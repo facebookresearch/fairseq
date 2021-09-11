@@ -22,7 +22,6 @@ from fairseq.dataclass.utils import (
 from fairseq.models import FairseqDecoder, FairseqEncoder
 from omegaconf import DictConfig
 from torch import Tensor
-from collections import OrderedDict
 
 
 logger = logging.getLogger(__name__)
@@ -123,15 +122,6 @@ class BaseFairseqModel(nn.Module):
         from fairseq.checkpoint_utils import prune_state_dict
 
         new_state_dict = prune_state_dict(state_dict, model_cfg)
-        # The pytorch assumption of module is that it is an OrderedDict.
-        # Pytorch also assumes module._metadata exists in the state_dict,
-        # not as dictionary keys, rather as an attribute of the state dict.
-        new_state_dict = OrderedDict(new_state_dict)
-        metadata = new_state_dict.get("_metadata", None)
-
-        if metadata:
-            del new_state_dict["_metadata"]
-            new_state_dict.__setattr__("_metadata", metadata)
         return super().load_state_dict(new_state_dict, strict)
 
     def upgrade_state_dict(self, state_dict):
@@ -160,28 +150,6 @@ class BaseFairseqModel(nn.Module):
                 do_upgrade(c, name)
 
         do_upgrade(self, name)
-
-    def update_metadata(self, model_meta):
-        """ The model.state_dict()._metadata is stored in a collective location in
-        state_dict["model"]["_metadata"].
-        A pytorch module's _metadata contains the torch modules' versions, which is important
-        for versionsetting functions.
-
-        During model loading time, we load the model state_dict, but we don't load the state_dict metadata.
-        This function helps to update the model according to the state_dict["model"]["_metadata"] dump.
-        InputArgs:
-            update_metadata: Dict; key is module names, value is {"version", 1} or other metadata.
-        """
-        # Do nothing if the model level metadata is empty.
-        if model_meta is None:
-            return
-        assert isinstance(model_meta, Dict), \
-            "Input model_meta from state_dict should be a dictionary. Check state dict."
-        for key, val in model_meta.items():
-            if key is None:  # First level set up
-                self._metadata = val
-            else:  # Subsequent levels of the model
-                self.get_submodule(key)._metadata = val
 
     def set_num_updates(self, num_updates):
         """State from trainer to pass along to model at every update."""
