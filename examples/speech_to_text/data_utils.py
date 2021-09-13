@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (c) Facebook, Inc. and its affiliates.
 #
 # This source code is licensed under the MIT license found in the
@@ -10,14 +9,17 @@ import zipfile
 from functools import reduce
 from multiprocessing import cpu_count
 from typing import Any, Dict, List, Optional, Union
+import io
 
 import numpy as np
 import pandas as pd
 import sentencepiece as sp
 from fairseq.data.audio.audio_utils import (
-    _convert_to_mono, _get_kaldi_fbank, _get_torchaudio_fbank
+    convert_waveform, _get_kaldi_fbank, _get_torchaudio_fbank, is_npy_data,
+    is_sf_audio_data
 )
 import torch
+import soundfile as sf
 from tqdm import tqdm
 
 
@@ -78,8 +80,9 @@ def extract_fbank_features(
     if output_path is not None and output_path.is_file() and not overwrite:
         return
 
-    _waveform = _convert_to_mono(waveform, sample_rate)
-    _waveform = _waveform * (2 ** 15)  # Kaldi compliance: 16-bit signed integers
+    _waveform = convert_waveform(waveform, sample_rate, to_mono=True)
+    # Kaldi compliance: 16-bit signed integers
+    _waveform = _waveform * (2 ** 15)
     _waveform = _waveform.numpy()
 
     features = _get_kaldi_fbank(_waveform, sample_rate, n_mel_bins)
@@ -92,8 +95,7 @@ def extract_fbank_features(
 
     if output_path is not None:
         np.save(output_path.as_posix(), features)
-    else:
-        return features
+    return features
 
 
 def create_zip(data_root: Path, zip_path: Path):
@@ -103,42 +105,58 @@ def create_zip(data_root: Path, zip_path: Path):
             f.write(path, arcname=path.name)
 
 
-def is_npy_data(data: bytes) -> bool:
-    return data[0] == 147 and data[1] == 78
-
-
-def get_zip_manifest(zip_path: Path, zip_root: Optional[Path] = None):
-    _zip_path = zip_path if zip_root is None else Path.joinpath(zip_root, zip_path)
+def get_zip_manifest(
+        zip_path: Path, zip_root: Optional[Path] = None, is_audio=False
+):
+    _zip_path = Path.joinpath(zip_root or Path(""), zip_path)
     with zipfile.ZipFile(_zip_path, mode="r") as f:
         info = f.infolist()
-    manifest = {}
+    paths, lengths = {}, {}
     for i in tqdm(info):
         utt_id = Path(i.filename).stem
         offset, file_size = i.header_offset + 30 + len(i.filename), i.file_size
-        manifest[utt_id] = f"{zip_path.as_posix()}:{offset}:{file_size}"
+        paths[utt_id] = f"{zip_path.as_posix()}:{offset}:{file_size}"
         with open(_zip_path, "rb") as f:
             f.seek(offset)
-            data = f.read(file_size)
-            assert len(data) > 1 and is_npy_data(data)
-    return manifest
+            byte_data = f.read(file_size)
+            assert len(byte_data) > 1
+            if is_audio:
+                assert is_sf_audio_data(byte_data), i
+            else:
+                assert is_npy_data(byte_data), i
+            byte_data_fp = io.BytesIO(byte_data)
+            if is_audio:
+                lengths[utt_id] = sf.info(byte_data_fp).frames
+            else:
+                lengths[utt_id] = np.load(byte_data_fp).shape[0]
+    return paths, lengths
 
 
 def gen_config_yaml(
     manifest_root: Path,
-    spm_filename: str,
+    spm_filename: Optional[str] = None,
+    vocab_name: Optional[str] = None,
     yaml_filename: str = "config.yaml",
-    specaugment_policy: str = "lb",
+    specaugment_policy: Optional[str] = "lb",
     prepend_tgt_lang_tag: bool = False,
-    sampling_alpha: float = 1.0,
+    sampling_alpha: Optional[float] = None,
+    input_channels: Optional[int] = 1,
+    input_feat_per_channel: Optional[int] = 80,
     audio_root: str = "",
     cmvn_type: str = "utterance",
     gcmvn_path: Optional[Path] = None,
+    extra=None
 ):
     manifest_root = manifest_root.absolute()
     writer = S2TDataConfigWriter(manifest_root / yaml_filename)
-    writer.set_vocab_filename(spm_filename.replace(".model", ".txt"))
-    writer.set_input_channels(1)
-    writer.set_input_feat_per_channel(80)
+    assert spm_filename is not None or vocab_name is not None
+    vocab_name = spm_filename.replace(".model", ".txt") if vocab_name is None \
+        else vocab_name
+    writer.set_vocab_filename(vocab_name)
+    if input_channels is not None:
+        writer.set_input_channels(input_channels)
+    if input_feat_per_channel is not None:
+        writer.set_input_feat_per_channel(input_feat_per_channel)
     specaugment_setters = {
         "lb": writer.set_specaugment_lb_policy,
         "ld": writer.set_specaugment_ld_policy,
@@ -148,34 +166,42 @@ def gen_config_yaml(
     specaugment_setter = specaugment_setters.get(specaugment_policy, None)
     if specaugment_setter is not None:
         specaugment_setter()
-    writer.set_bpe_tokenizer(
-        {
-            "bpe": "sentencepiece",
-            "sentencepiece_model": (manifest_root / spm_filename).as_posix(),
-        }
-    )
+    if spm_filename is not None:
+        writer.set_bpe_tokenizer(
+            {
+                "bpe": "sentencepiece",
+                "sentencepiece_model": (manifest_root / spm_filename).as_posix(),
+            }
+        )
     if prepend_tgt_lang_tag:
         writer.set_prepend_tgt_lang_tag(True)
-    writer.set_sampling_alpha(sampling_alpha)
+    if sampling_alpha is not None:
+        writer.set_sampling_alpha(sampling_alpha)
 
     if cmvn_type not in ["global", "utterance"]:
         raise NotImplementedError
 
-    writer.set_feature_transforms("_train", [f"{cmvn_type}_cmvn", "specaugment"])
+    if specaugment_policy is not None:
+        writer.set_feature_transforms(
+            "_train", [f"{cmvn_type}_cmvn", "specaugment"]
+        )
     writer.set_feature_transforms("*", [f"{cmvn_type}_cmvn"])
 
     if cmvn_type == "global":
-        assert gcmvn_path is not None, (
-            'Please provide path of global cmvn file.'
-        )
-        writer.set_global_cmvn(str(gcmvn_path))
+        if gcmvn_path is None:
+            raise ValueError("Please provide path of global cmvn file.")
+        else:
+            writer.set_global_cmvn(gcmvn_path.as_posix())
 
     if len(audio_root) > 0:
         writer.set_audio_root(audio_root)
+
+    if extra is not None:
+        writer.set_extra(extra)
     writer.flush()
 
 
-def load_df_from_tsv(path: Union[str, Path]):
+def load_df_from_tsv(path: Union[str, Path]) -> pd.DataFrame:
     _path = path if isinstance(path, str) else path.as_posix()
     return pd.read_csv(
         _path,
@@ -199,6 +225,20 @@ def save_df_to_tsv(dataframe, path: Union[str, Path]):
         escapechar="\\",
         quoting=csv.QUOTE_NONE,
     )
+
+
+def load_tsv_to_dicts(path: Union[str, Path]) -> List[dict]:
+    with open(path, "r") as f:
+        reader = csv.DictReader(
+            f,
+            delimiter="\t",
+            quotechar=None,
+            doublequote=False,
+            lineterminator="\n",
+            quoting=csv.QUOTE_NONE,
+        )
+        rows = [dict(e) for e in reader]
+    return rows
 
 
 def filter_manifest_df(
@@ -337,3 +377,6 @@ class S2TDataConfigWriter(object):
 
     def set_sampling_alpha(self, sampling_alpha: float = 1.0):
         self.config["sampling_alpha"] = sampling_alpha
+
+    def set_extra(self, data):
+        self.config.update(data)
