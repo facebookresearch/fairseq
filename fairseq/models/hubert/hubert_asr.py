@@ -21,7 +21,7 @@ from omegaconf import II, MISSING
 
 @dataclass
 class HubertAsrConfig(FairseqDataclass):
-    w2v_path: str = field(
+    hubert_path: str = field(
         default=MISSING, metadata={"help": "path to hubert model"}
     )
     no_pretrained_weights: bool = field(
@@ -127,7 +127,7 @@ class HubertAsrConfig(FairseqDataclass):
     data: str = II("task.data")
 
     # this holds the loaded hubert args
-    w2v_args: Any = None
+    hubert_args: Any = None
 
 
 @dataclass
@@ -137,10 +137,10 @@ class HubertCtcConfig(HubertAsrConfig):
 
 @register_model("hubert_ctc", dataclass=HubertCtcConfig)
 class HubertCtc(BaseFairseqModel):
-    def __init__(self, cfg: HubertCtcConfig, w2v_encoder: BaseFairseqModel):
+    def __init__(self, cfg: HubertCtcConfig, hubert_encoder: BaseFairseqModel):
         super().__init__()
         self.cfg = cfg
-        self.w2v_encoder = w2v_encoder
+        self.hubert_encoder = hubert_encoder
 
     def upgrade_state_dict_named(self, state_dict, name):
         super().upgrade_state_dict_named(state_dict, name)
@@ -149,8 +149,8 @@ class HubertCtc(BaseFairseqModel):
     @classmethod
     def build_model(cls, cfg: HubertCtcConfig, task: FairseqTask):
         """Build a new model instance."""
-        w2v_encoder = HubertEncoder(cfg, task.target_dictionary)
-        return cls(cfg, w2v_encoder)
+        hubert_encoder = HubertEncoder(cfg, task.target_dictionary)
+        return cls(cfg, hubert_encoder)
 
     def get_normalized_probs(self, net_output, log_probs):
         """Get normalized probabilities (or log probs) from a net's output."""
@@ -172,7 +172,7 @@ class HubertCtc(BaseFairseqModel):
         return logits
 
     def forward(self, **kwargs):
-        x = self.w2v_encoder(**kwargs)
+        x = self.hubert_encoder(**kwargs)
         return x
 
 
@@ -257,34 +257,34 @@ class HubertEncoder(FairseqEncoder):
             "feature_grad_mult": cfg.feature_grad_mult,
         }
 
-        if cfg.w2v_args is None:
+        if cfg.hubert_args is None:
             state = checkpoint_utils.load_checkpoint_to_cpu(
-                cfg.w2v_path, arg_overrides
+                cfg.hubert_path, arg_overrides
             )
-            w2v_args = state.get("cfg", None)
-            if w2v_args is None:
-                w2v_args = convert_namespace_to_omegaconf(state["args"])
-            cfg.w2v_args = w2v_args
+            hubert_args = state.get("cfg", None)
+            if hubert_args is None:
+                hubert_args = convert_namespace_to_omegaconf(state["args"])
+            cfg.hubert_args = hubert_args
         else:
             state = None
-            w2v_args = cfg.w2v_args
-            if isinstance(w2v_args, Namespace):
-                cfg.w2v_args = w2v_args = convert_namespace_to_omegaconf(
-                    w2v_args
+            hubert_args = cfg.hubert_args
+            if isinstance(hubert_args, Namespace):
+                cfg.hubert_args = hubert_args = convert_namespace_to_omegaconf(
+                    hubert_args
                 )
 
-        assert cfg.normalize == w2v_args.task.normalize, (
+        assert cfg.normalize == hubert_args.task.normalize, (
             "Fine-tuning works best when data normalization is the same. "
             "Please check that --normalize is set or unset for "
             "both pre-training and here"
         )
 
-        w2v_args.task.data = cfg.data
-        task = tasks.setup_task(w2v_args.task)
+        hubert_args.task.data = cfg.data
+        task = tasks.setup_task(hubert_args.task)
         if state is not None and "task_state" in state:
             # This will load the stored "dictionaries" object
             task.load_state_dict(state["task_state"])
-        model = task.build_model(w2v_args.model)
+        model = task.build_model(hubert_args.model)
 
         if state is not None and not cfg.no_pretrained_weights:
             # set strict=False because we omit some modules
@@ -294,9 +294,9 @@ class HubertEncoder(FairseqEncoder):
 
         super().__init__(task.source_dictionary)
 
-        d = w2v_args.model.encoder_embed_dim
+        d = hubert_args.model.encoder_embed_dim
 
-        self.w2v_model = model
+        self.hubert_model = model
 
         self.final_dropout = nn.Dropout(cfg.final_dropout)
         self.freeze_finetune_updates = cfg.freeze_finetune_updates
@@ -316,7 +316,7 @@ class HubertEncoder(FairseqEncoder):
 
     def forward(self, source, padding_mask, tbc=True, **kwargs):
 
-        w2v_args = {
+        hubert_args = {
             "source": source,
             "padding_mask": padding_mask,
             "mask": self.apply_mask and self.training,
@@ -325,7 +325,7 @@ class HubertEncoder(FairseqEncoder):
         ft = self.freeze_finetune_updates <= self.num_updates
 
         with torch.no_grad() if not ft else contextlib.ExitStack():
-            x, padding_mask = self.w2v_model.extract_features(**w2v_args)
+            x, padding_mask = self.hubert_model.extract_features(**hubert_args)
 
             if tbc:
                 # B x T x C -> T x B x C
