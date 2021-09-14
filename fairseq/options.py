@@ -56,6 +56,14 @@ def get_generation_parser(interactive=False, default_task="translation"):
     return parser
 
 
+def get_speech_generation_parser(default_task="text_to_speech"):
+    parser = get_parser("Speech Generation", default_task)
+    add_dataset_args(parser, gen=True)
+    add_distributed_training_args(parser, default_world_size=1)
+    add_speech_generation_args(parser)
+    return parser
+
+
 def get_interactive_generation_parser(default_task="translation"):
     return get_generation_parser(interactive=True, default_task=default_task)
 
@@ -341,6 +349,16 @@ def add_generation_args(parser):
     group = parser.add_argument_group("Generation")
     add_common_eval_args(group)
     gen_parser_from_dataclass(group, GenerationConfig())
+    return group
+
+
+def add_speech_generation_args(parser):
+    group = parser.add_argument_group("Speech Generation")
+    add_common_eval_args(group)  # NOTE: remove_bpe is not needed
+    # fmt: off
+    group.add_argument('--eos_prob_threshold', default=0.5, type=float,
+                       help='terminate when eos probability exceeds this')
+    # fmt: on
     return group
 
 
