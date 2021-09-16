@@ -64,6 +64,7 @@ We provide reference implementations of various sequence modeling papers:
 
 ### What's New:
 
+* September 2021 [`master` branch renamed to `main`](https://github.com/github/renaming).
 * July 2021 [Released DrNMT code](examples/discriminative_reranking_nmt/README.md)
 * July 2021 [Released Robust wav2vec 2.0 model](examples/wav2vec/README.md)
 * June 2021 [Released XLMR-XL and XLMR-XXL models](examples/xlmr/README.md)
