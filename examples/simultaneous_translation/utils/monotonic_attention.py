@@ -145,6 +145,8 @@ def expected_soft_attention(
     # Mix precision to prevent overflow for fp16
     beta = beta.type(dtype)
 
+    beta = beta.clamp(0, 1)
+
     prob_check(beta)
 
     return beta

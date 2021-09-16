@@ -6,11 +6,12 @@
 import torch
 
 
-def prob_check(tensor):
+def prob_check(tensor, eps=1e-10):
     assert not torch.isnan(tensor).any(), (
         "Nan in a probability tensor."
     )
-    assert tensor.le(1.0).all() and tensor.ge(0.0).all(), (
+    # Add the eps here to prevent errors introduced by precision
+    assert tensor.le(1.0 + eps).all() and tensor.ge(0.0 - eps).all(), (
         "Incorrect values in a probability tensor"
         ", 0.0 <= tensor <= 1.0"
     )

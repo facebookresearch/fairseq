@@ -92,7 +92,8 @@ class Dictionary:
             )
 
         extra_symbols_to_ignore = set(extra_symbols_to_ignore or [])
-        extra_symbols_to_ignore.add(self.eos())
+        if not include_eos:
+            extra_symbols_to_ignore.add(self.eos())
 
         def token_string(i):
             if i == self.unk():

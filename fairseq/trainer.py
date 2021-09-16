@@ -424,18 +424,12 @@ class Trainer(object):
             state_dict["fsdp_metadata"] = self.model.local_metadata_dict()
         return state_dict
 
-    def save_checkpoint(self, filename, extra_state, save_metadata=False):
+    def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
         logger.info(f"Saving checkpoint to {filename}")
         # call state_dict on all ranks in case it needs internal communication
         state_dict = utils.move_to_cpu(self.state_dict())
         state_dict["extra_state"].update(extra_state)
-        # This should be added because model versions are stored as metadata.
-        if save_metadata and getattr(self.model.state_dict(), "_metadata", None) is not None:
-            logger.warning("Trainer: _metadata is inside model.state_dict(). ")
-            state_dict["model"]["_metadata"] = self.model.state_dict()._metadata
-        else:
-            logger.warning("Trainer: _metadata is not saved inside model.state_dict(). ")
         if self.should_save_checkpoint_on_current_rank:
             checkpoint_utils.torch_persistent_save(
                 state_dict,
@@ -508,7 +502,6 @@ class Trainer(object):
                 self.model.load_state_dict(
                     state["model"], strict=True, model_cfg=self.cfg.model
                 )
-                self.model.update_metadata(getattr(state["model"], "_metadata", None))
                 # save memory for later steps
                 del state["model"]
                 if utils.has_parameters(self.get_criterion()):
