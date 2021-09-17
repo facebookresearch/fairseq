@@ -364,14 +364,20 @@ class TranslationTask(FairseqTask):
         model = super().build_model(cfg)
         if self.cfg.eval_bleu:
             detok_args = json.loads(self.cfg.eval_bleu_detok_args)
-            self.tokenizer = encoders.build_tokenizer(
-                Namespace(tokenizer=self.cfg.eval_bleu_detok, **detok_args)
-            )
+            if self.cfg.eval_bleu_detok == 'sentencepiece':
+                self.tokenizer = encoders.build_bpe(
+                    Namespace(bpe=self.cfg.eval_bleu_detok, **detok_args)
+                )
+            else:
+                self.tokenizer = encoders.build_tokenizer(
+                    Namespace(tokenizer=self.cfg.eval_bleu_detok, **detok_args)
+                )
 
             gen_args = json.loads(self.cfg.eval_bleu_args)
             self.sequence_generator = self.build_generator(
                 [model], Namespace(**gen_args)
             )
+            
         return model
 
     def valid_step(self, sample, model, criterion):
