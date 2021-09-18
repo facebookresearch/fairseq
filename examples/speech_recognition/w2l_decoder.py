@@ -21,7 +21,7 @@ import torch
 from examples.speech_recognition.data.replabels import unpack_replabels
 from fairseq import tasks
 from fairseq.utils import apply_to_sample
-from omegaconf import open_dict
+from omegaconf import open_dict, OmegaConf
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 
 
@@ -381,7 +381,7 @@ class W2lFairseqLMDecoder(W2lDecoder):
         checkpoint = torch.load(args.kenlm_model, map_location="cpu")
 
         if "cfg" in checkpoint and checkpoint["cfg"] is not None:
-            lm_args = checkpoint["cfg"]
+            lm_args = OmegaConf.create(checkpoint["cfg"])
         else:
             lm_args = convert_namespace_to_omegaconf(checkpoint["args"])
 
