@@ -149,7 +149,7 @@ class MonotonicAttention(MultiheadAttention):
         return p_choose
 
     def p_choose(self, query, key, key_padding_mask, incremental_states=None):
-        return self.p_choose_from_qk(self, query, key, key_padding_mask)
+        return self.p_choose_from_qk(query, key, key_padding_mask)
 
     def monotonic_attention_process_infer(
         self,
@@ -381,7 +381,7 @@ class MonotonicAttention(MultiheadAttention):
             .view(length, bsz * self.num_heads, self.head_dim)
             .transpose(0, 1)
         )
-
+        beta = beta.view(bsz * self.num_heads, tgt_len, src_len)
         attn = torch.bmm(beta.type_as(v), v)
 
         attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
