@@ -148,8 +148,8 @@ class MonotonicAttention(MultiheadAttention):
         )
         return p_choose
 
-    def p_choose(self, query, key, key_padding_mask, incremental_states=None):
-        return self.p_choose_from_qk(query, key, key_padding_mask)
+    def p_choose(self, query, key, key_padding_mask, incremental_state=None):
+        return self.p_choose_from_qk(query, key, key_padding_mask, incremental_state=incremental_state)
 
     def monotonic_attention_process_infer(
         self,
