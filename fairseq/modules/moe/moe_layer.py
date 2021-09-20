@@ -24,7 +24,7 @@ else:
 
 try:
     # To enable Tutel MoE optimizations:
-    #   python3 -m pip install --user https://github.com/microsoft/tutel/releases/download/v0.1.0/tutel-0.1.0.tar.gz
+    #   python3 -m pip install --user --upgrade git+https://github.com/microsoft/tutel@v0.1.x
     from tutel import moe as tutel_moe
 
     has_tutel, fused_cumsum_sub_one = True, tutel_moe.fast_cumsum_sub_one
@@ -167,7 +167,7 @@ class MOELayer(Base):
 
             if not hasattr(self, '_tutel_dispatcher'):
                 self._tutel_dispatcher = tutel_moe.fast_dispatcher(E, C, M, dispatch_dtype=reshaped_input.dtype)
-            self._tutel_dispatcher.update(indices_, locations_, gates_)
+            self._tutel_dispatcher.update(indices_, locations_, gates_, capacity=C)
             dispatched_input = self._tutel_dispatcher.encode(reshaped_input)
         else:
             l_aux, combine_weights, dispatch_mask, self.metadata = self.gate(reshaped_input, reshaped_input_padding_mask)
