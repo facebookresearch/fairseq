@@ -55,7 +55,7 @@ project = "fairseq"
 copyright = "Facebook AI Research (FAIR)"
 author = "Facebook AI Research (FAIR)"
 
-github_doc_root = "https://github.com/pytorch/fairseq/tree/master/docs/"
+github_doc_root = "https://github.com/pytorch/fairseq/tree/main/docs/"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the

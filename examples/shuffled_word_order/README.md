@@ -40,7 +40,7 @@ For more results on probing tasks, please refer to [our paper](https://arxiv.org
 
 ## Example Usage
 
-Follow the same usage as in [RoBERTa](https://github.com/pytorch/fairseq/tree/master/examples/roberta) to load and test your models:
+Follow the same usage as in [RoBERTa](https://github.com/pytorch/fairseq/tree/main/examples/roberta) to load and test your models:
 
 ```python
 # Download roberta.base.shuffle.n1 model
@@ -53,11 +53,11 @@ roberta = RoBERTaModel.from_pretrained('/path/to/roberta.base.shuffle.n1', check
 roberta.eval()  # disable dropout (or leave in train mode to finetune)
 ```
 
-**Note**: The model trained without positional embeddings (`roberta.base.nopos`) is a modified `RoBERTa` model, where the positional embeddings are not used. Thus, the typical `from_pretrained` method on fairseq version of RoBERTa will not be able to load the above model weights. To do so, construct a new `RoBERTaModel` object by setting the flag `use_positional_embeddings` to `False` (or [in the latest code](https://github.com/pytorch/fairseq/blob/master/fairseq/models/roberta/model.py#L543), set `no_token_positional_embeddings` to `True`), and then load the individual weights.
+**Note**: The model trained without positional embeddings (`roberta.base.nopos`) is a modified `RoBERTa` model, where the positional embeddings are not used. Thus, the typical `from_pretrained` method on fairseq version of RoBERTa will not be able to load the above model weights. To do so, construct a new `RoBERTaModel` object by setting the flag `use_positional_embeddings` to `False` (or [in the latest code](https://github.com/pytorch/fairseq/blob/main/fairseq/models/roberta/model.py#L543), set `no_token_positional_embeddings` to `True`), and then load the individual weights.
 
 ## Fine-tuning Evaluation
 
-We provide the trained fine-tuned models on MNLI here for each model above for quick evaluation (1 seed for each model). Please refer to [finetuning details](README.finetuning.md) for the parameters of these models. Follow [RoBERTa](https://github.com/pytorch/fairseq/tree/master/examples/roberta) instructions to evaluate these models.
+We provide the trained fine-tuned models on MNLI here for each model above for quick evaluation (1 seed for each model). Please refer to [finetuning details](README.finetuning.md) for the parameters of these models. Follow [RoBERTa](https://github.com/pytorch/fairseq/tree/main/examples/roberta) instructions to evaluate these models.
 
 | Model                                      | MNLI M Dev Accuracy | Link                                                                                                             |
 | :----------------------------------------- | :------------------ | :--------------------------------------------------------------------------------------------------------------- |
