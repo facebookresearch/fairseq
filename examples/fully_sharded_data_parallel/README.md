@@ -48,7 +48,7 @@ CPU, or on 8 GPUs by fully sharding the params and optimizer states across GPUs.
 
 These examples use the WikiText-103 dataset for demonstration purposes, but
 in practice a much larger dataset will be needed to achieve good results.
-Follow the [instructions here](https://github.com/pytorch/fairseq/blob/master/examples/roberta/README.pretraining.md#1-preprocess-the-data)
+Follow the [instructions here](https://github.com/pytorch/fairseq/blob/main/examples/roberta/README.pretraining.md#1-preprocess-the-data)
 to preprocess the WikiText-103 dataset using the GPT-2/RoBERTa vocabulary.
 
 ### 13B params on 1 V100 GPU (with CPU offloading)

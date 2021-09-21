@@ -201,7 +201,7 @@ class LanguageModelingTask(LegacyFairseqTask):
         """Load a given dataset split.
 
         Args:
-            split (str): name of the split (e.g., train, valid, test)
+            split (str): name of the split (e.g., train, valid, valid1, test)
         """
         paths = utils.split_paths(self.args.data)
         assert len(paths) > 0

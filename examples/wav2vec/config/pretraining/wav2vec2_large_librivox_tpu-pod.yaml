@@ -55,7 +55,7 @@ model:
   quantize_targets: true
   extractor_mode: layer_norm
   layer_norm_first: true
-  final_dim: 256
+  final_dim: 768
   latent_temp: [2.0,0.1,0.999995]
   encoder_layerdrop: 0.00
   dropout_input: 0.0
@@ -64,8 +64,9 @@ model:
   attention_dropout: 0.0
   conv_bias: true
 
-  mask_channel_prob: 0.1
-  mask_prob: 0.1
+  encoder_layers: 24
+  encoder_embed_dim: 1024
+  encoder_ffn_embed_dim: 4096
+  encoder_attention_heads: 16
 
   feature_grad_mult: 1.0
-

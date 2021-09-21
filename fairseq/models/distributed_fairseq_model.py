@@ -63,7 +63,22 @@ def DistributedFairseqModel(args, model, process_group, device):
             bucket_cap_mb=args.bucket_cap_mb,
             process_group=process_group,
             find_unused_parameters=args.find_unused_parameters,
+            gradient_as_bucket_view=args.gradient_as_bucket_view,
         )
+        if args.ddp_comm_hook == "fp16":
+            logger.info("enable fp16 communication hook in DDP")
+            try:
+                from torch.distributed.algorithms.ddp_comm_hooks import (
+                    register_ddp_comm_hook,
+                    DDPCommHookType,
+                )
+            except:
+                logger.error(
+                    "Could not import from torch.distributed.algorithms.ddp_comm_hooks; you may need to update your pytorch version"
+                )
+                raise
+
+            register_ddp_comm_hook(DDPCommHookType.FP16_COMPRESS, wrapped_model)
         # forward missing getattr and state_dict/load_state_dict to orig model
         wrapped_model = ModuleProxyWrapper(wrapped_model)
     elif args.ddp_backend in {"no_c10d", "legacy_ddp"}:

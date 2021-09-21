@@ -52,6 +52,7 @@ class SentencePredictionR3F(FairseqCriterion):
         parser.add_argument('--classification-head-name',
                             default='sentence_classification_head',
                             help='name of the classification head to use')
+        parser.add_argument('--regression-target', action='store_true')
         # fmt: on
 
     def _get_symm_kl(self, noised_logits, input_logits):

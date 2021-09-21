@@ -7,10 +7,12 @@
 import argparse
 import importlib
 import os
+from contextlib import ExitStack
 
 from fairseq.dataclass import FairseqDataclass
-from fairseq.dataclass.utils import merge_with_parent, populate_dataclass
+from fairseq.dataclass.utils import merge_with_parent
 from hydra.core.config_store import ConfigStore
+from omegaconf import open_dict, OmegaConf
 
 from .composite_encoder import CompositeEncoder
 from .distributed_fairseq_model import DistributedFairseqModel
@@ -80,17 +82,26 @@ def build_model(cfg: FairseqDataclass, task):
     if model_type in MODEL_DATACLASS_REGISTRY:
         # set defaults from dataclass. note that arch name and model name can be the same
         dc = MODEL_DATACLASS_REGISTRY[model_type]
+
         if isinstance(cfg, argparse.Namespace):
-            cfg = populate_dataclass(dc(), cfg)
+            cfg = dc.from_namespace(cfg)
         else:
             cfg = merge_with_parent(dc(), cfg)
+    else:
+        if model_type in ARCH_CONFIG_REGISTRY:
+            with open_dict(cfg) if OmegaConf.is_config(cfg) else ExitStack():
+                # this calls the different "arch" functions (like base_architecture()) that you indicate
+                # if you specify --arch on the command line. this is only applicable to the old argparse based models
+                # hydra models should expose different architectures via different config files
+                # it will modify the cfg object and default parameters according to the arch
+                ARCH_CONFIG_REGISTRY[model_type](cfg)
 
     assert model is not None, (
         f"Could not infer model type from {cfg}. "
-        f"Available models: "
-        + str(MODEL_DATACLASS_REGISTRY.keys())
-        + " Requested model type: "
-        + model_type
+        "Available models: {}".format(
+            MODEL_DATACLASS_REGISTRY.keys()
+        )
+        + f" Requested model type: {model_type}"
     )
 
     return model.build_model(cfg, task)
@@ -195,25 +206,31 @@ def register_model_architecture(model_name, arch_name):
     return register_model_arch_fn
 
 
+def import_models(models_dir, namespace):
+    for file in os.listdir(models_dir):
+        path = os.path.join(models_dir, file)
+        if (
+            not file.startswith("_")
+            and not file.startswith(".")
+            and (file.endswith(".py") or os.path.isdir(path))
+        ):
+            model_name = file[: file.find(".py")] if file.endswith(".py") else file
+            importlib.import_module(namespace + "." + model_name)
+
+            # extra `model_parser` for sphinx
+            if model_name in MODEL_REGISTRY:
+                parser = argparse.ArgumentParser(add_help=False)
+                group_archs = parser.add_argument_group("Named architectures")
+                group_archs.add_argument(
+                    "--arch", choices=ARCH_MODEL_INV_REGISTRY[model_name]
+                )
+                group_args = parser.add_argument_group(
+                    "Additional command-line arguments"
+                )
+                MODEL_REGISTRY[model_name].add_args(group_args)
+                globals()[model_name + "_parser"] = parser
+
+
 # automatically import any Python files in the models/ directory
 models_dir = os.path.dirname(__file__)
-for file in os.listdir(models_dir):
-    path = os.path.join(models_dir, file)
-    if (
-        not file.startswith("_")
-        and not file.startswith(".")
-        and (file.endswith(".py") or os.path.isdir(path))
-    ):
-        model_name = file[: file.find(".py")] if file.endswith(".py") else file
-        module = importlib.import_module("fairseq.models." + model_name)
-
-        # extra `model_parser` for sphinx
-        if model_name in MODEL_REGISTRY:
-            parser = argparse.ArgumentParser(add_help=False)
-            group_archs = parser.add_argument_group("Named architectures")
-            group_archs.add_argument(
-                "--arch", choices=ARCH_MODEL_INV_REGISTRY[model_name]
-            )
-            group_args = parser.add_argument_group("Additional command-line arguments")
-            MODEL_REGISTRY[model_name].add_args(group_args)
-            globals()[model_name + "_parser"] = parser
+import_models(models_dir, "fairseq.models")

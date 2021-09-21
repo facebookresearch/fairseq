@@ -57,6 +57,7 @@ def load_langpair_dataset(
     num_buckets=0,
     shuffle=True,
     pad_to_multiple=1,
+    prepend_bos_src=None,
 ):
     def split_exists(split, src, tgt, lang, data_path):
         filename = os.path.join(data_path, "{}.{}-{}.{}".format(split, src, tgt, lang))
@@ -128,6 +129,9 @@ def load_langpair_dataset(
         src_dataset = PrependTokenDataset(src_dataset, src_dict.bos())
         if tgt_dataset is not None:
             tgt_dataset = PrependTokenDataset(tgt_dataset, tgt_dict.bos())
+    elif prepend_bos_src is not None:
+        logger.info(f"prepending src bos: {prepend_bos_src}")
+        src_dataset = PrependTokenDataset(src_dataset, prepend_bos_src)
 
     eos = None
     if append_source_id:
@@ -414,14 +418,20 @@ class TranslationTask(FairseqTask):
 
                 def compute_bleu(meters):
                     import inspect
-                    import sacrebleu
+                    try:
+                        from sacrebleu.metrics import BLEU
+                        comp_bleu = BLEU.compute_bleu
+                    except ImportError:
+                        # compatibility API for sacrebleu 1.x
+                        import sacrebleu
+                        comp_bleu = sacrebleu.compute_bleu
 
-                    fn_sig = inspect.getfullargspec(sacrebleu.compute_bleu)[0]
+                    fn_sig = inspect.getfullargspec(comp_bleu)[0]
                     if "smooth_method" in fn_sig:
                         smooth = {"smooth_method": "exp"}
                     else:
                         smooth = {"smooth": "exp"}
-                    bleu = sacrebleu.compute_bleu(
+                    bleu = comp_bleu(
                         correct=meters["_bleu_counts"].sum,
                         total=meters["_bleu_totals"].sum,
                         sys_len=meters["_bleu_sys_len"].sum,

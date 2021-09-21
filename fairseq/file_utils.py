@@ -139,6 +139,19 @@ def filename_to_url(filename, cache_dir=None):
     return url, etag
 
 
+def cached_path_from_pm(url_or_filename):
+    """
+    Tries to cache the specified URL using PathManager class.
+    Returns the cached path if success otherwise failure.
+    """
+    try:
+        from fairseq.file_io import PathManager
+        local_path = PathManager.get_local_path(url_or_filename)
+        return local_path
+    except Exception:
+        return None
+
+
 def cached_path(url_or_filename, cache_dir=None):
     """
     Given something that might be a URL (or might be a local path),
@@ -165,6 +178,9 @@ def cached_path(url_or_filename, cache_dir=None):
         # File, but it doesn't exist.
         raise EnvironmentError("file {} not found".format(url_or_filename))
     else:
+        cached_path = cached_path_from_pm(url_or_filename)
+        if cached_path:
+            return cached_path
         # Something unknown
         raise ValueError(
             "unable to parse {} as a URL or as a local path".format(url_or_filename)

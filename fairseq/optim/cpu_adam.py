@@ -12,7 +12,6 @@ import torch
 from fairseq.dataclass import FairseqDataclass
 from fairseq.optim import FairseqOptimizer, register_optimizer
 from omegaconf import II, DictConfig
-import logging
 
 
 try:
@@ -118,6 +117,10 @@ class CPUAdam(torch.optim.Optimizer):
         )
 
     @property
+    def supports_memory_efficient_fp16(self):
+        return True
+
+    @property
     def supports_flat_params(self):
         return True
 
@@ -127,6 +130,8 @@ class CPUAdam(torch.optim.Optimizer):
         if closure is not None:
             with torch.enable_grad():
                 loss = closure()
+
+        torch.cuda.synchronize()
 
         for group_id, group in enumerate(self.param_groups):
             for param_id, p in enumerate(group["params"]):

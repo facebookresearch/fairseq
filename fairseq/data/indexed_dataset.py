@@ -12,6 +12,7 @@ import torch
 from fairseq.dataclass.constants import DATASET_IMPL_CHOICES
 from fairseq.data.fasta_dataset import FastaDataset
 from fairseq.file_io import PathManager
+from fairseq.data.huffman import HuffmanMMapIndexedDataset, HuffmanMMapIndex
 
 from . import FairseqDataset
 
@@ -48,6 +49,8 @@ def infer_dataset_impl(path):
                 return "cached"
             elif magic == MMapIndexedDataset.Index._HDR_MAGIC[:8]:
                 return "mmap"
+            elif magic == HuffmanMMapIndex._HDR_MAGIC[:8]:
+                return "huffman"
             else:
                 return None
     elif FastaDataset.exists(path):
@@ -63,6 +66,8 @@ def make_builder(out_file, impl, vocab_size=None):
         )
     elif impl == "fasta":
         raise NotImplementedError
+    elif impl == "huffman":
+        raise ValueError("Use HuffmanCodeBuilder directly as it has a different interface.")
     else:
         return IndexedDatasetBuilder(out_file)
 
@@ -81,6 +86,8 @@ def make_dataset(path, impl, fix_lua_indexing=False, dictionary=None):
         from fairseq.data.fasta_dataset import EncodedFastaDataset
 
         return EncodedFastaDataset(path, dictionary)
+    elif impl == "huffman" and HuffmanMMapIndexedDataset.exists(path):
+        return HuffmanMMapIndexedDataset(path)
     return None
 
 
@@ -89,6 +96,8 @@ def dataset_exists(path, impl):
         return IndexedRawTextDataset.exists(path)
     elif impl == "mmap":
         return MMapIndexedDataset.exists(path)
+    elif impl == "huffman":
+        return HuffmanMMapIndexedDataset.exists(path)
     else:
         return IndexedDataset.exists(path)
 

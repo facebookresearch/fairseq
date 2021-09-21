@@ -203,6 +203,7 @@ def prepare_transformer_decoder_params(
     relu_dropout,
 ):
     args = argparse.Namespace()
+    args.encoder_embed_dim = None
     args.decoder_embed_dim = input_dim
     args.decoder_attention_heads = num_heads
     args.attention_dropout = attention_dropout

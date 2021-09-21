@@ -48,35 +48,21 @@ fairseq-preprocess \
 
 ### 2) Train RoBERTa base
 ```bash
-TOTAL_UPDATES=125000    # Total number of training steps
-WARMUP_UPDATES=10000    # Warmup the learning rate over this many updates
-PEAK_LR=0.0005          # Peak learning rate, adjust as needed
-TOKENS_PER_SAMPLE=512   # Max sequence length
-MAX_POSITIONS=512       # Num. positional embeddings (usually same as above)
-MAX_SENTENCES=16        # Number of sequences per batch (batch size)
-UPDATE_FREQ=16          # Increase the batch size 16x
-
 DATA_DIR=data-bin/wikitext-103
 
-fairseq-train --fp16 $DATA_DIR \
-    --task masked_lm --criterion masked_lm \
-    --arch roberta_base --sample-break-mode complete --tokens-per-sample $TOKENS_PER_SAMPLE \
-    --optimizer adam --adam-betas '(0.9,0.98)' --adam-eps 1e-6 --clip-norm 0.0 \
-    --lr-scheduler polynomial_decay --lr $PEAK_LR --warmup-updates $WARMUP_UPDATES --total-num-update $TOTAL_UPDATES \
-    --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
-    --batch-size $MAX_SENTENCES --update-freq $UPDATE_FREQ \
-    --max-update $TOTAL_UPDATES --log-format simple --log-interval 1
+fairseq-hydra-train -m --config-dir examples/roberta/config/pretraining \
+--config-name base task.data=$DATA_DIR
 ```
 
 **Note:** You can optionally resume training the released RoBERTa base model by
-adding `--restore-file /path/to/roberta.base/model.pt`.
+adding `checkpoint.restore_file=/path/to/roberta.base/model.pt`.
 
 **Note:** The above command assumes training on 8x32GB V100 GPUs. Each GPU uses
-a batch size of 16 sequences (`$MAX_SENTENCES`) and accumulates gradients to
-further increase the batch size by 16x (`$UPDATE_FREQ`), for a total batch size
+a batch size of 16 sequences (`dataset.batch_size`) and accumulates gradients to
+further increase the batch size by 16x (`optimization.update_freq`), for a total batch size
 of 2048 sequences. If you have fewer GPUs or GPUs with less memory you may need
-to reduce `$MAX_SENTENCES` and increase `$UPDATE_FREQ` to compensate.
-Alternatively if you have more GPUs you can decrease `$UPDATE_FREQ` accordingly
+to reduce `dataset.batch_size` and increase dataset.update_freq to compensate.
+Alternatively if you have more GPUs you can decrease `dataset.update_freq` accordingly
 to increase training speed.
 
 **Note:** The learning rate and batch size are tightly connected and need to be

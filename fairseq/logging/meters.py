@@ -109,6 +109,38 @@ class AverageMeter(Meter):
         return val
 
 
+class SumMeter(Meter):
+    """Computes and stores the sum"""
+
+    def __init__(self, round: Optional[int] = None):
+        self.round = round
+        self.reset()
+
+    def reset(self):
+        self.sum = 0  # sum from all updates
+
+    def update(self, val):
+        if val is not None:
+            self.sum = type_as(self.sum, val) + val
+
+    def state_dict(self):
+        return {
+            "sum": self.sum,
+            "round": self.round,
+        }
+
+    def load_state_dict(self, state_dict):
+        self.sum = state_dict["sum"]
+        self.round = state_dict.get("round", None)
+
+    @property
+    def smoothed_value(self) -> float:
+        val = self.sum
+        if self.round is not None and val is not None:
+            val = safe_round(val, self.round)
+        return val
+
+
 class TimeMeter(Meter):
     """Computes the average occurrence of some event per second"""
 

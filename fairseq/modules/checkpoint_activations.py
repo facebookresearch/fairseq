@@ -38,6 +38,17 @@ def checkpoint_wrapper(m, offload_to_cpu=False):
     return m
 
 
+def unwrap_checkpoint(m: torch.nn.Module):
+    """
+    unwrap a module and its children from checkpoint_wrapper
+    """
+    for module in m.modules():
+        if hasattr(module, "precheckpoint_forward"):
+            module.forward = module.precheckpoint_forward
+            del module.precheckpoint_forward
+    return m
+
+
 def _checkpointed_forward(original_forward, offload_to_cpu, *args, **kwargs):
     # Autograd Functions in PyTorch work best with positional args, since
     # the backward must return gradients (or None) for every input argument.
@@ -152,7 +163,7 @@ class CheckpointFunction(torch.autograd.Function):
         if parent_ctx_dict["offload"]:
             ctx.fwd_device = tuple(x.device for x in tensor_inputs)
             ctx.grad_requirements = tuple(x.requires_grad for x in tensor_inputs)
-            tensor_inputs = tuple(x.cpu() for x in tensor_inputs)
+            tensor_inputs = tuple(x.to(torch.device("cpu"), non_blocking=True) for x in tensor_inputs)
 
         else:
             ctx.fwd_device, ctx.grad_requirements = None, None
@@ -185,7 +196,7 @@ class CheckpointFunction(torch.autograd.Function):
         tensor_inputs = checkpoint.detach_variable(tensor_inputs)
         if ctx.fwd_device is not None:
             tensor_inputs = [
-                t.to(ctx.fwd_device[i]) for i, t in enumerate(tensor_inputs)
+                t.to(ctx.fwd_device[i], non_blocking=True) for i, t in enumerate(tensor_inputs)
             ]
             for i, need_grad in enumerate(ctx.grad_requirements):
                 tensor_inputs[i].requires_grad = need_grad

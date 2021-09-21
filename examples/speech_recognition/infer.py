@@ -227,7 +227,7 @@ def main(args, task=None, model_state=None):
     else:
         logger.info("| loading model(s) from {}".format(args.path))
         models, saved_cfg, task = checkpoint_utils.load_model_ensemble_and_task(
-            utils.split_paths(args.path),
+            utils.split_paths(args.path, separator="\\"),
             arg_overrides=ast.literal_eval(args.model_overrides),
             task=task,
             suffix=args.checkpoint_suffix,

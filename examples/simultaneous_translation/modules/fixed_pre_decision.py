@@ -7,22 +7,26 @@ import torch.nn.functional as F
 
 from . import register_monotonic_attention
 from .monotonic_multihead_attention import (
-    MonotonicMultiheadAttentionWaitK,
-    MonotonicMultiheadAttentionHardAligned,
-    MonotonicMultiheadAttentionInfiniteLookback,
+    MonotonicAttention,
+    MonotonicInfiniteLookbackAttention,
+    WaitKAttention
 )
 from typing import Dict, Optional
+
 
 def fixed_pooling_monotonic_attention(monotonic_attention):
     def create_model(monotonic_attention, klass):
         class FixedStrideMonotonicAttention(monotonic_attention):
             def __init__(self, args):
+                self.waitk_lagging = 0
+                self.num_heads = 0
+                self.noise_mean = 0.0
+                self.noise_var = 0.0
                 super().__init__(args)
                 self.pre_decision_type = args.fixed_pre_decision_type
                 self.pre_decision_ratio = args.fixed_pre_decision_ratio
                 self.pre_decision_pad_threshold = args.fixed_pre_decision_pad_threshold
-                if self.pre_decision_ratio == 1:
-                    return
+                assert self.pre_decision_ratio > 1
 
                 if args.fixed_pre_decision_type == "average":
                     self.pooling_layer = torch.nn.AvgPool1d(
@@ -39,7 +43,7 @@ def fixed_pooling_monotonic_attention(monotonic_attention):
                             k = key[
                                 :,
                                 :,
-                                self.pre_decision_ratio - 1 :: self.pre_decision_ratio,
+                                self.pre_decision_ratio - 1:: self.pre_decision_ratio,
                             ].contiguous()
                             if key.size(-1) % self.pre_decision_ratio != 0:
                                 k = torch.cat([k, key[:, :, -1:]], dim=-1).contiguous()
@@ -90,45 +94,6 @@ def fixed_pooling_monotonic_attention(monotonic_attention):
                 )
                 return x_upsample.squeeze(1).view(bsz_num_heads, tgt_len, -1)
 
-            def p_choose_waitk(
-                self, query, key, key_padding_mask: Optional[Tensor] = None,
-                incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None
-            ):
-                """
-                query: bsz, tgt_len
-                key: bsz, src_len
-                key_padding_mask: bsz, src_len
-                """
-                if incremental_state is not None:
-                    # Retrieve target length from incremental states
-                    # For inference the length of query is always 1
-                    tgt = incremental_state["steps"]["tgt"]
-                    assert tgt is not None
-                    tgt_len = int(tgt)
-                else:
-                    tgt_len, bsz, _ = query.size()
-
-                src_len, bsz, _ = key.size()
-
-                p_choose = torch.ones(bsz, tgt_len, src_len).to(query)
-                p_choose = torch.tril(p_choose, diagonal=self.waitk_lagging - 1)
-                p_choose = torch.triu(p_choose, diagonal=self.waitk_lagging - 1)
-
-                if incremental_state is not None:
-                    p_choose = p_choose[:, -1:]
-                    tgt_len = 1
-
-                # Extend to each head
-                p_choose = (
-                    p_choose.contiguous()
-                    .unsqueeze(1)
-                    .expand(-1, self.num_heads, -1, -1)
-                    .contiguous()
-                    .view(-1, tgt_len, src_len)
-                )
-
-                return p_choose
-
             def p_choose(
                 self,
                 query: Optional[Tensor],
@@ -141,14 +106,6 @@ def fixed_pooling_monotonic_attention(monotonic_attention):
                 src_len = key.size(0)
                 tgt_len = query.size(0)
                 batch_size = query.size(1)
-
-                if self.pre_decision_ratio == 1:
-                    return self.p_choose_waitk(
-                        query,
-                        key,
-                        key_padding_mask,
-                        incremental_state=incremental_state,
-                    )
 
                 key_pool = self.pooling_layer(key.transpose(0, 2)).transpose(0, 2)
 
@@ -173,7 +130,7 @@ def fixed_pooling_monotonic_attention(monotonic_attention):
                         if key_padding_mask_pool is not None:
                             key_padding_mask_pool = key_padding_mask_pool[:-1]
 
-                p_choose_pooled = self.p_choose_waitk(
+                p_choose_pooled = self.p_choose_from_qk(
                     query,
                     key_pool,
                     key_padding_mask_pool,
@@ -216,18 +173,18 @@ def fixed_pooling_monotonic_attention(monotonic_attention):
 
 
 @register_monotonic_attention("waitk_fixed_pre_decision")
-@fixed_pooling_monotonic_attention(MonotonicMultiheadAttentionWaitK)
-class MonotonicMultiheadAttentionWaitkFixedStride:
+@fixed_pooling_monotonic_attention(WaitKAttention)
+class WaitKAttentionFixedStride:
     pass
 
 
 @register_monotonic_attention("hard_aligned_fixed_pre_decision")
-@fixed_pooling_monotonic_attention(MonotonicMultiheadAttentionHardAligned)
-class MonotonicMultiheadAttentionHardFixedStride:
+@fixed_pooling_monotonic_attention(MonotonicAttention)
+class MonotonicAttentionFixedStride:
     pass
 
 
 @register_monotonic_attention("infinite_lookback_fixed_pre_decision")
-@fixed_pooling_monotonic_attention(MonotonicMultiheadAttentionInfiniteLookback)
-class MonotonicMultiheadAttentionInfiniteLookbackFixedStride:
+@fixed_pooling_monotonic_attention(MonotonicInfiniteLookbackAttention)
+class MonotonicInfiniteLookbackAttentionFixedStride:
     pass

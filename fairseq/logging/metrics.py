@@ -12,10 +12,9 @@ on the aggregation context in which the logging occurs. See the
 """
 
 import contextlib
-import time
 import uuid
-from collections import OrderedDict, defaultdict
-from typing import Callable, Dict, List, Optional
+from collections import defaultdict
+from typing import Callable, List, Optional
 
 from .meters import *
 
@@ -130,6 +129,25 @@ def log_scalar(
         if key not in agg:
             agg.add_meter(key, AverageMeter(round=round), priority)
         agg[key].update(value, weight)
+
+def log_scalar_sum(
+    key: str,
+    value: float,
+    priority: int = 10,
+    round: Optional[int] = None,
+):
+    """Log a scalar value that is summed for reporting.
+
+    Args:
+        key (str): name of the field to log
+        value (float): value to log
+        priority (int): smaller values are logged earlier in the output
+        round (Optional[int]): number of digits to round to when displaying
+    """
+    for agg in get_active_aggregators():
+        if key not in agg:
+            agg.add_meter(key, SumMeter(round=round), priority)
+        agg[key].update(value)
 
 
 def log_derived(key: str, fn: Callable[[MetersDict], float], priority: int = 20):

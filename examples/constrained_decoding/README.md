@@ -12,7 +12,7 @@ Constrained search is enabled by adding the command-line argument `--constraints
 Constraints are appended to each line of input, separated by tabs. Each constraint (one or more tokens)
 is a separate field.
 
-The following command, using [Fairseq's WMT19 German--English model](https://github.com/pytorch/fairseq/blob/master/examples/wmt19/README.md),
+The following command, using [Fairseq's WMT19 German--English model](https://github.com/pytorch/fairseq/blob/main/examples/wmt19/README.md),
 translates the sentence *Die maschinelle Übersetzung ist schwer zu kontrollieren.* with the constraints
 "hard" and "to influence".
 

@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class BARTHubInterface(GeneratorHubInterface):
     """A simple PyTorch Hub interface to BART.
 
-    Usage: https://github.com/pytorch/fairseq/tree/master/examples/bart
+    Usage: https://github.com/pytorch/fairseq/tree/main/examples/bart
     """
 
     def __init__(self, cfg, task, model):
@@ -111,7 +111,9 @@ class BARTHubInterface(GeneratorHubInterface):
                 skip_invalid_size_inputs=skip_invalid_size_inputs,
                 **kwargs
             )
-            res.extend(results)
+            for id, hypos in zip(batch['id'].tolist(), results):
+                res.append((id, hypos))
+        res = [hypos for _, hypos in sorted(res, key=lambda x: x[0])]
         return res
 
     def extract_features(

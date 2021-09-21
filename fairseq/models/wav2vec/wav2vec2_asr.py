@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from dataclasses import dataclass, field
 from omegaconf import MISSING, II, open_dict
-from typing import Optional, Any
+from typing import Any, Optional
 
 from fairseq import checkpoint_utils, tasks, utils
 from fairseq.dataclass import FairseqDataclass
@@ -27,7 +27,11 @@ from fairseq.models import (
     register_model,
 )
 from fairseq.models.wav2vec.wav2vec2 import MASKING_DISTRIBUTION_CHOICES
-from fairseq.modules import LayerNorm, PositionalEmbedding, TransformerDecoderLayer
+from fairseq.modules import (
+    LayerNorm,
+    PositionalEmbedding,
+    TransformerDecoderLayer,
+)
 
 
 @dataclass
@@ -61,6 +65,19 @@ class Wav2Vec2AsrConfig(FairseqDataclass):
             "help": "dropout probability after activation in FFN inside wav2vec 2.0 model"
         },
     )
+    conv_feature_layers: Optional[str] = field(
+        default="[(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512,2,2)] + [(512,2,2)]",
+        metadata={
+            "help": (
+                "string describing convolutional feature extraction "
+                "layers in form of a python list that contains "
+                "[(dim, kernel_size, stride), ...]"
+            ),
+        },
+    )
+    encoder_embed_dim: Optional[int] = field(
+        default=768, metadata={"help": "encoder embedding dimension"}
+    )
 
     # masking
     apply_mask: bool = field(
@@ -87,6 +104,10 @@ class Wav2Vec2AsrConfig(FairseqDataclass):
     )
     no_mask_overlap: bool = field(
         default=False, metadata={"help": "whether to allow masks to overlap"}
+    )
+    mask_min_space: Optional[int] = field(
+        default=1,
+        metadata={"help": "min space between spans (if no overlap is enabled)"},
     )
 
     # channel masking
@@ -119,6 +140,11 @@ class Wav2Vec2AsrConfig(FairseqDataclass):
     layerdrop: float = field(
         default=0.0, metadata={"help": "probability of dropping a layer in wav2vec 2.0"}
     )
+    mask_channel_min_space: Optional[int] = field(
+        default=1,
+        metadata={"help": "min space between spans (if no overlap is enabled)"},
+    )
+    mask_channel_before: bool = False
     normalize: bool = II("task.normalize")
     data: str = II("task.data")
     # this holds the loaded wav2vec args
@@ -127,27 +153,8 @@ class Wav2Vec2AsrConfig(FairseqDataclass):
 
 @dataclass
 class Wav2Vec2CtcConfig(Wav2Vec2AsrConfig):
-    mask_min_space: Optional[int] = field(
-        default=1,
-        metadata={"help": "min space between spans (if no overlap is enabled)"},
-    )
-    mask_channel_min_space: Optional[int] = field(
-        default=1,
-        metadata={"help": "min space between spans (if no overlap is enabled)"},
-    )
-    conv_feature_layers: Optional[str] = field(
-        default="[(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512,2,2)] + [(512,2,2)]",
-        metadata={
-            "help": (
-                "string describing convolutional feature extraction "
-                "layers in form of a python list that contains "
-                "[(dim, kernel_size, stride), ...]"
-            ),
-        },
-    )
-    encoder_embed_dim: Optional[int] = field(
-        default=768, metadata={"help": "encoder embedding dimension"}
-    )
+    blank_weight: float = 0
+    blank_mode: str = "add"
 
 
 @register_model("wav2vec_ctc", dataclass=Wav2Vec2CtcConfig)
@@ -156,6 +163,8 @@ class Wav2VecCtc(BaseFairseqModel):
         super().__init__()
         self.cfg = cfg
         self.w2v_encoder = w2v_encoder
+        self.blank_weight = cfg.blank_weight
+        self.blank_mode = cfg.blank_mode
 
     def upgrade_state_dict_named(self, state_dict, name):
         super().upgrade_state_dict_named(state_dict, name)
@@ -164,27 +173,37 @@ class Wav2VecCtc(BaseFairseqModel):
     @classmethod
     def build_model(cls, cfg: Wav2Vec2CtcConfig, task: FairseqTask):
         """Build a new model instance."""
-        w2v_encoder = Wav2VecEncoder(cfg, task.target_dictionary)
+        w2v_encoder = Wav2VecEncoder(cfg, len(task.target_dictionary))
         return cls(cfg, w2v_encoder)
+
+    def get_logits(self, net_output, normalize=False):
+        logits = net_output["encoder_out"]
+        if self.blank_weight != 0:
+            if self.blank_mode == "add":
+                logits[..., 0] += self.blank_weight
+            elif self.blank_mode == "set":
+                logits[..., 0] = self.blank_weight
+            else:
+                raise Exception(f"invalid blank mode {self.blank_mode}")
+
+        if net_output["padding_mask"] is not None and net_output["padding_mask"].any():
+            logits[net_output["padding_mask"].T][..., 0] = float("inf")
+            logits[net_output["padding_mask"].T][..., 1:] = float("-inf")
+
+        if normalize:
+            logits = utils.log_softmax(logits.float(), dim=-1)
+
+        return logits
 
     def get_normalized_probs(self, net_output, log_probs):
         """Get normalized probabilities (or log probs) from a net's output."""
 
-        logits = net_output["encoder_out"]
+        logits = self.get_logits(net_output)
+
         if log_probs:
             return utils.log_softmax(logits.float(), dim=-1)
         else:
             return utils.softmax(logits.float(), dim=-1)
-
-    def get_logits(self, net_output):
-        logits = net_output["encoder_out"]
-        padding = net_output["padding_mask"]
-        if padding is not None and padding.any():
-            padding = padding.T
-            logits[padding][...,0] = 0
-            logits[padding][...,1:] = float('-inf')
-
-        return logits
 
     def forward(self, **kwargs):
         x = self.w2v_encoder(**kwargs)
@@ -237,7 +256,7 @@ class Wav2Vec2Seq2SeqConfig(Wav2Vec2AsrConfig):
     max_target_positions: int = field(
         default=2048, metadata={"help": "max target positions"}
     )
-    share_decoder_input_output_embed: bool  = field(
+    share_decoder_input_output_embed: bool = field(
         default=False, metadata={"help": "share decoder input and output embeddings"}
     )
     autoregressive: bool = II("task.autoregressive")
@@ -252,7 +271,9 @@ class Wav2Vec2Seq2SeqModel(FairseqEncoderDecoderModel):
     def build_model(cls, cfg: Wav2Vec2Seq2SeqConfig, task: FairseqTask):
         """Build a new model instance."""
 
-        assert cfg.autoregressive, "Please set task.autoregressive=true for seq2seq asr models"
+        assert (
+            cfg.autoregressive
+        ), "Please set task.autoregressive=true for seq2seq asr models"
 
         src_dict, tgt_dict = task.source_dictionary, task.target_dictionary
 
@@ -278,7 +299,7 @@ class Wav2Vec2Seq2SeqModel(FairseqEncoderDecoderModel):
         return TransformerDecoder(cfg, tgt_dict, embed_tokens)
 
     def forward(self, **kwargs):
-        encoder_out = self.encoder(tbc=False, **kwargs)
+        encoder_out = self.encoder(**kwargs)
         decoder_out = self.decoder(encoder_out=encoder_out, **kwargs)
         return decoder_out
 
@@ -288,7 +309,7 @@ class Wav2Vec2Seq2SeqModel(FairseqEncoderDecoderModel):
 
 
 class Wav2VecEncoder(FairseqEncoder):
-    def __init__(self, cfg: Wav2Vec2AsrConfig, tgt_dict=None):
+    def __init__(self, cfg: Wav2Vec2AsrConfig, output_size=None):
         self.apply_mask = cfg.apply_mask
 
         arg_overrides = {
@@ -303,6 +324,7 @@ class Wav2VecEncoder(FairseqEncoder):
             "no_mask_overlap": cfg.no_mask_overlap,
             "mask_channel_length": cfg.mask_channel_length,
             "mask_channel_prob": cfg.mask_channel_prob,
+            "mask_channel_before": cfg.mask_channel_before,
             "mask_channel_selection": cfg.mask_channel_selection,
             "mask_channel_other": cfg.mask_channel_other,
             "no_mask_channel_overlap": cfg.no_mask_channel_overlap,
@@ -315,6 +337,8 @@ class Wav2VecEncoder(FairseqEncoder):
             w2v_args = state.get("cfg", None)
             if w2v_args is None:
                 w2v_args = convert_namespace_to_omegaconf(state["args"])
+            w2v_args.criterion = None
+            w2v_args.lr_scheduler = None
             cfg.w2v_args = w2v_args
         else:
             state = None
@@ -346,19 +370,23 @@ class Wav2VecEncoder(FairseqEncoder):
         self.freeze_finetune_updates = cfg.freeze_finetune_updates
         self.num_updates = 0
 
-        if tgt_dict is not None:
-            self.proj = Linear(d, len(tgt_dict))
+        targ_d = None
+        self.proj = None
+
+        if output_size is not None:
+            targ_d = output_size
         elif getattr(cfg, "decoder_embed_dim", d) != d:
-            self.proj = Linear(d, cfg.decoder_embed_dim)
-        else:
-            self.proj = None
+            targ_d = cfg.decoder_embed_dim
+
+        if targ_d is not None:
+            self.proj = Linear(d, targ_d)
 
     def set_num_updates(self, num_updates):
         """Set the number of parameters updates."""
         super().set_num_updates(num_updates)
         self.num_updates = num_updates
 
-    def forward(self, source, padding_mask, tbc=True, **kwargs):
+    def forward(self, source, padding_mask, **kwargs):
 
         w2v_args = {
             "source": source,
@@ -369,11 +397,13 @@ class Wav2VecEncoder(FairseqEncoder):
         ft = self.freeze_finetune_updates <= self.num_updates
 
         with torch.no_grad() if not ft else contextlib.ExitStack():
-            x, padding_mask = self.w2v_model.extract_features(**w2v_args)
+            res = self.w2v_model.extract_features(**w2v_args)
 
-            if tbc:
-                # B x T x C -> T x B x C
-                x = x.transpose(0, 1)
+            x = res["x"]
+            padding_mask = res["padding_mask"]
+
+            # B x T x C -> T x B x C
+            x = x.transpose(0, 1)
 
         x = self.final_dropout(x)
 
@@ -382,18 +412,24 @@ class Wav2VecEncoder(FairseqEncoder):
 
         return {
             "encoder_out": x,  # T x B x C
-            "encoder_padding_mask": padding_mask.transpose(0, 1),  # T x B
-            "padding_mask": padding_mask,
+            "padding_mask": padding_mask,  # B x T,
+            "layer_results": res["layer_results"],
         }
+
+    def forward_torchscript(self, net_input):
+        if torch.jit.is_scripting():
+            return self.forward(net_input["source"], net_input["padding_mask"])
+        else:
+            return self.forward_non_torchscript(net_input)
 
     def reorder_encoder_out(self, encoder_out, new_order):
         if encoder_out["encoder_out"] is not None:
             encoder_out["encoder_out"] = encoder_out["encoder_out"].index_select(
                 1, new_order
             )
-        if encoder_out["encoder_padding_mask"] is not None:
-            encoder_out["encoder_padding_mask"] = encoder_out[
-                "encoder_padding_mask"
+        if encoder_out["padding_mask"] is not None:
+            encoder_out["padding_mask"] = encoder_out[
+                "padding_mask"
             ].index_select(0, new_order)
         return encoder_out
 
@@ -436,7 +472,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         self.layerdrop = cfg.decoder_layerdrop
 
-        padding_idx = embed_tokens.padding_idx
+        self.padding_idx = embed_tokens.padding_idx
         self.max_target_positions = cfg.max_target_positions
 
         self.embed_tokens = embed_tokens
@@ -452,7 +488,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             PositionalEmbedding(
                 cfg.max_target_positions,
                 embed_dim,
-                padding_idx,
+                self.padding_idx,
                 learned=cfg.decoder_learned_pos,
             )
             if not cfg.no_token_positional_embeddings
@@ -556,19 +592,21 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         inner_states = [x]
 
         # decoder layers
+        self_attn_padding_mask = None
+        if prev_output_tokens.eq(self.padding_idx).any():
+            self_attn_padding_mask = prev_output_tokens.eq(self.padding_idx)
         for layer in self.layers:
             dropout_probability = np.random.random()
             if not self.training or (dropout_probability > self.layerdrop):
                 x, attn, _ = layer(
                     x,
                     encoder_out["encoder_out"] if encoder_out is not None else None,
-                    encoder_out["padding_mask"]
-                    if encoder_out is not None
-                    else None,
+                    encoder_out["padding_mask"] if encoder_out is not None else None,
                     incremental_state,
                     self_attn_mask=self.buffered_future_mask(x)
                     if incremental_state is None
                     else None,
+                    self_attn_padding_mask=self_attn_padding_mask
                 )
                 inner_states.append(x)
 
