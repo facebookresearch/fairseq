@@ -38,7 +38,7 @@ For your convenience, we provide pre-computed
 [force-alignment](https://dl.fbaipublicfiles.com/fairseq/s2/ljspeech_mfa.zip) from
 [Montreal Forced Aligner](https://github.com/MontrealCorpusTools/Montreal-Forced-Aligner) and
 [pseudo-text units](s3://dl.fbaipublicfiles.com/fairseq/s2/ljspeech_hubert.tsv) from
-[HuBERT](https://github.com/pytorch/fairseq/tree/master/examples/hubert). You can also generate them by yourself using
+[HuBERT](https://github.com/pytorch/fairseq/tree/main/examples/hubert). You can also generate them by yourself using
 a different software or model.
 
 
@@ -106,7 +106,7 @@ use `--sample-rate 16000` for `get_eval_manifest.py`.
 
 
 #### WER/CER metric
-We use wav2vec 2.0 ASR model as example. [Download](https://github.com/pytorch/fairseq/tree/master/examples/wav2vec)
+We use wav2vec 2.0 ASR model as example. [Download](https://github.com/pytorch/fairseq/tree/main/examples/wav2vec)
 the model checkpoint and dictionary, then compute WER/CER with
 ```bash
 python -m examples.speech_synthesis.evaluation.eval_asr \

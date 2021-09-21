@@ -1,10 +1,10 @@
 name: build
 
 on:
-  # Trigger the workflow on push to master or any pull request
+  # Trigger the workflow on push to main or any pull request
   push:
     branches:
-      - master
+      - main
   pull_request:
 
 jobs:
