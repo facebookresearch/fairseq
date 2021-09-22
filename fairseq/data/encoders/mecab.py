@@ -3,7 +3,7 @@ from fairseq.data.encoders import register_tokenizer
 from fairseq.dataclass import FairseqDataclass
 from typing import List
 import MeCab
-
+import json
 
 @dataclass
 class MecabTokenizerConfig(FairseqDataclass):
@@ -11,7 +11,7 @@ class MecabTokenizerConfig(FairseqDataclass):
 
 
 @register_tokenizer("mecab", dataclass=MecabTokenizerConfig)
-class MosesTokenizer(object):
+class MecabTokenizer(object):
     def __init__(self, cfg: MecabTokenizerConfig):
         self.cfg = cfg
 
@@ -26,7 +26,8 @@ class MosesTokenizer(object):
                     "Please install Mecab Ko dictionary"
                 )
 
-    def encode(self, text: str) -> List[str]:
+
+    def encode(self, text: str) -> str:
         text = text.strip()
         text_ptr = 0
         tokenized = []
@@ -47,9 +48,8 @@ class MosesTokenizer(object):
 
                 tokenized.append(token)
                 text_ptr += len(token)
+            return " ".join(tokenized)
 
-        return tokenized
-
-    def decode(self, tokens: List[str]) -> str:
-        text = "".join(tokens).replace("▃", " ").strip()
+    def decode(self, text: str) -> str:
+        text = "".join(text.split(" ")).replace("▃", " ").strip()
         return text
