@@ -498,10 +498,11 @@ class TranslationTask(FairseqTask):
                 # reference, but doesn't get split into multiple tokens.
                 unk_string=("UNKNOWNTOKENINREF" if escape_unk else "UNKNOWNTOKENINHYP"),
             )
-            if self.bpe:
-                s = self.bpe.decode(s)
             if self.tokenizer:
                 s = self.tokenizer.decode(s)
+            if self.bpe:
+                s = self.bpe.decode(s)
+            
             return s
 
         gen_out = self.inference_step(generator, [model], sample, prefix_tokens=None)
