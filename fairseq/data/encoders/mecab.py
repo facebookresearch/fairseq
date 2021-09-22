@@ -7,7 +7,7 @@ import MeCab
 
 @dataclass
 class MecabTokenizerConfig(FairseqDataclass):
-    target_lang: str = field(default="en", metadata={"help": "target language"})
+    target_lang: str = field(default="ko", metadata={"help": "target language"})
 
 
 @register_tokenizer("mecab", dataclass=MecabTokenizerConfig)
