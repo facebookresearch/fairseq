@@ -31,7 +31,11 @@ class BARTHubInterface(GeneratorHubInterface):
         self.model = self.models[0]
 
     def encode(
-        self, sentence: str, *addl_sentences, no_separator=True
+        self, 
+        sentence: str, 
+        *addl_sentences, 
+        no_separator=True,
+        add_if_not_exist=True
     ) -> torch.LongTensor:
         """
         BPE-encode a sentence (or multiple sentences).
@@ -59,7 +63,9 @@ class BARTHubInterface(GeneratorHubInterface):
         for s in addl_sentences:
             bpe_sentence += " </s>" if not no_separator else ""
             bpe_sentence += " " + self.bpe.encode(s) + " </s>"
-        tokens = self.task.source_dictionary.encode_line(bpe_sentence, append_eos=False)
+        tokens = self.task.source_dictionary.encode_line(
+            bpe_sentence, append_eos=False, add_if_not_exist=add_if_not_exist
+        )
         return tokens.long()
 
     def decode(self, tokens: torch.LongTensor):
