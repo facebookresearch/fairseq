@@ -50,17 +50,8 @@ def chinese_deseg(words):
 class KyteaTokenizer(object):
     def __init__(self, cfg: KyteaTokenizerConfig):
         self.cfg = cfg
-
-        if self.cfg.target_lang == 'ko': 
-            try:
-                import mecab_ko_dic
-
-                self.mecab = MeCab.Tagger(mecab_ko_dic.MECAB_ARGS)
-                self.config = {"space_symbol": "▃"}
-            except ImportError:
-                raise ImportError(
-                    "Please install Mecab Ko dictionary"
-                )
+        _param = u"-model {}".format(cfg.model_file)
+        self._kt = Mykytea(_param)
 
     def encode(self, text: str) -> List[str]:
         w_list = []
