@@ -53,14 +53,14 @@ class KyteaTokenizer(object):
         _param = u"-model {}".format(cfg.model_file)
         self._kt = Mykytea(_param)
 
-    def encode(self, text: str) -> List[str]:
+    def encode(self, text: str) -> str:
         w_list = []
         for w in self._kt.getWS(text):
             w_list.append(w)
         return u" ".join(w_list)
 
-
-    def decode(self, text: List[str]) -> str:
+ 
+    def decode(self, text:str) -> str:
         res = chinese_deseg(text.split(" "))
         res = re.sub(r" +", u" ", res)
         return res
