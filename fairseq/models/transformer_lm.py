@@ -530,7 +530,7 @@ def transformer_lm_gpt3_6_7(args):
 def transformer_lm_gpt3_13(args):
     # 13B params
     args.decoder_layers = getattr(args, "decoder_layers", 40)
-    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 5120)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 5140)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 40)
     base_gpt3_architecture(args)
 
