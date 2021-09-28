@@ -5,10 +5,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#include "../cuda_utils.cu"
 #include "lightconv_cuda.cuh"
 #include "lightconv_cuda_backward.cu"
 #include "lightconv_cuda_forward.cu"
+#include "../cuda_utils.cu"
 
 template <int FS, int SB, int padding_l, typename scalar_t>
 __global__ void lightconv_forward_kernel(
