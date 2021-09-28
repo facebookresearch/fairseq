@@ -195,6 +195,7 @@ def main(cfg: FairseqConfig) -> None:
             # don't cache epoch iterators for sharded datasets
             disable_iterator_cache=task.has_sharded_data("train"),
         )
+    logger.info(metrics)
     with metrics.aggregate(new_root=True) as agg:
         stats = get_valid_stats(cfg, trainer, agg.get_smoothed_values())
     train_meter.stop()
@@ -493,7 +494,7 @@ def validate(
             task.post_validate(trainer.get_model(), stats, agg)
 
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
-        logger.info(f"valid_loss={stats['loss']}, valid_bleu={stats['bleu']}")
+        logger.info(f"valid_loss={stats['loss']}, valid_bleu={stats['bleu']}, ")
         valid_losses.append(stats[cfg.checkpoint.best_checkpoint_metric])
     return valid_losses
 
@@ -502,6 +503,7 @@ def get_valid_stats(
     cfg: DictConfig, trainer: Trainer, stats: Dict[str, Any]
 ) -> Dict[str, Any]:
     stats["num_updates"] = trainer.get_num_updates()
+    logger.info(stats)
     if hasattr(checkpoint_utils.save_checkpoint, "best"):
         key = "best_{0}".format(cfg.checkpoint.best_checkpoint_metric)
         best_function = max if cfg.checkpoint.maximize_best_checkpoint_metric else min
