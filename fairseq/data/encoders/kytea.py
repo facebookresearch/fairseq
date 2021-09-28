@@ -2,7 +2,6 @@ from dataclasses import dataclass, field
 from fairseq.data.encoders import register_tokenizer
 from fairseq.dataclass import FairseqDataclass
 from typing import List
-from Mykytea import Mykytea
 import six
 import re 
 
@@ -49,6 +48,10 @@ def chinese_deseg(words):
 @register_tokenizer("kytea", dataclass=KyteaTokenizerConfig)
 class KyteaTokenizer(object):
     def __init__(self, cfg: KyteaTokenizerConfig):
+        try: 
+            from Mykytea import Mykytea
+        except: 
+            raise ImportError 
         self.cfg = cfg
         _param = u"-model {}".format(cfg.model_file)
         self._kt = Mykytea(_param)

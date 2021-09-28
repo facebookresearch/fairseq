@@ -2,7 +2,6 @@ from dataclasses import dataclass, field
 from fairseq.data.encoders import register_tokenizer
 from fairseq.dataclass import FairseqDataclass
 from typing import List
-import MeCab
 import json
 
 @dataclass
@@ -17,6 +16,7 @@ class MecabTokenizer(object):
 
         if self.cfg.target_lang == 'ko': 
             try:
+                import MeCab
                 import mecab_ko_dic
 
                 self.mecab = MeCab.Tagger(mecab_ko_dic.MECAB_ARGS)
