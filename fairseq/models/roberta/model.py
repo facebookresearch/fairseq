@@ -22,6 +22,7 @@ from fairseq.models.transformer import DEFAULT_MIN_PARAMS_TO_WRAP, TransformerEn
 from fairseq.modules import LayerNorm
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
+from fairseq.utils import safe_getattr, safe_hasattr
 
 from .hub_interface import RobertaHubInterface
 
@@ -197,8 +198,8 @@ class RobertaModel(FairseqEncoderModel):
         # make sure all arguments are present
         base_architecture(args)
 
-        if not hasattr(args, "max_positions"):
-            if not hasattr(args, "tokens_per_sample"):
+        if not safe_hasattr(args, "max_positions"):
+            if not safe_hasattr(args, "tokens_per_sample"):
                 args.tokens_per_sample = task.max_positions()
             args.max_positions = args.tokens_per_sample
 
@@ -518,14 +519,6 @@ class RobertaEncoder(FairseqEncoder):
         """Maximum output length supported by the encoder."""
         return self.args.max_positions
 
-
-def safe_getattr(obj, k, default=None):
-    from omegaconf import OmegaConf
-
-    if OmegaConf.is_config(obj):
-        return obj[k] if k in obj and obj[k] is not None else default
-
-    return getattr(obj, k, default)
 
 @register_model_architecture("roberta", "roberta")
 def base_architecture(args):
