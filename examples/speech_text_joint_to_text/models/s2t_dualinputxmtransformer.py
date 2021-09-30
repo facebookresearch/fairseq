@@ -150,10 +150,8 @@ class StackedWav2VecEncoderWithAdaptor(FairseqEncoder):
         out = self.w2v_encoder.forward(src_tokens, padding_mask, tbc=True)
         x = out["encoder_out"]
         enc_padding_mask = None
-        if out["encoder_padding_mask"] is not None:
-            enc_padding_mask = out["encoder_padding_mask"].transpose(
-                0, 1
-            )  # T X B --> B X T
+        if out["padding_mask"] is not None:
+            enc_padding_mask = out["padding_mask"]  # B X T
 
         x, enc_padding_mask = self.adaptor(x, enc_padding_mask)
         encoder_states = []
