@@ -1,0 +1,25 @@
+includes: projects/task/ft.yaml
+task_type: sweep_big
+dataset:
+  meta_processor: COINActionSegmentationMetaProcessor
+  train_path: data/coin/COIN.json
+  val_path: data/coin/COIN.json
+  vfeat_dir: data/feat/feat_coin_s3d
+  video_processor: VideoProcessor
+  text_processor: COINActionSegmentationTextProcessor
+  aligner: COINActionSegmentationAligner
+  num_iso_layer: 12
+  sliding_window: 8
+  sliding_window_size: 32
+model:
+  model_cls: MMFusionActionSegmentation
+  mm_encoder_cls: MMBertForTokenClassification
+loss:
+  loss_cls: CrossEntropy
+fairseq:
+  dataset:
+    batch_size: 1
+  optimization:
+    max_epoch: 8
+  checkpoint:
+    save_dir: runs/task/coin

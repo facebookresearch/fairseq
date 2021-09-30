@@ -1,0 +1,48 @@
+dataset:
+  video_processor: YoucookVideoProcessor
+  bert_name: bert-base-uncased
+  meta_processor: YoucookMetaProcessor
+  train_path: data/youcook/youcook_train.pkl
+  val_path: data/youcook/youcook_val.pkl
+  trainval_annotation: data/youcook/youcookii_annotations_trainval.json
+  use_annotation_text: true
+  vfeat_dir: data/feat/feat_youcook_s3d
+  text_processor: TextProcessor
+  aligner: DSAligner
+  num_iso_layer: 12
+  max_video_len: 32
+  max_len: 96
+fairseq:
+  common:
+    tensorboard_logdir: run
+    log_interval: 1000
+    fp16: true
+  dataset:
+    num_workers: 4
+    batch_size: 128
+  optimization:
+    lr:
+    - 5.0e-05
+    clip_norm: 2.0
+    optimizer: adam
+    adam_betas: (0.9, 0.98)
+    lr_scheduler: polynomial_decay
+    warmup_updates: 122
+    weight_decay: 0.0
+    ddp_backend: no_c10d
+    max_epoch: 10
+  checkpoint:
+    restore_file: runs/retri/videoclip/checkpoint_best.pt
+    reset_optimizer: true
+    reset_dataloader: true
+    reset_meters: true
+    save_dir: runs/retri/videoclip/youcook
+task_type: sweep_small
+model:
+  model_cls: MMFusionSeparate
+  mm_encoder_cls: null
+  video_encoder_cls: MMBertForEncoder
+  text_encoder_cls: BertModel
+  num_hidden_video_layers: 6
+loss:
+  loss_cls: T2VContraLoss

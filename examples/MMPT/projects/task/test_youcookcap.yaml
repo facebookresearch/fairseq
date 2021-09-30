@@ -1,0 +1,23 @@
+includes: projects/task/test.yaml
+dataset:
+  meta_processor: YoucookNLGMetaProcessor
+  test_path: data/youcook/val_list.txt
+  trainval_annotation: data/youcook/youcookii_annotations_trainval.json
+  video_processor: YoucookVideoProcessor
+  vfeat_dir: data/feat/feat_youcook_s3d
+  text_processor: NLGTextProcessor
+  aligner: DSNLGAligner
+model:
+  model_cls: MMFusionNLG
+  mm_encoder_cls: MMBertForNLG
+  max_decode_length: 24
+eval:
+  save_path: runs/task/youcookcap/eval
+fairseq:
+  # read code and find what is the checkpoint arg.
+  common_eval:
+    path: runs/task/youcookcap/checkpoint_best.pt
+metric: NLGMetric
+predictor: NLGPredictor
+gen_param:
+  num_beams: 5

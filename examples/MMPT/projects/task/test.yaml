@@ -1,0 +1,13 @@
+# this yaml cannot be run alone: implement a test_${dataset}.yaml
+slurm_config: big
+task_type: local_predict
+dataset:
+  split: test
+  video_processor: VideoProcessor
+  aligner: DSAligner
+  bert_name: bert-base-uncased
+fairseq:
+  dataset:
+    batch_size: 256
+    valid_subset: test
+    num_workers: 2
