@@ -38,55 +38,73 @@ class MultiheadAttention(nn.Module):
         q_noise=0.0,
         qn_block_size=8,
     ):
+        print("&&&& entering MultiheadAttention __init__")
         super().__init__()
+        print("&&&& finished super MultiheadAttention __init__")
+
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
         self.vdim = vdim if vdim is not None else embed_dim
         self.qkv_same_dim = self.kdim == embed_dim and self.vdim == embed_dim
 
+        print("&&& dropout_module FairseqDropout")
         self.num_heads = num_heads
         self.dropout_module = FairseqDropout(
             dropout, module_name=self.__class__.__name__
         )
 
+        print("&&& head_dim")
         self.head_dim = embed_dim // num_heads
         assert (
             self.head_dim * num_heads == self.embed_dim
         ), "embed_dim must be divisible by num_heads"
         self.scaling = self.head_dim ** -0.5
 
+        print("&&& self_attention")
         self.self_attention = self_attention
         self.encoder_decoder_attention = encoder_decoder_attention
 
+        print("&&& assert self_attention")
         assert not self.self_attention or self.qkv_same_dim, (
             "Self-attention requires query, key and " "value to be of the same size"
         )
 
+        print("&&& k_proj")
         self.k_proj = quant_noise(
             nn.Linear(self.kdim, embed_dim, bias=bias), q_noise, qn_block_size
         )
+
+        print("&&& v_proj")
         self.v_proj = quant_noise(
             nn.Linear(self.vdim, embed_dim, bias=bias), q_noise, qn_block_size
         )
+
+        print("&&& q_proj")
         self.q_proj = quant_noise(
             nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
         )
 
+        print("&&& out_proj")
         self.out_proj = quant_noise(
             nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
         )
 
+        print("&&& add_bias_kv")
         if add_bias_kv:
+            print("&& bias_k torch.Tensor")
             self.bias_k = Parameter(torch.Tensor(1, 1, embed_dim))
             self.bias_v = Parameter(torch.Tensor(1, 1, embed_dim))
         else:
+            print("&& bias_k None")
             self.bias_k = self.bias_v = None
 
         self.add_zero_attn = add_zero_attn
 
+        print("&&& reset_parameters")
         self.reset_parameters()
 
         self.onnx_trace = False
+        print("&&&& exiting MultiheadAttention __init__")
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True

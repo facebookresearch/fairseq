@@ -15,10 +15,13 @@ logger = logging.getLogger(__name__)
 
 class FairseqDropout(nn.Module):
     def __init__(self, p, module_name=None):
+        print("^^^^ entering FairseqDropout __init__")
         super().__init__()
+        print("^^^ finished super FairseqDropout __init__")
         self.p = p
         self.module_name = module_name
         self.apply_during_inference = False
+        print("^^^^ exiting FairseqDropout __init__")
 
     def forward(self, x, inplace: bool = False):
         if self.p > 0 and (self.training or self.apply_during_inference):

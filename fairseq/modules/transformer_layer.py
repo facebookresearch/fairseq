@@ -281,7 +281,8 @@ class TransformerDecoderLayer(nn.Module):
         )
 
     def build_encoder_attention(self, embed_dim, args):
-        return MultiheadAttention(
+        print("&&&&& entering build_encoder_attention")
+        ret = MultiheadAttention(
             embed_dim,
             args.decoder_attention_heads,
             kdim=getattr(args, "encoder_embed_dim", None),
@@ -291,6 +292,9 @@ class TransformerDecoderLayer(nn.Module):
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
         )
+
+        print("&&&&& exiting build_encoder_attention")
+        return ret
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
