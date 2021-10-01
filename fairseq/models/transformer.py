@@ -107,9 +107,11 @@ class TransformerModel(FairseqEncoderDecoderModel):
         # fmt: on
 
     def __init__(self, args, encoder, decoder):
+        print("!!!!!! transformer.py entering __init__")
         super().__init__(encoder, decoder)
         self.args = args
         self.supports_align_args = True
+        print("!!!!!! transformer.py exiting __init__")
 
     @staticmethod
     def add_args(parser):
@@ -213,11 +215,13 @@ class TransformerModel(FairseqEncoderDecoderModel):
 
     @classmethod
     def build_model(cls, args, task):
+        print("!!!!!!! entrering transformer.py build_model")
         """Build a new model instance."""
 
         # make sure all arguments are present in older models
         base_architecture(args)
 
+        print("!!!!!! reading args.encoder_layers_to_keep")
         if args.encoder_layers_to_keep:
             args.encoder_layers = len(args.encoder_layers_to_keep.split(","))
         if args.decoder_layers_to_keep:
@@ -228,6 +232,7 @@ class TransformerModel(FairseqEncoderDecoderModel):
         if getattr(args, "max_target_positions", None) is None:
             args.max_target_positions = DEFAULT_MAX_TARGET_POSITIONS
 
+        print("!!!!!! reading embeddings")
         src_dict, tgt_dict = task.source_dictionary, task.target_dictionary
         if args.share_all_embeddings:
             if src_dict != tgt_dict:
@@ -255,17 +260,31 @@ class TransformerModel(FairseqEncoderDecoderModel):
             decoder_embed_tokens = cls.build_embedding(
                 args, tgt_dict, args.decoder_embed_dim, args.decoder_embed_path
             )
+        
+        print("!!!!!! reading offload_activations")
         if getattr(args, "offload_activations", False):
             args.checkpoint_activations = True  # offloading implies checkpointing
+
+        print("!!!!!! building encoder")
         encoder = cls.build_encoder(args, src_dict, encoder_embed_tokens)
+
+        print("!!!!!! building decoder")
         decoder = cls.build_decoder(args, tgt_dict, decoder_embed_tokens)
+
+
         if not args.share_all_embeddings:
+            print("!!!!! not share_all_embeddings")
             min_params_to_wrap = getattr(
                 args, "min_params_to_wrap", DEFAULT_MIN_PARAMS_TO_WRAP
             )
             # fsdp_wrap is a no-op when --ddp-backend != fully_sharded
+            print("!!!!! fsdp_wrap encoder")
             encoder = fsdp_wrap(encoder, min_num_params=min_params_to_wrap)
+
+            print("!!!!! fsdp_wrap decoder")
             decoder = fsdp_wrap(decoder, min_num_params=min_params_to_wrap)
+        
+        print("!!!!!!! exiting transformer.py build_model")
         return cls(args, encoder, decoder)
 
     @classmethod

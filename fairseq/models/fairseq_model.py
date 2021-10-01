@@ -39,8 +39,10 @@ class BaseFairseqModel(nn.Module):
     """Base class for fairseq models."""
 
     def __init__(self):
+        print("^^^^^ BaseFairseqModel entering __init__")
         super().__init__()
         self._is_generation_fast = False
+        print("^^^^^ BaseFairseqModel exiting __init__")
 
     @classmethod
     def add_args(cls, parser):
@@ -285,6 +287,7 @@ class FairseqEncoderDecoderModel(BaseFairseqModel):
     """
 
     def __init__(self, encoder, decoder):
+        print("^^^^^ fairseq_model.py entering __init__")
         super().__init__()
 
         self.encoder = encoder
@@ -292,6 +295,7 @@ class FairseqEncoderDecoderModel(BaseFairseqModel):
 
         check_type(self.encoder, FairseqEncoder)
         check_type(self.decoder, FairseqDecoder)
+        print("^^^^^ fairseq_model.py exiting __init__")
 
     def forward(self, src_tokens, src_lengths, prev_output_tokens, **kwargs):
         """
