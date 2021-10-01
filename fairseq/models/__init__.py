@@ -53,10 +53,10 @@ __all__ = [
 
 
 def build_model(cfg: FairseqDataclass, task):
-
+    print("@@@@@ entering __init__.py build_model")
     model = None
     model_type = getattr(cfg, "_name", None) or getattr(cfg, "arch", None)
-
+    
     if not model_type and len(cfg) == 1:
         # this is hit if config object is nested in directory that is named after model type
 
@@ -104,6 +104,7 @@ def build_model(cfg: FairseqDataclass, task):
         + f" Requested model type: {model_type}"
     )
 
+    print("@@@@@ exiting __init__.py build_model")
     return model.build_model(cfg, task)
 
 

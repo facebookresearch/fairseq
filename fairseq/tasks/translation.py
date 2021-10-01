@@ -378,10 +378,13 @@ class TranslationTask(FairseqTask):
         )
 
     def build_model(self, cfg):
+        print("@@@@@ entering translation.py build_model")
         model = super().build_model(cfg)
         if self.cfg.eval_bleu:
+            print("@@@@ entering eval_bleu")
             bpe_args = json.loads(self.cfg.eval_bleu_bpe_args)
             if self.cfg.eval_bleu_bpe == 'sentencepiece':
+                print("@@@ entering eval_bleu_bpe")
                 self.bpe= encoders.build_bpe(
                     Namespace(bpe=self.cfg.eval_bleu_bpe, **bpe_args)
                 )
@@ -389,19 +392,21 @@ class TranslationTask(FairseqTask):
                 logger.info(self.bpe)
             detok_args = json.loads(self.cfg.eval_bleu_detok_args)
             if self.cfg.eval_bleu_detok is not None:
+                print("@@@@ entering eval_bleu_detok")
                 self.tokenizer = encoders.build_tokenizer(
                     Namespace(tokenizer=self.cfg.eval_bleu_detok, **detok_args)
                 )
                 logger.info("tok")
                 logger.info(self.tokenizer)
 
+            print("@@@@ loading args")
             gen_args = json.loads(self.cfg.eval_bleu_args)
+            print("@@@@ building generator")
             self.sequence_generator = self.build_generator(
                 [model], Namespace(**gen_args)
             )
        
-        
-
+        print("@@@@@ exiting translation.py build_model")
         return model
 
     def valid_step(self, sample, model, criterion):

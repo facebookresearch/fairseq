@@ -455,10 +455,12 @@ def load_model_ensemble_and_task(
                 print("# buliding unsharded model")
                 # model parallel checkpoint or unsharded checkpoint
                 model = task.build_model(cfg.model)
+                print("# loading model state dict")
                 model.load_state_dict(
                     state["model"], strict=strict, model_cfg=cfg.model
                 )
 
+            print("# resetting state")
             # reset state so it gets loaded for the next model in ensemble
             state = None
             if shard_idx % 10 == 0 and shard_idx > 0:

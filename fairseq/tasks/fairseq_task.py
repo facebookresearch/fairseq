@@ -315,10 +315,13 @@ class FairseqTask(object):
         Returns:
             a :class:`~fairseq.models.BaseFairseqModel` instance
         """
+        print("@@@@@ entering fairseq_task.py build_model")
         from fairseq import models, quantization_utils
 
         model = models.build_model(cfg, self)
         model = quantization_utils.quantize_model_scalar(model, cfg)
+
+        print("@@@@@ exiting fairseq_task.py build_model")
         return model
 
     def build_criterion(self, cfg: DictConfig):
