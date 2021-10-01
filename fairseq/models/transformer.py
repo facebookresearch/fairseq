@@ -735,16 +735,24 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         print("!!! layernorm_embedding")
         export = getattr(args, "export", False)
         if getattr(args, "layernorm_embedding", False):
+            print("!! layernorm_embedding new LayerNorm()")
             self.layernorm_embedding = LayerNorm(embed_dim, export=export)
         else:
+            print("!! layernorm_embedding None")
             self.layernorm_embedding = None
 
+        print("!!! cross_self_attention")
         self.cross_self_attention = getattr(args, "cross_self_attention", False)
 
+        print("!!! decoder_layerdrop")
         if self.decoder_layerdrop > 0.0:
+            print("!! decoder_layerdrop new LayerDropModuleList()")
             self.layers = LayerDropModuleList(p=self.decoder_layerdrop)
         else:
+            print("!! decoder_layerdrop empty")
             self.layers = nn.ModuleList([])
+
+        print("!!! layers.extend")
         self.layers.extend(
             [
                 self.build_decoder_layer(args, no_encoder_attn)
@@ -806,19 +814,29 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             )
 
     def build_decoder_layer(self, args, no_encoder_attn=False):
+        print("***** entering build_decoder_layer")
         layer = TransformerDecoderLayer(args, no_encoder_attn)
+
+        print("**** checkpoint")
         checkpoint = getattr(args, "checkpoint_activations", False)
         if checkpoint:
+            print("*** offload_to_cpu")
             offload_to_cpu = getattr(args, "offload_activations", False)
+            print("*** checkpoint_wrapper")
             layer = checkpoint_wrapper(layer, offload_to_cpu=offload_to_cpu)
         # if we are checkpointing, enforce that FSDP always wraps the
         # checkpointed layer, regardless of layer size
+        print("**** min_params_to_wrap")
         min_params_to_wrap = (
             getattr(args, "min_params_to_wrap", DEFAULT_MIN_PARAMS_TO_WRAP)
             if not checkpoint
             else 0
         )
+
+        print("**** fsdp_wrap")
         layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
+
+        print("***** exiting build_decoder_layer")
         return layer
 
     def forward(
