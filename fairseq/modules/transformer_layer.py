@@ -261,7 +261,10 @@ class TransformerDecoderLayer(nn.Module):
         print("^^^^^ exiting TransformerDecoderLayer __init__")
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
-        return quant_noise(nn.Linear(input_dim, output_dim), q_noise, qn_block_size)
+        print("^^^ entering build_fc1")
+        ret = quant_noise(nn.Linear(input_dim, output_dim), q_noise, qn_block_size)
+        print("^^^ exiting build_fc1", ret)
+        return ret
 
     def build_fc2(self, input_dim, output_dim, q_noise, qn_block_size):
         return quant_noise(nn.Linear(input_dim, output_dim), q_noise, qn_block_size)

@@ -27,8 +27,10 @@ def quant_noise(module, p, block_size):
           which consists in randomly dropping blocks
     """
 
+    print("$$$$$ entering quant_noise")
     # if no quantization noise, don't register hook
     if p <= 0:
+        print("$$$$ p <= 0", p)
         return module
 
     # supported modules
@@ -39,26 +41,33 @@ def quant_noise(module, p, block_size):
 
     # 2D matrix
     if not is_conv:
+        print("$$$$ 2D matrix")
         assert (
             module.weight.size(1) % block_size == 0
         ), "Input features must be a multiple of block sizes"
 
     # 4D matrix
     else:
+        print("$$$$ 4D Matrix")
         # 1x1 convolutions
         if module.kernel_size == (1, 1):
+            print("$$$ module.kernel_size == (1, 1)")
             assert (
                 module.in_channels % block_size == 0
             ), "Input channels must be a multiple of block sizes"
         # regular convolutions
         else:
+            print("$$$ k = module.kernel_size[0] * module.kernel_size[1]")
             k = module.kernel_size[0] * module.kernel_size[1]
             assert k % block_size == 0, "Kernel size must be a multiple of block size"
 
     def _forward_pre_hook(mod, input):
+        print("$$$ entering _forward_pre_hook")
         # no noise for evaluation
         if mod.training:
+            print("$$ mod.training", mod.training)
             if not is_conv:
+                print("$ not is_conv")
                 # gather weight and sizes
                 weight = mod.weight
                 in_features = weight.size(1)
@@ -72,6 +81,7 @@ def quant_noise(module, p, block_size):
                 mask = mask.repeat_interleave(block_size, -1).view(-1, in_features)
 
             else:
+                print("$ is_conv")
                 # gather weight and sizes
                 weight = mod.weight
                 in_channels = mod.in_channels
@@ -102,6 +112,10 @@ def quant_noise(module, p, block_size):
             )  # x.bool() is not currently supported in TorchScript
             s = 1 / (1 - p)
             mod.weight.data = s * weight.masked_fill(mask, 0)
+        print("$$$ exiting _forward_pre_hook")
 
+    print("$$$$ register_forward_pre_hook")
     module.register_forward_pre_hook(_forward_pre_hook)
+
+    print("$$$$$ exiting quant_noise")
     return module
