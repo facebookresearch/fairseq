@@ -14,10 +14,12 @@ class FairseqDecoder(nn.Module):
     """Base class for decoders."""
 
     def __init__(self, dictionary):
+        print("^^^^ entering FairseqDecoder __init__")
         super().__init__()
         self.dictionary = dictionary
         self.onnx_trace = False
         self.adaptive_softmax = None
+        print("^^^^ exiting FairseqDecoder __init__")
 
 
     def forward(self, prev_output_tokens, encoder_out=None, **kwargs):

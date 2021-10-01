@@ -675,27 +675,33 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         no_encoder_attn=False,
         output_projection=None,
     ):
+        print("!!!! entering TransformerDecoder __init__")
         self.args = args
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
         self._future_mask = torch.empty(0)
 
+        print("!!! dropout_module")
         self.dropout_module = FairseqDropout(
             args.dropout, module_name=self.__class__.__name__
         )
+        print("!!! decoder_layerdrop")
         self.decoder_layerdrop = args.decoder_layerdrop
         self.share_input_output_embed = args.share_decoder_input_output_embed
 
+        print("!!! input_embed_dim")
         input_embed_dim = embed_tokens.embedding_dim
         embed_dim = args.decoder_embed_dim
         self.embed_dim = embed_dim
         self.output_embed_dim = args.decoder_output_dim
 
+        print("!!! padding_idx")
         self.padding_idx = embed_tokens.padding_idx
         self.max_target_positions = args.max_target_positions
 
         self.embed_tokens = embed_tokens
 
+        print("!!! embed_scale")
         self.embed_scale = 1.0 if args.no_scale_embedding else math.sqrt(embed_dim)
 
         if not args.adaptive_input and args.quant_noise_pq > 0:
@@ -707,11 +713,14 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         else:
             self.quant_noise = None
 
+        print("!!! project_in_dim")
         self.project_in_dim = (
             Linear(input_embed_dim, embed_dim, bias=False)
             if embed_dim != input_embed_dim
             else None
         )
+
+        print("!!! embed_positions")
         self.embed_positions = (
             PositionalEmbedding(
                 self.max_target_positions,
@@ -722,6 +731,8 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             if not args.no_token_positional_embeddings
             else None
         )
+
+        print("!!! layernorm_embedding")
         export = getattr(args, "export", False)
         if getattr(args, "layernorm_embedding", False):
             self.layernorm_embedding = LayerNorm(embed_dim, export=export)
@@ -742,6 +753,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         )
         self.num_layers = len(self.layers)
 
+        print("!!! decoder_normalize_before")
         if args.decoder_normalize_before and not getattr(
             args, "no_decoder_final_norm", False
         ):
@@ -754,10 +766,12 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             else None
         )
 
+        print("!!! adaptive_softmax")
         self.adaptive_softmax = None
         self.output_projection = output_projection
         if self.output_projection is None:
             self.build_output_projection(args, dictionary, embed_tokens)
+        print("!!!! exiting TransformerDecoder __init__")
 
     def build_output_projection(self, args, dictionary, embed_tokens):
         if args.adaptive_softmax_cutoff is not None:
