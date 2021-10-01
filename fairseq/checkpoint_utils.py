@@ -347,6 +347,7 @@ def load_model_ensemble(
             were used during model training
         task (fairseq.tasks.FairseqTask, optional): task to use for loading
     """
+    print("#### entering load_model_ensemble")
     assert not (
         strict and num_shards > 1
     ), "Cannot load state dict with strict=True and checkpoint shards > 1"
@@ -359,6 +360,7 @@ def load_model_ensemble(
         num_shards,
         state,
     )
+    print("#### exiting load_model_ensemble")
     return ensemble, args
 
 
@@ -386,6 +388,7 @@ def load_model_ensemble_and_task(
     num_shards=1,
     state=None,
 ):
+    print("#### entering load_model_ensemble_and_task")
     assert state is None or len(filenames) == 1
 
     from fairseq import tasks
@@ -396,11 +399,13 @@ def load_model_ensemble_and_task(
     ensemble = []
     cfg = None
     for filename in filenames:
+        print("### loading filename", filename)
         orig_filename = filename
         model_shard_state = {"shard_weights": [], "shard_metadata": []}
         assert num_shards > 0
         st = time.time()
         for shard_idx in range(num_shards):
+            print("## loading filename for shard", filename, shard_idx)
             filename = get_maybe_sharded_checkpoint_filename(
                 orig_filename, suffix, shard_idx, num_shards
             )
@@ -419,12 +424,15 @@ def load_model_ensemble_and_task(
                 )
 
             if task is None:
+                print("# setting up task")
                 task = tasks.setup_task(cfg.task)
 
             if "task_state" in state:
+                print("# loading task state")
                 task.load_state_dict(state["task_state"])
 
             if "fsdp_metadata" in state and num_shards > 1:
+                print("# loading fsdp_metadata")
                 model_shard_state["shard_weights"].append(state["model"])
                 model_shard_state["shard_metadata"].append(state["fsdp_metadata"])
                 # check FSDP import before the code goes too far
@@ -433,6 +441,7 @@ def load_model_ensemble_and_task(
                         "Cannot find FullyShardedDataParallel. "
                         "Please install fairscale with: pip install fairscale"
                     )
+                print("# FSDP imported correctly.")
                 if shard_idx == num_shards - 1:
                     consolidated_model_state = FSDP.consolidate_shard_weights(
                         shard_weights=model_shard_state["shard_weights"],
@@ -443,6 +452,7 @@ def load_model_ensemble_and_task(
                         consolidated_model_state, strict=strict, model_cfg=cfg.model
                     )
             else:
+                print("# buliding unsharded model")
                 # model parallel checkpoint or unsharded checkpoint
                 model = task.build_model(cfg.model)
                 model.load_state_dict(
@@ -457,8 +467,10 @@ def load_model_ensemble_and_task(
                     f"Loaded {shard_idx} shards in {elapsed:.2f}s, {elapsed / (shard_idx+1):.2f}s/shard"
                 )
 
+        print("### appending model to ensemble")
         # build model for ensemble
         ensemble.append(model)
+    print("#### exiting load_model_ensemble_and_task")
     return ensemble, cfg, task
 
 
