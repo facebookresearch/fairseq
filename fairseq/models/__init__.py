@@ -104,8 +104,9 @@ def build_model(cfg: FairseqDataclass, task):
         + f" Requested model type: {model_type}"
     )
 
+    ret = model.build_model(cfg, task)
     print("@@@@@ exiting __init__.py build_model")
-    return model.build_model(cfg, task)
+    return ret
 
 
 def register_model(name, dataclass=None):

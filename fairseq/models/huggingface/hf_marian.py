@@ -51,6 +51,7 @@ class HuggingFaceMarianNMT(TransformerModel):
 
     @classmethod
     def build_model(cls, cfg, task):
+        print("!!!!!!!!!!! entering hf_marian.py build_model")
         """Build a new model instance."""
         logger.info(cfg.common)
         encoder = HuggingFaceMarianEncoder(cfg, task.dictionary)
