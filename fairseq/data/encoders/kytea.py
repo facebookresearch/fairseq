@@ -60,7 +60,7 @@ class KyteaTokenizer(object):
         self._kt = Mykytea(_param)
 
     def encode(self, text: str) -> str:
-        if self.decode_only:
+        if self.cfg.decode_only:
             return text
         w_list = []
         for w in self._kt.getWS(text):
@@ -69,7 +69,7 @@ class KyteaTokenizer(object):
 
  
     def decode(self, text:str) -> str:
-        if self.encode_only:
+        if self.cfg.encode_only:
             return text
         res = chinese_deseg(text.split(" "))
         res = re.sub(r" +", u" ", res)

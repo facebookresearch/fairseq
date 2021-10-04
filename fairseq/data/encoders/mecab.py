@@ -56,7 +56,7 @@ class MecabTokenizer(object):
             return " ".join(tokenized)
 
     def decode(self, text: str) -> str:
-        if self.encode_only:
+        if self.cfg.encode_only:
             return text
         text = "".join(text.split(" ")).replace("▃", " ").strip()
         return text
