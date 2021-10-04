@@ -7,6 +7,9 @@ import json
 @dataclass
 class MecabTokenizerConfig(FairseqDataclass):
     target_lang: str = field(default="ko", metadata={"help": "target language"})
+    decode_only: bool = field(default = True,  metadata={"help": "detokenize only"})
+    encode_only: bool = field(default = False,  metadata={"help": "tokenize only"})
+
 
 
 @register_tokenizer("mecab", dataclass=MecabTokenizerConfig)
@@ -28,6 +31,8 @@ class MecabTokenizer(object):
 
 
     def encode(self, text: str) -> str:
+        if self.cfg.decode_only:
+            return text
         text = text.strip()
         text_ptr = 0
         tokenized = []
@@ -51,5 +56,7 @@ class MecabTokenizer(object):
             return " ".join(tokenized)
 
     def decode(self, text: str) -> str:
+        if self.encode_only:
+            return text
         text = "".join(text.split(" ")).replace("▃", " ").strip()
         return text

@@ -8,6 +8,9 @@ import re
 @dataclass
 class KyteaTokenizerConfig(FairseqDataclass):
     model_file: str = field(default="en", metadata={"help": "where is the model file located"})
+    decode_only: bool = field(default = True,  metadata={"help": "detokenize only"})
+    encode_only: bool = field(default = False,  metadata={"help": "tokenize only"})
+
 
 def to_unicode(unicode_or_str):
     if six.PY3:
@@ -57,6 +60,8 @@ class KyteaTokenizer(object):
         self._kt = Mykytea(_param)
 
     def encode(self, text: str) -> str:
+        if self.decode_only:
+            return text
         w_list = []
         for w in self._kt.getWS(text):
             w_list.append(w)
@@ -64,6 +69,8 @@ class KyteaTokenizer(object):
 
  
     def decode(self, text:str) -> str:
+        if self.encode_only:
+            return text
         res = chinese_deseg(text.split(" "))
         res = re.sub(r" +", u" ", res)
         return res
