@@ -1,0 +1,5 @@
+dataset:
+  bert_name: bert-base-uncased
+  caption_pkl_path: data/how2/raw_caption_dedup.pkl
+  use_fast: true
+  target_dir: data/feat/feat_how2_s3d_shard_small

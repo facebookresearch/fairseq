@@ -25,6 +25,7 @@ from fairseq.modules import (
     MultiheadAttention,
     PositionalEmbedding,
 )
+from fairseq.utils import safe_hasattr
 
 
 @register_model("lightconv")
@@ -257,9 +258,9 @@ class LightConvModel(FairseqEncoderDecoderModel):
         # make sure all arguments are present in older models
         base_architecture(args)
 
-        if not hasattr(args, "max_source_positions"):
+        if not safe_hasattr(args, "max_source_positions"):
             args.max_source_positions = 1024
-        if not hasattr(args, "max_target_positions"):
+        if not safe_hasattr(args, "max_target_positions"):
             args.max_target_positions = 1024
 
         src_dict, tgt_dict = task.source_dictionary, task.target_dictionary

@@ -131,7 +131,7 @@ class MonotonicAttention(MultiheadAttention):
 
         return energy
 
-    def p_choose_from_qk(self, query, key, key_padding_mask):
+    def p_choose_from_qk(self, query, key, key_padding_mask, incremental_states=None):
         monotonic_energy = self.energy_from_qk(
             query,
             key,
@@ -148,7 +148,7 @@ class MonotonicAttention(MultiheadAttention):
         )
         return p_choose
 
-    def p_choose(self, query, key, key_padding_mask):
+    def p_choose(self, query, key, key_padding_mask, incremental_states=None):
         return self.p_choose_from_qk(self, query, key, key_padding_mask)
 
     def monotonic_attention_process_infer(

@@ -92,7 +92,8 @@ class Dictionary:
             )
 
         extra_symbols_to_ignore = set(extra_symbols_to_ignore or [])
-        extra_symbols_to_ignore.add(self.eos())
+        if not include_eos:
+            extra_symbols_to_ignore.add(self.eos())
 
         def token_string(i):
             if i == self.unk():
@@ -267,7 +268,7 @@ class Dictionary:
                 self.add_symbol(word, n=count, overwrite=overwrite)
             except ValueError:
                 raise ValueError(
-                    "Incorrect dictionary format, expected '<token> <cnt> [flags]'"
+                    f"Incorrect dictionary format, expected '<token> <cnt> [flags]': \"{line}\""
                 )
 
     def _save(self, f, kv_iterator):

@@ -402,7 +402,7 @@ def cli_main():
     parser = options.get_generation_parser()
     # TODO: replace this workaround with refactoring of `AudioPretraining`
     parser.add_argument(
-        '--arch', '-a', metavar='ARCH', default="transformer",
+        '--arch', '-a', metavar='ARCH', default="wav2vec2",
         help='Model architecture. For constructing tasks that rely on '
              'model args (e.g. `AudioPretraining`)'
     )

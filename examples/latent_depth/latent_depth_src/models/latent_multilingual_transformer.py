@@ -10,6 +10,7 @@ from fairseq.models.transformer import (
     TransformerEncoder,
     base_architecture,
 )
+from fairseq.utils import safe_hasattr
 
 from .latent_transformer import LatentTransformerDecoder, LatentTransformerEncoder
 
@@ -40,14 +41,14 @@ class LatentMultilingualTransformerModel(MultilingualTransformerModel):
     @classmethod
     def _get_module_class(cls, is_encoder, args, lang_dict, embed_tokens, langs):
         if is_encoder:
-            if hasattr(args, "encoder_latent_layer") and args.encoder_latent_layer:
+            if safe_hasattr(args, "encoder_latent_layer") and args.encoder_latent_layer:
                 return LatentTransformerEncoder(
                     args, lang_dict, embed_tokens, num_logits=len(langs)
                 )
             else:
                 return TransformerEncoder(args, lang_dict, embed_tokens)
         else:
-            if hasattr(args, "decoder_latent_layer") and args.decoder_latent_layer:
+            if safe_hasattr(args, "decoder_latent_layer") and args.decoder_latent_layer:
                 return LatentTransformerDecoder(
                     args, lang_dict, embed_tokens, num_logits=len(langs)
                 )

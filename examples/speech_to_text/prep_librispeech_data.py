@@ -58,19 +58,18 @@ def process(args):
     print("ZIPing features...")
     create_zip(feature_root, zip_path)
     print("Fetching ZIP manifest...")
-    zip_manifest = get_zip_manifest(zip_path)
+    audio_paths, audio_lengths = get_zip_manifest(zip_path)
     # Generate TSV manifest
     print("Generating manifest...")
     train_text = []
     for split in SPLITS:
         manifest = {c: [] for c in MANIFEST_COLUMNS}
         dataset = LIBRISPEECH(out_root.as_posix(), url=split)
-        for wav, sample_rate, utt, spk_id, chapter_no, utt_no in tqdm(dataset):
+        for _, _, utt, spk_id, chapter_no, utt_no in tqdm(dataset):
             sample_id = f"{spk_id}-{chapter_no}-{utt_no}"
             manifest["id"].append(sample_id)
-            manifest["audio"].append(zip_manifest[sample_id])
-            duration_ms = int(wav.size(1) / sample_rate * 1000)
-            manifest["n_frames"].append(int(1 + (duration_ms - 25) / 10))
+            manifest["audio"].append(audio_paths[sample_id])
+            manifest["n_frames"].append(audio_lengths[sample_id])
             manifest["tgt_text"].append(utt.lower())
             manifest["speaker"].append(spk_id)
         save_df_to_tsv(
@@ -92,7 +91,9 @@ def process(args):
         )
     # Generate config YAML
     gen_config_yaml(
-        out_root, spm_filename_prefix + ".model", specaugment_policy="ld"
+        out_root,
+        spm_filename=spm_filename_prefix + ".model",
+        specaugment_policy="ld"
     )
     # Clean up
     shutil.rmtree(feature_root)

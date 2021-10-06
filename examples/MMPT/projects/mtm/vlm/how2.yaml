@@ -1,0 +1,52 @@
+dataset:
+  video_processor: ShardedVideoProcessor
+  bert_name: bert-base-uncased
+  meta_processor: ShardedHow2MetaProcessor
+  train_path: data/how2/how2_s3d_train.lst
+  val_path: data/how2/how2_s3d_val.lst
+  vfeat_dir: data/feat/feat_how2_s3d_shard_small
+  text_processor: ShardedTextProcessor
+  tfeat_dir: data/feat/feat_how2_s3d_shard_small/raw_caption_dedup.bert-base-uncased.
+  aligner: MFMMLMAligner
+  subsampling: 32
+  sampled_min_len: 8
+  sampled_max_len: 64
+  max_video_len: 32
+  max_len: 96
+  lazy_vfeat_mask: true
+  mfm_probability: 0.15
+  mlm_probability: 0.15
+  mm_prob: 0.5
+fairseq:
+  common:
+    tensorboard_logdir: run
+    log_interval: 1000
+    fp16: true
+  dataset:
+    num_workers: 4
+    batch_size: 256
+  optimization:
+    lr:
+    - 5.0e-05
+    clip_norm: 2.0
+    optimizer: adam
+    adam_betas: (0.9, 0.98)
+    lr_scheduler: polynomial_decay
+    warmup_updates: 1000
+    weight_decay: 0.0
+    ddp_backend: no_c10d
+    max_epoch: 15
+  checkpoint:
+    save_dir: runs/mtm/vlm
+    save_interval_updates: 1024
+    keep_interval_updates: 2
+    keep_last_epochs: 30
+task_type: sweep_big
+slurm_config: big
+model:
+  model_cls: MMFusionMTM
+  mm_encoder_cls: MMBertForMFMMLM
+  use_seg_emb: true
+loss:
+  loss_cls: MTM
+task: VLMTask

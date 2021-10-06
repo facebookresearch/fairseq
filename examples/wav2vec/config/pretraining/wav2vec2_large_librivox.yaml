@@ -18,6 +18,7 @@ task:
   normalize: true
 
 dataset:
+  batch_size: 4
   num_workers: 6
   max_tokens: 1200000
   skip_invalid_size_inputs_valid_test: true
