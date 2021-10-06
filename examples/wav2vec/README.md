@@ -55,7 +55,7 @@ We also finetuned XLSR-53 on languages from [CommonVoice](https://commonvoice.mo
 
 Pretrained Model | Fintune Dataset | # Languages | Phonemizer | Model | Dictionary
 |---|---|---|---|---|---
-XLSR-53 | CommonVoice | 26 | [Espeak](https://github.com/espeak-ng/espeak-ng/blob/master/docs/languages.md) | [download](https://dl.fbaipublicfiles.com/fairseq/zero_shot/espeak_26lang_m10.pt) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/espeak_dict.txt)
+XLSR-53 | CommonVoice | 26 | [Espeak](https://github.com/espeak-ng/espeak-ng/blob/master/docs/languages.md) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/espeak_26lang_m10.pt) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/espeak_dict.txt)
 XLSR-53 | CommonVoice | 21 | [Phonetisaurus](https://github.com/AdolfVonKleist/Phonetisaurus) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/phonetisaurus_21lang_m10.pt) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/phonetisaurus_dict.txt)
 
 We release 2 models that are finetuned on data from 2 different phonemizers. Although the phonemes are all [IPA](https://en.wikipedia.org/wiki/International_Phonetic_Alphabet) symbols, there are still subtle differences between the phonemized transcriptions from the 2 phonemizers. Thus, it's better to use the corresponding model, if your data is phonemized by either phonemizer above.
