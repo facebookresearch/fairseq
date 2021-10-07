@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class HubertConfig(FairseqDataclass):
-    label_rate: int = II("task.label_rate")
+    label_rate: float = II("task.label_rate")
 
     extractor_mode: EXTRACTOR_MODE_CHOICES = field(
         default="default",
