@@ -51,12 +51,14 @@ The XLSR model uses the following datasets for multilingual pretraining:
 
 * **[Babel](https://catalog.ldc.upenn.edu/byyear)** (17 languages, 1.7k hours): *Assamese, Bengali, Cantonese, Cebuano, Georgian, Haitian, Kazakh, Kurmanji, Lao, Pashto, Swahili, Tagalog, Tamil, Tok, Turkish, Vietnamese, Zulu*
 
-We also finetuned XLSR-53 on languages from [CommonVoice](https://commonvoice.mozilla.org/en/languages) version 6.1. Please refer to [our paper](https://arxiv.org/abs/2109.11680) for details about which languages are used.
+We also finetuned several models on languages from [CommonVoice](https://commonvoice.mozilla.org/en/languages) (version 6.1) and [Babel](https://catalog.ldc.upenn.edu/byyear). Please refer to [our paper](https://arxiv.org/abs/2109.11680) for details about which languages are used.
 
 Pretrained Model | Fintune Dataset | # Languages | Phonemizer | Model | Dictionary
 |---|---|---|---|---|---
+LV-60 | CommonVoice | 26 | [Espeak](https://github.com/espeak-ng/espeak-ng/blob/master/docs/languages.md) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/espeak_en_26lang_m10.pt) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/espeak_dict.txt)
 XLSR-53 | CommonVoice | 26 | [Espeak](https://github.com/espeak-ng/espeak-ng/blob/master/docs/languages.md) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/espeak_26lang_m10.pt) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/espeak_dict.txt)
 XLSR-53 | CommonVoice | 21 | [Phonetisaurus](https://github.com/AdolfVonKleist/Phonetisaurus) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/phonetisaurus_21lang_m10.pt) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/phonetisaurus_dict.txt)
+XLSR-53 | CommonVoice, BABEL | 21, 19 | [Phonetisaurus](https://github.com/AdolfVonKleist/Phonetisaurus) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/phonetisaurus_40lang_m10.pt) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/phonetisaurus_40lang.dict.txt)
 
 We release 2 models that are finetuned on data from 2 different phonemizers. Although the phonemes are all [IPA](https://en.wikipedia.org/wiki/International_Phonetic_Alphabet) symbols, there are still subtle differences between the phonemized transcriptions from the 2 phonemizers. Thus, it's better to use the corresponding model, if your data is phonemized by either phonemizer above.
 
