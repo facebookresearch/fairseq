@@ -56,7 +56,7 @@ class KLDivergenceRerankingCriterion(FairseqCriterion):
         2) the sample size, which is used as the denominator for the gradient
         3) logging outputs to display while training
         """
-
+        print(sample)
         sample_size = sample["id"].numel()
         assert sample_size % self.task.cfg.mt_beam == 0, (
             f"sample_size ({sample_size}) cannot be divided by beam size ({self.task.cfg.mt_beam})."
