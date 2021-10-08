@@ -97,8 +97,8 @@ python ./fairseq_cli/generate.py \
         --results-path ${infer_results} \
         --batch-size 512 \
         --path ${model} \
-        --gen-subset tst-COMMON \
-        --config-yaml config_spm.yaml \
+        --gen-subset tst-COMMON_st \
+        --config-yaml config.yaml \
         --scoring sacrebleu \
         --beam 5 --lenpen 1.0 \
         --user-dir examples/speech_text_joint_to_text \
