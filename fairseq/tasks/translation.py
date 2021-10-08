@@ -238,17 +238,6 @@ class TranslationConfig(FairseqDataclass):
             "help": 'generation args for BLUE scoring, e.g., \'{"beam": 4, "lenpen": 0.6}\', as JSON string'
         },
     )
-    eval_bleu_bpe: str = field(
-        default="space",
-        metadata={
-            "help": "detokenize before computing BLEU (e.g., 'moses'); required if using --eval-bleu; "
-            "use 'space' to disable detokenization; see fairseq.data.encoders for other options"
-        },
-    )
-    eval_bleu_bpe_args: Optional[str] = field(
-        default="{}",
-        metadata={"help": "args for building the tokenizer, if needed, as JSON string"},
-    )
     eval_bleu_detok: str = field(
         default="space",
         metadata={
@@ -380,21 +369,11 @@ class TranslationTask(FairseqTask):
     def build_model(self, cfg):
         model = super().build_model(cfg)
         if self.cfg.eval_bleu:
-            bpe_args = json.loads(self.cfg.eval_bleu_bpe_args)
-            if self.cfg.eval_bleu_bpe == 'sentencepiece':
-                self.bpe= encoders.build_bpe(
-                    Namespace(bpe=self.cfg.eval_bleu_bpe, **bpe_args)
-                )
-                logger.info("bpe")
-                logger.info(self.bpe)
             detok_args = json.loads(self.cfg.eval_bleu_detok_args)
             if self.cfg.eval_bleu_detok is not None:
                 self.tokenizer = encoders.build_tokenizer(
                     Namespace(tokenizer=self.cfg.eval_bleu_detok, **detok_args)
                 )
-                logger.info("tok")
-                logger.info(self.tokenizer)
-
             gen_args = json.loads(self.cfg.eval_bleu_args)
             self.sequence_generator = self.build_generator(
                 [model], Namespace(**gen_args)
@@ -501,8 +480,6 @@ class TranslationTask(FairseqTask):
                 unk_string=("UNKNOWNTOKENINREF" if escape_unk else "UNKNOWNTOKENINHYP"),
             )
             
-            if self.bpe:
-                s = self.bpe.decode(s)
             if self.tokenizer:
                 s = self.tokenizer.decode(s)
             
