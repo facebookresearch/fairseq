@@ -21,7 +21,9 @@ class TacotronInputDataset:
     def __init__(self, hparams, append_str=""):
         self.is_text = getattr(hparams, "text_or_code", "text") == "text"
         if not self.is_text:
-            self.code_dict = load_code_dict(hparams.code_dict)
+            self.code_dict = load_code_dict(
+                hparams.code_dict, hparams.add_sos, hparams.add_eos
+            )
             self.code_key = hparams.code_key
         self.add_sos = hparams.add_sos
         self.add_eos = hparams.add_eos
