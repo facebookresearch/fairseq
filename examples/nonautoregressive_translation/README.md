@@ -61,6 +61,9 @@ fairseq-train \
 
 Once a model is trained, we can generate translations using an `iterative_refinement_generator` which will based on the model's initial output and iteratively read and greedily refine the translation until (1) the model predicts the same translations for two consecutive iterations; or (2) the generator reaches the maximum iterations (`--iter-decode-max-iter`). Use `--print-step` to check the actual # of iteration for each sentence.
 
+Iterative refinement is not implemented for some model architectures. Vanilla NAT (`--arch nonautoregressive_transformer`) does not support
+iterative refinement. For such architectures you should use `--iter-decode-max-iter 0`.
+
 For *Levenshtein Transformer*, it sometimes helps to apply a `--iter-decode-eos-penalty` (typically, 0~3) to penalize the model finishing generation too early and generating too short translations.
 
 For example, to generate with `--iter-decode-max-iter=9`:
