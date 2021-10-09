@@ -2,6 +2,9 @@
 
 ### Non-autoregressive Transformer (NAT, Gu et al., 2017)
 Note that we need to have an additional module to perform "length prediction" (`--length-loss-factor`) before generating the whole sequence.
+
+To reproduce paper results use large batch size about 64k tokens. You can do it by using multiple GPUs or setting `--update-freq` > 1.
+
 ```bash
 fairseq-train \
     data-bin/wmt14_en_de_distill \
