@@ -270,11 +270,10 @@ class YoucookMetaProcessor(MetaProcessor):
     (1) some videos already in Howto100m are removed.
     (2) stop words are removed from caption
     TODO (huxu): make a flag to load the original caption.
-    (see
-    /datasets01/YouCookII/062920/YouCookII/annotations/youcookii_annotations_trainval.json).
+    (see youcookii_annotations_trainval.json).
 
     The max_video_len can be 264 and text can be 64 tokens.
-    In reality we may not need that long. see projects/mmfusion/youcook.yaml
+    In reality we may not need that long. see projects/task/youcook.yaml
     """
 
     def __init__(self, config):
@@ -298,7 +297,7 @@ class YoucookMetaProcessor(MetaProcessor):
                     recs.append(rec)
             print("total video_ids in .pkl", len(video_ids))
             print("valid video_ids in .pkl", len(valid_video_ids))
-            print("please verify /datasets01/YouCookII/062920/YouCookII/splits/{train,val}_list.txt")
+            print("please verify {train,val}_list.txt")
             data = recs
             self.data = data
 
@@ -339,8 +338,7 @@ class YoucookVideoProcessor(VideoProcessor):
 
 class YoucookNLGMetaProcessor(MetaProcessor):
     """NLG uses the original split:
-    `/datasets01/YouCookII/062920/YouCookII/splits/train_list.txt`
-    `/datasets01/YouCookII/062920/YouCookII/splits/val_list.txt`
+    `train_list.txt` and `val_list.txt`
     """
 
     def __init__(self, config):
@@ -660,6 +658,21 @@ class CrossTaskAligner(Aligner):
 
 # --------------------- COIN -------------------------
 
+class MetaTextBinarizer(Aligner):
+    def __call__(self, text_feature):
+        text_feature = {
+            "cap": [text_feature],
+            "start": [0.],
+            "end": [100.],
+        }
+        text_clip_indexs = [0]
+
+        caps, cmasks = self._build_text_seq(
+            text_feature, text_clip_indexs
+        )
+        return {"caps": caps, "cmasks": cmasks}
+
+
 class COINActionSegmentationMetaProcessor(MetaProcessor):
     split_map = {
         "train": "training",
@@ -704,7 +717,6 @@ class COINActionSegmentationMetaProcessor(MetaProcessor):
 
     def meta_text_labels(self, config):
         from transformers import default_data_collator
-        from .expdsprocessor import MetaTextBinarizer
         from ..utils import get_local_rank
 
         text_processor = TextProcessor(config)

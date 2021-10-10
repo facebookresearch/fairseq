@@ -33,6 +33,7 @@ fairseq:
     optimizer: adam
     adam_betas: (0.9, 0.98)
     lr_scheduler: polynomial_decay
+    total_num_update: 1000000
     warmup_updates: 122
     weight_decay: 0.0
     ddp_backend: no_c10d

@@ -53,6 +53,8 @@ We provide reference implementations of various sequence modeling papers:
   + [Robust wav2vec 2.0: Analyzing Domain Shift in Self-Supervised Pre-Training (Hsu, et al., 2021)](https://arxiv.org/abs/2104.01027)
   + [Unsupervised Speech Recognition (Baevski, et al., 2021)](https://arxiv.org/abs/2105.11084)
   + [Simple and Effective Zero-shot Cross-lingual Phoneme Recognition (Xu et al., 2021)](https://arxiv.org/abs/2109.11680)
+  + [VideoCLIP: Contrastive Pre-training for Zero-shot Video-Text Understanding (Xu et. al., 2021)](https://arxiv.org/pdf/2109.14084.pdf)
+  + [VLM: Task-agnostic Video-Language Model Pre-training for Video Understanding (Xu et. al., 2021)](https://aclanthology.org/2021.findings-acl.370.pdf)
 * **Non-autoregressive Transformers**
   + Non-Autoregressive Neural Machine Translation (Gu et al., 2017)
   + Deterministic Non-Autoregressive Neural Sequence Modeling by Iterative Refinement (Lee et al. 2018)
@@ -65,7 +67,7 @@ We provide reference implementations of various sequence modeling papers:
 </p></details>
 
 ### What's New:
-
+* October 2021 [Released VideoCLIP and VLM models](examples/MMPT/README.md)
 * October 2021 [Released multilingual finetuned XLSR-53 model](examples/wav2vec/README.md)
 * September 2021 [`master` branch renamed to `main`](https://github.com/github/renaming).
 * July 2021 [Released DrNMT code](examples/discriminative_reranking_nmt/README.md)

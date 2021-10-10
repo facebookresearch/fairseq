@@ -32,6 +32,7 @@ fairseq:
     optimizer: adam
     adam_betas: (0.9, 0.98)
     lr_scheduler: polynomial_decay
+    total_num_update: 1000000
     warmup_updates: 1000
     weight_decay: 0.0
     ddp_backend: no_c10d
@@ -43,6 +44,8 @@ fairseq:
     keep_last_epochs: 30
 task_type: sweep_big
 slurm_config: big
+eval:
+  save_path: runs/mtm/vlm
 model:
   model_cls: MMFusionMTM
   mm_encoder_cls: MMBertForMFMMLM

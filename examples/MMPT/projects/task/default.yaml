@@ -14,6 +14,7 @@ fairseq:
     optimizer: adam
     adam_betas: (0.9, 0.98)
     lr_scheduler: polynomial_decay
+    total_num_update: 1000000  # backward compatible on fairseq 1.0.0a0+af0389f for reproducibility.
     warmup_updates: 1000
     weight_decay: 0.0
     ddp_backend: no_c10d
