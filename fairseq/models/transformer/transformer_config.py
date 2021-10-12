@@ -8,10 +8,11 @@ import re
 from dataclasses import dataclass, field, fields
 from typing import List, Optional
 
-from fairseq import utils
-from fairseq.dataclass import FairseqDataclass, ChoiceEnum
-from fairseq.utils import safe_getattr, safe_hasattr
 from omegaconf import II
+
+from fairseq import utils
+from fairseq.dataclass import ChoiceEnum, FairseqDataclass
+from fairseq.utils import safe_getattr, safe_hasattr
 
 DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
@@ -244,7 +245,7 @@ class TransformerConfig(FairseqDataclass):
     @staticmethod
     def _copy_keys(args, cls, prefix, seen):
         """
-            copy the prefixed keys (decoder_embed_dim) to the DC fields: decoder.embed_dim
+        copy the prefixed keys (decoder_embed_dim) to the DC fields: decoder.embed_dim
         """
         cfg = cls()
         for fld in fields(cls):
@@ -310,7 +311,13 @@ class TransformerConfig(FairseqDataclass):
             # the argparse namespace might have extra args for two reasons:
             #   - we are in a legacy class so all the args are not declared in the dataclass. Ideally once everyone has defined a dataclass for their model, we won't need this
             #   - some places expect args to be there but never define them
-            args_dict = args._asdict() if safe_hasattr(args, '_asdict') else vars(args) if safe_hasattr(args, '__dict__') else {}  # namedtupled doesn't have __dict__ :-/
+            args_dict = (
+                args._asdict()
+                if safe_hasattr(args, "_asdict")
+                else vars(args)
+                if safe_hasattr(args, "__dict__")
+                else {}
+            )  # namedtupled doesn't have __dict__ :-/
             for key, value in args_dict.items():
                 if key not in seen:
                     setattr(config, key, value)
