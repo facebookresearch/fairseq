@@ -42,32 +42,14 @@ def expected_alignment_from_p_choose(
     if padding_mask is not None:
         p_choose = p_choose.masked_fill(padding_mask.unsqueeze(1), 0.0)
 
-    # cumprod_1mp : bsz, tgt_len, src_len
-    cumprod_1mp = exclusive_cumprod(1 - p_choose, dim=2, eps=eps)
-    cumprod_1mp_clamp = torch.clamp(cumprod_1mp, eps, 1.0)
+    if p_choose.is_cuda:
+        p_choose = p_choose.contiguous()
+        from alignment_train_cuda_binding import alignment_train_cuda as alignment_train
+    else:
+        from alignment_train_cpu_binding import alignment_train_cpu as alignment_train
 
-    alpha_0 = p_choose.new_zeros([bsz, 1, src_len])
-    alpha_0[:, :, 0] = 1.0
-
-    previous_alpha = [alpha_0]
-
-    for i in range(tgt_len):
-        # p_choose: bsz , tgt_len, src_len
-        # cumprod_1mp_clamp : bsz, tgt_len, src_len
-        # previous_alpha[i]: bsz, 1, src_len
-        # alpha_i: bsz, src_len
-        alpha_i = (
-            p_choose[:, i]
-            * cumprod_1mp[:, i]
-            * torch.cumsum(
-                previous_alpha[i][:, 0] / cumprod_1mp_clamp[:, i], dim=1
-            )
-        ).clamp(0, 1.0)
-
-        previous_alpha.append(alpha_i.unsqueeze(1))
-
-    # alpha: bsz * num_heads, tgt_len, src_len
-    alpha = torch.cat(previous_alpha[1:], dim=1)
+    alpha = p_choose.new_zeros([bsz, tgt_len, src_len])
+    alignment_train(p_choose, alpha, eps)
 
     # Mix precision to prevent overflow for fp16
     alpha = alpha.type(dtype)

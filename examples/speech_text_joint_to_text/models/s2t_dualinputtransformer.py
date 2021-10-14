@@ -265,7 +265,9 @@ class DualInputEncoder(FairseqEncoder):
                 spch_encoder.transformer_layers[-args.encoder_shared_layers :]
             ):
                 ly_id = i + args.text_encoder_layers - args.encoder_shared_layers
-                assert isinstance(text_encoder.layers[ly_id], type(ly))
+                if not isinstance(text_encoder.layers[ly_id], type(ly)):
+                    if text_encoder.layers[ly_id]._get_name() not in ('TransformerEncoderLayerBase', 'TransformerEncoderLayer'):
+                        raise ValueError("The shared layers are expected from the same class")
                 text_encoder.layers[ly_id] = cls.set_shared_layer(
                     args.encoder_shared_layer_level,
                     text_encoder.layers[ly_id],
