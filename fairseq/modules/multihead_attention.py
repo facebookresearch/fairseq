@@ -15,6 +15,11 @@ from fairseq.modules.quant_noise import quant_noise
 from torch import Tensor, nn
 from torch.nn import Parameter
 
+try:
+    has_fused_mask_softmax = True
+    from megatron.model.fused_softmax import ScaledUpperTriangMaskedSoftmax
+except ImportError:
+    has_fused_mask_softmax = False
 
 @with_incremental_state
 class MultiheadAttention(nn.Module):
@@ -37,6 +42,8 @@ class MultiheadAttention(nn.Module):
         encoder_decoder_attention=False,
         q_noise=0.0,
         qn_block_size=8,
+        use_fused_softmax=False,
+
     ):
         super().__init__()
         self.embed_dim = embed_dim
@@ -48,7 +55,6 @@ class MultiheadAttention(nn.Module):
         self.dropout_module = FairseqDropout(
             dropout, module_name=self.__class__.__name__
         )
-
         self.head_dim = embed_dim // num_heads
         assert (
             self.head_dim * num_heads == self.embed_dim
@@ -87,6 +93,7 @@ class MultiheadAttention(nn.Module):
         self.reset_parameters()
 
         self.onnx_trace = False
+        self.use_fused_softmax = use_fused_softmax
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
@@ -165,6 +172,7 @@ class MultiheadAttention(nn.Module):
             # A workaround for quantization to work. Otherwise JIT compilation
             # treats bias in linear module as method.
             and not torch.jit.is_scripting()
+            and not self.use_fused_softmax
         ):
             assert key is not None and value is not None
             return F.multi_head_attention_forward(
@@ -221,7 +229,9 @@ class MultiheadAttention(nn.Module):
             q = self.q_proj(query)
             k = self.k_proj(key)
             v = self.v_proj(value)
-        q *= self.scaling
+
+        if not self.use_fused_softmax:
+            q *= self.scaling
 
         if self.bias_k is not None:
             assert self.bias_v is not None
@@ -333,12 +343,11 @@ class MultiheadAttention(nn.Module):
         attn_weights = self.apply_sparse_mask(attn_weights, tgt_len, src_len, bsz)
 
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
-
+        # Replace any non-finite values with finite equivalents, since otherwise
+        # we may get NaN when adding attn_mask or computing softmax.
         if attn_mask is not None:
-            # Replace any non-finite values with finite equivalents, since otherwise
-            # we may get NaN when adding attn_mask or computing softmax.
             attn_weights = torch.nan_to_num(attn_weights)
-
+        if not self.use_fused_softmax and attn_mask is not None:
             attn_mask = attn_mask.unsqueeze(0)
             if self.onnx_trace:
                 attn_mask = attn_mask.repeat(attn_weights.size(0), 1, 1)
@@ -360,16 +369,22 @@ class MultiheadAttention(nn.Module):
 
         if before_softmax:
             return attn_weights, v
+        if not self.use_fused_softmax:
+            attn_weights_float = utils.softmax(
+                attn_weights, dim=-1, onnx_trace=self.onnx_trace
+            )
+            attn_weights = attn_weights_float.type_as(attn_weights)
+        else:
+            attn_weights = ScaledUpperTriangMaskedSoftmax.apply(attn_weights, self.scaling)
+            attn_weights_float = attn_weights
 
-        attn_weights_float = utils.softmax(
-            attn_weights, dim=-1, onnx_trace=self.onnx_trace
-        )
-        attn_weights = attn_weights_float.type_as(attn_weights)
         attn_probs = self.dropout_module(attn_weights)
 
         assert v is not None
         attn = torch.bmm(attn_probs, v)
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
+
+
         if self.onnx_trace and attn.size(1) == 1:
             # when ONNX tracing a single decoder step (sequence length == 1)
             # the transpose is a no-op copy before view, thus unnecessary

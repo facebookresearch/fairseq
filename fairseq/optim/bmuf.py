@@ -66,9 +66,9 @@ class FairseqBMUF(FairseqOptimizer):
         """Multiplies grads by a constant *c*."""
         self._optimizer.multiply_grads(c)
 
-    def clip_grad_norm(self, max_norm, aggregate_norm_fn=None):
+    def clip_grad_norm(self, max_norm, norm_type='l2', aggregate_norm_fn=None):
         """Clips gradient norm."""
-        return self._optimizer.clip_grad_norm(max_norm, aggregate_norm_fn)
+        return self._optimizer.clip_grad_norm(max_norm, norm_type, aggregate_norm_fn)
 
     def average_params(self):
         self._optimizer.average_params()

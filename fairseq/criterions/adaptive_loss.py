@@ -62,17 +62,16 @@ class AdaptiveLoss(FairseqCriterion):
         orig_target = orig_target.view(-1)
 
         bsz = orig_target.size(0)
-
         logits, target = adaptive_softmax(net_output[0], orig_target)
         assert len(target) == len(logits)
 
-        loss = net_output[0].new(1 if reduce else bsz).zero_()
+        loss = net_output[0].new(1 if reduce else bsz).zero_().float()
 
         for i in range(len(target)):
             if target[i] is not None:
                 assert target[i].min() >= 0 and target[i].max() <= logits[i].size(1)
                 loss += F.cross_entropy(
-                    logits[i],
+                    logits[i].float(),
                     target[i],
                     ignore_index=self.padding_idx,
                     reduction="sum" if reduce else "none",

@@ -7,6 +7,16 @@ RoBERTa: A Robustly Optimized BERT Pretraining Approach.
 """
 
 import logging
+from dataclasses import dataclass, field
+from typing import Optional
+
+from fairseq import utils
+from fairseq.dataclass import ChoiceEnum, FairseqDataclass
+from fairseq.models import (
+    register_model,
+    register_model_architecture,
+)
+from omegaconf import II
 
 import torch
 import torch.nn as nn
@@ -18,7 +28,7 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
-from fairseq.models.transformer import TransformerEncoder
+from fairseq.models.transformer import DEFAULT_MIN_PARAMS_TO_WRAP, TransformerEncoder
 from fairseq.modules import LayerNorm
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
@@ -29,7 +39,235 @@ from .hub_interface import RobertaHubInterface
 logger = logging.getLogger(__name__)
 
 
-@register_model("roberta")
+@dataclass
+class RobertaModelConfig(FairseqDataclass):
+    encoder_layers: int = field(
+        default=12, metadata={"help": "num encoder layers"}
+    )
+    encoder_embed_dim: int = field(
+        default=768, metadata={"help": "encoder embedding dimension"}
+    )
+    encoder_ffn_embed_dim: int = field(
+        default=3072, metadata={"help": "encoder embedding dimension for FFN"}
+    )
+    encoder_attention_heads: int = field(
+        default=12, metadata={"help": "num encoder attention heads"}
+    )
+    activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
+        default="gelu", metadata={"help": "activation function to use"}
+    )
+    pooler_activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
+        default="tanh", metadata={"help": "activation function to use for the pooler layer"}
+    )
+    encoder_normalize_before: bool = field(
+        default=False, metadata={"help": "apply layernorm before each encoder block"}
+    )
+    layernorm_embedding: bool = field(
+        default=False, metadata={"help": "add layernorm to embedding"}
+    )
+    dropout: float = field(default=0.1, metadata={"help": "dropout probability"})
+    attention_dropout: float = field(
+        default=0.1, metadata={"help": "dropout probability for attention weights"}
+    )
+    activation_dropout: float = field(
+        default=0.0, metadata={"help": "dropout probability after activation in FFN."}
+    )
+    pooler_dropout: float = field(
+        default=0.0, metadata={"help": "dropout probability in the masked_lm pooler layers"}
+    )
+    max_positions: int = field(
+        default=512, metadata={"help": "number of positional embeddings to learn"}
+    )
+    max_source_positions: int = field(
+        default=512, metadata={"help": "number of source positional embeddings to learn"}
+    )
+    no_token_positional_embeddings: bool = field(
+        default=False, metadata={"help": "don't use positional embeddings for tokens"}
+    )
+    encoder_learned_pos: bool = field(
+        default=True, metadata={"help": "learn positional encodings in the encoder"}
+    )
+    encoder_normalize_before: bool = field(
+        default=False, metadata={"help": "normalize before encoder"}
+    )
+    no_scale_embedding: bool = field(
+        default=True, metadata={"help": "don't scale embeddings?"}
+    )
+    load_checkpoint_heads: bool = field(
+        default=False, metadata={"help": "(re-)register and load heads when loading checkpoints"}
+    )
+    untie_weights_roberta: bool = field(
+        default=False, metadata={"help": "Untie weights between embeddings and classifiers in RoBERTa"}
+    )
+    adaptive_input: bool = field(
+        default=False, metadata={"help": "use adaptive inputs"}
+    )
+
+    # args for "Reducing Transformer Depth on Demand with Structured Dropout" (Fan et al., 2019)
+    encoder_layerdrop: float = field(
+        default=0.0, metadata={"help": "LayerDrop probability for encoder"}
+    )
+    encoder_layers_to_keep: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "which layers to *keep* when pruning as a comma-separated list"
+        },
+    )
+    # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
+    quant_noise_pq: float = field(
+        default=0.0,
+        metadata={"help": "iterative PQ quantization noise at training time"},
+    )
+    quant_noise_pq_block_size: int = field(
+        default=8,
+        metadata={"help": "block size of quantization noise at training time"},
+    )
+    quant_noise_scalar: float = field(
+        default=0.0,
+        metadata={
+            "help": "scalar quantization noise and scalar quantization at training time"
+        },
+    )
+    # args for "Better Fine-Tuning by Reducing Representational Collapse" (Aghajanyan et al. 2020)
+    spectral_norm_classification_head: bool = field(
+        default=False, metadata={"help": "Apply spectral normalization on the classification head"}
+    )
+    # config for Fully Sharded Data Parallel (FSDP) training
+    min_params_to_wrap: int = field(
+        default=DEFAULT_MIN_PARAMS_TO_WRAP,
+        metadata={
+            "help": (
+                "minimum number of params for a layer to be wrapped with FSDP() when "
+                "training with --ddp-backend=fully_sharded. Smaller values will "
+                "improve memory efficiency, but may make torch.distributed "
+                "communication less efficient due to smaller input sizes. This option "
+                "is set to 0 (i.e., always wrap) when --checkpoint-activations or "
+                "--offload-activations are passed."
+            )
+        }
+    )
+    # args for MoE training
+    offload_activations: bool = field(
+        default=False,
+        metadata={"help": "move checkpointed activations to CPU after they are used."},
+    )
+    checkpoint_activations: bool = field(
+        default=False, metadata={"help": "checkpoint activations at each layer"}
+    )
+    # Mixture of Expert Layer arguments
+    moe_freq: int = field(
+        default=0,
+        metadata={
+            "help": "Frequency at which we insert MoE Transformer layers"
+        },
+    )
+    moe_expert_count: int = field(
+        default=0,
+        metadata={
+            "help": "Number of experts in each MoE Layer"
+        }
+    )
+    moe_gating_use_fp32: bool = field(
+        default=False,
+        metadata={
+            "help": "Use FP32 computations in MoE top2 gating function"
+        }
+    )
+    moe_second_expert_policy: str = field(
+        default='sampling',
+        metadata={
+            "help": "policy for second expert, options: all/sampling/random"
+        }
+    )
+    moe_normalize_gate_prob_before_dropping: bool = field(
+        default=False,
+        metadata={
+            "help": 'whether to normalize gate probs before or after dropping experts for capacity and randomization'
+        }
+    )
+    moe_expert_ffn_dim: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "MoE expert FFN dimension"
+        }
+    )
+    moe_top1_expert: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Use top1 gate instead of top2"
+        }
+    )
+    moe_eval_capacity_token_fraction: Optional[float] = field(
+        default=0.25,
+        metadata={
+            "help": "Default: 0.25, Fraction of tokens as capacity during validation, if set to negative, use same as training. range: (0.0, 1.0]."
+        }
+    )
+    moe_normalize_expert_grad: Optional[str] = field(
+        default='sqrt_num_experts',
+        metadata={
+            "help": "Divide expert gradients by (1) 'num_experts' (2) 'sqrt_num_experts'"
+        }
+    )
+    use_moe_pad_mask: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Don't route padding tokens to any expert",
+        }
+    )
+    record_a2a_perf_stats: Optional[bool] = field(
+        default=False, metadata={"help": "records all to all perf stats during distributed training"}
+    )
+    dummy_a2a: Optional[bool] = field(
+        default=False, metadata={"help": "By passes all to all during distributed training by returning the input buffer as output"}
+    )
+
+    # options from other parts of the config
+    add_bos_token: bool = II("task.add_bos_token")
+    tokens_per_sample: int = II("task.tokens_per_sample")
+    tpu: bool = II("common.tpu")
+    memory_efficient_fp16: bool = II("common.memory_efficient_fp16")
+    fp16: bool = II("common.fp16")
+    fp16_no_flatten_grads: bool = II("common.fp16_no_flatten_grads")
+    ddp_backend: str = II("distributed_training.ddp_backend")
+    world_size: int = II("distributed_training.distributed_world_size")
+    distributed_rank: int = II("distributed_training.distributed_rank")
+    batch_size: Optional[int] = II("dataset.batch_size")
+    batch_size_valid: Optional[int] = II("dataset.batch_size_valid")
+    task: str = II("task")
+    use_stable_embedding: Optional[bool] = field(
+        default=False,
+        metadata={"help": 'Use bitsandbytes StableEmbeddingLayer which saves embedding state in fp32',
+                  'argparse_alias': "--stable-emb"}
+    )
+    scale_fc: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Layernorm between fc"
+        }
+    )
+    scale_attn: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Layernorm after attn"
+        }
+    )
+    scale_heads: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Early-bert attention head pruning coeff"
+        }
+    )
+    scale_resids: Optional[bool] = field(default=False, metadata={"help": 'Learn a scale coefficient for each attention head'})
+    scale_first_resids: Optional[bool] = field(default=False,
+                                               metadata={"help": 'Learn a scale coefficient for each attention head'})
+    use_fused_softmax: bool = field(
+        default=False, metadata={"help": "use Megatron softmax kernel"}
+    )
+
+
+
+@register_model("roberta", dataclass=RobertaModelConfig)
 class RobertaModel(FairseqEncoderModel):
     @classmethod
     def hub_models(cls):
@@ -42,132 +280,13 @@ class RobertaModel(FairseqEncoderModel):
 
     def __init__(self, args, encoder):
         super().__init__(encoder)
-        self.args = args
+
+        self.args=args
 
         # We follow BERT's random weight initialization
         self.apply(init_bert_params)
 
         self.classification_heads = nn.ModuleDict()
-
-    @staticmethod
-    def add_args(parser):
-        """Add model-specific arguments to the parser."""
-        parser.add_argument(
-            "--encoder-layers", type=int, metavar="L", help="num encoder layers"
-        )
-        parser.add_argument(
-            "--encoder-embed-dim",
-            type=int,
-            metavar="H",
-            help="encoder embedding dimension",
-        )
-        parser.add_argument(
-            "--encoder-ffn-embed-dim",
-            type=int,
-            metavar="F",
-            help="encoder embedding dimension for FFN",
-        )
-        parser.add_argument(
-            "--encoder-attention-heads",
-            type=int,
-            metavar="A",
-            help="num encoder attention heads",
-        )
-        parser.add_argument(
-            "--activation-fn",
-            choices=utils.get_available_activation_fns(),
-            help="activation function to use",
-        )
-        parser.add_argument(
-            "--pooler-activation-fn",
-            choices=utils.get_available_activation_fns(),
-            help="activation function to use for pooler layer",
-        )
-        parser.add_argument(
-            "--encoder-normalize-before",
-            action="store_true",
-            help="apply layernorm before each encoder block",
-        )
-        parser.add_argument(
-            "--layernorm-embedding",
-            action="store_true",
-            help="add layernorm to embedding",
-        )
-        parser.add_argument(
-            "--dropout", type=float, metavar="D", help="dropout probability"
-        )
-        parser.add_argument(
-            "--attention-dropout",
-            type=float,
-            metavar="D",
-            help="dropout probability for attention weights",
-        )
-        parser.add_argument(
-            "--activation-dropout",
-            type=float,
-            metavar="D",
-            help="dropout probability after activation in FFN",
-        )
-        parser.add_argument(
-            "--pooler-dropout",
-            type=float,
-            metavar="D",
-            help="dropout probability in the masked_lm pooler layers",
-        )
-        parser.add_argument(
-            "--max-positions", type=int, help="number of positional embeddings to learn"
-        )
-        parser.add_argument(
-            "--load-checkpoint-heads",
-            action="store_true",
-            help="(re-)register and load heads when loading checkpoints",
-        )
-        # args for "Reducing Transformer Depth on Demand with Structured Dropout" (Fan et al., 2019)
-        parser.add_argument(
-            "--encoder-layerdrop",
-            type=float,
-            metavar="D",
-            default=0,
-            help="LayerDrop probability for encoder",
-        )
-        parser.add_argument(
-            "--encoder-layers-to-keep",
-            default=None,
-            help="which layers to *keep* when pruning as a comma-separated list",
-        )
-        # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
-        parser.add_argument(
-            "--quant-noise-pq",
-            type=float,
-            metavar="D",
-            default=0,
-            help="iterative PQ quantization noise at training time",
-        )
-        parser.add_argument(
-            "--quant-noise-pq-block-size",
-            type=int,
-            metavar="D",
-            default=8,
-            help="block size of quantization noise at training time",
-        )
-        parser.add_argument(
-            "--quant-noise-scalar",
-            type=float,
-            metavar="D",
-            default=0,
-            help="scalar quantization noise and scalar quantization at training time",
-        )
-        parser.add_argument(
-            "--untie-weights-roberta",
-            action="store_true",
-            help="Untie weights between embeddings and classifiers in RoBERTa",
-        )
-        parser.add_argument(
-            "--spectral-norm-classification-head",
-            action="store_true",
-            default=False,
-            help="Apply spectral normalization on the classification head",
-        )
 
     @classmethod
     def build_model(cls, args, task):
@@ -288,6 +407,9 @@ class RobertaModel(FairseqEncoderModel):
         )
         keys_to_delete = []
         for k in state_dict.keys():
+            if self.args.task == 'sentence_prediction' and 'lm_head' in k:
+                keys_to_delete.append(k)
+
             if not k.startswith(prefix + "classification_heads."):
                 continue
 
@@ -419,17 +541,17 @@ class RobertaEncoder(FairseqEncoder):
         )
 
         self.sentence_encoder = self.build_encoder(args, dictionary, embed_tokens)
-
-        self.lm_head = self.build_lm_head(
-            embed_dim=args.encoder_embed_dim,
-            output_dim=len(dictionary),
-            activation_fn=args.activation_fn,
-            weight=(
-                self.sentence_encoder.embed_tokens.weight
-                if not args.untie_weights_roberta
-                else None
-            ),
-        )
+        if self.args.task != 'sentence_prediction':
+            self.lm_head = self.build_lm_head(
+                embed_dim=args.encoder_embed_dim,
+                output_dim=len(dictionary),
+                activation_fn=args.activation_fn,
+                weight=(
+                    self.sentence_encoder.embed_tokens.weight
+                    if not args.untie_weights_roberta
+                    else None
+                ),
+            )
 
     def build_embedding(self, vocab_size, embedding_dim, padding_idx):
         return nn.Embedding(vocab_size, embedding_dim, padding_idx)
@@ -438,9 +560,6 @@ class RobertaEncoder(FairseqEncoder):
         encoder = TransformerEncoder(args, dictionary, embed_tokens)
         encoder.apply(init_bert_params)
         return encoder
-
-    def build_lm_head(self, embed_dim, output_dim, activation_fn, weight):
-        return RobertaLMHead(embed_dim, output_dim, activation_fn, weight)
 
     def build_lm_head(self, embed_dim, output_dim, activation_fn, weight):
         return RobertaLMHead(embed_dim, output_dim, activation_fn, weight)
@@ -484,8 +603,9 @@ class RobertaEncoder(FairseqEncoder):
         )
         # T x B x C -> B x T x C
         features = encoder_out["encoder_out"][0].transpose(0, 1)
+        l_aux = encoder_out["l_aux"]
         inner_states = encoder_out["encoder_states"] if return_all_hiddens else None
-        return features, {"inner_states": inner_states}
+        return features, {"inner_states": inner_states, "l_aux": l_aux}
 
     def output_layer(self, features, masked_tokens=None, **unused):
         return self.lm_head(features, masked_tokens)
@@ -495,12 +615,12 @@ class RobertaEncoder(FairseqEncoder):
         return self.args.max_positions
 
 
-@register_model_architecture("roberta", "roberta")
 def base_architecture(args):
     args.encoder_layers = getattr(args, "encoder_layers", 12)
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 768)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 3072)
     args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 12)
+    args.use_fused_softmax = getattr(args, "use_fused_softmax", False)
 
     args.dropout = getattr(args, "dropout", 0.1)
     args.attention_dropout = getattr(args, "attention_dropout", 0.1)

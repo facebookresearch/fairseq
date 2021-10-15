@@ -20,6 +20,7 @@ from fairseq.models import (
 )
 from fairseq.modules import (
     AdaptiveSoftmax,
+    BaseLayer,
     FairseqDropout,
     LayerDropModuleList,
     LayerNorm,
@@ -33,6 +34,7 @@ from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 from torch import Tensor
 import logging
 logger = logging.getLogger(__name__)
+
 
 DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
@@ -51,14 +53,17 @@ def fsdp_wrap_expert(args, layer, min_num_params=0):
         layer.moe_layer.experts[i] = fsdp_wrap(
             expert, process_group=process_group, min_num_params=0
         )
-    if getattr(args, "moe_normalize_expert_grad", "world_size") == "sqrt_world_size":
+
+    if getattr(args, "moe_normalize_expert_grad", "num_experts") in {"sqrt_num_experts", "sqrt_world_size"}:
+        # Rescale expert gradients by 1/sqrt(E), which is similar to reducing
+        # the learning rate on expert parameters to adjust for smaller batch
+        # size relative to dense (data parallel) parameters.
         expert_normalization_term = math.sqrt(num_experts)
     else:
         expert_normalization_term = num_experts
+
     for p in layer.moe_layer.experts.parameters():
         p.expert = True
-        # Scale grads by world_size/pg_size so that grads match the equivalent replicated
-        # world size expected within Trainer
         p.register_hook(functools.partial(div_by_world_size, expert_normalization_term))
 
     # Everything else gets wrapped as normal.
@@ -194,6 +199,8 @@ class TransformerModel(FairseqEncoderDecoderModel):
                             help='add layernorm to embedding')
         parser.add_argument('--no-scale-embedding', action='store_true',
                             help='if True, dont scale embeddings')
+        parser.add_argument('--use-stable-embedding', action='store_true',
+                            help='Use bitsandbytes StableEmbeddingLayer which saves embedding state in fp32')
         parser.add_argument('--checkpoint-activations', action='store_true',
                             help='checkpoint activations at each layer, which saves GPU '
                                  'memory usage at the cost of some additional compute')
@@ -254,13 +261,20 @@ class TransformerModel(FairseqEncoderDecoderModel):
         parser.add_argument('--moe-eval-capacity-token-fraction', type=float, default=0.25,
                             help="Fraction of tokens as capacity during validation" + \
                                  "if set to negative, use same as training. range: (0.0, 1.0].")
-        parser.add_argument('--moe-normalize-expert-grad', type=str, default='world_size',
-                            help="Divide expert gradients by (1) 'world_size' (2) 'sqrt_world_size'")
+        parser.add_argument('--moe-normalize-expert-grad', type=str, default='sqrt_num_experts',
+                            help="Divide expert gradients by (1) 'num_experts' (2) 'sqrt_num_experts'")
         parser.add_argument('--use-moe-pad-mask', default=False, action='store_true',
                             help="Don't route padding tokens to any expert")
         # args for pseudo-MoE layers
         parser.add_argument('--alternate-ffn-embed-dim', type=int, default=0,
                             help="FFN embed dim of alternate pseudo-MoE blocks")
+
+        # NormFormer
+        parser.add_argument('--scale-heads', default=False, action='store_true',  help='Learn a scale coefficient for each attention head')
+        parser.add_argument('--scale-attn', default=False, action='store_true', help='Insert LayerNorm after attention')
+        parser.add_argument('--scale-fc', default=False, action='store_true', help='Insert LayerNorm between fully connected layers')
+
+
         # fmt: on
 
     @classmethod
@@ -309,6 +323,16 @@ class TransformerModel(FairseqEncoderDecoderModel):
             )
         if getattr(args, "offload_activations", False):
             args.checkpoint_activations = True  # offloading implies checkpointing
+
+        if getattr(args, "use_tutel_moe", False):
+            try:
+                # To enable Tutel MoE optimizations:
+                #   python3 -m pip install --user https://github.com/microsoft/tutel/releases/download/v0.1.0/tutel-0.1.0.tar.gz
+                from tutel import moe as tutel_moe
+                logger.info("Using micorosoft Tutel plugin for fused function in MoE")
+            except ModuleNotFoundError:
+                 raise ImportError("Please install https://github.com/microsoft/tutel/ for --use-tutel-moe")
+    
         encoder = cls.build_encoder(args, src_dict, encoder_embed_tokens)
         decoder = cls.build_decoder(args, tgt_dict, decoder_embed_tokens)
         if not args.share_all_embeddings:
@@ -753,6 +777,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             if embed_dim != input_embed_dim
             else None
         )
+        self.use_alibi: bool = getattr(args, 'alibi', False)
         self.embed_positions = (
             PositionalEmbedding(
                 self.max_target_positions,
@@ -760,7 +785,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 self.padding_idx,
                 learned=args.decoder_learned_pos,
             )
-            if not args.no_token_positional_embeddings
+            if (not args.no_token_positional_embeddings) or self.use_alibi
             else None
         )
 
@@ -825,7 +850,40 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             nn.init.normal_(
                 self.output_projection.weight, mean=0, std=self.output_embed_dim ** -0.5
             )
+        num_base_layers = getattr(args, "base_layers", 0)
+        for i in range(num_base_layers):
+            self.layers.insert(((i+1) * args.decoder_layers) // (num_base_layers + 1), BaseLayer(args))
+        
+        if self.use_alibi:
+            self.alibi = self._build_alibi_tensor(self.max_positions(), args.decoder_attention_heads)
 
+    @staticmethod
+    def _build_alibi_tensor(max_seq_len: int, n_attention_heads: int):
+        """Returns tensor shaped (n_head, 1, max_seq_len)"""
+        def get_slopes(n):
+            # In the paper, we only train models that have 2^a heads for some a. This function has some good
+            # properties that only occur when the input is a power of 2. To maintain that even when the number of
+            # heads is not a power of 2, we use this workaround.
+            def get_slopes_power_of_2(n):
+                start = (2 ** (-2 ** -(math.log2(n) - 3)))
+                ratio = start
+                return [start * ratio ** i for i in range(n)]
+
+            if math.log2(n).is_integer():
+                return get_slopes_power_of_2(n)
+            else:
+                closest_power_of_2 = 2 ** math.floor(math.log2(n))
+                return get_slopes_power_of_2(closest_power_of_2) + get_slopes(2 * closest_power_of_2)[0::2][
+                                                                   :n - closest_power_of_2]
+        slopes = torch.Tensor(get_slopes(n_attention_heads))
+        # In the next line, the part after the * is what constructs the diagonal matrix (right matrix in Figure 3 in
+        # the paper).
+        # It doesn't exactly print out the same matrix as we have in Figure 3, but one where all rows are identical.
+        # This works because the softmax operation is invariant to translation, and our bias functions are always
+        # linear.
+        alibi = slopes.unsqueeze(1).unsqueeze(1) * torch.arange(max_seq_len).unsqueeze(0).unsqueeze(0).expand(n_attention_heads, -1, -1)
+        alibi = alibi.view(n_attention_heads, 1, max_seq_len)
+        return alibi
 
     def build_decoder_layer(self, args, no_encoder_attn=False, is_moe_layer=False):
         layer = TransformerDecoderLayer(
@@ -997,6 +1055,11 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         # embed tokens and positions
         x, _ = self.forward_embedding(prev_output_tokens, token_embeddings, incremental_state)
 
+        if incremental_state is None and not full_context_alignment:
+            self_attn_mask = self.buffered_future_mask(x)
+        else:
+            self_attn_mask = None
+        
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
 
@@ -1008,11 +1071,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         else:
             l_aux = encoder_out["l_aux"] if "l_aux" in encoder_out else []
         for idx, layer in enumerate(self.layers):
-            if incremental_state is None and not full_context_alignment:
-                self_attn_mask = self.buffered_future_mask(x)
-            else:
-                self_attn_mask = None
-
             x, layer_attn, _, l_aux_i = layer(
                 x,
                 encoder_out["encoder_out"][0]
@@ -1068,18 +1126,28 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         return min(self.max_target_positions, self.embed_positions.max_positions)
 
     def buffered_future_mask(self, tensor):
-        dim = tensor.size(0)
-        # self._future_mask.device != tensor.device is not working in TorchScript. This is a workaround.
-        if (
+        batch_size, cur_seq_len = tensor.size(0), tensor.size(1)
+        max_seq_len = self.max_positions()
+        need_to_make_new_mask = (
             self._future_mask.size(0) == 0
             or (not self._future_mask.device == tensor.device)
-            or self._future_mask.size(0) < dim
-        ):
+            or self._future_mask.size(1) < max_seq_len
+            or (self.use_alibi and self._future_mask.size(0) != (batch_size * self.args.decoder_attention_heads))
+        )
+
+        # self._future_mask.device != tensor.device is not working in TorchScript. This is a workaround.
+        if need_to_make_new_mask:
             self._future_mask = torch.triu(
-                utils.fill_with_neg_inf(torch.zeros([dim, dim])), 1
+                utils.fill_with_neg_inf(torch.zeros([max_seq_len, max_seq_len])), 1
             )
+            if self.use_alibi:
+                alibi = self.alibi.repeat(batch_size, 1, 1)  # batch_size, 1, 1
+                self._future_mask = self._future_mask.unsqueeze(0) + alibi
         self._future_mask = self._future_mask.to(tensor)
-        return self._future_mask[:dim, :dim]
+        if self.use_alibi:
+            return self._future_mask[:batch_size * self.args.decoder_attention_heads, :cur_seq_len, :cur_seq_len]
+        else:
+            return self._future_mask[:cur_seq_len, :cur_seq_len]
 
     def upgrade_state_dict_named(self, state_dict, name):
         """Upgrade a (possibly old) state dict for new versions of fairseq."""
@@ -1211,6 +1279,8 @@ def base_architecture(args):
     args.quant_noise_scalar = getattr(args, "quant_noise_scalar", 0)
     args.is_moe = getattr(args, "is_moe", False)
     args.selected_expert_count = getattr(args, "selected_expert_count", 2)
+    args.use_fused_bias_gelu = getattr(args, "use_fused_bias_gelu", False)
+    args.use_fused_scale_mask_softmax = getattr(args, "use_fused_scale_mask_softmax", False)
 
 
 @register_model_architecture("transformer", "transformer_iwslt_de_en")
@@ -1265,3 +1335,4 @@ def transformer_wmt_en_de_big_t2t(args):
     args.attention_dropout = getattr(args, "attention_dropout", 0.1)
     args.activation_dropout = getattr(args, "activation_dropout", 0.1)
     transformer_vaswani_wmt_en_de_big(args)
+

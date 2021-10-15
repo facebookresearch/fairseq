@@ -7,6 +7,7 @@ import contextlib
 import os
 import re
 from glob import glob
+from tqdm import tqdm
 from typing import Optional
 
 import torch
@@ -113,7 +114,7 @@ def fsdp_enable_wrap(cfg: DistributedTrainingConfig, use_sharded_state: bool = F
         "mixed_precision": cfg.fp16 and not cfg.memory_efficient_fp16,
         "fp32_reduce_scatter": cfg.fp32_reduce_scatter,
         "flatten_parameters": True,
-        "cpu_offload": cfg.cpu_offload,
+        "cpu_offload": cfg.cpu_offload and not cfg.memory_efficient_fp16,
         "compute_dtype": torch.float16 if cfg.fp16 else torch.float32,
         "bucket_cap_mb": cfg.bucket_cap_mb,
         "state_dict_device": torch.device("cpu"),
@@ -149,13 +150,21 @@ def fsdp_wrap(module, min_num_params: Optional[int] = None, **kwargs):
     except ImportError:
         return module
 
+def _get_shard_number(x) -> int:
+    match = re.search('shard(\d+).pt', x)
+    if match is None:
+        raise AssertionError(f'{x} did not match shard(\d+).pt')
+    else:
+        return int(match.groups()[0])
 
-def consolidate_fsdp_shards(pth_prefix: str) -> str:
+
+def consolidate_fsdp_shards(pth_prefix: str, save_prefix=None, strict=False) -> str:
     if pth_prefix.endswith(".pt"):
         pth_prefix = pth_prefix[:-3]
-    save_prefix = pth_prefix + "_consolidated"  # .pt'
+    if save_prefix is None:
+        save_prefix = pth_prefix + "_consolidated"  # .pt'
     moe_paths = glob(f"{pth_prefix}*rank*shard*.pt")
-    all_ckpt_files = sorted(glob(f"{pth_prefix}*shard*.pt"))
+    all_ckpt_files = list(sorted(glob(f"{pth_prefix}*shard*.pt"), key=_get_shard_number))
     assert all_ckpt_files, f"no paths matched {pth_prefix}*shard*.pt"
     weights = []
     metadata = []
@@ -163,7 +172,7 @@ def consolidate_fsdp_shards(pth_prefix: str) -> str:
     expert_dest_paths = []
     expert_ranks = []
     dense = not bool(moe_paths)
-    for p in all_ckpt_files:
+    for p in tqdm(all_ckpt_files):
         if re.search("rank-(\d+)", os.path.basename(p)):  # expert checkpoint
             expert_paths.append(p)
             r = re.search("rank-(\d+)", os.path.basename(p)).groups()[0]
@@ -175,8 +184,16 @@ def consolidate_fsdp_shards(pth_prefix: str) -> str:
             weights.append(ckpt["model"])
             metadata.append(ckpt["shard_metadata"])
     assert weights, f'all files were considered experts: {all_ckpt_files}'
-    consolidated_weights = FSDP.consolidate_shard_weights(shard_weights=weights, shard_metadata=metadata, strict=False)
-    del weights, metadata
+    do_consolidate = True
+    if 'decoder.embed_tokens.weight' in weights[0].keys():
+        shape = weights[0]['decoder.embed_tokens.weight'].shape
+        print(f'This ckpt does not seem sharded. I see unflat params! like decoder.embed_tokens.weight shaped {shape}. Will just copy files and remove optim_state.')
+        do_consolidate = False
+    if do_consolidate:
+        consolidated_weights = FSDP.consolidate_shard_weights(shard_weights=weights, shard_metadata=metadata, strict=strict)
+        del weights, metadata
+    else:
+        consolidated_weights = weights[0]
 
     if dense:
         ckpt_consolidated = dict(
@@ -200,18 +217,20 @@ def consolidate_fsdp_shards(pth_prefix: str) -> str:
     )
     torch.save(ckpt_shared, f"{save_prefix}-shared.pt")
     # Process experts
-    for src, dst in zip(expert_paths, expert_dest_paths):
+    for src, dst in tqdm(list(zip(expert_paths, expert_dest_paths)), desc='expert files'):
         ckpt = load_and_pop_last_optimizer_state(src)
-        expert_wt = FSDP.consolidate_shard_weights(
-            shard_weights=[ckpt["model"]], shard_metadata=[ckpt["shard_metadata"]], strict=False
-        )
-        full_ckpt = dict(
-            model=expert_wt,
-            cfg=ckpt["cfg"],
-            extra_state=ckpt["extra_state"],
-            optimizer_history=ckpt["optimizer_history"],
-            args=ckpt["args"],
-        )
-        torch.save(full_ckpt, dst)
+        if do_consolidate:
+            expert_wt = FSDP.consolidate_shard_weights(
+                 shard_weights=[ckpt["model"]], shard_metadata=[ckpt["shard_metadata"]], strict=False
+            )
+            ckpt = dict(
+                model=expert_wt,
+                cfg=ckpt["cfg"],
+                extra_state=ckpt["extra_state"],
+                optimizer_history=ckpt["optimizer_history"],
+                args=ckpt["args"],
+            )
+
+        torch.save(ckpt, dst)
     print(f"saved consolidated MoE with prefix {save_prefix}.pt")
     return f"{save_prefix}.pt"

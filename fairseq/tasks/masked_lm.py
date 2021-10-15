@@ -59,6 +59,12 @@ class MaskedLMTask(LegacyFairseqTask):
             "per sample for BERT dataset",
         )
         parser.add_argument(
+            "--pad-to-fixed-length",
+            default=False,
+            action="store_true",
+            help="pad examples to fixed length",
+        )
+        parser.add_argument(
             "--mask-prob",
             default=0.15,
             type=float,
@@ -196,6 +202,10 @@ class MaskedLMTask(LegacyFairseqTask):
         with data_utils.numpy_seed(self.args.seed):
             shuffle = np.random.permutation(len(src_dataset))
 
+        pad_length = None
+        if self.args.pad_to_fixed_length:
+            pad_length = self.args.tokens_per_sample
+
         self.datasets[split] = SortDataset(
             NestedDictionaryDataset(
                 {
@@ -204,12 +214,14 @@ class MaskedLMTask(LegacyFairseqTask):
                         "src_tokens": RightPadDataset(
                             src_dataset,
                             pad_idx=self.source_dictionary.pad(),
+                            pad_length=pad_length,
                         ),
                         "src_lengths": NumelDataset(src_dataset, reduce=False),
                     },
                     "target": RightPadDataset(
                         tgt_dataset,
                         pad_idx=self.source_dictionary.pad(),
+                        pad_length=pad_length,
                     ),
                     "nsentences": NumSamplesDataset(),
                     "ntokens": NumelDataset(src_dataset, reduce=True),

@@ -63,7 +63,8 @@ class ResamplingDataset(BaseWrapperDataset):
 
         assert size_ratio > 0.0
         if not self.replace:
-            assert size_ratio < 1.0
+            assert size_ratio <= 1.0
+        logger.info(f"size ratio = {size_ratio}; replace = {self.replace}")
         self.size_ratio = float(size_ratio)
         self.actual_size = np.ceil(len(dataset) * self.size_ratio).astype(int)
 

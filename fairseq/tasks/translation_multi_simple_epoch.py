@@ -4,9 +4,11 @@
 # LICENSE file in the root directory of this source tree.
 
 import datetime
+import itertools
 import logging
 import time
 
+import numpy  as np
 import torch
 from fairseq.data import (
     FairseqDataset,
@@ -72,6 +74,8 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
                             action=FileContentsAction)
         parser.add_argument('--keep-inference-langtok', action='store_true',
                             help='keep language tokens in inference output (e.g. for analysis or debugging)')
+        parser.add_argument('--one-dataset-per-batch', action='store_true',
+                            help='limit each minibatch to one sub-dataset (typically lang direction)')
 
         SamplingMethod.add_arguments(parser)
         MultilingualDatasetManager.add_args(parser)
@@ -104,6 +108,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         self.data_manager = MultilingualDatasetManager.setup_data_manager(
             args, self.lang_pairs, langs, dicts, self.sampling_method
         )
+        self.one_dataset_per_batch = getattr(args, "one_dataset_per_batch", False)
 
     def check_dicts(self, dicts, source_langs, target_langs):
         if self.args.source_dict is not None or self.args.target_dict is not None:
@@ -159,7 +164,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
             del self.datasets[split]
             logger.info("old dataset deleted manually")
             logger.info(f"mem usage: {data_utils.get_mem_usage()}")
-        self.datasets[split] = self.data_manager.load_dataset(
+        split_datasets = self.data_manager.load_dataset(
             split,
             self.training,
             epoch=epoch,
@@ -167,6 +172,8 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
             shard_epoch=shard_epoch,
             **kwargs,
         )
+        for split, dataset in split_datasets.items():
+            self.datasets[split] = dataset
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
         if constraints is not None:
@@ -295,43 +302,58 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
             logger.info(f"start batch sampler: mem usage: {data_utils.get_mem_usage()}")
 
             with data_utils.numpy_seed(seed):
-                indices = dataset.ordered_indices()
-            logger.info(
-                f"[{split}] @batch_sampler order indices time: {get_time_gap(start_time, time.time())}"
-            )
-            logger.info(f"mem usage: {data_utils.get_mem_usage()}")
+                if self.one_dataset_per_batch:
+                    ordered_inices_list = dataset.ordered_indices_per_dataset()
+                else:
+                    ordered_indices_list = [dataset.ordered_indices()]
 
-            # filter examples that are too large
-            if max_positions is not None:
-                my_time = time.time()
-                indices = self.filter_indices_by_size(
-                    indices, dataset, max_positions, ignore_invalid_inputs
-                )
+            # get batches constructed from each underlying dataset to concatenate
+            subdataset_sampler_list = []
+            for ds_idx, indices in enumerate(dataset.ordered_indices_per_dataset()):
+                if self.one_dataset_per_batch:
+                    log_tag = f"[{split}] [{ds_idx}]"
+                else:
+                    log_tag = f"[{split}]"
                 logger.info(
-                    f"[{split}] @batch_sampler filter_by_size time: {get_time_gap(my_time, time.time())}"
+                    f"{log_tag} @batch_sampler order indices time: {get_time_gap(start_time, time.time())}"
                 )
                 logger.info(f"mem usage: {data_utils.get_mem_usage()}")
 
-            # create mini-batches with given size constraints
-            my_time = time.time()
-            batch_sampler = dataset.batch_by_size(
-                indices,
-                max_tokens=max_tokens,
-                max_sentences=max_sentences,
-                required_batch_size_multiple=required_batch_size_multiple,
-            )
+                # filter examples that are too large
+                if max_positions is not None and split is not None and "train" in split:
+                    my_time = time.time()
+                    indices = self.filter_indices_by_size(
+                        indices, dataset, max_positions, ignore_invalid_inputs
+                    )
+                    logger.info(
+                        f"{log_tag} @batch_sampler filter_by_size time: {get_time_gap(my_time, time.time())}"
+                    )
+                    logger.info(f"mem usage: {data_utils.get_mem_usage()}")
 
-            logger.info(
-                f"[{split}] @batch_sampler batch_by_size time: {get_time_gap(my_time, time.time())}"
-            )
-            logger.info(
-                f"[{split}] per epoch batch_sampler set-up time: {get_time_gap(start_time, time.time())}"
-            )
-            logger.info(f"mem usage: {data_utils.get_mem_usage()}")
+                # create mini-batches with given size constraints
+                my_time = time.time()
+                batch_sampler = dataset.batch_by_size(
+                    indices,
+                    max_tokens=max_tokens,
+                    max_sentences=max_sentences,
+                    required_batch_size_multiple=required_batch_size_multiple,
+                )
+                subdataset_sampler_list.append(batch_sampler)
 
-            return batch_sampler
+                end_time = time.time()
+                logger.info(
+                    f"{log_tag} @batch_sampler batch_by_size time: {get_time_gap(my_time, end_time)}"
+                )
+                logger.info(
+                    f"{log_tag} per epoch batch_sampler set-up time: {get_time_gap(start_time, end_time)}"
+                )
+                logger.info(f"mem usage: {data_utils.get_mem_usage()}")
+
+            combined_batch_sampler = itertools.chain(*subdataset_sampler_list)
+            return combined_batch_sampler
 
         return construct_batch_sampler
+
 
     # we need to override get_batch_iterator because we want to reset the epoch iterator each time
     def get_batch_iterator(
@@ -349,6 +371,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         epoch=1,
         data_buffer_size=0,
         disable_iterator_cache=False,
+        skip_remainder_batch=False,
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
@@ -381,6 +404,9 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
             disable_iterator_cache (bool, optional): don't cache the
                 EpochBatchIterator (ignores `FairseqTask::can_reuse_epoch_itr`)
                 (default: False).
+            skip_remainder_batch (bool, optional): if set, discard the last
+                batch in each training epoch, as the last batch is often smaller than
+                    local_batch_size * distributed_word_size (default: ``True``).
         Returns:
             ~fairseq.iterators.EpochBatchIterator: a batched iterator over the
                 given dataset split
@@ -426,5 +452,6 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
             shard_id=shard_id,
             num_workers=num_workers,
             epoch=epoch,
+            skip_remainder_batch=skip_remainder_batch
         )
         return epoch_iter

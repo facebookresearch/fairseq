@@ -7,10 +7,8 @@ import argparse
 import contextlib
 import copy
 import importlib
-import logging
 import os
 import sys
-import tempfile
 import warnings
 from itertools import accumulate
 from typing import Callable, Dict, List, Optional
@@ -21,6 +19,8 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor
 
+import logging
+from fairseq.incremental_decoding_utils import HasIncrementalState
 
 try:
     from amp_C import multi_tensor_l2norm
@@ -55,6 +55,18 @@ class FileContentsAction(argparse.Action):
                 argument = f.read().strip()
         else:
             argument = values
+        setattr(namespace, self.dest, argument)
+
+
+class CSVFileContentsAction(FileContentsAction):
+    def __init__(self, option_strings, dest, nargs=None, **kwargs):
+        if nargs is not None:
+            raise ValueError("nargs not allowed")
+        super(CSVFileContentsAction, self).__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        super(CSVFileContentsAction, self).__call__(parser, namespace, values, option_string)
+        argument = getattr(namespace, self.dest).split(',')
         setattr(namespace, self.dest, argument)
 
 
@@ -122,7 +134,7 @@ def move_to_cpu(sample, cast_to_fp32=True):
 
 
 def get_incremental_state(
-    module,  # type: MultiheadAttention,
+    module: HasIncrementalState,
     incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
     key: str,
 ) -> Optional[Dict[str, Optional[Tensor]]]:
@@ -131,7 +143,7 @@ def get_incremental_state(
 
 
 def set_incremental_state(
-    module, # type: MultiheadAttention,
+    module: HasIncrementalState,
     incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
     key: str,
     value: Dict[str, Optional[Tensor]],
@@ -300,7 +312,7 @@ def item(tensor):
     return tensor
 
 
-def multi_tensor_total_norm(grads, chunk_size=2048 * 32) -> torch.Tensor:
+def multi_tensor_l2_total_norm(grads, chunk_size=2048 * 32) -> torch.Tensor:
     per_device_grads = {}
     norms = []
     for grad in grads:
@@ -327,15 +339,36 @@ def multi_tensor_total_norm(grads, chunk_size=2048 * 32) -> torch.Tensor:
 
 
 @torch.no_grad()
-def clip_grad_norm_(params, max_norm, aggregate_norm_fn=None) -> torch.Tensor:
+def clip_grad_norm_(params, max_norm, norm_type='l2', aggregate_norm_fn=None, device=None) -> torch.Tensor:
     def grad_exists(p):
         return p is not None and getattr(p, "grad", None) is not None
+
     if isinstance(params, torch.Tensor):
         params = [params]
     params = list(params)
     params = list(filter(grad_exists, params))
     grads, expert_grads, base_expert_grads, sharded_grads = [], [], [], []
+
+    if device is None:
+        if torch.cuda.is_available():
+            # param/grads could be on CPU if using CPU offloading, but we want
+            # everything on GPU if possible
+            device = torch.cuda.current_device()
+        elif len(params) > 0:
+            device = params[0].device  # could be "xla"
+        else:
+            device = torch.device("cpu")
+
+    def norm(t, n_type):
+        if n_type == 'l2':
+            return torch.norm(t, p=2, dtype=torch.float32)
+        elif n_type == 'inf':
+            return torch.norm(t, p=float('inf'), dtype=torch.float32)
+        else:
+            raise ValueError(f"Invalid clip_norm_type: {n_type}! Please pass either 'l2' or 'inf'!")
+
     for p in params:
+        p.grad.to(device)
         if hasattr(p, "expert"):
             expert_grads.append(p.grad.detach())
         elif hasattr(p, "base_expert"):
@@ -344,46 +377,36 @@ def clip_grad_norm_(params, max_norm, aggregate_norm_fn=None) -> torch.Tensor:
             sharded_grads.append(p.grad.detach())
         else:
             grads.append(p.grad.detach())
+
     if len(grads) == 0:
-        if len(params) > 0:
-            total_norm = params[0].new_tensor(0.0)
-        else:
-            total_norm = torch.tensor(0.0)
+        total_norm = torch.tensor(0.0, dtype=torch.float32, device=device)
     elif len(grads) == 1:
-        total_norm = torch.norm(grads[0], p=2, dtype=torch.float32)
+        total_norm = norm(grads[0], norm_type)
     else:
-        if multi_tensor_l2norm_available:
-            total_norm = multi_tensor_total_norm(grads)
+        if multi_tensor_l2norm_available and norm_type == 'l2':
+            total_norm = multi_tensor_l2_total_norm(grads)
         else:
-            if torch.cuda.is_available():
+            if torch.cuda.is_available() and norm_type == 'l2':
                 warnings.warn(
                     "amp_C fused kernels unavailable, disabling multi_tensor_l2norm; "
                     "you may get better performance by installing NVIDIA's apex library"
                 )
-                device = torch.cuda.current_device()
-            elif grads[0].device.type == "xla":
-                device = grads[0].device
-            else:
-                device = torch.device("cpu")
-            total_norm = torch.norm(
-                torch.stack(
-                    [torch.norm(g, p=2, dtype=torch.float32).to(device) for g in grads]
-                )
-            )
+            total_norm = norm(torch.stack([norm(g, norm_type) for g in grads]), norm_type)
 
     # calculate split_norm and all_reduce with other workers
     norms = [total_norm]
     for split_grads in [expert_grads, sharded_grads]:
         if len(split_grads) == 0:
             continue
-        split_norm = torch.norm(torch.stack([torch.norm(g, p=2, dtype=torch.float32) for g in split_grads]))
+        split_norm = norm(torch.stack([norm(g, norm_type) for g in split_grads]), norm_type)
         if dist.is_initialized():
             split_norm.pow_(2)
             dist.all_reduce(split_norm)
             split_norm.sqrt_()
         norms.append(split_norm)
+
     if len(norms) > 1:
-        total_norm = torch.norm(torch.stack(norms))
+        total_norm = norm(torch.stack(norms), norm_type)
 
     if aggregate_norm_fn is not None:
         total_norm = aggregate_norm_fn(total_norm)
@@ -524,12 +547,18 @@ def deprecation_warning(message, stacklevel=3):
     warnings.warn(message, stacklevel=stacklevel)
 
 
+def relu_squared(x: torch.Tensor):
+    return F.relu(x).pow(2)
+
+
 def get_activation_fn(activation: str) -> Callable:
     """ Returns the activation function corresponding to `activation` """
     from fairseq.modules import gelu, gelu_accurate
 
     if activation == "relu":
         return F.relu
+    elif activation == "relu_squared":
+        return relu_squared
     elif activation == "gelu":
         return gelu
     elif activation == "gelu_fast":
@@ -550,6 +579,7 @@ def get_activation_fn(activation: str) -> Callable:
 def get_available_activation_fns() -> List:
     return [
         "relu",
+        "relu_squared",
         "gelu",
         "gelu_fast",  # deprecated
         "gelu_accurate",

@@ -18,6 +18,7 @@ from fairseq.dataclass.constants import (
     PIPELINE_CHECKPOINT_CHOICES,
     PRINT_ALIGNMENT_CHOICES,
     ZERO_SHARDING_CHOICES,
+    CLIP_GRAD_NORM_TYPE_CHOICES,
 )
 
 from omegaconf import II, MISSING
@@ -204,6 +205,9 @@ class CommonConfig(FairseqDataclass):
     )
     log_nvidia_smi: bool = field(
         default=False, metadata={"help": "log output from nvidia-smi during training"}
+    )
+    use_tutel_moe: Optional[bool] = field(
+        default=False, metadata={"help": "Use MSFT Tutel if it's available for faster MoE impl"}
     )
 
 
@@ -510,6 +514,9 @@ class OptimizationConfig(FairseqDataclass):
     clip_norm: float = field(
         default=0.0, metadata={"help": "clip threshold of gradients"}
     )
+    clip_norm_type: Optional[CLIP_GRAD_NORM_TYPE_CHOICES] = field(
+        default='l2', metadata={"help": "either 'l2' or 'inf' to clip by l2 norm or max abs grad"}
+    )
     sentence_avg: bool = field(
         default=False,
         metadata={
@@ -538,7 +545,14 @@ class OptimizationConfig(FairseqDataclass):
             "help": "specify global optimizer for syncing models on different GPUs/shards"
         },
     )
-
+    track_norms: bool = field(default=False)
+    train_with_epoch_remainder_batch: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "if set, include the last (partial) batch of each epoch in training"
+            " (default is to skip it)."
+        },
+    )
 
 @dataclass
 class CheckpointConfig(FairseqDataclass):
@@ -621,10 +635,6 @@ class CheckpointConfig(FairseqDataclass):
     no_save_optimizer_state_on_training_finished: bool = field(
         default=False,
         metadata={"help": "don't save optimizer-state as part of checkpoint when training is done"},
-    )
-    symlink_best_and_last_checkpoints: bool = field(
-        default=False,
-        metadata={"help": "Symlink best and last checkpoints instead of copying", "argparse_alias": "--symlink"},
     )
     best_checkpoint_metric: str = field(
         default="loss", metadata={"help": 'metric to use for saving "best" checkpoints'}
@@ -916,7 +926,7 @@ class CommonEvalConfig(FairseqDataclass):
         },
     )
     results_path: Optional[str] = field(
-        default=None, metadata={"help": "path to save eval results (optional)"}
+        default=None, metadata={"help": "path to save eval results (optional)", 'argparse_alias': '--sp'}
     )
     # GShard or Switch model
     is_moe: bool = field(
@@ -951,7 +961,6 @@ class EvalLMConfig(FairseqDataclass):
             "help": "if BxT is more than this, will batch the softmax over vocab to this amount of tokens, in order to fit into GPU memory"
         },
     )
-    stats_path: Optional[str] = field(default=None, metadata={'argparse_alias': '--sp'})
     max_valid_steps: Optional[int] = field(default=None, metadata={'help': 'How many batches to evaluate',
                                                                    "argparse_alias": "--nval"})
 
@@ -983,10 +992,11 @@ class FairseqConfig(FairseqDataclass):
     eval_lm: EvalLMConfig = EvalLMConfig()
     interactive: InteractiveConfig = InteractiveConfig()
     model: Any = MISSING
-    task: Any = None
-    criterion: Any = None
-    optimizer: Any = None
-    lr_scheduler: Any = None
-    scoring: Any = None
-    bpe: Any = None
+    task: Any = MISSING
+    criterion: Any = MISSING
+    optimizer: Any = MISSING
+    lr_scheduler: Any = MISSING
+    scoring: Any = MISSING
+    bpe: Any = MISSING
     tokenizer: Any = None
+    simul_type: Any = None

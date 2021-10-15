@@ -75,15 +75,6 @@ class PathManager:
         return shutil.copyfile(src_path, dst_path)
 
     @staticmethod
-    def symlink(src_path: str, dst_path: str):
-        try:
-            os.symlink(src_path, dst_path)
-        except OSError as e:
-            if e.errno == errno.EEXIST:
-                os.remove(dst_path)
-                os.symlink(src_path, dst_path)
-
-    @staticmethod
     def get_local_path(path: str, **kwargs) -> str:
         if IOPathPathManager:
             return IOPathPathManager.get_local_path(path, **kwargs)

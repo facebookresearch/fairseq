@@ -465,3 +465,31 @@ class SampledMultiDataset(FairseqDataset):
         return data_utils.filter_paired_dataset_indices_by_size(
             src_sizes, tgt_sizes, indices, max_sizes
         )
+
+    def ordered_indices_per_dataset(self):
+        """Return a list of ordered indices vectors for each underlying dataset
+        (with parent dataset indices)."""
+        assert self.cumulated_sizes is not None
+        ordered_indices_list = []
+        for i, cumulated_size in enumerate(self.cumulated_sizes):
+            start = 0 if i == 0 else self.cumulated_sizes[i - 1]
+            end = cumulated_size
+
+            indices = np.arange(start, end, dtype=np.int64)
+            if self.shuffle:
+                np.random.shuffle(indices)
+
+            sizes = self.sizes
+            tgt_sizes = sizes[:, 1] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else None
+            src_sizes = (
+                sizes[:, 0] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else sizes
+            )
+
+            # sort by target length, then source length
+            if tgt_sizes is not None:
+                indices = indices[np.argsort(tgt_sizes[indices], kind="mergesort")]
+            sort_indices = indices[np.argsort(src_sizes[indices], kind="mergesort")]
+
+            ordered_indices_list.append(sort_indices)
+
+        return ordered_indices_list

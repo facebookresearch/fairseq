@@ -43,7 +43,7 @@ DDP_BACKEND_CHOICES = ChoiceEnum([
     "pytorch_ddp",
     "slow_mo",
 ])
-DATASET_IMPL_CHOICES = ChoiceEnum(["raw", "lazy", "cached", "mmap", "fasta"])
+DATASET_IMPL_CHOICES = ChoiceEnum(["raw", "lazy", "cached", "mmap", "fasta", "huffman"])
 GENERATION_CONSTRAINTS_CHOICES = ChoiceEnum(["ordered", "unordered"])
 GENERATION_DECODING_FORMAT_CHOICES = ChoiceEnum(
     ["unigram", "ensemble", "vote", "dp", "bs"]
@@ -51,3 +51,4 @@ GENERATION_DECODING_FORMAT_CHOICES = ChoiceEnum(
 ZERO_SHARDING_CHOICES = ChoiceEnum(["none", "os"])
 PIPELINE_CHECKPOINT_CHOICES = ChoiceEnum(["always", "never", "except_last"])
 PRINT_ALIGNMENT_CHOICES = ChoiceEnum(["hard", "soft"])
+CLIP_GRAD_NORM_TYPE_CHOICES = ChoiceEnum(["l2", "inf"])

@@ -6,6 +6,7 @@
 import ast
 import collections
 import contextlib
+from fairseq.distributed.fully_sharded_data_parallel import fsdp_enable_wrap, fsdp_wrap
 import functools
 import logging
 import os
@@ -21,6 +22,7 @@ from fairseq.dataclass.utils import (
     convert_namespace_to_omegaconf,
     overwrite_args_by_name,
 )
+from fairseq.dataclass.configs import DistributedTrainingConfig
 from fairseq.distributed import utils as dist_utils
 from fairseq.file_io import PathManager, torch_load_cpu
 from fairseq.models import FairseqDecoder, FairseqEncoder
@@ -115,18 +117,22 @@ def save_checkpoint(
             checkpoints[0], extra_state, training_finished=training_finished, async_callback_fn=async_callback_fn
         )
 
-        def copy_or_symlink(src, dest):
-            if cfg.symlink_best_and_last_checkpoints:
-                PathManager.symlink(src, dest)
-            elif cfg.write_checkpoints_asynchronously:
+        def copy_if_not_async(src, dest):
+            if cfg.write_checkpoints_asynchronously:
                 pass  # TODO[ioPath]: Need to implement a delayed asynchronous file copying/moving feature.
             else:
                 assert PathManager.copy(src, dest, overwrite=True), f"Failed to copy {src} to {dest}"
 
         for cp in checkpoints[1:]:
-            copy_or_symlink(src=checkpoints[0], dest=cp)
-            if (trainer.is_moe or trainer.is_base_moe) and not trainer.is_fsdp and trainer.is_data_parallel_master:
-                copy_or_symlink(
+            copy_if_not_async(src=checkpoints[0], dest=cp)
+            if (
+                (trainer.is_moe or trainer.is_base_moe)
+                and (
+                    trainer.is_data_parallel_master
+                    or (trainer.is_fsdp and trainer.use_sharded_state)
+                )
+            ):
+                copy_if_not_async(
                     src=re.sub("rank-[0-9]+", "shared", checkpoints[0]),
                     dest=re.sub("rank-[0-9]+", "shared", cp),
                 )
@@ -425,6 +431,7 @@ def load_model_ensemble_and_task(
     num_shards=1,
     state=None,
     is_moe=False,
+    build_model_hook=None,
 ):
     logger.info("load_model_ensemble_and_task is_moe={}".format(is_moe))
     assert state is None or len(filenames) == 1
@@ -465,8 +472,11 @@ def load_model_ensemble_and_task(
             if "task_state" in state:
                 task.load_state_dict(state["task_state"])
 
-            # build model for ensemble
-            model = task.build_model(cfg.model)
+            if build_model_hook is not None:
+                model = build_model_hook(cfg, task)
+            else:
+                # build model for ensemble
+                model = task.build_model(cfg.model)
 
             if (
                 hasattr(cfg.model, "langs")
@@ -650,7 +660,7 @@ def _upgrade_state_dict(state):
             ):
                 cfg.task.eval_wer_config.print_alignment = "hard"
             if "generation" in cfg and isinstance(cfg.generation.print_alignment, bool):
-                cfg.generation.print_alignment = "hard"
+                cfg.generation.print_alignment = "hard" if cfg.generation.print_alignment else None
             if (
                 "model" in cfg
                 and "w2v_args" in cfg.model

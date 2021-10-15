@@ -7,6 +7,24 @@ import uuid
 from typing import Dict, Optional
 
 from torch import Tensor
+from typing_extensions import Protocol
+
+
+class HasIncrementalState(Protocol):
+    def get_incremental_state(
+        self,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        key: str,
+    ) -> Optional[Dict[str, Optional[Tensor]]]:
+        """Helper for getting incremental state for an nn.Module."""
+
+    def set_incremental_state(
+        self,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        key: str,
+        value: Dict[str, Optional[Tensor]],
+    ) -> Optional[Dict[str, Dict[str, Optional[Tensor]]]]:
+        """Helper for setting incremental state for an nn.Module."""
 
 
 class FairseqIncrementalState(object):

@@ -8,15 +8,15 @@ import math
 import torch
 import torch.nn.functional as F
 from fairseq import metrics, utils
-from fairseq.criterions import FairseqCriterion, register_criterion
+from fairseq.criterions import LegacyFairseqCriterion, FairseqCriterion, register_criterion
 
 
 @register_criterion("sentence_prediction")
 class SentencePredictionCriterion(FairseqCriterion):
-    def __init__(self, task, classification_head_name, regression_target):
+    def __init__(self, task, classification_head_name):
         super().__init__(task)
         self.classification_head_name = classification_head_name
-        self.regression_target = regression_target
+        self.regression_target = None
 
     @staticmethod
     def add_args(parser):
@@ -64,6 +64,24 @@ class SentencePredictionCriterion(FairseqCriterion):
         if not self.regression_target:
             preds = logits.argmax(dim=1)
             logging_output["ncorrect"] = (preds == targets).sum()
+
+            nb_class = logits.shape[1]
+
+            pred_counts = torch.zeros(nb_class, dtype=torch.long).to(preds.device)
+            correct_pred_counts = torch.zeros(nb_class, dtype=torch.long).to(preds.device)
+            gold_counts = torch.zeros(nb_class, dtype=torch.long).to(preds.device)
+
+            def get_counts(vals):
+                n_tensor = torch.zeros(nb_class, dtype=torch.long).to(preds.device)
+                lbls, cnts = vals.unique(return_counts=True)
+                n_tensor[lbls] = cnts
+
+                return n_tensor
+
+            pred_counts = get_counts(preds)
+            correct_pred_counts = get_counts(targets[torch.where(preds == targets)])
+            gold_counts = get_counts(targets)
+
 
         return loss, sample_size, logging_output
 

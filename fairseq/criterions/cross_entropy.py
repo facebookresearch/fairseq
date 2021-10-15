@@ -6,6 +6,7 @@
 import math
 from dataclasses import dataclass
 
+import torch
 import torch.nn.functional as F
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
@@ -16,6 +17,29 @@ from omegaconf import II
 @dataclass
 class CrossEntropyCriterionConfig(FairseqDataclass):
     sentence_avg: bool = II("optimization.sentence_avg")
+
+
+def nll_loss(lprobs, target, ignore_index=None, reduction="mean"):
+    """Like torch.nn.functional.nll_loss but works for large inputs."""
+    if lprobs.numel() < 2e9:
+        return F.nll_loss(lprobs, target, ignore_index=ignore_index, reduction=reduction)
+    if target.dim() == lprobs.dim() - 1:
+        target = target.unsqueeze(-1)
+    nll_loss = -lprobs.gather(dim=-1, index=target)
+    if ignore_index is not None:
+        pad_mask = target.eq(ignore_index)
+        nll_loss.masked_fill_(pad_mask, 0.0)
+    else:
+        nll_loss = nll_loss.squeeze(-1)
+    if reduction == "mean":
+        nll_loss = nll_loss.mean()
+    elif reduction == "sum":
+        nll_loss = nll_loss.sum()
+    elif reduction == "none":
+        pass
+    else:
+        raise NotImplementedError
+    return nll_loss
 
 
 @register_criterion("cross_entropy", dataclass=CrossEntropyCriterionConfig)
@@ -49,7 +73,7 @@ class CrossEntropyCriterion(FairseqCriterion):
         lprobs = model.get_normalized_probs(net_output, log_probs=True)
         lprobs = lprobs.view(-1, lprobs.size(-1))
         target = model.get_targets(sample, net_output).view(-1)
-        loss = F.nll_loss(
+        loss = nll_loss(
             lprobs,
             target,
             ignore_index=self.padding_idx,

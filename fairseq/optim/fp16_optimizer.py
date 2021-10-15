@@ -185,12 +185,12 @@ class _FP16OptimizerMixin(object):
         """Multiplies grads by a constant ``c``."""
         self._multiply_factor *= c
 
-    def clip_grad_norm(self, max_norm, aggregate_norm_fn=None):
+    def clip_grad_norm(self, max_norm, norm_type='l2', aggregate_norm_fn=None):
         """Clips gradient norm and updates dynamic loss scaler."""
         self._sync_fp16_grads_to_fp32()
 
         grad_norm = self._multiply_factor * self.fp32_optimizer.clip_grad_norm(
-            0, aggregate_norm_fn
+            0, norm_type, aggregate_norm_fn
         )
 
         if self.scaler is not None:
@@ -410,11 +410,11 @@ class _MemoryEfficientFP16OptimizerMixin(object):
         """Multiplies grads by a constant *c*."""
         self._multiply_factor *= c
 
-    def clip_grad_norm(self, max_norm, aggregate_norm_fn=None):
+    def clip_grad_norm(self, max_norm, norm_type='l2', aggregate_norm_fn=None):
         """Clips gradient norm and updates dynamic loss scaler."""
         max_norm = float(max_norm)
         grad_norm = self._multiply_factor * self.wrapped_optimizer.clip_grad_norm(
-            0, aggregate_norm_fn
+            0, norm_type, aggregate_norm_fn
         )
 
         if self.scaler is not None:

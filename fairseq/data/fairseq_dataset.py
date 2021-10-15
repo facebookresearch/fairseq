@@ -194,6 +194,11 @@ class FairseqDataset(torch.utils.data.Dataset, EpochListening):
             )
         return indices, ignored
 
+    def ordered_indices_per_dataset(self):
+        """Return a list of ordered indices vectors for each underlying dataset
+        (with parent dataset indices)."""
+        return [self.ordered_indices()]
+
     @property
     def supports_fetch_outside_dataloader(self):
         """Whether this dataset supports fetching outside the workers of the dataloader."""

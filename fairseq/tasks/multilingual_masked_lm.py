@@ -62,6 +62,12 @@ class MultiLingualMaskedLMTask(LegacyFairseqTask):
             "per sample for BERT dataset",
         )
         parser.add_argument(
+            "--pad-to-fixed-length",
+            default=False,
+            action="store_true",
+            help="pad examples to fixed length",
+        )
+        parser.add_argument(
             "--mask-prob",
             default=0.15,
             type=float,
@@ -95,6 +101,17 @@ class MultiLingualMaskedLMTask(LegacyFairseqTask):
             type=float,
             default=1.0,
             help="smoothing alpha for sample rations across multiple datasets",
+        )
+        parser.add_argument(
+            "--lang-to-offline-shard-ratio",
+            type=str,
+            default="",
+            help="absolute path of tsv file location to indicate lang to offline shard ratio.",
+        )
+        parser.add_argument(
+            "--langs",
+            type=str,
+            help="list of langs",
         )
 
     def __init__(self, args, dictionary):
@@ -148,13 +165,9 @@ class MultiLingualMaskedLMTask(LegacyFairseqTask):
         smoothed_prob = smoothed_prob / smoothed_prob.sum()
         return smoothed_prob
 
-    def load_dataset(self, split, epoch=1, combine=False, **kwargs):
-        """Load a given dataset split.
-
-        Args:
-            split (str): name of the split (e.g., train, valid, test)
-        """
-        paths = utils.split_paths(self.args.data)
+    @staticmethod
+    def _get_langs(args, epoch=1):
+        paths = utils.split_paths(args.data)
         assert len(paths) > 0
         data_path = paths[(epoch - 1) % len(paths)]
 
@@ -163,10 +176,41 @@ class MultiLingualMaskedLMTask(LegacyFairseqTask):
             for name in os.listdir(data_path)
             if os.path.isdir(os.path.join(data_path, name))
         )
+        if args.langs:
+            keep_langs = set(args.langs.split(","))
+            languages = [lang for lang in languages if lang in keep_langs]
+            assert len(languages) == len(keep_langs)
+
+        return languages, data_path
+
+    def load_dataset(self, split, epoch=1, combine=False, **kwargs):
+        """Load a given dataset split.
+
+        Args:
+            split (str): name of the split (e.g., train, valid, test)
+        """
+        languages, data_path = MultiLingualMaskedLMTask._get_langs(
+            self.args, epoch
+        )
+        lang_to_offline_shard_ratio = None
+        if self.args.lang_to_offline_shard_ratio != "":
+            lang_to_offline_shard_ratio = {}
+            assert os.path.exists(
+                self.args.lang_to_offline_shard_ratio
+            ), "provided offline shard ratio file doesn't exist: {0}".format(self.args.lang_to_offline_shard_ratio)
+            with open(self.args.lang_to_offline_shard_ratio) as fin:
+                for line in fin:
+                    lang, ratio = line.strip().split('\t')
+                    ratio = float(ratio)
+                    lang_to_offline_shard_ratio[lang] = ratio
+           
+            logger.info(
+                "Found offline sharded ratio: %s", lang_to_offline_shard_ratio,
+            )
 
         logger.info("Training on {0} languages: {1}".format(len(languages), languages))
         logger.info(
-            "Language to id mapping: ", {lang: id for id, lang in enumerate(languages)}
+            "Language to id mapping: %s", {lang: id for id, lang in enumerate(languages)}
         )
 
         mask_whole_words = self._get_whole_word_mask()
@@ -212,6 +256,10 @@ class MultiLingualMaskedLMTask(LegacyFairseqTask):
                 mask_whole_words=mask_whole_words,
             )
 
+            pad_length = None
+            if self.args.pad_to_fixed_length:
+                pad_length = self.args.tokens_per_sample
+
             lang_dataset = NestedDictionaryDataset(
                 {
                     "net_input": {
@@ -219,6 +267,7 @@ class MultiLingualMaskedLMTask(LegacyFairseqTask):
                             src_dataset,
                             pad_idx=self.source_dictionary.pad(),
                             left_pad=False,
+                            pad_length=pad_length,
                         ),
                         "src_lengths": NumelDataset(src_dataset, reduce=False),
                     },
@@ -226,6 +275,7 @@ class MultiLingualMaskedLMTask(LegacyFairseqTask):
                         tgt_dataset,
                         pad_idx=self.source_dictionary.pad(),
                         left_pad=False,
+                        pad_length=pad_length,
                     ),
                     "nsentences": NumSamplesDataset(),
                     "ntokens": NumelDataset(src_dataset, reduce=True),
@@ -238,27 +288,39 @@ class MultiLingualMaskedLMTask(LegacyFairseqTask):
         dataset_lengths = np.array(
             [len(d) for d in lang_datasets],
             dtype=float,
-        )
+        )        
         logger.info(
             "loaded total {} blocks for all languages".format(
                 dataset_lengths.sum(),
             )
         )
+
         if split == self.args.train_subset:
+            dataset_lengths_ratio_multiplier = np.ones(len(dataset_lengths))
+            if lang_to_offline_shard_ratio is not None:            
+                dataset_lengths_ratio_multiplier = []
+                for lang in languages:
+                    assert lang in lang_to_offline_shard_ratio, "Lang: {0} missing in offline shard ratio file: {1}".format(
+                        lang, self.args.lang_to_offline_shard_ratio,
+                    )
+                    dataset_lengths_ratio_multiplier.append(lang_to_offline_shard_ratio[lang])
+                dataset_lengths_ratio_multiplier = np.array(dataset_lengths_ratio_multiplier)
+                true_dataset_lengths = dataset_lengths * dataset_lengths_ratio_multiplier
             # For train subset, additionally up or down sample languages.
-            sample_probs = self._get_sample_prob(dataset_lengths)
+            sample_probs = self._get_sample_prob(true_dataset_lengths)
             logger.info(
-                "Sample probability by language: ",
+                "Sample probability by language: %s",
                 {
                     lang: "{0:.4f}".format(sample_probs[id])
                     for id, lang in enumerate(languages)
                 },
             )
-            size_ratio = (sample_probs * dataset_lengths.sum()) / dataset_lengths
+            
+            size_ratio = (sample_probs * true_dataset_lengths.sum()) / dataset_lengths
             logger.info(
-                "Up/Down Sampling ratio by language: ",
+                "Up/Down Sampling ratio by language: %s",
                 {
-                    lang: "{0:.2f}".format(size_ratio[id])
+                    lang: "{0:.4f}".format(size_ratio[id])
                     for id, lang in enumerate(languages)
                 },
             )

@@ -17,6 +17,7 @@ import torch
 from torch import Tensor
 import torch.nn.functional as F
 
+from .moe_layer import get_fused_cumsum_sub_one
 from .top2gate import one_hot, entropy
 
 
@@ -35,6 +36,7 @@ def top1gating(
     capacity_factor=1.0,
     eval_mode=False,
     moe_eval_capacity_token_fraction=EVAL_CAPACITY_TOKEN_FRACTION,
+    use_tutel=False,
 ) -> Tuple[Tensor, Tensor, Tensor, Dict]:
     """Implements Top2Gating on logits."""
     metadata = {}
@@ -74,13 +76,18 @@ def top1gating(
     gates1_s = (gates * mask1).sum(dim=1)
 
     # Compute locations in capacity buffer
-    locations1 = torch.cumsum(mask1, dim=0) - 1
+    locations1 = get_fused_cumsum_sub_one(use_tutel)(mask1)
 
     # Compute l_aux
     me = torch.mean(gates, dim=0)
     ce = torch.mean(mask1.to(gates.dtype), dim=0)
     l_aux = torch.mean(me * ce)
     l_aux = l_aux * num_experts * num_experts
+
+    if use_tutel:
+        locations1_s = torch.sum(locations1 * mask1, dim=1)
+        return l_aux, metadata, capacity, num_experts, [indices1_s,], [locations1_s,], [gates1_s,]
+
     # Remove locations outside capacity from mask
     mask1 = mask1 * torch.lt(locations1, capacity)
     # Store the capacity location for each token
@@ -127,6 +134,7 @@ class Top1Gate(torch.nn.Module):
         input_noise_type=None,
         capacity_factor=1.0,
         moe_eval_capacity_token_fraction=EVAL_CAPACITY_TOKEN_FRACTION,
+        use_tutel=False,
     ) -> None:
         # TODO: merge this to top2gate.py
         #
@@ -136,6 +144,7 @@ class Top1Gate(torch.nn.Module):
         self.input_noise_type = input_noise_type
         self.capacity_factor = capacity_factor
         self.moe_eval_capacity_token_fraction = moe_eval_capacity_token_fraction
+        self.use_tutel = use_tutel
 
     def forward(self, input: torch.Tensor, mask: Optional[torch.Tensor] = None,) -> Tuple[Tensor, Tensor, Tensor, Dict]:  # type: ignore
         logits = self.wg(input)
@@ -146,4 +155,5 @@ class Top1Gate(torch.nn.Module):
             capacity_factor=self.capacity_factor,
             eval_mode=not self.training,
             moe_eval_capacity_token_fraction=self.moe_eval_capacity_token_fraction,
+            use_tutel=self.use_tutel,
         )

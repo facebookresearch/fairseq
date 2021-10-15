@@ -22,8 +22,21 @@ if TYPE_CHECKING:
 else:
     Base = Module
 
-
 logger = logging.getLogger(__name__)
+
+try:
+    # To enable Tutel MoE optimizations:
+    #   python3 -m pip install --user --upgrade git+https://github.com/microsoft/tutel@v0.1.x
+    from tutel import moe as tutel_moe
+    has_tutel = True 
+except ModuleNotFoundError:
+    has_tutel = False
+
+
+def get_fused_cumsum_sub_one(use_tutel):
+    if use_tutel:
+        return tutel_moe.fast_cumsum_sub_one
+    return lambda mask: torch.cumsum(mask, dim=0) - 1
 
 
 # einsum dimensions: (g)roup, (s)equence, (e)xpert, (m)odel, (c)apacity
@@ -84,6 +97,8 @@ class MOELayer(Base):
         self.in_generation = False
         self.a2a_cuda_event_intervals = []
         self.a2a_cpu_time_ms = 0.0
+        self.use_tutel = getattr(args, "use_tutel_moe", False)
+
 
     def forward(self, *input: Tensor, input_padding_mask=None, **kwargs: Any) -> Tensor:
         assert len(input) == 1, "only single input Tensor supported"
@@ -153,14 +168,23 @@ class MOELayer(Base):
                 padded_input_padding_mask[:reshaped_input_shape[0]] = False
             reshaped_input_padding_mask = padded_input_padding_mask
 
-        l_aux, combine_weights, dispatch_mask, self.metadata = self.gate(reshaped_input, reshaped_input_padding_mask)
+        if self.use_tutel:
+            l_aux, self.metadata, C, E, indices_, locations_, gates_ = self.gate(reshaped_input, reshaped_input_padding_mask)
+            S, M = reshaped_input.size(0), reshaped_input.size(1)
 
-        dispatch_mask = dispatch_mask.to(input.dtype).permute(1, 2, 0)  # S,E,C -> E,C,S
-        E, C, S = dispatch_mask.size()
-        M = reshaped_input.size(1)
-        assert reshaped_input.size() == (S, M)
-        # einsum("sec,sm->ecm")
-        dispatched_input = torch.mm(dispatch_mask.view(E*C, S), reshaped_input)  # -> (E*C),M
+
+            if not hasattr(self, '_tutel_dispatcher'):
+                self._tutel_dispatcher = tutel_moe.fast_dispatcher(E, C, M, dispatch_dtype=reshaped_input.dtype)
+            self._tutel_dispatcher.update(indices_, locations_, gates_, capacity=C)
+            dispatched_input = self._tutel_dispatcher.encode(reshaped_input)  
+        else:
+            l_aux, combine_weights, dispatch_mask, self.metadata = self.gate(reshaped_input, reshaped_input_padding_mask)
+            dispatch_mask = dispatch_mask.to(input.dtype).permute(1, 2, 0)  # S,E,C -> E,C,S
+            E, C, S = dispatch_mask.size()
+            M = reshaped_input.size(1)
+            assert reshaped_input.size() == (S, M)
+            # einsum("sec,sm->ecm")
+            dispatched_input = torch.mm(dispatch_mask.view(E*C, S), reshaped_input)  # -> (E*C),M
 
         if self.all2all_size > 1:
             dispatched_input = self.all_to_all_wrapper(dispatched_input)
@@ -180,8 +204,12 @@ class MOELayer(Base):
         expert_output = expert_output.reshape(self.all2all_size * self.num_local_experts, -1, d_model)
 
         # einsum("sec,ecm->sm")
-        combined_output = combine_weights.view(S, E*C).mm(expert_output.view(E*C, M))
-
+        if self.use_tutel:
+            combined_output = self._tutel_dispatcher.decode(expert_output.view(E*C, M))
+        else:
+            # einsum("sec,ecm->sm")
+            combined_output = combine_weights.view(S, E*C).mm(expert_output.view(E*C, M))
+            
         # Remove padding here when --max-tokens is specified and not --batch-size or --max-sentences
         combined_output = combined_output[:reshaped_input_shape[0], :]
         combined_output = combined_output.reshape(input.shape)

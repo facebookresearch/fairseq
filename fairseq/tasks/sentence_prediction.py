@@ -7,7 +7,13 @@ import logging
 import os
 
 import numpy as np
+
+from dataclasses import dataclass, field
 from fairseq import utils
+from typing import Optional
+from argparse import Namespace
+from omegaconf import II
+
 from fairseq.data import (
     ConcatSentencesDataset,
     Dictionary,
@@ -24,14 +30,72 @@ from fairseq.data import (
     StripTokenDataset,
     data_utils,
 )
+from fairseq.data.indexed_dataset import get_available_dataset_impl
 from fairseq.data.shorten_dataset import maybe_shorten_dataset
 from fairseq.tasks import LegacyFairseqTask, register_task
+from fairseq.dataclass import ChoiceEnum, FairseqDataclass
+from fairseq.tasks import FairseqTask, register_task
+
 
 
 logger = logging.getLogger(__name__)
 
+@dataclass
+class SentencePredictionConfig(FairseqDataclass):
+    data: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "colon separated path to data directories list, will be iterated upon during epochs "
+            "in round-robin manner; however, valid and test data are always in the first directory "
+            "to avoid the need for repeating them in all directories"
+        },
+    )
+    num_classes: int = field(
+        default=-1, metadata={"help": "number of classes or regression targets"},
+    )
+    init_token: Optional[int] = field(
+        default=-1, metadata={"help": "add token at the beginning of each batch item"},
+    )
+    separator_token: Optional[int] = field(
+        default=-1, metadata={"help": "add separator token between inputs"},
+    )
+    regression_target: bool = field(
+        default=False,
+    )
+    no_shuffle: bool = field(
+        default=False,
+    )
+    shorten_method: Optional[ChoiceEnum(["none", "truncate", "random_crop"])] = field(  # noqa: F821
+        default="none", metadata={help: "if not none, shorten sequences that exceed --tokens-per-sample"},
+    )
+    shorten_data_split_list: Optional[str] = field(
+        default="", metadata={help: "comma-separated list of dataset splits to apply shortening to, "
+            'e.g., "train,valid" (default: all dataset splits)'},
+    )
+    add_prev_output_tokens: Optional[bool] = field(
+        default=False, metadata={help:"add prev_output_tokens to sample, used for encoder-decoder arch"},
+    )
+    tokens_per_sample: int = field(
+        default=512,
+        metadata={"help": "max number of tokens per sample for LM dataset"},
+    )
+    pad_to_fixed_length: Optional[bool] = field(
+        default=False, metadata={"help": "pad to fixed length"},
+    )
 
-@register_task("sentence_prediction")
+    # TODO common vars below add to parent
+    seed: int = II("common.seed")
+    dataset_impl: Optional[ChoiceEnum(get_available_dataset_impl())] = II(
+        "dataset.dataset_impl"
+    )
+    max_positions: Optional[int] = II(
+        "model.max_positions"
+    )
+    max_source_positions: Optional[int] = II(
+        "model.max_source_positions"
+    )
+
+@register_task("sentence_prediction", dataclass=SentencePredictionConfig)
 class SentencePredictionTask(LegacyFairseqTask):
     """
     Sentence (or sentence pair) prediction (classification or regression) task.
@@ -39,49 +103,6 @@ class SentencePredictionTask(LegacyFairseqTask):
     Args:
         dictionary (Dictionary): the dictionary for the input of the task
     """
-
-    @staticmethod
-    def add_args(parser):
-        """Add task-specific arguments to the parser."""
-        parser.add_argument("data", metavar="FILE", help="file prefix for data")
-        parser.add_argument(
-            "--num-classes",
-            type=int,
-            default=-1,
-            help="number of classes or regression targets",
-        )
-        parser.add_argument(
-            "--init-token",
-            type=int,
-            default=None,
-            help="add token at the beginning of each batch item",
-        )
-        parser.add_argument(
-            "--separator-token",
-            type=int,
-            default=None,
-            help="add separator token between inputs",
-        )
-        parser.add_argument("--regression-target", action="store_true", default=False)
-        parser.add_argument("--no-shuffle", action="store_true", default=False)
-        parser.add_argument(
-            "--shorten-method",
-            default="none",
-            choices=["none", "truncate", "random_crop"],
-            help="if not none, shorten sequences that exceed --tokens-per-sample",
-        )
-        parser.add_argument(
-            "--shorten-data-split-list",
-            default="",
-            help="comma-separated list of dataset splits to apply shortening to, "
-            'e.g., "train,valid" (default: all dataset splits)',
-        )
-        parser.add_argument(
-            "--add-prev-output-tokens",
-            action="store_true",
-            default=False,
-            help="add prev_output_tokens to sample, used for encoder-decoder arch",
-        )
 
     def __init__(self, args, data_dictionary, label_dictionary):
         super().__init__(args)
@@ -147,7 +168,6 @@ class SentencePredictionTask(LegacyFairseqTask):
                 combine=combine,
             )
             return dataset
-
         input0 = make_dataset("input0", self.source_dictionary)
         assert input0 is not None, "could not find dataset: {}".format(
             get_path("input0", split)
@@ -176,13 +196,13 @@ class SentencePredictionTask(LegacyFairseqTask):
             self.max_positions(),
             self.args.seed,
         )
-
         dataset = {
             "id": IdDataset(),
             "net_input": {
                 "src_tokens": RightPadDataset(
                     src_tokens,
                     pad_idx=self.source_dictionary.pad(),
+                    pad_length=self.args.tokens_per_sample if self.args.pad_to_fixed_length else None
                 ),
                 "src_lengths": NumelDataset(src_tokens, reduce=False),
             },
@@ -213,6 +233,7 @@ class SentencePredictionTask(LegacyFairseqTask):
                 )
         else:
             label_path = "{0}.label".format(get_path("label", split))
+
             if os.path.exists(label_path):
 
                 def parse_regression_target(i, line):
@@ -255,7 +276,6 @@ class SentencePredictionTask(LegacyFairseqTask):
         from fairseq import models
 
         model = models.build_model(args, self)
-
         model.register_classification_head(
             getattr(args, "classification_head_name", "sentence_classification_head"),
             num_classes=self.args.num_classes,

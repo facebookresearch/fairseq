@@ -236,9 +236,9 @@ class TransformerLanguageModelConfig(FairseqDataclass):
         }
     )
     moe_normalize_expert_grad: Optional[str] = field(
-        default='world_size',
+        default='sqrt_num_experts',
         metadata={
-            "help": "Divide expert gradients by (1) 'world_size' (2) 'sqrt_world_size'"
+            "help": "Divide expert gradients by (1) 'num_experts' (2) 'sqrt_num_experts'"
         }
     )
     use_moe_pad_mask: Optional[bool] = field(
@@ -261,6 +261,13 @@ class TransformerLanguageModelConfig(FairseqDataclass):
         metadata={"help": 'Use bitsandbytes StableEmbeddingLayer which saves embedding state in fp32',
                   'argparse_alias': "--stable-emb"}
     )
+    # NormFormer
+    scale_fc: Optional[bool] = field(default=False, metadata={"help": 'Insert LayerNorm between fully connected layers',})
+    scale_attn: Optional[bool] = field(default=False, metadata={"help": 'Insert LayerNorm after attention'})
+    scale_heads: Optional[bool] = field(default=False, metadata={"help": 'Learn a scale coefficient for each attention head'})
+    scale_resids: Optional[bool] = field(default=False, metadata={"help": 'Learn a scale coefficient for each residual connection'})
+    scale_resids_scalar: Optional[bool] = field(default=False, metadata={"help": 'learn 1 per layer instead of elementwise'})
+
 
     # options from other parts of the config
 
@@ -274,6 +281,15 @@ class TransformerLanguageModelConfig(FairseqDataclass):
     base_shuffle: Optional[int] = field(
         default=1, metadata={"help": "shuffle tokens between workers before computing assignment"}
     )
+    # ALiBi
+    alibi: bool = field(
+        default=False, metadata={"help": "use the ALiBi position method instead of regular position embeddings"}
+    )
+    use_fused_softmax: bool = field(
+        default=False, metadata={"help": "use Megatron softmax kernel"}
+    )
+
+
     # options from other parts of the config
     add_bos_token: bool = II("task.add_bos_token")
     tokens_per_sample: int = II("task.tokens_per_sample")
@@ -287,6 +303,7 @@ class TransformerLanguageModelConfig(FairseqDataclass):
     distributed_rank: int = II("distributed_training.distributed_rank")
     batch_size: Optional[int] = II("dataset.batch_size")
     batch_size_valid: Optional[int] = II("dataset.batch_size_valid")
+    use_tutel_moe: bool = II("common.use_tutel_moe")
 
 
 
@@ -384,6 +401,15 @@ class TransformerLanguageModel(FairseqLanguageModel):
             )
         ):
             assert args.fp16_no_flatten_grads, "If training moe models, set --fp16-no-flatten-grads to calculate correct gradnorm"
+
+        if getattr(args, "use_tutel_moe", False):
+            try:
+                # To enable Tutel MoE optimizations:
+                #   python3 -m pip install --user https://github.com/microsoft/tutel/releases/download/v0.1.0/tutel-0.1.0.tar.gz
+                from tutel import moe as tutel_moe
+                logger.info("Using microsoft Tutel plugin for fused function in MoE")
+            except ModuleNotFoundError:
+                 raise ImportError("Please install https://github.com/microsoft/tutel/ for --use-tutel-moe")
 
         decoder = TransformerDecoder(
             args, task.target_dictionary, embed_tokens, no_encoder_attn=True,

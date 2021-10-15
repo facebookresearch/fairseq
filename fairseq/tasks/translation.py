@@ -57,6 +57,7 @@ def load_langpair_dataset(
     num_buckets=0,
     shuffle=True,
     pad_to_multiple=1,
+    fixed_pad_length=None,
 ):
     def split_exists(split, src, tgt, lang, data_path):
         filename = os.path.join(data_path, "{}.{}-{}.{}".format(split, src, tgt, lang))
@@ -163,6 +164,7 @@ def load_langpair_dataset(
         num_buckets=num_buckets,
         shuffle=shuffle,
         pad_to_multiple=pad_to_multiple,
+        fixed_pad_length=fixed_pad_length,
     )
 
 
@@ -217,6 +219,10 @@ class TranslationConfig(FairseqDataclass):
             "help": "if >0, then bucket source and target lengths into "
             "N buckets and pad accordingly; this is useful on TPUs to minimize the number of compilations"
         },
+    )
+    pad_to_fixed_length: bool = field(
+        default=False,
+        metadata={"help": "pad batch to fixed sequence length"}
     )
     train_subset: str = II("dataset.train_subset")
     dataset_impl: Optional[ChoiceEnum(get_available_dataset_impl())] = II(
@@ -281,6 +287,13 @@ class TranslationTask(FairseqTask):
         super().__init__(cfg)
         self.src_dict = src_dict
         self.tgt_dict = tgt_dict
+        if self.cfg.pad_to_fixed_length:
+            self.pad_to_fixed_length = {
+                "source": self.args.max_source_positions,
+                "target": self.args.max_target_positions,
+            }
+        else:
+            self.pad_to_fixed_length = None
 
     @classmethod
     def setup_task(cls, cfg: TranslationConfig, **kwargs):
@@ -350,6 +363,7 @@ class TranslationTask(FairseqTask):
             num_buckets=self.cfg.num_batch_buckets,
             shuffle=(split != "test"),
             pad_to_multiple=self.cfg.required_seq_len_multiple,
+            fixed_pad_length=self.pad_to_fixed_length,
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):

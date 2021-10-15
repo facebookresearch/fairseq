@@ -24,7 +24,6 @@ from fairseq.file_io import PathManager
 from fairseq.logging import meters, metrics
 from fairseq.nan_detector import NanDetector
 from fairseq.optim import lr_scheduler
-
 from omegaconf import OmegaConf
 import re
 
@@ -55,6 +54,7 @@ class Trainer(object):
         # catalog shared parameters
         shared_params = _catalog_shared_params(model)
         self.tpu = cfg.common.tpu
+        self.track_norms = getattr(self.cfg.optimization, 'track_norms', False)
         self.cuda = torch.cuda.is_available() and not cfg.common.cpu and not self.tpu
         if self.cuda:
             self.device = torch.device("cuda")
@@ -70,6 +70,8 @@ class Trainer(object):
                     "FullyShardedDataParallel is not compatible with --bf16 or "
                     "--memory-efficient-bf16"
                 )
+            if self.track_norms:
+                raise ValueError("FullyShardedDataParallel is not compatible with --track-norms")
             if self.cfg.distributed_training.zero_sharding != "none":
                 raise ValueError(
                     "FullyShardedDataParallel is not compatible with --zero-sharding "
@@ -199,10 +201,7 @@ class Trainer(object):
         return (
             self.data_parallel_world_size > 1
             and not self.cfg.optimization.use_bmuf
-        ) or (
-            self.is_fsdp
-            and self.cfg.distributed_training.cpu_offload
-        )
+        ) or self.is_fsdp
 
     @property
     def should_save_checkpoint_on_current_rank(self) -> bool:
@@ -353,6 +352,8 @@ class Trainer(object):
     @property
     def is_base_moe(self) -> bool:
         return getattr(self.cfg.model, "base_layers", 0) > 0
+
+    @property
     def use_sharded_state(self):
         return self.cfg.distributed_training.use_sharded_state
 
@@ -385,7 +386,7 @@ class Trainer(object):
                 expert_optimizer_state_dict,
             )]
             if self.is_data_parallel_master:
-                if self.is_fsdp and not self.use_sharded_state:
+                if self.is_fsdp and not self.use_sharded_state and not self.cfg.checkpoint.no_save_optimizer_state:
                     assert self._gathered_optim_state is not None
                     if 'loss_scale' in expert_model_state_dict:
                         self._gathered_optim_state['loss_scale'] = expert_model_state_dict['loss_scale']
@@ -665,6 +666,7 @@ class Trainer(object):
             epoch=epoch,
             data_buffer_size=self.cfg.dataset.data_buffer_size,
             disable_iterator_cache=disable_iterator_cache,
+            skip_remainder_batch=(not self.cfg.optimization.train_with_epoch_remainder_batch)
         )
         self.reset_dummy_batch(batch_iterator.first_batch)
         return batch_iterator
@@ -694,6 +696,7 @@ class Trainer(object):
             epoch=1,
             data_buffer_size=self.cfg.dataset.data_buffer_size,
             disable_iterator_cache=disable_iterator_cache,
+            skip_remainder_batch=False
         )
         self.reset_dummy_batch(batch_iterator.first_batch)
         return batch_iterator
@@ -876,10 +879,13 @@ class Trainer(object):
                 # Note: (sample_size or 1.0) handles the case of a zero gradient, in a
                 # way that avoids CPU/device transfers in case sample_size is a GPU or
                 # TPU object. The assumption is that the gradient itself is also 0.
-
+            if self.track_norms:
+                param_norms = {n: torch.norm(p.grad, p=1, dtype=torch.float32) for n, p in self.model.named_parameters()}
+                for k,v in param_norms.items():
+                    metrics.log_scalar(k, v, round=4)
             with torch.autograd.profiler.record_function("clip-grads"):
                 # clip grads
-                grad_norm = self.clip_grad_norm(self.cfg.optimization.clip_norm)
+                grad_norm = self.clip_grad_norm(self.cfg.optimization.clip_norm, self.cfg.optimization.clip_norm_type)
 
             # check that grad norms are consistent across workers
             # on tpu check tensor is slow
@@ -1159,8 +1165,8 @@ class Trainer(object):
             self.quantizer.step_update(self._num_updates)
         metrics.log_scalar("num_updates", self._num_updates, weight=0, priority=200)
 
-    def clip_grad_norm(self, clip_norm):
-        return self.optimizer.clip_grad_norm(clip_norm, aggregate_norm_fn=None)
+    def clip_grad_norm(self, clip_norm, clip_norm_type='l2'):
+        return self.optimizer.clip_grad_norm(clip_norm, clip_norm_type, aggregate_norm_fn=None)
 
     def cumulative_training_time(self):
         if self._cumulative_training_time is None:

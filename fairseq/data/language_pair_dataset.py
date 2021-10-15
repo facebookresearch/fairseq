@@ -163,6 +163,15 @@ def collate(
             constraints[i, 0 : lens[i]] = samples[i].get("constraints")
         batch["constraints"] = constraints.index_select(0, sort_order)
 
+    if samples[0].get("src_lang_id", None) is not None:
+        batch["net_input"]["src_lang_id"] = torch.LongTensor(
+            [s["src_lang_id"] for s in samples]
+        ).unsqueeze(1)
+    if samples[0].get("tgt_lang_id", None) is not None:
+        batch["tgt_lang_id"] = torch.LongTensor(
+            [s["tgt_lang_id"] for s in samples]
+        ).unsqueeze(1)
+
     return batch
 
 
@@ -339,6 +348,10 @@ class LanguagePairDataset(FairseqDataset):
             example["alignment"] = self.align_dataset[index]
         if self.constraints is not None:
             example["constraints"] = self.constraints[index]
+        if self.src_lang_id is not None:
+            example["src_lang_id"] = self.src_lang_id
+        if self.tgt_lang_id is not None:
+            example["tgt_lang_id"] = self.tgt_lang_id
         return example
 
     def __len__(self):
@@ -391,17 +404,6 @@ class LanguagePairDataset(FairseqDataset):
             pad_to_length=self.fixed_pad_length or pad_to_length,
             pad_to_multiple=self.pad_to_multiple,
         )
-        if self.src_lang_id is not None or self.tgt_lang_id is not None:
-            src_tokens = res["net_input"]["src_tokens"]
-            bsz = src_tokens.size(0)
-            if self.src_lang_id is not None:
-                res["net_input"]["src_lang_id"] = (
-                    torch.LongTensor([[self.src_lang_id]]).expand(bsz, 1).to(src_tokens)
-                )
-            if self.tgt_lang_id is not None:
-                res["tgt_lang_id"] = (
-                    torch.LongTensor([[self.tgt_lang_id]]).expand(bsz, 1).to(src_tokens)
-                )
         return res
 
     def num_tokens(self, index):

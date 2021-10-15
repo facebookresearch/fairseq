@@ -13,8 +13,9 @@ from fairseq.modules import gelu, LayerNorm, MultiheadAttention
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.moe import Top1Gate, Top2Gate, MOELayer
 from fairseq.modules.quant_noise import quant_noise
-from fairseq.modules.fused_bias_gelu import fused_bias_gelu, has_fused_bias_gelu
+from fairseq.modules.fused_bias_gelu import fused_bias_gelu, has_fused_bias_gelu, load_megatron_fused_kernel
 from torch import Tensor
+
 
 def _linear(x, weight, bias=None):
     return F.linear(x, weight, bias)
@@ -27,19 +28,20 @@ def _ffn(
     activation_dropout_module,
     fc2,
     dropout_module,
+    ffn_ln=None
 ):
     x_shape = x.shape
     x = x.reshape(-1, x.size(-1))
     if has_fused_bias_gelu and activation_fn == gelu:
         x = _linear(x, fc1.weight)
         x = fused_bias_gelu(x, fc1.bias)
-        x = activation_dropout_module(x)
-        x = _linear(x, fc2.weight, fc2.bias)
     else:
         x = _linear(x, fc1.weight, fc1.bias)
         x = activation_fn(x)
-        x = activation_dropout_module(x)
-        x = _linear(x, fc2.weight, fc2.bias)
+    x = activation_dropout_module(x)
+    if ffn_ln is not None:
+        x = ffn_ln(x)
+    x = _linear(x, fc2.weight, fc2.bias)
     x = x.view(x_shape)
     x = dropout_module(x)
     return x
@@ -101,7 +103,6 @@ class FeedForwardNetwork(nn.Module):
             fc2=self.fc2,
             dropout_module=self.dropout_module,
         )
-        return x
 
 
 class TransformerEncoderLayer(nn.Module):
@@ -121,6 +122,7 @@ class TransformerEncoderLayer(nn.Module):
 
     def __init__(self, args, is_moe_layer=False):
         super().__init__()
+        load_megatron_fused_kernel()
         self.args = args
         self.embed_dim = args.encoder_embed_dim
         self.quant_noise = getattr(args, 'quant_noise_pq', 0)
@@ -133,6 +135,10 @@ class TransformerEncoderLayer(nn.Module):
         self.normalize_before = args.encoder_normalize_before
         self.is_moe_layer = is_moe_layer
         ffn_dim = args.encoder_ffn_embed_dim
+        self.attn_ln = LayerNorm(self.embed_dim) if getattr(args, 'scale_attn', False) else None
+        self.ffn_layernorm = LayerNorm(ffn_dim) if getattr(args, 'scale_fc', False) else None
+        self.alpha1 = nn.Parameter(torch.ones(self.embed_dim, ), requires_grad=True) if getattr(args, 'scale_first_resids', False) else None
+        self.alpha2 = nn.Parameter(torch.ones(self.embed_dim, ), requires_grad=True) if getattr(args, 'scale_resids', False) else None
         if self.is_moe_layer and getattr(args, "alternate_ffn_embed_dim", 0.0) > 0:
             ffn_dim = getattr(args, "alternate_ffn_embed_dim", 0.0)
         # the second condition is for a "pseudo" MoE layer
@@ -168,6 +174,7 @@ class TransformerEncoderLayer(nn.Module):
                     args.moe_expert_count,
                     use_fp32=args.moe_gating_use_fp32,
                     moe_eval_capacity_token_fraction=getattr(args, "moe_eval_capacity_token_fraction", 0.25),
+                    use_tutel=getattr(args, "use_tutel_moe", False),
                 )
             else:
                 gate = Top2Gate(
@@ -178,6 +185,7 @@ class TransformerEncoderLayer(nn.Module):
                     args.moe_normalize_gate_prob_before_dropping,
                     getattr(args, "moe_eval_capacity_token_fraction", 0.25),
                     getattr(args, "moe_batch_prioritized_routing", False),
+                    use_tutel=getattr(args, "use_tutel_moe", False),
                 )
             experts = make_experts(args, self.embed_dim, ffn_dim, self.dropout_module)
             self.moe_layer = MOELayer(gate, experts, args)
@@ -201,10 +209,16 @@ class TransformerEncoderLayer(nn.Module):
             self_attention=True,
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
+            use_fused_softmax=getattr(args, "use_fused_softmax", False),
         )
 
-    def residual_connection(self, x, residual):
-        return residual + x
+    def residual_connection(self, x, residual, alpha=None):
+        if alpha is None:
+            return residual + x
+        elif alpha.numel() == 1:
+            return x + (alpha * residual)
+        else:
+            return x + torch.mul(alpha, residual)
 
     def upgrade_state_dict_named(self, state_dict, name):
         """
@@ -255,8 +269,10 @@ class TransformerEncoderLayer(nn.Module):
             need_weights=False,
             attn_mask=attn_mask,
         )
+        if self.attn_ln is not None:
+            x = self.attn_ln(x)
         x = self.dropout_module(x)
-        x = self.residual_connection(x, residual)
+        x = self.residual_connection(x, residual, alpha=self.alpha1)
         if not self.normalize_before:
             x = self.self_attn_layer_norm(x)
 
@@ -264,10 +280,7 @@ class TransformerEncoderLayer(nn.Module):
         if self.normalize_before:
             x = self.final_layer_norm(x)
         if not self.is_moe_layer or getattr(self.args, "alternate_ffn_embed_dim", 0.0) > 0:
-            x = self.activation_fn(self.fc1(x))
-            x = self.activation_dropout_module(x)
-            x = self.fc2(x)
-            x = self.dropout_module(x)
+            x = _ffn(x, self.fc1, self.activation_fn, self.activation_dropout_module, self.fc2, self.dropout_module, ffn_ln=self.ffn_layernorm)
             l_aux = None
         else:
             # x - seq_len, batch_size, model_dim
@@ -277,7 +290,7 @@ class TransformerEncoderLayer(nn.Module):
             else:
                 x, l_aux = self.moe_layer(x)
             x = x.transpose(0, 1) # seq_len, batch_size, model_dim
-        x = self.residual_connection(x, residual)
+        x = self.residual_connection(x, residual, alpha=self.alpha2)
         if not self.normalize_before:
             x = self.final_layer_norm(x)
         return x, l_aux
@@ -305,6 +318,7 @@ class TransformerDecoderLayer(nn.Module):
     ):
         super().__init__()
         self.embed_dim = args.decoder_embed_dim
+        load_megatron_fused_kernel()
         self.dropout_module = FairseqDropout(
             args.dropout, module_name=self.__class__.__name__
         )
@@ -312,6 +326,7 @@ class TransformerDecoderLayer(nn.Module):
         self.quant_noise_block_size = getattr(args, "quant_noise_pq_block_size", 8)
 
         self.cross_self_attention = getattr(args, "cross_self_attention", False)
+        self.attn_ln = LayerNorm(self.embed_dim) if getattr(args, 'scale_attn', False) else None
 
         self.self_attn = self.build_self_attention(
             self.embed_dim,
@@ -319,6 +334,10 @@ class TransformerDecoderLayer(nn.Module):
             add_bias_kv=add_bias_kv,
             add_zero_attn=add_zero_attn,
         )
+        self.nh = self.self_attn.num_heads
+        self.head_dim = self.self_attn.head_dim
+        scale_heads = getattr(args, 'scale_heads', False)
+        self.c_attn = nn.Parameter(torch.ones((self.nh,)), requires_grad=True) if scale_heads else None
 
         self.normalize_before = args.decoder_normalize_before
 
@@ -361,6 +380,9 @@ class TransformerDecoderLayer(nn.Module):
                 self.quant_noise,
                 self.quant_noise_block_size,
             )
+            self.ffn_layernorm = LayerNorm(ffn_dim) if getattr(args, 'scale_fc', False) else None
+            alpha_dim = 1 if getattr(args,'scale_resids_scalar', False) else self.embed_dim
+            self.alpha2 = nn.Parameter(torch.ones((alpha_dim, ))) if getattr(args, 'scale_resids', False) else None
             self.fc2 = self.build_fc2(
                 ffn_dim,
                 self.embed_dim,
@@ -375,6 +397,7 @@ class TransformerDecoderLayer(nn.Module):
                     args.moe_expert_count,
                     use_fp32=args.moe_gating_use_fp32,
                     moe_eval_capacity_token_fraction=getattr(args, "moe_eval_capacity_token_fraction", 0.25),
+                    use_tutel=getattr(args, "use_tutel_moe", False),
                 )
             else:
                 gate = Top2Gate(
@@ -385,6 +408,7 @@ class TransformerDecoderLayer(nn.Module):
                     args.moe_normalize_gate_prob_before_dropping,
                     getattr(args, "moe_eval_capacity_token_fraction", 0.25),
                     getattr(args, "moe_batch_prioritized_routing", False),
+                    use_tutel=getattr(args, "use_tutel_moe", False),
                 )
             experts = make_experts(args, self.embed_dim, ffn_dim, self.dropout_module)
             self.moe_layer = MOELayer(gate, experts, args)
@@ -415,6 +439,7 @@ class TransformerDecoderLayer(nn.Module):
             self_attention=not getattr(args, "cross_self_attention", False),
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
+            use_fused_softmax=getattr(args, "use_fused_softmax", False),
         )
 
     def build_encoder_attention(self, embed_dim, args):
@@ -427,13 +452,19 @@ class TransformerDecoderLayer(nn.Module):
             encoder_decoder_attention=True,
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
+            use_fused_softmax=getattr(args, "use_fused_softmax", False),
         )
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
 
-    def residual_connection(self, x, residual):
-        return residual + x
+    def residual_connection(self, x, residual, alpha=None):
+        if alpha is None:
+            return residual + x
+        elif alpha.numel() == 1:
+            return x + (alpha * residual)
+        else:
+            return x + torch.mul(alpha, residual)
 
     def forward(
         self,
@@ -511,6 +542,13 @@ class TransformerDecoderLayer(nn.Module):
             need_weights=False,
             attn_mask=self_attn_mask,
         )
+        if self.c_attn is not None:
+            tgt_len,bsz = x.size(0), x.size(1)
+            x = x.view(tgt_len, bsz, self.nh, self.head_dim)
+            x = torch.einsum('tbhd,h->tbdh', x, self.c_attn)
+            x = x.reshape(tgt_len, bsz, self.embed_dim)
+        if self.attn_ln is not None:
+            x = self.attn_ln(x)
         x = self.dropout_module(x)
         x = self.residual_connection(x, residual)
         if not self.normalize_before:
@@ -555,6 +593,7 @@ class TransformerDecoderLayer(nn.Module):
                 fc1=self.fc1,
                 activation_fn=self.activation_fn,
                 activation_dropout_module=self.activation_dropout_module,
+                ffn_ln=self.ffn_layernorm,
                 fc2=self.fc2,
                 dropout_module=self.dropout_module,
             )
@@ -567,7 +606,7 @@ class TransformerDecoderLayer(nn.Module):
             else:
                 x, l_aux = self.moe_layer(x)
             x = x.transpose(0, 1) # seq_len, batch_size, model_dim
-        x = self.residual_connection(x, residual)
+        x = self.residual_connection(x, residual, alpha=self.alpha2)
         if not self.normalize_before:
             x = self.final_layer_norm(x)
         if self.onnx_trace and incremental_state is not None:

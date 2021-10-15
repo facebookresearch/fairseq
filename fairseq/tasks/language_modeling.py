@@ -367,7 +367,7 @@ class LanguageModelingTask(LegacyFairseqTask):
             shard_id=shard_id,
             num_workers=num_workers,
             data_buffer_size=data_buffer_size,
-        ).next_epoch_itr(shuffle=False)
+        )
 
     @property
     def source_dictionary(self):

@@ -224,6 +224,7 @@ class FairseqTask(object):
         data_buffer_size=0,
         disable_iterator_cache=False,
         batch_by_size=True,
+        skip_remainder_batch=False
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
@@ -259,6 +260,9 @@ class FairseqTask(object):
             batch_by_size (bool, optional):
                 batch sequences of similar length together to reduce padding.
                 If false, each batch will be of size max_sentences.
+            skip_remainder_batch (bool, optional): if set, discard the last
+                batch in each training epoch, as the last batch is often smaller than
+                    local_batch_size * distributed_word_size (default: ``True``).
         Returns:
             ~fairseq.iterators.EpochBatchIterator: a batched iterator over the
                 given dataset split
@@ -308,6 +312,7 @@ class FairseqTask(object):
             num_workers=num_workers,
             epoch=epoch,
             buffer_size=data_buffer_size,
+            skip_remainder_batch=skip_remainder_batch
         )
 
         if can_reuse_epoch_itr:

@@ -70,12 +70,22 @@ def from_pretrained(
 
     if "user_dir" in kwargs:
         utils.import_user_module(argparse.Namespace(user_dir=kwargs["user_dir"]))
+    
+    def _build_fn(train_cfg, task):
+        post_build_model_hook = kwargs.get("post_build_model_hook", None)
+
+        if post_build_model_hook:
+            return post_build_model_hook(task.build_model(train_cfg.model), task)
+        else:
+            return task.build_model(train_cfg.model)
+
 
     models, args, task = checkpoint_utils.load_model_ensemble_and_task(
         [os.path.join(model_path, cpt) for cpt in checkpoint_file.split(os.pathsep)],
         arg_overrides=kwargs,
         suffix=kwargs.get("suffix", ""),
-        is_moe=kwargs.get("is_moe", False)
+        is_moe=kwargs.get("is_moe", False),
+        build_model_hook=lambda cfg, task: _build_fn(cfg, task),
     )
 
     return {
