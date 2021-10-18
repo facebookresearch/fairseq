@@ -20,6 +20,8 @@ from fairseq.binarizer import Binarizer
 from fairseq.data import indexed_dataset
 from fairseq.file_chunker_utils import find_offsets
 
+from transformers import AutoTokenizer
+
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
@@ -31,6 +33,10 @@ logger = logging.getLogger("fairseq_cli.preprocess")
 
 def main(args):
     utils.import_user_module(args)
+
+    tokenizer = None
+    if args.tokenizer_name:
+        tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name)
 
     os.makedirs(args.destdir, exist_ok=True)
 
@@ -154,6 +160,8 @@ def main(args):
                         lang,
                         start_offset,
                         end_offset,
+                        True,
+                        tokenizer
                     ),
                     callback=merge_result,
                 )
@@ -171,6 +179,7 @@ def main(args):
                 lambda t: ds.add_item(t),
                 offset=first_chunk[0],
                 end=first_chunk[1],
+                tokenizer=tokenizer
             )
         )
         if num_workers > 1:
@@ -348,7 +357,17 @@ def main(args):
                 print("{} {}".format(src_dict[k], tgt_dict[v]), file=f)
 
 
-def binarize(args, filename, vocab, output_prefix, lang, offset, end, append_eos=True):
+def binarize(
+    args,
+    filename,
+    vocab,
+    output_prefix,
+    lang,
+    offset,
+    end,
+    append_eos=True,
+    tokenizer=None
+):
     ds = indexed_dataset.make_builder(
         dataset_dest_file(args, output_prefix, lang, "bin"),
         impl=args.dataset_impl,
@@ -359,7 +378,7 @@ def binarize(args, filename, vocab, output_prefix, lang, offset, end, append_eos
         ds.add_item(tensor)
 
     res = Binarizer.binarize(
-        filename, vocab, consumer, append_eos=append_eos, offset=offset, end=end
+        filename, vocab, consumer, append_eos=append_eos, offset=offset, end=end, tokenize=tokenizer
     )
     ds.finalize(dataset_dest_file(args, output_prefix, lang, "idx"))
     return res

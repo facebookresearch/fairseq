@@ -292,6 +292,8 @@ def add_preprocess_args(parser):
                        help="Generate joined dictionary")
     group.add_argument("--only-source", action="store_true",
                        help="Only process the source language")
+    group.add_argument("--tokenizer-name", metavar="TOK", default=None,
+                       help="name of the tokenizer for a binarizer")
     group.add_argument("--padding-factor", metavar="N", default=8, type=int,
                        help="Pad dictionary size to be multiple of N")
     group.add_argument("--workers", metavar="N", default=1, type=int,
