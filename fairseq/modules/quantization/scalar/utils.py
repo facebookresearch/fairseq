@@ -53,19 +53,21 @@ def quantize_model_(model, p=0.2, bits=8, update_step=3000):
             "method": "histogram",
             "counter": 0,
         }
+        try:
+            # instantiate the quantized counterpart
+            if isinstance(module, tuple(MAPPING.keys())):
+                QuantizedModule = MAPPING[module.__class__]
+                quantized_module = QuantizedModule.__new__(QuantizedModule)
+                params = module.__dict__
+                params.update(q_params)
+                quantized_module.__dict__.update(params)
 
-        # instantiate the quantized counterpart
-        if isinstance(module, tuple(MAPPING.keys())):
-            QuantizedModule = MAPPING[module.__class__]
-            quantized_module = QuantizedModule.__new__(QuantizedModule)
-            params = module.__dict__
-            params.update(q_params)
-            quantized_module.__dict__.update(params)
-
-        else:
-            if is_master_process:
-                logging.info(f"Module {module} not yet supported for quantization")
-            continue
+            else:
+                if is_master_process:
+                    logging.info(f"Module {module} not yet supported for quantization")
+                continue
+        except: 
+            logging.info(f"Module {module} not yet supported for quantization")
 
         # activation quantization
         a_q = ActivationQuantizer(quantized_module, p=0, bits=bits, method="histogram")
