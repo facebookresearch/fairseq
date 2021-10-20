@@ -213,6 +213,11 @@ class TransformerDecoderLayerBase(nn.Module):
             add_bias_kv=add_bias_kv,
             add_zero_attn=add_zero_attn,
         )
+        self.attn_ln = LayerNorm(self.embed_dim) if utils.safe_getattr(cfg, 'scale_attn', False) else None
+        self.nh = self.self_attn.num_heads
+        self.head_dim = self.self_attn.head_dim
+        scale_heads = utils.safe_getattr(cfg, 'scale_heads', False)
+        self.c_attn = nn.Parameter(torch.ones((self.nh,)), requires_grad=True) if scale_heads else None
 
         self.activation_fn = utils.get_activation_fn(activation=cfg.activation_fn)
         activation_dropout_p = cfg.activation_dropout
@@ -232,6 +237,9 @@ class TransformerDecoderLayerBase(nn.Module):
         else:
             self.encoder_attn = self.build_encoder_attention(self.embed_dim, cfg)
             self.encoder_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
+
+        self.ffn_layernorm = LayerNorm(cfg.decoder.ffn_embed_dim) if utils.safe_getattr(cfg, 'scale_fc', False) else None
+        self.w_resid = nn.Parameter(torch.ones(self.embed_dim, ), requires_grad=True) if utils.safe_getattr(cfg, 'scale_resids', False) else None
 
         self.fc1 = self.build_fc1(
             self.embed_dim,
@@ -288,6 +296,7 @@ class TransformerDecoderLayerBase(nn.Module):
 
     def residual_connection(self, x, residual):
         return residual + x
+
 
     def forward(
         self,
@@ -365,6 +374,13 @@ class TransformerDecoderLayerBase(nn.Module):
             need_weights=False,
             attn_mask=self_attn_mask,
         )
+        if self.c_attn is not None:
+            tgt_len, bsz = x.size(0), x.size(1)
+            x = x.view(tgt_len, bsz, self.nh, self.head_dim)
+            x = torch.einsum('tbhd,h->tbdh', x, self.c_attn)
+            x = x.reshape(tgt_len, bsz, self.embed_dim)
+        if self.attn_ln is not None:
+            x = self.attn_ln(x)
         x = self.dropout_module(x)
         x = self.residual_connection(x, residual)
         if not self.normalize_before:
@@ -406,8 +422,12 @@ class TransformerDecoderLayerBase(nn.Module):
 
         x = self.activation_fn(self.fc1(x))
         x = self.activation_dropout_module(x)
+        if self.ffn_layernorm is not None:
+            x = self.ffn_layernorm(x)
         x = self.fc2(x)
         x = self.dropout_module(x)
+        if self.w_resid is not None:
+            residual = torch.mul(self.w_resid, residual)
         x = self.residual_connection(x, residual)
         if not self.normalize_before:
             x = self.final_layer_norm(x)
