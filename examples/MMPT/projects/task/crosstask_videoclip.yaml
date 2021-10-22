@@ -1,0 +1,10 @@
+includes: projects/task/crosstask.yaml
+model:
+  model_cls: MMFusionSeparateActionLocalization
+  mm_encoder_cls: 
+  video_encoder_cls: MMBertForEncoder
+  text_encoder_cls: BertModel  # dummy, not used.
+  num_hidden_video_layers: 6
+fairseq:
+  checkpoint:
+    restore_file: runs/task/checkpoint_best.pt  # overwrite the default of VLM.

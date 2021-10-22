@@ -4,7 +4,7 @@ Adaptive Span is a novel self-attention mechanism that can learn its optimal
 attention span. This allows us to extend significantly the maximum context size
 used in Transformer, while maintaining control over their memory footprint
 and computational time. It uses the Truncated BPTT technique for training,
-as in [transformerXL](https://github.com/pytorch/fairseq/blob/master/examples/truncated_bptt/README.md).
+as in [transformerXL](https://github.com/pytorch/fairseq/blob/main/examples/truncated_bptt/README.md).
 
 Adaptive Span was introduced by paper:
 [Adaptive Attention Span in Transformers](https://arxiv.org/abs/1905.07799),

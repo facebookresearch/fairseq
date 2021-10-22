@@ -75,5 +75,5 @@ class TestMultiCorpusDataset(unittest.TestCase):
         print(distribution)
 
     def test_multi_corpus_dataset(self):
-        for distribution in [[0.5, 0.5], [0.1, 0.9], [0.9, 0.1]]:
+        for distribution in [[0.5, 0.5], [0.1, 0.9], [0.9, 0.1], [0.0, 1.0]]:
             self._test_sample_helper(distribution=distribution)

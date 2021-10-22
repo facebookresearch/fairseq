@@ -117,7 +117,13 @@ try:
                 sources=[
                     "fairseq/clib/libnat/edit_dist.cpp",
                 ],
-            )
+            ),
+            cpp_extension.CppExtension(
+                "alignment_train_cpu_binding",
+                sources=[
+                    "examples/operators/alignment_train_cpu.cpp",
+                ],
+            ),
         ]
     )
     if "CUDA_HOME" in os.environ:
@@ -135,6 +141,13 @@ try:
                     sources=[
                         "fairseq/clib/cuda/ngram_repeat_block_cuda.cpp",
                         "fairseq/clib/cuda/ngram_repeat_block_cuda_kernel.cu",
+                    ],
+                ),
+                cpp_extension.CppExtension(
+                    "alignment_train_cuda_binding",
+                    sources=[
+                        "examples/operators/alignment_train_kernel.cu",
+                        "examples/operators/alignment_train_cuda.cpp",
                     ],
                 ),
             ]
@@ -201,7 +214,7 @@ def do_setup(package_data):
             "cffi",
             "cython",
             'dataclasses; python_version<"3.7"',
-            "hydra-core<1.1",
+            "hydra-core>=1.0.7,<1.1",
             "omegaconf<2.1",
             'numpy<1.20.0; python_version<"3.7"',
             'numpy; python_version>="3.7"',
@@ -209,6 +222,8 @@ def do_setup(package_data):
             "sacrebleu>=1.4.12",
             "torch",
             "tqdm",
+            "bitarray",
+            "torchaudio>=0.8.0",
         ],
         dependency_links=dependency_links,
         packages=find_packages(

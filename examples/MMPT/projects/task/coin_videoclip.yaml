@@ -1,0 +1,7 @@
+includes: projects/task/coin.yaml
+model:
+  model_cls: MMFusionSeparateActionSegmentation
+  mm_encoder_cls: 
+  video_encoder_cls: MMBertForTokenClassification
+  text_encoder_cls: BertModel  # dummy, not used.
+  num_hidden_video_layers: 6

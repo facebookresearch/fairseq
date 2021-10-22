@@ -7,15 +7,16 @@ import ast
 import collections
 import contextlib
 import logging
+import numpy as np
 import os
 import re
 import time
 import traceback
 from collections import OrderedDict
 from typing import Any, Dict, Optional, Union
-from random import randint
 
 import torch
+from fairseq.data import data_utils
 from fairseq.dataclass.configs import CheckpointConfig
 from fairseq.dataclass.utils import (
     convert_namespace_to_omegaconf,
@@ -82,18 +83,24 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
         worst_best = getattr(save_checkpoint, "best", None)
         chkpts = checkpoint_paths(
             cfg.save_dir,
-            pattern=r"checkpoint\.best_{}_(\d+\.?\d*)\.pt".format(
-                cfg.best_checkpoint_metric
+            pattern=r"checkpoint\.best_{}_(\d+\.?\d*){}\.pt".format(
+                cfg.best_checkpoint_metric, suffix
             ),
         )
         if len(chkpts) > 0:
             p = chkpts[-1] if cfg.maximize_best_checkpoint_metric else chkpts[0]
-            worst_best = float(p.rsplit("_")[-1].replace(".pt", ""))
+            worst_best = float(p.rsplit("_")[-1].replace("{}.pt".format(suffix), ""))
         # add random digits to resolve ties
-        rand_sfx = randint(0, cfg.keep_best_checkpoints)
+        with data_utils.numpy_seed(epoch, updates, val_loss):
+            rand_sfx = np.random.randint(0, cfg.keep_best_checkpoints)
+
         checkpoint_conds[
-            "checkpoint.best_{}_{:.3f}{}.pt".format(cfg.best_checkpoint_metric,
-                                                    val_loss, rand_sfx)
+            "checkpoint.best_{}_{:.3f}{}{}.pt".format(
+                cfg.best_checkpoint_metric,
+                val_loss,
+                rand_sfx,
+                suffix
+            )
         ] = worst_best is None or is_better(val_loss, worst_best)
     checkpoint_conds[
         "checkpoint_last{}.pt".format(suffix)
@@ -160,6 +167,8 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
         for old_chk in checkpoints[cfg.keep_last_epochs :]:
             if os.path.lexists(old_chk):
                 os.remove(old_chk)
+            elif PathManager.exists(old_chk):
+                PathManager.rm(old_chk)
 
     if cfg.keep_best_checkpoints > 0:
         # only keep the best N checkpoints according to validation metric
@@ -174,6 +183,8 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
         for old_chk in checkpoints[cfg.keep_best_checkpoints :]:
             if os.path.lexists(old_chk):
                 os.remove(old_chk)
+            elif PathManager.exists(old_chk):
+                PathManager.rm(old_chk)
 
 
 def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
@@ -452,7 +463,9 @@ def load_model_ensemble_and_task(
             state = None
             if shard_idx % 10 == 0 and shard_idx > 0:
                 elapsed = time.time() - st
-                logger.info(f"Loaded {shard_idx} shards in {elapsed:.2f}s, {elapsed / (shard_idx+1):.2f}s/shard")
+                logger.info(
+                    f"Loaded {shard_idx} shards in {elapsed:.2f}s, {elapsed / (shard_idx+1):.2f}s/shard"
+                )
 
         # build model for ensemble
         ensemble.append(model)
@@ -508,6 +521,7 @@ def _torch_persistent_save(obj, f):
         except Exception:
             if i == 2:
                 logger.error(traceback.format_exc())
+                raise
 
 
 def _upgrade_state_dict(state):
@@ -639,7 +653,7 @@ def _upgrade_state_dict(state):
             ):
                 cfg.task.eval_wer_config.print_alignment = "hard"
             if "generation" in cfg and isinstance(cfg.generation.print_alignment, bool):
-                cfg.generation.print_alignment = "hard"
+                cfg.generation.print_alignment = "hard" if cfg.generation.print_alignment else None
             if (
                 "model" in cfg
                 and "w2v_args" in cfg.model
@@ -647,6 +661,8 @@ def _upgrade_state_dict(state):
                 and (
                     hasattr(cfg.model.w2v_args, "task") or "task" in cfg.model.w2v_args
                 )
+                and hasattr(cfg.model.w2v_args.task, "eval_wer_config")
+                and cfg.model.w2v_args.task.eval_wer_config is not None
                 and isinstance(
                     cfg.model.w2v_args.task.eval_wer_config.print_alignment, bool
                 )
@@ -794,3 +810,49 @@ def verify_checkpoint_directory(save_dir: str) -> None:
         raise e
     else:
         os.remove(temp_file_path)
+
+
+def load_ema_from_checkpoint(fpath):
+    """Loads exponential moving averaged (EMA) checkpoint from input and
+    returns a model with ema weights.
+
+    Args:
+      fpath: A string path of checkpoint to load from.
+
+    Returns:
+      A dict of string keys mapping to various values. The 'model' key
+      from the returned dict should correspond to an OrderedDict mapping
+      string parameter names to torch Tensors.
+    """
+    params_dict = collections.OrderedDict()
+    new_state = None
+
+    with PathManager.open(fpath, 'rb') as f:
+        new_state = torch.load(
+            f,
+            map_location=(
+                lambda s, _: torch.serialization.default_restore_location(s, 'cpu')
+            ),
+        )
+
+        # EMA model is stored in a separate "extra state"
+        model_params = new_state['extra_state']['ema']
+
+        for key in list(model_params.keys()):
+            p = model_params[key]
+            if isinstance(p, torch.HalfTensor):
+                p = p.float()
+            if key not in params_dict:
+                params_dict[key] = p.clone()
+                # NOTE: clone() is needed in case of p is a shared parameter
+            else:
+                raise ValueError("Key {} is repeated in EMA model params.".format(key))
+
+        if len(params_dict) == 0:
+            raise ValueError(
+                f"Input checkpoint path '{fpath}' does not contain "
+                "ema model weights, is this model trained with EMA?"
+            )
+
+    new_state['model'] = params_dict
+    return new_state

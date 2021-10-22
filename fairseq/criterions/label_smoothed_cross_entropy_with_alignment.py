@@ -8,28 +8,33 @@ import math
 from fairseq import metrics, utils
 from fairseq.criterions import register_criterion
 
-from .label_smoothed_cross_entropy import LabelSmoothedCrossEntropyCriterion
+from .label_smoothed_cross_entropy import (
+    LabelSmoothedCrossEntropyCriterion,
+    LabelSmoothedCrossEntropyCriterionConfig,
+)
+
+from dataclasses import dataclass, field
 
 
-@register_criterion("label_smoothed_cross_entropy_with_alignment")
+@dataclass
+class LabelSmoothedCrossEntropyCriterionWithAlignmentConfig(
+    LabelSmoothedCrossEntropyCriterionConfig
+):
+    alignment_lambda: float = field(
+        default=0.05, metadata={"help": "weight for the alignment loss"}
+    )
+
+
+@register_criterion(
+    "label_smoothed_cross_entropy_with_alignment",
+    dataclass=LabelSmoothedCrossEntropyCriterionWithAlignmentConfig,
+)
 class LabelSmoothedCrossEntropyCriterionWithAlignment(
     LabelSmoothedCrossEntropyCriterion
 ):
     def __init__(self, task, sentence_avg, label_smoothing, alignment_lambda):
         super().__init__(task, sentence_avg, label_smoothing)
         self.alignment_lambda = alignment_lambda
-
-    @staticmethod
-    def add_args(parser):
-        """Add criterion-specific arguments to the parser."""
-        LabelSmoothedCrossEntropyCriterion.add_args(parser)
-        parser.add_argument(
-            "--alignment-lambda",
-            default=0.05,
-            type=float,
-            metavar="D",
-            help="weight for the alignment loss",
-        )
 
     def forward(self, model, sample, reduce=True):
         """Compute the loss for the given sample.

@@ -49,6 +49,8 @@ class TransformEosLangPairDataset(FairseqDataset):
 
     def collater(self, samples, **extra_args):
         samples = self.dataset.collater(samples, **extra_args)
+        if len(samples) == 0:
+            return samples
 
         if 'net_input' not in samples:
             return samples

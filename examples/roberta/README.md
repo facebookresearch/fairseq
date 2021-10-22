@@ -8,13 +8,13 @@ RoBERTa iterates on BERT's pretraining procedure, including training the model l
 
 ### What's New:
 
-- December 2020: German model (GottBERT) is available: [GottBERT](https://github.com/pytorch/fairseq/tree/master/examples/gottbert).
+- December 2020: German model (GottBERT) is available: [GottBERT](https://github.com/pytorch/fairseq/tree/main/examples/gottbert).
 - January 2020: Italian model (UmBERTo) is available from Musixmatch Research: [UmBERTo](https://github.com/musixmatchresearch/umberto).
-- November 2019: French model (CamemBERT) is available: [CamemBERT](https://github.com/pytorch/fairseq/tree/master/examples/camembert).
-- November 2019: Multilingual encoder (XLM-RoBERTa) is available: [XLM-R](https://github.com/pytorch/fairseq/tree/master/examples/xlmr).
+- November 2019: French model (CamemBERT) is available: [CamemBERT](https://github.com/pytorch/fairseq/tree/main/examples/camembert).
+- November 2019: Multilingual encoder (XLM-RoBERTa) is available: [XLM-R](https://github.com/pytorch/fairseq/tree/main/examples/xlmr).
 - September 2019: TensorFlow and TPU support via the [transformers library](https://github.com/huggingface/transformers).
 - August 2019: RoBERTa is now supported in the [pytorch-transformers library](https://github.com/huggingface/pytorch-transformers).
-- August 2019: Added [tutorial for finetuning on WinoGrande](https://github.com/pytorch/fairseq/tree/master/examples/roberta/wsc#roberta-training-on-winogrande-dataset).
+- August 2019: Added [tutorial for finetuning on WinoGrande](https://github.com/pytorch/fairseq/tree/main/examples/roberta/wsc#roberta-training-on-winogrande-dataset).
 - August 2019: Added [tutorial for pretraining RoBERTa using your own data](README.pretraining.md).
 
 ## Pre-trained models

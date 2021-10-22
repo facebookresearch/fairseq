@@ -79,6 +79,22 @@ class FairseqDataclass:
     def _get_choices(self, attribute_name: str) -> Any:
         return self._get_meta(attribute_name, "choices")
 
+    @classmethod
+    def from_namespace(cls, args):
+        if isinstance(args, cls):
+            return args
+        else:
+            config = cls()
+            for k in config.__dataclass_fields__.keys():
+                if k.startswith("_"):
+                    # private member, skip
+                    continue
+                if hasattr(args, k):
+                    setattr(config, k, getattr(args, k))
+
+            return config
+
+
 
 @dataclass
 class CommonConfig(FairseqDataclass):
@@ -229,6 +245,12 @@ class DistributedTrainingConfig(FairseqDataclass):
             "help": "total number of GPUs across all nodes (default: all visible GPUs)"
         },
     )
+    distributed_num_procs: Optional[int] = field(
+        default=max(1, torch.cuda.device_count()),
+        metadata={
+            "help": "total number of processes to fork (default: all visible GPUs)"
+        },
+    )
     distributed_rank: Optional[int] = field(
         default=0, metadata={"help": "rank of the current worker"}
     )
@@ -282,6 +304,13 @@ class DistributedTrainingConfig(FairseqDataclass):
         metadata={
             "help": "disable unused parameter detection (not applicable to "
             "--ddp-backend=legacy_ddp)"
+        },
+    )
+    gradient_as_bucket_view: bool = field(
+        default=False,
+        metadata={
+            "help": "when set to True, gradients will be views pointing to different offsets of allreduce communication buckets. This can reduce peak memory usage, where the saved memory size will be equal to the total gradients size. "
+            "--gradient-as-bucket-view=gradient_as_bucket_view)"
         },
     )
     fast_stat_sync: bool = field(
@@ -963,6 +992,36 @@ class InteractiveConfig(FairseqDataclass):
 
 
 @dataclass
+class EMAConfig(FairseqDataclass):
+    store_ema: bool = field(
+        default=False, metadata={
+            help: "store exponential moving average shadow model"
+        }
+    )
+    ema_decay: float = field(
+        default=0.9999, metadata={
+            "help": 'decay for exponential moving average model'
+        }
+    )
+    ema_start_update : int = field(
+        default=0, metadata={"help": "start EMA update after this many model updates"}
+    )
+    ema_seed_model : Optional[str] = field(
+        default=None, metadata={
+            "help": "Seed to load EMA model from. "
+            "Used to load EMA model separately from the actual model."
+        }
+    )
+    ema_update_freq : int = field(
+        default=1, metadata={"help": "Do EMA update every this many model updates"}
+    )
+    ema_fp32: bool = field(
+        default=False,
+        metadata={"help": "If true, store EMA model in fp32 even if model is in fp16"},
+    )
+
+
+@dataclass
 class FairseqConfig(FairseqDataclass):
     common: CommonConfig = CommonConfig()
     common_eval: CommonEvalConfig = CommonEvalConfig()
@@ -982,3 +1041,4 @@ class FairseqConfig(FairseqDataclass):
     scoring: Any = None
     bpe: Any = None
     tokenizer: Any = None
+    ema: EMAConfig = EMAConfig()

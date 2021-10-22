@@ -99,11 +99,11 @@ class InferenceProcessor:
     def __init__(self, cfg: InferConfig) -> None:
         self.cfg = cfg
         self.task = tasks.setup_task(cfg.task)
-        self.tgt_dict = self.task.target_dictionary
 
         models, saved_cfg = self.load_model_ensemble()
         self.models = models
         self.saved_cfg = saved_cfg
+        self.tgt_dict = self.task.target_dictionary
 
         self.task.load_dataset(
             self.cfg.dataset.gen_subset,

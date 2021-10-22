@@ -11,15 +11,15 @@
 #include <torch/extension.h>
 
 torch::Tensor LevenshteinDistanceCuda(
-        torch::Tensor source,
-        torch::Tensor target,
-        torch::Tensor source_length,
-        torch::Tensor target_length);
+    torch::Tensor source,
+    torch::Tensor target,
+    torch::Tensor source_length,
+    torch::Tensor target_length);
 
 torch::Tensor GenerateDeletionLabelCuda(
-        torch::Tensor source,
-        torch::Tensor operations);
+    torch::Tensor source,
+    torch::Tensor operations);
 
 std::pair<torch::Tensor, torch::Tensor> GenerateInsertionLabelCuda(
-        torch::Tensor source,
-        torch::Tensor operations);
+    torch::Tensor source,
+    torch::Tensor operations);

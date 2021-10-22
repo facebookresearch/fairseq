@@ -23,8 +23,9 @@ logger = logging.getLogger(__name__)
 
 class StatefulContainer(object):
 
-    _state: Dict[str, Any] = dict()
-    _factories: Dict[str, Callable[[], Any]] = dict()
+    def __init__(self):
+        self._state = dict()
+        self._factories = dict()
 
     def add_factory(self, name, factory: Callable[[], Any]):
         self._factories[name] = factory
@@ -77,11 +78,6 @@ class FairseqTask(object):
         Setting this to True will improves distributed training speed.
         """
         return criterion.logging_outputs_can_be_summed()
-
-    cfg: FairseqDataclass
-    datasets: Dict[str, FairseqDataset]
-    dataset_to_epoch_iter: Dict[FairseqDataset, Any]
-    state: StatefulContainer = None
 
     def __init__(self, cfg: FairseqDataclass, **kwargs):
         self.cfg = cfg
@@ -379,10 +375,6 @@ class FairseqTask(object):
             SequenceGenerator,
             SequenceGeneratorWithAlignment,
         )
-        try:
-            from fairseq.fb_sequence_generator import FBSequenceGenerator
-        except ModuleNotFoundError:
-            pass
 
         # Choose search strategy. Defaults to Beam Search.
         sampling = getattr(args, "sampling", False)
@@ -450,8 +442,6 @@ class FairseqTask(object):
             if getattr(args, "print_alignment", False):
                 seq_gen_cls = SequenceGeneratorWithAlignment
                 extra_gen_cls_kwargs["print_alignment"] = args.print_alignment
-            elif getattr(args, "fb_seq_gen", False):
-                seq_gen_cls = FBSequenceGenerator
             else:
                 seq_gen_cls = SequenceGenerator
 
@@ -628,6 +618,7 @@ class FairseqTask(object):
 
 class LegacyFairseqTask(FairseqTask):
     def __init__(self, args: Namespace):
+        super().__init__(None)
         self.args = args
         self.datasets = {}
         self.dataset_to_epoch_iter = {}

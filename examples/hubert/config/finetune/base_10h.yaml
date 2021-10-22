@@ -23,6 +23,7 @@ distributed_training:
 task:
   _name: hubert_pretraining
   data: ???
+  fine_tuning: true
   label_dir: ???
   normalize: false  # must be consistent with pre-training
   labels: ["ltr"]

@@ -147,7 +147,9 @@ class DenoisingTask(LegacyFairseqTask):
     @classmethod
     def setup_task(cls, args, **kwargs):
         """Setup the task."""
-        dictionary = Dictionary.load(os.path.join(args.data, "dict.txt"))
+        paths = utils.split_paths(args.data)
+        assert len(paths) > 0
+        dictionary = Dictionary.load(os.path.join(paths[0], "dict.txt"))
         logger.info("dictionary: {} types".format(len(dictionary)))
         if not hasattr(args, "shuffle_instance"):
             args.shuffle_instance = False
@@ -196,6 +198,7 @@ class DenoisingTask(LegacyFairseqTask):
             break_mode=self.args.sample_break_mode,
             document_sep_len=0,
         )
+        logger.info("loaded {} blocks from: {}".format(len(dataset), split_path))
 
         # prepend beginning-of-sentence token (<s>, equiv. to [CLS] in BERT)
         dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())

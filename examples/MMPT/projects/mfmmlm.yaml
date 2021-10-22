@@ -1,0 +1,59 @@
+project_dir: mfmmlm
+run_task:
+  - how2.yaml
+  - [vtt.yaml, vttcap.yaml, vttqa.yaml, youcook.yaml, youcookcap.yaml, crosstask.yaml, coin.yaml]
+base_dir: task
+task_group:
+  pretrain:
+    task_list:
+      - how2.yaml
+    dataset:
+      subsampling: 32
+      sampled_min_len: 10
+      sampled_max_len: 64
+      max_video_len: 32
+      max_len: 96
+      aligner: MFMMLMAligner
+      lazy_vfeat_mask: True
+      mfm_probability: 0.15
+      mlm_probability: 0.15
+      mm_prob: 0.5
+    model:
+      model_cls: MMFusionMFMMLM
+      mm_encoder_cls: MMFusionForMFMMLM
+    loss:
+      loss_cls: MFMMLM
+    fairseq:
+      common:
+        fp16: true
+      dataset:
+        batch_size: 256
+      optimization:
+        max_epoch: 15     
+  finetune:
+    task_list:
+      - vtt.yaml
+      - vttqa.yaml
+      - youcook.yaml
+      - youcookcap.yaml
+      - crosstask.yaml
+      - coin.yaml
+    dataset:
+      max_video_len: 32
+      max_len: 96
+    fairseq:
+      common:
+        fp16: true
+    # do not write any model or loss here (they are expected to be fixed in mmfusion).
+  test:
+    task_list:
+      - test_vtt.yaml
+      - test_vttqa.yaml
+      - test_youcook.yaml
+      - test_youcookcap.yaml
+      - test_crosstask.yaml
+      - test_crosstask_zs.yaml
+      - test_coin.yaml
+    dataset:
+      max_video_len: 32
+      max_len: 96

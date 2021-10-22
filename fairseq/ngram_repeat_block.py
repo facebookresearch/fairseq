@@ -123,7 +123,7 @@ class NGramRepeatBlock(nn.Module):
             ]
         for bbsz_idx in range(bsz * beam_size):
             lprobs[bbsz_idx][
-                torch.tensor(banned_tokens[bbsz_idx]).long()
+                torch.tensor(banned_tokens[bbsz_idx], dtype=torch.int64)
             ] = torch.tensor(-math.inf).to(lprobs)
         return lprobs
 

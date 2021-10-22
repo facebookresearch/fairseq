@@ -27,7 +27,7 @@ from fairseq.models.speech_to_text.utils import (
     layer_norm_backward_hook,
 )
 from torch import Tensor, device as Device
-from torch.quantization.qconfig import (
+from torch.ao.quantization.qconfig import (
     default_dynamic_qconfig,
     per_channel_dynamic_qconfig,
 )
@@ -140,7 +140,7 @@ class PositionwiseFF(nn.Module):
             qconfig = per_channel_dynamic_qconfig
         else:
             qconfig = default_dynamic_qconfig
-        torch.quantization.quantize_dynamic(
+        torch.ao.quantization.quantize_dynamic(
             self, {torch.nn.Linear: qconfig}, dtype=torch.qint8, inplace=True
         )
         return self
@@ -728,7 +728,7 @@ class NoSegAugmentedMemoryMultiheadAttentionBmm(nn.Module):
             qconfig = per_channel_dynamic_qconfig
         else:
             qconfig = default_dynamic_qconfig
-        torch.quantization.quantize_dynamic(
+        torch.ao.quantization.quantize_dynamic(
             self, {torch.nn.Linear: qconfig}, dtype=torch.qint8, inplace=True
         )
         return self
@@ -1771,7 +1771,7 @@ class NoSegAugmentedMemoryTransformerEncoderLayer(FairseqEncoder):
             qconfig = per_channel_dynamic_qconfig
         else:
             qconfig = default_dynamic_qconfig
-        torch.quantization.quantize_dynamic(
+        torch.ao.quantization.quantize_dynamic(
             self, {torch.nn.Linear: qconfig}, dtype=torch.qint8, inplace=True
         )
         return self

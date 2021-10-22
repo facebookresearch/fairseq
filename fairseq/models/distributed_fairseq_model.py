@@ -63,6 +63,7 @@ def DistributedFairseqModel(args, model, process_group, device):
             bucket_cap_mb=args.bucket_cap_mb,
             process_group=process_group,
             find_unused_parameters=args.find_unused_parameters,
+            gradient_as_bucket_view=args.gradient_as_bucket_view,
         )
         if args.ddp_comm_hook == "fp16":
             logger.info("enable fp16 communication hook in DDP")
