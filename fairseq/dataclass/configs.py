@@ -338,8 +338,14 @@ class DistributedTrainingConfig(FairseqDataclass):
             "0.2 for 32 GPUs; 0.5 for 64 GPUs, 0.6 for > 64 GPUs"
         },
     )
-    slowmo_algorithm: str = field(
-        default="LocalSGD", metadata={"help": "whether to use LocalSGD or SGP"}
+    slowmo_base_algorithm: str = field(
+        default="localsgd",
+        metadata={
+            "help": "Base algorithm. Either 'localsgd' or 'sgp'. Please refer "
+            "to the documentation of 'slowmo_base_algorithm' parameter in "
+            "https://fairscale.readthedocs.io/en/latest/api/experimental/nn/slowmo_ddp.html "
+            "for more details"
+        },
     )
     localsgd_frequency: int = field(
         default=3, metadata={"help": "Local SGD allreduce frequency"}
