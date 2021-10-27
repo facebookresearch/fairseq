@@ -191,6 +191,11 @@ class TransformerLanguageModelConfig(FairseqDataclass):
     base_shuffle: Optional[int] = field(
         default=1, metadata={"help": "shuffle tokens between workers before computing assignment"}
     )
+    # NormFormer
+    scale_fc: Optional[bool] = field(default=False, metadata={"help": 'Insert LayerNorm between fully connected layers'})
+    scale_attn: Optional[bool] = field(default=False, metadata={"help": 'Insert LayerNorm after attention'})
+    scale_heads: Optional[bool] = field(default=False, metadata={"help": 'Learn a scale coefficient for each attention head'})
+    scale_resids: Optional[bool] = field(default=False, metadata={"help": 'Learn a scale coefficient for each residual connection'})
     # options from other parts of the config
     add_bos_token: bool = II("task.add_bos_token")
     tokens_per_sample: int = II("task.tokens_per_sample")
@@ -357,6 +362,10 @@ def base_lm_architecture(args):
     args.layernorm_embedding = safe_getattr(args, "layernorm_embedding", False)
     args.checkpoint_activations = safe_getattr(args, "checkpoint_activations", False)
     args.offload_activations = safe_getattr(args, "offload_activations", False)
+    args.scale_fc = safe_getattr(args, 'scale_fc', False)
+    args.scale_attn = safe_getattr(args, 'scale_attn', False)
+    args.scale_heads = safe_getattr(args, 'scale_heads', False)
+    args.scale_resids = safe_getattr(args, 'scale_resids', False)
     if args.offload_activations:
         args.checkpoint_activations = True
 

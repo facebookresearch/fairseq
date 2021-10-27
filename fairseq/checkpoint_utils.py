@@ -449,12 +449,28 @@ def load_model_ensemble_and_task(
                         shard_metadata=model_shard_state["shard_metadata"],
                     )
                     model = task.build_model(cfg.model)
+                    if (
+                        "optimizer_history" in state
+                        and len(state["optimizer_history"]) > 0
+                        and "num_updates" in state["optimizer_history"][-1]
+                    ):
+                        model.set_num_updates(
+                            state["optimizer_history"][-1]["num_updates"]
+                        )
                     model.load_state_dict(
                         consolidated_model_state, strict=strict, model_cfg=cfg.model
                     )
             else:
                 # model parallel checkpoint or unsharded checkpoint
                 model = task.build_model(cfg.model)
+                if (
+                    "optimizer_history" in state
+                    and len(state["optimizer_history"]) > 0
+                    and "num_updates" in state["optimizer_history"][-1]
+                ):
+                    model.set_num_updates(
+                        state["optimizer_history"][-1]["num_updates"]
+                    )
                 model.load_state_dict(
                     state["model"], strict=strict, model_cfg=cfg.model
                 )

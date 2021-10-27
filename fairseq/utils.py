@@ -536,6 +536,9 @@ def deprecation_warning(message, stacklevel=3):
     # don't use DeprecationWarning, since it's ignored by default
     warnings.warn(message, stacklevel=stacklevel)
 
+def relu_squared(x: torch.Tensor):
+    return F.relu(x).pow(2)
+
 
 def get_activation_fn(activation: str) -> Callable:
     """Returns the activation function corresponding to `activation`"""
@@ -543,6 +546,8 @@ def get_activation_fn(activation: str) -> Callable:
 
     if activation == "relu":
         return F.relu
+    elif activation == "relu_squared":
+        return relu_squared
     elif activation == "gelu":
         return gelu
     elif activation == "gelu_fast":
