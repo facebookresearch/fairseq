@@ -14,15 +14,6 @@ python -m examples.speech_synthesis.preprocessing.get_vctk_audio_manifest \
   --output-manifest-root ${AUDIO_MANIFEST_ROOT}
 ```
 
-Then, extract log-Mel spectrograms, generate feature manifest and create data configuration YAML with
-```bash
-python -m examples.speech_synthesis.preprocessing.get_feature_manifest \
-  --audio-manifest-root ${AUDIO_MANIFEST_ROOT} \
-  --output-root ${FEATURE_MANIFEST_ROOT} \
-  --ipa-vocab --use-g2p
-```
-where we use phoneme inputs (`--ipa-vocab --use-g2p`) as example.
-
 To denoise audio and trim leading/trailing silence using signal processing based VAD, run
 ```bash
 for SPLIT in dev test train; do
@@ -32,6 +23,25 @@ for SPLIT in dev test train; do
       --denoise --vad --vad-agg-level 3
 done
 ```
+which generates a new audio TSV manifest under `${PROCESSED_DATA_ROOT}` with updated path to the processed audio and
+a new column for SNR.
+
+To do filtering by CER, follow the [Automatic Evaluation](../docs/ljspeech_example.md#automatic-evaluation) section to
+run ASR model (add `--eval-target` to `get_eval_manifest` for evaluation on the reference audio; add `--err-unit char`
+to `eval_asr` to compute CER instead of WER). The example-level CER is saved to
+`${EVAL_OUTPUT_ROOT}/uer_cer.${SPLIT}.tsv`.
+
+Then, extract log-Mel spectrograms, generate feature manifest and create data configuration YAML with
+```bash
+python -m examples.speech_synthesis.preprocessing.get_feature_manifest \
+  --audio-manifest-root ${PROCESSED_DATA_ROOT} \
+  --output-root ${FEATURE_MANIFEST_ROOT} \
+  --ipa-vocab --use-g2p \
+  --snr-threshold 15 \
+  --cer-threshold 0.1 --cer-tsv-path ${EVAL_OUTPUT_ROOT}/uer_cer.${SPLIT}.tsv
+```
+where we use phoneme inputs (`--ipa-vocab --use-g2p`) as example. For sample filtering, we set the SNR and CER threshold
+to 15 and 10%, respectively.
 
 ## Training
 (Please refer to [the LJSpeech example](../docs/ljspeech_example.md#transformer).)
