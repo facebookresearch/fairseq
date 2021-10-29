@@ -14,19 +14,15 @@ K-Means Model | Download Link
 Log Mel Filterbank + KM50 | [download](https://dl.fbaipublicfiles.com/textless_nlp/gslm/logmel/km50/km.bin)
 Log Mel Filterbank + KM100 | [download](https://dl.fbaipublicfiles.com/textless_nlp/gslm/logmel/km100/km.bin)
 Log Mel Filterbank + KM200 | [download](https://dl.fbaipublicfiles.com/textless_nlp/gslm/logmel/km200/km.bin)
-Log Mel Filterbank + KM500 | [download](https://dl.fbaipublicfiles.com/textless_nlp/gslm/logmel/km500/km.bin)
 Modified CPC + KM50 | [download](https://dl.fbaipublicfiles.com/textless_nlp/gslm/cpc/km50/km.bin)
 Modified CPC + KM100 | [download](https://dl.fbaipublicfiles.com/textless_nlp/gslm/cpc/km100/km.bin)
 Modified CPC + KM200 | [download](https://dl.fbaipublicfiles.com/textless_nlp/gslm/cpc/km200/km.bin)
-Modified CPC + KM500 | [download](https://dl.fbaipublicfiles.com/textless_nlp/gslm/cpc/km500/km.bin)
 HuBERT Base + KM50 | [download](https://dl.fbaipublicfiles.com/textless_nlp/gslm/hubert/km50/km.bin)
 HuBERT Base + KM100 | [download](https://dl.fbaipublicfiles.com/textless_nlp/gslm/hubert/km100/km.bin)
 HuBERT Base + KM200 | [download](https://dl.fbaipublicfiles.com/textless_nlp/gslm/hubert/km200/km.bin)
-HuBERT Base + KM500 | [download](https://dl.fbaipublicfiles.com/textless_nlp/gslm/hubert/km500/km.bin)
 wav2vec 2.0 Large + KM50 | [download](https://dl.fbaipublicfiles.com/textless_nlp/gslm/w2v2/km50/km.bin)
 wav2vec 2.0 Large + KM100 | [download](https://dl.fbaipublicfiles.com/textless_nlp/gslm/w2v2/km100/km.bin)
 wav2vec 2.0 Large + KM200 | [download](https://dl.fbaipublicfiles.com/textless_nlp/gslm/w2v2/km200/km.bin)
-wav2vec 2.0 Large + KM500 | [download](https://dl.fbaipublicfiles.com/textless_nlp/gslm/w2v2/km500/km.bin)
 
 ### Quantization
 For quantizing speech with a given acoustic representation, please follow the steps below.
@@ -69,3 +65,4 @@ Note about the manifest file is a file with paths and length of input audio file
 <relative_path_of_audio_file_2>\t<number_of_frames_1>
 ...
 ```
+
