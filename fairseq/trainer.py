@@ -783,6 +783,10 @@ class Trainer(object):
                         torch.cuda.empty_cache()
                     if self.cfg.distributed_training.distributed_world_size == 1:
                         return None
+                    else:
+                        # Re-raise exception, as otherwise distributed workers
+                        # get out of sync and cause the training job to hang.
+                        raise
                 else:
                     raise e
 
