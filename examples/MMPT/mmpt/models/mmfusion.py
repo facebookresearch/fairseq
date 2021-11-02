@@ -65,6 +65,7 @@ class MMPTModel(nn.Module):
 
     def forward(self, video_frames, caps, cmasks, return_score=False):
         bsz = video_frames.size(0)
+        assert bsz == 1, "only bsz=1 is supported now."
         seq_len = video_frames.size(1)
         video_frames = video_frames.view(-1, *video_frames.size()[2:])
         vfeats = self.video_encoder(video_frames.permute(0, 4, 1, 2, 3))
@@ -73,12 +74,17 @@ class MMPTModel(nn.Module):
         padding = torch.zeros(
             bsz, self.max_video_len - seq_len, vfeats.size(-1))
         vfeats = torch.cat([vfeats, padding], dim=1)
-        vmasks = torch.zeros((bsz, self.max_video_len), dtype=torch.bool)
+        vmasks = torch.cat([
+            torch.ones((bsz, seq_len), dtype=torch.bool),
+            torch.zeros((bsz, self.max_video_len - seq_len), dtype=torch.bool)
+            ],
+            dim=1
+        )
         output = self.model(caps, cmasks, vfeats, vmasks)
         if return_score:
             output = {"score": torch.bmm(
                 output["pooled_video"][:, None, :],
-                output["pooled_video"][:, :, None]
+                output["pooled_text"][:, :, None]
             ).squeeze(-1).squeeze(-1)}
         return output
 
