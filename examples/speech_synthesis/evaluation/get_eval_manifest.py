@@ -28,6 +28,8 @@ def main(args):
             ref = row["audio"]
             if args.use_resynthesized_target:
                 ref = (in_root / f"{dir_name}_tgt" / f"{id_}.{ext}").as_posix()
+            if args.eval_target:
+                syn = row["audio"]
             sample = [id_, syn, ref, row["tgt_text"], row["speaker"]]
             f_out.write("\t".join(sample) + "\n")
     print(f"wrote evaluation file to {args.output_path}")
@@ -49,6 +51,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--use-resynthesized-target", action="store_true",
         help="use resynthesized reference instead of the original audio"
+    )
+    parser.add_argument(
+        "--eval-target", action="store_true",
+        help="evaluate reference instead of model prediction"
     )
     parser.add_argument("--vocoder", type=str, default="griffin_lim")
     parser.add_argument("--sample-rate", type=int, default=22_050)
