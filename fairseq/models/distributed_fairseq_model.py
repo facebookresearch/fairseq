@@ -23,11 +23,11 @@ from fairseq.distributed import (
 logger = logging.getLogger(__name__)
 
 
-_GOSSIP_DISABLED = False
+_SLOWMO_DDP_DISABLED = False
 try:
     from fairscale.experimental.nn.data_parallel import SlowMoBaseAlgorithm, SlowMoDistributedDataParallel
 except ImportError:
-    _GOSSIP_DISABLED = True
+    _SLOWMO_DDP_DISABLED = True
 
 
 def DistributedFairseqModel(args, model, process_group, device):
@@ -90,7 +90,7 @@ def DistributedFairseqModel(args, model, process_group, device):
         # forward missing getattr and state_dict/load_state_dict to orig model
         wrapped_model = ModuleProxyWrapper(wrapped_model)
     elif args.ddp_backend == "slowmo":
-        if _GOSSIP_DISABLED:
+        if _SLOWMO_DDP_DISABLED:
             raise ImportError(
                 "Cannot find SlowMoDistributedDataParallel. "
                 "Please install fairscale with: pip install fairscale"
