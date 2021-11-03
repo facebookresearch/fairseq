@@ -377,7 +377,7 @@ class TransformerDecoderLayerBase(nn.Module):
         if self.c_attn is not None:
             tgt_len, bsz = x.size(0), x.size(1)
             x = x.view(tgt_len, bsz, self.nh, self.head_dim)
-            x = torch.einsum('tbhd,h->tbdh', x, self.c_attn)
+            x = torch.einsum('tbhd,h->tbhd', x, self.c_attn)
             x = x.reshape(tgt_len, bsz, self.embed_dim)
         if self.attn_ln is not None:
             x = self.attn_ln(x)
