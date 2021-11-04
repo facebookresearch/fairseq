@@ -6,6 +6,7 @@
 
 from pathlib import Path
 from typing import BinaryIO, Optional, Tuple, Union, List
+import mmap
 
 import numpy as np
 import torch
@@ -178,11 +179,15 @@ def is_sf_audio_data(data: bytes) -> bool:
     return is_wav or is_flac or is_ogg
 
 
-def read_from_stored_zip(zip_path: str, offset: int, file_size: int) -> bytes:
-    with open(zip_path, "rb") as f:
-        f.seek(offset)
-        data = f.read(file_size)
+def mmap_read(path: str, offset: int, length: int) -> bytes:
+    with open(path, "rb") as f:
+        with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mmap_o:
+            data = mmap_o[offset: offset + length]
     return data
+
+
+def read_from_stored_zip(zip_path: str, offset: int, length: int) -> bytes:
+    return mmap_read(zip_path, offset, length)
 
 
 def parse_path(path: str) -> Tuple[str, List[int]]:
