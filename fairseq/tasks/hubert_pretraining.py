@@ -180,7 +180,7 @@ class HubertPretrainingTask(FairseqTask):
             pad_audio=self.cfg.pad_audio,
             normalize=self.cfg.normalize,
             store_labels=False,
-            random_crop=self.cfg.random_crop,
+            random_crop=(not self.cfg.fine_tuning and self.cfg.random_crop),
             single_target=self.cfg.single_target,
         )
 
