@@ -35,7 +35,7 @@ class FastSpeech2Loss(FairseqCriterion):
         src_tokens = sample["net_input"]["src_tokens"]
         src_lens = sample["net_input"]["src_lengths"]
         tgt_lens = sample["target_lengths"]
-        _feat_out, _, log_dur_out, pitch_out, energy_out = model(
+        _feat_out, _feat_out_post, _, log_dur_out, pitch_out, energy_out = model(
             src_tokens=src_tokens,
             src_lengths=src_lens,
             prev_output_tokens=sample["net_input"]["prev_output_tokens"],
@@ -56,6 +56,9 @@ class FastSpeech2Loss(FairseqCriterion):
 
         feat_out, feat = _feat_out[tgt_mask], sample["target"][tgt_mask]
         l1_loss = F.l1_loss(feat_out, feat, reduction=reduction)
+        if _feat_out_post is not None:
+            l1_loss += F.l1_loss(_feat_out_post[tgt_mask], feat,
+                                 reduction=reduction)
 
         pitch_loss = F.mse_loss(pitch_out, pitches, reduction=reduction)
         energy_loss = F.mse_loss(energy_out, energies, reduction=reduction)

@@ -128,7 +128,7 @@ class NonAutoregressiveSpeechGenerator(SpeechGenerator):
         out_dim = model.encoder.out_dim
         raw_dim = out_dim // n_frames_per_step
 
-        feat, out_lens, log_dur_out, _, _ = model(
+        feat, feat_post, out_lens, log_dur_out, _, _ = model(
             src_tokens=sample["net_input"]["src_tokens"],
             src_lengths=sample["net_input"]["src_lengths"],
             prev_output_tokens=sample["net_input"]["prev_output_tokens"],
@@ -136,6 +136,8 @@ class NonAutoregressiveSpeechGenerator(SpeechGenerator):
             target_lengths=sample["target_lengths"],
             speaker=sample["speaker"]
         )
+        if feat_post is not None:
+            feat = feat_post
 
         feat = feat.view(bsz, -1, raw_dim)
         feat = self.gcmvn_denormalize(feat)
