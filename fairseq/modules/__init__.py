@@ -28,6 +28,7 @@ from .linearized_convolution import LinearizedConvolution
 from .location_attention import LocationAttention
 from .lstm_cell_with_zoneout import LSTMCellWithZoneOut
 from .multihead_attention import MultiheadAttention
+from .tuckerhead_attention import TuckerheadAttention
 from .positional_embedding import PositionalEmbedding
 from .same_pad import SamePad
 from .scalar_bias import ScalarBias
@@ -68,6 +69,7 @@ __all__ = [
     "LocationAttention",
     "LSTMCellWithZoneOut",
     "MultiheadAttention",
+    "TuckerheadAttention",
     "PositionalEmbedding",
     "SamePad",
     "ScalarBias",
