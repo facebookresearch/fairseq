@@ -41,7 +41,7 @@ DDP_BACKEND_CHOICES = ChoiceEnum([
     "legacy_ddp",
     "no_c10d",  # alias for legacy_ddp
     "pytorch_ddp",
-    "slow_mo",
+    "slowmo",
 ])
 DDP_COMM_HOOK_CHOICES = ChoiceEnum(["none", "fp16"])
 DATASET_IMPL_CHOICES = ChoiceEnum(["raw", "lazy", "cached", "mmap", "fasta", "huffman"])
