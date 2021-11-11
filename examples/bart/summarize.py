@@ -68,7 +68,7 @@ def main():
     parser.add_argument(
         "--out", default="test.hypo", help="where to save summaries", type=str
     )
-    parser.add_argument("--bsz", default=32, help="where to save summaries", type=int)
+    parser.add_argument("--bsz", default=32, help="batch size", type=int)
     parser.add_argument(
         "--n", default=None, help="how many examples to summarize", type=int
     )
