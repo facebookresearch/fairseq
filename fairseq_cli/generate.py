@@ -234,7 +234,7 @@ def _main(cfg: DictConfig, output_file):
                     sample_id
                 )
             else:
-                if src_dict is not None:
+                if src_dict is not None and src_tokens.dtype == torch.long:
                     src_str = src_dict.string(src_tokens, cfg.common_eval.post_process)
                 else:
                     src_str = ""

@@ -250,7 +250,7 @@ def main(cfg: FairseqConfig):
         # sort output to match input order
         for id_, src_tokens, hypos, info in sorted(results, key=lambda x: x[0]):
             src_str = ''
-            if src_dict is not None:
+            if src_dict is not None and src_tokens.dtype == torch.long:
                 src_str = src_dict.string(src_tokens, cfg.common_eval.post_process)
                 print("S-{}\t{}".format(id_, src_str))
                 print("W-{}\t{:.3f}\tseconds".format(id_, info["time"]))
