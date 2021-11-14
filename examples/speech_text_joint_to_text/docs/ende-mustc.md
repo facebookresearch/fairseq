@@ -12,7 +12,7 @@ Enhanced Joint Training: the joint training is enhanced with pre-trained models,
 -   Dictionary [dict.txt](https://dl.fbaipublicfiles.com/joint_speech_text_4_s2t/must_c/en_de/dict.txt)
 -   config [config.yaml](https://dl.fbaipublicfiles.com/joint_speech_text_4_s2t/must_c/en_de/config.yaml)
 #### Prepare MuST-C data set
--   [Please follow the data preparation in the S2T example](https://github.com/pytorch/fairseq/blob/master/examples/speech_to_text/docs/mustc_example.md)
+-   [Please follow the data preparation in the S2T example](https://github.com/pytorch/fairseq/blob/main/examples/speech_to_text/docs/mustc_example.md)
 -   Append src_text in the tsv file with phoneme representation.
 ```bash
     python examples/speech_text_joint_to_text/scripts/g2p_encode.py \
@@ -24,7 +24,7 @@ Enhanced Joint Training: the joint training is enhanced with pre-trained models,
 -   Update tsv data with src_text generated above and save to $MANIFEST_ROOT
 -   Prepare phoneme dictionary and save to $MANIFEST_ROOT as [src_dict.txt](https://dl.fbaipublicfiles.com/joint_speech_text_4_s2t/must_c/en_de/src_dict.txt)
 #### Prepare WMT text data
--   [Download wmt data](https://github.com/pytorch/fairseq/blob/master/examples/translation/prepare-wmt14en2de.sh)
+-   [Download wmt data](https://github.com/pytorch/fairseq/blob/main/examples/translation/prepare-wmt14en2de.sh)
 -   Convert source text (English) into phoneme representation as above
 -   Generate binary parallel file for training (as translation example) and save data in $parallel_text_data
 

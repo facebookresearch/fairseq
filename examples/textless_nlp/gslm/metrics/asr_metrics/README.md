@@ -29,7 +29,7 @@ Here `ground_truth_continuation_dev.json` is a json file with ground-truth text 
 
 ## Running ASR
 We use a pre-trained wav2vec model to run the ASR step. We firstly need to prepare manifest files which, roughly, tell the ASR system which files we want to transcribe. You can find more details and download the `960h_scratch.pt` checkpoint
-[[here]](https://github.com/pytorch/fairseq/blob/master/examples/wav2vec/README.md)). To run ASR, you would also need to
+[[here]](https://github.com/pytorch/fairseq/blob/main/examples/wav2vec/README.md)). To run ASR, you would also need to
 install KenLM, Flashlight decoder, and download the KenLM 4-gram English language model.
 
 ```bash
