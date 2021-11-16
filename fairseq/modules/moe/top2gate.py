@@ -18,6 +18,7 @@ from torch import Tensor
 from torch.distributions import Categorical
 import torch.nn.functional as F
 
+from .moe_layer import has_tutel, fused_cumsum_sub_one
 
 gumbel_map: Dict[torch.device, Callable] = {}
 
@@ -116,19 +117,19 @@ def top2gating(
         # if batch_prioritized_routing:
         importance_scores = -1 * gates.max(dim=1)[0]
         sorted_mask1 = mask1[importance_scores.argsort(dim=0)]
-        sorted_cumsum1 = (torch.cumsum(sorted_mask1, dim=0) - 1) * sorted_mask1
+        sorted_cumsum1 = fused_cumsum_sub_one(sorted_mask1) * sorted_mask1
         importance_sorted_locations1 =  sorted_cumsum1[importance_scores.argsort(dim=0).argsort(dim=0)]
 
         sorted_mask2 = mask2[importance_scores.argsort(dim=0)]
-        sorted_cumsum2 = (torch.cumsum(sorted_mask2, dim=0) - 1) * sorted_mask2
+        sorted_cumsum2 = fused_cumsum_sub_one(sorted_mask2) * sorted_mask2
         importance_sorted_locations2 =  sorted_cumsum2[importance_scores.argsort(dim=0).argsort(dim=0)]
 
         importance_sorted_locations2 += torch.sum(mask1, dim=0, keepdim=True)
 
         locations1, locations2 = importance_sorted_locations1, importance_sorted_locations2
     else:
-        locations1 = torch.cumsum(mask1, dim=0) - 1
-        locations2 = torch.cumsum(mask2, dim=0) - 1
+        locations1 = fused_cumsum_sub_one(mask1)
+        locations2 = fused_cumsum_sub_one(mask2)
         # Update 2nd's location by accounting for locations of 1st
         locations2 += torch.sum(mask1, dim=0, keepdim=True)
 
@@ -144,6 +145,7 @@ def top2gating(
     metadata["overflow_expert2"] = 100 * torch.sum(mask2 * torch.ge(locations2, capacity)) / torch.sum(mask2)
 
     # Remove locations outside capacity from mask
+    mask1_, mask2_ = mask1, mask2
     mask1 = mask1 * torch.lt(locations1, capacity)
     mask2 = mask2 * torch.lt(locations2, capacity)
 
@@ -164,10 +166,6 @@ def top2gating(
     metadata["expert2_balance_top"] = expert2_hist[:sample_count].sum()
     metadata["expert2_balance_bottom"] = expert2_hist[-sample_count:].sum()
 
-    # Store the capacity location for each token
-    locations1_s = torch.sum(locations1 * mask1, dim=1)
-    locations2_s = torch.sum(locations2 * mask2, dim=1)
-
     if not normalize_gate_prob_before_dropping:
         # Normalize gate probabilities
         gates1_s = (gates * mask1).sum(dim=1)
@@ -177,6 +175,15 @@ def top2gating(
         denom_s = torch.clamp(denom_s, min=torch.finfo(denom_s.dtype).eps)
         gates1_s /= denom_s
         gates2_s /= denom_s
+
+    if has_tutel:
+        locations1_s = torch.sum(locations1 * mask1_, dim=1)
+        locations2_s = torch.sum(locations2 * mask2_, dim=1)
+        return l_aux, metadata, capacity, num_experts, [indices1_s, indices2_s], [locations1_s, locations2_s], [gates1_s, gates2_s]
+
+    # Store the capacity location for each token
+    locations1_s = torch.sum(locations1 * mask1, dim=1)
+    locations2_s = torch.sum(locations2 * mask2, dim=1)
 
     # Calculate combine_weights and dispatch_mask
     gates1 = gates1_s.unsqueeze(-1) * mask1.to(gates1_s.dtype)  # einsum("s,se->se")
