@@ -187,8 +187,10 @@ class Wav2VecCtc(BaseFairseqModel):
                 raise Exception(f"invalid blank mode {self.blank_mode}")
 
         if net_output["padding_mask"] is not None and net_output["padding_mask"].any():
-            logits[net_output["padding_mask"].T][..., 0] = float("inf")
-            logits[net_output["padding_mask"].T][..., 1:] = float("-inf")
+            number_of_classes = logits.size(-1)
+            masking_tensor = torch.ones(number_of_classes) * float("-inf")
+            masking_tensor[0] = float("inf")
+            logits[net_output["padding_mask"].T] = masking_tensor.type_as(logits)
 
         if normalize:
             logits = utils.log_softmax(logits.float(), dim=-1)
