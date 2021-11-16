@@ -326,6 +326,8 @@ class SpeechTextJointToTextTask(SpeechToTextTask):
         epoch=0,
         data_buffer_size=0,
         disable_iterator_cache=False,
+        grouped_shuffling=False,
+        update_epoch_batch_itr=False,
     ):
 
         if not isinstance(dataset, MultiModalityDataset):
@@ -343,6 +345,7 @@ class SpeechTextJointToTextTask(SpeechToTextTask):
                 epoch,
                 data_buffer_size,
                 disable_iterator_cache,
+                update_epoch_batch_itr=update_epoch_batch_itr,
             )
 
         mult_ratio = [self.args.speech_sample_ratio, self.args.text_sample_ratio]

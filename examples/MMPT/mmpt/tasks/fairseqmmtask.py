@@ -68,6 +68,8 @@ class FairseqMMTask(LegacyFairseqTask):
         epoch=1,
         data_buffer_size=0,
         disable_iterator_cache=False,
+        grouped_shuffling=False,
+        update_epoch_batch_itr=False,
     ):
         random.seed(epoch)
         if dataset.mmdataset.split == "train" \
@@ -81,7 +83,8 @@ class FairseqMMTask(LegacyFairseqTask):
             dataset, max_tokens, max_sentences, max_positions,
             ignore_invalid_inputs, required_batch_size_multiple,
             seed, num_shards, shard_id, num_workers, epoch,
-            data_buffer_size, disable_iterator_cache)
+            data_buffer_size, disable_iterator_cache,
+            grouped_shuffling, update_epoch_batch_itr)
 
     @property
     def source_dictionary(self):

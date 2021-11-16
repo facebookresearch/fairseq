@@ -540,6 +540,24 @@ class DatasetConfig(FairseqDataclass):
     shard_id: int = field(
         default=0, metadata={"help": "id of the shard to generate (id < num_shards)"}
     )
+    grouped_shuffling: bool = field(
+        default=False,
+        metadata={
+            "help": "shuffle batches in groups of num_shards to enable similar sequence lengths on each GPU worker when batches are sorted by length",
+        },
+    )
+    update_epoch_batch_itr: bool = field(
+        default=II("dataset.grouped_shuffling"),
+        metadata={
+            "help": "if true then prevents the reuse the epoch batch iterator by setting can_reuse_epoch_itr to false, defaults to --grouped-shuffling )",
+        },
+    )
+    update_ordered_indices_seed: bool = field(
+        default=False,
+        metadata={
+            "help": "if true then increment seed with epoch for getting batch iterators, defautls to False.",
+        }
+    )
 
 
 @dataclass
