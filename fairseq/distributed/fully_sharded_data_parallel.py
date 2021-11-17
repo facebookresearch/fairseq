@@ -97,7 +97,7 @@ def fsdp_enable_wrap(cfg: DistributedTrainingConfig):
         "reshard_after_forward": not cfg.no_reshard_after_forward,
         "mixed_precision": cfg.fp16 and not cfg.memory_efficient_fp16,
         "fp32_reduce_scatter": cfg.fp32_reduce_scatter,
-        "flatten_parameters": True,
+        "flatten_parameters": not cfg.not_fsdp_flatten_parameters,
         "cpu_offload": cfg.cpu_offload,
         "compute_dtype": torch.float16 if cfg.fp16 else torch.float32,
         "bucket_cap_mb": cfg.bucket_cap_mb,

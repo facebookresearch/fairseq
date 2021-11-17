@@ -25,8 +25,10 @@ from fairseq.modules import (
     SamePad,
     TransposeLast,
 )
+from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from fairseq.utils import buffered_arange, index_put, is_xla_tensor
+from fairseq.distributed import fsdp_wrap
 
 
 EXTRACTOR_MODE_CHOICES = ChoiceEnum(["default", "layer_norm"])
@@ -229,6 +231,9 @@ class Wav2Vec2Config(FairseqDataclass):
         },
     )
 
+    checkpoint_activations: bool = field(
+        default=False, metadata={"help": "recompute activations and save memory for extra compute"}
+    )
 
 @register_model("wav2vec2", dataclass=Wav2Vec2Config)
 class Wav2Vec2Model(BaseFairseqModel):
@@ -836,9 +841,9 @@ class TransformerEncoder(nn.Module):
         self.pos_conv = nn.utils.weight_norm(self.pos_conv, name="weight", dim=2)
         self.pos_conv = nn.Sequential(self.pos_conv, SamePad(args.conv_pos), nn.GELU())
 
-        self.layers = nn.ModuleList(
-            [
-                TransformerSentenceEncoderLayer(
+        layers = []
+        for _ in range(args.encoder_layers):
+            layer = TransformerSentenceEncoderLayer(
                     embedding_dim=self.embedding_dim,
                     ffn_embedding_dim=args.encoder_ffn_embed_dim,
                     num_attention_heads=args.encoder_attention_heads,
@@ -847,10 +852,12 @@ class TransformerEncoder(nn.Module):
                     activation_dropout=args.activation_dropout,
                     activation_fn=args.activation_fn,
                     layer_norm_first=args.layer_norm_first,
-                )
-                for _ in range(args.encoder_layers)
-            ]
-        )
+            )
+            if args.checkpoint_activations:
+                layer = fsdp_wrap(layer)
+                layer = checkpoint_wrapper(layer)
+            layers.append(layer)
+        self.layers = nn.ModuleList(layers)
 
         self.layer_norm_first = args.layer_norm_first
         self.layer_norm = LayerNorm(self.embedding_dim)

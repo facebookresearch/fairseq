@@ -436,7 +436,9 @@ class DistributedTrainingConfig(FairseqDataclass):
     use_sharded_state: bool = field(
         default=False, metadata={"help": "use sharded checkpoint files"},
     )
-
+    not_fsdp_flatten_parameters: bool = field(
+        default=False, metadata={"help": "not flatten parameter param for fsdp"},
+    )
 
 @dataclass
 class DatasetConfig(FairseqDataclass):
