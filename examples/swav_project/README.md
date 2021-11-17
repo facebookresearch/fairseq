@@ -27,10 +27,13 @@ This project has 3 contribution:
 ```bash
 # STEP 0 -- data preprocess
 # For XLM model adapted from XLM codebase
-#   use fairseq-preprocess with --xlm-mode or python examples/swav_project/scripts/xlm_preprocess.py
+#   use python examples/swav_project/scripts/xlm_preprocess.py
 # 0.0: follow data preprocessing step from https://github.com/facebookresearch/XLM
-# 0.1: convert the monolingual process into fairseq with
-#   fairseq-preprocess with --xlm-mode, python examples/swav_project/scripts/xlm_preprocess.py
+#   must use the dictionary and bpe code provided by XLM paper
+#   retrieve the tokenized monolingual data and valid and test data
+# 0.1: convert the raw (tokenized) monolingual data into fairseq binary with
+#   python examples/swav_project/scripts/xlm_preprocess.py
+#       this script will build XLM custom dictionary, in which the order of <bos> and <eos> is swapped.
 # 0.2: position the binary files into per-language folder:
 #   data:
 #       |-- en
@@ -262,6 +265,35 @@ fairseq-train ${data} \
     --skip-invalid-size-inputs-valid-test --save-interval-updates 1000 \
     --keep-last-epochs 1 --eval-bleu-bwd --valid-subset valid \
     --best-checkpoint-metric bleu --maximize-best-checkpoint-metric --fp16
+
+
+# STEP 6: inference MT model
+#   may need to tune --lenpen
+
+export save_dir=/checkpoint/nxphi/testing/umtout_${src}${tgt}
+export ckpt=${save_dir}/checkpoint_best.pt
+
+# src->tgt
+fairseq-generate ${data} \
+    --user-dir examples/swav_project/swav_src \
+    --dataset-impl mmap \
+    --path ${ckpt} \
+    --gen-subset test \
+    --task umt_augpara_score_online_backtranslation_xlm \
+    --mono-langs ${src},${tgt} --valid-lang-pairs ${src}-${tgt} \
+    --scoring bleu \
+    --remove-bpe --max-tokens 6000 --beam 5 --lenpen 0.6 --quiet
+
+# tgt->src
+fairseq-generate ${data} \
+    --user-dir examples/swav_project/swav_src \
+    --dataset-impl mmap \
+    --path ${ckpt} \
+    --gen-subset test \
+    --task umt_augpara_score_online_backtranslation_xlm \
+    --mono-langs ${src},${tgt} --valid-lang-pairs ${tgt}-${src} \
+    --scoring bleu \
+    --remove-bpe --max-tokens 6000 --beam 5 --lenpen 0.6 --quiet
 
 
 ```
