@@ -54,6 +54,9 @@ export ckptdir=
 export ckptdir=<where the finetuned langag model is>
 export ckptdir=/checkpoint/nxphi/testing/finetuned_swav_model
 
+# NOTE: try to use as many physical GPUs as possible. Due to batch level SwAV loss computation, 
+#   using update-freq=2 on 8 GPUs is NOT the same as 16 GPUs (distributed)
+#   ideally, use 32 physical GPUs
 fairseq-train ${data} \
     --user-dir examples/swav_project/swav_src \
     --save-dir ${ckptdir} \
@@ -70,7 +73,7 @@ fairseq-train ${data} \
     --tokens-per-sample 512 \
     --optimizer adam --adam-betas '(0.9, 0.98)' --adam-eps 1e-06 \
     --clip-norm 0.0 --lr-scheduler polynomial_decay --lr 0.0001 \
-    --warmup-updates 10000 --total-num-update 125000 --max-update 125000 \
+    --warmup-updates 10000 --total-num-update 125000 --max-update 20000 \
     --emb_dim 1024 --n_layers 6 --n_heads 8 --gelu_activation true --dropout 0.1 \
     --attention_dropout 0.1 --multilang-sampling-alpha 0.01 --max-tokens 3584 --update-freq 1 \
     --log-format json --log-interval 100 --skip-invalid-size-inputs-valid-test \
