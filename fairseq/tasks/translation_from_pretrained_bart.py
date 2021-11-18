@@ -26,7 +26,7 @@ class TranslationFromPretrainedBARTConfig(TranslationConfig):
         },
     )
 
-    preprend_bos: bool = field(
+    prepend_bos: bool = field(
         default=False,
         metadata={
             "help": "prepend bos token to each sentence, which matches "
