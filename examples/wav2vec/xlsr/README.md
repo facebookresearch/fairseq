@@ -1,6 +1,6 @@
 # XLS-R
 
-XLS-R is a set of large-scale models for self-supervised cross-lingual speech representation learning based on wav2vec 2.0. It was pretrained on 128 languages and approximately 436K hours of unlabeled speech data. With finetuning, these models achieve state of the art performance in speech translation, speech recognition and language identification. We evaluate the model across multiple benchmarks such as CoVoST-2 for speech translation, BABEL / MLS / CommonVoice / VoxPopuli for automatic speech recognition, and VoxLingua107 for language identification as we llas VoxCeleb1 for speaker identification. More details about this work can be found in our [paper](https://link-to-xlsr-paper.com)
+XLS-R is a set of large-scale models for self-supervised cross-lingual speech representation learning based on wav2vec 2.0. It was pretrained on 128 languages and approximately 436K hours of unlabeled speech data. With finetuning, these models achieve state of the art performance in speech translation, speech recognition and language identification. We evaluate the model across multiple benchmarks such as CoVoST-2 for speech translation, BABEL / MLS / CommonVoice / VoxPopuli for automatic speech recognition, and VoxLingua107 for language identification as we llas VoxCeleb1 for speaker identification. More details about this work can be found in our [paper](https://arxiv.org/pdf/2111.09296.pdf) and download links can be found below.
 
 Model | Link
 |------|------
@@ -8,7 +8,7 @@ XLS-R 300M | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/xlsr2_300
 XLS-R 1B | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/xlsr2_960m_1000k.pt)
 XLS-R 2B | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/xlsr2_2B_1000k.pt)
 
-You can find these models [here](https://huggingface.co/models?other=xls_r) with Hugging Face.
+You can also download these models [here](https://huggingface.co/models?other=xls_r) and read more about it in the [blogpost](https://huggingface.co/blog/fine-tune-xlsr-wav2vec2) from Hugging Face.
 
 ## Speech Translation Finetuned Models
 
@@ -56,13 +56,13 @@ For finetuning the 2B model, we make some additional changes for `finetune.yaml`
 Please cite as:
 
 ``` bibtex
-@inproceedings{xx,
-  title = {XLSR},
-  author = {placeholder},
-  booktitle = {placeholder},
-  year = {2019},
+@article{babu2021xlsr,
+      title={XLS-R: Self-supervised Cross-lingual Speech Representation Learning at Scale}, 
+      author={Arun Babu and Changhan Wang and Andros Tjandra and Kushal Lakhotia and Qiantong Xu and Naman Goyal and Kritika Singh and Patrick von Platen and Yatharth Saraf and Juan Pino and Alexei Baevski and Alexis Conneau and Michael Auli},
+      year={2021},
+      volume={abs/2111.09296},
+      journal={arXiv},
 }
 ```
-
 
 
