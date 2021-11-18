@@ -639,13 +639,17 @@ class Trainer(object):
             ),
             ignore_invalid_inputs=True,
             required_batch_size_multiple=self.cfg.dataset.required_batch_size_multiple,
-            seed=self.cfg.common.seed,
+            seed=(self.cfg.common.seed + epoch)
+            if self.cfg.dataset.update_ordered_indices_seed
+            else self.cfg.common.seed,
             num_shards=self.data_parallel_world_size if shard_batch_itr else 1,
             shard_id=self.data_parallel_rank if shard_batch_itr else 0,
             num_workers=self.cfg.dataset.num_workers,
             epoch=epoch,
             data_buffer_size=self.cfg.dataset.data_buffer_size,
             disable_iterator_cache=disable_iterator_cache,
+            grouped_shuffling=self.cfg.dataset.grouped_shuffling,
+            update_epoch_batch_itr=self.cfg.dataset.update_epoch_batch_itr,
         )
         self.reset_dummy_batch(batch_iterator.first_batch)
         return batch_iterator
@@ -855,7 +859,7 @@ class Trainer(object):
             if not self.tpu:
                 if (
                     not self.cfg.optimization.use_bmuf
-                    and self.cfg.distributed_training.ddp_backend != "slow_mo"
+                    and self.cfg.distributed_training.ddp_backend != "slowmo"
                 ):
                     self._check_grad_norms(grad_norm)
                 if not torch.isfinite(grad_norm).all():
@@ -912,18 +916,14 @@ class Trainer(object):
 
         # Some distributed wrappers (e.g., SlowMo) need access to the optimizer
         # after the step
-        if hasattr(self.model, "perform_additional_optimizer_actions"):
-            if hasattr(self.optimizer, "fp32_params"):
-                self.model.perform_additional_optimizer_actions(
-                    self.optimizer.optimizer, self.optimizer.fp32_params
-                )
-            else:
-                self.model.perform_additional_optimizer_actions(
-                    self.optimizer.optimizer
-                )
+        if hasattr(self.model, "perform_slowmo"):
+            self.model.perform_slowmo(
+                self.optimizer.optimizer,
+                getattr(self.optimizer, "fp32_params", None)
+            )
 
         logging_output = None
-        if not overflow or self.cfg.distributed_training.ddp_backend == "slow_mo":
+        if not overflow or self.cfg.distributed_training.ddp_backend == "slowmo":
             self.set_num_updates(self.get_num_updates() + 1)
 
             if self.cfg.ema.store_ema:

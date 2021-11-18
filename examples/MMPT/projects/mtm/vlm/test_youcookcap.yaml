@@ -1,0 +1,32 @@
+slurm_config: big
+task_type: local_predict
+dataset:
+  split: test
+  video_processor: YoucookVideoProcessor
+  aligner: DSNLGAligner
+  bert_name: bert-base-uncased
+  meta_processor: YoucookNLGMetaProcessor
+  test_path: data/youcook/val_list.txt
+  trainval_annotation: data/youcook/youcookii_annotations_trainval.json
+  vfeat_dir: data/feat/feat_youcook_s3d
+  text_processor: NLGTextProcessor
+  max_video_len: 32
+  max_len: 96
+fairseq:
+  dataset:
+    batch_size: 256
+    valid_subset: test
+    num_workers: 2
+  common_eval:
+    path: runs/mtm/vlm/youcookcap/checkpoint_best.pt
+model:
+  model_cls: MMFusionNLG
+  mm_encoder_cls: MMBertForNLG
+  max_decode_length: 24
+  use_seg_emb: true
+eval:
+  save_path: runs/mtm/vlm/youcookcap/eval
+metric: NLGMetric
+predictor: NLGPredictor
+gen_param:
+  num_beams: 5

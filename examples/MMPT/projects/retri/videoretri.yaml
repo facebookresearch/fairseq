@@ -1,0 +1,51 @@
+includes: projects/mfmmlm.yaml
+project_dir: retri/videoretri
+run_task:
+  - how2.yaml
+task_group:
+  pretrain:
+    task: VideoRetriTask
+    retri_epoch: 1
+    vectorpool_cls: VideoVectorPool
+    retriever_cls: VectorRetriever
+    num_cands: 64
+    dataset:
+      train_path: data/how2/how2_s3d_train.lst
+      meta_processor: ShardedHow2VideoRetriMetaProcessor
+      video_processor: ShardedVideoRetriVideoProcessor
+      text_processor: ShardedVideoRetriTextProcessor
+      aligner: VideoRetriOverlappedAligner
+      sampled_video_min_len: 3
+      sampled_video_max_len: 32
+      sampled_min_len: 8
+      sampled_max_len: 64
+      num_video_per_batch: 32
+      # do not use subsampling as it changes fairseq batch_size.
+      subsampling: 1 # disable subsampling
+      clip_per_video: 16
+    fairseq:
+      dataset:
+        batch_size: 1
+      optimization:
+        max_epoch: 25
+    model:
+      model_cls: MMFusionShare
+      mm_encoder_cls: MMBertForEncoder
+    loss:
+      loss_cls: MMContraLoss
+  finetune:
+    task_list: [vtt_videoclip.yaml, youcook_videoclip.yaml, vttqa_videoclip.yaml, crosstask_videoclip.yaml, coin_videoclip.yaml]
+  test:
+    task_list:
+      - test_youcook_zs.yaml
+      - test_vtt_zs.yaml
+      - test_vttqa_zs.yaml
+      - test_crosstask_zs_videoclip.yaml
+      - test_coin_zs.yaml
+      - test_didemo_zs.yaml
+      - test_youcook_videoclip.yaml
+      - test_vtt_videoclip.yaml
+      - test_vttqa_videoclip.yaml
+      - test_crosstask_videoclip.yaml
+      - test_coin_videoclip.yaml
+ 

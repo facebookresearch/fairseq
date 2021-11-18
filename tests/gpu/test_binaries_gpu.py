@@ -32,15 +32,32 @@ class TestTranslationGPU(unittest.TestCase):
         logging.disable(logging.NOTSET)
 
     def test_fp16_multigpu(self):
+        self._test_multigpu(
+            "test_fp16", ["--fp16"]
+        )
+
+    def test_slowmo_multigpu(self):
+        self._test_multigpu(
+            "test_slowmo",
+            ["--ddp-backend", "slowmo", "--nprocs-per-node", "1"]
+        )
+
+    def test_slowmo_single_node_multigpu(self):
+        self._test_multigpu(
+            "test_slowmo_single_node",
+            ["--ddp-backend", "slowmo", "--nprocs-per-node", "2"]
+        )
+
+    def _test_multigpu(self, test_name, test_args):
         with contextlib.redirect_stdout(StringIO()):
-            with tempfile.TemporaryDirectory("test_fp16") as data_dir:
+            with tempfile.TemporaryDirectory(test_name) as data_dir:
                 log = os.path.join(data_dir, "train.log")
                 create_dummy_data(data_dir)
                 preprocess_translation_data(data_dir)
                 train_translation_model(
                     data_dir,
                     "fconv_iwslt_de_en",
-                    ["--fp16", "--log-file", log],
+                    test_args + ["--log-file", log],
                     world_size=min(torch.cuda.device_count(), 2),
                 )
                 generate_main(data_dir)

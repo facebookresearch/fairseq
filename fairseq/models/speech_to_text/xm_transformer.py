@@ -15,6 +15,7 @@ from fairseq.models.transformer import Embedding, TransformerDecoder
 from fairseq.models.wav2vec import Wav2VecEncoder
 from fairseq.modules.layer_norm import LayerNorm
 from fairseq.data.data_utils import lengths_to_padding_mask
+from fairseq.utils import safe_hasattr
 from torch import Tensor
 import torch.nn as nn
 
@@ -203,7 +204,7 @@ class Wav2VecEncoderWithAdaptor(FairseqEncoder):
         )
         for k, p in self.w2v_encoder.w2v_model.named_parameters():
             # Freeze pretrained models by default
-            if hasattr(args, 'finetune_w2v_params') and XMTransformerModel.finetune_params(
+            if safe_hasattr(args, 'finetune_w2v_params') and XMTransformerModel.finetune_params(
                     args.finetune_w2v_params, k):
                 p.requires_grad = True
             else:
@@ -349,7 +350,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             )
         for k, p in decoder.named_parameters():
             # Freeze pretrained models by default
-            if hasattr(args, 'finetune_decoder_params') and XMTransformerModel.finetune_params(
+            if safe_hasattr(args, 'finetune_decoder_params') and XMTransformerModel.finetune_params(
                     args.finetune_decoder_params, k):
                 p.requires_grad = True
             else:

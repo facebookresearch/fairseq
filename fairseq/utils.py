@@ -536,6 +536,9 @@ def deprecation_warning(message, stacklevel=3):
     # don't use DeprecationWarning, since it's ignored by default
     warnings.warn(message, stacklevel=stacklevel)
 
+def relu_squared(x: torch.Tensor):
+    return F.relu(x).pow(2)
+
 
 def get_activation_fn(activation: str) -> Callable:
     """Returns the activation function corresponding to `activation`"""
@@ -543,6 +546,8 @@ def get_activation_fn(activation: str) -> Callable:
 
     if activation == "relu":
         return F.relu
+    elif activation == "relu_squared":
+        return relu_squared
     elif activation == "gelu":
         return gelu
     elif activation == "gelu_fast":
@@ -812,3 +817,18 @@ def reset_logging():
         )
     )
     root.addHandler(handler)
+
+
+def safe_getattr(obj, k, default=None):
+    """Returns obj[k] if it exists and is not None, otherwise returns default."""
+    from omegaconf import OmegaConf
+
+    if OmegaConf.is_config(obj):
+        return obj[k] if k in obj and obj[k] is not None else default
+
+    return getattr(obj, k, default)
+
+
+def safe_hasattr(obj, k):
+    """Returns True if the given key exists and is not None."""
+    return getattr(obj, k, None) is not None

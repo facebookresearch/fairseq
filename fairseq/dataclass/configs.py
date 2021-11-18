@@ -338,8 +338,14 @@ class DistributedTrainingConfig(FairseqDataclass):
             "0.2 for 32 GPUs; 0.5 for 64 GPUs, 0.6 for > 64 GPUs"
         },
     )
-    slowmo_algorithm: str = field(
-        default="LocalSGD", metadata={"help": "whether to use LocalSGD or SGP"}
+    slowmo_base_algorithm: str = field(
+        default="localsgd",
+        metadata={
+            "help": "Base algorithm. Either 'localsgd' or 'sgp'. Please refer "
+            "to the documentation of 'slowmo_base_algorithm' parameter in "
+            "https://fairscale.readthedocs.io/en/latest/api/experimental/nn/slowmo_ddp.html "
+            "for more details"
+        },
     )
     localsgd_frequency: int = field(
         default=3, metadata={"help": "Local SGD allreduce frequency"}
@@ -430,7 +436,9 @@ class DistributedTrainingConfig(FairseqDataclass):
     use_sharded_state: bool = field(
         default=False, metadata={"help": "use sharded checkpoint files"},
     )
-
+    not_fsdp_flatten_parameters: bool = field(
+        default=False, metadata={"help": "not flatten parameter param for fsdp"},
+    )
 
 @dataclass
 class DatasetConfig(FairseqDataclass):
@@ -533,6 +541,24 @@ class DatasetConfig(FairseqDataclass):
     )
     shard_id: int = field(
         default=0, metadata={"help": "id of the shard to generate (id < num_shards)"}
+    )
+    grouped_shuffling: bool = field(
+        default=False,
+        metadata={
+            "help": "shuffle batches in groups of num_shards to enable similar sequence lengths on each GPU worker when batches are sorted by length",
+        },
+    )
+    update_epoch_batch_itr: bool = field(
+        default=II("dataset.grouped_shuffling"),
+        metadata={
+            "help": "if true then prevents the reuse the epoch batch iterator by setting can_reuse_epoch_itr to false, defaults to --grouped-shuffling )",
+        },
+    )
+    update_ordered_indices_seed: bool = field(
+        default=False,
+        metadata={
+            "help": "if true then increment seed with epoch for getting batch iterators, defautls to False.",
+        }
     )
 
 

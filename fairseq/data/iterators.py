@@ -55,8 +55,10 @@ class CountingIterator(object):
         try:
             x = next(self._itr)
         except StopIteration:
-            raise IndexError(f"Iterator expected to have length {self.total}, "
-                             "but exhausted at position {self.n}.")
+            raise IndexError(
+                f"Iterator expected to have length {self.total}, "
+                "but exhausted at position {self.n}."
+            )
         self.n += 1
         return x
 
@@ -263,6 +265,9 @@ class EpochBatchIterator(EpochBatchIterating):
             from workers. Should always be non-negative (default: ``0``).
         disable_shuffling (bool, optional): force disable shuffling
             (default: ``False``).
+        grouped_shuffling (bool, optional): enable shuffling batches in groups
+            of num_shards. Ensures that each GPU receives similar length sequences when
+            batches are sorted by length.
     """
 
     def __init__(
@@ -278,6 +283,7 @@ class EpochBatchIterator(EpochBatchIterating):
         buffer_size=0,
         timeout=0,
         disable_shuffling=False,
+        grouped_shuffling=False,
     ):
         assert isinstance(dataset, torch.utils.data.Dataset)
         self.dataset = dataset
@@ -295,6 +301,7 @@ class EpochBatchIterator(EpochBatchIterating):
         self.buffer_size = min(buffer_size, 20)
         self.timeout = timeout
         self.disable_shuffling = disable_shuffling
+        self.grouped_shuffling = grouped_shuffling
 
         self.epoch = max(epoch, 1)  # we use 1-based indexing for epochs
         self.shuffle = not disable_shuffling
@@ -433,7 +440,17 @@ class EpochBatchIterator(EpochBatchIterating):
     ):
         def shuffle_batches(batches, seed):
             with data_utils.numpy_seed(seed):
-                np.random.shuffle(batches)
+
+                if self.grouped_shuffling:
+                    grouped_batches = [
+                        batches[(i * self.num_shards) : ((i + 1) * self.num_shards)]
+                        for i in range((len(batches) // self.num_shards))
+                    ]
+                    np.random.shuffle(grouped_batches)
+                    batches = list(itertools.chain(*grouped_batches))
+                else:
+                    np.random.shuffle(batches)
+
             return batches
 
         if self._supports_prefetch:
@@ -638,6 +655,7 @@ class BufferedIterator(object):
         if item is _sentinel:
             raise StopIteration()
         return item
+
 
 class GroupedEpochBatchIterator(EpochBatchIterator):
     """Grouped version of EpochBatchIterator

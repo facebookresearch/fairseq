@@ -117,7 +117,13 @@ try:
                 sources=[
                     "fairseq/clib/libnat/edit_dist.cpp",
                 ],
-            )
+            ),
+            cpp_extension.CppExtension(
+                "alignment_train_cpu_binding",
+                sources=[
+                    "examples/operators/alignment_train_cpu.cpp",
+                ],
+            ),
         ]
     )
     if "CUDA_HOME" in os.environ:
@@ -135,6 +141,13 @@ try:
                     sources=[
                         "fairseq/clib/cuda/ngram_repeat_block_cuda.cpp",
                         "fairseq/clib/cuda/ngram_repeat_block_cuda_kernel.cu",
+                    ],
+                ),
+                cpp_extension.CppExtension(
+                    "alignment_train_cuda_binding",
+                    sources=[
+                        "examples/operators/alignment_train_kernel.cu",
+                        "examples/operators/alignment_train_cuda.cpp",
                     ],
                 ),
             ]

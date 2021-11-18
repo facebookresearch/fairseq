@@ -23,6 +23,7 @@ model = models[0]
 Follow the steps in `./simple_kmeans` to create:
 - `{train,valid}.tsv` waveform list files
 - `{train,valid}.km` frame-aligned pseudo label files.
+- `dict.km.txt` a dummy dictionary
 The `label_rate` is the same as the feature frame rate used for clustering,
 which is 100Hz for MFCC features and 50Hz for HuBERT features by default.
 
@@ -36,7 +37,7 @@ To train a base model (12 layer transformer), run:
 $ python fairseq_cli/hydra_train.py \
   --config-dir /path/to/fairseq-py/examples/hubert/config/pretrain \
   --config-name hubert_base_librispeech \
-  task.data=/path/to/data task.label_dir=/path/to/labels model.label_rate=100
+  task.data=/path/to/data task.label_dir=/path/to/labels task.labels='["km"]' model.label_rate=100
 ```
 
 ### Fine-tune a HuBERT model with a CTC loss

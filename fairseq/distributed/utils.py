@@ -662,7 +662,7 @@ def all_reduce_dict(data: Mapping[str, Any], device, group) -> Dict[str, Any]:
             return data
         buf = torch.cat([t.view(-1) for t in data.values()]).to(device=device)
         all_reduce(buf, group=group)
-        split_buf = torch.split(buf, [t.numel() for t in data.values()])
+        split_buf = torch.split(buf.clone(), [t.numel() for t in data.values()])
         reduced_data = [t.view_as(orig) for t, orig in zip(split_buf, data.values())]
         return OrderedDict(zip(data.keys(), reduced_data))
 

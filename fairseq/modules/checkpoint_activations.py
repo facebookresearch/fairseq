@@ -46,6 +46,9 @@ def unwrap_checkpoint(m: torch.nn.Module):
         if hasattr(module, "precheckpoint_forward"):
             module.forward = module.precheckpoint_forward
             del module.precheckpoint_forward
+        if hasattr(module, "old_deepcopy_method"):
+            module.__deepcopy__ = module.old_deepcopy_method
+            del module.old_deepcopy_method
     return m
 
 
