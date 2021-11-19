@@ -390,6 +390,9 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             self._future_mask.size(0) == 0
             or (not self._future_mask.device == tensor.device)
             or self._future_mask.size(0) < dim
+            # Ensure tracing always includes the initialization,
+            # since it doesn't correctly handle the conditional.
+            or self.onnx_trace
         ):
             self._future_mask = torch.triu(
                 utils.fill_with_neg_inf(torch.zeros([dim, dim])), 1
