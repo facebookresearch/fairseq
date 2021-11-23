@@ -63,4 +63,4 @@ model:
   feature_grad_mult: 0.0
   freeze_finetune_updates: 10000
 
-  checkpoint_activation: false
+  checkpoint_activations: false
