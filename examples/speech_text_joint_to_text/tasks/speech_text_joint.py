@@ -21,7 +21,10 @@ from fairseq.data.audio.multi_modality_dataset import (
     LangPairMaskDataset,
     ModalityDatasetItem,
 )
-from fairseq.data.audio.speech_to_text_dataset import SpeechToTextDataset, SpeechToTextDatasetCreator
+from fairseq.data.audio.speech_to_text_dataset import (
+    SpeechToTextDataset,
+    SpeechToTextDatasetCreator,
+)
 from fairseq.data.audio.speech_to_text_joint_dataset import (
     S2TJointDataConfig,
     SpeechToTextJointDatasetCreator,
@@ -89,9 +92,7 @@ class SpeechTextJointToTextTask(SpeechToTextTask):
             help="use mixed data in one update when update-freq  > 1",
         )
         parser.add_argument(
-            "--load-speech-only",
-            action="store_true",
-            help="load speech data only",
+            "--load-speech-only", action="store_true", help="load speech data only",
         )
         parser.add_argument(
             "--mask-text-ratio",
@@ -160,7 +161,9 @@ class SpeechTextJointToTextTask(SpeechToTextTask):
             assert infer_tgt_lang_id != tgt_dict.unk()
         return cls(args, src_dict, tgt_dict, infer_tgt_lang_id=infer_tgt_lang_id)
 
-    def load_langpair_dataset(self, prepend_tgt_lang_tag=False, sampling_alpha=1.0, epoch=0):
+    def load_langpair_dataset(
+        self, prepend_tgt_lang_tag=False, sampling_alpha=1.0, epoch=0
+    ):
         lang_pairs = []
         text_dataset = None
         split = "train"
@@ -200,9 +203,7 @@ class SpeechTextJointToTextTask(SpeechToTextTask):
                     alpha=sampling_alpha,
                 )
                 lang_pairs = [
-                    ResamplingDataset(
-                        d, size_ratio=r, epoch=epoch, replace=(r >= 1.0)
-                    )
+                    ResamplingDataset(d, size_ratio=r, epoch=epoch, replace=(r >= 1.0))
                     for d, r in zip(lang_pairs, size_ratios)
                 ]
             return ConcatDataset(lang_pairs)
@@ -257,9 +258,7 @@ class SpeechTextJointToTextTask(SpeechToTextTask):
         text_dataset = None
         if self.args.parallel_text_data != "" and is_train_split:
             text_dataset = self.load_langpair_dataset(
-                self.data_cfg.prepend_tgt_lang_tag_no_change,
-                1.0,
-                epoch=epoch,
+                self.data_cfg.prepend_tgt_lang_tag_no_change, 1.0, epoch=epoch,
             )
             if self.args.mask_text_ratio > 0:
                 # add mask
@@ -326,6 +325,7 @@ class SpeechTextJointToTextTask(SpeechToTextTask):
         epoch=0,
         data_buffer_size=0,
         disable_iterator_cache=False,
+        skip_remainder_batch=False,
         grouped_shuffling=False,
         update_epoch_batch_itr=False,
     ):
@@ -345,6 +345,7 @@ class SpeechTextJointToTextTask(SpeechToTextTask):
                 epoch,
                 data_buffer_size,
                 disable_iterator_cache,
+                skip_remainder_batch=skip_remainder_batch,
                 update_epoch_batch_itr=update_epoch_batch_itr,
             )
 

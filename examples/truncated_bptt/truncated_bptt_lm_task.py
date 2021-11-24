@@ -29,8 +29,7 @@ logger = logging.getLogger(__name__)
 class TruncatedBPTTLMConfig(FairseqDataclass):
     data: str = field(default="???", metadata={"help": "path to data directory"})
     tokens_per_sample: int = field(
-        default=1024,
-        metadata={"help": "max number of tokens per sequence"},
+        default=1024, metadata={"help": "max number of tokens per sequence"},
     )
     batch_size: int = II("dataset.batch_size")
     # Some models use *max_target_positions* to know how many positional
@@ -103,7 +102,13 @@ class TruncatedBPTTLMTask(FairseqTask):
         return self.datasets[split]
 
     def get_batch_iterator(
-        self, dataset, num_workers=0, epoch=1, data_buffer_size=0, **kwargs
+        self,
+        dataset,
+        num_workers=0,
+        epoch=1,
+        data_buffer_size=0,
+        skip_remainder_batch=False,
+        **kwargs
     ):
         return iterators.EpochBatchIterator(
             dataset=dataset,
@@ -115,6 +120,7 @@ class TruncatedBPTTLMTask(FairseqTask):
             # instead every item in *dataset* is a whole batch
             batch_sampler=[[i] for i in range(len(dataset))],
             disable_shuffling=True,
+            skip_remainder_batch=skip_remainder_batch,
         )
 
     def _collate_fn(self, items: List[List[torch.Tensor]]):
@@ -134,10 +140,8 @@ class TruncatedBPTTLMTask(FairseqTask):
 
         # fairseq expects batches to have the following structure
         return {
-            "id": torch.tensor([id]*item.size(0)),
-            "net_input": {
-                "src_tokens": item,
-            },
+            "id": torch.tensor([id] * item.size(0)),
+            "net_input": {"src_tokens": item,},
             "target": target,
             "nsentences": item.size(0),
             "ntokens": item.numel(),

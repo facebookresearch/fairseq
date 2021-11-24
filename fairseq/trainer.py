@@ -64,6 +64,7 @@ class Trainer(object):
 
         if self.is_fsdp:
             import fairscale
+
             if self.cfg.common.bf16:
                 raise ValueError(
                     "FullyShardedDataParallel is not compatible with --bf16 or "
@@ -74,7 +75,10 @@ class Trainer(object):
                     "FullyShardedDataParallel is not compatible with --zero-sharding "
                     "option (it's already built in)"
                 )
-            if max(self.cfg.optimization.update_freq) > 1 and fairscale.__version__ < "0.4.0":
+            if (
+                max(self.cfg.optimization.update_freq) > 1
+                and fairscale.__version__ < "0.4.0"
+            ):
                 raise RuntimeError(
                     "Please update to fairscale 0.4.0 or newer when combining "
                     "--update-freq with FullyShardedDataParallel"
@@ -198,9 +202,7 @@ class Trainer(object):
     def use_distributed_wrapper(self) -> bool:
         return (
             self.data_parallel_world_size > 1 and not self.cfg.optimization.use_bmuf
-        ) or (
-            self.is_fsdp and self.cfg.distributed_training.cpu_offload
-        )
+        ) or (self.is_fsdp and self.cfg.distributed_training.cpu_offload)
 
     @property
     def should_save_checkpoint_on_current_rank(self) -> bool:
@@ -267,9 +269,7 @@ class Trainer(object):
     def _build_ema(self):
         if self.cfg.ema.store_ema:
             self._ema = build_ema(self._model, self.cfg.ema, self.device)
-            logger.info(
-                "Exponential Moving Average Shadow Model is initialized."
-            )
+            logger.info("Exponential Moving Average Shadow Model is initialized.")
 
     @property
     def optimizer(self):
@@ -320,7 +320,9 @@ class Trainer(object):
                 self._optimizer = optim.FP16Optimizer.build_optimizer(self.cfg, params)
         else:
             if self.cuda and torch.cuda.get_device_capability(0)[0] >= 7:
-                logger.info("NOTE: your device may support faster training with --fp16 or --amp")
+                logger.info(
+                    "NOTE: your device may support faster training with --fp16 or --amp"
+                )
             self._optimizer = optim.build_optimizer(self.cfg.optimizer, params)
 
         if self.is_fsdp:
@@ -335,10 +337,7 @@ class Trainer(object):
             )
 
         if self.cfg.optimization.use_bmuf:
-            self._optimizer = optim.FairseqBMUF(
-                self.cfg.bmuf,
-                self._optimizer,
-            )
+            self._optimizer = optim.FairseqBMUF(self.cfg.bmuf, self._optimizer,)
 
         if self.cfg.distributed_training.zero_sharding == "os":
             if (
@@ -356,8 +355,7 @@ class Trainer(object):
         # We should initialize the learning rate scheduler immediately after
         # building the optimizer, so that the initial learning rate is set.
         self._lr_scheduler = lr_scheduler.build_lr_scheduler(
-            self.cfg.lr_scheduler,
-            self.optimizer,
+            self.cfg.lr_scheduler, self.optimizer,
         )
         self._lr_scheduler.step_update(0)
 
@@ -579,18 +577,16 @@ class Trainer(object):
                         "EMA not found in checkpoint. But store_ema is True. "
                         "EMA is re-initialized from checkpoint."
                     )
-                    self.ema.restore(state["model"], build_fp32_params=self.cfg.ema.ema_fp32)
-                else:
-                    logger.info(
-                        "Loading EMA from checkpoint"
+                    self.ema.restore(
+                        state["model"], build_fp32_params=self.cfg.ema.ema_fp32
                     )
+                else:
+                    logger.info("Loading EMA from checkpoint")
                     self.ema.restore(extra_state["ema"], build_fp32_params=False)
 
                     if self.cfg.ema.ema_fp32:
                         if "ema_fp32_params" in extra_state:
-                            logger.info(
-                                "Loading EMA fp32 params from checkpoint"
-                            )
+                            logger.info("Loading EMA fp32 params from checkpoint")
                             self.ema.build_fp32_params(extra_state["ema_fp32_params"])
                         else:
                             logger.info(
@@ -648,6 +644,7 @@ class Trainer(object):
             epoch=epoch,
             data_buffer_size=self.cfg.dataset.data_buffer_size,
             disable_iterator_cache=disable_iterator_cache,
+            skip_remainder_batch=self.cfg.optimization.skip_remainder_batch,
             grouped_shuffling=self.cfg.dataset.grouped_shuffling,
             update_epoch_batch_itr=self.cfg.dataset.update_epoch_batch_itr,
         )
@@ -655,9 +652,7 @@ class Trainer(object):
         return batch_iterator
 
     def get_valid_iterator(
-        self,
-        subset,
-        disable_iterator_cache=False,
+        self, subset, disable_iterator_cache=False,
     ):
         """Return an EpochBatchIterator over given validation subset for a given epoch."""
         batch_iterator = self.task.get_batch_iterator(
@@ -665,8 +660,7 @@ class Trainer(object):
             max_tokens=self.cfg.dataset.max_tokens_valid,
             max_sentences=self.cfg.dataset.batch_size_valid,
             max_positions=utils.resolve_max_positions(
-                self.task.max_positions(),
-                self.model.max_positions(),
+                self.task.max_positions(), self.model.max_positions(),
             ),
             ignore_invalid_inputs=self.cfg.dataset.skip_invalid_size_inputs_valid_test,
             required_batch_size_multiple=self.cfg.dataset.required_batch_size_multiple,
@@ -679,6 +673,7 @@ class Trainer(object):
             epoch=1,
             data_buffer_size=self.cfg.dataset.data_buffer_size,
             disable_iterator_cache=disable_iterator_cache,
+            skip_remainder_batch=False,
         )
         self.reset_dummy_batch(batch_iterator.first_batch)
         return batch_iterator
@@ -812,10 +807,9 @@ class Trainer(object):
         # gather logging outputs from all replicas
         if self._sync_stats():
             train_time = self._local_cumulative_training_time()
-            logging_outputs, (
-                sample_size,
-                ooms,
-                total_train_time,
+            (
+                logging_outputs,
+                (sample_size, ooms, total_train_time,),
             ) = self._aggregate_logging_outputs(
                 logging_outputs, sample_size, ooms, train_time, ignore=is_dummy_batch
             )
@@ -882,7 +876,9 @@ class Trainer(object):
                         self._amp_retries = 0
                     else:
                         self._amp_retries += 1
-                        return self.train_step(samples, raise_oom)  # recursion to feed in same batch
+                        return self.train_step(
+                            samples, raise_oom
+                        )  # recursion to feed in same batch
 
         except FloatingPointError:
             # re-run the forward and backward pass with hooks attached to print
@@ -918,8 +914,7 @@ class Trainer(object):
         # after the step
         if hasattr(self.model, "perform_slowmo"):
             self.model.perform_slowmo(
-                self.optimizer.optimizer,
-                getattr(self.optimizer, "fp32_params", None)
+                self.optimizer.optimizer, getattr(self.optimizer, "fp32_params", None)
             )
 
         logging_output = None
@@ -929,8 +924,7 @@ class Trainer(object):
             if self.cfg.ema.store_ema:
                 # Step EMA forward with new model.
                 self.ema.step(
-                    self.get_model(),
-                    self.get_num_updates(),
+                    self.get_model(), self.get_num_updates(),
                 )
                 metrics.log_scalar(
                     "ema_decay",
@@ -1064,9 +1058,7 @@ class Trainer(object):
         # gather logging outputs from all replicas
         if self.data_parallel_world_size > 1:
             logging_outputs, (sample_size,) = self._aggregate_logging_outputs(
-                logging_outputs,
-                sample_size,
-                ignore=is_dummy_batch,
+                logging_outputs, sample_size, ignore=is_dummy_batch,
             )
 
         # log validation stats
@@ -1175,12 +1167,9 @@ class Trainer(object):
             )
             return total_norm ** 0.5
 
-        should_agg_norm = (
-            self.is_fsdp
-            and (
-                self.data_parallel_process_group is not None
-                or torch.distributed.is_initialized()
-            )
+        should_agg_norm = self.is_fsdp and (
+            self.data_parallel_process_group is not None
+            or torch.distributed.is_initialized()
         )
         return self.optimizer.clip_grad_norm(
             clip_norm, aggregate_norm_fn=agg_norm_fn if should_agg_norm else None
@@ -1240,8 +1229,10 @@ class Trainer(object):
 
         if self.cuda:
             if self.pipeline_model_parallel:
-                if 'target' in sample:
-                    sample['target'] = utils.move_to_cuda(sample['target'], device=self.last_device)
+                if "target" in sample:
+                    sample["target"] = utils.move_to_cuda(
+                        sample["target"], device=self.last_device
+                    )
             else:
                 sample = utils.move_to_cuda(sample)
         elif self.tpu and is_dummy:
@@ -1269,10 +1260,9 @@ class Trainer(object):
             return False
         elif self.cfg.optimization.use_bmuf:
             return (
-                self.get_num_updates() + 1
-            ) % self.cfg.bmuf.global_sync_iter == 0 and (
-                self.get_num_updates() + 1
-            ) > self.cfg.bmuf.warmup_iterations
+                (self.get_num_updates() + 1) % self.cfg.bmuf.global_sync_iter == 0
+                and (self.get_num_updates() + 1) > self.cfg.bmuf.warmup_iterations
+            )
         else:
             return True
 
@@ -1285,10 +1275,7 @@ class Trainer(object):
         sys.stderr.flush()
 
     def _aggregate_logging_outputs(
-        self,
-        logging_outputs: List[Dict[str, Any]],
-        *extra_stats_to_sum,
-        ignore=False,
+        self, logging_outputs: List[Dict[str, Any]], *extra_stats_to_sum, ignore=False,
     ):
         if self.task.__class__.logging_outputs_can_be_summed(self.get_criterion()):
             return self._fast_stat_sync_sum(
@@ -1300,10 +1287,7 @@ class Trainer(object):
             )
 
     def _all_gather_list_sync(
-        self,
-        logging_outputs: List[Dict[str, Any]],
-        *extra_stats_to_sum,
-        ignore=False,
+        self, logging_outputs: List[Dict[str, Any]], *extra_stats_to_sum, ignore=False,
     ):
         """
         Sync logging outputs across workers. all_gather_list_sync is
@@ -1328,10 +1312,7 @@ class Trainer(object):
         return logging_outputs, extra_stats_to_sum
 
     def _fast_stat_sync_sum(
-        self,
-        logging_outputs: List[Dict[str, Any]],
-        *extra_stats_to_sum,
-        ignore=False,
+        self, logging_outputs: List[Dict[str, Any]], *extra_stats_to_sum, ignore=False,
     ):
         """
         Sync logging outputs across workers. fast_stat_sync_sum is
@@ -1379,10 +1360,11 @@ class Trainer(object):
             def is_consistent(tensor):
                 max_abs_diff = torch.max(torch.abs(tensor - tensor[0]))
                 return (
-                    (torch.isfinite(tensor).all()
-                     and (max_abs_diff / (tensor[0] + 1e-6) < 1e-6).all())
-                    or
-                    (self.cfg.common.amp and not torch.isfinite(tensor).all())
+                    (
+                        torch.isfinite(tensor).all()
+                        and (max_abs_diff / (tensor[0] + 1e-6) < 1e-6).all()
+                    )
+                    or (self.cfg.common.amp and not torch.isfinite(tensor).all())
                     # in case of amp non-finite grads are fine
                 )
 

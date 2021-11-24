@@ -95,7 +95,6 @@ class FairseqDataclass:
             return config
 
 
-
 @dataclass
 class CommonConfig(FairseqDataclass):
     # This is the core dataclass including common parameters shared by all different jobs. Please append your params to other dataclasses if they were
@@ -169,11 +168,13 @@ class CommonConfig(FairseqDataclass):
         metadata={
             "help": "if set, the floating point conversion to fp16/bf16 runs on CPU. "
             "This reduces bus transfer time and GPU memory usage."
-        }
+        },
     )
     min_loss_scale: float = field(
         default=1e-4,
-        metadata={"help": "minimum FP16/AMP loss scale, after which training is stopped"},
+        metadata={
+            "help": "minimum FP16/AMP loss scale, after which training is stopped"
+        },
     )
     threshold_loss_scale: Optional[float] = field(
         default=None, metadata={"help": "threshold FP16 loss scale from below"}
@@ -181,7 +182,9 @@ class CommonConfig(FairseqDataclass):
     amp: bool = field(default=False, metadata={"help": "use automatic mixed precision"})
     amp_batch_retries: int = field(
         default=2,
-        metadata={"help": "number of retries of same batch after reducing loss scale with AMP"},
+        metadata={
+            "help": "number of retries of same batch after reducing loss scale with AMP"
+        },
     )
     amp_init_scale: int = field(
         default=2 ** 7, metadata={"help": "default AMP loss scale"}
@@ -223,7 +226,7 @@ class CommonConfig(FairseqDataclass):
         default=False,
         metadata={
             "help": "suppress crashes when training with the hydra_train entry point so that the "
-                    "main method can return a value (useful for sweeps)"
+            "main method can return a value (useful for sweeps)"
         },
     )
     use_plasma_view: bool = field(
@@ -440,6 +443,7 @@ class DistributedTrainingConfig(FairseqDataclass):
         default=False, metadata={"help": "not flatten parameter param for fsdp"},
     )
 
+
 @dataclass
 class DatasetConfig(FairseqDataclass):
     num_workers: int = field(
@@ -489,7 +493,7 @@ class DatasetConfig(FairseqDataclass):
         default=None,
         metadata={
             "help": "comma separated list of data subsets to use for validation"
-                    " (e.g. train, valid, test)",
+            " (e.g. train, valid, test)",
             "argparse_alias": "--combine-val",
         },
     )
@@ -527,8 +531,10 @@ class DatasetConfig(FairseqDataclass):
             "argparse_alias": "--max-sentences-valid",
         },
     )
-    max_valid_steps: Optional[int] = field(default=None, metadata={'help': 'How many batches to evaluate',
-                                                                   "argparse_alias": "--nval"})
+    max_valid_steps: Optional[int] = field(
+        default=None,
+        metadata={"help": "How many batches to evaluate", "argparse_alias": "--nval"},
+    )
     curriculum: int = field(
         default=0, metadata={"help": "don't shuffle batches for first N epochs"}
     )
@@ -558,7 +564,7 @@ class DatasetConfig(FairseqDataclass):
         default=False,
         metadata={
             "help": "if true then increment seed with epoch for getting batch iterators, defautls to False.",
-        }
+        },
     )
 
 
@@ -605,6 +611,13 @@ class OptimizationConfig(FairseqDataclass):
         default=False,
         metadata={
             "help": "specify global optimizer for syncing models on different GPUs/shards"
+        },
+    )
+    skip_remainder_batch: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "if set, include the last (partial) batch of each epoch in training"
+            " (default is to skip it)."
         },
     )
 
@@ -669,8 +682,8 @@ class CheckpointConfig(FairseqDataclass):
         default=-1,
         metadata={
             "help": "when used with --keep-interval-updates, skips deleting "
-                    "any checkpoints with update X where "
-                    "X %% keep_interval_updates_pattern == 0"
+            "any checkpoints with update X where "
+            "X %% keep_interval_updates_pattern == 0"
         },
     )
     keep_last_epochs: int = field(
@@ -1020,25 +1033,22 @@ class InteractiveConfig(FairseqDataclass):
 @dataclass
 class EMAConfig(FairseqDataclass):
     store_ema: bool = field(
-        default=False, metadata={
-            help: "store exponential moving average shadow model"
-        }
+        default=False, metadata={help: "store exponential moving average shadow model"}
     )
     ema_decay: float = field(
-        default=0.9999, metadata={
-            "help": 'decay for exponential moving average model'
-        }
+        default=0.9999, metadata={"help": "decay for exponential moving average model"}
     )
-    ema_start_update : int = field(
+    ema_start_update: int = field(
         default=0, metadata={"help": "start EMA update after this many model updates"}
     )
-    ema_seed_model : Optional[str] = field(
-        default=None, metadata={
+    ema_seed_model: Optional[str] = field(
+        default=None,
+        metadata={
             "help": "Seed to load EMA model from. "
             "Used to load EMA model separately from the actual model."
-        }
+        },
     )
-    ema_update_freq : int = field(
+    ema_update_freq: int = field(
         default=1, metadata={"help": "Do EMA update every this many model updates"}
     )
     ema_fp32: bool = field(

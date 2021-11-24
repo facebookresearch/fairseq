@@ -44,15 +44,16 @@ from fairseq.trainer import Trainer
 from omegaconf import DictConfig, OmegaConf
 
 
-
-
 def main(cfg: FairseqConfig) -> None:
     if isinstance(cfg, argparse.Namespace):
         cfg = convert_namespace_to_omegaconf(cfg)
 
     utils.import_user_module(cfg.common)
 
-    if distributed_utils.is_master(cfg.distributed_training) and "job_logging_cfg" in cfg:
+    if (
+        distributed_utils.is_master(cfg.distributed_training)
+        and "job_logging_cfg" in cfg
+    ):
         # make hydra logging work with ddp (see # see https://github.com/facebookresearch/hydra/issues/1126)
         logging.config.dictConfig(OmegaConf.to_container(cfg.job_logging_cfg))
 
@@ -102,15 +103,25 @@ def main(cfg: FairseqConfig) -> None:
     logger.info("criterion: {}".format(criterion.__class__.__name__))
     logger.info(
         "num. shared model params: {:,} (num. trained: {:,})".format(
-            sum(p.numel() for p in model.parameters() if not getattr(p, "expert", False)),
-            sum(p.numel() for p in model.parameters() if not getattr(p, "expert", False) and p.requires_grad)
+            sum(
+                p.numel() for p in model.parameters() if not getattr(p, "expert", False)
+            ),
+            sum(
+                p.numel()
+                for p in model.parameters()
+                if not getattr(p, "expert", False) and p.requires_grad
+            ),
         )
     )
 
     logger.info(
         "num. expert model params: {} (num. trained: {})".format(
             sum(p.numel() for p in model.parameters() if getattr(p, "expert", False)),
-            sum(p.numel() for p in model.parameters() if getattr(p, "expert", False) and p.requires_grad),
+            sum(
+                p.numel()
+                for p in model.parameters()
+                if getattr(p, "expert", False) and p.requires_grad
+            ),
         )
     )
 
@@ -145,8 +156,7 @@ def main(cfg: FairseqConfig) -> None:
     )
     logger.info(
         "max tokens per device = {} and max sentences per device = {}".format(
-            cfg.dataset.max_tokens,
-            cfg.dataset.batch_size,
+            cfg.dataset.max_tokens, cfg.dataset.batch_size,
         )
     )
 
@@ -160,6 +170,7 @@ def main(cfg: FairseqConfig) -> None:
     )
     if cfg.common.tpu:
         import torch_xla.core.xla_model as xm
+
         xm.rendezvous("load_checkpoint")  # wait for all workers
 
     max_epoch = cfg.optimization.max_epoch or math.inf
@@ -247,7 +258,9 @@ def train(
         if epoch_itr.epoch <= len(cfg.optimization.update_freq)
         else cfg.optimization.update_freq[-1]
     )
-    itr = iterators.GroupedIterator(itr, update_freq)
+    itr = iterators.GroupedIterator(
+        itr, update_freq, skip_remainder_batch=cfg.optimization.skip_remainder_batch,
+    )
     if cfg.common.tpu:
         itr = utils.tpu_data_loader(itr)
     progress = progress_bar.progress_bar(
@@ -376,15 +389,19 @@ def validate_and_save(
         )
     )
     do_validate = (
-        (not end_of_epoch and do_save)  # validate during mid-epoch saves
-        or (end_of_epoch and epoch_itr.epoch % cfg.dataset.validate_interval == 0)
-        or should_stop
-        or (
-            cfg.dataset.validate_interval_updates > 0
-            and num_updates > 0
-            and num_updates % cfg.dataset.validate_interval_updates == 0
+        (
+            (not end_of_epoch and do_save)  # validate during mid-epoch saves
+            or (end_of_epoch and epoch_itr.epoch % cfg.dataset.validate_interval == 0)
+            or should_stop
+            or (
+                cfg.dataset.validate_interval_updates > 0
+                and num_updates > 0
+                and num_updates % cfg.dataset.validate_interval_updates == 0
+            )
         )
-    ) and not cfg.dataset.disable_validation and num_updates >= cfg.dataset.validate_after_updates
+        and not cfg.dataset.disable_validation
+        and num_updates >= cfg.dataset.validate_after_updates
+    )
 
     # Validate
     valid_losses = [None]
@@ -457,7 +474,10 @@ def validate(
         # don't pollute other aggregators (e.g., train meters)
         with metrics.aggregate(new_root=True) as agg:
             for i, sample in enumerate(progress):
-                if cfg.dataset.max_valid_steps is not None and i > cfg.dataset.max_valid_steps:
+                if (
+                    cfg.dataset.max_valid_steps is not None
+                    and i > cfg.dataset.max_valid_steps
+                ):
                     break
                 trainer.valid_step(sample)
 
@@ -497,7 +517,9 @@ def cli_main(
 
     if cfg.common.use_plasma_view:
         server = PlasmaStore(path=cfg.common.plasma_path)
-        logger.info(f"Started plasma server pid {server.server.pid} {cfg.common.plasma_path}")
+        logger.info(
+            f"Started plasma server pid {server.server.pid} {cfg.common.plasma_path}"
+        )
 
     if args.profile:
         with torch.cuda.profiler.profile():

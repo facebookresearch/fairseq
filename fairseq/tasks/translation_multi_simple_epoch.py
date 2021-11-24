@@ -125,7 +125,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
     @classmethod
     def setup_task(cls, args, **kwargs):
         langs, dicts, training = MultilingualDatasetManager.prepare(
-           cls.load_dictionary, args, **kwargs
+            cls.load_dictionary, args, **kwargs
         )
         return cls(args, langs, dicts, training)
 
@@ -197,11 +197,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         return dataset
 
     def build_generator(
-        self,
-        models,
-        args,
-        seq_gen_cls=None,
-        extra_gen_cls_kwargs=None,
+        self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None,
     ):
         if not getattr(args, "keep_inference_langtok", False):
             _, tgt_langtok_spec = self.args.langtoks["main"]
@@ -349,6 +345,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         epoch=1,
         data_buffer_size=0,
         disable_iterator_cache=False,
+        skip_remainder_batch=False,
         grouped_shuffling=False,
         update_epoch_batch_itr=False,
     ):
@@ -412,6 +409,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
                 epoch=epoch,
                 data_buffer_size=data_buffer_size,
                 disable_iterator_cache=disable_iterator_cache,
+                skip_remainder_batch=skip_remainder_batch,
                 update_epoch_batch_itr=update_epoch_batch_itr,
             )
             self.dataset_to_epoch_iter[dataset] = batch_iter

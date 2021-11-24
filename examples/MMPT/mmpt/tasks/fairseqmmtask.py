@@ -25,9 +25,7 @@ class FairseqMMTask(LegacyFairseqTask):
         parser.add_argument(
             "taskconfig",
             metavar="FILE",
-            help=(
-                "taskconfig to load all configurations"
-                "outside fairseq parser."),
+            help=("taskconfig to load all configurations" "outside fairseq parser."),
         )
 
     @classmethod
@@ -68,23 +66,34 @@ class FairseqMMTask(LegacyFairseqTask):
         epoch=1,
         data_buffer_size=0,
         disable_iterator_cache=False,
+        skip_remainder_batch=False,
         grouped_shuffling=False,
         update_epoch_batch_itr=False,
     ):
         random.seed(epoch)
-        if dataset.mmdataset.split == "train" \
-                and isinstance(self.mmtask, RetriTask):
+        if dataset.mmdataset.split == "train" and isinstance(self.mmtask, RetriTask):
             if epoch >= self.mmtask.config.retri_epoch:
                 if not hasattr(self.mmtask, "retri_dataloader"):
                     self.mmtask.build_dataloader()
                 self.mmtask.retrive_candidates(epoch)
 
         return super().get_batch_iterator(
-            dataset, max_tokens, max_sentences, max_positions,
-            ignore_invalid_inputs, required_batch_size_multiple,
-            seed, num_shards, shard_id, num_workers, epoch,
-            data_buffer_size, disable_iterator_cache,
-            grouped_shuffling, update_epoch_batch_itr)
+            dataset,
+            max_tokens,
+            max_sentences,
+            max_positions,
+            ignore_invalid_inputs,
+            required_batch_size_multiple,
+            seed,
+            num_shards,
+            shard_id,
+            num_workers,
+            epoch,
+            data_buffer_size,
+            disable_iterator_cache,
+            grouped_shuffling,
+            update_epoch_batch_itr,
+        )
 
     @property
     def source_dictionary(self):
