@@ -578,14 +578,6 @@ def _upgrade_state_dict(state):
     # keep track of number of updates
     if "num_updates" not in state["optimizer_history"][-1]:
         state["optimizer_history"][-1]["num_updates"] = 0
-    # old model checkpoints may not have separate source/target positions
-    if (
-        "args" in state
-        and hasattr(state["args"], "max_positions")
-        and not hasattr(state["args"], "max_source_positions")
-    ):
-        state["args"].max_source_positions = state["args"].max_positions
-        state["args"].max_target_positions = state["args"].max_positions
     # use stateful training data iterator
     if "train_iterator" not in state["extra_state"]:
         state["extra_state"]["train_iterator"] = {
@@ -595,6 +587,13 @@ def _upgrade_state_dict(state):
 
     # backward compatibility, cfg updates
     if "args" in state and state["args"] is not None:
+        # old model checkpoints may not have separate source/target positions
+        if (
+            hasattr(state["args"], "max_positions")
+            and not hasattr(state["args"], "max_source_positions")
+        ):
+            state["args"].max_source_positions = state["args"].max_positions
+            state["args"].max_target_positions = state["args"].max_positions
         # default to translation task
         if not hasattr(state["args"], "task"):
             state["args"].task = "translation"
@@ -646,15 +645,6 @@ def _upgrade_state_dict(state):
             and len(state["args"].data) > 0
         ):
             state["args"].data = state["args"].data[0]
-        # remove keys in state["args"] related to teacher-student learning
-        for key in [
-            "static_teachers",
-            "static_teacher_weights",
-            "dynamic_teachers",
-            "dynamic_teacher_weights",
-        ]:
-            if key in state["args"]:
-                delattr(state["args"], key)
 
         state["cfg"] = convert_namespace_to_omegaconf(state["args"])
 

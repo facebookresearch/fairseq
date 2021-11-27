@@ -8,6 +8,7 @@ import contextlib
 import copy
 import math
 import numpy as np
+import re
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -150,6 +151,10 @@ class Wav2Vec2AsrConfig(FairseqDataclass):
     # this holds the loaded wav2vec args
     w2v_args: Any = None
 
+    checkpoint_activations: bool = field(
+        default=False, metadata={"help": "recompute activations and save memory for extra compute"}
+    )
+    ddp_backend: str = II("distributed_training.ddp_backend")
 
 @dataclass
 class Wav2Vec2CtcConfig(Wav2Vec2AsrConfig):
@@ -187,8 +192,10 @@ class Wav2VecCtc(BaseFairseqModel):
                 raise Exception(f"invalid blank mode {self.blank_mode}")
 
         if net_output["padding_mask"] is not None and net_output["padding_mask"].any():
-            logits[net_output["padding_mask"].T][..., 0] = float("inf")
-            logits[net_output["padding_mask"].T][..., 1:] = float("-inf")
+            number_of_classes = logits.size(-1)
+            masking_tensor = torch.ones(number_of_classes) * float("-inf")
+            masking_tensor[0] = float("inf")
+            logits[net_output["padding_mask"].T] = masking_tensor.type_as(logits)
 
         if normalize:
             logits = utils.log_softmax(logits.float(), dim=-1)
@@ -260,7 +267,6 @@ class Wav2Vec2Seq2SeqConfig(Wav2Vec2AsrConfig):
         default=False, metadata={"help": "share decoder input and output embeddings"}
     )
     autoregressive: bool = II("task.autoregressive")
-
 
 @register_model("wav2vec_seq2seq", dataclass=Wav2Vec2Seq2SeqConfig)
 class Wav2Vec2Seq2SeqModel(FairseqEncoderDecoderModel):
@@ -351,12 +357,16 @@ class Wav2VecEncoder(FairseqEncoder):
             "Please check that --normalize is set or unset for both pre-training and here"
         )
 
+        if hasattr(cfg, "checkpoint_activations") and cfg.checkpoint_activations:
+            with open_dict(w2v_args):
+                w2v_args.model.checkpoint_activations = cfg.checkpoint_activations
+
         w2v_args.task.data = cfg.data
         task = tasks.setup_task(w2v_args.task)
         model = task.build_model(w2v_args.model)
 
         if state is not None and not cfg.no_pretrained_weights:
-            model.load_state_dict(state["model"], strict=True)
+            self.load_model_weights(state, model, cfg)
 
         model.remove_pretraining_modules()
 
@@ -380,6 +390,30 @@ class Wav2VecEncoder(FairseqEncoder):
 
         if targ_d is not None:
             self.proj = Linear(d, targ_d)
+
+    def load_model_weights(self, state, model, cfg):
+        if cfg.ddp_backend == "fully_sharded":
+            from fairseq.distributed import FullyShardedDataParallel
+            for name, module in model.named_modules():
+                if "encoder.layers" in name and len(name.split(".")) == 3:
+                    # Only for layers, we do a special handling and load the weights one by one
+                    # We dont load all weights together as that wont be memory efficient and may
+                    # cause oom
+                    new_dict = {k.replace(name+".", "") : v for (k, v) in state["model"].items() if name+"." in k}
+                    assert isinstance(module, FullyShardedDataParallel)
+                    with module.summon_full_params():
+                        module.load_state_dict(new_dict, strict=True)
+                    module._reset_lazy_init()
+
+            # Once layers are loaded, filter them out and load everything else.
+            r = re.compile("encoder.layers.\d.")
+            filtered_list = list(filter(r.match, state["model"].keys()))
+
+            new_big_dict = {k: v for (k, v) in state["model"].items() if k not in filtered_list}
+
+            model.load_state_dict(new_big_dict, strict=False)
+        else:
+            model.load_state_dict(state["model"], strict=True)
 
     def set_num_updates(self, num_updates):
         """Set the number of parameters updates."""
