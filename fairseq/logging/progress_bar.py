@@ -15,7 +15,7 @@ import sys
 from collections import OrderedDict
 from contextlib import contextmanager
 from numbers import Number
-from typing import Optional
+from typing import Optional, Any
 
 import torch
 
@@ -37,6 +37,7 @@ def progress_bar(
     wandb_project: Optional[str] = None,
     wandb_run_name: Optional[str] = None,
     azureml_logging: Optional[bool] = False,
+    comet_config: Optional[dict[str, Any]] = None,
 ):
     if log_format is None:
         log_format = default_log_format
@@ -73,6 +74,9 @@ def progress_bar(
 
     if azureml_logging:
         bar = AzureMLProgressBarWrapper(bar)
+
+    if comet_logging:
+        bar = CometProgressBarWrapper(bar, comet_config)
 
     return bar
 
@@ -488,3 +492,93 @@ class AzureMLProgressBarWrapper(BaseProgressBar):
                 self.run.log_row(name=name, **{"step": step, key: stats[key].val})
             elif isinstance(stats[key], Number):
                 self.run.log_row(name=name, **{"step": step, key: stats[key]})
+
+try:
+    import comet_ml
+except ImportError:
+    comet_ml = None
+
+
+class CometProgressBarWrapper(BaseProgressBar):
+    def __init__(self, wrapped_bar, comet_config):
+        if comet_ml is None:
+            logger.warning("comet_ml not found; pip install comet_ml")
+            return
+
+        comet_config_dict = {}
+        if comet_config:
+            try:
+                comet_config_dict = ast.literal_eval(comet_config)
+            except Exception:
+                logger.warning("malformed comet-config; ignoring")
+
+        if not isinstance(comet_config_dict, dict):
+            logger.warning("comet-config is not a dictionary; ignoring")
+            comet_config_dict = {}
+
+        self.wrapped_bar = wrapped_bar
+        self.experiment = self.start(**comet_config_dict)
+
+    def start(self, **kwargs):
+        meta_config = {
+            "offline": False,
+            "resume_strategy": None,
+            "distributed_node_type": None,
+            "distributed_node_identifier": None,
+        ]
+        for key in list(kwargs):
+            if key in meta_config:
+                meta_config[key] = kwargs.pop(key)
+
+        # Set the remainder through the environment:
+        config = comet_ml.get_config()
+        config._set_settings(kwargs, True)
+        # Now, we construct the experiment:
+        try:
+            if meta_config["offline"]:
+                experiment = comet_ml.OfflineExperiment()
+            else:
+                experiment = comet_ml.Experiment()
+        except Exception:
+            logger.warning("unable to construct experiment; ignoring")
+            experiment = None
+        return experiment
+
+    def __iter__(self):
+        return iter(self.wrapped_bar)
+
+    def log(self, stats, tag=None, step=None):
+        """Log intermediate stats according to log_interval."""
+        self._log_to_comet(stats, tag, step)
+        self.wrapped_bar.log(stats, tag=tag, step=step)
+
+    def print(self, stats, tag=None, step=None):
+        """Print end-of-epoch stats."""
+        self._log_to_comet(stats, tag, step)
+        self.wrapped_bar.print(stats, tag=tag, step=step)
+
+    def update_config(self, config):
+        """Log latest configuration."""
+        if self.experiment is not None:
+            self.experiment.log_asset_data(config, name="fairseq.config")
+        self.wrapped_bar.update_config(config)
+
+    def _log_to_comet(stats, tag, step):
+        if self.experiment is None:
+            return
+
+        if step is None:
+            step = stats["num_updates"]
+
+        prefix = tag if tag else None
+        formatted_stats = self._format_stats(stats)
+
+        if "num_updates" in formatted_stats:
+            formatted_stats.pop("num_updates")
+
+        self.experiment.log_metrics(
+            formatted_stats,
+            prefix=prefix,
+            step=step,
+            epoch=self.epoch
+        )
