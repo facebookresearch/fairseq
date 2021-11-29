@@ -1,0 +1,158 @@
+# Use 2.1 for orbs
+version: 2.1
+
+# -------------------------------------------------------------------------------------
+# Environments to run the jobs in
+# -------------------------------------------------------------------------------------
+gpu: &gpu
+  environment:
+    CUDA_VERSION: "11.1"
+  machine:
+    image: ubuntu-1604-cuda-11.1:202012-01
+  resource_class: gpu.nvidia.medium.multi
+  
+
+# -------------------------------------------------------------------------------------
+# Re-usable commands
+# -------------------------------------------------------------------------------------
+cache_key: &cache_key cache-key-{{ .Environment.CIRCLE_JOB }}-{{ checksum ".circleci/config.yml" }}-{{ checksum "setup.py"}}
+
+install_dep_common: &install_dep_common
+  - run:
+      name: Install Common Dependencies
+      command: |
+        source activate fairseq
+        pip install --upgrade setuptools
+        pip install bitarray boto3 deepspeed editdistance fastBPE iopath ipdb ipython pyarrow pytest sacremoses sentencepiece subword-nmt hydra-core==1.0.7 omegaconf==2.0.6
+        pip install --progress-bar off pytest
+        pip install --progress-bar off fairscale==0.4.1
+        pip install -i https://test.pypi.org/simple/ bitsandbytes-cuda111 -U
+        python -c 'import torch; print("Torch version:", torch.__version__)'
+        python -m torch.utils.collect_env
+
+install_dep_fused_ops: &install_dep_fused_ops
+  - run:
+      name: Install Megatron/Apex Dependencies
+      working_directory: ~/
+      command: |
+        source activate fairseq
+        git clone https://github.com/NVIDIA/apex
+        cd apex
+        pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--deprecated_fused_adam" --global-option="--xentropy" --global-option="--fast_multihead_attn" ./
+        cd ~/
+        git clone --depth=1 --branch v2.4 https://github.com/NVIDIA/Megatron-LM.git
+        cd Megatron-LM
+        pip install -e .
+
+
+install_dep_pt19: &install_dep_pt19
+  - run:
+      name: Install Pytorch Dependencies
+      command: |
+        source activate fairseq
+        pip install --upgrade setuptools
+        pip install torch==1.9.1+cu111 torchvision==0.10.1+cu111 torchaudio==0.9.1 -f https://download.pytorch.org/whl/torch_stable.html
+        python -c 'import torch; print("Torch version:", torch.__version__)'
+
+install_dep_pt18: &install_dep_pt18
+  - run:
+      name: Install Pytorch Dependencies
+      command: |
+        source activate fairseq
+        pip install --upgrade setuptools
+        pip install torch==1.8.1+cu111 torchvision==0.9.1+cu111 torchaudio==0.8.1 -f https://download.pytorch.org/whl/torch_stable.html
+        python -c 'import torch; print("Torch version:", torch.__version__)'
+
+install_repo: &install_repo
+  - run:
+      name: Install Repository
+      command: |
+        source activate fairseq
+        pip install .
+        python setup.py build_ext --inplace
+
+run_unittests: &run_unittests
+  - run:
+      name: Run Unit Tests
+      command: |
+        source activate fairseq
+        pytest tests/gpu/test_binaries_gpu.py
+
+check_nvidia_driver: &check_nvidia_driver
+  - run:
+      name: Check NVIDIA Driver
+      working_directory: ~/
+      command: |
+        pyenv versions
+        nvidia-smi
+
+create_conda_env: &create_conda_env
+  - run:
+      name: Install and Create Conda Environment
+      command: |
+        curl -o ~/miniconda.sh -O  https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+        chmod +x ~/miniconda.sh
+        ~/miniconda.sh -b -p $HOME/miniconda
+        rm ~/miniconda.sh
+        echo 'export PATH=$HOME/miniconda/bin:$PATH' >> $BASH_ENV
+        source $BASH_ENV
+        if [ ! -d ~/miniconda/envs/fairseq ]
+        then
+          conda create -y -n fairseq python=3.8
+        fi
+        source activate fairseq
+        python --version
+        pip install --upgrade pip
+# -------------------------------------------------------------------------------------
+# Jobs to run
+# -------------------------------------------------------------------------------------
+
+jobs:
+  gpu_tests_pt19:
+    <<: *gpu
+
+    working_directory: ~/fairseq-py
+
+    steps:
+      - checkout
+      - <<: *check_nvidia_driver
+      - <<: *create_conda_env
+      - restore_cache:
+          key: *cache_key
+      - <<: *install_dep_pt19
+      - <<: *install_dep_common
+      - <<: *install_dep_fused_ops
+      - save_cache:
+          paths:
+            - ~/miniconda/
+          key: *cache_key
+      - <<: *install_repo
+      - <<: *run_unittests
+
+  gpu_tests_pt18:
+    <<: *gpu
+
+    working_directory: ~/fairseq-py
+
+    steps:
+      - checkout
+      - <<: *check_nvidia_driver
+      - <<: *create_conda_env
+      - restore_cache:
+          key: *cache_key
+      - <<: *install_dep_pt18
+      - <<: *install_dep_common
+      - <<: *install_dep_fused_ops
+      - save_cache:
+          paths:
+            - ~/miniconda/
+          key: *cache_key
+      - <<: *install_repo
+      - <<: *run_unittests
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - gpu_tests_pt18
+      - gpu_tests_pt19
