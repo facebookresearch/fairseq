@@ -25,7 +25,10 @@ logger = logging.getLogger(__name__)
 
 _SLOWMO_DDP_DISABLED = False
 try:
-    from fairscale.experimental.nn.data_parallel import SlowMoBaseAlgorithm, SlowMoDistributedDataParallel
+    from fairscale.experimental.nn.data_parallel import (
+        SlowMoBaseAlgorithm,
+        SlowMoDistributedDataParallel,
+    )
 except ImportError:
     _SLOWMO_DDP_DISABLED = True
 

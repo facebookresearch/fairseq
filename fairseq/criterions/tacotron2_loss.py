@@ -41,9 +41,7 @@ class Tacotron2CriterionConfig(FairseqDataclass):
         default=0.4,
         metadata={"help": "weight of positive examples for BCE loss"},
     )
-    ctc_weight: float = field(
-        default=0.0, metadata={"help": "weight for CTC loss"}
-    )
+    ctc_weight: float = field(default=0.0, metadata={"help": "weight for CTC loss"})
     sentence_avg: bool = II("optimization.sentence_avg")
 
 
@@ -70,8 +68,7 @@ class GuidedAttentionLoss(torch.nn.Module):
         bsz, max_s_len, max_t_len = len(src_lens), max(src_lens), max(tgt_lens)
         weights = torch.zeros((bsz, max_t_len, max_s_len))
         for i, (s_len, t_len) in enumerate(zip(src_lens, tgt_lens)):
-            weights[i, :t_len, :s_len] = self._get_weight(s_len, t_len,
-                                                          self.sigma)
+            weights[i, :t_len, :s_len] = self._get_weight(s_len, t_len, self.sigma)
         return weights
 
     @staticmethod
@@ -90,9 +87,16 @@ class GuidedAttentionLoss(torch.nn.Module):
 
 @register_criterion("tacotron2", dataclass=Tacotron2CriterionConfig)
 class Tacotron2Criterion(FairseqCriterion):
-    def __init__(self, task, sentence_avg, n_frames_per_step,
-                 use_guided_attention_loss, guided_attention_loss_sigma,
-                 bce_pos_weight, ctc_weight):
+    def __init__(
+        self,
+        task,
+        sentence_avg,
+        n_frames_per_step,
+        use_guided_attention_loss,
+        guided_attention_loss_sigma,
+        bce_pos_weight,
+        ctc_weight,
+    ):
         super().__init__(task)
         self.sentence_avg = sentence_avg
         self.n_frames_per_step = n_frames_per_step
@@ -120,31 +124,42 @@ class Tacotron2Criterion(FairseqCriterion):
             prev_output_tokens=sample["net_input"]["prev_output_tokens"],
             incremental_state=None,
             target_lengths=tgt_lens,
-            speaker=sample["speaker"]
+            speaker=sample["speaker"],
         )
 
         l1_loss, mse_loss, eos_loss = self.compute_loss(
-            extra["feature_out"], feat_out, eos_out, feat_tgt, eos_tgt,
-            tgt_lens, reduction,
+            extra["feature_out"],
+            feat_out,
+            eos_out,
+            feat_tgt,
+            eos_tgt,
+            tgt_lens,
+            reduction,
         )
-        attn_loss = torch.tensor(0.).type_as(l1_loss)
+        attn_loss = torch.tensor(0.0).type_as(l1_loss)
         if self.guided_attn is not None:
-            attn_loss = self.guided_attn(extra['attn'], src_lens, tgt_lens, reduction)
-        ctc_loss = torch.tensor(0.).type_as(l1_loss)
-        if self.ctc_weight > 0.:
+            attn_loss = self.guided_attn(extra["attn"], src_lens, tgt_lens, reduction)
+        ctc_loss = torch.tensor(0.0).type_as(l1_loss)
+        if self.ctc_weight > 0.0:
             net_output = (feat_out, eos_out, extra)
             lprobs = model.get_normalized_probs(net_output, log_probs=True)
             lprobs = lprobs.transpose(0, 1)  # T x B x C
             src_mask = lengths_to_mask(src_lens)
             src_tokens_flat = src_tokens.masked_select(src_mask)
-            ctc_loss = F.ctc_loss(
-                lprobs, src_tokens_flat, tgt_lens, src_lens,
-                reduction=reduction, zero_infinity=True
-            ) * self.ctc_weight
+            ctc_loss = (
+                F.ctc_loss(
+                    lprobs,
+                    src_tokens_flat,
+                    tgt_lens,
+                    src_lens,
+                    reduction=reduction,
+                    zero_infinity=True,
+                )
+                * self.ctc_weight
+            )
         loss = l1_loss + mse_loss + eos_loss + attn_loss + ctc_loss
 
-        sample_size = sample["nsentences"] if self.sentence_avg \
-            else sample["ntokens"]
+        sample_size = sample["nsentences"] if self.sentence_avg else sample["ntokens"]
         logging_output = {
             "loss": utils.item(loss.data),
             "ntokens": sample["ntokens"],
@@ -158,8 +173,16 @@ class Tacotron2Criterion(FairseqCriterion):
         }
         return loss, sample_size, logging_output
 
-    def compute_loss(self, feat_out, feat_out_post, eos_out, feat_tgt,
-                     eos_tgt, tgt_lens, reduction="mean"):
+    def compute_loss(
+        self,
+        feat_out,
+        feat_out_post,
+        eos_out,
+        feat_tgt,
+        eos_tgt,
+        tgt_lens,
+        reduction="mean",
+    ):
         mask = lengths_to_mask(tgt_lens)
         _eos_out = eos_out[mask].squeeze()
         _eos_tgt = eos_tgt[mask]
@@ -167,17 +190,17 @@ class Tacotron2Criterion(FairseqCriterion):
         _feat_out = feat_out[mask]
         _feat_out_post = feat_out_post[mask]
 
-        l1_loss = (
-            F.l1_loss(_feat_out, _feat_tgt, reduction=reduction) +
-            F.l1_loss(_feat_out_post, _feat_tgt, reduction=reduction)
+        l1_loss = F.l1_loss(_feat_out, _feat_tgt, reduction=reduction) + F.l1_loss(
+            _feat_out_post, _feat_tgt, reduction=reduction
         )
-        mse_loss = (
-            F.mse_loss(_feat_out, _feat_tgt, reduction=reduction) +
-            F.mse_loss(_feat_out_post, _feat_tgt, reduction=reduction)
+        mse_loss = F.mse_loss(_feat_out, _feat_tgt, reduction=reduction) + F.mse_loss(
+            _feat_out_post, _feat_tgt, reduction=reduction
         )
         eos_loss = F.binary_cross_entropy_with_logits(
-            _eos_out, _eos_tgt, pos_weight=torch.tensor(self.bce_pos_weight),
-            reduction=reduction
+            _eos_out,
+            _eos_tgt,
+            pos_weight=torch.tensor(self.bce_pos_weight),
+            reduction=reduction,
         )
         return l1_loss, mse_loss, eos_loss
 
@@ -197,10 +220,10 @@ class Tacotron2Criterion(FairseqCriterion):
             return
         n = sum(log.get("targ_frames", 0) for log in logging_outputs)
         for key, new_key in [
-                ("mcd_loss", "mcd_loss"),
-                ("pred_frames", "pred_ratio"),
-                ("nins", "ins_rate"),
-                ("ndel", "del_rate"),
+            ("mcd_loss", "mcd_loss"),
+            ("pred_frames", "pred_ratio"),
+            ("nins", "ins_rate"),
+            ("ndel", "del_rate"),
         ]:
             val = sum(log.get(key, 0) for log in logging_outputs)
             metrics.log_scalar(new_key, val / n, n, round=3)

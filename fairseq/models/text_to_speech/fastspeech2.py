@@ -8,10 +8,17 @@ import logging
 import torch
 from torch import nn
 
-from fairseq.models import (FairseqEncoder, FairseqEncoderModel, register_model,
-                            register_model_architecture)
+from fairseq.models import (
+    FairseqEncoder,
+    FairseqEncoderModel,
+    register_model,
+    register_model_architecture,
+)
 from fairseq.modules import (
-    LayerNorm, PositionalEmbedding, FairseqDropout, MultiheadAttention
+    LayerNorm,
+    PositionalEmbedding,
+    FairseqDropout,
+    MultiheadAttention,
 )
 from fairseq import utils
 from fairseq.data.data_utils import lengths_to_padding_mask
@@ -36,11 +43,19 @@ class PositionwiseFeedForward(nn.Module):
     def __init__(self, in_dim, hidden_dim, kernel_size, dropout):
         super().__init__()
         self.ffn = nn.Sequential(
-            nn.Conv1d(in_dim, hidden_dim, kernel_size=kernel_size,
-                      padding=(kernel_size - 1) // 2),
+            nn.Conv1d(
+                in_dim,
+                hidden_dim,
+                kernel_size=kernel_size,
+                padding=(kernel_size - 1) // 2,
+            ),
             nn.ReLU(),
-            nn.Conv1d(hidden_dim, in_dim, kernel_size=kernel_size,
-                      padding=(kernel_size - 1) // 2)
+            nn.Conv1d(
+                hidden_dim,
+                in_dim,
+                kernel_size=kernel_size,
+                padding=(kernel_size - 1) // 2,
+            ),
         )
         self.layer_norm = LayerNorm(in_dim)
         self.dropout = self.dropout_module = FairseqDropout(
@@ -57,8 +72,7 @@ class PositionwiseFeedForward(nn.Module):
 
 class FFTLayer(torch.nn.Module):
     def __init__(
-            self, embed_dim, n_heads, hidden_dim, kernel_size, dropout,
-            attention_dropout
+        self, embed_dim, n_heads, hidden_dim, kernel_size, dropout, attention_dropout
     ):
         super().__init__()
         self.self_attn = MultiheadAttention(
@@ -74,8 +88,7 @@ class FFTLayer(torch.nn.Module):
         residual = x
         x = x.transpose(0, 1)
         x, _ = self.self_attn(
-            query=x, key=x, value=x, key_padding_mask=padding_mask,
-            need_weights=False
+            query=x, key=x, value=x, key_padding_mask=padding_mask, need_weights=False
         )
         x = x.transpose(0, 1)
         x = self.layer_norm(x + residual)
@@ -106,11 +119,12 @@ class VariancePredictor(nn.Module):
         super().__init__()
         self.conv1 = nn.Sequential(
             nn.Conv1d(
-                args.encoder_embed_dim, args.var_pred_hidden_dim,
+                args.encoder_embed_dim,
+                args.var_pred_hidden_dim,
                 kernel_size=args.var_pred_kernel_size,
-                padding=(args.var_pred_kernel_size - 1) // 2
+                padding=(args.var_pred_kernel_size - 1) // 2,
             ),
-            nn.ReLU()
+            nn.ReLU(),
         )
         self.ln1 = nn.LayerNorm(args.var_pred_hidden_dim)
         self.dropout_module = FairseqDropout(
@@ -118,10 +132,12 @@ class VariancePredictor(nn.Module):
         )
         self.conv2 = nn.Sequential(
             nn.Conv1d(
-                args.var_pred_hidden_dim, args.var_pred_hidden_dim,
-                kernel_size=args.var_pred_kernel_size, padding=1
+                args.var_pred_hidden_dim,
+                args.var_pred_hidden_dim,
+                kernel_size=args.var_pred_kernel_size,
+                padding=1,
             ),
-            nn.ReLU()
+            nn.ReLU(),
         )
         self.ln2 = nn.LayerNorm(args.var_pred_hidden_dim)
         self.proj = nn.Linear(args.var_pred_hidden_dim, 1)
@@ -171,8 +187,15 @@ class VarianceAdaptor(nn.Module):
         return out, emb
 
     def forward(
-            self, x, padding_mask, durations=None, pitches=None, energies=None,
-            d_factor=1.0, p_factor=1.0, e_factor=1.0
+        self,
+        x,
+        padding_mask,
+        durations=None,
+        pitches=None,
+        energies=None,
+        d_factor=1.0,
+        p_factor=1.0,
+        e_factor=1.0,
     ):
         # x: B x T x C
         log_dur_out = self.duration_predictor(x)
@@ -205,8 +228,7 @@ class FastSpeech2Encoder(FairseqEncoder):
         self.spk_emb_proj = None
         if embed_speaker is not None:
             self.spk_emb_proj = nn.Linear(
-                args.encoder_embed_dim + args.speaker_embed_dim,
-                args.encoder_embed_dim
+                args.encoder_embed_dim + args.speaker_embed_dim, args.encoder_embed_dim
             )
 
         self.dropout_module = FairseqDropout(
@@ -224,9 +246,12 @@ class FastSpeech2Encoder(FairseqEncoder):
 
         self.encoder_fft_layers = nn.ModuleList(
             FFTLayer(
-                args.encoder_embed_dim, args.encoder_attention_heads,
-                args.fft_hidden_dim, args.fft_kernel_size,
-                dropout=args.dropout, attention_dropout=args.attention_dropout
+                args.encoder_embed_dim,
+                args.encoder_attention_heads,
+                args.fft_hidden_dim,
+                args.fft_kernel_size,
+                dropout=args.dropout,
+                attention_dropout=args.attention_dropout,
             )
             for _ in range(args.encoder_layers)
         )
@@ -235,9 +260,12 @@ class FastSpeech2Encoder(FairseqEncoder):
 
         self.decoder_fft_layers = nn.ModuleList(
             FFTLayer(
-                args.decoder_embed_dim, args.decoder_attention_heads,
-                args.fft_hidden_dim, args.fft_kernel_size,
-                dropout=args.dropout, attention_dropout=args.attention_dropout
+                args.decoder_embed_dim,
+                args.decoder_attention_heads,
+                args.fft_hidden_dim,
+                args.fft_kernel_size,
+                dropout=args.dropout,
+                attention_dropout=args.attention_dropout,
             )
             for _ in range(args.decoder_layers)
         )
@@ -247,15 +275,25 @@ class FastSpeech2Encoder(FairseqEncoder):
         self.postnet = None
         if args.add_postnet:
             self.postnet = Postnet(
-                self.out_dim, args.postnet_conv_dim,
+                self.out_dim,
+                args.postnet_conv_dim,
                 args.postnet_conv_kernel_size,
-                args.postnet_layers, args.postnet_dropout
+                args.postnet_layers,
+                args.postnet_dropout,
             )
 
         self.apply(model_init)
 
-    def forward(self, src_tokens, src_lengths=None, speaker=None,
-                durations=None, pitches=None, energies=None, **kwargs):
+    def forward(
+        self,
+        src_tokens,
+        src_lengths=None,
+        speaker=None,
+        durations=None,
+        pitches=None,
+        energies=None,
+        **kwargs
+    ):
         x = self.embed_tokens(src_tokens)
 
         enc_padding_mask = src_tokens.eq(self.padding_idx)
@@ -270,8 +308,9 @@ class FastSpeech2Encoder(FairseqEncoder):
             emb = self.embed_speaker(speaker).expand(bsz, seq_len, -1)
             x = self.spk_emb_proj(torch.cat([x, emb], dim=2))
 
-        x, out_lens, log_dur_out, pitch_out, energy_out = \
-            self.var_adaptor(x, enc_padding_mask, durations, pitches, energies)
+        x, out_lens, log_dur_out, pitch_out, energy_out = self.var_adaptor(
+            x, enc_padding_mask, durations, pitches, energies
+        )
 
         dec_padding_mask = lengths_to_padding_mask(out_lens)
         x += self.dec_pos_emb_alpha * self.embed_positions(dec_padding_mask)
@@ -326,7 +365,7 @@ class FastSpeech2Model(FairseqEncoderModel):
 
         out_dim = args.output_frame_dim * args.n_frames_per_step
         self.ctc_proj = None
-        if getattr(args, "ctc_weight", 0.) > 0.:
+        if getattr(args, "ctc_weight", 0.0) > 0.0:
             self.ctc_proj = nn.Linear(out_dim, len(src_dict))
 
     @classmethod

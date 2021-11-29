@@ -52,7 +52,7 @@ class TransformEosLangPairDataset(FairseqDataset):
         if len(samples) == 0:
             return samples
 
-        if 'net_input' not in samples:
+        if "net_input" not in samples:
             return samples
 
         if self.new_src_eos is not None:

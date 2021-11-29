@@ -30,9 +30,7 @@ from omegaconf import II
 logger = logging.getLogger(__name__)
 
 EXTRACTOR_MODE_CHOICES = ChoiceEnum(["default", "layer_norm"])
-MASKING_DISTRIBUTION_CHOICES = ChoiceEnum(
-    ["static", "uniform", "normal", "poisson"]
-)
+MASKING_DISTRIBUTION_CHOICES = ChoiceEnum(["static", "uniform", "normal", "poisson"])
 
 
 @dataclass
@@ -86,9 +84,7 @@ class HubertConfig(FairseqDataclass):
     )
     dropout_features: float = field(
         default=0.0,
-        metadata={
-            "help": "dropout to apply to the features (after feat extr)"
-        },
+        metadata={"help": "dropout to apply to the features (after feat extr)"},
     )
 
     final_dim: int = field(
@@ -150,9 +146,7 @@ class HubertConfig(FairseqDataclass):
     )
     mask_min_space: int = field(
         default=1,
-        metadata={
-            "help": "min space between spans (if no overlap is enabled)"
-        },
+        metadata={"help": "min space between spans (if no overlap is enabled)"},
     )
 
     # channel masking
@@ -182,23 +176,17 @@ class HubertConfig(FairseqDataclass):
     )
     mask_channel_min_space: int = field(
         default=1,
-        metadata={
-            "help": "min space between spans (if no overlap is enabled)"
-        },
+        metadata={"help": "min space between spans (if no overlap is enabled)"},
     )
 
     # positional embeddings
     conv_pos: int = field(
         default=128,
-        metadata={
-            "help": "number of filters for convolutional positional embeddings"
-        },
+        metadata={"help": "number of filters for convolutional positional embeddings"},
     )
     conv_pos_groups: int = field(
         default=16,
-        metadata={
-            "help": "number of groups for convolutional positional embedding"
-        },
+        metadata={"help": "number of groups for convolutional positional embedding"},
     )
 
     latent_temp: Tuple[float, float, float] = field(
@@ -238,9 +226,7 @@ class HubertModel(BaseFairseqModel):
             conv_bias=cfg.conv_bias,
         )
         feature_ds_rate = np.prod([s for _, _, s in feature_enc_layers])
-        self.feat2tar_ratio = (
-            cfg.label_rate * feature_ds_rate / task_cfg.sample_rate
-        )
+        self.feat2tar_ratio = cfg.label_rate * feature_ds_rate / task_cfg.sample_rate
 
         self.post_extract_proj = (
             nn.Linear(self.embed, cfg.encoder_embed_dim)
@@ -270,9 +256,7 @@ class HubertModel(BaseFairseqModel):
         self.skip_masked = cfg.skip_masked
         self.skip_nomask = cfg.skip_nomask
 
-        final_dim = (
-            cfg.final_dim if cfg.final_dim > 0 else cfg.encoder_embed_dim
-        )
+        final_dim = cfg.final_dim if cfg.final_dim > 0 else cfg.encoder_embed_dim
 
         self.mask_emb = nn.Parameter(
             torch.FloatTensor(cfg.encoder_embed_dim).uniform_()
@@ -297,9 +281,7 @@ class HubertModel(BaseFairseqModel):
 
         # modules below are not needed during fine-tuning
         if any([d is None for d in dictionaries]):
-            logger.info(
-                "cannot find dictionary. assume will be used for fine-tuning"
-            )
+            logger.info("cannot find dictionary. assume will be used for fine-tuning")
         else:
             self.num_classes = [len(d) for d in dictionaries]
             self.label_embs_concat = nn.Parameter(
@@ -365,9 +347,7 @@ class HubertModel(BaseFairseqModel):
         pos = pos.unsqueeze(0)
         targets = torch.cat([pos, negs], dim=0)
 
-        logits = torch.cosine_similarity(
-            x.float(), targets.float(), dim=-1
-        ).type_as(x)
+        logits = torch.cosine_similarity(x.float(), targets.float(), dim=-1).type_as(x)
         logits /= self.logit_temp
         if neg_is_pos.any():
             logits[1:][neg_is_pos] = float("-inf")
@@ -385,7 +365,9 @@ class HubertModel(BaseFairseqModel):
         return features
 
     def forward_targets(
-        self, features: torch.Tensor, target_list: List[torch.Tensor],
+        self,
+        features: torch.Tensor,
+        target_list: List[torch.Tensor],
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # Trim features to ensure labels exist and then get aligned labels
         feat_tsz = features.size(2)
@@ -398,14 +380,14 @@ class HubertModel(BaseFairseqModel):
         return features, target_list
 
     def forward_padding_mask(
-        self, features: torch.Tensor, padding_mask: torch.Tensor,
+        self,
+        features: torch.Tensor,
+        padding_mask: torch.Tensor,
     ) -> torch.Tensor:
         extra = padding_mask.size(1) % features.size(1)
         if extra > 0:
             padding_mask = padding_mask[:, :-extra]
-        padding_mask = padding_mask.view(
-            padding_mask.size(0), features.size(1), -1
-        )
+        padding_mask = padding_mask.view(padding_mask.size(0), features.size(1), -1)
         padding_mask = padding_mask.all(-1)
         return padding_mask
 
@@ -439,9 +421,7 @@ class HubertModel(BaseFairseqModel):
         unmasked_features = self.dropout_features(unmasked_features)
 
         if mask:
-            x, mask_indices = self.apply_mask(
-                features, padding_mask, target_list
-            )
+            x, mask_indices = self.apply_mask(features, padding_mask, target_list)
         else:
             x = features
             mask_indices = None
@@ -454,7 +434,7 @@ class HubertModel(BaseFairseqModel):
         x, _ = self.encoder(
             x,
             padding_mask=padding_mask,
-            layer=None if output_layer is None else output_layer - 1
+            layer=None if output_layer is None else output_layer - 1,
         )
 
         if features_only:
@@ -483,9 +463,7 @@ class HubertModel(BaseFairseqModel):
                 proj_x_m_list = [proj_x_m for _ in range(len(target_list))]
             logit_m_list = [
                 compute_pred(proj_x_m, t[masked_indices], label_embs_list[i])
-                for i, (proj_x_m, t) in enumerate(
-                    zip(proj_x_m_list, target_list)
-                )
+                for i, (proj_x_m, t) in enumerate(zip(proj_x_m_list, target_list))
             ]
         else:
             logit_m_list = [None for _ in target_list]
@@ -500,9 +478,7 @@ class HubertModel(BaseFairseqModel):
 
             logit_u_list = [
                 compute_pred(proj_x_u, t[nomask_indices], label_embs_list[i])
-                for i, (proj_x_u, t) in enumerate(
-                    zip(proj_x_u_list, target_list)
-                )
+                for i, (proj_x_u, t) in enumerate(zip(proj_x_u_list, target_list))
             ]
         else:
             logit_u_list = [None for _ in target_list]
@@ -543,9 +519,7 @@ class HubertModel(BaseFairseqModel):
 
     def get_targets(self, net_output, is_masked=True):
         logits_list = self.get_logits(net_output, is_masked)
-        targets_list = [
-            x.new_zeros(x.size(0), dtype=torch.long) for x in logits_list
-        ]
+        targets_list = [x.new_zeros(x.size(0), dtype=torch.long) for x in logits_list]
         return targets_list
 
     def get_extra_losses(self, net_output):

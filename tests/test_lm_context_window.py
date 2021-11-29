@@ -6,23 +6,25 @@
 import unittest
 
 import torch
+
 from fairseq.data import MonolingualDataset
-from fairseq.tasks.language_modeling import LanguageModelingTask, LanguageModelingConfig
+from fairseq.tasks.language_modeling import LanguageModelingConfig, LanguageModelingTask
 from tests import utils as test_utils
 
 
 class TestLMContextWindow(unittest.TestCase):
-
     def test_eval_dataloader(self):
         dictionary = test_utils.dummy_dictionary(10)
         assert len(dictionary) == 14  # 4 extra special symbols
         assert dictionary.pad() == 1
 
-        dataset = test_utils.TestDataset([
-            torch.tensor([4, 5, 6, 7], dtype=torch.long),
-            torch.tensor([8, 9, 10, 11], dtype=torch.long),
-            torch.tensor([12, 13], dtype=torch.long),
-        ])
+        dataset = test_utils.TestDataset(
+            [
+                torch.tensor([4, 5, 6, 7], dtype=torch.long),
+                torch.tensor([8, 9, 10, 11], dtype=torch.long),
+                torch.tensor([12, 13], dtype=torch.long),
+            ]
+        )
         dataset = MonolingualDataset(dataset, sizes=[4, 4, 2], src_vocab=dictionary)
 
         config = LanguageModelingConfig(tokens_per_sample=4)

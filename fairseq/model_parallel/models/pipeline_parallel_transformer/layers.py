@@ -9,6 +9,7 @@ from collections import namedtuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from fairseq import options, utils
 from fairseq.modules import (
     AdaptiveSoftmax,
@@ -16,7 +17,6 @@ from fairseq.modules import (
     MultiheadAttention,
     PositionalEmbedding,
 )
-
 
 EncoderOut = namedtuple(
     "TransformerEncoderOut",
@@ -30,7 +30,7 @@ EncoderOut = namedtuple(
 
 
 class TransformerEncoderEmbedding(nn.Module):
-    """ Encoder Embedding + Positional Embedding """
+    """Encoder Embedding + Positional Embedding"""
 
     def __init__(self, args, embed_tokens):
         super().__init__()
@@ -109,7 +109,7 @@ class TransformerEncoderLayerNorm(nn.Module):
 
 
 class TransformerDecoderEmbedding(nn.Module):
-    """ Decoder Embedding + Positional Embedding """
+    """Decoder Embedding + Positional Embedding"""
 
     def __init__(self, args, embed_tokens):
         super().__init__()

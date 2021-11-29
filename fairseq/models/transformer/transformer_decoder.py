@@ -29,8 +29,8 @@ from torch import Tensor
 
 # rewrite name for backward compatibility in `make_generation_fast_`
 def module_name_fordropout(module_name: str) -> str:
-    if module_name == 'TransformerDecoderBase':
-        return 'TransformerDecoder'
+    if module_name == "TransformerDecoderBase":
+        return "TransformerDecoder"
     else:
         return module_name
 

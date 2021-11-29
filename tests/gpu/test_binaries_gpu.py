@@ -4,14 +4,15 @@
 # LICENSE file in the root directory of this source tree.
 
 import contextlib
-import logging
 import json
+import logging
 import os
 import tempfile
 import unittest
 from io import StringIO
 
 import torch
+
 from fairseq import options
 from fairseq_cli import train
 from tests.utils import (
@@ -32,20 +33,17 @@ class TestTranslationGPU(unittest.TestCase):
         logging.disable(logging.NOTSET)
 
     def test_fp16_multigpu(self):
-        self._test_multigpu(
-            "test_fp16", ["--fp16"]
-        )
+        self._test_multigpu("test_fp16", ["--fp16"])
 
     def test_slowmo_multigpu(self):
         self._test_multigpu(
-            "test_slowmo",
-            ["--ddp-backend", "slowmo", "--nprocs-per-node", "1"]
+            "test_slowmo", ["--ddp-backend", "slowmo", "--nprocs-per-node", "1"]
         )
 
     def test_slowmo_single_node_multigpu(self):
         self._test_multigpu(
             "test_slowmo_single_node",
-            ["--ddp-backend", "slowmo", "--nprocs-per-node", "2"]
+            ["--ddp-backend", "slowmo", "--nprocs-per-node", "2"],
         )
 
     def _test_multigpu(self, test_name, test_args):
@@ -77,7 +75,9 @@ class TestTranslationGPU(unittest.TestCase):
         self._test_resume_training(["--ddp-backend", "fully_sharded"])
 
     def test_resume_training_fsdp_sharded_state(self):
-        self._test_resume_training(["--ddp-backend", "fully_sharded", "--use-sharded-state"])
+        self._test_resume_training(
+            ["--ddp-backend", "fully_sharded", "--use-sharded-state"]
+        )
 
     def test_resume_training_noc10d(self):
         self._test_resume_training([])
@@ -101,7 +101,10 @@ class TestTranslationGPU(unittest.TestCase):
                 create_dummy_data(data_dir)
                 preprocess_translation_data(data_dir)
                 train_translation_model(
-                    data_dir, arch, flags + ["--log-file", log], world_size=world_size,
+                    data_dir,
+                    arch,
+                    flags + ["--log-file", log],
+                    world_size=world_size,
                 )
                 log2 = os.path.join(data_dir, "resume.log")
                 restore_file = os.path.join(data_dir, "checkpoint_1_2.pt")
@@ -261,7 +264,13 @@ class TestTranslationGPU(unittest.TestCase):
                 train_translation_model(
                     data_dir,
                     "fconv_iwslt_de_en",
-                    ["--log-file", log, "--ddp-backend", "fully_sharded", "--use-sharded-state"],
+                    [
+                        "--log-file",
+                        log,
+                        "--ddp-backend",
+                        "fully_sharded",
+                        "--use-sharded-state",
+                    ],
                     world_size=world_size,
                 )
                 generate_main(data_dir, ["--checkpoint-shard-count", str(world_size)])

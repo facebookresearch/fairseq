@@ -12,9 +12,12 @@ from io import StringIO
 
 import torch
 import torch.nn.functional as F
+
+import fairseq.distributed.utils as distributed_utils
 from fairseq import options, utils
 from fairseq.data import Dictionary
 from fairseq.data.language_pair_dataset import collate
+from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderDecoderModel,
@@ -23,8 +26,6 @@ from fairseq.models import (
 from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.tasks import LegacyFairseqTask
 from fairseq_cli import generate, interactive, preprocess, train, validate
-import fairseq.distributed.utils as distributed_utils
-from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 
 
 def dummy_dictionary(vocab_size, prefix="token_"):
@@ -37,7 +38,10 @@ def dummy_dictionary(vocab_size, prefix="token_"):
 
 
 def dummy_dataloader(
-    samples, padding_idx=1, eos_idx=2, batch_size=None,
+    samples,
+    padding_idx=1,
+    eos_idx=2,
+    batch_size=None,
 ):
     if batch_size is None:
         batch_size = len(samples)

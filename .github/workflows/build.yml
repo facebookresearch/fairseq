@@ -53,3 +53,8 @@ jobs:
     - name: Run tests
       run: |
           python setup.py test
+
+    - name: Lint with black
+      run: |
+        pip install black
+        black --check . --extend-exclude 'examples|fairseq\/model_parallel\/megatron'

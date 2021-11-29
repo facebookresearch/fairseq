@@ -399,6 +399,7 @@ class TranslationTask(FairseqTask):
 
             def sum_logs(key):
                 import torch
+
                 result = sum(log.get(key, 0) for log in logging_outputs)
                 if torch.is_tensor(result):
                     result = result.cpu()
@@ -418,12 +419,15 @@ class TranslationTask(FairseqTask):
 
                 def compute_bleu(meters):
                     import inspect
+
                     try:
                         from sacrebleu.metrics import BLEU
+
                         comp_bleu = BLEU.compute_bleu
                     except ImportError:
                         # compatibility API for sacrebleu 1.x
                         import sacrebleu
+
                         comp_bleu = sacrebleu.compute_bleu
 
                     fn_sig = inspect.getfullargspec(comp_bleu)[0]
@@ -436,7 +440,7 @@ class TranslationTask(FairseqTask):
                         total=meters["_bleu_totals"].sum,
                         sys_len=meters["_bleu_sys_len"].sum,
                         ref_len=meters["_bleu_ref_len"].sum,
-                        **smooth
+                        **smooth,
                     )
                     return round(bleu.score, 2)
 

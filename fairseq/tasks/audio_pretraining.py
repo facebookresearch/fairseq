@@ -50,8 +50,7 @@ class AudioPretrainingConfig(FairseqDataclass):
     data: str = field(default=MISSING, metadata={"help": "path to data directory"})
     labels: Optional[str] = field(
         default=None,
-        metadata={
-            "help": "extension of the label file to load, used for fine-tuning"},
+        metadata={"help": "extension of the label file to load, used for fine-tuning"},
     )
     binarized_dataset: bool = field(
         default=False,
@@ -102,8 +101,8 @@ class AudioPretrainingConfig(FairseqDataclass):
         default="none",
         metadata={
             "help": "compression level for texts (e.g. audio filenames, "
-                    "target texts): none/low/high (default: none). "
-        }
+            "target texts): none/low/high (default: none). "
+        },
     )
 
 

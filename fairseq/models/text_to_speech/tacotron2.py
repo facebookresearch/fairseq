@@ -9,9 +9,13 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from fairseq.models import (FairseqEncoder, FairseqEncoderDecoderModel,
-                            FairseqIncrementalDecoder, register_model,
-                            register_model_architecture)
+from fairseq.models import (
+    FairseqEncoder,
+    FairseqEncoderDecoderModel,
+    FairseqIncrementalDecoder,
+    register_model,
+    register_model_architecture,
+)
 from fairseq.modules import LSTMCellWithZoneOut, LocationAttention
 
 
@@ -31,29 +35,36 @@ class Tacotron2Encoder(FairseqEncoder):
         self.spk_emb_proj = None
         if embed_speaker is not None:
             self.spk_emb_proj = nn.Linear(
-                args.encoder_embed_dim + args.speaker_embed_dim,
-                args.encoder_embed_dim
+                args.encoder_embed_dim + args.speaker_embed_dim, args.encoder_embed_dim
             )
 
-        self.embed_tokens = nn.Embedding(len(src_dict), args.encoder_embed_dim,
-                                         padding_idx=self.padding_idx)
+        self.embed_tokens = nn.Embedding(
+            len(src_dict), args.encoder_embed_dim, padding_idx=self.padding_idx
+        )
 
-        assert(args.encoder_conv_kernel_size % 2 == 1)
+        assert args.encoder_conv_kernel_size % 2 == 1
         self.convolutions = nn.ModuleList(
             nn.Sequential(
-                nn.Conv1d(args.encoder_embed_dim, args.encoder_embed_dim,
-                          kernel_size=args.encoder_conv_kernel_size,
-                          padding=((args.encoder_conv_kernel_size - 1) // 2)),
+                nn.Conv1d(
+                    args.encoder_embed_dim,
+                    args.encoder_embed_dim,
+                    kernel_size=args.encoder_conv_kernel_size,
+                    padding=((args.encoder_conv_kernel_size - 1) // 2),
+                ),
                 nn.BatchNorm1d(args.encoder_embed_dim),
                 nn.ReLU(),
-                nn.Dropout(args.encoder_dropout)
+                nn.Dropout(args.encoder_dropout),
             )
             for _ in range(args.encoder_conv_layers)
         )
 
-        self.lstm = nn.LSTM(args.encoder_embed_dim, args.encoder_embed_dim // 2,
-                            num_layers=args.encoder_lstm_layers,
-                            batch_first=True, bidirectional=True)
+        self.lstm = nn.LSTM(
+            args.encoder_embed_dim,
+            args.encoder_embed_dim // 2,
+            num_layers=args.encoder_lstm_layers,
+            batch_first=True,
+            bidirectional=True,
+        )
 
         self.apply(encoder_init)
 
@@ -78,7 +89,7 @@ class Tacotron2Encoder(FairseqEncoder):
 
         return {
             "encoder_out": [x],  # B x T x C
-            "encoder_padding_mask": encoder_padding_mask,   # B x T
+            "encoder_padding_mask": encoder_padding_mask,  # B x T
         }
 
 
@@ -86,8 +97,7 @@ class Prenet(nn.Module):
     def __init__(self, in_dim, n_layers, n_units, dropout):
         super().__init__()
         self.layers = nn.ModuleList(
-            nn.Sequential(nn.Linear(in_dim if i == 0 else n_units, n_units),
-                          nn.ReLU())
+            nn.Sequential(nn.Linear(in_dim if i == 0 else n_units, n_units), nn.ReLU())
             for i in range(n_layers)
         )
         self.dropout = dropout
@@ -102,20 +112,24 @@ class Postnet(nn.Module):
     def __init__(self, in_dim, n_channels, kernel_size, n_layers, dropout):
         super(Postnet, self).__init__()
         self.convolutions = nn.ModuleList()
-        assert(kernel_size % 2 == 1)
+        assert kernel_size % 2 == 1
         for i in range(n_layers):
-            cur_layers = [
-                nn.Conv1d(in_dim if i == 0 else n_channels,
-                          n_channels if i < n_layers - 1 else in_dim,
-                          kernel_size=kernel_size,
-                          padding=((kernel_size - 1) // 2)),
-                nn.BatchNorm1d(n_channels if i < n_layers - 1 else in_dim)
-            ] + ([nn.Tanh()] if i < n_layers - 1 else []) + [nn.Dropout(dropout)]
+            cur_layers = (
+                [
+                    nn.Conv1d(
+                        in_dim if i == 0 else n_channels,
+                        n_channels if i < n_layers - 1 else in_dim,
+                        kernel_size=kernel_size,
+                        padding=((kernel_size - 1) // 2),
+                    ),
+                    nn.BatchNorm1d(n_channels if i < n_layers - 1 else in_dim),
+                ]
+                + ([nn.Tanh()] if i < n_layers - 1 else [])
+                + [nn.Dropout(dropout)]
+            )
             nn.init.xavier_uniform_(
                 cur_layers[0].weight,
-                torch.nn.init.calculate_gain(
-                    "tanh" if i < n_layers - 1 else "linear"
-                )
+                torch.nn.init.calculate_gain("tanh" if i < n_layers - 1 else "linear"),
             )
             self.convolutions.append(nn.Sequential(*cur_layers))
 
@@ -138,21 +152,25 @@ class Tacotron2Decoder(FairseqIncrementalDecoder):
         self.n_frames_per_step = args.n_frames_per_step
         self.out_dim = args.output_frame_dim * args.n_frames_per_step
 
-        self.prenet = Prenet(self.out_dim, args.prenet_layers, args.prenet_dim,
-                             args.prenet_dropout)
+        self.prenet = Prenet(
+            self.out_dim, args.prenet_layers, args.prenet_dim, args.prenet_dropout
+        )
 
         # take prev_context, prev_frame, (speaker embedding) as input
         self.attention_lstm = LSTMCellWithZoneOut(
             args.zoneout,
             args.prenet_dim + args.encoder_embed_dim,
-            args.decoder_lstm_dim
+            args.decoder_lstm_dim,
         )
 
         # take attention_lstm output, attention_state, encoder_out as input
         self.attention = LocationAttention(
-            args.attention_dim, args.encoder_embed_dim, args.decoder_lstm_dim,
+            args.attention_dim,
+            args.encoder_embed_dim,
+            args.decoder_lstm_dim,
             (1 + int(args.attention_use_cumprob)),
-            args.attention_conv_dim, args.attention_conv_kernel_size
+            args.attention_conv_dim,
+            args.attention_conv_kernel_size,
         )
 
         # take attention_lstm output, context, (gated_latent) as input
@@ -160,7 +178,7 @@ class Tacotron2Decoder(FairseqIncrementalDecoder):
             LSTMCellWithZoneOut(
                 args.zoneout,
                 args.encoder_embed_dim + args.decoder_lstm_dim,
-                args.decoder_lstm_dim
+                args.decoder_lstm_dim,
             )
             for i in range(args.decoder_lstm_layers)
         )
@@ -169,12 +187,16 @@ class Tacotron2Decoder(FairseqIncrementalDecoder):
         self.feat_proj = nn.Linear(proj_in_dim, self.out_dim)
         self.eos_proj = nn.Linear(proj_in_dim, 1)
 
-        self.postnet = Postnet(self.out_dim, args.postnet_conv_dim,
-                               args.postnet_conv_kernel_size,
-                               args.postnet_layers, args.postnet_dropout)
+        self.postnet = Postnet(
+            self.out_dim,
+            args.postnet_conv_dim,
+            args.postnet_conv_kernel_size,
+            args.postnet_layers,
+            args.postnet_dropout,
+        )
 
         self.ctc_proj = None
-        if getattr(args, "ctc_weight", 0.) > 0.:
+        if getattr(args, "ctc_weight", 0.0) > 0.0:
             self.ctc_proj = nn.Linear(self.out_dim, len(src_dict))
 
         self.apply(decoder_init)
@@ -190,12 +212,16 @@ class Tacotron2Decoder(FairseqIncrementalDecoder):
 
         lstm_h = self.get_incremental_state(incremental_state, "lstm_h")
         if lstm_h is None:
-            lstm_h = [enc_out.new_zeros(bsz, self.args.decoder_lstm_dim)
-                      for _ in range(self.args.decoder_lstm_layers)]
+            lstm_h = [
+                enc_out.new_zeros(bsz, self.args.decoder_lstm_dim)
+                for _ in range(self.args.decoder_lstm_layers)
+            ]
         lstm_c = self.get_incremental_state(incremental_state, "lstm_c")
         if lstm_c is None:
-            lstm_c = [enc_out.new_zeros(bsz, self.args.decoder_lstm_dim)
-                      for _ in range(self.args.decoder_lstm_layers)]
+            lstm_c = [
+                enc_out.new_zeros(bsz, self.args.decoder_lstm_dim)
+                for _ in range(self.args.decoder_lstm_layers)
+            ]
 
         attn_w = self.get_incremental_state(incremental_state, "attn_w")
         if attn_w is None:
@@ -216,8 +242,14 @@ class Tacotron2Decoder(FairseqIncrementalDecoder):
         else:
             raise ValueError(f"{self.args.init_attn_c} not supported")
 
-    def forward(self, prev_output_tokens, encoder_out=None,
-                incremental_state=None, target_lengths=None, **kwargs):
+    def forward(
+        self,
+        prev_output_tokens,
+        encoder_out=None,
+        incremental_state=None,
+        target_lengths=None,
+        **kwargs,
+    ):
         enc_mask = encoder_out["encoder_padding_mask"]
         enc_out = encoder_out["encoder_out"][0]
         in_len = enc_out.size(1)
@@ -227,8 +259,9 @@ class Tacotron2Decoder(FairseqIncrementalDecoder):
         bsz, out_len, _ = prev_output_tokens.size()
 
         prenet_out = self.prenet(prev_output_tokens)
-        (alstm_h, alstm_c, lstm_h, lstm_c,
-         attn_w, attn_w_cum) = self._get_states(incremental_state, enc_out)
+        (alstm_h, alstm_c, lstm_h, lstm_c, attn_w, attn_w_cum) = self._get_states(
+            incremental_state, enc_out
+        )
         attn_ctx = self._get_init_attn_c(enc_out, enc_mask)
 
         attn_out = enc_out.new_zeros(bsz, in_len, out_len)
@@ -241,9 +274,7 @@ class Tacotron2Decoder(FairseqIncrementalDecoder):
             attn_state = attn_w.unsqueeze(1)
             if self.args.attention_use_cumprob:
                 attn_state = torch.stack((attn_w, attn_w_cum), dim=1)
-            attn_ctx, attn_w = self.attention(
-                enc_out, enc_mask, alstm_h, attn_state
-            )
+            attn_ctx, attn_w = self.attention(enc_out, enc_mask, alstm_h, attn_state)
             attn_w_cum = attn_w_cum + attn_w
             attn_out[:, :, t] = attn_w
 
@@ -297,7 +328,7 @@ class Tacotron2Model(FairseqEncoderDecoderModel):
         parser.add_argument("--postnet-conv-dim", type=int)
         parser.add_argument("--postnet-conv-kernel-size", type=int)
         parser.add_argument("--init-attn-c", type=str)
-        parser.add_argument("--attention-use-cumprob", action='store_true')
+        parser.add_argument("--attention-use-cumprob", action="store_true")
         parser.add_argument("--zoneout", type=float)
         parser.add_argument("--decoder-lstm-layers", type=int)
         parser.add_argument("--decoder-lstm-dim", type=int)
@@ -333,8 +364,7 @@ def base_architecture(args):
     # decoder
     args.attention_dim = getattr(args, "attention_dim", 128)
     args.attention_conv_dim = getattr(args, "attention_conv_dim", 32)
-    args.attention_conv_kernel_size = getattr(args,
-                                              "attention_conv_kernel_size", 15)
+    args.attention_conv_kernel_size = getattr(args, "attention_conv_kernel_size", 15)
     args.prenet_dropout = getattr(args, "prenet_dropout", 0.5)
     args.prenet_layers = getattr(args, "prenet_layers", 2)
     args.prenet_dim = getattr(args, "prenet_dim", 256)

@@ -119,7 +119,7 @@ class Generator(torch.nn.Module):
 
         self.ups = nn.ModuleList()
         for i, (u, k) in enumerate(
-                zip(cfg["upsample_rates"], cfg["upsample_kernel_sizes"])
+            zip(cfg["upsample_rates"], cfg["upsample_kernel_sizes"])
         ):
             self.ups.append(
                 weight_norm(
@@ -137,7 +137,7 @@ class Generator(torch.nn.Module):
         for i in range(len(self.ups)):
             ch = cfg["upsample_initial_channel"] // (2 ** (i + 1))
             for k, d in zip(
-                    cfg["resblock_kernel_sizes"], cfg["resblock_dilation_sizes"]
+                cfg["resblock_kernel_sizes"], cfg["resblock_dilation_sizes"]
             ):
                 self.resblocks.append(ResBlock(ch, k, d))
 
