@@ -23,7 +23,9 @@ class OptimizerAndSchedulerConfig(FairseqDataclass):
     optimizer: Any = None
     lr_scheduler: Optional[Any] = None
     lr: List = II("optimization.lr")
-    lr_float: Optional[float] = None  # this makes it easier to sweep on learning rate with auto sweepers
+    lr_float: Optional[
+        float
+    ] = None  # this makes it easier to sweep on learning rate with auto sweepers
 
 
 @dataclass

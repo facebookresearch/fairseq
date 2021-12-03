@@ -21,8 +21,10 @@ class SentencepieceConfig(FairseqDataclass):
     )
     sentencepiece_alpha: Optional[float] = field(
         default=None,
-        metadata={"help": "soothing parameter for unigram sampling, "
-                          "and merge probability for BPE-dropout"}
+        metadata={
+            "help": "soothing parameter for unigram sampling, "
+            "and merge probability for BPE-dropout"
+        },
     )
 
 
@@ -45,8 +47,7 @@ class SentencepieceBPE(object):
     def encode(self, x: str) -> str:
         return " ".join(
             self.sp.Encode(
-                x, out_type=str, enable_sampling=self.enable_sampling,
-                alpha=self.alpha
+                x, out_type=str, enable_sampling=self.enable_sampling, alpha=self.alpha
             )
         )
 

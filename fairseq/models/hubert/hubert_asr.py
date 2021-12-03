@@ -21,9 +21,7 @@ from omegaconf import II, MISSING
 
 @dataclass
 class HubertAsrConfig(FairseqDataclass):
-    w2v_path: str = field(
-        default=MISSING, metadata={"help": "path to hubert model"}
-    )
+    w2v_path: str = field(default=MISSING, metadata={"help": "path to hubert model"})
     no_pretrained_weights: bool = field(
         default=False,
         metadata={"help": "if true, does not load pretrained weights"},
@@ -34,9 +32,7 @@ class HubertAsrConfig(FairseqDataclass):
     )
     final_dropout: float = field(
         default=0.0,
-        metadata={
-            "help": "dropout after transformer and before final projection"
-        },
+        metadata={"help": "dropout after transformer and before final projection"},
     )
     dropout: float = field(
         default=0.0,
@@ -45,15 +41,13 @@ class HubertAsrConfig(FairseqDataclass):
     attention_dropout: float = field(
         default=0.0,
         metadata={
-            "help": "dropout probability for attention weights "
-            "inside hubert model"
+            "help": "dropout probability for attention weights " "inside hubert model"
         },
     )
     activation_dropout: float = field(
         default=0.0,
         metadata={
-            "help": "dropout probability after activation in FFN "
-            "inside hubert model"
+            "help": "dropout probability after activation in FFN " "inside hubert model"
         },
     )
 
@@ -184,9 +178,7 @@ class HubertSeq2SeqConfig(HubertAsrConfig):
     decoder_ffn_embed_dim: int = field(
         default=3072, metadata={"help": "decoder embedding dimension for FFN"}
     )
-    decoder_layers: int = field(
-        default=6, metadata={"help": "num of decoder layers"}
-    )
+    decoder_layers: int = field(default=6, metadata={"help": "num of decoder layers"})
     decoder_layerdrop: float = field(
         default=0.0, metadata={"help": "decoder layerdrop chance"}
     )
@@ -204,8 +196,7 @@ class HubertSeq2SeqConfig(HubertAsrConfig):
     no_token_positional_embeddings: bool = field(
         default=False,
         metadata={
-            "help": "if set, disables positional embeddings "
-            "(outside self attention)"
+            "help": "if set, disables positional embeddings " "(outside self attention)"
         },
     )
     decoder_dropout: float = field(
@@ -214,15 +205,13 @@ class HubertSeq2SeqConfig(HubertAsrConfig):
     decoder_attention_dropout: float = field(
         default=0.0,
         metadata={
-            "help": "dropout probability for attention weights "
-            "inside the decoder"
+            "help": "dropout probability for attention weights " "inside the decoder"
         },
     )
     decoder_activation_dropout: float = field(
         default=0.0,
         metadata={
-            "help": "dropout probability after activation in FFN "
-            "inside the decoder"
+            "help": "dropout probability after activation in FFN " "inside the decoder"
         },
     )
     max_target_positions: int = field(
@@ -258,9 +247,7 @@ class HubertEncoder(FairseqEncoder):
         }
 
         if cfg.w2v_args is None:
-            state = checkpoint_utils.load_checkpoint_to_cpu(
-                cfg.w2v_path, arg_overrides
-            )
+            state = checkpoint_utils.load_checkpoint_to_cpu(cfg.w2v_path, arg_overrides)
             w2v_args = state.get("cfg", None)
             if w2v_args is None:
                 w2v_args = convert_namespace_to_omegaconf(state["args"])
@@ -269,9 +256,7 @@ class HubertEncoder(FairseqEncoder):
             state = None
             w2v_args = cfg.w2v_args
             if isinstance(w2v_args, Namespace):
-                cfg.w2v_args = w2v_args = convert_namespace_to_omegaconf(
-                    w2v_args
-                )
+                cfg.w2v_args = w2v_args = convert_namespace_to_omegaconf(w2v_args)
 
         assert cfg.normalize == w2v_args.task.normalize, (
             "Fine-tuning works best when data normalization is the same. "
@@ -344,9 +329,9 @@ class HubertEncoder(FairseqEncoder):
 
     def reorder_encoder_out(self, encoder_out, new_order):
         if encoder_out["encoder_out"] is not None:
-            encoder_out["encoder_out"] = encoder_out[
-                "encoder_out"
-            ].index_select(1, new_order)
+            encoder_out["encoder_out"] = encoder_out["encoder_out"].index_select(
+                1, new_order
+            )
         if encoder_out["encoder_padding_mask"] is not None:
             encoder_out["encoder_padding_mask"] = encoder_out[
                 "encoder_padding_mask"

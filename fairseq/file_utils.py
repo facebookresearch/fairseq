@@ -146,6 +146,7 @@ def cached_path_from_pm(url_or_filename):
     """
     try:
         from fairseq.file_io import PathManager
+
         local_path = PathManager.get_local_path(url_or_filename)
         return local_path
     except Exception:

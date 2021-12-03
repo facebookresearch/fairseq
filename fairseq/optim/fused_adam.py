@@ -179,7 +179,7 @@ class FusedAdamV1(torch.optim.Optimizer):
 
                 if p.device.type == "cpu":
                     p_data_fp32 = p.data.cuda(non_blocking=True).float()
-                    out_p = torch.tensor([], dtype = torch.float)
+                    out_p = torch.tensor([], dtype=torch.float)
                 else:
                     p_data_fp32 = p.data.float()
                     out_p = p.data
@@ -234,6 +234,7 @@ class FusedAdamV1(torch.optim.Optimizer):
                     p.data.copy_(p_data_fp32, non_blocking=True)
 
                 if self.use_fp16_stats:
+
                     def inf_norm(t):
                         return torch.norm(t, float("inf"))
 
@@ -262,7 +263,9 @@ try:
 
         def __init__(self, *args, use_fp16_stats=False, **kwargs):
             if use_fp16_stats:
-                raise NotImplementedError("--fp16-adam-stats is only supported with FusedAdamV1")
+                raise NotImplementedError(
+                    "--fp16-adam-stats is only supported with FusedAdamV1"
+                )
             super().__init__(*args, **kwargs)
             if not hasattr(self, "multi_tensor_adam"):
                 raise Exception(

@@ -4,21 +4,20 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
+import math
 import tempfile
 import unittest
-import math
-import numpy as np
 
+import numpy as np
+import torch
 
 import tests.utils as test_utils
-import torch
 from fairseq import search
 from fairseq.data.dictionary import Dictionary
 from fairseq.models.transformer import TransformerModel
-from fairseq.sequence_generator import EnsembleModel, SequenceGenerator
 from fairseq.ngram_repeat_block import NGramRepeatBlock
+from fairseq.sequence_generator import EnsembleModel, SequenceGenerator
 from fairseq.tasks.fairseq_task import LegacyFairseqTask
-
 
 DEFAULT_TEST_VOCAB_SIZE = 100
 
@@ -590,9 +589,11 @@ class TestPrefixBeamSearch(TestSequenceGeneratorBase):
             # prefix step 0:
             torch.FloatTensor(
                 [
-                    # eos      
-                    [0.0, unk] + [1.0 / vocab_size] * vocab_size  # beam 1
-                ] * self.beam_size
+                    # eos
+                    [0.0, unk]
+                    + [1.0 / vocab_size] * vocab_size  # beam 1
+                ]
+                * self.beam_size
             ),
         ] * vocab_size
 
@@ -616,6 +617,7 @@ class TestPrefixBeamSearch(TestSequenceGeneratorBase):
         }
         # make sure test sample doesn't break any assertion
         generator.forward(sample, prefix_tokens=self.tokens[:, :-1])
+
 
 class TestTopPSamplingSearch(TestSequenceGeneratorBase):
     def setUp(self):

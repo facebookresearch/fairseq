@@ -13,8 +13,11 @@ import numpy as np
 import torch
 
 from fairseq.data.audio.speech_to_text_dataset import (
-    SpeechToTextDataset, SpeechToTextDatasetCreator, S2TDataConfig,
-    _collate_frames, get_features_or_waveform
+    SpeechToTextDataset,
+    SpeechToTextDatasetCreator,
+    S2TDataConfig,
+    _collate_frames,
+    get_features_or_waveform,
 )
 from fairseq.data import Dictionary, data_utils as fairseq_data_utils
 
@@ -32,34 +35,44 @@ class TextToSpeechDatasetItem(object):
 
 class TextToSpeechDataset(SpeechToTextDataset):
     def __init__(
-            self,
-            split: str,
-            is_train_split: bool,
-            cfg: S2TDataConfig,
-            audio_paths: List[str],
-            n_frames: List[int],
-            src_texts: Optional[List[str]] = None,
-            tgt_texts: Optional[List[str]] = None,
-            speakers: Optional[List[str]] = None,
-            src_langs: Optional[List[str]] = None,
-            tgt_langs: Optional[List[str]] = None,
-            ids: Optional[List[str]] = None,
-            tgt_dict: Optional[Dictionary] = None,
-            pre_tokenizer=None,
-            bpe_tokenizer=None,
-            n_frames_per_step=1,
-            speaker_to_id=None,
-            durations: Optional[List[List[int]]] = None,
-            pitches: Optional[List[str]] = None,
-            energies: Optional[List[str]] = None
+        self,
+        split: str,
+        is_train_split: bool,
+        cfg: S2TDataConfig,
+        audio_paths: List[str],
+        n_frames: List[int],
+        src_texts: Optional[List[str]] = None,
+        tgt_texts: Optional[List[str]] = None,
+        speakers: Optional[List[str]] = None,
+        src_langs: Optional[List[str]] = None,
+        tgt_langs: Optional[List[str]] = None,
+        ids: Optional[List[str]] = None,
+        tgt_dict: Optional[Dictionary] = None,
+        pre_tokenizer=None,
+        bpe_tokenizer=None,
+        n_frames_per_step=1,
+        speaker_to_id=None,
+        durations: Optional[List[List[int]]] = None,
+        pitches: Optional[List[str]] = None,
+        energies: Optional[List[str]] = None,
     ):
         super(TextToSpeechDataset, self).__init__(
-            split, is_train_split, cfg, audio_paths, n_frames,
-            src_texts=src_texts, tgt_texts=tgt_texts, speakers=speakers,
-            src_langs=src_langs, tgt_langs=tgt_langs, ids=ids,
-            tgt_dict=tgt_dict, pre_tokenizer=pre_tokenizer,
-            bpe_tokenizer=bpe_tokenizer, n_frames_per_step=n_frames_per_step,
-            speaker_to_id=speaker_to_id
+            split,
+            is_train_split,
+            cfg,
+            audio_paths,
+            n_frames,
+            src_texts=src_texts,
+            tgt_texts=tgt_texts,
+            speakers=speakers,
+            src_langs=src_langs,
+            tgt_langs=tgt_langs,
+            ids=ids,
+            tgt_dict=tgt_dict,
+            pre_tokenizer=pre_tokenizer,
+            bpe_tokenizer=bpe_tokenizer,
+            n_frames_per_step=n_frames_per_step,
+            speaker_to_id=speaker_to_id,
         )
         self.durations = durations
         self.pitches = pitches
@@ -84,9 +97,13 @@ class TextToSpeechDataset(SpeechToTextDataset):
                 np.concatenate((energy, [0]))  # pad 0 for EOS
             ).float()
         return TextToSpeechDatasetItem(
-            index=index, source=s2t_item.source, target=s2t_item.target,
-            speaker_id=s2t_item.speaker_id, duration=duration, pitch=pitch,
-            energy=energy
+            index=index,
+            source=s2t_item.source,
+            target=s2t_item.target,
+            speaker_id=s2t_item.speaker_id,
+            duration=duration,
+            pitch=pitch,
+            energy=energy,
         )
 
     def collater(self, samples: List[TextToSpeechDatasetItem]) -> Dict[str, Any]:
@@ -96,8 +113,9 @@ class TextToSpeechDataset(SpeechToTextDataset):
         src_lengths, order = torch.tensor(
             [s.target.shape[0] for s in samples], dtype=torch.long
         ).sort(descending=True)
-        id_ = torch.tensor([s.index for s in samples],
-                           dtype=torch.long).index_select(0, order)
+        id_ = torch.tensor([s.index for s in samples], dtype=torch.long).index_select(
+            0, order
+        )
         feat = _collate_frames(
             [s.source for s in samples], self.cfg.use_audio_input
         ).index_select(0, order)
@@ -115,9 +133,11 @@ class TextToSpeechDataset(SpeechToTextDataset):
 
         speaker = None
         if self.speaker_to_id is not None:
-            speaker = torch.tensor(
-                [s.speaker_id for s in samples], dtype=torch.long
-            ).index_select(0, order).view(-1, 1)
+            speaker = (
+                torch.tensor([s.speaker_id for s in samples], dtype=torch.long)
+                .index_select(0, order)
+                .view(-1, 1)
+            )
 
         bsz, _, d = feat.size()
         prev_output_tokens = torch.cat(
@@ -175,7 +195,7 @@ class TextToSpeechDatasetCreator(SpeechToTextDatasetCreator):
         pre_tokenizer,
         bpe_tokenizer,
         n_frames_per_step,
-        speaker_to_id
+        speaker_to_id,
     ) -> TextToSpeechDataset:
         audio_root = Path(cfg.audio_root)
         ids = [s[cls.KEY_ID] for s in samples]
@@ -189,27 +209,40 @@ class TextToSpeechDatasetCreator(SpeechToTextDatasetCreator):
 
         durations = [s.get(cls.KEY_DURATION, None) for s in samples]
         durations = [
-            None if dd is None else [int(d) for d in dd.split(" ")]
-            for dd in durations
+            None if dd is None else [int(d) for d in dd.split(" ")] for dd in durations
         ]
         durations = None if any(dd is None for dd in durations) else durations
 
         pitches = [s.get(cls.KEY_PITCH, None) for s in samples]
         pitches = [
-            None if pp is None else (audio_root / pp).as_posix()
-            for pp in pitches
+            None if pp is None else (audio_root / pp).as_posix() for pp in pitches
         ]
         pitches = None if any(pp is None for pp in pitches) else pitches
 
         energies = [s.get(cls.KEY_ENERGY, None) for s in samples]
         energies = [
-            None if ee is None else (audio_root / ee).as_posix()
-            for ee in energies]
+            None if ee is None else (audio_root / ee).as_posix() for ee in energies
+        ]
         energies = None if any(ee is None for ee in energies) else energies
 
         return TextToSpeechDataset(
-            split_name, is_train_split, cfg, audio_paths, n_frames,
-            src_texts, tgt_texts, speakers, src_langs, tgt_langs, ids, tgt_dict,
-            pre_tokenizer, bpe_tokenizer, n_frames_per_step, speaker_to_id,
-            durations, pitches, energies
+            split_name,
+            is_train_split,
+            cfg,
+            audio_paths,
+            n_frames,
+            src_texts,
+            tgt_texts,
+            speakers,
+            src_langs,
+            tgt_langs,
+            ids,
+            tgt_dict,
+            pre_tokenizer,
+            bpe_tokenizer,
+            n_frames_per_step,
+            speaker_to_id,
+            durations,
+            pitches,
+            energies,
         )

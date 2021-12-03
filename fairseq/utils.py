@@ -85,7 +85,9 @@ def apply_to_sample(f, sample):
             return f(x)
         elif isinstance(x, collections.OrderedDict):
             # OrderedDict has attributes that needs to be preserved
-            od = collections.OrderedDict((key, _apply(value)) for key, value in x.items())
+            od = collections.OrderedDict(
+                (key, _apply(value)) for key, value in x.items()
+            )
             od.__dict__ = x.__dict__
             return od
         elif isinstance(x, dict):
@@ -535,6 +537,7 @@ def get_perplexity(loss, round=2, base=2):
 def deprecation_warning(message, stacklevel=3):
     # don't use DeprecationWarning, since it's ignored by default
     warnings.warn(message, stacklevel=stacklevel)
+
 
 def relu_squared(x: torch.Tensor):
     return F.relu(x).pow(2)

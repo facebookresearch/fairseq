@@ -15,13 +15,15 @@ from fairseq.data.audio.text_to_speech_dataset import TextToSpeechDatasetCreator
 from fairseq.tasks import register_task
 from fairseq.tasks.speech_to_text import SpeechToTextTask
 from fairseq.speech_generator import (
-    AutoRegressiveSpeechGenerator, NonAutoregressiveSpeechGenerator,
-    TeacherForcingAutoRegressiveSpeechGenerator
+    AutoRegressiveSpeechGenerator,
+    NonAutoregressiveSpeechGenerator,
+    TeacherForcingAutoRegressiveSpeechGenerator,
 )
 
 logging.basicConfig(
-        format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
 
@@ -33,21 +35,31 @@ except ImportError:
     SummaryWriter = None
 
 
-@register_task('text_to_speech')
+@register_task("text_to_speech")
 class TextToSpeechTask(SpeechToTextTask):
     @staticmethod
     def add_args(parser):
-        parser.add_argument('data', help='manifest root path')
+        parser.add_argument("data", help="manifest root path")
         parser.add_argument(
-            '--config-yaml', type=str, default='config.yaml',
-            help='Configuration YAML filename (under manifest root)'
+            "--config-yaml",
+            type=str,
+            default="config.yaml",
+            help="Configuration YAML filename (under manifest root)",
         )
-        parser.add_argument('--max-source-positions', default=1024, type=int,
-                            metavar='N',
-                            help='max number of tokens in the source sequence')
-        parser.add_argument('--max-target-positions', default=1200, type=int,
-                            metavar='N',
-                            help='max number of tokens in the target sequence')
+        parser.add_argument(
+            "--max-source-positions",
+            default=1024,
+            type=int,
+            metavar="N",
+            help="max number of tokens in the source sequence",
+        )
+        parser.add_argument(
+            "--max-target-positions",
+            default=1200,
+            type=int,
+            metavar="N",
+            help="max number of tokens in the target sequence",
+        )
         parser.add_argument("--n-frames-per-step", type=int, default=1)
         parser.add_argument("--eos-prob-threshold", type=float, default=0.5)
         parser.add_argument("--eval-inference", action="store_true")
@@ -63,19 +75,24 @@ class TextToSpeechTask(SpeechToTextTask):
         self.tensorboard_writer = None
         self.tensorboard_dir = ""
         if args.tensorboard_logdir and SummaryWriter is not None:
-            self.tensorboard_dir = os.path.join(args.tensorboard_logdir,
-                                                "valid_extra")
+            self.tensorboard_dir = os.path.join(args.tensorboard_logdir, "valid_extra")
 
     def load_dataset(self, split, epoch=1, combine=False, **kwargs):
-        is_train_split = split.startswith('train')
+        is_train_split = split.startswith("train")
         pre_tokenizer = self.build_tokenizer(self.args)
         bpe_tokenizer = self.build_bpe(self.args)
         self.datasets[split] = TextToSpeechDatasetCreator.from_tsv(
-            self.args.data, self.data_cfg, split, self.src_dict,
-            pre_tokenizer, bpe_tokenizer, is_train_split=is_train_split,
-            epoch=epoch, seed=self.args.seed,
+            self.args.data,
+            self.data_cfg,
+            split,
+            self.src_dict,
+            pre_tokenizer,
+            bpe_tokenizer,
+            is_train_split=is_train_split,
+            epoch=epoch,
+            seed=self.args.seed,
             n_frames_per_step=self.args.n_frames_per_step,
-            speaker_to_id=self.speaker_to_id
+            speaker_to_id=self.speaker_to_id,
         )
 
     @property
@@ -106,7 +123,8 @@ class TextToSpeechTask(SpeechToTextTask):
                 speaker_emb_mat = np.load(args.speaker_emb_path)
                 assert speaker_emb_mat.shape[1] == args.speaker_embed_dim
                 embed_speaker = torch.nn.Embedding.from_pretrained(
-                    torch.from_numpy(speaker_emb_mat), freeze=True,
+                    torch.from_numpy(speaker_emb_mat),
+                    freeze=True,
                 )
                 logger.info(
                     f"load speaker embeddings from {args.speaker_emb_path}. "
@@ -132,22 +150,23 @@ class TextToSpeechTask(SpeechToTextTask):
             vocoder = self.build_default_vocoder()
         model = models[0]
         if getattr(model, "NON_AUTOREGRESSIVE", False):
-            return NonAutoregressiveSpeechGenerator(
-                model, vocoder, self.data_cfg
-            )
+            return NonAutoregressiveSpeechGenerator(model, vocoder, self.data_cfg)
         else:
             generator = AutoRegressiveSpeechGenerator
             if getattr(cfg, "teacher_forcing", False):
                 generator = TeacherForcingAutoRegressiveSpeechGenerator
                 logger.info("Teacher forcing mode for generation")
             return generator(
-                model, vocoder, self.data_cfg,
+                model,
+                vocoder,
+                self.data_cfg,
                 max_iter=self.args.max_target_positions,
-                eos_prob_threshold=self.args.eos_prob_threshold
+                eos_prob_threshold=self.args.eos_prob_threshold,
             )
 
     def build_default_vocoder(self):
         from fairseq.models.text_to_speech.vocoder import get_vocoder
+
         vocoder = get_vocoder(self.args, self.data_cfg)
         if torch.cuda.is_available() and not self.args.cpu:
             vocoder = vocoder.cuda()
@@ -156,25 +175,23 @@ class TextToSpeechTask(SpeechToTextTask):
         return vocoder
 
     def valid_step(self, sample, model, criterion):
-        loss, sample_size, logging_output = super().valid_step(
-            sample, model, criterion
-        )
+        loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
 
         if getattr(self.args, "eval_inference", False):
             hypos, inference_losses = self.valid_step_with_inference(
                 sample, model, self.generator
             )
             for k, v in inference_losses.items():
-                assert(k not in logging_output)
+                assert k not in logging_output
                 logging_output[k] = v
 
             picked_id = 0
             if self.tensorboard_dir and (sample["id"] == picked_id).any():
                 self.log_tensorboard(
                     sample,
-                    hypos[:self.args.eval_tb_nsample],
+                    hypos[: self.args.eval_tb_nsample],
                     model._num_updates,
-                    is_na_model=getattr(model, "NON_AUTOREGRESSIVE", False)
+                    is_na_model=getattr(model, "NON_AUTOREGRESSIVE", False),
                 )
         return loss, sample_size, logging_output
 
@@ -182,17 +199,17 @@ class TextToSpeechTask(SpeechToTextTask):
         hypos = generator.generate(model, sample, has_targ=True)
 
         losses = {
-            "mcd_loss": 0.,
-            "targ_frames": 0.,
-            "pred_frames": 0.,
-            "nins": 0.,
-            "ndel": 0.,
+            "mcd_loss": 0.0,
+            "targ_frames": 0.0,
+            "pred_frames": 0.0,
+            "nins": 0.0,
+            "ndel": 0.0,
         }
         rets = batch_mel_cepstral_distortion(
             [hypo["targ_waveform"] for hypo in hypos],
             [hypo["waveform"] for hypo in hypos],
             self.sr,
-            normalize_type=None
+            normalize_type=None,
         )
         for d, extra in rets:
             pathmap = extra[-1]
@@ -218,41 +235,40 @@ class TextToSpeechTask(SpeechToTextTask):
             if is_na_model:
                 data = plot_tts_output(
                     [targ.transpose(0, 1), pred.transpose(0, 1)],
-                    [f"target (idx={idx})", "output"], attn,
-                    "alignment", ret_np=True, suptitle=text,
+                    [f"target (idx={idx})", "output"],
+                    attn,
+                    "alignment",
+                    ret_np=True,
+                    suptitle=text,
                 )
             else:
                 eos_prob = hypos[b]["eos_prob"]
                 data = plot_tts_output(
                     [targ.transpose(0, 1), pred.transpose(0, 1), attn],
-                    [f"target (idx={idx})", "output", "alignment"], eos_prob,
-                    "eos prob", ret_np=True, suptitle=text,
+                    [f"target (idx={idx})", "output", "alignment"],
+                    eos_prob,
+                    "eos prob",
+                    ret_np=True,
+                    suptitle=text,
                 )
 
             tb_writer.add_image(
-                f"inference_sample_{b}", data, num_updates,
-                dataformats="HWC"
+                f"inference_sample_{b}", data, num_updates, dataformats="HWC"
             )
 
             if hypos[b]["waveform"] is not None:
                 targ_wave = hypos[b]["targ_waveform"].detach().cpu().float()
                 pred_wave = hypos[b]["waveform"].detach().cpu().float()
                 tb_writer.add_audio(
-                    f"inference_targ_{b}",
-                    targ_wave,
-                    num_updates,
-                    sample_rate=self.sr
+                    f"inference_targ_{b}", targ_wave, num_updates, sample_rate=self.sr
                 )
                 tb_writer.add_audio(
-                    f"inference_pred_{b}",
-                    pred_wave,
-                    num_updates,
-                    sample_rate=self.sr
+                    f"inference_pred_{b}", pred_wave, num_updates, sample_rate=self.sr
                 )
 
 
 def save_figure_to_numpy(fig):
-    data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+    data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep="")
     data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
     return data
 
@@ -261,8 +277,15 @@ DEFAULT_V_MIN = np.log(1e-5)
 
 
 def plot_tts_output(
-        data_2d, title_2d, data_1d, title_1d, figsize=(24, 4),
-        v_min=DEFAULT_V_MIN, v_max=3, ret_np=False, suptitle=""
+    data_2d,
+    title_2d,
+    data_1d,
+    title_1d,
+    figsize=(24, 4),
+    v_min=DEFAULT_V_MIN,
+    v_max=3,
+    ret_np=False,
+    suptitle="",
 ):
     try:
         import matplotlib.pyplot as plt
@@ -271,8 +294,8 @@ def plot_tts_output(
         raise ImportError("Please install Matplotlib: pip install matplotlib")
 
     data_2d = [
-        x.detach().cpu().float().numpy()
-        if isinstance(x, torch.Tensor) else x for x in data_2d
+        x.detach().cpu().float().numpy() if isinstance(x, torch.Tensor) else x
+        for x in data_2d
     ]
     fig, axes = plt.subplots(1, len(data_2d) + 1, figsize=figsize)
     if suptitle:
@@ -281,12 +304,15 @@ def plot_tts_output(
     for ax, x, name in zip(axes, data_2d, title_2d):
         ax.set_title(name)
         divider = make_axes_locatable(ax)
-        cax = divider.append_axes('right', size='5%', pad=0.05)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
         im = ax.imshow(
-            x, origin="lower", aspect="auto", vmin=max(x.min(), v_min),
-            vmax=min(x.max(), v_max)
+            x,
+            origin="lower",
+            aspect="auto",
+            vmin=max(x.min(), v_min),
+            vmax=min(x.max(), v_max),
         )
-        fig.colorbar(im, cax=cax, orientation='vertical')
+        fig.colorbar(im, cax=cax, orientation="vertical")
 
     if isinstance(data_1d, torch.Tensor):
         data_1d = data_1d.detach().cpu().numpy()
@@ -349,9 +375,12 @@ def batch_dynamic_time_warping(distance, shapes=None):
     for offset in range(2, m + n - 1):
         ind = antidiag_indices(offset, 1, m, 1, n)
         c = torch.stack(
-            [cumdist[:, ind[0], ind[1] - 1], cumdist[:, ind[0] - 1, ind[1] - 1],
-             cumdist[:, ind[0] - 1, ind[1]], ],
-            dim=2
+            [
+                cumdist[:, ind[0], ind[1] - 1],
+                cumdist[:, ind[0] - 1, ind[1] - 1],
+                cumdist[:, ind[0] - 1, ind[1]],
+            ],
+            dim=2,
         )
         v, b = c.min(axis=-1)
         backptr[:, ind[0], ind[1]] = b.int()
@@ -364,7 +393,7 @@ def batch_dynamic_time_warping(distance, shapes=None):
         j = n - 1 if shapes is None else (shapes[b][1] - 1).item()
         dtwpath = [(i, j)]
         while (i != 0 or j != 0) and len(dtwpath) < 10000:
-            assert (i >= 0 and j >= 0)
+            assert i >= 0 and j >= 0
             di, dj = ptr2dij[backptr[b, i, j].item()]
             i, j = i + di, j + dj
             dtwpath.append((i, j))
@@ -401,7 +430,7 @@ def get_divisor(pathmap, normalize_type):
 def batch_compute_distortion(y1, y2, sr, feat_fn, dist_fn, normalize_type):
     d, s, x1, x2 = [], [], [], []
     for cur_y1, cur_y2 in zip(y1, y2):
-        assert (cur_y1.ndim == 1 and cur_y2.ndim == 1)
+        assert cur_y1.ndim == 1 and cur_y2.ndim == 1
         cur_x1 = feat_fn(cur_y1)
         cur_x2 = feat_fn(cur_y2)
         x1.append(cur_x1)
@@ -432,9 +461,7 @@ def batch_compute_distortion(y1, y2, sr, feat_fn, dist_fn, normalize_type):
     return rets
 
 
-def batch_mel_cepstral_distortion(
-        y1, y2, sr, normalize_type="path", mfcc_fn=None
-):
+def batch_mel_cepstral_distortion(y1, y2, sr, normalize_type="path", mfcc_fn=None):
     """
     https://arxiv.org/pdf/2011.03568.pdf
 
@@ -454,14 +481,21 @@ def batch_mel_cepstral_distortion(
 
     if mfcc_fn is None or mfcc_fn.sample_rate != sr:
         melkwargs = {
-            "n_fft": int(0.05 * sr), "win_length": int(0.05 * sr),
-            "hop_length": int(0.0125 * sr), "f_min": 20,
-            "n_mels": 80, "window_fn": torch.hann_window
+            "n_fft": int(0.05 * sr),
+            "win_length": int(0.05 * sr),
+            "hop_length": int(0.0125 * sr),
+            "f_min": 20,
+            "n_mels": 80,
+            "window_fn": torch.hann_window,
         }
         mfcc_fn = torchaudio.transforms.MFCC(
             sr, n_mfcc=13, log_mels=True, melkwargs=melkwargs
         ).to(y1[0].device)
     return batch_compute_distortion(
-        y1, y2, sr, lambda y: mfcc_fn(y).transpose(-1, -2), compute_rms_dist,
-        normalize_type
+        y1,
+        y2,
+        sr,
+        lambda y: mfcc_fn(y).transpose(-1, -2),
+        compute_rms_dist,
+        normalize_type,
     )

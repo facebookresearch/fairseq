@@ -28,15 +28,15 @@ class LabelEncoder(object):
 
     def __call__(self, label: str) -> List[str]:
         return self.dictionary.encode_line(
-            label, append_eos=False, add_if_not_exist=False,
+            label,
+            append_eos=False,
+            add_if_not_exist=False,
         )
 
 
 @dataclass
 class HubertPretrainingConfig(FairseqDataclass):
-    data: str = field(
-        default=MISSING, metadata={"help": "path to data directory"}
-    )
+    data: str = field(default=MISSING, metadata={"help": "path to data directory"})
     fine_tuning: bool = field(
         default=False, metadata={"help": "set to true if fine-tuning Hubert"}
     )
@@ -68,9 +68,7 @@ class HubertPretrainingConfig(FairseqDataclass):
     )
     normalize: bool = field(
         default=False,
-        metadata={
-            "help": "if set, normalizes input to have 0 mean and unit variance"
-        },
+        metadata={"help": "if set, normalizes input to have 0 mean and unit variance"},
     )
     enable_padding: bool = field(
         default=False,
@@ -91,8 +89,7 @@ class HubertPretrainingConfig(FairseqDataclass):
     single_target: Optional[bool] = field(
         default=False,
         metadata={
-            "help": "if set, AddTargetDatasets outputs same keys "
-            "as AddTargetDataset"
+            "help": "if set, AddTargetDatasets outputs same keys " "as AddTargetDataset"
         },
     )
     random_crop: Optional[bool] = field(
@@ -149,7 +146,10 @@ class HubertPretrainingTask(FairseqTask):
 
     def load_dictionaries(self):
         label_dir = self.cfg.data if self.cfg.label_dir is None else self.cfg.label_dir
-        dictionaries = [Dictionary.load(f"{label_dir}/dict.{label}.txt") for label in self.cfg.labels]
+        dictionaries = [
+            Dictionary.load(f"{label_dir}/dict.{label}.txt")
+            for label in self.cfg.labels
+        ]
         return dictionaries[0] if self.cfg.fine_tuning else dictionaries
 
     def get_label_dir(self) -> str:
@@ -163,9 +163,7 @@ class HubertPretrainingTask(FairseqTask):
         pad_list = [dict.pad() for dict in dicts]
         eos_list = [dict.eos() for dict in dicts]
         procs = [LabelEncoder(dict) for dict in dicts]
-        paths = [
-            f"{self.get_label_dir()}/{split}.{l}" for l in self.cfg.labels
-        ]
+        paths = [f"{self.get_label_dir()}/{split}.{l}" for l in self.cfg.labels]
 
         # hubert v1: pad_audio=True, random_crop=False;
         self.datasets[split] = HubertDataset(
@@ -189,7 +187,5 @@ class HubertPretrainingTask(FairseqTask):
     def max_positions(self) -> Tuple[int, int]:
         return (sys.maxsize, sys.maxsize)
 
-    def filter_indices_by_size(
-        self, indices: np.array, *args, **kwargs
-    ) -> np.array:
+    def filter_indices_by_size(self, indices: np.array, *args, **kwargs) -> np.array:
         return indices

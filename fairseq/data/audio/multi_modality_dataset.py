@@ -29,6 +29,7 @@ class ModalityDatasetItem(NamedTuple):
     max_tokens: Optional[int] = None
     max_sentences: Optional[int] = None
 
+
 # MultiModalityDataset: it concate multiple datasets with different modalities.
 # Compared with ConcatDataset it can 1) sample data given the ratios for different datasets
 # 2) it adds mode to indicate what type of the data samples come from.
