@@ -7,6 +7,7 @@ import unittest
 from collections import OrderedDict
 
 import torch
+
 from fairseq.data import LanguagePairDataset, TokenBlockDataset
 from fairseq.data.multi_corpus_dataset import MultiCorpusDataset
 from tests.test_train import mock_dict
@@ -69,8 +70,10 @@ class TestMultiCorpusDataset(unittest.TestCase):
         )
         self.assertEqual(
             len(items),
-            int(min(len(self.dataset_1), len(indices) * distribution[0])
-                + min(len(self.dataset_1), len(indices) * distribution[1]))
+            int(
+                min(len(self.dataset_1), len(indices) * distribution[0])
+                + min(len(self.dataset_1), len(indices) * distribution[1])
+            ),
         )
         print(distribution)
 

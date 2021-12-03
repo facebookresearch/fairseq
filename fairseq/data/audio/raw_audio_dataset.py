@@ -308,6 +308,7 @@ class FileAudioDataset(RawAudioDataset):
 
     def __getitem__(self, index):
         import soundfile as sf
+
         fn = self.fnames[index]
         fn = fn if isinstance(self.fnames, list) else fn.as_py()
         fn = self.text_compressor.decompress(fn)

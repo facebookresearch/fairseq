@@ -17,11 +17,12 @@ from itertools import chain
 
 import numpy as np
 import torch
+from omegaconf import DictConfig
+
 from fairseq import checkpoint_utils, options, scoring, tasks, utils
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
-from omegaconf import DictConfig
 
 
 def main(cfg: DictConfig):
@@ -80,7 +81,6 @@ def _main(cfg: DictConfig, output_file):
 
     # Load dataset splits
     task = tasks.setup_task(cfg.task)
-
 
     # Set dictionaries
     try:
@@ -316,10 +316,7 @@ def _main(cfg: DictConfig, output_file):
                             "A-{}\t{}".format(
                                 sample_id,
                                 " ".join(
-                                    [
-                                        ",".join(src_probs)
-                                        for src_probs in alignment
-                                    ]
+                                    [",".join(src_probs) for src_probs in alignment]
                                 ),
                             ),
                             file=output_file,
@@ -348,7 +345,10 @@ def _main(cfg: DictConfig, output_file):
 
                 # Score only the top hypothesis
                 if has_target and j == 0:
-                    if align_dict is not None or cfg.common_eval.post_process is not None:
+                    if (
+                        align_dict is not None
+                        or cfg.common_eval.post_process is not None
+                    ):
                         # Convert back to tokens for evaluation with unk replacement and/or without BPE
                         target_tokens = tgt_dict.encode_line(
                             target_str, add_if_not_exist=True
@@ -402,9 +402,12 @@ def cli_main():
     parser = options.get_generation_parser()
     # TODO: replace this workaround with refactoring of `AudioPretraining`
     parser.add_argument(
-        '--arch', '-a', metavar='ARCH', default="wav2vec2",
-        help='Model architecture. For constructing tasks that rely on '
-             'model args (e.g. `AudioPretraining`)'
+        "--arch",
+        "-a",
+        metavar="ARCH",
+        default="wav2vec2",
+        help="Model architecture. For constructing tasks that rely on "
+        "model args (e.g. `AudioPretraining`)",
     )
     args = options.parse_args_and_arch(parser)
     main(args)

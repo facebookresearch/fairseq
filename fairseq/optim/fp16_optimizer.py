@@ -64,9 +64,9 @@ class _FP16OptimizerMixin(object):
             fp32_params = []
             for p in params:
                 p32 = torch.nn.Parameter(p.data.float())
-                if hasattr(p, 'expert'):
+                if hasattr(p, "expert"):
                     p32.expert = True
-                elif hasattr(p, 'base_expert'):
+                elif hasattr(p, "base_expert"):
                     p32.base_expert = True
                 p32.grad = torch.zeros_like(p32.data)
                 if hasattr(p, "param_group"):
@@ -209,7 +209,9 @@ class _FP16OptimizerMixin(object):
         self._sync_fp16_grads_to_fp32()
 
         if getattr(self, "supports_step_with_scale", False):
-            self.fp32_optimizer.step(closure, scale=(1.0 / self._multiply_factor), groups=groups)
+            self.fp32_optimizer.step(
+                closure, scale=(1.0 / self._multiply_factor), groups=groups
+            )
         else:
             self._unscale_grads()
             self.fp32_optimizer.step(closure, groups=groups)
@@ -434,7 +436,9 @@ class _MemoryEfficientFP16OptimizerMixin(object):
         """Performs a single optimization step."""
         if getattr(self, "supports_step_with_scale", False):
             # NOTE(msb) optimizer divides by scale factor
-            self.wrapped_optimizer.step(closure, scale=(1.0 / self._multiply_factor), groups=groups)
+            self.wrapped_optimizer.step(
+                closure, scale=(1.0 / self._multiply_factor), groups=groups
+            )
         else:
             self._unscale_grads()
             self.wrapped_optimizer.step(closure, groups=groups)

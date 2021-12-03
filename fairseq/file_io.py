@@ -152,6 +152,7 @@ class PathManager:
     """
     ioPath async PathManager methods:
     """
+
     @staticmethod
     def opena(
         path: str,
@@ -169,6 +170,7 @@ class PathManager:
             logging.info("ioPath is initializing PathManager.")
             try:
                 from iopath.common.file_io import PathManager
+
                 IOPathManager = PathManager()
             except Exception:
                 logging.exception("Failed to initialize ioPath PathManager object.")

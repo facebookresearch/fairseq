@@ -1,0 +1,40 @@
+exclude: 'build|stubs'
+
+default_language_version:
+    python: python3
+
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.1
+    hooks:
+    -   id: trailing-whitespace
+    -   id: check-ast
+    -   id: check-merge-conflict
+    -   id: no-commit-to-branch
+        args: ['--branch=master']
+    -   id: check-added-large-files
+        args: ['--maxkb=500']
+    -   id: end-of-file-fixer
+
+-   repo: https://github.com/ambv/black
+    rev: 20.8b1
+    hooks:
+    - id: black
+      language_version: python3.8
+
+-   repo: https://gitlab.com/pycqa/flake8
+    rev: 3.9.2
+    hooks:
+    -   id: flake8
+        args: [
+            # only error for syntax errors and undefined names
+            "--select=E9,F63,F7,F82",
+        ]
+
+-   repo: https://github.com/pycqa/isort
+    rev: 5.10.1
+    hooks:
+    -   id: isort
+        exclude: README.md
+        additional_dependencies: [toml]
+        args: ["--profile", "black"]

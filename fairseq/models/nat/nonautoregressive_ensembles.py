@@ -85,7 +85,8 @@ class EnsembleLevT(BasicEnsembleModel):
         else:
             if not encoder_outs[0]["encoder_padding_mask"]:
                 src_lens = (
-                    encoder_outs[0]["encoder_out"][0].new(bsz)
+                    encoder_outs[0]["encoder_out"][0]
+                    .new(bsz)
                     .fill_(encoder_outs[0]["encoder_out"][0].size(1))
                 )
             else:

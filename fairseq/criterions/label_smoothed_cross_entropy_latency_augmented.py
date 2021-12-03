@@ -9,19 +9,20 @@ from fairseq import metrics, utils
 from fairseq.criterions import register_criterion
 from fairseq.criterions.label_smoothed_cross_entropy import (
     LabelSmoothedCrossEntropyCriterion,
-    LabelSmoothedCrossEntropyCriterionConfig
+    LabelSmoothedCrossEntropyCriterionConfig,
 )
 
 try:
     from simuleval.metrics.latency import (
         AverageLagging,
         AverageProportion,
-        DifferentiableAverageLagging
+        DifferentiableAverageLagging,
     )
+
     LATENCY_METRICS = {
         "average_lagging": AverageLagging,
         "average_proportion": AverageProportion,
-        "differentiable_average_lagging":  DifferentiableAverageLagging,
+        "differentiable_average_lagging": DifferentiableAverageLagging,
     }
 except ImportError:
     LATENCY_METRICS = None
@@ -56,9 +57,10 @@ class LabelSmoothedCrossEntropyCriterionLatencyAugmentConfig(
         metadata={"help": "Add latency loss after certain steps"},
     )
 
+
 @register_criterion(
     "latency_augmented_label_smoothed_cross_entropy",
-    dataclass=LabelSmoothedCrossEntropyCriterionLatencyAugmentConfig
+    dataclass=LabelSmoothedCrossEntropyCriterionLatencyAugmentConfig,
 )
 class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
     LabelSmoothedCrossEntropyCriterion
@@ -101,9 +103,9 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
 
         if self.latency_update_after > 0:
             num_updates = getattr(model.decoder, "num_updates", None)
-            assert num_updates is not None, (
-                "model.decoder doesn't have attribute 'num_updates'"
-            )
+            assert (
+                num_updates is not None
+            ), "model.decoder doesn't have attribute 'num_updates'"
             if num_updates <= self.latency_update_after:
                 latency_loss = 0
 
@@ -134,9 +136,7 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
         assert (
             net_output[-1].encoder_padding_mask is None
             or not net_output[-1].encoder_padding_mask[:, 0].any()
-        ), (
-            "Only right padding on source is supported."
-        )
+        ), "Only right padding on source is supported."
         # 1. Obtain the expected alignment
         alpha_list = [item["alpha"] for item in net_output[1].attn_list]
         num_layers = len(alpha_list)
@@ -174,8 +174,7 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
             .view(-1)
         )
         expected_latency = LATENCY_METRICS[self.latency_avg_type](
-            expected_delays, src_lengths, None,
-            target_padding_mask=target_padding_mask
+            expected_delays, src_lengths, None, target_padding_mask=target_padding_mask
         )
 
         # 2.1 average expected latency of heads
@@ -210,24 +209,12 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
     @classmethod
     def reduce_metrics(cls, logging_outputs) -> None:
         super().reduce_metrics(logging_outputs)
-        latency = sum(
-            log.get("latency", 0) for log in logging_outputs
-        )
-        delays_var = sum(
-            log.get("delays_var", 0) for log in logging_outputs
-        )
-        latency_loss = sum(
-            log.get("latency_loss", 0) for log in logging_outputs
-        )
+        latency = sum(log.get("latency", 0) for log in logging_outputs)
+        delays_var = sum(log.get("delays_var", 0) for log in logging_outputs)
+        latency_loss = sum(log.get("latency_loss", 0) for log in logging_outputs)
         nsentences = sum(log.get("nsentences", 0) for log in logging_outputs)
+        metrics.log_scalar("latency", latency.float() / nsentences, nsentences, round=3)
+        metrics.log_scalar("delays_var", delays_var / nsentences, nsentences, round=3)
         metrics.log_scalar(
-            "latency", latency.float() / nsentences, nsentences, round=3
-        )
-        metrics.log_scalar(
-            "delays_var", delays_var / nsentences,
-            nsentences, round=3
-        )
-        metrics.log_scalar(
-            "latency_loss", latency_loss / nsentences,
-            nsentences, round=3
+            "latency_loss", latency_loss / nsentences, nsentences, round=3
         )

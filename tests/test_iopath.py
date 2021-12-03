@@ -8,7 +8,6 @@ from unittest import mock
 
 
 class TestIOPath(unittest.TestCase):
-
     def test_no_iopath(self):
         from .test_reproducibility import TestReproducibility
 

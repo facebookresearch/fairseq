@@ -96,10 +96,7 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
 
         checkpoint_conds[
             "checkpoint.best_{}_{:.3f}{}{}.pt".format(
-                cfg.best_checkpoint_metric,
-                val_loss,
-                rand_sfx,
-                suffix
+                cfg.best_checkpoint_metric, val_loss, rand_sfx, suffix
             )
         ] = worst_best is None or is_better(val_loss, worst_best)
     checkpoint_conds[
@@ -468,9 +465,7 @@ def load_model_ensemble_and_task(
                     and len(state["optimizer_history"]) > 0
                     and "num_updates" in state["optimizer_history"][-1]
                 ):
-                    model.set_num_updates(
-                        state["optimizer_history"][-1]["num_updates"]
-                    )
+                    model.set_num_updates(state["optimizer_history"][-1]["num_updates"])
                 model.load_state_dict(
                     state["model"], strict=strict, model_cfg=cfg.model
                 )
@@ -578,14 +573,6 @@ def _upgrade_state_dict(state):
     # keep track of number of updates
     if "num_updates" not in state["optimizer_history"][-1]:
         state["optimizer_history"][-1]["num_updates"] = 0
-    # old model checkpoints may not have separate source/target positions
-    if (
-        "args" in state
-        and hasattr(state["args"], "max_positions")
-        and not hasattr(state["args"], "max_source_positions")
-    ):
-        state["args"].max_source_positions = state["args"].max_positions
-        state["args"].max_target_positions = state["args"].max_positions
     # use stateful training data iterator
     if "train_iterator" not in state["extra_state"]:
         state["extra_state"]["train_iterator"] = {
@@ -595,6 +582,12 @@ def _upgrade_state_dict(state):
 
     # backward compatibility, cfg updates
     if "args" in state and state["args"] is not None:
+        # old model checkpoints may not have separate source/target positions
+        if hasattr(state["args"], "max_positions") and not hasattr(
+            state["args"], "max_source_positions"
+        ):
+            state["args"].max_source_positions = state["args"].max_positions
+            state["args"].max_target_positions = state["args"].max_positions
         # default to translation task
         if not hasattr(state["args"], "task"):
             state["args"].task = "translation"
@@ -616,13 +609,10 @@ def _upgrade_state_dict(state):
             state["args"].stop_min_lr = state["args"].min_lr
             del state["args"].min_lr
         # binary_cross_entropy / kd_binary_cross_entropy => wav2vec criterion
-        if (
-            hasattr(state["args"], "criterion")
-            and state["args"].criterion in [
-                "binary_cross_entropy",
-                "kd_binary_cross_entropy",
-            ]
-        ):
+        if hasattr(state["args"], "criterion") and state["args"].criterion in [
+            "binary_cross_entropy",
+            "kd_binary_cross_entropy",
+        ]:
             state["args"].criterion = "wav2vec"
         # remove log_keys if it's None (criteria will supply a default value of [])
         if hasattr(state["args"], "log_keys") and state["args"].log_keys is None:
@@ -646,15 +636,6 @@ def _upgrade_state_dict(state):
             and len(state["args"].data) > 0
         ):
             state["args"].data = state["args"].data[0]
-        # remove keys in state["args"] related to teacher-student learning
-        for key in [
-            "static_teachers",
-            "static_teacher_weights",
-            "dynamic_teachers",
-            "dynamic_teacher_weights",
-        ]:
-            if key in state["args"]:
-                delattr(state["args"], key)
 
         state["cfg"] = convert_namespace_to_omegaconf(state["args"])
 
@@ -669,7 +650,9 @@ def _upgrade_state_dict(state):
             ):
                 cfg.task.eval_wer_config.print_alignment = "hard"
             if "generation" in cfg and isinstance(cfg.generation.print_alignment, bool):
-                cfg.generation.print_alignment = "hard" if cfg.generation.print_alignment else None
+                cfg.generation.print_alignment = (
+                    "hard" if cfg.generation.print_alignment else None
+                )
             if (
                 "model" in cfg
                 and "w2v_args" in cfg.model
@@ -843,16 +826,16 @@ def load_ema_from_checkpoint(fpath):
     params_dict = collections.OrderedDict()
     new_state = None
 
-    with PathManager.open(fpath, 'rb') as f:
+    with PathManager.open(fpath, "rb") as f:
         new_state = torch.load(
             f,
             map_location=(
-                lambda s, _: torch.serialization.default_restore_location(s, 'cpu')
+                lambda s, _: torch.serialization.default_restore_location(s, "cpu")
             ),
         )
 
         # EMA model is stored in a separate "extra state"
-        model_params = new_state['extra_state']['ema']
+        model_params = new_state["extra_state"]["ema"]
 
         for key in list(model_params.keys()):
             p = model_params[key]
@@ -870,5 +853,5 @@ def load_ema_from_checkpoint(fpath):
                 "ema model weights, is this model trained with EMA?"
             )
 
-    new_state['model'] = params_dict
+    new_state["model"] = params_dict
     return new_state

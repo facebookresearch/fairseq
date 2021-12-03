@@ -18,7 +18,10 @@ def ensemble_encoder(func):
     def wrapper(self, *args, **kwargs):
         if self.ensemble_models is None or len(self.ensemble_models) == 1:
             return func(self, *args, **kwargs)
-        encoder_outs = [func(model, *args, **kwargs, return_all_hiddens=True) for model in self.ensemble_models]
+        encoder_outs = [
+            func(model, *args, **kwargs, return_all_hiddens=True)
+            for model in self.ensemble_models
+        ]
         _encoder_out = encoder_outs[0].copy()
 
         def stack(key):
@@ -56,8 +59,7 @@ def ensemble_decoder(func):
                 model,
                 normalize=normalize,
                 encoder_out=_replace(
-                    encoder_out,
-                    encoder_out["encoder_out"][0][:, :, :, i]
+                    encoder_out, encoder_out["encoder_out"][0][:, :, :, i]
                 ),
                 *args,
                 **kwargs

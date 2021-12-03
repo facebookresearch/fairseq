@@ -11,9 +11,10 @@ from multiprocessing import Manager
 
 import torch
 import torch.nn as nn
+from omegaconf import OmegaConf
+
 from fairseq import optim
 from fairseq.distributed import utils as distributed_utils
-from omegaconf import OmegaConf
 
 
 class Model(nn.Module):
@@ -42,10 +43,7 @@ def setup_model_loss_criterion(cfg, args, rank, is_cuda):
         loss_fn = loss_fn.cuda()
 
     optimizer = optim.sgd.SGD(args, model.parameters())
-    optimizer = optim.FairseqBMUF(
-        cfg=cfg.bmuf,
-        optimizer=optimizer
-    )
+    optimizer = optim.FairseqBMUF(cfg=cfg.bmuf, optimizer=optimizer)
 
     return model, loss_fn, optimizer
 
