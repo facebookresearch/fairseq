@@ -37,7 +37,7 @@ def progress_bar(
     wandb_project: Optional[str] = None,
     wandb_run_name: Optional[str] = None,
     azureml_logging: Optional[bool] = False,
-    comet_config: Optional[dict[str, Any]] = None,
+    comet_config: Optional[dict] = None,
 ):
     if log_format is None:
         log_format = default_log_format
@@ -525,7 +525,7 @@ class CometProgressBarWrapper(BaseProgressBar):
             "resume_strategy": None,
             "distributed_node_type": None,
             "distributed_node_identifier": None,
-        ]
+        }
         for key in list(kwargs):
             if key in meta_config:
                 meta_config[key] = kwargs.pop(key)
