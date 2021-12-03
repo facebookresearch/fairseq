@@ -202,10 +202,10 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
             help="model to take encoder weights from (for initialization)",
         )
         parser.add_argument(
-            '--encoder-freezing-updates',
+            "--encoder-freezing-updates",
             type=int,
-            metavar='N',
-            help='freeze encoder for first N updates'
+            metavar="N",
+            help="freeze encoder for first N updates",
         )
 
     @classmethod
@@ -270,6 +270,37 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
         )
         return decoder_out
 
+    def upgrade_state_dict_from_hf_hub(self, state_dict):
+        def update_key_prefix(key, prefix, new_prefix):
+            if key.startswith(prefix):
+                new_key = new_prefix + key[len(prefix):]
+                state_dict[new_key] = state_dict[key]
+                del state_dict[key]
+
+        def set_default(key, default):
+            if key not in state_dict:
+                state_dict[key] = default
+
+        for k in list(state_dict.keys()):
+            update_key_prefix(k, "model.", "")
+        for k in list(state_dict.keys()):
+            for p, p_new in [
+                ("encoder.layers.", "encoder.transformer_layers."),
+                ("encoder.conv.", "encoder.subsample."),
+                ("lm_head.weight", "decoder.output_projection.weight")
+            ]:
+                update_key_prefix(k, p, p_new)
+
+        for k, d in [
+            ("decoder.version", torch.Tensor([3])),
+            ("encoder.embed_positions._float_tensor", torch.FloatTensor(1)),
+            ("decoder.embed_positions._float_tensor", torch.FloatTensor(1))
+        ]:
+            set_default(k, d)
+
+    def upgrade_state_dict(self, state_dict):
+        self.upgrade_state_dict_from_hf_hub(state_dict)
+
 
 class S2TTransformerEncoder(FairseqEncoder):
     """Speech-to-text Transformer encoder that consists of input subsampler and
@@ -329,7 +360,9 @@ class S2TTransformerEncoder(FairseqEncoder):
 
         return {
             "encoder_out": [x],  # T x B x C
-            "encoder_padding_mask": [encoder_padding_mask] if encoder_padding_mask.any() else [],  # B x T
+            "encoder_padding_mask": [encoder_padding_mask]
+            if encoder_padding_mask.any()
+            else [],  # B x T
             "encoder_embedding": [],  # B x T x C
             "encoder_states": encoder_states,  # List[T x B x C]
             "src_tokens": [],
@@ -339,27 +372,37 @@ class S2TTransformerEncoder(FairseqEncoder):
     def forward(self, src_tokens, src_lengths, return_all_hiddens=False):
         if self.num_updates < self.encoder_freezing_updates:
             with torch.no_grad():
-                x = self._forward(src_tokens, src_lengths,
-                                  return_all_hiddens=return_all_hiddens)
+                x = self._forward(
+                    src_tokens, src_lengths, return_all_hiddens=return_all_hiddens
+                )
         else:
-            x = self._forward(src_tokens, src_lengths,
-                              return_all_hiddens=return_all_hiddens)
+            x = self._forward(
+                src_tokens, src_lengths, return_all_hiddens=return_all_hiddens
+            )
         return x
 
     def reorder_encoder_out(self, encoder_out, new_order):
         new_encoder_out = (
-            [] if len(encoder_out["encoder_out"]) == 0
+            []
+            if len(encoder_out["encoder_out"]) == 0
             else [x.index_select(1, new_order) for x in encoder_out["encoder_out"]]
         )
 
         new_encoder_padding_mask = (
-            [] if len(encoder_out["encoder_padding_mask"]) == 0
-            else [x.index_select(0, new_order) for x in encoder_out["encoder_padding_mask"]]
+            []
+            if len(encoder_out["encoder_padding_mask"]) == 0
+            else [
+                x.index_select(0, new_order)
+                for x in encoder_out["encoder_padding_mask"]
+            ]
         )
 
         new_encoder_embedding = (
-            [] if len(encoder_out["encoder_embedding"]) == 0
-            else [x.index_select(0, new_order) for x in encoder_out["encoder_embedding"]]
+            []
+            if len(encoder_out["encoder_embedding"]) == 0
+            else [
+                x.index_select(0, new_order) for x in encoder_out["encoder_embedding"]
+            ]
         )
 
         encoder_states = encoder_out["encoder_states"]
