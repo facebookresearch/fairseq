@@ -25,7 +25,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
 import os
 import json
-import Path
+from pathlib import Path
 
 
 MODEL_FILE_NAME = "pytorch_model.bin"
