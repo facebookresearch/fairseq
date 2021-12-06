@@ -381,11 +381,11 @@ def _main(cfg: DictConfig, output_file):
         if cfg.bpe and not cfg.generation.sacrebleu:
             if cfg.common_eval.post_process:
                 logger.warning(
-                    "BLEU score is being computed by splitting detokenized string on spaces, this is probably not what you want. Use --sacrebleu for standard 13a BLEU tokenization"
+                    "BLEU score is being computed by splitting detokenized string on spaces, this is probably not what you want. Use --scoring sacrebleu for standard 13a BLEU tokenization"
                 )
             else:
                 logger.warning(
-                    "If you are using BPE on the target side, the BLEU score is computed on BPE tokens, not on proper words.  Use --sacrebleu for standard 13a BLEU tokenization"
+                    "If you are using BPE on the target side, the BLEU score is computed on BPE tokens, not on proper words.  Use --scoring sacrebleu for standard 13a BLEU tokenization"
                 )
         # use print to be consistent with other main outputs: S-, H-, T-, D- and so on
         print(
