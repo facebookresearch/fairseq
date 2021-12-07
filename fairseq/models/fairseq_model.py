@@ -9,7 +9,6 @@ Base classes for various fairseq models.
 import logging
 from argparse import Namespace
 from typing import Dict, List, Optional, Tuple
-from fairseq import __version__ as VERSION
 
 import torch
 import torch.nn as nn
@@ -21,11 +20,8 @@ from fairseq.dataclass.utils import (
     gen_parser_from_dataclass,
 )
 from fairseq.models import FairseqDecoder, FairseqEncoder
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from torch import Tensor
-import os
-import json
-from pathlib import Path
 
 
 logger = logging.getLogger(__name__)
