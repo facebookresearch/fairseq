@@ -398,7 +398,7 @@ def load_model_ensemble_and_task_from_hf(
     cache_dir = cache_dir or CACHE_DIRECTORY
 
     try:
-        from huggingface_hub import snapshot_download  # type: ignore
+        from huggingface_hub import snapshot_download
     except ImportError:
         raise ImportError(
             "You need to install huggingface_hub to use `load_from_hf_hub`. "
