@@ -128,7 +128,7 @@ class CommonConfig(FairseqDataclass):
     azureml_logging: Optional[bool] = field(
         default=False, metadata={"help": "Log scalars to AzureML context"},
     )
-    comet_project: str = field(
+    comet_project: Optional[str] = field(
         default=None,
         metadata={"help": "Comet project name to use for experiment management"},
     )
