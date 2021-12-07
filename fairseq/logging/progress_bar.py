@@ -15,7 +15,7 @@ import sys
 from collections import OrderedDict
 from contextlib import contextmanager
 from numbers import Number
-from typing import Optional, Any
+from typing import Optional
 
 import torch
 
@@ -37,7 +37,7 @@ def progress_bar(
     wandb_project: Optional[str] = None,
     wandb_run_name: Optional[str] = None,
     azureml_logging: Optional[bool] = False,
-    comet_config: Optional[dict] = None,
+    comet_project: Optional[str] = None,
 ):
     if log_format is None:
         log_format = default_log_format
@@ -75,8 +75,8 @@ def progress_bar(
     if azureml_logging:
         bar = AzureMLProgressBarWrapper(bar)
 
-    if comet_logging:
-        bar = CometProgressBarWrapper(bar, comet_config)
+    if comet_project:
+        bar = CometProgressBarWrapper(bar, comet_project)
 
     return bar
 
@@ -500,48 +500,26 @@ except ImportError:
 
 
 class CometProgressBarWrapper(BaseProgressBar):
-    def __init__(self, wrapped_bar, comet_config):
+    def __init__(self, wrapped_bar, comet_project):
         if comet_ml is None:
             logger.warning("comet_ml not found; pip install comet_ml")
             return
 
-        comet_config_dict = {}
-        if comet_config:
-            try:
-                comet_config_dict = ast.literal_eval(comet_config)
-            except Exception:
-                logger.warning("malformed comet-config; ignoring")
-
-        if not isinstance(comet_config_dict, dict):
-            logger.warning("comet-config is not a dictionary; ignoring")
-            comet_config_dict = {}
-
         self.wrapped_bar = wrapped_bar
-        self.experiment = self.start(**comet_config_dict)
+        self.experiment = self.start(project_name=comet_project)
 
-    def start(self, **kwargs):
-        meta_config = {
-            "offline": False,
-            "resume_strategy": None,
-            "distributed_node_type": None,
-            "distributed_node_identifier": None,
-        }
-        for key in list(kwargs):
-            if key in meta_config:
-                meta_config[key] = kwargs.pop(key)
-
-        # Set the remainder through the environment:
-        config = comet_ml.get_config()
-        config._set_settings(kwargs, True)
-        # Now, we construct the experiment:
+    def start(self, project_name):
         try:
-            if meta_config["offline"]:
-                experiment = comet_ml.OfflineExperiment()
-            else:
-                experiment = comet_ml.Experiment()
+            experiment = comet_ml.Experiment()
+            logger.info("Created a Comet experiment")
         except Exception:
-            logger.warning("unable to construct experiment; ignoring")
-            experiment = None
+            offline_directory = comet_ml.config.get_config("comet.offline_directory") or "~/"
+            try:
+                experiment = comet_ml.OfflineExperiment(offline_directory=offline_directory)
+                logger.info("Falling back to an Comet offline experiment")
+            except Exception:
+                logger.warning("unable to construct experiment; ignoring")
+                experiment = None
         return experiment
 
     def __iter__(self):

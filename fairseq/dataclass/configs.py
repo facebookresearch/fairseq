@@ -128,9 +128,9 @@ class CommonConfig(FairseqDataclass):
     azureml_logging: Optional[bool] = field(
         default=False, metadata={"help": "Log scalars to AzureML context"},
     )
-    comet_config: str = field(
-        default="{}",
-        metadata={"help": "Comet config dictionary to use for experiment management"},
+    comet_project: str = field(
+        default=None,
+        metadata={"help": "Comet project name to use for experiment management"},
     )
     seed: int = field(
         default=1, metadata={"help": "pseudo random number generator seed"}
