@@ -6,6 +6,7 @@
 import ast
 import collections
 import contextlib
+import glob
 import logging
 import numpy as np
 import os
@@ -26,6 +27,8 @@ from fairseq.distributed.fully_sharded_data_parallel import FSDP, has_FSDP
 from fairseq.file_io import PathManager
 from fairseq.models import FairseqDecoder, FairseqEncoder
 from omegaconf import DictConfig, open_dict, OmegaConf
+
+from pathlib import Path
 
 
 logger = logging.getLogger(__name__)
@@ -382,6 +385,39 @@ def get_maybe_sharded_checkpoint_filename(
         return model_parallel_filename
     else:
         return filename
+
+
+def load_model_ensemble_and_task_from_hf(
+    model_id,
+    cache_dir: Optional[str] = None,
+    **kwargs: Any,
+):
+    LIBRARY_NAME = "fairseq"
+    CACHE_DIRECTORY = os.path.join(Path.home(), ".cache", LIBRARY_NAME)
+
+    cache_dir = cache_dir or CACHE_DIRECTORY
+
+    try:
+        from huggingface_hub import snapshot_download  # type: ignore
+    except ImportError:
+        raise ImportError(
+            "You need to install huggingface_hub to use `load_from_hf_hub`. "
+            "See https://pypi.org/project/huggingface-hub/ for installation."
+        )
+
+    cached_directory = snapshot_download(
+        model_id,
+        cache_dir=cache_dir,
+        library_name=LIBRARY_NAME,
+        **kwargs,
+    )
+
+    # fetch all model filenames
+    filenames = glob.glob(os.path.join(cached_directory, "*.pt"))
+
+    model_ensemble = load_model_ensemble_and_task(filenames, arg_overrides={"data": cached_directory})
+
+    return model_ensemble
 
 
 def load_model_ensemble_and_task(

@@ -28,12 +28,6 @@ import json
 from pathlib import Path
 
 
-MODEL_FILE_NAME = "pytorch_model.bin"
-CONFIG_FILE_NAME = "config.json"
-LIBRARY_NAME = "fairseq"
-CACHE_DIRECTORY = os.path.join(Path.home(), ".cache", LIBRARY_NAME)
-
-
 logger = logging.getLogger(__name__)
 
 
@@ -136,54 +130,6 @@ class BaseFairseqModel(nn.Module):
 
         new_state_dict = prune_state_dict(state_dict, model_cfg)
         return super().load_state_dict(new_state_dict, strict)
-
-    def load_from_hf_hub(
-        self,
-        pretrained_path,
-        strict=True,
-        args: Optional[Namespace] = None,
-    ):
-        try:
-            from huggingface_hub import hf_hub_url, cached_download
-        except ImportError:
-            raise ImportError(
-                "You need to install huggingface_hub to use `load_from_hf_hub`. "
-                "See https://pypi.org/project/huggingface-hub/ for installation."
-            )
-
-        config_download_url = hf_hub_url(repo_id=pretrained_path, filename=CONFIG_FILE_NAME)
-
-        # Download config
-        downloaded_config_file = str(
-            cached_download(
-                url=config_download_url,
-                library_name=LIBRARY_NAME,
-                library_version=VERSION,
-                cache_dir=CACHE_DIRECTORY,
-            )
-        )
-
-        # create config
-        with open(downloaded_config_file, "r") as f:
-            config_dict = json.load(f)
-
-        model_cfg = OmegaConf.create(config_dict)
-
-        # Download model
-        model_download_url = hf_hub_url(repo_id=pretrained_path, filename=MODEL_FILE_NAME)
-        downloaded_model_file = str(
-            cached_download(
-                url=model_download_url,
-                library_name=LIBRARY_NAME,
-                library_version=VERSION,
-                cache_dir=CACHE_DIRECTORY,
-            )
-        )
-
-        # load state dict
-        state_dict = torch.load(downloaded_model_file)
-
-        return self.load_state_dict(state_dict, model_cfg=model_cfg, strict=strict, *args)
 
     def upgrade_state_dict(self, state_dict):
         """Upgrade old state dicts to work with newer code."""
