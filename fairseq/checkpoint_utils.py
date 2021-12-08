@@ -6,7 +6,6 @@
 import ast
 import collections
 import contextlib
-import glob
 import logging
 import numpy as np
 import os
@@ -390,6 +389,7 @@ def get_maybe_sharded_checkpoint_filename(
 def load_model_ensemble_and_task_from_hf(
     model_id,
     cache_dir: Optional[str] = None,
+    arg_overrides: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ):
     LIBRARY_NAME = "fairseq"
@@ -405,7 +405,7 @@ def load_model_ensemble_and_task_from_hf(
             "See https://pypi.org/project/huggingface-hub/ for installation."
         )
 
-    cached_directory = snapshot_download(
+    cached_model_dir = snapshot_download(
         model_id,
         cache_dir=cache_dir,
         library_name=LIBRARY_NAME,
@@ -413,9 +413,12 @@ def load_model_ensemble_and_task_from_hf(
     )
 
     # fetch all model filenames
-    filenames = glob.glob(os.path.join(cached_directory, "*.pt"))
+    _arg_overrides = arg_overrides or {}
+    _arg_overrides["data"] = cache_dir
 
-    model_ensemble = load_model_ensemble_and_task(filenames, arg_overrides={"data": cached_directory})
+    filenames = [p.as_posix() for p in Path(cached_model_dir).glob("*.pt")]
+
+    model_ensemble = load_model_ensemble_and_task(filenames, arg_overrides=_arg_overrides)
 
     return model_ensemble
 
