@@ -76,6 +76,7 @@ def progress_bar(
         bar = AzureMLProgressBarWrapper(bar)
 
     if comet_project:
+        logger.info("Using Comet experiment management")
         bar = CometProgressBarWrapper(bar, comet_project)
 
     return bar
@@ -494,6 +495,7 @@ class AzureMLProgressBarWrapper(BaseProgressBar):
                 self.run.log_row(name=name, **{"step": step, key: stats[key]})
 
 try:
+    os.environ["COMET_DISABLE_AUTO_LOGGING"] = "1"
     import comet_ml
 except ImportError:
     comet_ml = None
@@ -510,15 +512,20 @@ class CometProgressBarWrapper(BaseProgressBar):
 
     def start(self, project_name):
         try:
-            experiment = comet_ml.Experiment()
+            experiment = comet_ml.Experiment(
+                project_name=project_name,
+            )
             logger.info("Created a Comet experiment")
         except Exception:
-            offline_directory = comet_ml.config.get_config("comet.offline_directory") or "~/"
+            offline_directory = comet_ml.config.get_config("comet.offline_directory") or "./"
             try:
-                experiment = comet_ml.OfflineExperiment(offline_directory=offline_directory)
-                logger.info("Falling back to an Comet offline experiment")
+                experiment = comet_ml.OfflineExperiment(
+                    project_name=project_name,
+                    offline_directory=offline_directory,
+                )
+                logger.info("Falling back to Comet offline experiment")
             except Exception:
-                logger.warning("unable to construct experiment; ignoring")
+                logger.warning("unable to construct Comet experiment; ignoring")
                 experiment = None
         return experiment
 
@@ -541,7 +548,7 @@ class CometProgressBarWrapper(BaseProgressBar):
             self.experiment.log_asset_data(config, name="fairseq.config")
         self.wrapped_bar.update_config(config)
 
-    def _log_to_comet(stats, tag, step):
+    def _log_to_comet(self, stats, tag, step):
         if self.experiment is None:
             return
 
@@ -558,5 +565,5 @@ class CometProgressBarWrapper(BaseProgressBar):
             formatted_stats,
             prefix=prefix,
             step=step,
-            epoch=self.epoch
+            epoch=self.wrapped_bar.epoch
         )

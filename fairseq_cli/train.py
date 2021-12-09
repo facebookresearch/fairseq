@@ -288,6 +288,11 @@ def train(
             if distributed_utils.is_master(cfg.distributed_training)
             else False
         ),
+        comet_project=(
+            cfg.common.comet_project
+            if distributed_utils.is_master(cfg.distributed_training)
+            else None
+        ),
     )
     progress.update_config(_flatten_config(cfg))
 
