@@ -464,8 +464,7 @@ class Wav2Vec2Model(BaseFairseqModel):
                 cross_neg_idxs[cross_neg_idxs >= tszs] += 1
 
         if self.n_negatives > 0:
-            for i in range(1, bsz):
-                neg_idxs[i] += i * high
+            neg_idxs = neg_idxs + (torch.arange(bsz).unsqueeze(1) * high)
         else:
             neg_idxs = cross_neg_idxs
 
