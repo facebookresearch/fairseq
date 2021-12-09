@@ -287,11 +287,14 @@ def train(
             if distributed_utils.is_master(cfg.distributed_training)
             else False
         ),
-        comet_project=(
-            cfg.common.comet_project
-            if distributed_utils.is_master(cfg.distributed_training)
-            else None
-        ),
+        comet_config={
+            "project_name": (
+                cfg.common.comet_project
+                if distributed_utils.is_master(cfg.distributed_training)
+                else None
+            ),
+            "run_name": "fairseq-%s" % os.path.basename(cfg.checkpoint.save_dir),
+        },
     )
     progress.update_config(_flatten_config(cfg))
 
@@ -472,11 +475,14 @@ def validate(
             wandb_run_name=os.environ.get(
                 "WANDB_NAME", os.path.basename(cfg.checkpoint.save_dir)
             ),
-            comet_project=(
-                cfg.common.comet_project
-                if distributed_utils.is_master(cfg.distributed_training)
-                else None
-            ),
+            comet_config={
+                "project_name": (
+                    cfg.common.comet_project
+                    if distributed_utils.is_master(cfg.distributed_training)
+                    else None
+                ),
+                "run_name": "fairseq-%s" % os.path.basename(cfg.checkpoint.save_dir),
+            },
         )
 
         # create a new root metrics aggregator so validation metrics

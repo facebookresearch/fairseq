@@ -37,7 +37,7 @@ def progress_bar(
     wandb_project: Optional[str] = None,
     wandb_run_name: Optional[str] = None,
     azureml_logging: Optional[bool] = False,
-    comet_project: Optional[str] = None,
+    comet_config: Optional[dict] = None,
 ):
     if log_format is None:
         log_format = default_log_format
@@ -75,9 +75,9 @@ def progress_bar(
     if azureml_logging:
         bar = AzureMLProgressBarWrapper(bar)
 
-    if comet_project:
+    if comet_config:
         logger.info("Using Comet experiment management")
-        bar = CometProgressBarWrapper(bar, comet_project)
+        bar = CometProgressBarWrapper(bar, comet_config)
 
     return bar
 
@@ -502,31 +502,56 @@ except ImportError:
 
 
 class CometProgressBarWrapper(BaseProgressBar):
-    def __init__(self, wrapped_bar, comet_project):
+    def __init__(self, wrapped_bar, comet_config):
+        """
+        Wrap the progress bar with a Comet logger.
+
+        Args:
+            wrapped_bar: the base progress bar that does the progress work
+            comet_config: a dictionary containing `project_name` and `run_name`
+        """
         if comet_ml is None:
             logger.warning("comet_ml not found; pip install comet_ml")
             return
 
         self.wrapped_bar = wrapped_bar
-        self.experiment = self.start(project_name=comet_project)
+        self.experiment = self.start(
+            project_name=comet_config["project_name"],
+            log_others={
+                "run_name": comet_config["run_name"],
+            },
+        )
 
-    def start(self, project_name):
-        try:
-            experiment = comet_ml.Experiment(
-                project_name=project_name,
-            )
-            logger.info("Created a Comet experiment")
-        except Exception:
-            offline_directory = comet_ml.config.get_config("comet.offline_directory") or "./"
+
+    def start(self, project_name=None, log_others=None):
+        """
+        Create a Comet Experiment or OfflineExperiment
+        """
+        experiment = comet_ml.get_global_experiment()
+
+        if experiment is not None:
+            logger.info("Reusing Comet experiment")
+        else:
             try:
-                experiment = comet_ml.OfflineExperiment(
+                experiment = comet_ml.Experiment(
                     project_name=project_name,
-                    offline_directory=offline_directory,
                 )
-                logger.info("Falling back to Comet offline experiment")
+                logger.info("Created a Comet experiment")
             except Exception:
-                logger.warning("unable to construct Comet experiment; ignoring")
-                experiment = None
+                offline_directory = comet_ml.config.get_config("comet.offline_directory") or "./"
+                try:
+                    experiment = comet_ml.OfflineExperiment(
+                        project_name=project_name,
+                        offline_directory=offline_directory,
+                    )
+                    logger.info("Falling back to Comet offline experiment")
+                except Exception:
+                    logger.warning("unable to construct Comet experiment; ignoring")
+                    experiment = None
+
+            if experiment and log_others is not None:
+                experiment.log_others(log_others)
+
         return experiment
 
     def __iter__(self):
