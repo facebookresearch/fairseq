@@ -438,8 +438,8 @@ class TranslationTask(FairseqTask):
                     bleu = comp_bleu(
                         correct=meters["_bleu_counts"].sum,
                         total=meters["_bleu_totals"].sum,
-                        sys_len=meters["_bleu_sys_len"].sum,
-                        ref_len=meters["_bleu_ref_len"].sum,
+                        sys_len=int(meters["_bleu_sys_len"].sum),
+                        ref_len=int(meters["_bleu_ref_len"].sum),
                         **smooth,
                     )
                     return round(bleu.score, 2)
