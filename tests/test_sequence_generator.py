@@ -320,7 +320,7 @@ class TestSequenceGenerator(TestSequenceGeneratorBase):
         sample = self.sample.copy()
         sample["net_input"]["fancy_other_input"] = sample["net_input"]["src_tokens"]
         hypos = generator.forward(self.sample)
-        eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
+        eos, w1 = self.tgt_dict.eos(), self.w1
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, eos])
         self.assertHypoScore(hypos[0][0], [0.9, 1.0])

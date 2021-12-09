@@ -108,16 +108,18 @@ def main():
                         help='Write the new checkpoint containing the averaged weights to this path.')
     num_group = parser.add_mutually_exclusive_group()
     num_group.add_argument('--num-epoch-checkpoints', type=int,
-                           help='if set, will try to find checkpoints with names checkpoint_xx.pt in the path specified by input, '
-                           'and average last this many of them.')
+                           help='if set, will try to find checkpoints with names checkpoint_xx.pt in the '
+                           'path specified by input, and average last this many of them.')
     num_group.add_argument('--num-update-checkpoints', type=int,
-                           help='if set, will try to find checkpoints with names checkpoint_ee_xx.pt in the path specified by input, '
-                           'and average last this many of them.')
+                           help='if set, will try to find checkpoints with names checkpoint_ee_xx.pt in the path specified by'
+                           ' input, and average last this many of them.')
     parser.add_argument('--checkpoint-upper-bound', type=int,
                         help='when using --num-epoch-checkpoints, this will set an upper bound on which epoch to use, '
                         'when using --num-update-checkpoints, this will set an upper bound on which update to use'
-                        'e.g., with --num-epoch-checkpoints=10 --checkpoint-upper-bound=50, checkpoints 41-50 would be averaged.'
-                        'e.g., with --num-update-checkpoints=10 --checkpoint-upper-bound=50000, checkpoints 40500-50000 would be averaged assuming --save-interval-updates 500'
+                        'e.g., with --num-epoch-checkpoints=10 --checkpoint-upper-bound=50, checkpoints 41-50 would be'
+                        ' averaged.'
+                        'e.g., with --num-update-checkpoints=10 --checkpoint-upper-bound=50000, checkpoints 40500-50000 would'
+                        ' be averaged assuming --save-interval-updates 500'
                         )
     # fmt: on
     args = parser.parse_args()

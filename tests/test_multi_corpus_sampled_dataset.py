@@ -79,7 +79,7 @@ class TestMultiCorpusSampledDataset(unittest.TestCase):
 
     def test_multi_corpus_sampled_dataset_weighted_sample(self):
         def naive_weighted_sample(weights):
-            def f(l):
+            def f(input):
                 v = np.random.random()
                 agg = 0
                 for i, weight in enumerate(weights):

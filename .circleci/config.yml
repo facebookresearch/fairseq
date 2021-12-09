@@ -10,7 +10,7 @@ gpu: &gpu
   machine:
     image: ubuntu-1604-cuda-11.1:202012-01
   resource_class: gpu.nvidia.medium.multi
-  
+
 
 # -------------------------------------------------------------------------------------
 # Re-usable commands
@@ -25,7 +25,7 @@ install_dep_common: &install_dep_common
         pip install --upgrade setuptools
         pip install bitarray boto3 deepspeed editdistance fastBPE iopath ipdb ipython pyarrow pytest sacremoses sentencepiece subword-nmt hydra-core==1.0.7 omegaconf==2.0.6
         pip install --progress-bar off pytest
-        pip install --progress-bar off fairscale==0.4.1
+        pip install --progress-bar off fairscale
         pip install -i https://test.pypi.org/simple/ bitsandbytes-cuda111 -U
         python -c 'import torch; print("Torch version:", torch.__version__)'
         python -m torch.utils.collect_env
@@ -38,6 +38,7 @@ install_dep_fused_ops: &install_dep_fused_ops
         source activate fairseq
         git clone https://github.com/NVIDIA/apex
         cd apex
+        git checkout e2083df5eb96643c61613b9df48dd4eea6b07690
         pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--deprecated_fused_adam" --global-option="--xentropy" --global-option="--fast_multihead_attn" ./
         cd ~/
         git clone --depth=1 --branch v2.4 https://github.com/NVIDIA/Megatron-LM.git

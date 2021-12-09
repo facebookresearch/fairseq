@@ -14,23 +14,30 @@ from typing import List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-from fairseq.models import (
-    FairseqEncoder,
-)
+from torch import Tensor
+from torch import device as Device
+
+from fairseq.models import FairseqEncoder
 from fairseq.models.speech_to_text.utils import (
     NoOp,
+    attention_suppression,
+    layer_norm_backward_hook,
     lengths_to_padding_mask,
     segments_to_sequence,
 )
-from fairseq.models.speech_to_text.utils import (
-    attention_suppression,
-    layer_norm_backward_hook,
-)
-from torch import Tensor, device as Device
-from torch.ao.quantization.qconfig import (
-    default_dynamic_qconfig,
-    per_channel_dynamic_qconfig,
-)
+
+try:
+    import torch.ao.quantization as quantization
+    from torch.ao.quantization.qconfig import (
+        default_dynamic_qconfig,
+        per_channel_dynamic_qconfig,
+    )
+except ImportError:
+    import torch.quantization as quantization
+    from torch.quantization.qconfig import (
+        default_dynamic_qconfig,
+        per_channel_dynamic_qconfig,
+    )
 
 
 class RelativePositionEmbedding(nn.Module):
@@ -140,7 +147,7 @@ class PositionwiseFF(nn.Module):
             qconfig = per_channel_dynamic_qconfig
         else:
             qconfig = default_dynamic_qconfig
-        torch.ao.quantization.quantize_dynamic(
+        quantization.quantize_dynamic(
             self, {torch.nn.Linear: qconfig}, dtype=torch.qint8, inplace=True
         )
         return self
@@ -728,7 +735,7 @@ class NoSegAugmentedMemoryMultiheadAttentionBmm(nn.Module):
             qconfig = per_channel_dynamic_qconfig
         else:
             qconfig = default_dynamic_qconfig
-        torch.ao.quantization.quantize_dynamic(
+        quantization.quantize_dynamic(
             self, {torch.nn.Linear: qconfig}, dtype=torch.qint8, inplace=True
         )
         return self
@@ -1771,7 +1778,7 @@ class NoSegAugmentedMemoryTransformerEncoderLayer(FairseqEncoder):
             qconfig = per_channel_dynamic_qconfig
         else:
             qconfig = default_dynamic_qconfig
-        torch.ao.quantization.quantize_dynamic(
+        quantization.quantize_dynamic(
             self, {torch.nn.Linear: qconfig}, dtype=torch.qint8, inplace=True
         )
         return self
