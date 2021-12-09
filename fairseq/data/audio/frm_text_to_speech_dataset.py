@@ -13,11 +13,10 @@ from typing import List, Optional
 import numpy as np
 import torch
 from fairseq.data import Dictionary
-from fairseq.data.audio.speech_to_text_dataset import (
-    S2TDataConfig
-)
+from fairseq.data.audio.speech_to_text_dataset import S2TDataConfig
 from fairseq.data.audio.text_to_speech_dataset import (
-    TextToSpeechDataset, TextToSpeechDatasetCreator
+    TextToSpeechDataset,
+    TextToSpeechDatasetCreator,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,7 +47,7 @@ class FrmTextToSpeechDataset(TextToSpeechDataset):
         chunk_incr=5,
         add_eos=True,
         dedup=True,
-        ref_fpu=-1
+        ref_fpu=-1,
     ):
         # It assumes texts are encoded at a fixed frame-rate
         super().__init__(
@@ -67,7 +66,7 @@ class FrmTextToSpeechDataset(TextToSpeechDataset):
             pre_tokenizer=pre_tokenizer,
             bpe_tokenizer=bpe_tokenizer,
             n_frames_per_step=n_frames_per_step,
-            speaker_to_id=speaker_to_id
+            speaker_to_id=speaker_to_id,
         )
 
         self.do_chunk = do_chunk
@@ -92,24 +91,23 @@ class FrmTextToSpeechDataset(TextToSpeechDataset):
         fpu = source.size(0) / target.size(0)  # frame-per-unit
         fps = self.n_frames_per_step
         assert (
-            self.ref_fpu == -1 or
-            abs((fpu * fps - self.ref_fpu) / self.ref_fpu) < 0.1
+            self.ref_fpu == -1 or abs((fpu * fps - self.ref_fpu) / self.ref_fpu) < 0.1
         ), f"{fpu*fps} != {self.ref_fpu}"
 
         # only chunk training split
         if self.is_train_split and self.do_chunk and self.chunk_size > 0:
-            lang = target[:int(self.data_cfg.prepend_tgt_lang_tag)]
-            text = target[int(self.data_cfg.prepend_tgt_lang_tag):]
+            lang = target[: int(self.data_cfg.prepend_tgt_lang_tag)]
+            text = target[int(self.data_cfg.prepend_tgt_lang_tag) :]
             size = len(text)
             chunk_size = min(self.chunk_size, size)
             chunk_start = np.random.randint(size - chunk_size + 1)
-            text = text[chunk_start:chunk_start+chunk_size]
+            text = text[chunk_start : chunk_start + chunk_size]
             target = torch.cat((lang, text), 0)
 
             f_size = int(np.floor(chunk_size * fpu))
             f_start = int(np.floor(chunk_start * fpu))
-            assert(f_size > 0)
-            source = source[f_start:f_start+f_size, :]
+            assert f_size > 0
+            source = source[f_start : f_start + f_size, :]
 
         if self.dedup:
             target = torch.unique_consecutive(target)
@@ -126,10 +124,12 @@ class FrmTextToSpeechDataset(TextToSpeechDataset):
             self.chunk_size = self.chunk_init + epoch * self.chunk_incr
             if self.chunk_bound > 0:
                 self.chunk_size = min(self.chunk_size, self.chunk_bound)
-            logger.info((
-                f"{self.split}: setting chunk size "
-                f"from {old} to {self.chunk_size}"
-            ))
+            logger.info(
+                (
+                    f"{self.split}: setting chunk size "
+                    f"from {old} to {self.chunk_size}"
+                )
+            )
 
 
 class FrmTextToSpeechDatasetCreator(TextToSpeechDatasetCreator):
@@ -152,7 +152,7 @@ class FrmTextToSpeechDatasetCreator(TextToSpeechDatasetCreator):
         chunk_incr: int = 5,
         add_eos: bool = True,
         dedup: bool = True,
-        ref_fpu: float = -1
+        ref_fpu: float = -1,
     ) -> FrmTextToSpeechDataset:
         tsv_path = op.join(root, f"{split}.tsv")
         if not op.isfile(tsv_path):
@@ -170,9 +170,7 @@ class FrmTextToSpeechDatasetCreator(TextToSpeechDatasetCreator):
             assert len(s) > 0
 
         ids = [ss[cls.KEY_ID] for ss in s]
-        audio_paths = [
-            op.join(data_cfg.audio_root, ss[cls.KEY_AUDIO]) for ss in s
-        ]
+        audio_paths = [op.join(data_cfg.audio_root, ss[cls.KEY_AUDIO]) for ss in s]
         n_frames = [int(ss[cls.KEY_N_FRAMES]) for ss in s]
         tgt_texts = [ss[cls.KEY_TGT_TEXT] for ss in s]
         src_texts = [ss.get(cls.KEY_SRC_TEXT, cls.DEFAULT_SRC_TEXT) for ss in s]
@@ -203,5 +201,5 @@ class FrmTextToSpeechDatasetCreator(TextToSpeechDatasetCreator):
             chunk_incr=chunk_incr,
             add_eos=add_eos,
             dedup=dedup,
-            ref_fpu=ref_fpu
+            ref_fpu=ref_fpu,
         )

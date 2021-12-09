@@ -12,7 +12,7 @@ import logging
 import math
 import os
 import sys
-from typing import Dict, Optional, Any, List, Tuple, Callable
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 # We need to setup root logger before importing any fairseq libraries.
 logging.basicConfig(
@@ -25,23 +25,19 @@ logger = logging.getLogger("fairseq_cli.train")
 
 import numpy as np
 import torch
-from fairseq import (
-    checkpoint_utils,
-    options,
-    quantization_utils,
-    tasks,
-    utils,
-)
-from fairseq.data import iterators, data_utils
+from omegaconf import DictConfig, OmegaConf
+
+from fairseq import checkpoint_utils, options, quantization_utils, tasks, utils
+from fairseq.data import data_utils, iterators
 from fairseq.data.plasma_utils import PlasmaStore
 from fairseq.dataclass.configs import FairseqConfig
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
-from fairseq.distributed import fsdp_enable_wrap, fsdp_wrap, utils as distributed_utils
+from fairseq.distributed import fsdp_enable_wrap, fsdp_wrap
+from fairseq.distributed import utils as distributed_utils
 from fairseq.file_io import PathManager
 from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from fairseq.trainer import Trainer
-from omegaconf import DictConfig, OmegaConf
 
 
 def main(cfg: FairseqConfig) -> None:
@@ -156,7 +152,8 @@ def main(cfg: FairseqConfig) -> None:
     )
     logger.info(
         "max tokens per device = {} and max sentences per device = {}".format(
-            cfg.dataset.max_tokens, cfg.dataset.batch_size,
+            cfg.dataset.max_tokens,
+            cfg.dataset.batch_size,
         )
     )
 
@@ -259,7 +256,9 @@ def train(
         else cfg.optimization.update_freq[-1]
     )
     itr = iterators.GroupedIterator(
-        itr, update_freq, skip_remainder_batch=cfg.optimization.skip_remainder_batch,
+        itr,
+        update_freq,
+        skip_remainder_batch=cfg.optimization.skip_remainder_batch,
     )
     if cfg.common.tpu:
         itr = utils.tpu_data_loader(itr)

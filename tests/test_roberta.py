@@ -292,18 +292,18 @@ class RobertaTest(unittest.TestCase):
         # Decode with incremental state
         inc_state = {}
         ro_dec_inc = []
-        for l in range(tgt_len):
+        for i in range(tgt_len):
             ro, _ = model.decoder.forward(
-                ro_tokens[:, : l + 1], encoder_out=en_enc, incremental_state=inc_state
+                ro_tokens[:, : i + 1], encoder_out=en_enc, incremental_state=inc_state
             )
             self.assertEqual(ro.shape, (bs, 1, VOCAB_SIZE))
             ro_dec_inc.append(ro)
 
-        for l in range(tgt_len):
+        for i in range(tgt_len):
             # Intra-batch
-            self.assertTensorEqual(ro_dec_inc[l][0], ro_dec_inc[l][1])
+            self.assertTensorEqual(ro_dec_inc[i][0], ro_dec_inc[i][1])
             # Incremental vs non-incremental
-            self.assertTensorEqual(ro_dec_inc[l][:, 0], ro_dec[:, l])
+            self.assertTensorEqual(ro_dec_inc[i][:, 0], ro_dec[:, i])
 
 
 def params(model, name):

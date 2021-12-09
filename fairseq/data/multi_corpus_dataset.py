@@ -80,7 +80,9 @@ class MultiCorpusDataset(FairseqDataset):
     def ordered_indices(self):
         start = time.time()
         with data_utils.numpy_seed(self.seed, self.epoch):
-            logger.info(f"sampling new dataset with seed {self.seed} epoch {self.epoch}")
+            logger.info(
+                f"sampling new dataset with seed {self.seed} epoch {self.epoch}"
+            )
             sampled_indices = []
             num_selected_instances = 0
 

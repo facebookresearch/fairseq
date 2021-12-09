@@ -35,8 +35,12 @@ class SpeechGenerator(object):
 
 class AutoRegressiveSpeechGenerator(SpeechGenerator):
     def __init__(
-            self, model, vocoder, data_cfg, max_iter: int = 6000,
-            eos_prob_threshold: float = 0.5,
+        self,
+        model,
+        vocoder,
+        data_cfg,
+        max_iter: int = 6000,
+        eos_prob_threshold: float = 0.5,
     ):
         super().__init__(model, vocoder, data_cfg)
         self.max_iter = max_iter
@@ -54,8 +58,9 @@ class AutoRegressiveSpeechGenerator(SpeechGenerator):
         raw_dim = out_dim // n_frames_per_step
 
         # initialize
-        encoder_out = model.forward_encoder(src_tokens, src_lengths,
-                                            speaker=sample["speaker"])
+        encoder_out = model.forward_encoder(
+            src_tokens, src_lengths, speaker=sample["speaker"]
+        )
         incremental_state = {}
         feat, attn, eos_prob = [], [], []
         finished = src_tokens.new_zeros((bsz,)).bool()
@@ -66,21 +71,24 @@ class AutoRegressiveSpeechGenerator(SpeechGenerator):
             cur_out_lens = out_lens.clone()
             cur_out_lens.masked_fill_(cur_out_lens.eq(self.max_iter), step + 1)
             _, cur_eos_out, cur_extra = model.forward_decoder(
-                prev_feat_out, encoder_out=encoder_out,
+                prev_feat_out,
+                encoder_out=encoder_out,
                 incremental_state=incremental_state,
-                target_lengths=cur_out_lens, speaker=sample["speaker"], **kwargs
+                target_lengths=cur_out_lens,
+                speaker=sample["speaker"],
+                **kwargs
             )
             cur_eos_prob = torch.sigmoid(cur_eos_out).squeeze(2)
-            feat.append(cur_extra['feature_out'])
-            attn.append(cur_extra['attn'])
+            feat.append(cur_extra["feature_out"])
+            attn.append(cur_extra["attn"])
             eos_prob.append(cur_eos_prob)
 
-            cur_finished = (cur_eos_prob.squeeze(1) > self.eos_prob_threshold)
+            cur_finished = cur_eos_prob.squeeze(1) > self.eos_prob_threshold
             out_lens.masked_fill_((~finished) & cur_finished, step + 1)
             finished = finished | cur_finished
             if finished.sum().item() == bsz:
                 break
-            prev_feat_out = cur_extra['feature_out']
+            prev_feat_out = cur_extra["feature_out"]
 
         feat = torch.cat(feat, dim=1)
         feat = model.decoder.postnet(feat) + feat
@@ -98,11 +106,11 @@ class AutoRegressiveSpeechGenerator(SpeechGenerator):
 
         finalized = [
             {
-                'feature': feat[b, :out_len],
-                'eos_prob': eos_prob[b, :out_len],
-                'attn': attn[b, :, :out_len],
-                'alignment': alignment[b, :out_len],
-                'waveform': self.get_waveform(feat[b, :out_len]),
+                "feature": feat[b, :out_len],
+                "eos_prob": eos_prob[b, :out_len],
+                "attn": attn[b, :, :out_len],
+                "alignment": alignment[b, :out_len],
+                "waveform": self.get_waveform(feat[b, :out_len]),
             }
             for b, out_len in zip(range(bsz), out_lens)
         ]
@@ -134,7 +142,7 @@ class NonAutoregressiveSpeechGenerator(SpeechGenerator):
             prev_output_tokens=sample["net_input"]["prev_output_tokens"],
             incremental_state=None,
             target_lengths=sample["target_lengths"],
-            speaker=sample["speaker"]
+            speaker=sample["speaker"],
         )
         if feat_post is not None:
             feat = feat_post
@@ -142,9 +150,7 @@ class NonAutoregressiveSpeechGenerator(SpeechGenerator):
         feat = feat.view(bsz, -1, raw_dim)
         feat = self.gcmvn_denormalize(feat)
 
-        dur_out = torch.clamp(
-            torch.round(torch.exp(log_dur_out) - 1).long(), min=0
-        )
+        dur_out = torch.clamp(torch.round(torch.exp(log_dur_out) - 1).long(), min=0)
 
         def get_dur_plot_data(d):
             r = []
@@ -155,11 +161,11 @@ class NonAutoregressiveSpeechGenerator(SpeechGenerator):
         out_lens = out_lens * n_frames_per_step
         finalized = [
             {
-                'feature': feat[b, :l] if l > 0 else feat.new_zeros([1, raw_dim]),
-                'waveform': self.get_waveform(
+                "feature": feat[b, :l] if l > 0 else feat.new_zeros([1, raw_dim]),
+                "waveform": self.get_waveform(
                     feat[b, :l] if l > 0 else feat.new_zeros([1, raw_dim])
                 ),
-                'attn': feat.new_tensor(get_dur_plot_data(dur_out[b])),
+                "attn": feat.new_tensor(get_dur_plot_data(dur_out[b])),
             }
             for b, l in zip(range(bsz), out_lens)
         ]
@@ -188,8 +194,12 @@ class TeacherForcingAutoRegressiveSpeechGenerator(AutoRegressiveSpeechGenerator)
         bsz = src_tokens.shape[0]
 
         feat, eos_prob, extra = model(
-            src_tokens, src_lens, prev_out_tokens, incremental_state=None,
-            target_lengths=tgt_lens, speaker=sample["speaker"]
+            src_tokens,
+            src_lens,
+            prev_out_tokens,
+            incremental_state=None,
+            target_lengths=tgt_lens,
+            speaker=sample["speaker"],
         )
 
         attn = extra["attn"]  # B x T_s x T_t
@@ -203,11 +213,11 @@ class TeacherForcingAutoRegressiveSpeechGenerator(AutoRegressiveSpeechGenerator)
 
         finalized = [
             {
-                'feature': feat[b, :tgt_len],
-                'eos_prob': eos_prob[b, :tgt_len],
-                'attn': attn[b, :, :tgt_len],
-                'alignment': alignment[b, :tgt_len],
-                'waveform': self.get_waveform(feat[b, :tgt_len]),
+                "feature": feat[b, :tgt_len],
+                "eos_prob": eos_prob[b, :tgt_len],
+                "attn": attn[b, :, :tgt_len],
+                "alignment": alignment[b, :tgt_len],
+                "waveform": self.get_waveform(feat[b, :tgt_len]),
             }
             for b, tgt_len in zip(range(bsz), tgt_lens)
         ]

@@ -67,31 +67,31 @@ class AudioFinetuningConfig(AudioPretrainingConfig):
         default=False, metadata={"help": "evaluation with BLEU scores"}
     )
     eval_bleu_detok: Optional[str] = field(
-        default=None, metadata={
+        default=None,
+        metadata={
             "help": "detokenize before computing BLEU (e.g., 'moses'); "
-                    "required if using --eval-bleu; use 'space' to disable "
-                    "detokenization; see fairseq.data.encoders for other options"
-        }
+            "required if using --eval-bleu; use 'space' to disable "
+            "detokenization; see fairseq.data.encoders for other options"
+        },
     )
     eval_bleu_detok_args: str = field(
-        default="{}",
-        metadata={"help": "args for building the tokenizer, if needed"}
+        default="{}", metadata={"help": "args for building the tokenizer, if needed"}
     )
     eval_tokenized_bleu: bool = field(
-        default=False,
-        metadata={"help": "compute tokenized BLEU instead of sacrebleu"}
+        default=False, metadata={"help": "compute tokenized BLEU instead of sacrebleu"}
     )
     eval_bleu_remove_bpe: Optional[str] = field(
         default=None, metadata={"help": "remove BPE before computing BLEU"}
     )
     eval_bleu_args: str = field(
         default="{}",
-        metadata={"help": "generation args for BLUE scoring, e.g., "
-                          "'{\"beam\": 4, \"lenpen\": 0.6}'"}
+        metadata={
+            "help": "generation args for BLUE scoring, e.g., "
+            '\'{"beam": 4, "lenpen": 0.6}\''
+        },
     )
     eval_bleu_print_samples: bool = field(
-        default=False,
-        metadata={"help": "print sample generations during validation"}
+        default=False, metadata={"help": "print sample generations during validation"}
     )
     autoregressive: bool = field(
         default=False,
@@ -123,7 +123,9 @@ class AudioFinetuningTask(AudioPretrainingTask):
             return Dictionary.load(dict_path)
         return None
 
-    def load_dataset(self, split: str, task_cfg: AudioFinetuningConfig = None, **kwargs):
+    def load_dataset(
+        self, split: str, task_cfg: AudioFinetuningConfig = None, **kwargs
+    ):
         super().load_dataset(split, task_cfg, **kwargs)
 
         task_cfg = task_cfg or self.cfg
@@ -138,7 +140,8 @@ class AudioFinetuningTask(AudioPretrainingTask):
         with open(label_path, "r") as f:
             labels = [
                 text_compressor.compress(l)
-                for i, l in enumerate(f) if i not in skipped_indices
+                for i, l in enumerate(f)
+                if i not in skipped_indices
             ]
 
         assert len(labels) == len(self.datasets[split]), (
@@ -157,7 +160,7 @@ class AudioFinetuningTask(AudioPretrainingTask):
             process_label=process_label,
             label_len_fn=label_len_fn,
             add_to_input=task_cfg.get("autoregressive", False),
-            text_compression_level=text_compression_level
+            text_compression_level=text_compression_level,
         )
 
     @property
@@ -176,8 +179,8 @@ class AudioFinetuningTask(AudioPretrainingTask):
             logging_output["_num_words"] = metrics["num_words"]
         if self.cfg.eval_bleu and self.cfg.autoregressive:
             metrics = self._inference_with_bleu(self.sequence_generator, sample, model)
-            logging_output['_bleu_sys_len'] = metrics.sys_len
-            logging_output['_bleu_ref_len'] = metrics.ref_len
+            logging_output["_bleu_sys_len"] = metrics.sys_len
+            logging_output["_bleu_ref_len"] = metrics.ref_len
             # we split counts into separate entries so that they can be
             # summed efficiently across workers using fast-stat-sync
             assert len(metrics.counts) == 4
@@ -200,9 +203,9 @@ class AudioFinetuningTask(AudioPretrainingTask):
                 self.tokenizer = None
         if self.cfg.eval_bleu and self.cfg.autoregressive:
             assert self.cfg.eval_bleu_detok is not None, (
-                '--eval-bleu-detok is required if using --eval-bleu; '
-                'try --eval-bleu-detok=moses (or --eval-bleu-detok=space '
-                'to disable detokenization, e.g., when using sentencepiece)'
+                "--eval-bleu-detok is required if using --eval-bleu; "
+                "try --eval-bleu-detok=moses (or --eval-bleu-detok=space "
+                "to disable detokenization, e.g., when using sentencepiece)"
             )
             detok_args = json.loads(self.cfg.eval_bleu_detok_args)
             self.tokenizer = encoders.build_tokenizer(
@@ -261,9 +264,7 @@ class AudioFinetuningTask(AudioPretrainingTask):
                 # BLEU scores. Instead, we use a somewhat more verbose
                 # alternative that is unlikely to appear in the real
                 # reference, but doesn't get split into multiple tokens.
-                unk_string=(
-                    "UNKNOWNTOKENINREF" if is_ref else "UNKNOWNTOKENINHYP"
-                ),
+                unk_string=("UNKNOWNTOKENINREF" if is_ref else "UNKNOWNTOKENINHYP"),
             )
             if self.tokenizer:
                 s = self.tokenizer.decode(s)
@@ -272,21 +273,18 @@ class AudioFinetuningTask(AudioPretrainingTask):
         gen_out = self.inference_step(generator, [model], sample)
         hyps, refs = [], []
         for i in range(len(gen_out)):
-            hyps.append(decode(gen_out[i][0]['tokens'], is_ref=False))
+            hyps.append(decode(gen_out[i][0]["tokens"], is_ref=False))
             refs.append(
                 decode(
-                    utils.strip_pad(
-                        sample['target'][i],
-                        self.target_dictionary.pad()
-                    ),
+                    utils.strip_pad(sample["target"][i], self.target_dictionary.pad()),
                     is_ref=True,  # don't count <unk> as matches to the hypo
                 )
             )
         if self.cfg.eval_bleu_print_samples:
-            logger.info('H-{} {}'.format(sample["id"][0], hyps[0]))
-            logger.info('T-{} {}'.format(sample["id"][0], refs[0]))
+            logger.info("H-{} {}".format(sample["id"][0], hyps[0]))
+            logger.info("T-{} {}".format(sample["id"][0], refs[0]))
 
-        eval_tokenization = 'none' if self.cfg.eval_tokenized_bleu else '13a'
+        eval_tokenization = "none" if self.cfg.eval_tokenized_bleu else "13a"
         return sacrebleu.corpus_bleu(hyps, [refs], tokenize=eval_tokenization)
 
     def reduce_metrics(self, logging_outputs, criterion):
@@ -329,18 +327,17 @@ class AudioFinetuningTask(AudioPretrainingTask):
             count_keys = [f"_bleu_counts_{i}" for i in range(4)]
             total_keys = [f"_bleu_totals_{i}" for i in range(4)]
             for k in len_keys + count_keys + total_keys:
-                metrics.log_scalar(
-                    k, sum(log.get(k, 0) for log in logging_outputs)
-                )
+                metrics.log_scalar(k, sum(log.get(k, 0) for log in logging_outputs))
 
             import sacrebleu
+
             metrics.log_derived(
-                'bleu',
+                "bleu",
                 lambda meters: sacrebleu.compute_bleu(
                     correct=[meters[k].sum for k in count_keys],
                     total=[meters[k].sum for k in total_keys],
-                    sys_len=meters['_bleu_sys_len'].sum,
-                    ref_len=meters['_bleu_ref_len'].sum,
-                    smooth_method="exp"
-                ).score
+                    sys_len=meters["_bleu_sys_len"].sum,
+                    ref_len=meters["_bleu_ref_len"].sum,
+                    smooth_method="exp",
+                ).score,
             )

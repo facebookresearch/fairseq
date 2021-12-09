@@ -75,6 +75,7 @@ class GumbelVectorQuantizer(nn.Module):
 
         if isinstance(temp, str):
             import ast
+
             temp = ast.literal_eval(temp)
         assert len(temp) == 3, f"{temp}, {len(temp)}"
 

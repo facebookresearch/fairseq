@@ -57,21 +57,21 @@ def gen_parser_from_dataclass(
     with_prefix: Optional[str] = None,
 ) -> None:
     """
-        convert a dataclass instance to tailing parser arguments.
+    convert a dataclass instance to tailing parser arguments.
 
-        If `with_prefix` is provided, prefix all the keys in the resulting parser with it. It means that we are
-        building a flat namespace from a structured dataclass (see transformer_config.py for example).
+    If `with_prefix` is provided, prefix all the keys in the resulting parser with it. It means that we are
+    building a flat namespace from a structured dataclass (see transformer_config.py for example).
     """
 
     def argparse_name(name: str):
-        if name == "data" and (with_prefix is None or with_prefix == ''):
+        if name == "data" and (with_prefix is None or with_prefix == ""):
             # normally data is positional args, so we don't add the -- nor the prefix
             return name
         if name == "_name":
             # private member, skip
             return None
         full_name = "--" + name.replace("_", "-")
-        if with_prefix is not None and with_prefix != '':
+        if with_prefix is not None and with_prefix != "":
             # if a prefix is specified, construct the prefixed arg name
             full_name = with_prefix + "-" + full_name[2:]  # strip -- when composing
         return full_name
@@ -143,8 +143,8 @@ def gen_parser_from_dataclass(
                     kwargs["default"] = field_default
 
         # build the help with the hierarchical prefix
-        if with_prefix is not None and with_prefix != '' and field_help is not None:
-            field_help = with_prefix[2:] + ': ' + field_help
+        if with_prefix is not None and with_prefix != "" and field_help is not None:
+            field_help = with_prefix[2:] + ": " + field_help
 
         kwargs["help"] = field_help
         if field_const is not None:

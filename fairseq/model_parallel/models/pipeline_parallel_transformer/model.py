@@ -42,16 +42,20 @@ DEFAULT_MAX_TARGET_POSITIONS = 1024
 TORCH_PIPE = False
 RPC_INIT = False
 
+
 def import_pipe():
     global TORCH_PIPE
     global RPC_INIT
     try:
-        from torch.distributed.pipeline.sync import Pipe # noqa
+        from torch.distributed.pipeline.sync import Pipe  # noqa
+
         global Pipe
         from torch.distributed.pipeline.sync.utils import partition_model
+
         global partition_model
         from torch.distributed import rpc
         import tempfile
+
         TORCH_PIPE = True
         # Initialize single process RPC agent since TORCH_PIPE requires
         # RRef. RRef depends on RPC being initialized and as a result we initialize
@@ -64,14 +68,15 @@ def import_pipe():
                 world_size=1,
                 rpc_backend_options=rpc.TensorPipeRpcBackendOptions(
                     init_method="file://{}".format(tmpfile.name),
-                )
+                ),
             )
             RPC_INIT = True
-        logger.info('Using torch pipe')
+        logger.info("Using torch pipe")
     except ImportError:
         try:
-            from fairscale.nn import Pipe # noqa
-            logger.info('Using fairscale pipe')
+            from fairscale.nn import Pipe  # noqa
+
+            logger.info("Using fairscale pipe")
         except ImportError:
             raise ImportError("Please install fairscale with: pip install fairscale")
 
@@ -153,9 +158,14 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
                     decoder_module_list.append(module)
                 module_count += 1
         self.model = None
-        self.encoder = TransformerEncoder(cfg.distributed_training, None, None, encoder_module_list)
+        self.encoder = TransformerEncoder(
+            cfg.distributed_training, None, None, encoder_module_list
+        )
         self.decoder = TransformerDecoder(
-            cfg.distributed_training, None, None, decoder_module_list=decoder_module_list
+            cfg.distributed_training,
+            None,
+            None,
+            decoder_module_list=decoder_module_list,
         )
 
     @staticmethod
@@ -471,7 +481,9 @@ class TransformerEncoder(FairseqEncoder):
         self.use_pipeline = encoder_module_list is not None
         if not self.use_pipeline:
             self.embedding_layer = TransformerEncoderEmbedding(args, embed_tokens)
-            self.encoder_layers = nn.Sequential(*[TransformerEncoderLayer(args) for i in range(args.encoder_layers)])
+            self.encoder_layers = nn.Sequential(
+                *[TransformerEncoderLayer(args) for i in range(args.encoder_layers)]
+            )
             if isinstance(embed_tokens, nn.ModuleList):
                 emb_dim = sum(e.embedding_dim for e in embed_tokens)
             else:
@@ -490,7 +502,11 @@ class TransformerEncoder(FairseqEncoder):
             )
             if TORCH_PIPE:
                 self.model = Pipe(
-                    module=partition_model(nn.Sequential(*encoder_module_list), encoder_balance, encoder_devices),
+                    module=partition_model(
+                        nn.Sequential(*encoder_module_list),
+                        encoder_balance,
+                        encoder_devices,
+                    ),
                     chunks=args.pipeline_chunks,
                     checkpoint=args.pipeline_checkpoint,
                 )
@@ -614,10 +630,12 @@ class TransformerDecoder(FairseqDecoder):
         self.use_pipeline = decoder_module_list is not None
         if not self.use_pipeline:
             self.embedding_layer = TransformerDecoderEmbedding(args, embed_tokens)
-            self.decoder_layers = nn.Sequential(*[
-                TransformerDecoderLayer(args, no_encoder_attn)
-                for _ in range(args.decoder_layers)
-            ])
+            self.decoder_layers = nn.Sequential(
+                *[
+                    TransformerDecoderLayer(args, no_encoder_attn)
+                    for _ in range(args.decoder_layers)
+                ]
+            )
             self.decoder_output_layer = TransformerDecoderOutputLayer(
                 args, embed_tokens, dictionary
             )
@@ -634,7 +652,11 @@ class TransformerDecoder(FairseqDecoder):
             )
             if TORCH_PIPE:
                 self.model = Pipe(
-                    module=partition_model(nn.Sequential(*decoder_module_list), decoder_balance, decoder_devices),
+                    module=partition_model(
+                        nn.Sequential(*decoder_module_list),
+                        decoder_balance,
+                        decoder_devices,
+                    ),
                     chunks=args.pipeline_chunks,
                     checkpoint=args.pipeline_checkpoint,
                 )

@@ -13,7 +13,10 @@ from torch import nn
 import torch.nn.functional as F
 
 from fairseq.data.audio.audio_utils import (
-    get_window, get_fourier_basis, get_mel_filters, TTSSpectrogram
+    get_window,
+    get_fourier_basis,
+    get_mel_filters,
+    TTSSpectrogram,
 )
 from fairseq.data.audio.speech_to_text_dataset import S2TDataConfig
 from fairseq.models.text_to_speech.hifigan import Generator as HiFiGANModel
@@ -25,11 +28,9 @@ class PseudoInverseMelScale(torch.nn.Module):
     def __init__(self, n_stft, n_mels, sample_rate, f_min, f_max) -> None:
         super(PseudoInverseMelScale, self).__init__()
         self.n_mels = n_mels
-        basis = get_mel_filters(
-            sample_rate, (n_stft - 1) * 2, n_mels, f_min, f_max
-        )
+        basis = get_mel_filters(sample_rate, (n_stft - 1) * 2, n_mels, f_min, f_max)
         basis = torch.pinverse(basis)  # F x F_mel
-        self.register_buffer('basis', basis)
+        self.register_buffer("basis", basis)
 
     def forward(self, melspec: torch.Tensor) -> torch.Tensor:
         # pack batch
@@ -48,8 +49,12 @@ class PseudoInverseMelScale(torch.nn.Module):
 
 class GriffinLim(torch.nn.Module):
     def __init__(
-            self, n_fft: int, win_length: int, hop_length: int, n_iter: int,
-            window_fn=torch.hann_window
+        self,
+        n_fft: int,
+        win_length: int,
+        hop_length: int,
+        n_iter: int,
+        window_fn=torch.hann_window,
     ):
         super(GriffinLim, self).__init__()
         self.transform = TTSSpectrogram(
@@ -59,7 +64,7 @@ class GriffinLim(torch.nn.Module):
         basis = get_fourier_basis(n_fft)
         basis = torch.pinverse(n_fft / hop_length * basis).T[:, None, :]
         basis *= get_window(window_fn, n_fft, win_length)
-        self.register_buffer('basis', basis)
+        self.register_buffer("basis", basis)
 
         self.n_fft = n_fft
         self.win_length = win_length
@@ -70,33 +75,33 @@ class GriffinLim(torch.nn.Module):
 
     @classmethod
     def get_window_sum_square(
-            cls, n_frames, hop_length, win_length, n_fft,
-            window_fn=torch.hann_window
+        cls, n_frames, hop_length, win_length, n_fft, window_fn=torch.hann_window
     ) -> torch.Tensor:
         w_sq = get_window(window_fn, n_fft, win_length) ** 2
         n = n_fft + hop_length * (n_frames - 1)
         x = torch.zeros(n, dtype=torch.float32)
         for i in range(n_frames):
             ofst = i * hop_length
-            x[ofst: min(n, ofst + n_fft)] += w_sq[:max(0, min(n_fft, n - ofst))]
+            x[ofst : min(n, ofst + n_fft)] += w_sq[: max(0, min(n_fft, n - ofst))]
         return x
 
     def inverse(self, magnitude: torch.Tensor, phase) -> torch.Tensor:
         x = torch.cat(
-            [magnitude * torch.cos(phase), magnitude * torch.sin(phase)],
-            dim=1
+            [magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=1
         )
         x = F.conv_transpose1d(x, self.basis, stride=self.hop_length)
         win_sum_sq = self.get_window_sum_square(
-            magnitude.shape[-1], hop_length=self.hop_length,
-            win_length=self.win_length, n_fft=self.n_fft
+            magnitude.shape[-1],
+            hop_length=self.hop_length,
+            win_length=self.win_length,
+            n_fft=self.n_fft,
         ).to(magnitude.device)
         # remove modulation effects
         approx_nonzero_indices = win_sum_sq > self.tiny
         x[:, :, approx_nonzero_indices] /= win_sum_sq[approx_nonzero_indices]
         x *= self.n_fft / self.hop_length
-        x = x[:, :, self.n_fft // 2:]
-        x = x[:, :, :-self.n_fft // 2:]
+        x = x[:, :, self.n_fft // 2 :]
+        x = x[:, :, : -self.n_fft // 2 :]
         return x
 
     def forward(self, specgram: torch.Tensor) -> torch.Tensor:
@@ -111,18 +116,33 @@ class GriffinLim(torch.nn.Module):
 
 
 class GriffinLimVocoder(nn.Module):
-    def __init__(self, sample_rate, win_size, hop_size, n_fft,
-                 n_mels, f_min, f_max, window_fn,
-                 spec_bwd_max_iter=32,
-                 fp16=False):
+    def __init__(
+        self,
+        sample_rate,
+        win_size,
+        hop_size,
+        n_fft,
+        n_mels,
+        f_min,
+        f_max,
+        window_fn,
+        spec_bwd_max_iter=32,
+        fp16=False,
+    ):
         super().__init__()
         self.inv_mel_transform = PseudoInverseMelScale(
-            n_stft=n_fft // 2 + 1, n_mels=n_mels, sample_rate=sample_rate,
-            f_min=f_min, f_max=f_max
+            n_stft=n_fft // 2 + 1,
+            n_mels=n_mels,
+            sample_rate=sample_rate,
+            f_min=f_min,
+            f_max=f_max,
         )
         self.gl_transform = GriffinLim(
-            n_fft=n_fft, win_length=win_size, hop_length=hop_size,
-            window_fn=window_fn, n_iter=spec_bwd_max_iter
+            n_fft=n_fft,
+            win_length=win_size,
+            hop_length=hop_size,
+            window_fn=window_fn,
+            n_iter=spec_bwd_max_iter,
         )
         if fp16:
             self.half()
@@ -151,17 +171,19 @@ class GriffinLimVocoder(nn.Module):
             sample_rate=feat_cfg["sample_rate"],
             win_size=int(feat_cfg["win_len_t"] * feat_cfg["sample_rate"]),
             hop_size=int(feat_cfg["hop_len_t"] * feat_cfg["sample_rate"]),
-            n_fft=feat_cfg["n_fft"], n_mels=feat_cfg["n_mels"],
-            f_min=feat_cfg["f_min"], f_max=feat_cfg["f_max"],
-            window_fn=window_fn, spec_bwd_max_iter=args.spec_bwd_max_iter,
-            fp16=args.fp16
+            n_fft=feat_cfg["n_fft"],
+            n_mels=feat_cfg["n_mels"],
+            f_min=feat_cfg["f_min"],
+            f_max=feat_cfg["f_max"],
+            window_fn=window_fn,
+            spec_bwd_max_iter=args.spec_bwd_max_iter,
+            fp16=args.fp16,
         )
 
 
 class HiFiGANVocoder(nn.Module):
     def __init__(
-            self, checkpoint_path: str, model_cfg: Dict[str, str],
-            fp16: bool = False
+        self, checkpoint_path: str, model_cfg: Dict[str, str], fp16: bool = False
     ) -> None:
         super().__init__()
         self.model = HiFiGANModel(model_cfg)

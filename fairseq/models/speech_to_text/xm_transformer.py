@@ -9,8 +9,12 @@ import copy
 from typing import Dict, List, Optional, Tuple
 
 from fairseq import utils, checkpoint_utils
-from fairseq.models import (FairseqEncoderDecoderModel, FairseqEncoder,
-                            register_model, register_model_architecture)
+from fairseq.models import (
+    FairseqEncoderDecoderModel,
+    FairseqEncoder,
+    register_model,
+    register_model_architecture,
+)
 from fairseq.models.transformer import Embedding, TransformerDecoder
 from fairseq.models.wav2vec import Wav2VecEncoder
 from fairseq.modules.layer_norm import LayerNorm
@@ -24,18 +28,23 @@ logger = logging.getLogger(__name__)
 
 
 class Conv1dAdaptor(nn.Module):
-    def __init__(self, in_dim, out_dim, n_layers=3, kernel_size=3, stride=2,
-                 add_layernorm=False):
+    def __init__(
+        self, in_dim, out_dim, n_layers=3, kernel_size=3, stride=2, add_layernorm=False
+    ):
         super().__init__()
         self.layers = nn.ModuleList(
-            nn.Conv1d(in_dim if i == 0 else out_dim, out_dim * 2, kernel_size,
-                      stride=stride, padding=kernel_size // 2)
+            nn.Conv1d(
+                in_dim if i == 0 else out_dim,
+                out_dim * 2,
+                kernel_size,
+                stride=stride,
+                padding=kernel_size // 2,
+            )
             for i in range(n_layers)
         )
         self.layernorms = None
         if add_layernorm:
-            self.layernorms = nn.ModuleList(LayerNorm(out_dim)
-                                            for _ in range(n_layers))
+            self.layernorms = nn.ModuleList(LayerNorm(out_dim) for _ in range(n_layers))
         self.stride = stride
 
     @classmethod
@@ -43,7 +52,7 @@ class Conv1dAdaptor(nn.Module):
         parser.add_argument("--adaptor-n-layers", type=int)
         parser.add_argument("--adaptor-kernel-size", type=int)
         parser.add_argument("--adaptor-stride", type=int)
-        parser.add_argument("--adaptor-layernorm", action='store_true')
+        parser.add_argument("--adaptor-layernorm", action="store_true")
 
     def get_out_seq_lens_tensor(self, in_seq_lens_tensor):
         out = in_seq_lens_tensor.clone()
@@ -197,15 +206,18 @@ class Wav2VecEncoderWithAdaptor(FairseqEncoder):
         encoder_out_dim = self.w2v_encoder.w2v_model.encoder.embedding_dim
         # Projection + 8x shrinking
         self.adaptor = Conv1dAdaptor(
-            encoder_out_dim, args.decoder_embed_dim,
+            encoder_out_dim,
+            args.decoder_embed_dim,
             n_layers=args.adaptor_n_layers,
-            kernel_size=args.adaptor_kernel_size, stride=args.adaptor_stride,
-            add_layernorm=args.adaptor_layernorm
+            kernel_size=args.adaptor_kernel_size,
+            stride=args.adaptor_stride,
+            add_layernorm=args.adaptor_layernorm,
         )
         for k, p in self.w2v_encoder.w2v_model.named_parameters():
             # Freeze pretrained models by default
-            if safe_hasattr(args, 'finetune_w2v_params') and XMTransformerModel.finetune_params(
-                    args.finetune_w2v_params, k):
+            if safe_hasattr(
+                args, "finetune_w2v_params"
+            ) and XMTransformerModel.finetune_params(args.finetune_w2v_params, k):
                 p.requires_grad = True
             else:
                 p.requires_grad = False
@@ -214,11 +226,16 @@ class Wav2VecEncoderWithAdaptor(FairseqEncoder):
     def add_args(cls, parser):
         add_wav2vec_asr_args(parser)
         parser.add_argument(
-            "--normalize", action="store_true",
+            "--normalize",
+            action="store_true",
             help="if set, normalizes input to have 0 mean and unit variance",
         )
-        parser.add_argument("--finetune-w2v-params", type=str, metavar="STR",
-                            help="comma-separated param strings to finetune.")
+        parser.add_argument(
+            "--finetune-w2v-params",
+            type=str,
+            metavar="STR",
+            help="comma-separated param strings to finetune.",
+        )
         Conv1dAdaptor.add_args(parser)
 
     def forward(self, src_tokens, src_lengths=None, **kwargs):
@@ -227,13 +244,17 @@ class Wav2VecEncoderWithAdaptor(FairseqEncoder):
         x = out["encoder_out"]
         enc_padding_mask = None
         if out["encoder_padding_mask"] is not None:
-            enc_padding_mask = out["encoder_padding_mask"].transpose(0, 1)   # T X B --> B X T
+            enc_padding_mask = out["encoder_padding_mask"].transpose(
+                0, 1
+            )  # T X B --> B X T
 
         x, enc_padding_mask = self.adaptor(x, enc_padding_mask)
 
         return {
             "encoder_out": [x],  # T x B x C
-            "encoder_padding_mask": [enc_padding_mask] if enc_padding_mask.any() else [],  # B x T
+            "encoder_padding_mask": [enc_padding_mask]
+            if enc_padding_mask.any()
+            else [],  # B x T
             "encoder_embedding": [],  # B x T x C
             "encoder_states": [],  # List[T x B x C]
             "src_tokens": [],
@@ -242,20 +263,26 @@ class Wav2VecEncoderWithAdaptor(FairseqEncoder):
 
     def reorder_encoder_out(self, encoder_out, new_order):
         new_encoder_out = (
-            [] if len(encoder_out["encoder_out"]) == 0
+            []
+            if len(encoder_out["encoder_out"]) == 0
             else [x.index_select(1, new_order) for x in encoder_out["encoder_out"]]
         )
 
         new_encoder_padding_mask = (
-            [] if len(encoder_out["encoder_padding_mask"]) == 0
-            else [x.index_select(0, new_order) for x in
-                  encoder_out["encoder_padding_mask"]]
+            []
+            if len(encoder_out["encoder_padding_mask"]) == 0
+            else [
+                x.index_select(0, new_order)
+                for x in encoder_out["encoder_padding_mask"]
+            ]
         )
 
         new_encoder_embedding = (
-            [] if len(encoder_out["encoder_embedding"]) == 0
-            else [x.index_select(0, new_order) for x in
-                  encoder_out["encoder_embedding"]]
+            []
+            if len(encoder_out["encoder_embedding"]) == 0
+            else [
+                x.index_select(0, new_order) for x in encoder_out["encoder_embedding"]
+            ]
         )
 
         encoder_states = encoder_out["encoder_states"]
@@ -274,38 +301,71 @@ class Wav2VecEncoderWithAdaptor(FairseqEncoder):
 
 
 def add_decoder_args(parser):
-    parser.add_argument("--activation-fn", type=str, default='relu',
-                        choices=utils.get_available_activation_fns(),
-                        help="activation function to use")
-    parser.add_argument("--decoder-dropout", type=float, metavar="D",
-                        help="dropout probability")
-    parser.add_argument("--decoder-attention-dropout", type=float,
-                        metavar="D",
-                        help="dropout probability for attention weights")
-    parser.add_argument("--decoder-activation-dropout", type=float,
-                        metavar="D",
-                        help="dropout probability after activation in FFN.")
-    parser.add_argument("--decoder-embed-dim", type=int, metavar="N",
-                        help="decoder embedding dimension")
-    parser.add_argument("--decoder-ffn-embed-dim", type=int, metavar="N",
-                        help="decoder embedding dimension for FFN")
-    parser.add_argument("--decoder-layers", type=int, metavar="N",
-                        help="num decoder layers")
-    parser.add_argument("--decoder-attention-heads", type=int, metavar="N",
-                        help="num decoder attention heads")
-    parser.add_argument("--decoder-normalize-before", action="store_true",
-                        help="apply layernorm before each decoder block")
-    parser.add_argument("--layernorm-embedding", action="store_true",
-                        help="add layernorm to embedding")
-    parser.add_argument("--no-scale-embedding", action="store_true",
-                        help="if True, dont scale embeddings")
     parser.add_argument(
-        "--load-pretrained-decoder-from", type=str, metavar="STR",
-        help="model to take decoder weights from (for initialization)"
+        "--activation-fn",
+        type=str,
+        default="relu",
+        choices=utils.get_available_activation_fns(),
+        help="activation function to use",
     )
-    parser.add_argument("--finetune-decoder-params", type=str,
-                        metavar="STR",
-                        help="comma-separated param strings to finetune.")
+    parser.add_argument(
+        "--decoder-dropout", type=float, metavar="D", help="dropout probability"
+    )
+    parser.add_argument(
+        "--decoder-attention-dropout",
+        type=float,
+        metavar="D",
+        help="dropout probability for attention weights",
+    )
+    parser.add_argument(
+        "--decoder-activation-dropout",
+        type=float,
+        metavar="D",
+        help="dropout probability after activation in FFN.",
+    )
+    parser.add_argument(
+        "--decoder-embed-dim", type=int, metavar="N", help="decoder embedding dimension"
+    )
+    parser.add_argument(
+        "--decoder-ffn-embed-dim",
+        type=int,
+        metavar="N",
+        help="decoder embedding dimension for FFN",
+    )
+    parser.add_argument(
+        "--decoder-layers", type=int, metavar="N", help="num decoder layers"
+    )
+    parser.add_argument(
+        "--decoder-attention-heads",
+        type=int,
+        metavar="N",
+        help="num decoder attention heads",
+    )
+    parser.add_argument(
+        "--decoder-normalize-before",
+        action="store_true",
+        help="apply layernorm before each decoder block",
+    )
+    parser.add_argument(
+        "--layernorm-embedding", action="store_true", help="add layernorm to embedding"
+    )
+    parser.add_argument(
+        "--no-scale-embedding",
+        action="store_true",
+        help="if True, dont scale embeddings",
+    )
+    parser.add_argument(
+        "--load-pretrained-decoder-from",
+        type=str,
+        metavar="STR",
+        help="model to take decoder weights from (for initialization)",
+    )
+    parser.add_argument(
+        "--finetune-decoder-params",
+        type=str,
+        metavar="STR",
+        help="comma-separated param strings to finetune.",
+    )
     parser.add_argument("--checkpoint-activations", action="store_true")
 
 
@@ -342,16 +402,16 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         _args.activation_dropout = args.decoder_activation_dropout
         _args.max_target_positions = 1024
 
-        decoder = TransformerDecoder(_args, task.target_dictionary,
-                                     embed_tokens)
+        decoder = TransformerDecoder(_args, task.target_dictionary, embed_tokens)
         if getattr(args, "load_pretrained_decoder_from", None):
             decoder = checkpoint_utils.load_pretrained_component_from_model(
                 component=decoder, checkpoint=args.load_pretrained_decoder_from
             )
         for k, p in decoder.named_parameters():
             # Freeze pretrained models by default
-            if safe_hasattr(args, 'finetune_decoder_params') and XMTransformerModel.finetune_params(
-                    args.finetune_decoder_params, k):
+            if safe_hasattr(
+                args, "finetune_decoder_params"
+            ) and XMTransformerModel.finetune_params(args.finetune_decoder_params, k):
                 p.requires_grad = True
             else:
                 p.requires_grad = False
@@ -369,8 +429,9 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             padding_idx = dictionary.pad()
             return Embedding(num_embeddings, embed_dim, padding_idx)
 
-        decoder_embed_tokens = build_embedding(task.target_dictionary,
-                                               args.decoder_embed_dim)
+        decoder_embed_tokens = build_embedding(
+            task.target_dictionary, args.decoder_embed_dim
+        )
         encoder = cls.build_encoder(args)
         decoder = cls.build_decoder(args, task, decoder_embed_tokens)
         return cls(encoder, decoder)
@@ -382,8 +443,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         sample: Optional[Dict[str, Tensor]] = None,
     ):
         # net_output['encoder_out'] is a (B, T, D) tensor
-        lprobs = self.get_normalized_probs_scriptable(net_output, log_probs,
-                                                      sample)
+        lprobs = self.get_normalized_probs_scriptable(net_output, log_probs, sample)
         lprobs.batch_first = True
         return lprobs
 
@@ -393,17 +453,19 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         argument in its input, which is not supported in torchscript. This
         method overrites the forward method definition without **kwargs.
         """
-        encoder_out = self.encoder(src_tokens=src_tokens,
-                                   src_lengths=src_lengths, **kwargs)
-        decoder_out = self.decoder(prev_output_tokens=prev_output_tokens,
-                                   encoder_out=encoder_out)
+        encoder_out = self.encoder(
+            src_tokens=src_tokens, src_lengths=src_lengths, **kwargs
+        )
+        decoder_out = self.decoder(
+            prev_output_tokens=prev_output_tokens, encoder_out=encoder_out
+        )
         return decoder_out
 
     def upgrade_state_dict(self, state_dict):
         for k, _ in state_dict.items():
-            if 'adaptor.layers' in state_dict:
+            if "adaptor.layers" in state_dict:
                 print(k)
-                new = k.replace('adaptor.layers', 'adaptor_layers')
+                new = k.replace("adaptor.layers", "adaptor_layers")
                 state_dict[new] = state_dict[k]
                 del state_dict[k]
 
@@ -435,11 +497,9 @@ def set_default_w2v_encoder_args(args):
     args.mask_channel_length = getattr(args, "mask_channel_length", 10)
     args.mask_channel_prob = getattr(args, "mask_channel_prob", 0.5)
     args.mask_channel_before = getattr(args, "mask_channel_before", False)
-    args.mask_channel_selection = getattr(args, "mask_channel_selection",
-                                          "static")
+    args.mask_channel_selection = getattr(args, "mask_channel_selection", "static")
     args.mask_channel_other = getattr(args, "mask_channel_other", 0)
-    args.no_mask_channel_overlap = getattr(args, "no_mask_channel_overlap",
-                                           False)
+    args.no_mask_channel_overlap = getattr(args, "no_mask_channel_overlap", False)
 
     args.freeze_finetune_updates = getattr(args, "freeze_finetune_updates", 0)
     args.feature_grad_mult = 0.1
@@ -456,49 +516,43 @@ def set_default_adaptor_args(args):
 
 
 def set_default_mbart_decoder_args(args):
-    args.decoder_embed_path = getattr(args, 'decoder_embed_path', None)
-    args.decoder_embed_dim = getattr(args, 'decoder_embed_dim', 1024)
-    args.decoder_ffn_embed_dim = getattr(args, 'decoder_ffn_embed_dim',
-                                         4 * 1024)
-    args.decoder_layers = getattr(args, 'decoder_layers', 12)
-    args.decoder_attention_heads = getattr(args, 'decoder_attention_heads', 16)
-    args.decoder_normalize_before = getattr(args, 'decoder_normalize_before',
-                                            True)
-    args.decoder_learned_pos = getattr(args, 'decoder_learned_pos', True)
+    args.decoder_embed_path = getattr(args, "decoder_embed_path", None)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 1024)
+    args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 4 * 1024)
+    args.decoder_layers = getattr(args, "decoder_layers", 12)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 16)
+    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", True)
+    args.decoder_learned_pos = getattr(args, "decoder_learned_pos", True)
     args.decoder_layerdrop = getattr(args, "decoder_layerdrop", 0.0)
     args.adaptive_input = getattr(args, "adaptive_input", False)
-    args.decoder_attention_dropout = getattr(args, 'decoder_attention_dropout',
-                                             0.)
-    args.decoder_activation_dropout = getattr(args,
-                                              'decoder_activation_dropout', 0.)
-    args.decoder_dropout = getattr(args, 'decoder_dropout', 0.1)
-    args.adaptive_softmax_cutoff = getattr(args, 'adaptive_softmax_cutoff',
-                                           None)
-    args.adaptive_softmax_dropout = getattr(args, 'adaptive_softmax_dropout', 0)
+    args.decoder_attention_dropout = getattr(args, "decoder_attention_dropout", 0.0)
+    args.decoder_activation_dropout = getattr(args, "decoder_activation_dropout", 0.0)
+    args.decoder_dropout = getattr(args, "decoder_dropout", 0.1)
+    args.adaptive_softmax_cutoff = getattr(args, "adaptive_softmax_cutoff", None)
+    args.adaptive_softmax_dropout = getattr(args, "adaptive_softmax_dropout", 0)
     args.share_decoder_input_output_embed = getattr(
-        args, 'share_decoder_input_output_embed', True
+        args, "share_decoder_input_output_embed", True
     )
     args.no_token_positional_embeddings = getattr(
         args, "no_token_positional_embeddings", False
     )
 
-    args.decoder_output_dim = getattr(args, 'decoder_output_dim',
-                                      args.decoder_embed_dim)
-    args.decoder_input_dim = getattr(args, 'decoder_input_dim',
-                                     args.decoder_embed_dim)
+    args.decoder_output_dim = getattr(
+        args, "decoder_output_dim", args.decoder_embed_dim
+    )
+    args.decoder_input_dim = getattr(args, "decoder_input_dim", args.decoder_embed_dim)
 
-    args.no_scale_embedding = getattr(args, 'no_scale_embedding', False)
+    args.no_scale_embedding = getattr(args, "no_scale_embedding", False)
     args.quant_noise_pq = getattr(args, "quant_noise_pq", 0)
-    args.layernorm_embedding = getattr(args, 'layernorm_embedding', True)
+    args.layernorm_embedding = getattr(args, "layernorm_embedding", True)
 
-    args.activation_fn = getattr(args, 'activation_fn', 'gelu')
-    args.pooler_activation_fn = getattr(args, 'pooler_activation_fn', 'tanh')
-    args.pooler_dropout = getattr(args, 'pooler_dropout', 0.0)
+    args.activation_fn = getattr(args, "activation_fn", "gelu")
+    args.pooler_activation_fn = getattr(args, "pooler_activation_fn", "tanh")
+    args.pooler_dropout = getattr(args, "pooler_dropout", 0.0)
     args.checkpoint_activations = getattr(args, "checkpoint_activations", False)
 
 
-@register_model_architecture(model_name="xm_transformer",
-                             arch_name="xm_transformer")
+@register_model_architecture(model_name="xm_transformer", arch_name="xm_transformer")
 def base_architecture(args):
     set_default_w2v_encoder_args(args)
     set_default_adaptor_args(args)

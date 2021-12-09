@@ -7,7 +7,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 try:
     from apex.normalization import FusedLayerNorm as _FusedLayerNorm
 
@@ -21,7 +20,6 @@ try:
             else:
                 with torch.cuda.device(x.device):
                     return super().forward(x)
-
 
 except ImportError:
     has_fused_layernorm = False
