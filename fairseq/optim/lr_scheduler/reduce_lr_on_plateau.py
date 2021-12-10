@@ -109,6 +109,7 @@ class ReduceLROnPlateauLRSchedule(FairseqLRScheduler):
         return {
             "best": self.lr_scheduler.best,
             "last_epoch": self.lr_scheduler.last_epoch,
+            "num_bad_epochs": self.lr_scheduler.num_bad_epochs,
         }
 
     def load_state_dict(self, state_dict):
@@ -116,6 +117,8 @@ class ReduceLROnPlateauLRSchedule(FairseqLRScheduler):
         self.lr_scheduler.best = state_dict["best"]
         if "last_epoch" in state_dict:
             self.lr_scheduler.last_epoch = state_dict["last_epoch"]
+        if "num_bad_epochs" in state_dict:
+            self.lr_scheduler.num_bad_epochs = state_dict["num_bad_epochs"]
 
     def step(self, epoch, val_loss=None):
         """
