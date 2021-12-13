@@ -519,6 +519,7 @@ class CometProgressBarWrapper(BaseProgressBar):
             project_name=comet_config["project_name"],
             log_others={
                 "run_name": comet_config["run_name"],
+                "Created from": "fairseq",
             },
         )
 
