@@ -204,6 +204,9 @@ class HubertConfig(FairseqDataclass):
         metadata={"help": "skip computing losses over unmasked frames"},
     )
 
+    checkpoint_activations: bool = field(
+        default=False, metadata={"help": "recompute activations and save memory for extra compute"}
+    )
 
 @register_model("hubert", dataclass=HubertConfig)
 class HubertModel(BaseFairseqModel):
