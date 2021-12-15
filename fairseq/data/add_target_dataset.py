@@ -20,7 +20,7 @@ class AddTargetDataset(BaseWrapperDataset):
         process_label=None,
         label_len_fn=None,
         add_to_input=False,
-        text_compression_level=TextCompressionLevel.none
+        text_compression_level=TextCompressionLevel.none,
     ):
         super().__init__(dataset)
         self.labels = labels

@@ -282,6 +282,9 @@ class LaserTask(LegacyFairseqTask):
         epoch=1,
         data_buffer_size=0,
         disable_iterator_cache=False,
+        grouped_shuffling=False,
+        update_epoch_batch_itr=False,
+        **kwargs,
     ):
 
         assert isinstance(dataset, OrderedDict)

@@ -850,6 +850,7 @@ class DualInputS2TTransformerModel(FairseqEncoderDecoderModel):
             "adaptive_softmax_cutoff": args.adaptive_softmax_cutoff,
             "tie_adaptive_weights": args.tie_adaptive_weights,
             "no_token_positional_embeddings": args.no_token_positional_embeddings,
+            "encoder": {"embed_dim":args.encoder_embed_dim}
         }
         dec_cfg = namedtuple("args", dec_cfg.keys())(*dec_cfg.values())
         dec_emb = nn.Embedding(

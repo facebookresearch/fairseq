@@ -45,7 +45,11 @@ def get_features_from_npy_or_audio(path):
 
 
 def get_features_or_waveform_from_stored_zip(
-    path, byte_offset, byte_size, need_waveform=False, use_sample_rate=None,
+    path,
+    byte_offset,
+    byte_size,
+    need_waveform=False,
+    use_sample_rate=None,
 ):
     assert path.endswith(".zip")
     data = read_from_stored_zip(path, byte_offset, byte_size)
@@ -53,18 +57,17 @@ def get_features_or_waveform_from_stored_zip(
     if is_npy_data(data):
         features_or_waveform = np.load(f)
     elif is_sf_audio_data(data):
-        features_or_waveform = \
-            get_waveform(
-                f, always_2d=False, output_sample_rate=use_sample_rate
-            )[0] if need_waveform else get_fbank(f)
+        features_or_waveform = (
+            get_waveform(f, always_2d=False, output_sample_rate=use_sample_rate)[0]
+            if need_waveform
+            else get_fbank(f)
+        )
     else:
         raise ValueError(f'Unknown file format for "{path}"')
     return features_or_waveform
 
 
-def get_features_or_waveform(
-        path: str, need_waveform=False, use_sample_rate=None
-):
+def get_features_or_waveform(path: str, need_waveform=False, use_sample_rate=None):
     """Get speech features from .npy file or waveform from .wav/.flac file.
     The file may be inside an uncompressed ZIP file and is accessed via byte
     offset and length.
@@ -87,8 +90,11 @@ def get_features_or_waveform(
         return get_features_from_npy_or_audio(_path)
     elif len(slice_ptr) == 2:
         features_or_waveform = get_features_or_waveform_from_stored_zip(
-            _path, slice_ptr[0], slice_ptr[1], need_waveform=need_waveform,
-            use_sample_rate=use_sample_rate
+            _path,
+            slice_ptr[0],
+            slice_ptr[1],
+            need_waveform=need_waveform,
+            use_sample_rate=use_sample_rate,
         )
     else:
         raise ValueError(f"Invalid path: {path}")
@@ -145,7 +151,7 @@ class SpeechToTextDataset(FairseqDataset):
         pre_tokenizer=None,
         bpe_tokenizer=None,
         n_frames_per_step=1,
-        speaker_to_id=None
+        speaker_to_id=None,
     ):
         self.split, self.is_train_split = split, is_train_split
         self.cfg = cfg
@@ -235,7 +241,7 @@ class SpeechToTextDataset(FairseqDataset):
         if self.n_frames_per_step == 1:
             return feature
         n_packed_frames = feature.shape[0] // self.n_frames_per_step
-        feature = feature[:self.n_frames_per_step * n_packed_frames]
+        feature = feature[: self.n_frames_per_step * n_packed_frames]
         return feature.reshape(n_packed_frames, -1)
 
     @classmethod
@@ -318,9 +324,11 @@ class SpeechToTextDataset(FairseqDataset):
 
         speaker = None
         if self.speaker_to_id is not None:
-            speaker = torch.tensor(
-                [s.speaker_id for s in samples], dtype=torch.long
-            ).index_select(0, order).view(-1, 1)
+            speaker = (
+                torch.tensor([s.speaker_id for s in samples], dtype=torch.long)
+                .index_select(0, order)
+                .view(-1, 1)
+            )
 
         net_input = {
             "src_tokens": frames,
@@ -388,7 +396,7 @@ class SpeechToTextDatasetCreator(object):
         pre_tokenizer,
         bpe_tokenizer,
         n_frames_per_step,
-        speaker_to_id
+        speaker_to_id,
     ) -> SpeechToTextDataset:
         audio_root = Path(cfg.audio_root)
         ids = [s[cls.KEY_ID] for s in samples]
@@ -415,7 +423,7 @@ class SpeechToTextDatasetCreator(object):
             pre_tokenizer=pre_tokenizer,
             bpe_tokenizer=bpe_tokenizer,
             n_frames_per_step=n_frames_per_step,
-            speaker_to_id=speaker_to_id
+            speaker_to_id=speaker_to_id,
         )
 
     @classmethod
@@ -481,12 +489,19 @@ class SpeechToTextDatasetCreator(object):
         pre_tokenizer,
         bpe_tokenizer,
         n_frames_per_step,
-        speaker_to_id
+        speaker_to_id,
     ) -> SpeechToTextDataset:
         samples = cls._load_samples_from_tsv(root, split)
         return cls._from_list(
-            split, is_train_split, samples, cfg, tgt_dict, pre_tokenizer,
-            bpe_tokenizer, n_frames_per_step, speaker_to_id
+            split,
+            is_train_split,
+            samples,
+            cfg,
+            tgt_dict,
+            pre_tokenizer,
+            bpe_tokenizer,
+            n_frames_per_step,
+            speaker_to_id,
         )
 
     @classmethod
@@ -502,12 +517,19 @@ class SpeechToTextDatasetCreator(object):
         epoch: int,
         seed: int,
         n_frames_per_step: int = 1,
-        speaker_to_id=None
+        speaker_to_id=None,
     ) -> SpeechToTextDataset:
         datasets = [
             cls._from_tsv(
-                root, cfg, split, tgt_dict, is_train_split, pre_tokenizer,
-                bpe_tokenizer, n_frames_per_step, speaker_to_id
+                root,
+                cfg,
+                split,
+                tgt_dict,
+                is_train_split,
+                pre_tokenizer,
+                bpe_tokenizer,
+                n_frames_per_step,
+                speaker_to_id,
             )
             for split in splits.split(",")
         ]

@@ -137,7 +137,7 @@ class LegacyDistributedDataParallel(nn.Module):
                     if param.grad is None:
                         param.grad = torch.zeros_like(param)
 
-                    if hasattr(param, 'expert'):
+                    if hasattr(param, "expert"):
                         # Skip gradient sync for unshared parameters
                         continue
 

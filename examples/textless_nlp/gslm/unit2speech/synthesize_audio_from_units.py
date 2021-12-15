@@ -45,6 +45,11 @@ def get_parser():
         type=str,
         help="Path to the waveglow checkpoint (vocoder).",
     )
+    parser.add_argument(
+        "--code_dict_path",
+        type=str,
+        help="Code dict file path to use for inference",
+    )
     parser.add_argument("--max_decoder_steps", type=int, default=2000)
     parser.add_argument("--denoiser_strength", type=float, default=0.1)
     parser.add_argument(
@@ -72,7 +77,10 @@ def main(args, logger):
     logger.info(f"Loading Waveglow model from {args.waveglow_path}...")
     waveglow, denoiser = load_waveglow(waveglow_path=args.waveglow_path)
 
+    if not os.path.exists(hparams.code_dict):
+        hparams.code_dict = args.code_dict_path
     tts_dataset = TacotronInputDataset(hparams)
+
     for name, quantized_units in zip(names_batch, quantized_units_batch):
         quantized_units_str = " ".join(map(str, quantized_units))
         tts_input = tts_dataset.get_tensor(quantized_units_str)

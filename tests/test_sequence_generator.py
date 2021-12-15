@@ -4,21 +4,20 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
+import math
 import tempfile
 import unittest
-import math
-import numpy as np
 
+import numpy as np
+import torch
 
 import tests.utils as test_utils
-import torch
 from fairseq import search
 from fairseq.data.dictionary import Dictionary
 from fairseq.models.transformer import TransformerModel
-from fairseq.sequence_generator import EnsembleModel, SequenceGenerator
 from fairseq.ngram_repeat_block import NGramRepeatBlock
+from fairseq.sequence_generator import EnsembleModel, SequenceGenerator
 from fairseq.tasks.fairseq_task import LegacyFairseqTask
-
 
 DEFAULT_TEST_VOCAB_SIZE = 100
 
@@ -321,7 +320,7 @@ class TestSequenceGenerator(TestSequenceGeneratorBase):
         sample = self.sample.copy()
         sample["net_input"]["fancy_other_input"] = sample["net_input"]["src_tokens"]
         hypos = generator.forward(self.sample)
-        eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
+        eos, w1 = self.tgt_dict.eos(), self.w1
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, eos])
         self.assertHypoScore(hypos[0][0], [0.9, 1.0])
@@ -563,59 +562,6 @@ class TestDiverseSiblingsSearch(TestDiverseBeamSearch):
         self.assertHypoScore(hypos[1][1], [0.7, 0.35, 0.9], [0, 2, 1], 0.5)
 
 
-class TestPrefixBeamSearch(TestSequenceGeneratorBase):
-    def setUp(self):
-        # construct dummy dictionary
-        vocab_size = 10
-        d = test_utils.dummy_dictionary(vocab_size=vocab_size)
-        self.assertEqual(d.pad(), 1)
-        self.assertEqual(d.eos(), 2)
-        self.assertEqual(d.unk(), 3)
-        self.eos = d.eos()
-        self.w1 = 4
-        self.w2 = 5
-        self.beam_size = 3
-
-        # construct prefix data
-        self.tokens = torch.LongTensor(
-            [
-                [self.w1, self.w2, self.eos],
-            ]
-        )
-        self.token_lengths = torch.LongTensor([2])
-
-        args = argparse.Namespace()
-        unk = 0.0
-        args.beam_probs = [
-            # prefix step 0:
-            torch.FloatTensor(
-                [
-                    # eos      
-                    [0.0, unk] + [1.0 / vocab_size] * vocab_size  # beam 1
-                ] * self.beam_size
-            ),
-        ] * vocab_size
-
-        task = test_utils.TestTranslationTask.setup_task(args, d, d)
-        self.model = task.build_model(args)
-        self.tgt_dict = task.target_dictionary
-
-    def test_prefix_beam_search(self):
-        search_strategy = search.BeamSearch(self.tgt_dict)
-        generator = SequenceGenerator(
-            [self.model],
-            self.tgt_dict,
-            beam_size=self.beam_size,
-            search_strategy=search_strategy,
-        )
-        sample = {
-            "net_input": {
-                "src_tokens": self.tokens,
-                "src_lengths": self.token_lengths,
-            }
-        }
-        # make sure test sample doesn't break any assertion
-        generator.forward(sample, prefix_tokens=self.tokens[:, :-1])
 
 class TestTopPSamplingSearch(TestSequenceGeneratorBase):
     def setUp(self):

@@ -27,8 +27,8 @@ def get_fused_adam_class():
     except ImportError:
         try:
             # fallback to the newer interface
-            from apex.optimizers import FusedAdam as _FusedAdam  # noqa
             from apex.multi_tensor_apply import multi_tensor_applier
+            from apex.optimizers import FusedAdam as _FusedAdam  # noqa
 
             if multi_tensor_applier.available:
                 return FusedAdamV2
@@ -179,7 +179,7 @@ class FusedAdamV1(torch.optim.Optimizer):
 
                 if p.device.type == "cpu":
                     p_data_fp32 = p.data.cuda(non_blocking=True).float()
-                    out_p = torch.tensor([], dtype = torch.float)
+                    out_p = torch.tensor([], dtype=torch.float)
                 else:
                     p_data_fp32 = p.data.float()
                     out_p = p.data
@@ -234,6 +234,7 @@ class FusedAdamV1(torch.optim.Optimizer):
                     p.data.copy_(p_data_fp32, non_blocking=True)
 
                 if self.use_fp16_stats:
+
                     def inf_norm(t):
                         return torch.norm(t, float("inf"))
 
@@ -251,8 +252,8 @@ class FusedAdamV1(torch.optim.Optimizer):
 
 
 try:
-    from apex.optimizers import FusedAdam
     from apex.multi_tensor_apply import multi_tensor_applier
+    from apex.optimizers import FusedAdam
 
     class FusedAdamV2(FusedAdam):
         """
@@ -262,7 +263,9 @@ try:
 
         def __init__(self, *args, use_fp16_stats=False, **kwargs):
             if use_fp16_stats:
-                raise NotImplementedError("--fp16-adam-stats is only supported with FusedAdamV1")
+                raise NotImplementedError(
+                    "--fp16-adam-stats is only supported with FusedAdamV1"
+                )
             super().__init__(*args, **kwargs)
             if not hasattr(self, "multi_tensor_adam"):
                 raise Exception(
@@ -378,7 +381,6 @@ try:
                         )
 
             return loss
-
 
 except ImportError:
     pass
