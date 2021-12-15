@@ -29,10 +29,6 @@ class Tacotron2CriterionConfig(FairseqDataclass):
         default=1.0,
         metadata={"help": "weight of positive examples for BCE loss"},
     )
-    n_frames_per_step: int = field(
-        default=0,
-        metadata={"help": "Number of frames per decoding step"},
-    )
     use_guided_attention_loss: bool = field(
         default=False,
         metadata={"help": "use guided attention loss"},
@@ -91,7 +87,6 @@ class Tacotron2Criterion(FairseqCriterion):
         self,
         task,
         sentence_avg,
-        n_frames_per_step,
         use_guided_attention_loss,
         guided_attention_loss_sigma,
         bce_pos_weight,
@@ -99,7 +94,6 @@ class Tacotron2Criterion(FairseqCriterion):
     ):
         super().__init__(task)
         self.sentence_avg = sentence_avg
-        self.n_frames_per_step = n_frames_per_step
         self.bce_pos_weight = bce_pos_weight
 
         self.guided_attn = None

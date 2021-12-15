@@ -250,7 +250,7 @@ class SpeechToTextDataset(FairseqDataset):
         assert lang_tag_idx != dictionary.unk()
         return lang_tag_idx
 
-    def __getitem__(self, index: int) -> SpeechToTextDatasetItem:
+    def _get_source_audio(self, index: int) -> torch.Tensor:
         source = get_features_or_waveform(
             self.audio_paths[index],
             need_waveform=self.cfg.use_audio_input,
@@ -260,6 +260,10 @@ class SpeechToTextDataset(FairseqDataset):
             assert not self.cfg.use_audio_input
             source = self.feature_transforms(source)
         source = torch.from_numpy(source).float()
+        return source
+
+    def __getitem__(self, index: int) -> SpeechToTextDatasetItem:
+        source = self._get_source_audio(index)
         source = self.pack_frames(source)
 
         target = None
