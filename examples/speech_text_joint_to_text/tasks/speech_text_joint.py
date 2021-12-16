@@ -371,6 +371,7 @@ class SpeechTextJointToTextTask(SpeechToTextTask):
             epoch=epoch,
             mult_rate=1 if self.args.update_mix_data else max(self.args.update_freq),
             buffer_size=data_buffer_size,
+            skip_remainder_batch=skip_remainder_batch,
         )
         self.dataset_to_epoch_iter[dataset] = {}  # refresh it every epoch
         return epoch_iter

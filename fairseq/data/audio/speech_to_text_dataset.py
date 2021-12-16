@@ -152,6 +152,7 @@ class SpeechToTextDataset(FairseqDataset):
         bpe_tokenizer=None,
         n_frames_per_step=1,
         speaker_to_id=None,
+        append_eos=True,
     ):
         self.split, self.is_train_split = split, is_train_split
         self.cfg = cfg
@@ -185,6 +186,7 @@ class SpeechToTextDataset(FairseqDataset):
         self.speaker_to_id = speaker_to_id
 
         self.tgt_lens = self.get_tgt_lens_and_check_oov()
+        self.append_eos = append_eos
 
         logger.info(self.__repr__())
 
@@ -270,7 +272,7 @@ class SpeechToTextDataset(FairseqDataset):
         if self.tgt_texts is not None:
             tokenized = self.get_tokenized_tgt_text(index)
             target = self.tgt_dict.encode_line(
-                tokenized, add_if_not_exist=False, append_eos=True
+                tokenized, add_if_not_exist=False, append_eos=self.append_eos
             ).long()
             if self.cfg.prepend_tgt_lang_tag:
                 lang_tag_idx = self.get_lang_tag_idx(
