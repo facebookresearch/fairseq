@@ -4,13 +4,14 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-
 import torch
 import torch.nn as nn
-from dataclasses import dataclass, field
+from omegaconf import II
+
 from fairseq import utils
 from fairseq.data.data_utils import compute_mask_indices
 from fairseq.data.dictionary import Dictionary
@@ -25,7 +26,6 @@ from fairseq.tasks.hubert_pretraining import (
     HubertPretrainingConfig,
     HubertPretrainingTask,
 )
-from omegaconf import II
 
 logger = logging.getLogger(__name__)
 
@@ -205,8 +205,10 @@ class HubertConfig(FairseqDataclass):
     )
 
     checkpoint_activations: bool = field(
-        default=False, metadata={"help": "recompute activations and save memory for extra compute"}
+        default=False,
+        metadata={"help": "recompute activations and save memory for extra compute"},
     )
+
 
 @register_model("hubert", dataclass=HubertConfig)
 class HubertModel(BaseFairseqModel):

@@ -4,8 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 
 import os
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 import torch
 
@@ -31,7 +31,7 @@ class TestFairseqSpeech(unittest.TestCase):
             "spm_librispeech_unigram10000.model",
             "spm_librispeech_unigram10000.txt",
             "librispeech_test-other.tsv",
-            "librispeech_test-other.zip"
+            "librispeech_test-other.zip",
         ]
         self.base_url = f"{S3_BASE_URL}/s2t/librispeech"
         for filename in self.data_filenames:
@@ -47,7 +47,7 @@ class TestFairseqSpeech(unittest.TestCase):
             "ljspeech_g2p_gcmvn_stats.npz",
             "ljspeech_g2p.txt",
             "ljspeech_test.tsv",
-            "ljspeech_test.zip"
+            "ljspeech_test.zip",
         ]
         self.base_url = f"{S3_BASE_URL}/s2/ljspeech"
         for filename in self.data_filenames:

@@ -7,15 +7,18 @@ import ast
 import collections
 import contextlib
 import logging
-import numpy as np
 import os
 import re
 import time
 import traceback
 from collections import OrderedDict
+from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
+import numpy as np
 import torch
+from omegaconf import DictConfig, OmegaConf, open_dict
+
 from fairseq.data import data_utils
 from fairseq.dataclass.configs import CheckpointConfig
 from fairseq.dataclass.utils import (
@@ -25,10 +28,6 @@ from fairseq.dataclass.utils import (
 from fairseq.distributed.fully_sharded_data_parallel import FSDP, has_FSDP
 from fairseq.file_io import PathManager
 from fairseq.models import FairseqDecoder, FairseqEncoder
-from omegaconf import DictConfig, open_dict, OmegaConf
-
-from pathlib import Path
-
 
 logger = logging.getLogger(__name__)
 
@@ -509,7 +508,7 @@ def load_model_ensemble_and_task_from_hf_hub(
     _arg_overrides["data"] = cache_dir
     return load_model_ensemble_and_task(
         [p.as_posix() for p in Path(cache_dir).glob("*.pt")],
-        arg_overrides=_arg_overrides
+        arg_overrides=_arg_overrides,
     )
 
 

@@ -7,6 +7,7 @@
 import unittest
 
 import torch
+
 try:
     import huggingface_hub
 except ImportError:

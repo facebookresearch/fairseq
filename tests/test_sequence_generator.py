@@ -562,7 +562,6 @@ class TestDiverseSiblingsSearch(TestDiverseBeamSearch):
         self.assertHypoScore(hypos[1][1], [0.7, 0.35, 0.9], [0, 2, 1], 0.5)
 
 
-
 class TestTopPSamplingSearch(TestSequenceGeneratorBase):
     def setUp(self):
         # construct dummy dictionary
