@@ -8,7 +8,6 @@ import logging
 import torch
 import torch.nn.functional as F
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -53,7 +52,6 @@ try:
                 return losses
             else:
                 raise NotImplementedError
-
 
 except ImportError:
 

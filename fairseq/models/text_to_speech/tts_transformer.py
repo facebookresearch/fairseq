@@ -131,12 +131,12 @@ def decoder_init(m):
 
 
 class TTSTransformerDecoder(FairseqIncrementalDecoder):
-    def __init__(self, args, src_dict):
+    def __init__(self, args, src_dict, padding_idx=1):
         super().__init__(None)
         self._future_mask = torch.empty(0)
 
         self.args = args
-        self.padding_idx = src_dict.pad()
+        self.padding_idx = src_dict.pad() if src_dict else padding_idx
         self.n_frames_per_step = args.n_frames_per_step
         self.out_dim = args.output_frame_dim * args.n_frames_per_step
 
@@ -275,7 +275,15 @@ class TTSTransformerDecoder(FairseqIncrementalDecoder):
         bsz, seq_len, _ = x.size()
         eos_out = self.eos_proj(x)
         post_feat_out = feat_out + self.postnet(feat_out)
-        return post_feat_out, eos_out, {"attn": attn, "feature_out": feat_out}
+        return (
+            post_feat_out,
+            eos_out,
+            {
+                "attn": attn,
+                "feature_out": feat_out,
+                "inner_states": extra["inner_states"],
+            },
+        )
 
     def get_normalized_probs(self, net_output, log_probs, sample):
         logits = self.ctc_proj(net_output[2]["feature_out"])

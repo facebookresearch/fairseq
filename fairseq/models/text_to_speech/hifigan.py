@@ -114,7 +114,13 @@ class Generator(torch.nn.Module):
         self.num_kernels = len(cfg["resblock_kernel_sizes"])
         self.num_upsamples = len(cfg["upsample_rates"])
         self.conv_pre = weight_norm(
-            Conv1d(80, cfg["upsample_initial_channel"], 7, 1, padding=3)
+            Conv1d(
+                cfg.get("model_in_dim", 80),
+                cfg["upsample_initial_channel"],
+                7,
+                1,
+                padding=3,
+            )
         )
 
         self.ups = nn.ModuleList()

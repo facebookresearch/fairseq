@@ -195,8 +195,10 @@ class Wav2VecCtc(BaseFairseqModel):
 
         if net_output["padding_mask"] is not None and net_output["padding_mask"].any():
             number_of_classes = logits.size(-1)
-            masking_tensor = torch.ones(number_of_classes) * float("-inf")
-            masking_tensor[0] = float("inf")
+            masking_tensor = torch.ones(
+                number_of_classes, device=logits.device
+            ) * float("-inf")
+            masking_tensor[0] = 0
             logits[net_output["padding_mask"].T] = masking_tensor.type_as(logits)
 
         if normalize:

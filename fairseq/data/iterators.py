@@ -719,6 +719,7 @@ class GroupedEpochBatchIterator(EpochBatchIterator):
         epoch=0,
         mult_rate=1,
         buffer_size=0,
+        skip_remainder_batch=False,
     ):
         super().__init__(
             dataset,
@@ -730,6 +731,7 @@ class GroupedEpochBatchIterator(EpochBatchIterator):
             num_workers,
             epoch,
             buffer_size,
+            skip_remainder_batch=skip_remainder_batch,
         )
         # level 0: sub-samplers 1: batch_idx 2: batches
         self._frozen_batches = tuple([tuple(sub_batch) for sub_batch in batch_samplers])

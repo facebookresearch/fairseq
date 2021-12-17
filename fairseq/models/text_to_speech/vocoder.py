@@ -19,6 +19,7 @@ from fairseq.data.audio.audio_utils import (
     TTSSpectrogram,
 )
 from fairseq.data.audio.speech_to_text_dataset import S2TDataConfig
+from fairseq.models.text_to_speech.codehifigan import CodeGenerator as CodeHiFiGANModel
 from fairseq.models.text_to_speech.hifigan import Generator as HiFiGANModel
 
 logger = logging.getLogger(__name__)
@@ -210,10 +211,42 @@ class HiFiGANVocoder(nn.Module):
         return cls(vocoder_cfg["checkpoint"], model_cfg, fp16=args.fp16)
 
 
+class CodeHiFiGANVocoder(nn.Module):
+    def __init__(
+        self, checkpoint_path: str, model_cfg: Dict[str, str], fp16: bool = False
+    ) -> None:
+        super().__init__()
+        self.model = CodeHiFiGANModel(model_cfg)
+        state_dict = torch.load(checkpoint_path)
+        self.model.load_state_dict(state_dict["generator"])
+        self.model.eval()
+        if fp16:
+            self.model.half()
+        self.model.remove_weight_norm()
+        logger.info(f"loaded CodeHiFiGAN checkpoint from {checkpoint_path}")
+
+    def forward(self, x: Dict[str, torch.Tensor], dur_prediction=False) -> torch.Tensor:
+        assert "code" in x
+        x["dur_prediction"] = dur_prediction
+        mask = x["code"] >= 0  # remove invalid code
+        x["code"] = x["code"][mask].unsqueeze(dim=0)
+
+        return self.model(**x).detach().squeeze()
+
+    @classmethod
+    def from_data_cfg(cls, args, data_cfg):
+        vocoder_cfg = data_cfg.vocoder
+        with open(vocoder_cfg["config"]) as f:
+            model_cfg = json.load(f)
+        return cls(vocoder_cfg["checkpoint"], model_cfg, fp16=args.fp16)
+
+
 def get_vocoder(args, data_cfg: S2TDataConfig):
     if args.vocoder == "griffin_lim":
         return GriffinLimVocoder.from_data_cfg(args, data_cfg)
     elif args.vocoder == "hifigan":
         return HiFiGANVocoder.from_data_cfg(args, data_cfg)
+    elif args.vocoder == "code_hifigan":
+        return CodeHiFiGANVocoder.from_data_cfg(args, data_cfg)
     else:
         raise ValueError("Unknown vocoder")

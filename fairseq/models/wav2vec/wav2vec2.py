@@ -30,6 +30,7 @@ from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from fairseq.utils import buffered_arange, index_put, is_xla_tensor
 from fairseq.distributed import fsdp_wrap
 
+from .utils import pad_to_multiple
 
 EXTRACTOR_MODE_CHOICES = ChoiceEnum(["default", "layer_norm"])
 MASKING_DISTRIBUTION_CHOICES = ChoiceEnum(["static", "uniform", "normal", "poisson"])
@@ -236,6 +237,20 @@ class Wav2Vec2Config(FairseqDataclass):
         metadata={"help": "recompute activations and save memory for extra compute"},
     )
 
+    # FP16 optimization
+    required_seq_len_multiple: int = field(
+        default=1,
+        metadata={
+            "help": "pad the input to encoder such that the sequence length is divisible by multiple"
+        },
+    )
+    crop_seq_to_multiple: int = field(
+        default=1,
+        metadata={
+            "help": "crop convolutional feature extractor output such that the sequence length is divisible by multiple"
+        },
+    )
+
 
 @register_model("wav2vec2", dataclass=Wav2Vec2Config)
 class Wav2Vec2Model(BaseFairseqModel):
@@ -258,6 +273,8 @@ class Wav2Vec2Model(BaseFairseqModel):
             if self.embed != cfg.encoder_embed_dim and not cfg.quantize_input
             else None
         )
+
+        self.crop_seq_to_multiple = cfg.crop_seq_to_multiple
 
         self.mask_prob = cfg.mask_prob
         self.mask_selection = cfg.mask_selection
@@ -565,6 +582,13 @@ class Wav2Vec2Model(BaseFairseqModel):
         else:
             padding_mask = None
 
+        time_steps_to_drop = features.size(1) % self.crop_seq_to_multiple
+        if time_steps_to_drop != 0:
+            features = features[:, :-time_steps_to_drop]
+            unmasked_features = unmasked_features[:, :-time_steps_to_drop]
+            if padding_mask is not None:
+                padding_mask = padding_mask[:, :-time_steps_to_drop]
+
         if self.post_extract_proj is not None:
             features = self.post_extract_proj(features)
 
@@ -826,6 +850,7 @@ class TransformerEncoder(nn.Module):
 
         self.dropout = args.dropout
         self.embedding_dim = args.encoder_embed_dim
+        self.required_seq_len_multiple = args.required_seq_len_multiple
 
         self.pos_conv = nn.Conv1d(
             self.embedding_dim,
@@ -886,6 +911,17 @@ class TransformerEncoder(nn.Module):
         if not self.layer_norm_first:
             x = self.layer_norm(x)
 
+        # pad to the sequence length dimension
+        x, pad_length = pad_to_multiple(
+            x, self.required_seq_len_multiple, dim=-2, value=0
+        )
+        if pad_length > 0 and padding_mask is None:
+            padding_mask = x.new_zeros((x.size(0), x.size(1)), dtype=torch.bool)
+            padding_mask[:, -pad_length:] = True
+        else:
+            padding_mask, _ = pad_to_multiple(
+                padding_mask, self.required_seq_len_multiple, dim=-1, value=True
+            )
         x = F.dropout(x, p=self.dropout, training=self.training)
 
         # B x T x C -> T x B x C
@@ -898,7 +934,18 @@ class TransformerEncoder(nn.Module):
             if not self.training or (dropout_probability > self.layerdrop):
                 x, z = layer(x, self_attn_padding_mask=padding_mask, need_weights=False)
                 if tgt_layer is not None:
-                    layer_results.append((x, z))
+                    # unpad if needed
+                    if pad_length > 0:
+                        layer_results.append(
+                            (
+                                x[:-pad_length],
+                                z[:, :-pad_length, :-pad_length]
+                                if z is not None
+                                else z,
+                            )
+                        )
+                    else:
+                        layer_results.append((x, z))
             if i == tgt_layer:
                 r = x
                 break
@@ -908,6 +955,9 @@ class TransformerEncoder(nn.Module):
 
         # T x B x C -> B x T x C
         x = x.transpose(0, 1)
+        # undo paddding
+        if pad_length > 0:
+            x = x[:, :-pad_length]
 
         return x, layer_results
 

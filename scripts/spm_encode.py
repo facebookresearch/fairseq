@@ -49,13 +49,13 @@ def main():
 
     if args.output_format == "piece":
 
-        def encode(l):
-            return sp.EncodeAsPieces(l)
+        def encode(input):
+            return sp.EncodeAsPieces(input)
 
     elif args.output_format == "id":
 
-        def encode(l):
-            return list(map(str, sp.EncodeAsIds(l)))
+        def encode(input):
+            return list(map(str, sp.EncodeAsIds(input)))
 
     else:
         raise NotImplementedError

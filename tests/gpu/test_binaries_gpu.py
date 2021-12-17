@@ -399,6 +399,9 @@ def _quantize_language_model(data_dir, arch, extra_flags=None, run_validation=Fa
     train.main(quantize_args)
 
 
+@unittest.skipIf(
+    int(torch.__version__[2]) < 10, reason="quantized kernels are only supported on CPU"
+)
 @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
 class TestQuantization(unittest.TestCase):
     def setUp(self):
