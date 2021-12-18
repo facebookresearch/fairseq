@@ -52,7 +52,7 @@ class AutoRegressiveSpeechGenerator(SpeechGenerator):
 
         src_tokens = sample["net_input"]["src_tokens"]
         src_lengths = sample["net_input"]["src_lengths"]
-        bsz, src_len = src_tokens.size()
+        bsz, src_len = src_tokens.size()[:2]
         n_frames_per_step = model.decoder.n_frames_per_step
         out_dim = model.decoder.out_dim
         raw_dim = out_dim // n_frames_per_step

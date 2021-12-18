@@ -140,7 +140,6 @@ def setup_args():
 @unittest.skipIf(torch.cuda.device_count() < 2, "test requires 2 GPUs")
 class TestBMUF(unittest.TestCase):
     def bmuf_process(self, cfg, args, iterations):
-        processes = []
         results = Manager().dict()
         torch.multiprocessing.spawn(
             fn=functools.partial(single_gpu_training, cfg, args),

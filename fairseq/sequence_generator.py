@@ -350,6 +350,17 @@ class SequenceGenerator(nn.Module):
                 )
                 probs = probs[:, -1, :] * self.lm_weight
                 lprobs += probs
+
+            lprobs[lprobs != lprobs] = torch.tensor(-math.inf).to(lprobs)
+
+            lprobs[:, self.pad] = -math.inf  # never select pad
+            lprobs[:, self.unk] -= self.unk_penalty  # apply unk penalty
+
+            # handle max length constraint
+            if step >= max_len:
+                lprobs[:, : self.eos] = -math.inf
+                lprobs[:, self.eos + 1 :] = -math.inf
+
             # handle prefix tokens (possibly with different lengths)
             if (
                 prefix_tokens is not None
@@ -362,16 +373,6 @@ class SequenceGenerator(nn.Module):
             elif step < self.min_len:
                 # minimum length constraint (does not apply if using prefix_tokens)
                 lprobs[:, self.eos] = -math.inf
-
-            lprobs[lprobs != lprobs] = torch.tensor(-math.inf).to(lprobs)
-
-            lprobs[:, self.pad] = -math.inf  # never select pad
-            lprobs[:, self.unk] -= self.unk_penalty  # apply unk penalty
-
-            # handle max length constraint
-            if step >= max_len:
-                lprobs[:, : self.eos] = -math.inf
-                lprobs[:, self.eos + 1 :] = -math.inf
 
             # Record attention scores, only support avg_attn_scores is a Tensor
             if avg_attn_scores is not None:
@@ -574,7 +575,7 @@ class SequenceGenerator(nn.Module):
         prefix_toks = prefix_tokens[:, step].unsqueeze(-1).repeat(1, beam_size).view(-1)
         prefix_lprobs = lprobs.gather(-1, prefix_toks.unsqueeze(-1))
         prefix_mask = prefix_toks.ne(self.pad)
-        lprobs[prefix_mask] = torch.min(prefix_lprobs) - 1
+        lprobs[prefix_mask] = torch.tensor(-math.inf).to(lprobs)
         lprobs[prefix_mask] = lprobs[prefix_mask].scatter(
             -1, prefix_toks[prefix_mask].unsqueeze(-1), prefix_lprobs[prefix_mask]
         )
