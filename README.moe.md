@@ -27,7 +27,7 @@ pip install hydra-core==1.0.7 omegaconf==2.0.6
 
 megatron (must be installed from source to get fused kernels):
 ```bash
-git clone --depth=1 --branch v2.4 https://github.com/NVIDIA/Megatron-LM.git
+git clone --depth=1 --branch v2.6 https://github.com/NVIDIA/Megatron-LM.git
 cd Megatron-LM
 pip install -e .
 ```
@@ -137,9 +137,54 @@ srun --cpu-bind=mask_cpu:000000ffffff000000ffffff,000000ffffff000000ffffff,00000
 
 #### Expected performance on IB interconnect
 
+NOTE: The words-per-second estimates below are before the Tutel optimizations
+introduced in [#3873](https://github.com/pytorch/fairseq/pull/3873). One should
+expect an additional 15-20% speedup from those optimizations.
+
 | num GPUs | num experts | batch size (x grad acc.) | words per second (wps) |
 | -- | -- | -- | -- |
 | 32 | 32 | 6 (x2) | 33k |
 | 64 | 64 | 6 (x2) | 82k |
 | 128 | 128 | 6 (x2) | 191k |
 | 512 | 512 | 12 (x1) | 638k |
+
+# Evaluating MoE language models
+
+#### Using `fairseq-eval-lm`
+
+The `fairseq-eval-lm` script can be used to score properly
+[preprocessed/binarized datasets](https://github.com/pytorch/fairseq/tree/moe/examples/language_model#1-preprocess-the-data),
+for example:
+
+```bash
+DATA_PATH=/path/to/data-bin
+MODEL_PATH=/path/to/model.pt
+python -m fairseq_cli.eval_lm \
+  $DATA_DIR
+  --path $MODEL_PATH \
+  --gen-subset valid \
+  --sample-break-mode none \
+  --tokens-per-sample 2048 \
+  --batch-size 1 \
+  --fp16 \
+  --output-word-probs \
+  --is-moe \
+  --distributed-world-size 8 \
+  --model-overrides "{'world_size': 8, 'moe_eval_capacity_token_fraction': 0.05}"
+```
+
+#### Setting `moe_eval_capacity_token_fraction`
+
+When evaluating MoE models you may need to adjust the `--moe-eval-capacity-token-fraction`
+option to match or exceed the training capacity. The logic is somewhat unintuitive:
+* During training the capacity is set to `2 * math.ceil(local_bsz_in_tokens / global_num_experts)`
+* During inference the capacity is set to `math.ceil(args.moe_eval_capacity_token_fraction * local_bsz_in_tokens)`
+
+For example, suppose you train a model with a batch size of 12 sequences per
+GPU, each of length 1024, and 512 experts. This model will have a capacity of
+48 during training (i.e., `2 * 12 * 1024 / 512`).
+
+Now suppose you want to match this setting at inference, but you are using
+fewer GPUs so have reduced the batch size to 1 sequence of length 1024. In that
+case you would want to set `--moe-eval-capacity-token-fraction=0.046875` (i.e., `1024 / 48`).
+
