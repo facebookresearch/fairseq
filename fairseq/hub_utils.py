@@ -132,11 +132,20 @@ class GeneratorHubInterface(nn.Module):
         batched_hypos = self.generate(tokenized_sentences, beam, verbose, **kwargs)
         return [self.decode(hypos[0]["tokens"]) for hypos in batched_hypos]
 
-    def score(self, sentences: List[str], **kwargs):
+    def score(self, sentences: List[str], replace_newline_with_eos: bool = False, **kwargs):
         if isinstance(sentences, str):
-            return self.score([sentences], **kwargs)[0]
+            return self.score(
+                [sentences], replace_newline_with_eos=replace_newline_with_eos, **kwargs
+            )[0]
+
+        def encode(sentence):
+            if replace_newline_with_eos:
+                return torch.cat([self.encode(line) for line in sentence.splitlines()])
+            else:
+                return self.encode(sentence)
+
         # NOTE: this doesn't support translation tasks currently
-        tokenized_sentences = [self.encode(sentence) for sentence in sentences]
+        tokenized_sentences = [encode(sentence) for sentence in sentences]
         return [
             hypos[0]
             for hypos in self.generate(
