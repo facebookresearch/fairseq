@@ -46,7 +46,7 @@ path variable which is later utilized in setting the flags for `fairseq-interact
 so in essence the line `--path $MODEL_DIR/model.pt $MODEL_DIR \` is equivalent to 
 `--path $wmt14.en-fr.fconv-py/model.pt $wmt14.en-fr.fconv-py \`
 The flag `--source-lang` tells the model the source language which is English
-and similarly ``--target-lang` tells the model the target language which is French
+and similarly `--target-lang` tells the model the target language which is French
 Following the discussion in the start `tokenizer.perl` from `mosesdecoder` is used
 using the flag `--tokenizer`. The flag `--bpe` specifies the bytepair encoder to use
 and `--bpe-codes` gives the path to the bytepair encoding codes to use
