@@ -160,7 +160,7 @@ for example:
 DATA_PATH=/path/to/data-bin
 MODEL_PATH=/path/to/model.pt
 python -m fairseq_cli.eval_lm \
-  $DATA_DIR
+  $DATA_DIR \
   --path $MODEL_PATH \
   --gen-subset valid \
   --sample-break-mode none \
