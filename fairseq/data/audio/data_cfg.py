@@ -249,9 +249,8 @@ class SingleTaskConfig(object):
         if self.input_from == "decoder":
             return self.config["decoder_layer"] - 1
         else:
-            # default using the output from the last encoder layer
-            # TODO: check if need to offset by 1
-            return self.config.get("encoder_layer", -1)
+            # default using the output from the last encoder layer (-1)
+            return self.config.get("encoder_layer", 0) - 1
 
     @property
     def loss_weight_schedule(self):

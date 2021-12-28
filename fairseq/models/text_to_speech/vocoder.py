@@ -236,6 +236,7 @@ class CodeHiFiGANVocoder(nn.Module):
     @classmethod
     def from_data_cfg(cls, args, data_cfg):
         vocoder_cfg = data_cfg.vocoder
+        assert vocoder_cfg is not None, "vocoder not specified in the data config"
         with open(vocoder_cfg["config"]) as f:
             model_cfg = json.load(f)
         return cls(vocoder_cfg["checkpoint"], model_cfg, fp16=args.fp16)
