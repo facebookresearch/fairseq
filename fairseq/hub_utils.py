@@ -11,11 +11,11 @@ import os
 from typing import Any, Dict, Iterator, List
 
 import torch
-from fairseq import utils
-from fairseq.data import encoders
 from omegaconf import open_dict
 from torch import nn
 
+from fairseq import utils
+from fairseq.data import encoders
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +132,9 @@ class GeneratorHubInterface(nn.Module):
         batched_hypos = self.generate(tokenized_sentences, beam, verbose, **kwargs)
         return [self.decode(hypos[0]["tokens"]) for hypos in batched_hypos]
 
-    def score(self, sentences: List[str], replace_newline_with_eos: bool = False, **kwargs):
+    def score(
+        self, sentences: List[str], replace_newline_with_eos: bool = False, **kwargs
+    ):
         if isinstance(sentences, str):
             return self.score(
                 [sentences], replace_newline_with_eos=replace_newline_with_eos, **kwargs

@@ -20,13 +20,13 @@ from tests.utils import (
     generate_main,
     preprocess_lm_data,
     preprocess_translation_data,
-    train_translation_model,
     train_language_model,
+    train_translation_model,
 )
+
 
 @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
 class TestMultiGPU(unittest.TestCase):
-
     @staticmethod
     def parse_logs(logfile):
         logs = []
@@ -44,59 +44,85 @@ class TestMultiGPU(unittest.TestCase):
     def train_flags(self, mu):
         return [
             "--memory-efficient-fp16",
-            '--update-freq', '1',
-            '--seed', '1',
-            "--log-format", "json",
-            "--max-update", str(mu),
-            "--tokens-per-sample", "20",
-            "--batch-size", "2",
-            '--share-decoder-input-output-embed',
-            '--optimizer', 'adam',
-            '--max-valid-steps', '1',
-            '--pad-to-fixed-length',
-            '--sample-break-mode', 'none',
+            "--update-freq",
+            "1",
+            "--seed",
+            "1",
+            "--log-format",
+            "json",
+            "--max-update",
+            str(mu),
+            "--tokens-per-sample",
+            "20",
+            "--batch-size",
+            "2",
+            "--share-decoder-input-output-embed",
+            "--optimizer",
+            "adam",
+            "--max-valid-steps",
+            "1",
+            "--pad-to-fixed-length",
+            "--sample-break-mode",
+            "none",
         ]
 
-    def _test_resume_multilingual_training(self, extra_clargs, arch="transformer_lm_gpt2_tiny"):
+    def _test_resume_multilingual_training(
+        self, extra_clargs, arch="transformer_lm_gpt2_tiny"
+    ):
         languages = ["en_XX", "fr_XX", "zh_CN"]
         save_interval = 5
         mu = 10
-        flags = self.train_flags(mu) + [
-            "--save-interval-updates", str(save_interval),
-            "--log-interval", "1"
-        ] + extra_clargs
+        flags = (
+            self.train_flags(mu)
+            + ["--save-interval-updates", str(save_interval), "--log-interval", "1"]
+            + extra_clargs
+        )
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory("test_fp16") as data_dir:
                 log = os.path.join(data_dir, "train.log")
-                create_dummy_data(data_dir,
-                                  num_examples=int(mu * 20 * self.world_size * 1.5),    # make sure enough data for max updates
-                                  languages=languages)  
+                create_dummy_data(
+                    data_dir,
+                    num_examples=int(
+                        mu * 20 * self.world_size * 1.5
+                    ),  # make sure enough data for max updates
+                    languages=languages,
+                )
                 preprocess_lm_data(data_dir, languages)
                 train_language_model(
-                    data_dir, arch, 
-                    flags + ["--log-file", log], 
-                    task="multilingual_language_modeling", 
+                    data_dir,
+                    arch,
+                    flags + ["--log-file", log],
+                    task="multilingual_language_modeling",
                     world_size=self.world_size,
                 )
                 log2 = os.path.join(data_dir, "resume.log")
                 ckpt_name = f"checkpoint_1_{save_interval}.pt"
                 restore_file = os.path.join(data_dir, ckpt_name)
                 train_language_model(
-                    data_dir, arch,
-                    flags + ["--log-file", log2, "--restore-file", restore_file, '--no-save'],
-                    task="multilingual_language_modeling", 
+                    data_dir,
+                    arch,
+                    flags
+                    + ["--log-file", log2, "--restore-file", restore_file, "--no-save"],
+                    task="multilingual_language_modeling",
                     world_size=self.world_size,
                 )
 
                 l1 = self.parse_logs(log)
-                assert int(l1[-1]['train_num_updates']) == mu, f'The first run did not complete {mu} updates. Add more data'
+                assert (
+                    int(l1[-1]["train_num_updates"]) == mu
+                ), f"The first run did not complete {mu} updates. Add more data"
                 l2 = self.parse_logs(log2)
 
-                if int(l2[0]["num_updates"]) != save_interval+1:
-                    all_ckpt_files = [x for x in os.listdir(data_dir) if x.endswith('.pt')]
+                if int(l2[0]["num_updates"]) != save_interval + 1:
+                    all_ckpt_files = [
+                        x for x in os.listdir(data_dir) if x.endswith(".pt")
+                    ]
                     import shutil
-                    shutil.move(data_dir, 'last_failed_resume')
-                    raise AssertionError(f"Likely failed to load {ckpt_name}. {all_ckpt_files} \n LOGS: {l1} \n\n {l2}. ")
+
+                    shutil.move(data_dir, "last_failed_resume")
+                    raise AssertionError(
+                        f"Likely failed to load {ckpt_name}. {all_ckpt_files} \n LOGS: {l1} \n\n {l2}. "
+                    )
                 for k in [
                     "train_loss",
                     "train_num_updates",
@@ -105,7 +131,9 @@ class TestMultiGPU(unittest.TestCase):
                 ]:
                     from_scratch, resumed = float(l1[-1][k]), float(l2[-1][k])
                     # This fails without rounding!
-                    assert from_scratch == resumed, f"difference at {k} {from_scratch} != {resumed}"
+                    assert (
+                        from_scratch == resumed
+                    ), f"difference at {k} {from_scratch} != {resumed}"
 
 
 @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")

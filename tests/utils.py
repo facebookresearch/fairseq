@@ -164,7 +164,9 @@ def sequence_generator_setup():
     return tgt_dict, w1, w2, src_tokens, src_lengths, model
 
 
-def create_dummy_data(data_dir, num_examples=100, maxlen=20, alignment=False, languages=None):
+def create_dummy_data(
+    data_dir, num_examples=100, maxlen=20, alignment=False, languages=None
+):
     def _create_dummy_data(dir, filename):
         data = torch.rand(num_examples * maxlen)
         data = 97 + torch.floor(26 * data).int()
@@ -195,8 +197,15 @@ def create_dummy_data(data_dir, num_examples=100, maxlen=20, alignment=False, la
                 )
                 print(ex_str, file=h)
 
-    files_to_write = ['train.in', 'train.out', 'valid.in', 'valid.out', 'test.in', 'test.out']
-    if languages is None: # En only dummy dataset
+    files_to_write = [
+        "train.in",
+        "train.out",
+        "valid.in",
+        "valid.out",
+        "test.in",
+        "test.out",
+    ]
+    if languages is None:  # En only dummy dataset
         for f in files_to_write:
             _create_dummy_data(data_dir, f)
     else:
@@ -232,7 +241,7 @@ def preprocess_lm_data(data_dir, languages=None):
     else:
         for lang in languages:
             lang_dir = os.path.join(data_dir, lang)
-            assert(os.path.exists(lang_dir))
+            assert os.path.exists(lang_dir)
             preprocess_args = preprocess_parser.parse_args(
                 [
                     "--only-source",
@@ -248,8 +257,9 @@ def preprocess_lm_data(data_dir, languages=None):
             )
             preprocess.main(preprocess_args)
         shutil.copyfile(
-            os.path.join(data_dir, languages[0], 'dict.txt'), os.path.join(data_dir, 'dict.txt'))
-
+            os.path.join(data_dir, languages[0], "dict.txt"),
+            os.path.join(data_dir, "dict.txt"),
+        )
 
 
 def preprocess_translation_data(data_dir, extra_flags=None):

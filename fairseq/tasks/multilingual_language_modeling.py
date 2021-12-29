@@ -10,10 +10,12 @@ from typing import Optional
 
 import numpy as np
 import torch
+from omegaconf import II
+
 from fairseq import utils
 from fairseq.data import (
-    ConcatDataset,
     AppendTokenDataset,
+    ConcatDataset,
     Dictionary,
     IdDataset,
     LMContextWindowDataset,
@@ -33,8 +35,6 @@ from fairseq.data.indexed_dataset import get_available_dataset_impl
 from fairseq.data.shorten_dataset import maybe_shorten_dataset
 from fairseq.dataclass import ChoiceEnum, FairseqDataclass
 from fairseq.tasks import LegacyFairseqTask, register_task
-from omegaconf import II
-
 
 SAMPLE_BREAK_MODE_CHOICES = ChoiceEnum(["none", "complete", "complete_doc", "eos"])
 SHORTEN_METHOD_CHOICES = ChoiceEnum(["none", "truncate", "random_crop"])
@@ -125,16 +125,14 @@ class MultilingualLanguageModelingConfig(FairseqDataclass):
     # TODO: legacy parameter kept for compatibility
     baseline_model: str = field(
         default="",
-        metadata={
-            "help": "path to the baseline model (default: none)"
-        },
+        metadata={"help": "path to the baseline model (default: none)"},
     )
-    
+
     lang_to_offline_shard_ratio: str = field(
         default="",
         metadata={
             "help": "absolute path of tsv file location to indicate lang to offline shard ratio.",
-        }
+        },
     )
     # TODO common vars below add to parent
     seed: int = II("common.seed")
@@ -149,7 +147,9 @@ class MultilingualLanguageModelingConfig(FairseqDataclass):
     valid_subset: str = II("common.valid_subset")
 
 
-@register_task("multilingual_language_modeling", dataclass=MultilingualLanguageModelingConfig)
+@register_task(
+    "multilingual_language_modeling", dataclass=MultilingualLanguageModelingConfig
+)
 class MultilingualLanguageModelingTask(LegacyFairseqTask):
     """
     Train a language model.
@@ -216,11 +216,11 @@ class MultilingualLanguageModelingTask(LegacyFairseqTask):
             dictionary = Dictionary.load(os.path.join(paths[0], "dict.txt"))
             if args.add_bos_token:
                 languages, _ = cls._get_langs(args)
-                logger.info('----------------')
+                logger.info("----------------")
                 for lang in languages:
                     dictionary.add_symbol(lang_token(lang))
-                    logger.info(f'add language token: {lang_token(lang)}')
-                logger.info('----------------')
+                    logger.info(f"add language token: {lang_token(lang)}")
+                logger.info("----------------")
 
             logger.info("dictionary: {} types".format(len(dictionary)))
             output_dictionary = dictionary
@@ -276,9 +276,7 @@ class MultilingualLanguageModelingTask(LegacyFairseqTask):
         smoothed_prob = smoothed_prob / smoothed_prob.sum()
         return smoothed_prob
 
-    def load_dataset(
-        self, split: str, epoch=1, combine=False, **kwargs
-    ):
+    def load_dataset(self, split: str, epoch=1, combine=False, **kwargs):
         """Load a given dataset split.
 
         Args:
@@ -292,21 +290,28 @@ class MultilingualLanguageModelingTask(LegacyFairseqTask):
             lang_to_offline_shard_ratio = {}
             assert os.path.exists(
                 self.args.lang_to_offline_shard_ratio
-            ), "provided offline shard ratio file doesn't exist: {0}".format(self.args.lang_to_offline_shard_ratio)
+            ), "provided offline shard ratio file doesn't exist: {0}".format(
+                self.args.lang_to_offline_shard_ratio
+            )
             with open(self.args.lang_to_offline_shard_ratio) as fin:
                 for line in fin:
-                    lang, ratio = line.strip().split('\t')
+                    lang, ratio = line.strip().split("\t")
                     ratio = float(ratio)
                     lang_to_offline_shard_ratio[lang] = ratio
-           
+
             logger.info(
-                "Found offline sharded ratio: %s", lang_to_offline_shard_ratio,
+                "Found offline sharded ratio: %s",
+                lang_to_offline_shard_ratio,
             )
 
         if split == self.args.train_subset:
-            logger.info("Training on {0} languages: {1}".format(len(languages), languages))
+            logger.info(
+                "Training on {0} languages: {1}".format(len(languages), languages)
+            )
         else:
-            logger.info("Evaluating on {0} languages: {1}".format(len(languages), languages))
+            logger.info(
+                "Evaluating on {0} languages: {1}".format(len(languages), languages)
+            )
 
         tokens_per_sample = self.args.tokens_per_sample - int(self.args.add_bos_token)
 
@@ -388,15 +393,24 @@ class MultilingualLanguageModelingTask(LegacyFairseqTask):
         )
         if split == self.args.train_subset:
             dataset_lengths_ratio_multiplier = np.ones(len(dataset_lengths))
-            if lang_to_offline_shard_ratio is not None:            
+            if lang_to_offline_shard_ratio is not None:
                 dataset_lengths_ratio_multiplier = []
                 for lang in languages:
-                    assert lang in lang_to_offline_shard_ratio, "Lang: {0} missing in offline shard ratio file: {1}".format(
-                        lang, self.args.lang_to_offline_shard_ratio,
+                    assert (
+                        lang in lang_to_offline_shard_ratio
+                    ), "Lang: {0} missing in offline shard ratio file: {1}".format(
+                        lang,
+                        self.args.lang_to_offline_shard_ratio,
                     )
-                    dataset_lengths_ratio_multiplier.append(lang_to_offline_shard_ratio[lang])
-                dataset_lengths_ratio_multiplier = np.array(dataset_lengths_ratio_multiplier)
-                true_dataset_lengths = dataset_lengths * dataset_lengths_ratio_multiplier
+                    dataset_lengths_ratio_multiplier.append(
+                        lang_to_offline_shard_ratio[lang]
+                    )
+                dataset_lengths_ratio_multiplier = np.array(
+                    dataset_lengths_ratio_multiplier
+                )
+                true_dataset_lengths = (
+                    dataset_lengths * dataset_lengths_ratio_multiplier
+                )
             else:
                 true_dataset_lengths = dataset_lengths
             # For train subset, additionally up or down sample languages.
@@ -410,7 +424,7 @@ class MultilingualLanguageModelingTask(LegacyFairseqTask):
                 },
             )
             size_ratio = (sample_probs * true_dataset_lengths.sum()) / dataset_lengths
-            # TODO: add an option for shrinking all size ratios to below 1 
+            # TODO: add an option for shrinking all size ratios to below 1
             # if self.args.multilang_sampling_alpha != 1:
             #   size_ratio /= size_ratio.max()
 
@@ -418,7 +432,7 @@ class MultilingualLanguageModelingTask(LegacyFairseqTask):
             #   0.999999999999999999 -> 1
             #   1.000000000000000002 -> 1
             for i in range(len(size_ratio)):
-                size_ratio[i] = round(size_ratio[i], 8) 
+                size_ratio[i] = round(size_ratio[i], 8)
 
             logger.info(
                 "Up/Down Sampling ratio by language: %s",
@@ -479,7 +493,9 @@ class MultilingualLanguageModelingTask(LegacyFairseqTask):
             ],
         )
 
-    def build_dataset_for_inference(self, src_tokens, src_lengths, language="en_XX", **kwargs):
+    def build_dataset_for_inference(
+        self, src_tokens, src_lengths, language="en_XX", **kwargs
+    ):
         """
         Generate batches for inference. We prepend an eos token to src_tokens
         (or bos if `--add-bos-token` is set) and we append a <pad> to target.
@@ -518,12 +534,15 @@ class MultilingualLanguageModelingTask(LegacyFairseqTask):
                         src_dataset,
                         pad_idx=self.source_dictionary.pad(),
                         left_pad=False,
-                        pad_length=max_seq_len
+                        pad_length=max_seq_len,
                     ),
                     "src_lengths": NumelDataset(src_dataset, reduce=False),
                 },
                 "target": PadDataset(
-                    tgt_dataset, pad_idx=self.source_dictionary.pad(), left_pad=False, pad_length=max_seq_len,
+                    tgt_dataset,
+                    pad_idx=self.source_dictionary.pad(),
+                    left_pad=False,
+                    pad_length=max_seq_len,
                 ),
             },
             sizes=[np.array(src_lengths)],
@@ -531,7 +550,13 @@ class MultilingualLanguageModelingTask(LegacyFairseqTask):
 
     @torch.no_grad()
     def inference_step(
-        self, generator, models, sample, language="en_XX", prefix_tokens=None, constraints=None
+        self,
+        generator,
+        models,
+        sample,
+        language="en_XX",
+        prefix_tokens=None,
+        constraints=None,
     ):
         # Generation will always be conditioned on bos_token
         if getattr(self.args, "add_bos_token", False):
@@ -555,7 +580,7 @@ class MultilingualLanguageModelingTask(LegacyFairseqTask):
         return generator.generate(
             models, sample, prefix_tokens=prefix_tokens, bos_token=bos_token
         )
-            
+
     def eval_lm_dataloader(
         self,
         dataset,
