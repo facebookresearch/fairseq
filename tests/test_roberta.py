@@ -305,6 +305,21 @@ class RobertaTest(unittest.TestCase):
             # Incremental vs non-incremental
             self.assertTensorEqual(ro_dec_inc[i][:, 0], ro_dec[:, i])
 
+    @cpu_gpu
+    def test_regularize_for_adaprune_in_roberta(self, device: str):
+        _, model = get_toy_model(
+            device=device,
+            architecture="roberta_base",
+            mha_reg_scale_factor=0.000375,
+            ffn_reg_scale_factor=0.000375,
+        )
+        sample = mk_sample("en", device, batch_size=1)
+        task_loss, _ = model.forward(**sample["net_input"])
+        head_loss = model._get_adaptive_head_loss()
+        ffn_loss = model._get_adaptive_ffn_loss()
+        loss = task_loss.sum() + head_loss + ffn_loss
+        loss.backward()
+
 
 def params(model, name):
     if "." not in name:

@@ -185,6 +185,23 @@ class RobertaModel(FairseqEncoderModel):
                 "--offload-activations are passed."
             ),
         )
+        # args for AdaPruning
+        # In short, it adds regularizarion for the multihead attention module and feed forward neural nets
+        # For more details, please refer to the paper https://openreview.net/forum?id=_CMSV7FTzGI
+        parser.add_argument(
+            "--mha-reg-scale-factor",
+            type=float,
+            metavar="D",
+            default=0.0,
+            help="scaling factor for regularization term in adptive pruning, recommendation is 0.000375",
+        )
+        parser.add_argument(
+            "--ffn-reg-scale-factor",
+            type=float,
+            metavar="D",
+            default=0.0,
+            help="scaling factor for regularization term in adptive pruning, recommendation is 0.000375",
+        )
 
     @classmethod
     def build_model(cls, args, task):
@@ -226,6 +243,29 @@ class RobertaModel(FairseqEncoderModel):
         if classification_head_name is not None:
             x = self.classification_heads[classification_head_name](x)
         return x, extra
+
+    def _get_adaptive_head_loss(self):
+        norm_loss = 0
+        scaling = float(self.args.mha_reg_scale_factor)
+        for layer in self.encoder.sentence_encoder.layers:
+            norm_loss_layer = 0
+            for i in range(layer.self_attn.num_heads):
+                start_idx = i * layer.self_attn.head_dim
+                end_idx = (i + 1) * layer.self_attn.head_dim
+                norm_loss_layer += scaling * (torch.sum(torch.abs(layer.self_attn.q_proj.weight[start_idx:end_idx, ])) + torch.sum(torch.abs(layer.self_attn.q_proj.bias[start_idx:end_idx])))
+                norm_loss_layer += scaling * (torch.sum(torch.abs(layer.self_attn.k_proj.weight[start_idx:end_idx, ])) + torch.sum(torch.abs(layer.self_attn.k_proj.bias[start_idx:end_idx])))
+                norm_loss_layer += scaling * (torch.sum(torch.abs(layer.self_attn.v_proj.weight[start_idx:end_idx, ])) + torch.sum(torch.abs(layer.self_attn.v_proj.bias[start_idx:end_idx])))
+
+            norm_loss += norm_loss_layer
+        return norm_loss
+
+    def _get_adaptive_ffn_loss(self):
+        ffn_scale_factor = float(self.args.ffn_reg_scale_factor)
+        filter_loss = 0
+        for layer in self.encoder.sentence_encoder.layers:
+            filter_loss += torch.sum(torch.abs(layer.fc1.weight * ffn_scale_factor)) + torch.sum(torch.abs(layer.fc2.weight * ffn_scale_factor))
+            filter_loss += torch.sum(torch.abs(layer.fc1.bias * ffn_scale_factor)) + torch.sum(torch.abs(layer.fc2.bias * ffn_scale_factor))
+        return filter_loss
 
     def get_normalized_probs(self, net_output, log_probs, sample=None):
         """Get normalized probabilities (or log probs) from a net's output."""

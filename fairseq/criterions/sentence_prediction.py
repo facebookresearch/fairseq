@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 
 import torch
 import torch.nn.functional as F
-from fairseq import metrics, utils
+from fairseq import metrics
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import FairseqDataclass
 
@@ -54,18 +54,32 @@ class SentencePredictionCriterion(FairseqCriterion):
 
         if not self.regression_target:
             lprobs = F.log_softmax(logits, dim=-1, dtype=torch.float32)
-            loss = F.nll_loss(lprobs, targets, reduction="sum")
+            task_loss = F.nll_loss(lprobs, targets, reduction="sum")
         else:
             logits = logits.view(-1).float()
             targets = targets.float()
-            loss = F.mse_loss(logits, targets, reduction="sum")
+            task_loss = F.mse_loss(logits, targets, reduction="sum")
 
-        logging_output = {
-            "loss": loss.data,
-            "ntokens": sample["ntokens"],
-            "nsentences": sample_size,
-            "sample_size": sample_size,
-        }
+        logging_output = {}
+        loss = task_loss
+        # mha & ffn regularization update
+        if hasattr(model.args, "mha_reg_scale_factor") and model.args.mha_reg_scale_factor != 0.0:
+            mha_reg_loss = model._get_adaptive_head_loss()
+            loss += mha_reg_loss
+            logging_output.update({"mha_reg_loss": mha_reg_loss})
+        if hasattr(model.args, "ffn_reg_scale_factor") and model.args.ffn_reg_scale_factor != 0.0:
+            ffn_reg_loss = model._get_adaptive_ffn_loss()
+            loss += ffn_reg_loss
+            logging_output.update({"ffn_reg_loss": ffn_reg_loss})
+
+        logging_output.update(
+            {
+                "loss": loss.data,
+                "ntokens": sample["ntokens"],
+                "nsentences": sample_size,
+                "sample_size": sample_size,
+            }
+        )
         if not self.regression_target:
             preds = logits.argmax(dim=1)
             logging_output["ncorrect"] = (preds == targets).sum()
@@ -79,10 +93,20 @@ class SentencePredictionCriterion(FairseqCriterion):
         ntokens = sum(log.get("ntokens", 0) for log in logging_outputs)
         nsentences = sum(log.get("nsentences", 0) for log in logging_outputs)
         sample_size = sum(log.get("sample_size", 0) for log in logging_outputs)
+        mha_reg_loss_sum = sum(log.get("mha_reg_loss", 0) for log in logging_outputs)
+        ffn_reg_loss_sum = sum(log.get("ffn_reg_loss", 0) for log in logging_outputs)
 
         metrics.log_scalar(
             "loss", loss_sum / sample_size / math.log(2), sample_size, round=3
         )
+        if mha_reg_loss_sum:
+            metrics.log_scalar(
+                "mha_reg_loss", mha_reg_loss_sum / sample_size / math.log(2), sample_size, round=3
+            )
+        if ffn_reg_loss_sum:
+            metrics.log_scalar(
+                "ffn_reg_loss", ffn_reg_loss_sum / sample_size / math.log(2), sample_size, round=3
+            )
         if sample_size != ntokens:
             metrics.log_scalar(
                 "nll_loss", loss_sum / ntokens / math.log(2), ntokens, round=3
