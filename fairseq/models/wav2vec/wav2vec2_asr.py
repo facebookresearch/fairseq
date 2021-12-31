@@ -150,6 +150,23 @@ class Wav2Vec2AsrConfig(FairseqDataclass):
     data: str = II("task.data")
     # this holds the loaded wav2vec args
     w2v_args: Any = None
+    checkpoint_activations: bool = field(
+        default=False, metadata={"help": "checkpoint_activations"}
+    )
+    offload_activations: bool = field(
+        default=False, metadata={"help": "offload_activations"}
+    )
+    min_params_to_wrap: int = field(
+        default=int(1e8),
+        metadata={
+            "help": "minimum number of params for a layer to be wrapped with FSDP() when "
+                    "training with --ddp-backend=fully_sharded. Smaller values will "
+                    "improve memory efficiency, but may make torch.distributed "
+                    "communication less efficient due to smaller input sizes. This option "
+                    "is set to 0 (i.e., always wrap) when --checkpoint-activations or "
+                    "--offload-activations are passed."
+        },
+    )
 
     checkpoint_activations: bool = field(
         default=False,
@@ -341,6 +358,9 @@ class Wav2VecEncoder(FairseqEncoder):
             "no_mask_channel_overlap": cfg.no_mask_channel_overlap,
             "encoder_layerdrop": cfg.layerdrop,
             "feature_grad_mult": cfg.feature_grad_mult,
+            "checkpoint_activations": cfg.checkpoint_activations,
+            "offload_activations": cfg.offload_activations,
+            "min_params_to_wrap": cfg.min_params_to_wrap,
         }
 
         if cfg.w2v_args is None:

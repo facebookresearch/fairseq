@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (c) Facebook, Inc. and its affiliates.
 #
 # This source code is licensed under the MIT license found in the
@@ -7,6 +6,9 @@
 import logging
 import copy
 from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+import torch
 
 from fairseq import utils, checkpoint_utils
 from fairseq.models import (
@@ -19,7 +21,6 @@ from fairseq.models.transformer import Embedding, TransformerDecoder
 from fairseq.models.wav2vec import Wav2VecEncoder
 from fairseq.modules.layer_norm import LayerNorm
 from fairseq.data.data_utils import lengths_to_padding_mask
-from fairseq.utils import safe_hasattr
 from torch import Tensor
 import torch.nn as nn
 
@@ -29,9 +30,26 @@ logger = logging.getLogger(__name__)
 
 class Conv1dAdaptor(nn.Module):
     def __init__(
-        self, in_dim, out_dim, n_layers=3, kernel_size=3, stride=2, add_layernorm=False
+            self, in_dim, out_dim, n_layers=3, kernel_size=3, stride=2,
+            layerdrop=0., layernorm=False, proj=False
     ):
         super().__init__()
+        self.proj, self.proj_ln = None, None
+        self.post_proj, self.post_proj_ln = None, None
+        if proj:
+            self.proj = nn.Sequential(
+                nn.Linear(in_dim, in_dim * 4),
+                nn.ReLU(),
+                nn.Linear(in_dim * 4, in_dim)
+            )
+            self.proj_ln = LayerNorm(in_dim)
+            self.post_proj = nn.Sequential(
+                nn.Linear(out_dim, out_dim * 4),
+                nn.ReLU(),
+                nn.Linear(out_dim * 4, out_dim)
+            )
+            self.post_proj_ln = LayerNorm(out_dim)
+
         self.layers = nn.ModuleList(
             nn.Conv1d(
                 in_dim if i == 0 else out_dim,
@@ -42,39 +60,49 @@ class Conv1dAdaptor(nn.Module):
             )
             for i in range(n_layers)
         )
-        self.layernorms = None
-        if add_layernorm:
-            self.layernorms = nn.ModuleList(LayerNorm(out_dim) for _ in range(n_layers))
         self.stride = stride
+        self.layerdrop = layerdrop
+        self.layernorm = LayerNorm(in_dim) if layernorm else None
 
     @classmethod
     def add_args(cls, parser):
         parser.add_argument("--adaptor-n-layers", type=int)
         parser.add_argument("--adaptor-kernel-size", type=int)
         parser.add_argument("--adaptor-stride", type=int)
+        parser.add_argument("--adaptor-layerdrop", type=float)
         parser.add_argument("--adaptor-layernorm", action="store_true")
+        parser.add_argument("--adaptor-proj", action="store_true")
 
-    def get_out_seq_lens_tensor(self, in_seq_lens_tensor):
-        out = in_seq_lens_tensor.clone()
-        for _ in self.layers:
-            out = ((out.float() - 1) / self.stride + 1).floor().long()
-        return out
+    def forward(self, x, padding_mask: Optional[torch.Tensor]):
+        if self.layernorm is not None:
+            x = self.layernorm(x)
 
-    def forward(self, x, padding_mask):
+        if self.proj is not None:
+            x = x + 0.5 * self.proj(x)
+            x = self.proj_ln(x)
+
         # T x B x C -> B x C x T
         x = x.transpose(0, 1).transpose(1, 2)
-        for i, layer in enumerate(self.layers):
-            x = nn.functional.glu(layer(x), dim=1)
-            if self.layernorms is not None:
-                x = self.layernorms[i](x.transpose(1, 2)).transpose(1, 2)
+        out_lens = None
+        if padding_mask is not None:
+            out_lens = (~padding_mask).sum(1).float()
+
+        for layer in self.layers:
+            layerdrop_prob = np.random.random()
+            if not self.training or (layerdrop_prob > self.layerdrop):
+                x = nn.functional.glu(layer(x), dim=1)
+                if padding_mask is not None:
+                    out_lens = ((out_lens - 1) / self.stride + 1).floor()
         # B x C x T -> T x B x C
         x = x.transpose(1, 2).transpose(0, 1)
 
-        if padding_mask is None:
-            out_padding_mask = None
-        else:
-            out_lengths = self.get_out_seq_lens_tensor((~padding_mask).sum(1))
-            out_padding_mask = lengths_to_padding_mask(out_lengths)
+        if self.post_proj is not None:
+            x = x + 0.5 * self.post_proj(x)
+            x = self.post_proj_ln(x)
+
+        out_padding_mask = None
+        if padding_mask is not None:
+            out_padding_mask = lengths_to_padding_mask(out_lens.long())
         return x, out_padding_mask
 
 
@@ -199,28 +227,45 @@ def add_wav2vec_asr_args(parser):
     parser.add_argument("--w2v-args", default=None)
 
 
+def need_finetuning(ft_params, param_name):
+    if ft_params == "all":
+        return True
+    ft_params_list = ft_params.split(",")
+    for ft_param in ft_params_list:
+        if ft_param in param_name:
+            return True
+    return False
+
+
 class Wav2VecEncoderWithAdaptor(FairseqEncoder):
+    def build_adaptor(self, args):
+        adaptor = None
+        if args.adaptor_n_layers > 0:
+            adaptor = Conv1dAdaptor(
+                args.decoder_embed_dim, args.decoder_embed_dim,
+                n_layers=args.adaptor_n_layers,
+                kernel_size=args.adaptor_kernel_size,
+                stride=args.adaptor_stride,
+                layerdrop=args.adaptor_layerdrop,
+                layernorm=args.adaptor_layernorm,
+                proj=args.adaptor_proj
+            )
+        return adaptor
+
     def __init__(self, args):
         super().__init__(None)
         self.w2v_encoder = Wav2VecEncoder(args)
-        encoder_out_dim = self.w2v_encoder.w2v_model.encoder.embedding_dim
-        # Projection + 8x shrinking
-        self.adaptor = Conv1dAdaptor(
-            encoder_out_dim,
-            args.decoder_embed_dim,
-            n_layers=args.adaptor_n_layers,
-            kernel_size=args.adaptor_kernel_size,
-            stride=args.adaptor_stride,
-            add_layernorm=args.adaptor_layernorm,
-        )
+        self.is_v0_arch = not args.adaptor_proj
+        self.w2v_proj_ln = None
+        if not self.is_v0_arch and self.w2v_encoder.proj is not None:
+            self.w2v_proj_ln = LayerNorm(args.decoder_embed_dim)
+        self.adaptor = self.build_adaptor(args)
+
+        self.num_updates = 0
+        self.freezing_updates = args.w2v_freezing_updates
+        self.finetuning_params = args.finetune_w2v_params
         for k, p in self.w2v_encoder.w2v_model.named_parameters():
-            # Freeze pretrained models by default
-            if safe_hasattr(
-                args, "finetune_w2v_params"
-            ) and XMTransformerModel.finetune_params(args.finetune_w2v_params, k):
-                p.requires_grad = True
-            else:
-                p.requires_grad = False
+            p.requires_grad = need_finetuning(self.finetuning_params, k)
 
     @classmethod
     def add_args(cls, parser):
@@ -236,25 +281,32 @@ class Wav2VecEncoderWithAdaptor(FairseqEncoder):
             metavar="STR",
             help="comma-separated param strings to finetune.",
         )
+        parser.add_argument("--w2v-freezing-updates", type=int)
+        parser.add_argument("--load-pretrained-encoder-from", type=str, metavar="STR")
         Conv1dAdaptor.add_args(parser)
 
+    def set_num_updates(self, num_updates):
+        super().set_num_updates(num_updates)
+        self.num_updates = num_updates
+
     def forward(self, src_tokens, src_lengths=None, **kwargs):
+        if self.freezing_updates is not None and \
+                self.num_updates > self.freezing_updates:
+            for p in self.w2v_encoder.w2v_model.parameters():
+                p.requires_grad = True
+
         padding_mask = lengths_to_padding_mask(src_lengths)
         out = self.w2v_encoder.forward(src_tokens, padding_mask, tbc=True)
-        x = out["encoder_out"]
-        enc_padding_mask = None
-        if out["encoder_padding_mask"] is not None:
-            enc_padding_mask = out["encoder_padding_mask"].transpose(
-                0, 1
-            )  # T X B --> B X T
+        x, padding_mask = out["encoder_out"], out["padding_mask"]
+        if self.w2v_proj_ln is not None:
+            x = self.w2v_proj_ln(x)
 
-        x, enc_padding_mask = self.adaptor(x, enc_padding_mask)
+        if self.adaptor is not None:
+            x, padding_mask = self.adaptor(x, padding_mask)
 
         return {
             "encoder_out": [x],  # T x B x C
-            "encoder_padding_mask": [enc_padding_mask]
-            if enc_padding_mask.any()
-            else [],  # B x T
+            "encoder_padding_mask": [] if padding_mask is None else [padding_mask],  # B x T
             "encoder_embedding": [],  # B x T x C
             "encoder_states": [],  # List[T x B x C]
             "src_tokens": [],
@@ -324,7 +376,8 @@ def add_decoder_args(parser):
         help="dropout probability after activation in FFN.",
     )
     parser.add_argument(
-        "--decoder-embed-dim", type=int, metavar="N", help="decoder embedding dimension"
+        "--decoder-embed-dim", type=int, metavar="N",
+        help="decoder embedding dimension"
     )
     parser.add_argument(
         "--decoder-ffn-embed-dim",
@@ -347,8 +400,12 @@ def add_decoder_args(parser):
         help="apply layernorm before each decoder block",
     )
     parser.add_argument(
-        "--layernorm-embedding", action="store_true", help="add layernorm to embedding"
+        "--layernorm-embedding", action="store_true",
+        help="add layernorm to embedding"
     )
+    parser.add_argument("--decoder-layerdrop", type=float, metavar="D")
+    parser.add_argument("--decoder-learned-pos", action="store_true")
+    parser.add_argument("--share-decoder-input-output-embed", action="store_true")
     parser.add_argument(
         "--no-scale-embedding",
         action="store_true",
@@ -366,7 +423,6 @@ def add_decoder_args(parser):
         metavar="STR",
         help="comma-separated param strings to finetune.",
     )
-    parser.add_argument("--checkpoint-activations", action="store_true")
 
 
 @register_model("xm_transformer")
@@ -379,42 +435,59 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         """Add model-specific arguments to the parser."""
         Wav2VecEncoderWithAdaptor.add_args(parser)
         add_decoder_args(parser)
+        parser.add_argument("--checkpoint-activations", action="store_true")
+        parser.add_argument("--offload-activations", action="store_true")
+        parser.add_argument("--min-params-to-wrap", type=int)
+
+    @classmethod
+    def maybe_load_pretrained(cls, component, checkpoint: Optional[str] = None):
+        if checkpoint is None:
+            return component
+
+        _load = checkpoint_utils.load_pretrained_component_from_model
+        try:
+            return _load(component, checkpoint)
+        except RuntimeError as e:
+            logger.warning(e)
+            return _load(component, checkpoint, strict=False)
 
     @classmethod
     def build_encoder(cls, args):
         _args = copy.deepcopy(args)
-        state = checkpoint_utils.load_checkpoint_to_cpu(args.w2v_path)
-        if state.get("cfg") is not None:
-            encoder_embed_dim = state["cfg"]._content["model"]["encoder_embed_dim"]
-        elif state.get("args") is not None:
-            encoder_embed_dim = state["args"].encoder_embed_dim
-        else:
-            raise ValueError(f"Invalid config in {args.w2v_path}")
-        _args.decoder_embed_dim = encoder_embed_dim
+        if not args.adaptor_proj:  # V0 arch
+            state = checkpoint_utils.load_checkpoint_to_cpu(args.w2v_path)
+            if state.get("cfg") is not None:
+                encoder_embed_dim = state["cfg"]._content["model"][
+                    "encoder_embed_dim"]
+            elif state.get("args") is not None:
+                encoder_embed_dim = state["args"].encoder_embed_dim
+            else:
+                raise ValueError(f"Invalid config in {args.w2v_path}")
+            _args.decoder_embed_dim = encoder_embed_dim
+            del state
+
         encoder = Wav2VecEncoderWithAdaptor(_args)
-        return encoder
+        return cls.maybe_load_pretrained(
+            encoder, getattr(args, "load_pretrained_encoder_from", None)
+        )
 
     @classmethod
     def build_decoder(cls, args, task, embed_tokens):
         _args = copy.deepcopy(args)
+        if args.adaptor_proj:  # not V0 arch
+            _args.encoder_embed_dim = _args.decoder_embed_dim
         _args.dropout = args.decoder_dropout
         _args.attention_dropout = args.decoder_attention_dropout
         _args.activation_dropout = args.decoder_activation_dropout
         _args.max_target_positions = 1024
 
         decoder = TransformerDecoder(_args, task.target_dictionary, embed_tokens)
-        if getattr(args, "load_pretrained_decoder_from", None):
-            decoder = checkpoint_utils.load_pretrained_component_from_model(
-                component=decoder, checkpoint=args.load_pretrained_decoder_from
-            )
+        decoder = cls.maybe_load_pretrained(
+            decoder, getattr(args, "load_pretrained_decoder_from", None)
+        )
+
         for k, p in decoder.named_parameters():
-            # Freeze pretrained models by default
-            if safe_hasattr(
-                args, "finetune_decoder_params"
-            ) and XMTransformerModel.finetune_params(args.finetune_decoder_params, k):
-                p.requires_grad = True
-            else:
-                p.requires_grad = False
+            p.requires_grad = need_finetuning(args.finetune_decoder_params, k)
         return decoder
 
     @classmethod
@@ -432,6 +505,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         decoder_embed_tokens = build_embedding(
             task.target_dictionary, args.decoder_embed_dim
         )
+
         encoder = cls.build_encoder(args)
         decoder = cls.build_decoder(args, task, decoder_embed_tokens)
         return cls(encoder, decoder)
@@ -442,16 +516,13 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         log_probs: bool,
         sample: Optional[Dict[str, Tensor]] = None,
     ):
-        # net_output['encoder_out'] is a (B, T, D) tensor
-        lprobs = self.get_normalized_probs_scriptable(net_output, log_probs, sample)
-        lprobs.batch_first = True
-        return lprobs
+        return self.get_normalized_probs_scriptable(net_output, log_probs, sample)
 
     def forward(self, src_tokens, src_lengths, prev_output_tokens, **kwargs):
         """
         The forward method inherited from the base class has a **kwargs
         argument in its input, which is not supported in torchscript. This
-        method overrites the forward method definition without **kwargs.
+        method overwrites the forward method definition without **kwargs.
         """
         encoder_out = self.encoder(
             src_tokens=src_tokens, src_lengths=src_lengths, **kwargs
@@ -468,16 +539,6 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
                 new = k.replace("adaptor.layers", "adaptor_layers")
                 state_dict[new] = state_dict[k]
                 del state_dict[k]
-
-    @staticmethod
-    def finetune_params(finetune_params, param_name):
-        if finetune_params == "all":
-            return True
-        finetune_params_list = finetune_params.split(",")
-        for finetune_param in finetune_params_list:
-            if finetune_param in param_name:
-                return True
-        return False
 
 
 def set_default_w2v_encoder_args(args):
@@ -506,23 +567,27 @@ def set_default_w2v_encoder_args(args):
     args.layerdrop = getattr(args, "layerdrop", 0.0)
 
     args.normalize = getattr(args, "normalize", False)
+    args.finetune_w2v_params = getattr(args, "finetune_w2v_params", "all")
+    args.w2v_freezing_updates = getattr(args, "w2v_freezing_updates", None)
 
 
 def set_default_adaptor_args(args):
     args.adaptor_n_layers = getattr(args, "adaptor_n_layers", 3)
     args.adaptor_kernel_size = getattr(args, "adaptor_kernel_size", 3)
     args.adaptor_stride = getattr(args, "adaptor_stride", 2)
+    args.adaptor_layerdrop = getattr(args, "adaptor_layerdrop", 0.0)
     args.adaptor_layernorm = getattr(args, "adaptor_layernorm", False)
+    args.adaptor_proj = getattr(args, "adaptor_proj", False)
 
 
-def set_default_mbart_decoder_args(args):
+def set_default_transformer_decoder_args(args):
     args.decoder_embed_path = getattr(args, "decoder_embed_path", None)
     args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 1024)
     args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 4 * 1024)
     args.decoder_layers = getattr(args, "decoder_layers", 12)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 16)
-    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", True)
-    args.decoder_learned_pos = getattr(args, "decoder_learned_pos", True)
+    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", False)
+    args.decoder_learned_pos = getattr(args, "decoder_learned_pos", False)
     args.decoder_layerdrop = getattr(args, "decoder_layerdrop", 0.0)
     args.adaptive_input = getattr(args, "adaptive_input", False)
     args.decoder_attention_dropout = getattr(args, "decoder_attention_dropout", 0.0)
@@ -531,7 +596,7 @@ def set_default_mbart_decoder_args(args):
     args.adaptive_softmax_cutoff = getattr(args, "adaptive_softmax_cutoff", None)
     args.adaptive_softmax_dropout = getattr(args, "adaptive_softmax_dropout", 0)
     args.share_decoder_input_output_embed = getattr(
-        args, "share_decoder_input_output_embed", True
+        args, "share_decoder_input_output_embed", False
     )
     args.no_token_positional_embeddings = getattr(
         args, "no_token_positional_embeddings", False
@@ -544,16 +609,24 @@ def set_default_mbart_decoder_args(args):
 
     args.no_scale_embedding = getattr(args, "no_scale_embedding", False)
     args.quant_noise_pq = getattr(args, "quant_noise_pq", 0)
-    args.layernorm_embedding = getattr(args, "layernorm_embedding", True)
+    args.layernorm_embedding = getattr(args, "layernorm_embedding", False)
 
     args.activation_fn = getattr(args, "activation_fn", "gelu")
     args.pooler_activation_fn = getattr(args, "pooler_activation_fn", "tanh")
     args.pooler_dropout = getattr(args, "pooler_dropout", 0.0)
+
+    args.finetune_decoder_params = getattr(args, "finetune_decoder_params", "all")
+
+
+def set_default_general_args(args):
     args.checkpoint_activations = getattr(args, "checkpoint_activations", False)
+    args.offload_activations = getattr(args, "offload_activations", False)
+    args.min_params_to_wrap = getattr(args, "min_params_to_wrap", int(1e8))
 
 
 @register_model_architecture(model_name="xm_transformer", arch_name="xm_transformer")
 def base_architecture(args):
+    set_default_general_args(args)
     set_default_w2v_encoder_args(args)
     set_default_adaptor_args(args)
-    set_default_mbart_decoder_args(args)
+    set_default_transformer_decoder_args(args)
