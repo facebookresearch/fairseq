@@ -794,7 +794,7 @@ def prune_state_dict(state_dict, model_cfg: Optional[DictConfig]):
 
 
 def load_pretrained_component_from_model(
-    component: Union[FairseqEncoder, FairseqDecoder], checkpoint: str
+    component: Union[FairseqEncoder, FairseqDecoder], checkpoint: str, strict: bool = True
 ):
     """
     Load a pretrained FairseqEncoder or FairseqDecoder from checkpoint into the
@@ -820,7 +820,7 @@ def load_pretrained_component_from_model(
             # encoder.input_layers.0.0.weight --> input_layers.0.0.weight
             component_subkey = key[len(component_type) + 1 :]
             component_state_dict[component_subkey] = state["model"][key]
-    component.load_state_dict(component_state_dict, strict=True)
+    component.load_state_dict(component_state_dict, strict=strict)
     return component
 
 
