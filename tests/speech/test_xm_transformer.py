@@ -12,23 +12,23 @@ from fairseq import utils
 from tests.speech import TestFairseqSpeech
 
 
-class TestS2TTransformer(TestFairseqSpeech):
+class TestXMTransformer(TestFairseqSpeech):
     def setUp(self):
-        self.set_up_librispeech()
+        self.set_up_sotasty_es_en()
 
     @torch.no_grad()
-    def test_librispeech_s2t_transformer_s_checkpoint(self):
+    def test_sotasty_es_en_600m_checkpoint(self):
         models, cfg, task, generator = self.download_and_load_checkpoint(
-            "librispeech_transformer_s.pt",
-            arg_overrides={"config_yaml": "cfg_librispeech.yaml"},
+            "xm_transformer_600m_es_en_md.pt",
+            arg_overrides={"config_yaml": "cfg_es_en.yaml"},
         )
         if not self.use_cuda:
             return
 
         batch_iterator = self.get_batch_iterator(
-            task, "librispeech_test-other", 65_536, (4_096, 1_024)
+            task, "sotasty_es_en_test_ted", 3_000_000, (1_000_000, 1_024)
         )
-        scorer = self.get_wer_scorer()
+        scorer = self.get_bleu_scorer()
         progress = tqdm(enumerate(batch_iterator), total=len(batch_iterator))
         for batch_idx, sample in progress:
             sample = utils.move_to_cuda(sample) if self.use_cuda else sample
@@ -47,9 +47,9 @@ class TestS2TTransformer(TestFairseqSpeech):
                     print(f"T-{sample_id} {tgt_str}")
                     print(f"H-{sample_id} {hypo_str}")
                 scorer.add_string(tgt_str, hypo_str)
-        reference_wer = 9.0
-        print(scorer.result_string() + f" (reference: {reference_wer})")
-        self.assertAlmostEqual(scorer.score(), reference_wer, delta=0.3)
+        reference_bleu = 31.7
+        print(f"{scorer.result_string()} (reference: {reference_bleu})")
+        self.assertAlmostEqual(scorer.score(), reference_bleu, delta=0.2)
 
 
 if __name__ == "__main__":
