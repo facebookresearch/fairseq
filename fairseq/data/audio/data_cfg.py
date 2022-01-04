@@ -141,8 +141,13 @@ class S2TDataConfig(object):
         return self._auto_convert_to_abs_path(path)
 
     @property
-    def vocoder(self) -> Optional[Dict[str, str]]:
-        return self.config.get("vocoder", None)
+    def vocoder(self) -> Dict[str, str]:
+        vocoder = self.config.get("vocoder", {"type": "griffin_lim"})
+        return self._auto_convert_to_abs_path(vocoder)
+
+    @property
+    def hub(self) -> Dict[str, str]:
+        return self.config.get("hub", {})
 
 
 class S2SDataConfig(S2TDataConfig):
