@@ -15,6 +15,7 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
+from fairseq.models.speech_to_text.hub_interface import S2THubInterface
 from fairseq.models.transformer import Embedding, TransformerDecoder
 from fairseq.modules import (
     FairseqDropout,
@@ -84,6 +85,36 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
     A trainable input subsampler is prepended to the Transformer encoder to
     project inputs into the encoder dimension as well as downsample input
     sequence for computational efficiency."""
+
+    @classmethod
+    def hub_models(cls):
+        base_url = "http://dl.fbaipublicfiles.com/fairseq/s2t"
+        model_ids = [
+            "s2t_transformer_s-en-asr-librispeech",
+            "s2t_transformer_m-en-asr-librispeech",
+            "s2t_transformer_l-en-asr-librispeech",
+        ]
+        return {i: f"{base_url}/{i}.tar.gz" for i in model_ids}
+
+    @classmethod
+    def from_pretrained(
+            cls,
+            model_name_or_path,
+            checkpoint_file="model.pt",
+            data_name_or_path=".",
+            config_yaml="config.yaml",
+            **kwargs,
+    ):
+        from fairseq import hub_utils
+        x = hub_utils.from_pretrained(
+            model_name_or_path,
+            checkpoint_file,
+            data_name_or_path,
+            archive_map=cls.hub_models(),
+            config_yaml=config_yaml,
+            **kwargs,
+        )
+        return S2THubInterface(x["args"], x["task"], x["models"][0])
 
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)

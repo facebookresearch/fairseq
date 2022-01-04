@@ -17,6 +17,7 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
+from fairseq.models.speech_to_text.hub_interface import S2THubInterface
 from fairseq.models.transformer import Embedding, TransformerDecoder
 from fairseq.models.wav2vec import Wav2VecEncoder
 from fairseq.modules.layer_norm import LayerNorm
@@ -427,6 +428,50 @@ def add_decoder_args(parser):
 
 @register_model("xm_transformer")
 class XMTransformerModel(FairseqEncoderDecoderModel):
+    @classmethod
+    def hub_models(cls):
+        base_url = "http://dl.fbaipublicfiles.com/fairseq/s2t"
+        model_ids = [
+            "xm_transformer_600m-es_en-multi_domain",
+            "xm_transformer_600m-ru_en-multi_domain",
+            "xm_transformer_600m-fr_en-multi_domain",
+            "xm_transformer_600m-en_es-multi_domain",
+            "xm_transformer_600m-en_ru-multi_domain",
+            "xm_transformer_600m-en_fr-multi_domain",
+            "xm_transformer_600m-en_zh-multi_domain",
+            "xm_transformer_600m-en_ar-multi_domain",
+            "xm_transformer_600m-en_tr-multi_domain",
+            "xm_transformer_600m-en_vi-multi_domain",
+            "xm_transformer-21_en-xls_r_300m",
+            "xm_transformer-en_15-xls_r_300m",
+            "xm_transformer-21_en-xls_r_1b",
+            "xm_transformer-en_15-xls_r_1b",
+            "xm_transformer-21_en-xls_r_2b",
+            "xm_transformer-en_15-xls_r_2b",
+            "xm_transformer-22_16-xls_r_2b",
+        ]
+        return {i: f"{base_url}/{i}.tar.gz" for i in model_ids}
+
+    @classmethod
+    def from_pretrained(
+            cls,
+            model_name_or_path,
+            checkpoint_file="model.pt",
+            data_name_or_path=".",
+            config_yaml="config.yaml",
+            **kwargs,
+    ):
+        from fairseq import hub_utils
+        x = hub_utils.from_pretrained(
+            model_name_or_path,
+            checkpoint_file,
+            data_name_or_path,
+            archive_map=cls.hub_models(),
+            config_yaml=config_yaml,
+            **kwargs,
+        )
+        return S2THubInterface(x["args"], x["task"], x["models"][0])
+
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
 
