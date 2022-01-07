@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 
 import torch
 import torch.nn.functional as F
+
 from fairseq import metrics
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import FairseqDataclass
@@ -63,11 +64,17 @@ class SentencePredictionCriterion(FairseqCriterion):
         logging_output = {}
         loss = task_loss
         # mha & ffn regularization update
-        if hasattr(model.args, "mha_reg_scale_factor") and model.args.mha_reg_scale_factor != 0.0:
+        if (
+            hasattr(model.args, "mha_reg_scale_factor")
+            and model.args.mha_reg_scale_factor != 0.0
+        ):
             mha_reg_loss = model._get_adaptive_head_loss()
             loss += mha_reg_loss
             logging_output.update({"mha_reg_loss": mha_reg_loss})
-        if hasattr(model.args, "ffn_reg_scale_factor") and model.args.ffn_reg_scale_factor != 0.0:
+        if (
+            hasattr(model.args, "ffn_reg_scale_factor")
+            and model.args.ffn_reg_scale_factor != 0.0
+        ):
             ffn_reg_loss = model._get_adaptive_ffn_loss()
             loss += ffn_reg_loss
             logging_output.update({"ffn_reg_loss": ffn_reg_loss})
@@ -101,11 +108,17 @@ class SentencePredictionCriterion(FairseqCriterion):
         )
         if mha_reg_loss_sum:
             metrics.log_scalar(
-                "mha_reg_loss", mha_reg_loss_sum / sample_size / math.log(2), sample_size, round=3
+                "mha_reg_loss",
+                mha_reg_loss_sum / sample_size / math.log(2),
+                sample_size,
+                round=3,
             )
         if ffn_reg_loss_sum:
             metrics.log_scalar(
-                "ffn_reg_loss", ffn_reg_loss_sum / sample_size / math.log(2), sample_size, round=3
+                "ffn_reg_loss",
+                ffn_reg_loss_sum / sample_size / math.log(2),
+                sample_size,
+                round=3,
             )
         if sample_size != ntokens:
             metrics.log_scalar(

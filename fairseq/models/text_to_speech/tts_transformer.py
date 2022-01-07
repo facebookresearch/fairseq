@@ -9,6 +9,8 @@ from typing import List, Optional
 import torch
 from torch import nn
 
+from fairseq import utils
+from fairseq.data.data_utils import lengths_to_padding_mask
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderDecoderModel,
@@ -16,12 +18,15 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
-from fairseq.modules import TransformerEncoderLayer, TransformerDecoderLayer
-from fairseq.models.text_to_speech.tacotron2 import Prenet, Postnet
-from fairseq.modules import LayerNorm, PositionalEmbedding, FairseqDropout
-from fairseq.data.data_utils import lengths_to_padding_mask
-from fairseq import utils
 from fairseq.models.text_to_speech.hub_interface import TTSHubInterface
+from fairseq.models.text_to_speech.tacotron2 import Postnet, Prenet
+from fairseq.modules import (
+    FairseqDropout,
+    LayerNorm,
+    PositionalEmbedding,
+    TransformerDecoderLayer,
+    TransformerEncoderLayer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -188,7 +193,7 @@ class TTSTransformerDecoder(FairseqIncrementalDecoder):
         incremental_state=None,
         target_lengths=None,
         speaker=None,
-        **kwargs
+        **kwargs,
     ):
         alignment_layer = self.n_transformer_layers - 1
         self_attn_padding_mask = lengths_to_padding_mask(target_lengths)
@@ -261,7 +266,7 @@ class TTSTransformerDecoder(FairseqIncrementalDecoder):
         incremental_state=None,
         target_lengths=None,
         speaker=None,
-        **kwargs
+        **kwargs,
     ):
         x, extra = self.extract_features(
             prev_output_tokens,
@@ -269,7 +274,7 @@ class TTSTransformerDecoder(FairseqIncrementalDecoder):
             incremental_state=incremental_state,
             target_lengths=target_lengths,
             speaker=speaker,
-            **kwargs
+            **kwargs,
         )
         attn = extra["attn"]
         feat_out = self.feat_proj(x)
@@ -326,22 +331,23 @@ class TTSTransformerModel(FairseqEncoderDecoderModel):
             "tts_transformer-zh-cv7_css10",
             "tts_transformer-ar-cv7_css10",
             "tts_transformer-tr-cv7_css10",
-            "tts_transformer-vi-cv7"
+            "tts_transformer-vi-cv7",
         ]
         return {i: f"{base_url}/{i}.tar.gz" for i in model_ids}
 
     @classmethod
     def from_pretrained(
-            cls,
-            model_name_or_path,
-            checkpoint_file="model.pt",
-            data_name_or_path=".",
-            config_yaml="config.yaml",
-            vocoder: str = "griffin_lim",
-            fp16: bool = False,
-            **kwargs,
+        cls,
+        model_name_or_path,
+        checkpoint_file="model.pt",
+        data_name_or_path=".",
+        config_yaml="config.yaml",
+        vocoder: str = "griffin_lim",
+        fp16: bool = False,
+        **kwargs,
     ):
         from fairseq import hub_utils
+
         x = hub_utils.from_pretrained(
             model_name_or_path,
             checkpoint_file,

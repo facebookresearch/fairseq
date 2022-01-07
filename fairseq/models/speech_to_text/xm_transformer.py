@@ -3,17 +3,20 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import logging
 import copy
+import logging
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
+import torch.nn as nn
+from torch import Tensor
 
-from fairseq import utils, checkpoint_utils
+from fairseq import checkpoint_utils, utils
+from fairseq.data.data_utils import lengths_to_padding_mask
 from fairseq.models import (
-    FairseqEncoderDecoderModel,
     FairseqEncoder,
+    FairseqEncoderDecoderModel,
     register_model,
     register_model_architecture,
 )
@@ -21,33 +24,34 @@ from fairseq.models.speech_to_text.hub_interface import S2THubInterface
 from fairseq.models.transformer import Embedding, TransformerDecoder
 from fairseq.models.wav2vec import Wav2VecEncoder
 from fairseq.modules.layer_norm import LayerNorm
-from fairseq.data.data_utils import lengths_to_padding_mask
-from torch import Tensor
-import torch.nn as nn
-
 
 logger = logging.getLogger(__name__)
 
 
 class Conv1dAdaptor(nn.Module):
     def __init__(
-            self, in_dim, out_dim, n_layers=3, kernel_size=3, stride=2,
-            layerdrop=0., layernorm=False, proj=False
+        self,
+        in_dim,
+        out_dim,
+        n_layers=3,
+        kernel_size=3,
+        stride=2,
+        layerdrop=0.0,
+        layernorm=False,
+        proj=False,
     ):
         super().__init__()
         self.proj, self.proj_ln = None, None
         self.post_proj, self.post_proj_ln = None, None
         if proj:
             self.proj = nn.Sequential(
-                nn.Linear(in_dim, in_dim * 4),
-                nn.ReLU(),
-                nn.Linear(in_dim * 4, in_dim)
+                nn.Linear(in_dim, in_dim * 4), nn.ReLU(), nn.Linear(in_dim * 4, in_dim)
             )
             self.proj_ln = LayerNorm(in_dim)
             self.post_proj = nn.Sequential(
                 nn.Linear(out_dim, out_dim * 4),
                 nn.ReLU(),
-                nn.Linear(out_dim * 4, out_dim)
+                nn.Linear(out_dim * 4, out_dim),
             )
             self.post_proj_ln = LayerNorm(out_dim)
 
@@ -243,13 +247,14 @@ class Wav2VecEncoderWithAdaptor(FairseqEncoder):
         adaptor = None
         if args.adaptor_n_layers > 0:
             adaptor = Conv1dAdaptor(
-                args.decoder_embed_dim, args.decoder_embed_dim,
+                args.decoder_embed_dim,
+                args.decoder_embed_dim,
                 n_layers=args.adaptor_n_layers,
                 kernel_size=args.adaptor_kernel_size,
                 stride=args.adaptor_stride,
                 layerdrop=args.adaptor_layerdrop,
                 layernorm=args.adaptor_layernorm,
-                proj=args.adaptor_proj
+                proj=args.adaptor_proj,
             )
         return adaptor
 
@@ -291,8 +296,10 @@ class Wav2VecEncoderWithAdaptor(FairseqEncoder):
         self.num_updates = num_updates
 
     def forward(self, src_tokens, src_lengths=None, **kwargs):
-        if self.freezing_updates is not None and \
-                self.num_updates > self.freezing_updates:
+        if (
+            self.freezing_updates is not None
+            and self.num_updates > self.freezing_updates
+        ):
             for p in self.w2v_encoder.w2v_model.parameters():
                 p.requires_grad = True
 
@@ -307,7 +314,9 @@ class Wav2VecEncoderWithAdaptor(FairseqEncoder):
 
         return {
             "encoder_out": [x],  # T x B x C
-            "encoder_padding_mask": [] if padding_mask is None else [padding_mask],  # B x T
+            "encoder_padding_mask": []
+            if padding_mask is None
+            else [padding_mask],  # B x T
             "encoder_embedding": [],  # B x T x C
             "encoder_states": [],  # List[T x B x C]
             "src_tokens": [],
@@ -377,8 +386,7 @@ def add_decoder_args(parser):
         help="dropout probability after activation in FFN.",
     )
     parser.add_argument(
-        "--decoder-embed-dim", type=int, metavar="N",
-        help="decoder embedding dimension"
+        "--decoder-embed-dim", type=int, metavar="N", help="decoder embedding dimension"
     )
     parser.add_argument(
         "--decoder-ffn-embed-dim",
@@ -401,8 +409,7 @@ def add_decoder_args(parser):
         help="apply layernorm before each decoder block",
     )
     parser.add_argument(
-        "--layernorm-embedding", action="store_true",
-        help="add layernorm to embedding"
+        "--layernorm-embedding", action="store_true", help="add layernorm to embedding"
     )
     parser.add_argument("--decoder-layerdrop", type=float, metavar="D")
     parser.add_argument("--decoder-learned-pos", action="store_true")
@@ -454,14 +461,15 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
 
     @classmethod
     def from_pretrained(
-            cls,
-            model_name_or_path,
-            checkpoint_file="model.pt",
-            data_name_or_path=".",
-            config_yaml="config.yaml",
-            **kwargs,
+        cls,
+        model_name_or_path,
+        checkpoint_file="model.pt",
+        data_name_or_path=".",
+        config_yaml="config.yaml",
+        **kwargs,
     ):
         from fairseq import hub_utils
+
         x = hub_utils.from_pretrained(
             model_name_or_path,
             checkpoint_file,
@@ -502,8 +510,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         if not args.adaptor_proj:  # V0 arch
             state = checkpoint_utils.load_checkpoint_to_cpu(args.w2v_path)
             if state.get("cfg") is not None:
-                encoder_embed_dim = state["cfg"]._content["model"][
-                    "encoder_embed_dim"]
+                encoder_embed_dim = state["cfg"]._content["model"]["encoder_embed_dim"]
             elif state.get("args") is not None:
                 encoder_embed_dim = state["args"].encoder_embed_dim
             else:

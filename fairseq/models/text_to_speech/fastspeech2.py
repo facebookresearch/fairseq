@@ -8,23 +8,22 @@ import logging
 import torch
 from torch import nn
 
+from fairseq import utils
+from fairseq.data.data_utils import lengths_to_padding_mask
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderModel,
     register_model,
     register_model_architecture,
 )
-from fairseq.modules import (
-    LayerNorm,
-    PositionalEmbedding,
-    FairseqDropout,
-    MultiheadAttention,
-)
-from fairseq import utils
-from fairseq.data.data_utils import lengths_to_padding_mask
-from fairseq.models.text_to_speech.tacotron2 import Postnet
 from fairseq.models.text_to_speech.hub_interface import TTSHubInterface
-
+from fairseq.models.text_to_speech.tacotron2 import Postnet
+from fairseq.modules import (
+    FairseqDropout,
+    LayerNorm,
+    MultiheadAttention,
+    PositionalEmbedding,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -293,7 +292,7 @@ class FastSpeech2Encoder(FairseqEncoder):
         durations=None,
         pitches=None,
         energies=None,
-        **kwargs
+        **kwargs,
     ):
         x = self.embed_tokens(src_tokens)
 
@@ -344,16 +343,17 @@ class FastSpeech2Model(FairseqEncoderModel):
 
     @classmethod
     def from_pretrained(
-            cls,
-            model_name_or_path,
-            checkpoint_file="model.pt",
-            data_name_or_path=".",
-            config_yaml="config.yaml",
-            vocoder: str = "griffin_lim",
-            fp16: bool = False,
-            **kwargs,
+        cls,
+        model_name_or_path,
+        checkpoint_file="model.pt",
+        data_name_or_path=".",
+        config_yaml="config.yaml",
+        vocoder: str = "griffin_lim",
+        fp16: bool = False,
+        **kwargs,
     ):
         from fairseq import hub_utils
+
         x = hub_utils.from_pretrained(
             model_name_or_path,
             checkpoint_file,

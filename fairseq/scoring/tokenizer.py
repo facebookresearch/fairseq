@@ -28,8 +28,11 @@ class EvaluationTokenizer(object):
 
     SPACE = chr(32)
     SPACE_ESCAPE = chr(9601)
-    _ALL_TOKENIZER_TYPES = sb.BLEU.TOKENIZERS if SACREBLEU_V2_ABOVE \
+    _ALL_TOKENIZER_TYPES = (
+        sb.BLEU.TOKENIZERS
+        if SACREBLEU_V2_ABOVE
         else ["none", "13a", "intl", "zh", "ja-mecab"]
+    )
     ALL_TOKENIZER_TYPES = ChoiceEnum(_ALL_TOKENIZER_TYPES)
 
     def __init__(
@@ -40,8 +43,9 @@ class EvaluationTokenizer(object):
         character_tokenization: bool = False,
     ):
 
-        assert tokenizer_type in self._ALL_TOKENIZER_TYPES, \
-            f"{tokenizer_type}, {self._ALL_TOKENIZER_TYPES}"
+        assert (
+            tokenizer_type in self._ALL_TOKENIZER_TYPES
+        ), f"{tokenizer_type}, {self._ALL_TOKENIZER_TYPES}"
         self.lowercase = lowercase
         self.punctuation_removal = punctuation_removal
         self.character_tokenization = character_tokenization
