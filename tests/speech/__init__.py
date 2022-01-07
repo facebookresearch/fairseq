@@ -5,6 +5,7 @@
 
 from argparse import Namespace
 import os
+import re
 import unittest
 from pathlib import Path
 from typing import List, Dict, Optional
@@ -32,7 +33,9 @@ class TestFairseqSpeech(unittest.TestCase):
         self.root = Path.home() / ".cache" / "fairseq" / dataset_id
         self.root.mkdir(exist_ok=True, parents=True)
         os.chdir(self.root)
-        self.base_url = f"{S3_BASE_URL}/{s3_dir}"
+        self.base_url = (
+            s3_dir if re.search("^https:", s3_dir) else f"{S3_BASE_URL}/{s3_dir}"
+        )
         for filename in data_filenames:
             self.download(self.base_url, self.root, filename)
 
@@ -72,6 +75,21 @@ class TestFairseqSpeech(unittest.TestCase):
                 "spm_bpe32768_es_en.txt",
                 "sotasty_es_en_test_ted.tsv",
                 "sotasty_es_en_test_ted.zip",
+            ],
+        )
+
+    def set_up_mustc_de_fbank(self):
+        self._set_up(
+            "mustc_de_fbank",
+            "https://dl.fbaipublicfiles.com/joint_speech_text_4_s2t/must_c/en_de",
+            [
+                "config.yaml",
+                "spm.model",
+                "dict.txt",
+                "src_dict.txt",
+                "tgt_dict.txt",
+                "tst-COMMON.tsv",
+                "tst-COMMON.zip",
             ],
         )
 
