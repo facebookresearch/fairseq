@@ -29,11 +29,13 @@ from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from fairseq.utils import buffered_arange, index_put, is_xla_tensor
 from fairseq.distributed import fsdp_wrap
-
+from fairseq.modules.conformer_layer import ConformerWav2Vec2EncoderLayer
+from fairseq.modules import RelPositionalEncoding
 from .utils import pad_to_multiple
 
 EXTRACTOR_MODE_CHOICES = ChoiceEnum(["default", "layer_norm"])
 MASKING_DISTRIBUTION_CHOICES = ChoiceEnum(["static", "uniform", "normal", "poisson"])
+LAYER_TYPE_CHOICES = ChoiceEnum(["transformer", "conformer"])
 
 
 @dataclass
@@ -61,7 +63,9 @@ class Wav2Vec2Config(FairseqDataclass):
     activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
         default="gelu", metadata={"help": "activation function to use"}
     )
-
+    layer_type: LAYER_TYPE_CHOICES = field(
+        default="transformer", metadata={"help": "layer type in encoder"}
+    )
     # dropouts
     dropout: float = field(
         default=0.1, metadata={"help": "dropout probability for the transformer"}
@@ -231,7 +235,7 @@ class Wav2Vec2Config(FairseqDataclass):
             "can be tuple of 3 values (start, end, decay)"
         },
     )
-
+    max_positions: int = field(default=100000, metadata={"help": "Max positions"})
     checkpoint_activations: bool = field(
         default=False,
         metadata={"help": "recompute activations and save memory for extra compute"},
@@ -250,6 +254,23 @@ class Wav2Vec2Config(FairseqDataclass):
             "help": "crop convolutional feature extractor output such that the sequence length is divisible by multiple"
         },
     )
+
+    # Conformer
+    depthwise_conv_kernel_size: int = field(
+        default=31,
+        metadata={
+            "help": "depthwise-conv-kernel-size for convolution in conformer layer"
+        },
+    )
+    attn_type: str = field(
+        default="",
+        metadata={"help": "if espnet use ESPNET MHA"},
+    )
+    pos_enc_type: str = field(
+        default="abs",
+        metadata={"help": "Positional encoding type to use in conformer"},
+    )
+    fp16: bool = field(default=False, metadata={"help": "If fp16 is being used"})
 
 
 @register_model("wav2vec2", dataclass=Wav2Vec2Config)
@@ -347,8 +368,11 @@ class Wav2Vec2Model(BaseFairseqModel):
         self.mask_emb = nn.Parameter(
             torch.FloatTensor(cfg.encoder_embed_dim).uniform_()
         )
+        encoder_cls = TransformerEncoder
+        if cfg.layer_type == "conformer" and cfg.pos_enc_type in ["rel_pos", "rope"]:
+            encoder_cls = ConformerEncoder
 
-        self.encoder = TransformerEncoder(cfg)
+        self.encoder = encoder_cls(cfg)
         self.layer_norm = LayerNorm(self.embed)
 
         self.target_glu = None
@@ -845,6 +869,35 @@ class ConvFeatureExtractionModel(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
+    def build_encoder_layer(self, args):
+        if args.layer_type == "transformer":
+            layer = TransformerSentenceEncoderLayer(
+                embedding_dim=self.embedding_dim,
+                ffn_embedding_dim=args.encoder_ffn_embed_dim,
+                num_attention_heads=args.encoder_attention_heads,
+                dropout=self.dropout,
+                attention_dropout=args.attention_dropout,
+                activation_dropout=args.activation_dropout,
+                activation_fn=args.activation_fn,
+                layer_norm_first=args.layer_norm_first,
+            )
+        elif args.layer_type == "conformer":
+            layer = ConformerWav2Vec2EncoderLayer(
+                embed_dim=self.embedding_dim,
+                ffn_embed_dim=args.encoder_ffn_embed_dim,
+                attention_heads=args.encoder_attention_heads,
+                dropout=args.dropout,
+                depthwise_conv_kernel_size=args.depthwise_conv_kernel_size,
+                activation_fn="swish",
+                attn_type=args.attn_type,
+                use_fp16=args.fp16,
+                pos_enc_type="abs",
+            )
+        layer = fsdp_wrap(layer)
+        if args.checkpoint_activations:
+            layer = checkpoint_wrapper(layer)
+        return layer
+
     def __init__(self, args):
         super().__init__()
 
@@ -867,24 +920,9 @@ class TransformerEncoder(nn.Module):
         self.pos_conv = nn.utils.weight_norm(self.pos_conv, name="weight", dim=2)
         self.pos_conv = nn.Sequential(self.pos_conv, SamePad(args.conv_pos), nn.GELU())
 
-        layers = []
-        for _ in range(args.encoder_layers):
-            layer = TransformerSentenceEncoderLayer(
-                embedding_dim=self.embedding_dim,
-                ffn_embedding_dim=args.encoder_ffn_embed_dim,
-                num_attention_heads=args.encoder_attention_heads,
-                dropout=self.dropout,
-                attention_dropout=args.attention_dropout,
-                activation_dropout=args.activation_dropout,
-                activation_fn=args.activation_fn,
-                layer_norm_first=args.layer_norm_first,
-            )
-            if args.checkpoint_activations:
-                layer = fsdp_wrap(layer)
-                layer = checkpoint_wrapper(layer)
-            layers.append(layer)
-        self.layers = nn.ModuleList(layers)
-
+        self.layers = nn.ModuleList(
+            [self.build_encoder_layer(args) for _ in range(args.encoder_layers)]
+        )
         self.layer_norm_first = args.layer_norm_first
         self.layer_norm = LayerNorm(self.embedding_dim)
         self.layerdrop = args.encoder_layerdrop
@@ -968,6 +1006,93 @@ class TransformerEncoder(nn.Module):
     def upgrade_state_dict_named(self, state_dict, name):
         """Upgrade a (possibly old) state dict for new versions of fairseq."""
         return state_dict
+
+
+class ConformerEncoder(TransformerEncoder):
+    def build_encoder_layer(self, args):
+        layer = ConformerWav2Vec2EncoderLayer(
+            embed_dim=self.embedding_dim,
+            ffn_embed_dim=args.encoder_ffn_embed_dim,
+            attention_heads=args.encoder_attention_heads,
+            dropout=args.dropout,
+            depthwise_conv_kernel_size=args.depthwise_conv_kernel_size,
+            activation_fn="swish",
+            attn_type=args.attn_type,
+            pos_enc_type=args.pos_enc_type,
+            use_fp16=args.fp16,  # only used for rope
+        )
+        layer = fsdp_wrap(layer)
+        if args.checkpoint_activations:
+            layer = checkpoint_wrapper(layer)
+        return layer
+
+    def __init__(self, args):
+        super().__init__(args)
+        self.args = args
+        self.dropout = args.dropout
+        self.embedding_dim = args.encoder_embed_dim
+        self.pos_enc_type = args.pos_enc_type
+        max_source_positions = self.max_positions()
+
+        if self.pos_enc_type == "rel_pos":
+            self.embed_positions = RelPositionalEncoding(
+                max_source_positions, self.embedding_dim
+            )
+        elif self.pos_enc_type == "rope":
+            self.embed_positions = None
+        else:
+            raise Exception("Unsupported positional encoding type")
+
+        self.layers = nn.ModuleList(
+            [self.build_encoder_layer(args) for _ in range(args.encoder_layers)]
+        )
+        self.layer_norm_first = args.layer_norm_first
+        self.layer_norm = LayerNorm(self.embedding_dim)
+        self.layerdrop = args.encoder_layerdrop
+
+        self.apply(init_bert_params)
+
+    def extract_features(self, x, padding_mask=None, tgt_layer=None):
+        if padding_mask is not None:
+            x = index_put(x, padding_mask, 0)
+
+        # B x T x C -> T x B x C
+        x = x.transpose(0, 1)
+
+        # B X T X C here
+        position_emb = None
+        if self.pos_enc_type == "rel_pos":
+            position_emb = self.embed_positions(x)
+
+        if not self.layer_norm_first:
+            x = self.layer_norm(x)
+
+        x = F.dropout(x, p=self.dropout, training=self.training)
+
+        layer_results = []
+        r = None
+        for i, layer in enumerate(self.layers):
+            dropout_probability = np.random.random()
+            if not self.training or (dropout_probability > self.layerdrop):
+                x, z = layer(
+                    x,
+                    self_attn_padding_mask=padding_mask,
+                    need_weights=False,
+                    position_emb=position_emb,
+                )
+                if tgt_layer is not None:
+                    layer_results.append((x, z))
+            if i == tgt_layer:
+                r = x
+                break
+
+        if r is not None:
+            x = r
+
+        # T x B x C -> B x T x C
+        x = x.transpose(0, 1)
+
+        return x, layer_results
 
 
 class TransformerSentenceEncoderLayer(nn.Module):

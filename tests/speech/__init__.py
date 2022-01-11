@@ -8,13 +8,14 @@ import os
 import re
 import unittest
 from pathlib import Path
+from tqdm import tqdm
 from typing import List, Dict, Optional
-
 import torch
-
 from fairseq.checkpoint_utils import load_model_ensemble_and_task
 from fairseq.scoring.wer import WerScorer
 from fairseq.scoring.bleu import SacrebleuScorer
+from fairseq import utils
+
 
 S3_BASE_URL = "https://dl.fbaipublicfiles.com/fairseq"
 
@@ -138,3 +139,37 @@ class TestFairseqSpeech(unittest.TestCase):
             "sacrebleu_char_level": char_level,
         }
         return SacrebleuScorer(Namespace(**scorer_args))
+
+    @torch.no_grad()
+    def librispeech_s2t_test_base(self, ckpt_name, reference_wer):
+        models, cfg, task, generator = self.download_and_load_checkpoint(
+            ckpt_name,
+            arg_overrides={"config_yaml": "cfg_librispeech.yaml"},
+        )
+        if not self.use_cuda:
+            return
+
+        batch_iterator = self.get_batch_iterator(
+            task, "librispeech_test-other", 65_536, (4_096, 1_024)
+        )
+        scorer = self.get_wer_scorer()
+        progress = tqdm(enumerate(batch_iterator), total=len(batch_iterator))
+        for batch_idx, sample in progress:
+            sample = utils.move_to_cuda(sample) if self.use_cuda else sample
+            hypo = task.inference_step(generator, models, sample)
+            for i, sample_id in enumerate(sample["id"].tolist()):
+                tgt_tokens = (
+                    utils.strip_pad(sample["target"][i, :], task.tgt_dict.pad())
+                    .int()
+                    .cpu()
+                )
+                tgt_str = task.tgt_dict.string(tgt_tokens, "sentencepiece")
+                hypo_str = task.tgt_dict.string(
+                    hypo[i][0]["tokens"].int().cpu(), "sentencepiece"
+                )
+                if batch_idx == 0 and i < 3:
+                    print(f"T-{sample_id} {tgt_str}")
+                    print(f"H-{sample_id} {hypo_str}")
+                scorer.add_string(tgt_str, hypo_str)
+        print(scorer.result_string() + f" (reference: {reference_wer})")
+        self.assertAlmostEqual(scorer.score(), reference_wer, delta=0.3)

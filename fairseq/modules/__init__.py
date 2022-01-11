@@ -38,6 +38,15 @@ from .transpose_last import TransposeLast
 from .unfold import unfold1d
 from .transformer_layer import TransformerDecoderLayer, TransformerEncoderLayer
 from .vggblock import VGGBlock
+from .espnet_multihead_attention import (
+    ESPNETMultiHeadedAttention,
+    RelPositionMultiHeadedAttention,
+    RotaryPositionMultiHeadedAttention,
+)
+from .rotary_positional_embedding import RotaryPositionalEmbedding
+from .positional_encoding import (
+    RelPositionalEncoding,
+)
 
 __all__ = [
     "AdaptiveInput",
@@ -79,4 +88,10 @@ __all__ = [
     "TransposeLast",
     "VGGBlock",
     "unfold1d",
+    "ESPNETMultiheadedAttention",
+    "PositionalEmbedding",
+    "RelPositionMultiHeadedAttention",
+    "RelPositionalEncoding",
+    "RotaryPositionalEmbedding",
+    "RotaryPositionMultiHeadedAttention",
 ]

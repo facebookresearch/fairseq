@@ -7,12 +7,12 @@ import unittest
 from tests.speech import TestFairseqSpeech
 
 
-class TestS2TTransformer(TestFairseqSpeech):
+class TestS2TConformer(TestFairseqSpeech):
     def setUp(self):
         self.set_up_librispeech()
 
-    def test_librispeech_s2t_transformer_s_checkpoint(self):
-        self.librispeech_s2t_test_base("librispeech_transformer_s.pt", 9)
+    def test_librispeech_s2t_conformer_s_checkpoint(self):
+        self.librispeech_s2t_test_base("librispeech_conformer_rel_pos_s.pt", 12)
 
 
 if __name__ == "__main__":
