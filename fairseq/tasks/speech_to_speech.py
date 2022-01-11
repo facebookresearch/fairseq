@@ -202,7 +202,7 @@ class SpeechToSpeechTask(LegacyFairseqTask):
         self.tgt_dict = tgt_dict
         self.data_cfg = S2SDataConfig(Path(args.data) / args.config_yaml)
         self.multitask_tasks = {}
-        if args.multitask_config_yaml:
+        if getattr(args, "multitask_config_yaml", None) is not None:
             multitask_cfg = MultitaskConfig(
                 Path(args.data) / args.multitask_config_yaml
             )
