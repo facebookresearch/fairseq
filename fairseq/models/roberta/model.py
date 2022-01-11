@@ -202,6 +202,14 @@ class RobertaModel(FairseqEncoderModel):
             default=0.0,
             help="scaling factor for regularization term in adptive pruning, recommendation is 0.000375",
         )
+        parser.add_argument(
+            "--mha-heads-to-keep",
+            type=int,
+            metavar="D",
+            default=-1,
+            help="number of heads to keep in each multi-head attention module, -1 means keeping all heads",
+        )
+
 
     @classmethod
     def build_model(cls, args, task):

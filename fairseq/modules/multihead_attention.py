@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -87,6 +87,7 @@ class MultiheadAttention(nn.Module):
         self.reset_parameters()
 
         self.onnx_trace = False
+        self.skip_embed_dim_check = False
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
@@ -110,6 +111,134 @@ class MultiheadAttention(nn.Module):
             nn.init.xavier_normal_(self.bias_k)
         if self.bias_v is not None:
             nn.init.xavier_normal_(self.bias_v)
+
+    def _get_reserve_head_index(self, num_heads_to_keep: int):
+        k_proj_heads_norm = []
+        q_proj_heads_norm = []
+        v_proj_heads_norm = []
+
+        for i in range(self.num_heads):
+            start_idx = i * self.head_dim
+            end_idx = (i + 1) * self.head_dim
+            k_proj_heads_norm.append(
+                torch.sum(
+                    torch.abs(
+                        self.k_proj.weight[
+                            start_idx:end_idx,
+                        ]
+                    )
+                ).tolist()
+                + torch.sum(torch.abs(self.k_proj.bias[start_idx:end_idx])).tolist()
+            )
+            q_proj_heads_norm.append(
+                torch.sum(
+                    torch.abs(
+                        self.q_proj.weight[
+                            start_idx:end_idx,
+                        ]
+                    )
+                ).tolist()
+                + torch.sum(torch.abs(self.q_proj.bias[start_idx:end_idx])).tolist()
+            )
+            v_proj_heads_norm.append(
+                torch.sum(
+                    torch.abs(
+                        self.v_proj.weight[
+                            start_idx:end_idx,
+                        ]
+                    )
+                ).tolist()
+                + torch.sum(torch.abs(self.v_proj.bias[start_idx:end_idx])).tolist()
+            )
+
+        heads_norm = []
+        for i in range(self.num_heads):
+            heads_norm.append(
+                k_proj_heads_norm[i] + q_proj_heads_norm[i] + v_proj_heads_norm[i]
+            )
+
+        sorted_head_index = sorted(
+            range(self.num_heads), key=lambda k: heads_norm[k], reverse=True
+        )
+        reserve_head_index = []
+        for i in range(num_heads_to_keep):
+            start = sorted_head_index[i] * self.head_dim
+            end = (sorted_head_index[i] + 1) * self.head_dim
+            reserve_head_index.append((start, end))
+        return reserve_head_index
+
+    def _adaptive_prune_heads(self, reserve_head_index: List[Tuple[int, int]]):
+        new_q_weight = []
+        new_q_bias = []
+        new_k_weight = []
+        new_k_bias = []
+        new_v_weight = []
+        new_v_bias = []
+        new_out_proj_weight = []
+
+        for ele in reserve_head_index:
+            start_idx, end_idx = ele
+            new_q_weight.append(
+                self.q_proj.weight[
+                    start_idx:end_idx,
+                ]
+            )
+            new_q_bias.append(self.q_proj.bias[start_idx:end_idx])
+
+            new_k_weight.append(
+                self.k_proj.weight[
+                    start_idx:end_idx,
+                ]
+            )
+
+            new_k_bias.append(self.k_proj.bias[start_idx:end_idx])
+
+            new_v_weight.append(
+                self.v_proj.weight[
+                    start_idx:end_idx,
+                ]
+            )
+            new_v_bias.append(self.v_proj.bias[start_idx:end_idx])
+
+            new_out_proj_weight.append(self.out_proj.weight[:, start_idx:end_idx])
+
+        new_q_weight = torch.cat(new_q_weight).detach()
+        new_k_weight = torch.cat(new_k_weight).detach()
+        new_v_weight = torch.cat(new_v_weight).detach()
+        new_out_proj_weight = torch.cat(new_out_proj_weight, dim=-1).detach()
+        new_q_weight.requires_grad = True
+        new_k_weight.requires_grad = True
+        new_v_weight.requires_grad = True
+        new_out_proj_weight.requires_grad = True
+
+        new_q_bias = torch.cat(new_q_bias).detach()
+        new_q_bias.requires_grad = True
+
+        new_k_bias = torch.cat(new_k_bias).detach()
+        new_k_bias.requires_grad = True
+
+        new_v_bias = torch.cat(new_v_bias).detach()
+        new_v_bias.requires_grad = True
+
+        self.q_proj.weight = torch.nn.Parameter(new_q_weight)
+        self.q_proj.bias = torch.nn.Parameter(new_q_bias)
+
+        self.k_proj.weight = torch.nn.Parameter(new_k_weight)
+        self.k_proj.bias = torch.nn.Parameter(new_k_bias)
+
+        self.v_proj.weight = torch.nn.Parameter(new_v_weight)
+        self.v_proj.bias = torch.nn.Parameter(new_v_bias)
+
+        self.out_proj.weight = torch.nn.Parameter(new_out_proj_weight)
+
+        self.num_heads = len(reserve_head_index)
+        self.embed_dim = self.head_dim * self.num_heads
+        self.q_proj.out_features = self.embed_dim
+        self.k_proj.out_features = self.embed_dim
+        self.v_proj.out_features = self.embed_dim
+
+    def _set_skip_embed_dim_check(self):
+        self.skip_embed_dim_check = True
 
     def forward(
         self,
@@ -148,7 +277,10 @@ class MultiheadAttention(nn.Module):
 
         tgt_len, bsz, embed_dim = query.size()
         src_len = tgt_len
-        assert embed_dim == self.embed_dim, f"query dim {embed_dim} != {self.embed_dim}"
+        if not self.skip_embed_dim_check:
+            assert (
+                embed_dim == self.embed_dim
+            ), f"query dim {embed_dim} != {self.embed_dim}"
         assert list(query.size()) == [tgt_len, bsz, embed_dim]
         if key is not None:
             src_len, key_bsz, _ = key.size()
@@ -165,6 +297,11 @@ class MultiheadAttention(nn.Module):
             # A workaround for quantization to work. Otherwise JIT compilation
             # treats bias in linear module as method.
             and not torch.jit.is_scripting()
+            # The Multihead attention implemented in pytorch forces strong dimension check
+            # for input embedding dimention and K,Q,V projection dimension.
+            # Since pruning will break the dimension check and it is not easy to modify the pytorch API,
+            # it is preferred to bypass the pytorch MHA when we need to skip embed_dim_check
+            and not self.skip_embed_dim_check
         ):
             assert key is not None and value is not None
             return F.multi_head_attention_forward(
@@ -369,9 +506,9 @@ class MultiheadAttention(nn.Module):
         if self.onnx_trace and attn.size(1) == 1:
             # when ONNX tracing a single decoder step (sequence length == 1)
             # the transpose is a no-op copy before view, thus unnecessary
-            attn = attn.contiguous().view(tgt_len, bsz, embed_dim)
+            attn = attn.contiguous().view(tgt_len, bsz, self.embed_dim)
         else:
-            attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
+            attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, self.embed_dim)
         attn = self.out_proj(attn)
         attn_weights: Optional[Tensor] = None
         if need_weights:

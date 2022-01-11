@@ -25,6 +25,7 @@ from fairseq.logging import meters, metrics
 from fairseq.models.ema import build_ema
 from fairseq.nan_detector import NanDetector
 from fairseq.optim import lr_scheduler
+from fairseq.utils import safe_hasattr
 from omegaconf import OmegaConf
 
 logger = logging.getLogger(__name__)
@@ -501,6 +502,21 @@ class Trainer(object):
 
             # load model parameters
             try:
+                # this is the code related to AdaPrune
+                # In short, it removes redundant heads in multi-head attention module based on heads importance provided
+                # For more info, please refer to the paper: https://openreview.net/forum?id=_CMSV7FTzGI
+                if (
+                    safe_hasattr(self.model, "args")
+                    and safe_hasattr(self.model.args, "mha_heads_to_keep")
+                    and self.model.args.mha_heads_to_keep != -1
+                ):
+                    logger.info(f"Prune model: keep {self.model.args.mha_heads_to_keep} heads for each multihead attention module")
+                    for layer in self.model.encoder.sentence_encoder.layers:
+                        reserve_head_index = layer.self_attn._get_reserve_head_index(num_heads_to_keep=self.model.args.mha_heads_to_keep)
+                        layer.self_attn._adaptive_prune_heads(reserve_head_index=reserve_head_index)
+                        layer.self_attn._set_skip_embed_dim_check()
+                    logger.info(self.model)
+
                 self.model.load_state_dict(
                     state["model"], strict=True, model_cfg=self.cfg.model
                 )
