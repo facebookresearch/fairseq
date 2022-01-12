@@ -63,7 +63,7 @@ class SentencePredictionCriterion(FairseqCriterion):
         }
         if not self.regression_target:
             preds = logits.argmax(dim=1)
-            logging_output["ncorrect"] = (preds == targets).sum()
+            logging_output["ncorrect"] = (preds == targets)
 
         return loss, sample_size, logging_output
 
