@@ -208,7 +208,7 @@ following contents::
   import torch
 
   from fairseq.data import Dictionary, LanguagePairDataset
-  from fairseq.tasks import FairseqTask, register_task
+  from fairseq.tasks import FairseqTask, register_task, LegacyFairseqTask
 
 
   @register_task('simple_classification')
