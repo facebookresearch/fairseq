@@ -29,14 +29,6 @@ try:
             "S3PathHandler couldn't be imported. Either missing fb-only files, or boto3 module."
         )
 
-    try:
-        # [FB only] Add extra FB only PathHandlers for PathManager
-        import fairseq.fb_file_io as fb_file_io
-
-        fb_file_io.update_path_manager(IOPathManager)
-    except ImportError:
-        pass
-
 except ImportError:
     IOPathManager = None
 
@@ -160,6 +152,7 @@ class PathManager:
     """
     ioPath async PathManager methods:
     """
+
     @staticmethod
     def opena(
         path: str,
@@ -177,6 +170,7 @@ class PathManager:
             logging.info("ioPath is initializing PathManager.")
             try:
                 from iopath.common.file_io import PathManager
+
                 IOPathManager = PathManager()
             except Exception:
                 logging.exception("Failed to initialize ioPath PathManager object.")

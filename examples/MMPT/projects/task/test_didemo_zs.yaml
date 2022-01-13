@@ -1,0 +1,23 @@
+includes: projects/task/test.yaml
+dataset:
+  meta_processor: DiDeMoMetaProcessor
+  test_path: data/didemo/test_data.json
+  video_processor: VideoProcessor
+  vfeat_dir: data/feat/feat_didemo_s3d
+  text_processor: DiDeMoTextProcessor
+  aligner: DiDeMoAligner
+  num_iso_layer: 12
+model:
+  model_cls: MMFusionSeparate
+  mm_encoder_cls: 
+  video_encoder_cls: MMBertForEncoder
+  text_encoder_cls: BertModel
+  num_hidden_video_layers: 6
+eval:
+  save_path: runs/task/didemo_zs/eval
+fairseq:
+  # read code and find what is the checkpoint arg.
+  common_eval:
+    path: runs/task/checkpoint_best.pt
+metric: DiDeMoMetric
+predictor: DiDeMoPredictor

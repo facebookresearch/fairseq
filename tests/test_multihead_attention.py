@@ -68,6 +68,18 @@ class TestMultiheadAttention(unittest.TestCase):
             else:
                 self.assertIsNone(c[2])
 
+    def test_pruning_heads(self):
+        embed_dim = 768
+        num_heads = 12
+        num_heads_to_keep = 8
+        dummy_input = torch.randn(32, 2, embed_dim)
+        mha = MultiheadAttention(embed_dim=embed_dim, num_heads=num_heads)
+        reserve_head_index = mha._get_reserve_head_index(num_heads_to_keep=num_heads_to_keep)
+        mha._adaptive_prune_heads(reserve_head_index=reserve_head_index)
+        mha._set_skip_embed_dim_check()
+        mha(query=dummy_input, key=dummy_input, value=dummy_input)
+        self.assertEqual(mha.head_dim, embed_dim/num_heads)
+        self.assertEqual(mha.num_heads, num_heads_to_keep)
 
 if __name__ == "__main__":
     unittest.main()

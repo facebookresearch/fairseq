@@ -6,6 +6,11 @@ We learned speech representations in multiple languages as well in [Unsupervised
 
 We also combined wav2vec 2.0 with self-training in [Self-training and Pre-training are Complementary for Speech Recognition (Xu et al., 2020)](https://arxiv.org/abs/2010.11430).
 
+We combined speech data from multiple domains in [Robust wav2vec 2.0: Analyzing Domain Shift in Self-Supervised Pre-Training (Hsu, et al., 2021)](https://arxiv.org/abs/2104.01027).
+
+We finetuned XLSR-53 on multiple languages to transcribe unseen languages in [Simple and Effective Zero-shot Cross-lingual Phoneme Recognition (Xu et al., 2021)](https://arxiv.org/abs/2109.11680).
+
+
 ## Pre-trained models
 
 Model | Finetuning split | Dataset | Model
@@ -25,8 +30,12 @@ Wav2Vec 2.0 Large (LV-60)* | 960 hours | [Libri-Light](https://github.com/facebo
 Wav2Vec 2.0 Large (LV-60) + Self Training * | 10 minutes | [Libri-Light](https://github.com/facebookresearch/libri-light) + [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox_10m_pl.pt)
 Wav2Vec 2.0 Large (LV-60) + Self Training * | 100 hours | [Libri-Light](https://github.com/facebookresearch/libri-light) + [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox_100h_pl.pt)
 Wav2Vec 2.0 Large (LV-60) + Self Training * | 960 hours | [Libri-Light](https://github.com/facebookresearch/libri-light) + [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox_960h_pl.pt)
+Wav2Vec 2.0 Large (LV-60 + CV + SWBD + FSH) ** | No finetuning | [Libri-Light](https://github.com/facebookresearch/libri-light) + [CommonVoice](https://commonvoice.mozilla.org/en/languages) + [Switchboard](https://catalog.ldc.upenn.edu/LDC97S62) + [Fisher](https://catalog.ldc.upenn.edu/LDC2004T19) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/w2v_large_lv_fsh_swbd_cv.pt)
+Wav2Vec 2.0 Large (LV-60 + CV + SWBD + FSH) ** | 960 hours Librispeech | [Libri-Light](https://github.com/facebookresearch/libri-light) + [CommonVoice](https://commonvoice.mozilla.org/en/languages) + [Switchboard](https://catalog.ldc.upenn.edu/LDC97S62) + [Fisher](https://catalog.ldc.upenn.edu/LDC2004T19) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/w2v_large_lv_fsh_swbd_cv_ftls960_updated.pt)
+Wav2Vec 2.0 Large (LV-60 + CV + SWBD + FSH) ** | 300 hours Switchboard | [Libri-Light](https://github.com/facebookresearch/libri-light) + [CommonVoice](https://commonvoice.mozilla.org/en/languages) + [Switchboard](https://catalog.ldc.upenn.edu/LDC97S62) + [Fisher](https://catalog.ldc.upenn.edu/LDC2004T19) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/w2v_large_lv_fsh_swbd_cv_ftsb300_updated.pt)
 
-\* updated (Oct. 24, 2020)
+\* updated (Oct. 24, 2020)\
+** updated (Nov. 13, 2021)
 
 We also release multilingual pre-trained wav2vec 2.0 (XLSR) models:
 
@@ -42,6 +51,16 @@ The XLSR model uses the following datasets for multilingual pretraining:
 
 * **[Babel](https://catalog.ldc.upenn.edu/byyear)** (17 languages, 1.7k hours): *Assamese, Bengali, Cantonese, Cebuano, Georgian, Haitian, Kazakh, Kurmanji, Lao, Pashto, Swahili, Tagalog, Tamil, Tok, Turkish, Vietnamese, Zulu*
 
+We also finetuned several models on languages from [CommonVoice](https://commonvoice.mozilla.org/en/languages) (version 6.1) and [Babel](https://catalog.ldc.upenn.edu/byyear). Please refer to [our paper](https://arxiv.org/abs/2109.11680) for details about which languages are used.
+
+Pretrained Model | Fintune Dataset | # Languages | Phonemizer | Model | Dictionary
+|---|---|---|---|---|---
+LV-60 | CommonVoice | 26 | [Espeak](https://github.com/espeak-ng/espeak-ng/blob/master/docs/languages.md) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/espeak_en_26lang_m10.pt) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/espeak_dict.txt)
+XLSR-53 | CommonVoice | 26 | [Espeak](https://github.com/espeak-ng/espeak-ng/blob/master/docs/languages.md) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/espeak_26lang_m10.pt) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/espeak_dict.txt)
+XLSR-53 | CommonVoice | 21 | [Phonetisaurus](https://github.com/AdolfVonKleist/Phonetisaurus) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/phonetisaurus_21lang_m10.pt) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/phonetisaurus_dict.txt)
+XLSR-53 | CommonVoice, BABEL | 21, 19 | [Phonetisaurus](https://github.com/AdolfVonKleist/Phonetisaurus) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/phonetisaurus_40lang_m10.pt) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/phonetisaurus_40lang.dict.txt)
+
+We release 2 models that are finetuned on data from 2 different phonemizers. Although the phonemes are all [IPA](https://en.wikipedia.org/wiki/International_Phonetic_Alphabet) symbols, there are still subtle differences between the phonemized transcriptions from the 2 phonemizers. Thus, it's better to use the corresponding model, if your data is phonemized by either phonemizer above.
 
 ## Training a new model with the CLI tools
 
@@ -139,7 +158,7 @@ Next, run the evaluation command:
 
 ```shell script
 $subset=dev_other
-python examples/speech_recognition/infer.py /checkpoint/abaevski/data/speech/libri/10h/wav2vec/raw --task audio_pretraining \
+python examples/speech_recognition/infer.py /checkpoint/abaevski/data/speech/libri/10h/wav2vec/raw --task audio_finetuning \
 --nbest 1 --path /path/to/model --gen-subset $subset --results-path /path/to/save/results/for/sclite --w2l-decoder kenlm \
 --lm-model /path/to/kenlm.bin --lm-weight 2 --word-score -1 --sil-weight 0 --criterion ctc --labels ltr --max-tokens 4000000 \
 --post-process letter
@@ -149,31 +168,54 @@ To get raw numbers, use --w2l-decoder viterbi and omit the lexicon. To use the t
 
 ## Use wav2vec 2.0 with 🤗Transformers:
 
-Wav2Vec2 is also available in the [🤗Transformers library](https://github.com/huggingface/transformers) since version 4.3.
+Wav2Vec2 is also available in the [🤗Transformers library](https://github.com/huggingface/transformers) since version 4.4.
 
-Pretrained Models can be found on the [hub](https://huggingface.co/models?filter=wav2vec2) 
+Pretrained Models can be found on the [hub](https://huggingface.co/models?filter=wav2vec2)
 and documentation can be found [here](https://huggingface.co/transformers/master/model_doc/wav2vec2.html).
 
 Usage example:
 
 ```python
 # !pip install transformers
+# !pip install datasets
 import soundfile as sf
 import torch
-from transformers import Wav2Vec2ForMaskedLM, Wav2Vec2Tokenizer
+from datasets import load_dataset
+from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
 
 # load pretrained model
-tokenizer = Wav2Vec2Tokenizer.from_pretrained("facebook/wav2vec2-base-960h")
-model = Wav2Vec2ForMaskedLM.from_pretrained("facebook/wav2vec2-base-960h")
+processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
+model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-base-960h")
+
+
+librispeech_samples_ds = load_dataset("patrickvonplaten/librispeech_asr_dummy", "clean", split="validation")
 
 # load audio
-audio_input, _ = sf.read("path/to/audio/file")
+audio_input, sample_rate = sf.read(librispeech_samples_ds[0]["file"])
 
-# transcribe
-input_values = tokenizer(audio_input, return_tensors="pt").input_values
+# pad input values and return pt tensor
+input_values = processor(audio_input, sampling_rate=sample_rate, return_tensors="pt").input_values
+
+# INFERENCE
+
+# retrieve logits & take argmax
 logits = model(input_values).logits
 predicted_ids = torch.argmax(logits, dim=-1)
-transcription = tokenizer.batch_decode(predicted_ids)[0]
+
+# transcribe
+transcription = processor.decode(predicted_ids[0])
+
+# FINE-TUNE
+
+target_transcription = "A MAN SAID TO THE UNIVERSE I EXIST"
+
+# encode labels
+with processor.as_target_processor():
+  labels = processor(target_transcription, return_tensors="pt").input_ids
+
+# compute loss by passing labels
+loss = model(input_values, labels=labels).loss
+loss.backward()
 ```
 
 # wav2vec
@@ -236,6 +278,7 @@ $ OMP_NUM_THREADS=1 fairseq-hydra-train \
 ```
 
 #### Using command line arguments on a v3-8:
+Note: Commandline arguments way of execution has a [known-problem](https://github.com/pytorch/fairseq/issues/3741) currently.
 
 ```
 $ OMP_NUM_THREADS=1 python train.py /manifest/path --save-dir /model/path --num-workers 6 --fp16 --max-update 400000 --save-interval 1 --no-epoch-checkpoints \
@@ -258,7 +301,7 @@ $ OMP_NUM_THREADS=1 fairseq-hydra-train \
 ```
 
 #### Using command line arguments on a pod slice (v3-N with N > 8):
-
+Note: Commandline arguments way of execution has a [known-problem](https://github.com/pytorch/fairseq/issues/3741) currently.
 
 ```
 $ python -m torch_xla.distributed.xla_dist \

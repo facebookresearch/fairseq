@@ -1,0 +1,21 @@
+# @package _group_
+
+fairseq:
+  task:
+    _name: unpaired_audio_text
+    labels: phn
+    data: ???
+    sort_by_length: false
+    shuffle: false
+    text_data: ''
+
+  common_eval:
+    path: ???
+    quiet: true
+
+  dataset:
+    gen_subset: valid
+    batch_size: 1
+
+w2l_decoder: VITERBI
+post_process: silence

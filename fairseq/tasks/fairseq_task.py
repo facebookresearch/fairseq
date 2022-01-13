@@ -14,6 +14,7 @@ from fairseq import metrics, search, tokenizer, utils
 from fairseq.data import Dictionary, FairseqDataset, data_utils, encoders, iterators
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import gen_parser_from_dataclass
+from fairseq.optim.amp_optimizer import AMPOptimizer
 from omegaconf import DictConfig
 
 
@@ -21,9 +22,9 @@ logger = logging.getLogger(__name__)
 
 
 class StatefulContainer(object):
-
-    _state: Dict[str, Any] = dict()
-    _factories: Dict[str, Callable[[], Any]] = dict()
+    def __init__(self):
+        self._state = dict()
+        self._factories = dict()
 
     def add_factory(self, name, factory: Callable[[], Any]):
         self._factories[name] = factory
@@ -76,11 +77,6 @@ class FairseqTask(object):
         Setting this to True will improves distributed training speed.
         """
         return criterion.logging_outputs_can_be_summed()
-
-    cfg: FairseqDataclass
-    datasets: Dict[str, FairseqDataset]
-    dataset_to_epoch_iter: Dict[FairseqDataset, Any]
-    state: StatefulContainer = None
 
     def __init__(self, cfg: FairseqDataclass, **kwargs):
         self.cfg = cfg
@@ -138,7 +134,7 @@ class FairseqTask(object):
         split: str,
         combine: bool = False,
         task_cfg: FairseqDataclass = None,
-        **kwargs
+        **kwargs,
     ):
         """Load a given dataset split.
 
@@ -223,6 +219,9 @@ class FairseqTask(object):
         epoch=1,
         data_buffer_size=0,
         disable_iterator_cache=False,
+        skip_remainder_batch=False,
+        grouped_shuffling=False,
+        update_epoch_batch_itr=False,
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
@@ -255,12 +254,23 @@ class FairseqTask(object):
             disable_iterator_cache (bool, optional): don't cache the
                 EpochBatchIterator (ignores `FairseqTask::can_reuse_epoch_itr`)
                 (default: False).
+            skip_remainder_batch (bool, optional): if set, discard the last
+                batch in each training epoch, as the last batch is often smaller than
+                    local_batch_size * distributed_word_size (default: ``True``).
+            grouped_shuffling (bool, optional): group batches with each groups
+                containing num_shards batches and shuffle groups. Reduces difference
+                between sequence lengths among workers for batches sorted by length.
+            update_epoch_batch_itr (bool optional): if true then donot use the cached
+                batch iterator for the epoch
+
         Returns:
             ~fairseq.iterators.EpochBatchIterator: a batched iterator over the
                 given dataset split
         """
-        can_reuse_epoch_itr = not disable_iterator_cache and self.can_reuse_epoch_itr(
-            dataset
+        can_reuse_epoch_itr = (
+            not disable_iterator_cache
+            and not update_epoch_batch_itr
+            and self.can_reuse_epoch_itr(dataset)
         )
         if can_reuse_epoch_itr and dataset in self.dataset_to_epoch_iter:
             logger.debug("reusing EpochBatchIterator for epoch {}".format(epoch))
@@ -300,6 +310,8 @@ class FairseqTask(object):
             num_workers=num_workers,
             epoch=epoch,
             buffer_size=data_buffer_size,
+            skip_remainder_batch=skip_remainder_batch,
+            grouped_shuffling=grouped_shuffling,
         )
 
         if can_reuse_epoch_itr:
@@ -340,8 +352,37 @@ class FairseqTask(object):
         return criterions.build_criterion(cfg, self)
 
     def build_generator(
-        self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None
+        self,
+        models,
+        args,
+        seq_gen_cls=None,
+        extra_gen_cls_kwargs=None,
+        prefix_allowed_tokens_fn=None,
     ):
+        """
+        Build a :class:`~fairseq.SequenceGenerator` instance for this
+        task.
+
+        Args:
+            models (List[~fairseq.models.FairseqModel]): ensemble of models
+            args (fairseq.dataclass.configs.GenerationConfig):
+                configuration object (dataclass) for generation
+            extra_gen_cls_kwargs (Dict[str, Any]): extra options to pass
+                through to SequenceGenerator
+            prefix_allowed_tokens_fn (Callable[[int, torch.Tensor], List[int]]):
+                If provided, this function constrains the beam search to
+                allowed tokens only at each step. The provided function
+                should take 2 arguments: the batch ID (`batch_id: int`)
+                and a unidimensional tensor of token ids (`inputs_ids:
+                torch.Tensor`). It has to return a `List[int]` with the
+                allowed tokens for the next generation step conditioned
+                on the previously generated tokens (`inputs_ids`) and
+                the batch ID (`batch_id`). This argument is useful for
+                constrained generation conditioned on the prefix, as
+                described in "Autoregressive Entity Retrieval"
+                (https://arxiv.org/abs/2010.00904) and
+                https://github.com/facebookresearch/GENRE.
+        """
         if getattr(args, "score_reference", False):
             from fairseq.sequence_scorer import SequenceScorer
 
@@ -354,10 +395,6 @@ class FairseqTask(object):
             SequenceGenerator,
             SequenceGeneratorWithAlignment,
         )
-        try:
-            from fairseq.fb_sequence_generator import FBSequenceGenerator
-        except ModuleNotFoundError:
-            pass
 
         # Choose search strategy. Defaults to Beam Search.
         sampling = getattr(args, "sampling", False)
@@ -368,7 +405,8 @@ class FairseqTask(object):
         match_source_len = getattr(args, "match_source_len", False)
         diversity_rate = getattr(args, "diversity_rate", -1)
         constrained = getattr(args, "constraints", False)
-        prefix_allowed_tokens_fn = getattr(args, "prefix_allowed_tokens_fn", None)
+        if prefix_allowed_tokens_fn is None:
+            prefix_allowed_tokens_fn = getattr(args, "prefix_allowed_tokens_fn", None)
         if (
             sum(
                 int(cond)
@@ -424,8 +462,6 @@ class FairseqTask(object):
             if getattr(args, "print_alignment", False):
                 seq_gen_cls = SequenceGeneratorWithAlignment
                 extra_gen_cls_kwargs["print_alignment"] = args.print_alignment
-            elif getattr(args, "fb_seq_gen", False):
-                seq_gen_cls = FBSequenceGenerator
             else:
                 seq_gen_cls = SequenceGenerator
 
@@ -472,7 +508,8 @@ class FairseqTask(object):
         model.train()
         model.set_num_updates(update_num)
         with torch.autograd.profiler.record_function("forward"):
-            loss, sample_size, logging_output = criterion(model, sample)
+            with torch.cuda.amp.autocast(enabled=(isinstance(optimizer, AMPOptimizer))):
+                loss, sample_size, logging_output = criterion(model, sample)
         if ignore_grad:
             loss *= 0
         with torch.autograd.profiler.record_function("backward"):
@@ -601,6 +638,7 @@ class FairseqTask(object):
 
 class LegacyFairseqTask(FairseqTask):
     def __init__(self, args: Namespace):
+        super().__init__(None)
         self.args = args
         self.datasets = {}
         self.dataset_to_epoch_iter = {}

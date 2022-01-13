@@ -12,7 +12,8 @@ from .base_wrapper_dataset import BaseWrapperDataset
 
 from .add_target_dataset import AddTargetDataset
 from .append_token_dataset import AppendTokenDataset
-from .audio.raw_audio_dataset import FileAudioDataset
+from .audio.raw_audio_dataset import BinarizedAudioDataset, FileAudioDataset
+from .audio.hubert_dataset import HubertDataset
 from .backtranslation_dataset import BacktranslationDataset
 from .bucket_pad_length_dataset import BucketPadLengthDataset
 from .colorize_dataset import ColorizeDataset
@@ -56,6 +57,7 @@ from .shorten_dataset import TruncateDataset, RandomCropDataset
 from .multilingual.sampled_multi_dataset import SampledMultiDataset
 from .multilingual.sampled_multi_epoch_dataset import SampledMultiEpochDataset
 from .fasta_dataset import FastaDataset, EncodedFastaDataset
+from .transform_eos_concat_langpair_dataset import TransformEosConcatLangPairDataset
 
 from .iterators import (
     CountingIterator,
@@ -69,6 +71,7 @@ __all__ = [
     "AppendTokenDataset",
     "BacktranslationDataset",
     "BaseWrapperDataset",
+    "BinarizedAudioDataset",
     "BucketPadLengthDataset",
     "ColorizeDataset",
     "ConcatDataset",
@@ -81,7 +84,9 @@ __all__ = [
     "FairseqDataset",
     "FairseqIterableDataset",
     "FastaDataset",
+    "FileAudioDataset",
     "GroupedIterator",
+    "HubertDataset",
     "IdDataset",
     "IndexedCachedDataset",
     "IndexedDataset",
@@ -103,12 +108,12 @@ __all__ = [
     "PadDataset",
     "PrependDataset",
     "PrependTokenDataset",
-    "ReplaceDataset",
-    "RollDataset",
-    "FileAudioDataset",
+    "RandomCropDataset",
     "RawLabelDataset",
     "ResamplingDataset",
+    "ReplaceDataset",
     "RightPadDataset",
+    "RollDataset",
     "RoundRobinZipDatasets",
     "SampledMultiDataset",
     "SampledMultiEpochDataset",
@@ -119,6 +124,7 @@ __all__ = [
     "TokenBlockDataset",
     "TransformEosDataset",
     "TransformEosLangPairDataset",
+    "TransformEosConcatLangPairDataset",
     "TruncateDataset",
     "TruncatedDictionary",
 ]

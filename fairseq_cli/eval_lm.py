@@ -42,7 +42,7 @@ def eval_lm(
     output_word_probs: bool = False,
     output_word_stats: bool = False,
     target_dictionary: Optional[fairseq.data.Dictionary] = None,
-    softmax_batch: int = False,
+    softmax_batch: int = 0,
     remove_bos_token: bool = False,
     device: Optional[torch.device] = None,
 ):

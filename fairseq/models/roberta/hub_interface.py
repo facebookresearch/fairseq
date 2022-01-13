@@ -15,7 +15,7 @@ from fairseq.trainer import Trainer
 class RobertaHubInterface(nn.Module):
     """A simple PyTorch Hub interface to RoBERTa.
 
-    Usage: https://github.com/pytorch/fairseq/tree/master/examples/roberta
+    Usage: https://github.com/pytorch/fairseq/tree/main/examples/roberta
     """
 
     def __init__(self, cfg, task, model):

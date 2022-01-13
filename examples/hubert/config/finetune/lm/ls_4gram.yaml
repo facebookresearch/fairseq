@@ -1,0 +1,7 @@
+# @package _global_
+
+criterion:
+  wer_kenlm_model: /checkpoint/abdo/old_checkpoint02/datasets/librispeech/4-gram.bin
+  wer_lexicon: /checkpoint/abdo/old_checkpoint02/datasets/librispeech/10h/raw/lexicon_ltr.lst
+  wer_lm_weight: 2.0
+  wer_word_score: -1.0

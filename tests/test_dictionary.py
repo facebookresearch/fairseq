@@ -4,10 +4,13 @@
 # LICENSE file in the root directory of this source tree.
 
 import io
+import os
+import string
 import tempfile
 import unittest
 
 import torch
+from fairseq import tokenizer
 from fairseq.data import Dictionary
 
 
@@ -110,6 +113,32 @@ class TestDictionary(unittest.TestCase):
         self.assertEqual(d.index(" "), 4)
         self.assertEqual(d.index("a"), 5)
         self.assertEqual(d.index("b"), 6)
+
+    def test_add_file_to_dict(self):
+        counts = {}
+        num_lines = 100
+        per_line = 10
+        with tempfile.TemporaryDirectory("test_sampling") as data_dir:
+            filename = os.path.join(data_dir, "dummy.txt")
+            with open(filename, "w", encoding="utf-8") as data:
+                for c in string.ascii_letters:
+                    line = f"{c} " * per_line
+                    for _ in range(num_lines):
+                        data.write(f"{line}\n")
+                    counts[c] = per_line * num_lines
+                    per_line += 5
+
+            dict = Dictionary()
+            Dictionary.add_file_to_dictionary(
+                filename, dict, tokenizer.tokenize_line, 10
+            )
+            dict.finalize(threshold=0, nwords=-1, padding_factor=8)
+
+            for c in string.ascii_letters:
+                count = dict.get_count(dict.index(c))
+                self.assertEqual(
+                    counts[c], count, f"{c} count is {count} but should be {counts[c]}"
+                )
 
 
 if __name__ == "__main__":

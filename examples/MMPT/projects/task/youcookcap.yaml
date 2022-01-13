@@ -1,0 +1,23 @@
+# finetuning for youcook captioning.
+includes: projects/task/ft.yaml
+dataset:
+  meta_processor: YoucookNLGMetaProcessor
+  train_path: data/youcook/train_list.txt
+  val_path: data/youcook/val_list.txt
+  trainval_annotation: data/youcook/youcookii_annotations_trainval.json
+  video_processor: YoucookVideoProcessor
+  vfeat_dir: data/feat/feat_youcook_s3d
+  text_processor: NLGTextProcessor
+  aligner: DSNLGAligner
+model:
+  model_cls: MMFusionNLG
+  mm_encoder_cls: MMBertForNLG
+loss:
+  loss_cls: NLGLoss
+fairseq:
+  dataset:
+    batch_size: 128
+  optimization:
+    max_epoch: 10
+  checkpoint:
+    save_dir: runs/task/youcookcap
