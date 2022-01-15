@@ -5,15 +5,14 @@
 
 
 import dataclasses
+import mmap
 import os
 from pathlib import Path
-from typing import BinaryIO, Optional, Tuple, Union, List
-import mmap
+from typing import BinaryIO, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-
 
 SF_AUDIO_FILE_EXTENSIONS = {".wav", ".flac", ".ogg"}
 FEATURE_OR_SF_AUDIO_FILE_EXTENSIONS = {".npy", ".wav", ".flac", ".ogg"}
@@ -139,7 +138,7 @@ def _get_kaldi_fbank(
 ) -> Optional[np.ndarray]:
     """Get mel-filter bank features via PyKaldi."""
     try:
-        from kaldi.feat.fbank import FbankOptions, Fbank
+        from kaldi.feat.fbank import Fbank, FbankOptions
         from kaldi.feat.mel import MelBanksOptions
         from kaldi.feat.window import FrameExtractionOptions
         from kaldi.matrix import Vector
@@ -174,12 +173,16 @@ def _get_torchaudio_fbank(
         return None
 
 
-def get_fbank(path_or_fp: Union[str, BinaryIO], n_bins=80, start=0, frames=-1) -> np.ndarray:
+def get_fbank(
+    path_or_fp: Union[str, BinaryIO], n_bins=80, start=0, frames=-1
+) -> np.ndarray:
     """Get mel-filter bank features via PyKaldi or TorchAudio. Prefer PyKaldi
     (faster CPP implementation) to TorchAudio (Python implementation). Note that
     Kaldi/TorchAudio requires 16-bit signed integers as inputs and hence the
     waveform should not be normalized."""
-    waveform, sample_rate = get_waveform(path_or_fp, normalization=False, start=start, frames=frames)
+    waveform, sample_rate = get_waveform(
+        path_or_fp, normalization=False, start=start, frames=frames
+    )
 
     features = _get_kaldi_fbank(waveform, sample_rate, n_bins)
     if features is None:
@@ -239,12 +242,16 @@ def parse_path(path: str) -> ParsedPath:
         if not os.path.isfile(_path):
             raise FileNotFoundError(f"File not found: {_path}")
         if len(slice_ptr) == 2:
-            parsed_path = dataclasses.replace(parsed_path, zip_offset=int(slice_ptr[0]), zip_length=int(slice_ptr[1]))
+            parsed_path = dataclasses.replace(
+                parsed_path, zip_offset=int(slice_ptr[0]), zip_length=int(slice_ptr[1])
+            )
         elif len(slice_ptr) > 0:
             raise ValueError(f"Invalid path: {path}")
     else:
         if len(slice_ptr) == 2:
-            parsed_path = dataclasses.replace(parsed_path, start=int(slice_ptr[0]), frames=int(slice_ptr[1]))
+            parsed_path = dataclasses.replace(
+                parsed_path, start=int(slice_ptr[0]), frames=int(slice_ptr[1])
+            )
         elif len(slice_ptr) > 0:
             raise ValueError(f"Invalid path: {path}")
     return parsed_path
