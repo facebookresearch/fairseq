@@ -320,6 +320,21 @@ class RobertaTest(unittest.TestCase):
         loss = task_loss.sum() + head_loss + ffn_loss
         loss.backward()
 
+    @cpu_gpu
+    def test_ffn_prune_for_adaprune_in_roberta(self, device: str):
+        _, model = get_toy_model(
+            device=device,
+            architecture="roberta_base",
+        )
+        sample = mk_sample("en", device, batch_size=1)
+        for layer in model.encoder.sentence_encoder.layers:
+            fc1_original_size = layer.fc1.out_features
+            remove_index = layer._get_fc_rank(remove_num=2)
+            layer._prune_fc_layer(remove_index=remove_index)
+            self.assertEqual(layer.fc1.out_features, fc1_original_size - 2)
+
+        task_loss, _ = model.forward(**sample["net_input"])
+
 
 def params(model, name):
     if "." not in name:
