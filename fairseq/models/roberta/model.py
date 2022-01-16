@@ -209,7 +209,13 @@ class RobertaModel(FairseqEncoderModel):
             default=-1,
             help="number of heads to keep in each multi-head attention module, -1 means keeping all heads",
         )
-
+        parser.add_argument(
+            "--ffn-blocks-to-remove",
+            type=int,
+            metavar="D",
+            default=-1,
+            help="number of feedforward blocks to remove in each transformer layer, -1 means keeping all ffn blocks",
+        )
 
     @classmethod
     def build_model(cls, args, task):
