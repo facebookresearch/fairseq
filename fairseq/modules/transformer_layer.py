@@ -77,6 +77,55 @@ class TransformerEncoderLayerBase(nn.Module):
             nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size
         )
 
+    def _get_fc_rank(self, remove_num: int) -> List[int]:
+        f1_filter_param = []
+        for i in range(self.fc1.out_features):
+            f1_filter_param.append(torch.sum(torch.abs(self.fc1.weight[i])) + torch.sum(torch.abs(self.fc2.weight[:, i])) + torch.abs(self.fc1.bias[i]))
+        return sorted(range(len(f1_filter_param)), key=lambda k: f1_filter_param[k], reverse=False)[0:remove_num]
+
+    def _prune_fc_layer(self, remove_index: List[int]):
+        new_fc1_weight = []
+        new_fc1_bias = []
+        for i in range(self.fc1.out_features):
+            if i not in remove_index:
+                new_fc1_weight.append(self.fc1.weight[i])
+                new_fc1_bias.append(self.fc1.bias[i])
+
+        new_fc1_weight = torch.stack(new_fc1_weight).detach()
+        new_fc1_weight.requires_grad = True
+
+        new_fc1_bias = torch.stack(new_fc1_bias).detach()
+        new_fc1_bias.requires_grad = True
+
+        self.fc1 = quant_noise(
+            nn.Linear(self.fc1.in_features, self.fc1.out_features - len(remove_index)),
+            p=self.quant_noise,
+            block_size=self.quant_noise_block_size,
+        )
+        self.fc1.weight = torch.nn.Parameter(new_fc1_weight)
+        self.fc1.bias = torch.nn.Parameter(new_fc1_bias)
+
+        new_fc2_weight = []
+        new_fc2_bias = []
+        for i in range(self.fc2.in_features):
+            if i not in remove_index:
+                new_fc2_weight.append(self.fc2.weight[:, i])
+        new_fc2_bias = self.fc2.bias.detach()
+
+        new_fc2_weight = torch.stack(new_fc2_weight, dim=-1).detach()
+        new_fc2_weight.requires_grad = True
+
+        new_fc2_bias = self.fc2.bias.detach()
+        new_fc2_bias.requires_grad = True
+
+        self.fc2 = quant_noise(
+            nn.Linear(self.fc2.in_features - len(remove_index), self.fc2.out_features),
+            p=self.quant_noise,
+            block_size=self.quant_noise_block_size,
+        )
+        self.fc2.weight = torch.nn.Parameter(new_fc2_weight)
+        self.fc2.bias = torch.nn.Parameter(new_fc2_bias)
+
     def build_self_attention(self, embed_dim, cfg):
         return MultiheadAttention(
             embed_dim,
