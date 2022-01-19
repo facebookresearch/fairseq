@@ -142,7 +142,6 @@ def multi_head_attention_forward(
     else:
         head_dim = embed_dim // num_heads
     assert head_dim * num_heads == embed_dim, f"embed_dim {embed_dim} not divisible by num_heads {num_heads}"
-
     if use_separate_proj_weight:
         # allow MHA to have different embedding dimensions when separate projection weights are used
         assert key.shape[:2] == value.shape[:2], \

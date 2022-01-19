@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 from typing import Dict, Optional, Tuple
-
 import torch
 from fairseq import utils
 from fairseq.modules.quant_noise import quant_noise

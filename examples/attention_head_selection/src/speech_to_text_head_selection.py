@@ -76,10 +76,10 @@ class SpeechToTextHeadSelectionTask(SpeechToTextTask):
             is_train_split=is_train_split,
             epoch=epoch,
             seed=self.args.seed,
-            speaker_to_id=self.speaker_to_id,
             src_lang_map=self.src_lang_map,
             tgt_lang_map=self.tgt_lang_map,
-            domain_map=self.domain_map
+            domain_map=self.domain_map,
+            speaker_to_id=self.speaker_to_id
         )
 
     def build_model(self, args):

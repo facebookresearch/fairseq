@@ -152,13 +152,10 @@ fairseq-generate ${data_dir} \
 
 ## Citation
 ```bibtex
-@article{gong2021attn,
-    title={Pay Better Attention to Attention: Head Selection in Multilingual and Multi-Domain Sequence Modeling},
-    author={Hongyu Gong and
-            Yun Tang and
-            Juan Miguel Pino and
-            Xian Li},
-    journal={arXiv preprint arXiv:2106.10840},
-    year={2021}
+@article{gong2021pay,
+  title={Pay Better Attention to Attention: Head Selection in Multilingual and Multi-Domain Sequence Modeling},
+  author={Gong, Hongyu and Tang, Yun and Pino, Juan and Li, Xian},
+  journal={arXiv preprint arXiv:2106.10840},
+  year={2021}
 }
 '''

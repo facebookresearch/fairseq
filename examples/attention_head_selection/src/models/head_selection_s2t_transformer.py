@@ -50,19 +50,14 @@ class HeadSelectionS2TTransformerModel(S2TTransformerModel):
             type=int,
             help="total number of encoder attention heads"
         )
-        # parser.add_argument(
-        #     "--encoder-tasks",
-        #     type=int,
-        #     help="the number of encoder tasks (input languages or input domains)"
-        # )
-        # decoder self attention
+        # decoder self attention selection
         parser.add_argument(
             "--decoder-self-attn-head-select",
             action="store_true",
             default=False,
             help="decoder self-attention head selection"
         )
-        # decoder-encoder attention
+        # decoder-encoder attention selection
         parser.add_argument(
             "--dec-enc-attn-head-select",
             action="store_true",
@@ -74,11 +69,6 @@ class HeadSelectionS2TTransformerModel(S2TTransformerModel):
             type=int,
             help="total number of decoder attention heads"
         )
-        # parser.add_argument(
-        #     "--decoder-tasks",
-        #     type=int,
-        #     help="the number of decoder tasks (output languages or output domains)"
-        # )
         # selection strategy
         parser.add_argument(
             "--attn-head-select-strategy",

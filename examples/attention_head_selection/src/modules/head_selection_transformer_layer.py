@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 from fairseq.utils import safe_getattr
-
 from fairseq.modules import TransformerEncoderLayer, TransformerDecoderLayer
 from ..modules.multihead_attention_selection import MultiheadAttentionSelection
 

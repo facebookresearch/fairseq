@@ -12,6 +12,7 @@ import torch
 from fairseq.data import (
     ConcatDataset,
     Dictionary,
+    FairseqDataset,
     ResamplingDataset
 )
 from fairseq.data.audio.data_cfg import S2TDataConfig
@@ -190,9 +191,9 @@ class SpeechToTextDatasetCreatorWithDomain(SpeechToTextDatasetCreator):
         bpe_tokenizer,
         n_frames_per_step,
         speaker_to_id,
-        src_lang_map,
-        tgt_lang_map,
-        domain_map
+        src_lang_map: Dict[str, int],
+        tgt_lang_map: Dict[str, int],
+        domain_map: Dict[str, int]
     ) -> SpeechToTextDatasetItemWithDomain:
         samples = cls._load_samples_from_tsv(
             root, split, src_lang_map,
@@ -215,11 +216,11 @@ class SpeechToTextDatasetCreatorWithDomain(SpeechToTextDatasetCreator):
         is_train_split: bool,
         epoch: int,
         seed: int,
-        n_frames_per_step: int,
-        speaker_to_id,
         src_lang_map: Dict[str, int],
         tgt_lang_map: Dict[str, int],
-        domain_map: Dict[str, int]
+        domain_map: Dict[str, int],
+        n_frames_per_step: int = 1,
+        speaker_to_id=None
     ) -> SpeechToTextDatasetWithDomain:
         datasets = [
             cls._from_tsv(
