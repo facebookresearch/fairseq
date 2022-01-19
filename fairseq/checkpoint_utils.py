@@ -842,6 +842,11 @@ def verify_checkpoint_directory(save_dir: str) -> None:
         os.remove(temp_file_path)
 
 
+def save_ema_as_checkpoint(src_path, dst_path):
+    state = load_ema_from_checkpoint(src_path)
+    torch_persistent_save(state, dst_path)
+
+
 def load_ema_from_checkpoint(fpath):
     """Loads exponential moving averaged (EMA) checkpoint from input and
     returns a model with ema weights.
