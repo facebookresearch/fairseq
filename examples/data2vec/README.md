@@ -27,8 +27,6 @@ data2vec Base | No fine-tuning | Books + Wiki | [download](https://dl.fbaipublic
 
 ## Training a new speech model with the CLI tools
 
-Below is copied from thw wav2vec README - needs adapting
-
 Given a directory containing wav files to be used for pretraining (we recommend splitting each file into separate file 10 to 30 seconds in length)
 
 ### Prepare training data manifest:
