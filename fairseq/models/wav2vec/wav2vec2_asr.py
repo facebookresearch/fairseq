@@ -6,6 +6,7 @@
 import contextlib
 import copy
 import math
+import logging
 import re
 from argparse import Namespace
 from dataclasses import dataclass, field
@@ -30,6 +31,9 @@ from fairseq.models import (
 from fairseq.models.wav2vec.wav2vec2 import MASKING_DISTRIBUTION_CHOICES
 from fairseq.modules import LayerNorm, PositionalEmbedding, TransformerDecoderLayer
 from fairseq.tasks import FairseqTask
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -106,6 +110,17 @@ class Wav2Vec2AsrConfig(FairseqDataclass):
     mask_min_space: Optional[int] = field(
         default=1,
         metadata={"help": "min space between spans (if no overlap is enabled)"},
+    )
+    require_same_masks: bool = field(
+        default=True,
+        metadata={
+            "help": "whether to number of masked timesteps must be the same across all "
+            "examples in a batch"
+        },
+    )
+    mask_dropout: float = field(
+        default=0.0,
+        metadata={"help": "percent of masks to unmask for each sample"},
     )
 
     # channel masking
@@ -344,6 +359,8 @@ class Wav2VecEncoder(FairseqEncoder):
             "attention_dropout": cfg.attention_dropout,
             "mask_length": cfg.mask_length,
             "mask_prob": cfg.mask_prob,
+            "require_same_masks": getattr(cfg, "require_same_masks", True),
+            "pct_holes": getattr(cfg, "mask_dropout", 0),
             "mask_selection": cfg.mask_selection,
             "mask_other": cfg.mask_other,
             "no_mask_overlap": cfg.no_mask_overlap,
@@ -368,13 +385,19 @@ class Wav2VecEncoder(FairseqEncoder):
             w2v_args.criterion = None
             w2v_args.lr_scheduler = None
             cfg.w2v_args = w2v_args
+
+            logger.info(w2v_args)
+
         else:
             state = None
             w2v_args = cfg.w2v_args
             if isinstance(w2v_args, Namespace):
                 cfg.w2v_args = w2v_args = convert_namespace_to_omegaconf(w2v_args)
 
-        assert cfg.normalize == w2v_args.task.normalize, (
+        model_normalized = w2v_args.task.get(
+            "normalize", w2v_args.model.get("normalize", False)
+        )
+        assert cfg.normalize == model_normalized, (
             "Fine-tuning works best when data normalization is the same. "
             "Please check that --normalize is set or unset for both pre-training and here"
         )
@@ -387,10 +410,10 @@ class Wav2VecEncoder(FairseqEncoder):
         task = tasks.setup_task(w2v_args.task)
         model = task.build_model(w2v_args.model, from_checkpoint=True)
 
+        model.remove_pretraining_modules()
+
         if state is not None and not cfg.no_pretrained_weights:
             self.load_model_weights(state, model, cfg)
-
-        model.remove_pretraining_modules()
 
         super().__init__(task.source_dictionary)
 
@@ -442,6 +465,8 @@ class Wav2VecEncoder(FairseqEncoder):
 
             model.load_state_dict(new_big_dict, strict=False)
         else:
+            if "_ema" in state["model"]:
+                del state["model"]["_ema"]
             model.load_state_dict(state["model"], strict=True)
 
     def set_num_updates(self, num_updates):

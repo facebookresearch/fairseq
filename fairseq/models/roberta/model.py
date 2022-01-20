@@ -453,6 +453,16 @@ class RobertaModel(FairseqEncoderModel):
                     logger.info("Overwriting " + prefix + "classification_heads." + k)
                     state_dict[prefix + "classification_heads." + k] = v
 
+            # adapt data2vec models
+            if "encoder._ema" in state_dict and "encoder.lm_head.weight" not in state_dict:
+                lm_state = self.encoder.lm_head.state_dict()
+                for k, v in lm_state.items():
+                    state_dict["encoder.lm_head." + k] = v
+
+            for k in list(state_dict.keys()):
+                if k.startswith("encoder.regression_head") or k == "encoder._ema":
+                    del state_dict[k]
+
 
 class RobertaLMHead(nn.Module):
     """Head for masked language modeling."""

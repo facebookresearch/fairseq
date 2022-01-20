@@ -32,9 +32,10 @@ class TransformerEncoderLayerBase(nn.Module):
         args (argparse.Namespace): parsed command-line arguments
     """
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, return_fc=False):
         super().__init__()
         self.cfg = cfg
+        self.return_fc = return_fc
         self.embed_dim = cfg.encoder.embed_dim
         self.quant_noise = cfg.quant_noise.pq
         self.quant_noise_block_size = cfg.quant_noise.pq_block_size
@@ -212,10 +213,16 @@ class TransformerEncoderLayerBase(nn.Module):
         x = self.activation_fn(self.fc1(x))
         x = self.activation_dropout_module(x)
         x = self.fc2(x)
+
+        fc_result = x
+
         x = self.dropout_module(x)
         x = self.residual_connection(x, residual)
         if not self.normalize_before:
             x = self.final_layer_norm(x)
+
+        if self.return_fc and not torch.jit.is_scripting():
+            return x, fc_result
         return x
 
 

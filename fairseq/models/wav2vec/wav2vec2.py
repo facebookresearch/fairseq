@@ -174,6 +174,17 @@ class Wav2Vec2Config(FairseqDataclass):
         default=1,
         metadata={"help": "min space between spans (if no overlap is enabled)"},
     )
+    require_same_masks: bool = field(
+        default=True,
+        metadata={
+            "help": "whether to number of masked timesteps must be the same across all "
+            "examples in a batch"
+        },
+    )
+    mask_dropout: float = field(
+        default=0.0,
+        metadata={"help": "percent of masks to unmask for each sample"},
+    )
 
     # channel masking
     mask_channel_length: int = field(
@@ -227,6 +238,10 @@ class Wav2Vec2Config(FairseqDataclass):
         default=16,
         metadata={"help": "number of groups for convolutional positional embedding"},
     )
+    pos_conv_depth: int = field(
+        default=1,
+        metadata={"help": "depth of positional encoder network"},
+    )
 
     latent_temp: Tuple[float, float, float] = field(
         default=(2, 0.5, 0.999995),
@@ -243,7 +258,7 @@ class Wav2Vec2Config(FairseqDataclass):
 
     # FP16 optimization
     required_seq_len_multiple: int = field(
-        default=1,
+        default=2,
         metadata={
             "help": "pad the input to encoder such that the sequence length is divisible by multiple"
         },
@@ -434,6 +449,8 @@ class Wav2Vec2Model(BaseFairseqModel):
                     min_masks=2,
                     no_overlap=self.no_mask_overlap,
                     min_space=self.mask_min_space,
+                    require_same_masks=self.cfg.require_same_masks,
+                    mask_dropout=self.cfg.mask_dropout,
                 )
                 mask_indices = torch.from_numpy(mask_indices).to(x.device)
             x = index_put(x, mask_indices, self.mask_emb)
@@ -526,13 +543,13 @@ class Wav2Vec2Model(BaseFairseqModel):
         y = y.unsqueeze(0)
         targets = torch.cat([y, negatives], dim=0)
 
-        logits = torch.cosine_similarity(x.float(), targets.float(), dim=-1).type_as(x)
-
+        logits = torch.cosine_similarity(x.float(), targets.float(), dim=-1)
         logits = logits / self.logit_temp
+        logits = logits.type_as(x)
 
         if is_xla_tensor(logits) or neg_is_pos.any():
-            fillval = -float(2 ** 30)
             if not hasattr(self, "_inftensor"):
+                fillval = -float(2 ** 30)
                 self._inftensor = (
                     torch.tensor(fillval).to(x.device)
                     if is_xla_tensor(logits)
@@ -664,27 +681,32 @@ class Wav2Vec2Model(BaseFairseqModel):
             }
 
         if self.quantizer:
-            q = self.quantizer(y, produce_targets=False)
-            y = q["x"]
-            num_vars = q["num_vars"]
-            code_ppl = q["code_perplexity"]
-            prob_ppl = q["prob_perplexity"]
-            curr_temp = q["temp"]
-
-            y = self.project_q(y)
-
             if self.negatives_from_everywhere:
-                neg_cands = self.quantizer(unmasked_features, produce_targets=False)[
-                    "x"
-                ]
+                q = self.quantizer(unmasked_features, produce_targets=False)
+                y = q["x"]
+                num_vars = q["num_vars"]
+                code_ppl = q["code_perplexity"]
+                prob_ppl = q["prob_perplexity"]
+                curr_temp = q["temp"]
+                y = self.project_q(y)
+
                 negs, _ = self.sample_negatives(
-                    neg_cands,
-                    y.size(1),
+                    y,
+                    mask_indices[0].sum(),
                     padding_count=padding_count,
                 )
-                negs = self.project_q(negs)
+                y = y[mask_indices].view(y.size(0), -1, y.size(-1))
 
             else:
+                q = self.quantizer(y, produce_targets=False)
+                y = q["x"]
+                num_vars = q["num_vars"]
+                code_ppl = q["code_perplexity"]
+                prob_ppl = q["prob_perplexity"]
+                curr_temp = q["temp"]
+
+                y = self.project_q(y)
+
                 negs, _ = self.sample_negatives(
                     y,
                     y.size(1),
@@ -780,11 +802,16 @@ class Wav2Vec2Model(BaseFairseqModel):
 
         return pen
 
-    def remove_pretraining_modules(self):
+    def remove_pretraining_modules(self, last_layer=None):
         self.quantizer = None
         self.project_q = None
         self.target_glu = None
         self.final_proj = None
+
+        if last_layer is not None:
+            self.encoder.layers = nn.ModuleList(
+                l for i, l in enumerate(self.encoder.layers) if i <= last_layer
+            )
 
 
 class ConvFeatureExtractionModel(nn.Module):
@@ -868,8 +895,27 @@ class ConvFeatureExtractionModel(nn.Module):
         return x
 
 
+def make_conv_pos(e, k, g):
+    pos_conv = nn.Conv1d(
+        e,
+        e,
+        kernel_size=k,
+        padding=k // 2,
+        groups=g,
+    )
+    dropout = 0
+    std = math.sqrt((4 * (1.0 - dropout)) / (k * e))
+    nn.init.normal_(pos_conv.weight, mean=0, std=std)
+    nn.init.constant_(pos_conv.bias, 0)
+
+    pos_conv = nn.utils.weight_norm(pos_conv, name="weight", dim=2)
+    pos_conv = nn.Sequential(pos_conv, SamePad(k), nn.GELU())
+
+    return pos_conv
+
+
 class TransformerEncoder(nn.Module):
-    def build_encoder_layer(self, args):
+    def build_encoder_layer(self, args: Wav2Vec2Config):
         if args.layer_type == "transformer":
             layer = TransformerSentenceEncoderLayer(
                 embedding_dim=self.embedding_dim,
@@ -898,27 +944,49 @@ class TransformerEncoder(nn.Module):
             layer = checkpoint_wrapper(layer)
         return layer
 
-    def __init__(self, args):
+    def __init__(self, args: Wav2Vec2Config):
         super().__init__()
 
         self.dropout = args.dropout
         self.embedding_dim = args.encoder_embed_dim
         self.required_seq_len_multiple = args.required_seq_len_multiple
 
-        self.pos_conv = nn.Conv1d(
-            self.embedding_dim,
-            self.embedding_dim,
-            kernel_size=args.conv_pos,
-            padding=args.conv_pos // 2,
-            groups=args.conv_pos_groups,
-        )
-        dropout = 0
-        std = math.sqrt((4 * (1.0 - dropout)) / (args.conv_pos * self.embedding_dim))
-        nn.init.normal_(self.pos_conv.weight, mean=0, std=std)
-        nn.init.constant_(self.pos_conv.bias, 0)
+        pos_conv_depth = getattr(args, "pos_conv_depth", 1)
+        if pos_conv_depth > 1:
+            num_layers = args.pos_conv_depth
+            k = max(3, args.conv_pos // num_layers)
 
-        self.pos_conv = nn.utils.weight_norm(self.pos_conv, name="weight", dim=2)
-        self.pos_conv = nn.Sequential(self.pos_conv, SamePad(args.conv_pos), nn.GELU())
+            def make_conv_block(e, k, g, l):
+                return nn.Sequential(
+                    *[
+                        nn.Sequential(
+                            nn.Conv1d(
+                                e,
+                                e,
+                                kernel_size=k,
+                                padding=k // 2,
+                                groups=g,
+                            ),
+                            SamePad(k),
+                            TransposeLast(),
+                            LayerNorm(e, elementwise_affine=False),
+                            TransposeLast(),
+                            nn.GELU(),
+                        )
+                        for _ in range(l)
+                    ]
+                )
+
+            self.pos_conv = make_conv_block(
+                self.embedding_dim, k, args.conv_pos_groups, num_layers
+            )
+
+        else:
+            self.pos_conv = make_conv_pos(
+                self.embedding_dim,
+                args.conv_pos,
+                args.conv_pos_groups,
+            )
 
         self.layers = nn.ModuleList(
             [self.build_encoder_layer(args) for _ in range(args.encoder_layers)]
@@ -937,7 +1005,13 @@ class TransformerEncoder(nn.Module):
 
         return x, layer_results
 
-    def extract_features(self, x, padding_mask=None, tgt_layer=None):
+    def extract_features(
+        self,
+        x,
+        padding_mask=None,
+        tgt_layer=None,
+        min_layer=0,
+    ):
 
         if padding_mask is not None:
             x = index_put(x, padding_mask, 0)
@@ -968,22 +1042,13 @@ class TransformerEncoder(nn.Module):
         layer_results = []
         r = None
         for i, layer in enumerate(self.layers):
-            dropout_probability = np.random.random()
+            dropout_probability = np.random.random() if self.layerdrop > 0 else 1
             if not self.training or (dropout_probability > self.layerdrop):
-                x, z = layer(x, self_attn_padding_mask=padding_mask, need_weights=False)
-                if tgt_layer is not None:
-                    # unpad if needed
-                    if pad_length > 0:
-                        layer_results.append(
-                            (
-                                x[:-pad_length],
-                                z[:, :-pad_length, :-pad_length]
-                                if z is not None
-                                else z,
-                            )
-                        )
-                    else:
-                        layer_results.append((x, z))
+                x, (z, lr) = layer(
+                    x, self_attn_padding_mask=padding_mask, need_weights=False
+                )
+                if i >= min_layer:
+                    layer_results.append((x, z, lr))
             if i == tgt_layer:
                 r = x
                 break
@@ -993,9 +1058,19 @@ class TransformerEncoder(nn.Module):
 
         # T x B x C -> B x T x C
         x = x.transpose(0, 1)
+
         # undo paddding
         if pad_length > 0:
             x = x[:, :-pad_length]
+
+            def undo_pad(a, b, c):
+                return (
+                    a[:-pad_length],
+                    b[:-pad_length] if b is not None else b,
+                    c[:-pad_length],
+                )
+
+            layer_results = [undo_pad(*u) for u in layer_results]
 
         return x, layer_results
 
@@ -1105,7 +1180,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
         self,
         embedding_dim: float = 768,
         ffn_embedding_dim: float = 3072,
-        num_attention_heads: float = 8,
+        num_attention_heads: int = 8,
         dropout: float = 0.1,
         attention_dropout: float = 0.1,
         activation_dropout: float = 0.1,
@@ -1164,6 +1239,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
                 value=x,
                 key_padding_mask=self_attn_padding_mask,
                 attn_mask=self_attn_mask,
+                need_weights=False,
             )
             x = self.dropout1(x)
             x = residual + x
@@ -1173,6 +1249,9 @@ class TransformerSentenceEncoderLayer(nn.Module):
             x = self.activation_fn(self.fc1(x))
             x = self.dropout2(x)
             x = self.fc2(x)
+
+            layer_result = x
+
             x = self.dropout3(x)
             x = residual + x
         else:
@@ -1181,6 +1260,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
                 key=x,
                 value=x,
                 key_padding_mask=self_attn_padding_mask,
+                need_weights=False,
             )
 
             x = self.dropout1(x)
@@ -1192,8 +1272,11 @@ class TransformerSentenceEncoderLayer(nn.Module):
             x = self.activation_fn(self.fc1(x))
             x = self.dropout2(x)
             x = self.fc2(x)
+
+            layer_result = x
+
             x = self.dropout3(x)
             x = residual + x
             x = self.final_layer_norm(x)
 
-        return x, attn
+        return x, (attn, layer_result)

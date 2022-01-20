@@ -422,6 +422,8 @@ def hydra_main(cfg: InferConfig) -> Union[float, Tuple[float, Optional[float]]]:
     if cfg.common.reset_logging:
         reset_logging()
 
+    utils.import_user_module(cfg.common)
+
     # logger.info("Config:\n%s", OmegaConf.to_yaml(cfg))
     wer = float("inf")
 
