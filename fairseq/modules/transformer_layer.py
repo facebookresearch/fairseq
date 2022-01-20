@@ -80,8 +80,14 @@ class TransformerEncoderLayerBase(nn.Module):
     def _get_fc_rank(self, remove_num: int) -> List[int]:
         f1_filter_param = []
         for i in range(self.fc1.out_features):
-            f1_filter_param.append(torch.sum(torch.abs(self.fc1.weight[i])) + torch.sum(torch.abs(self.fc2.weight[:, i])) + torch.abs(self.fc1.bias[i]))
-        return sorted(range(len(f1_filter_param)), key=lambda k: f1_filter_param[k], reverse=False)[0:remove_num]
+            f1_filter_param.append(
+                torch.sum(torch.abs(self.fc1.weight[i]))
+                + torch.sum(torch.abs(self.fc2.weight[:, i]))
+                + torch.abs(self.fc1.bias[i])
+            )
+        return sorted(
+            range(len(f1_filter_param)), key=lambda k: f1_filter_param[k], reverse=False
+        )[0:remove_num]
 
     def _prune_fc_layer(self, remove_index: List[int]):
         new_fc1_weight = []

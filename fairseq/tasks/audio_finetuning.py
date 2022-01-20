@@ -189,8 +189,8 @@ class AudioFinetuningTask(AudioPretrainingTask):
                 logging_output[f"_bleu_totals_{i}"] = metrics.totals[i]
         return loss, sample_size, logging_output
 
-    def build_model(self, model_cfg: FairseqDataclass):
-        model = super().build_model(model_cfg)
+    def build_model(self, model_cfg: FairseqDataclass, from_checkpoint=False):
+        model = super().build_model(model_cfg, from_checkpoint)
 
         if self.cfg.eval_wer and self.cfg.autoregressive:
             self.sequence_generator = self.build_generator(

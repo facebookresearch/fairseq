@@ -216,8 +216,8 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
             models, args, seq_gen_cls=None, extra_gen_cls_kwargs=extra_gen_cls_kwargs
         )
 
-    def build_model(self, args):
-        return super().build_model(args)
+    def build_model(self, args, from_checkpoint=False):
+        return super().build_model(args, from_checkpoint)
 
     def valid_step(self, sample, model, criterion):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)

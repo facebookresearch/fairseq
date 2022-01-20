@@ -15,7 +15,9 @@ from .downsampled_multihead_attention import DownsampledMultiHeadAttention
 from .dynamic_convolution import DynamicConv, DynamicConv1dTBC
 from .dynamic_crf_layer import DynamicCRF
 from .fairseq_dropout import FairseqDropout
+from .fp32_batch_norm import Fp32BatchNorm
 from .fp32_group_norm import Fp32GroupNorm
+from .fp32_instance_norm import Fp32InstanceNorm
 from .gelu import gelu, gelu_accurate
 from .grad_multiply import GradMultiply
 from .gumbel_vector_quantizer import GumbelVectorQuantizer
@@ -61,8 +63,10 @@ __all__ = [
     "DynamicConv",
     "DynamicCRF",
     "FairseqDropout",
+    "Fp32BatchNorm",
     "Fp32GroupNorm",
     "Fp32LayerNorm",
+    "Fp32InstanceNorm",
     "gelu",
     "gelu_accurate",
     "GradMultiply",

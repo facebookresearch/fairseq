@@ -133,13 +133,13 @@ class TextToSpeechTask(SpeechToTextTask):
                 )
         return embed_speaker
 
-    def build_model(self, cfg):
+    def build_model(self, cfg, from_checkpoint=False):
         cfg.pitch_min = self.data_cfg.config["features"].get("pitch_min", None)
         cfg.pitch_max = self.data_cfg.config["features"].get("pitch_max", None)
         cfg.energy_min = self.data_cfg.config["features"].get("energy_min", None)
         cfg.energy_max = self.data_cfg.config["features"].get("energy_max", None)
         cfg.speaker_emb_path = self.get_speaker_embeddings_path()
-        model = super().build_model(cfg)
+        model = super().build_model(cfg, from_checkpoint)
         self.generator = None
         if getattr(cfg, "eval_inference", False):
             self.generator = self.build_generator([model], cfg)

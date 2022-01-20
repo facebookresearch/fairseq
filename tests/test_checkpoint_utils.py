@@ -107,13 +107,10 @@ class TestCheckpointUtils(unittest.TestCase):
     def test_load_ema_from_checkpoint(self):
         dummy_state = {"a": torch.tensor([1]), "b": torch.tensor([0.1])}
         with patch(f"{checkpoint_utils.__name__}.PathManager.open") as mock_open, patch(
-                f"{checkpoint_utils.__name__}.torch.load") as mock_load:
+            f"{checkpoint_utils.__name__}.torch.load"
+        ) as mock_load:
 
-            mock_load.return_value = {
-                "extra_state": {
-                    "ema": dummy_state
-                }
-            }
+            mock_load.return_value = {"extra_state": {"ema": dummy_state}}
             filename = "ema_checkpoint.pt"
             state = checkpoint_utils.load_ema_from_checkpoint(filename)
 

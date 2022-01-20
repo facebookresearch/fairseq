@@ -639,6 +639,12 @@ class CheckpointConfig(FairseqDataclass):
             "(default: <save-dir>/checkpoint_last.pt"
         },
     )
+    continue_once: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "continues from this checkpoint, unless a checkpoint indicated in 'restore_file' option is present"
+        },
+    )
     finetune_from_model: Optional[str] = field(
         default=None,
         metadata={

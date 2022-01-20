@@ -6,6 +6,7 @@
 import ast
 import collections
 import contextlib
+import inspect
 import logging
 import os
 import re
@@ -111,7 +112,7 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
     checkpoints = [
         os.path.join(cfg.save_dir, fn) for fn, cond in checkpoint_conds.items() if cond
     ]
-    if len(checkpoints) > 0:
+    if len(checkpoints) > 0 and trainer.should_save_checkpoint_on_current_rank:
         trainer.save_checkpoint(checkpoints[0], extra_state)
         for cp in checkpoints[1:]:
             if cfg.write_checkpoints_asynchronously:
@@ -215,7 +216,9 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
             cfg.save_dir, "checkpoint_last{}.pt".format(suffix)
         )
         first_launch = not PathManager.exists(checkpoint_path)
-        if cfg.finetune_from_model is not None and first_launch:
+        if first_launch and cfg.get("continue_once", None) is not None:
+            checkpoint_path = cfg.continue_once
+        elif cfg.finetune_from_model is not None and first_launch:
             # if there is no last checkpoint to restore, start the finetune from pretrained model
             # else just use usual logic to load checkpoint, e.g. restart from last checkpoint and etc.
             if PathManager.exists(cfg.finetune_from_model):
@@ -460,7 +463,13 @@ def load_model_ensemble_and_task(
                     )
             else:
                 # model parallel checkpoint or unsharded checkpoint
-                model = task.build_model(cfg.model)
+                # support old external tasks
+
+                argspec = inspect.getfullargspec(task.build_model)
+                if "from_checkpoint" in argspec.args:
+                    model = task.build_model(cfg.model, from_checkpoint=True)
+                else:
+                    model = task.build_model(cfg.model)
                 if (
                     "optimizer_history" in state
                     and len(state["optimizer_history"]) > 0
@@ -605,7 +614,7 @@ def _upgrade_state_dict(state):
     # use stateful training data iterator
     if "train_iterator" not in state["extra_state"]:
         state["extra_state"]["train_iterator"] = {
-            "epoch": state["extra_state"]["epoch"],
+            "epoch": state["extra_state"].get("epoch", 0),
             "iterations_in_epoch": state["extra_state"].get("batch_offset", 0),
         }
 

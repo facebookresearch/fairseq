@@ -193,8 +193,8 @@ class AudioPretrainingTask(FairseqTask):
         """Maximum input length supported by the encoder."""
         return sys.maxsize, sys.maxsize
 
-    def build_model(self, model_cfg: FairseqDataclass):
-        model = super().build_model(model_cfg)
+    def build_model(self, model_cfg: FairseqDataclass, from_checkpoint=False):
+        model = super().build_model(model_cfg, from_checkpoint)
 
         actualized_cfg = getattr(model, "cfg", None)
         if actualized_cfg is not None:

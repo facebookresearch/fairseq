@@ -494,7 +494,7 @@ class TestTranslationTask(LegacyFairseqTask):
     def setup_task(cls, args, src_dict=None, tgt_dict=None, model=None):
         return cls(args, src_dict, tgt_dict, model)
 
-    def build_model(self, args):
+    def build_model(self, args, from_checkpoint=False):
         return TestModel.build_model(args, self)
 
     @property

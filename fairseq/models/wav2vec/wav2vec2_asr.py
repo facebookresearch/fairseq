@@ -385,7 +385,7 @@ class Wav2VecEncoder(FairseqEncoder):
 
         w2v_args.task.data = cfg.data
         task = tasks.setup_task(w2v_args.task)
-        model = task.build_model(w2v_args.model)
+        model = task.build_model(w2v_args.model, from_checkpoint=True)
 
         if state is not None and not cfg.no_pretrained_weights:
             self.load_model_weights(state, model, cfg)

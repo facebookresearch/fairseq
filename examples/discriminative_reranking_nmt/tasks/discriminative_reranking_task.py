@@ -161,7 +161,9 @@ class DiscriminativeRerankingNMTTask(FairseqTask):
             split_path = get_path(type, data_split)
 
             dataset = data_utils.load_indexed_dataset(
-                split_path, dictionary, combine=combine,
+                split_path,
+                dictionary,
+                combine=combine,
             )
             return dataset
 
@@ -241,7 +243,8 @@ class DiscriminativeRerankingNMTTask(FairseqTask):
             "id": IdDataset(),
             "net_input": {
                 "src_tokens": RightPadDataset(
-                    src_tokens, pad_idx=self.source_dictionary.pad(),
+                    src_tokens,
+                    pad_idx=self.source_dictionary.pad(),
                 ),
                 "src_lengths": src_lengths,
             },
@@ -250,11 +253,16 @@ class DiscriminativeRerankingNMTTask(FairseqTask):
             "target": label,
         }
 
-        dataset = NestedDictionaryDataset(dataset, sizes=[src_tokens.sizes],)
+        dataset = NestedDictionaryDataset(
+            dataset,
+            sizes=[src_tokens.sizes],
+        )
 
-        assert len(dataset) % self.cfg.mt_beam == 0, (
-            "dataset size (%d) is not a multiple of beam size (%d)"
-            % (len(dataset), self.cfg.mt_beam)
+        assert (
+            len(dataset) % self.cfg.mt_beam == 0
+        ), "dataset size (%d) is not a multiple of beam size (%d)" % (
+            len(dataset),
+            self.cfg.mt_beam,
         )
 
         # no need to shuffle valid/test sets
@@ -270,7 +278,10 @@ class DiscriminativeRerankingNMTTask(FairseqTask):
                 start_idx, (self.cfg.mt_beam, 1)
             ).transpose().reshape(-1)
 
-            dataset = SortDataset(dataset, sort_order=[shuffle],)
+            dataset = SortDataset(
+                dataset,
+                sort_order=[shuffle],
+            )
 
         logger.info(f"Loaded {split} with #samples: {len(dataset)}")
 
@@ -313,7 +324,8 @@ class DiscriminativeRerankingNMTTask(FairseqTask):
             "id": IdDataset(),
             "net_input": {
                 "src_tokens": RightPadDataset(
-                    src_tokens, pad_idx=self.source_dictionary.pad(),
+                    src_tokens,
+                    pad_idx=self.source_dictionary.pad(),
                 ),
                 "src_lengths": src_lengths,
             },
@@ -321,9 +333,12 @@ class DiscriminativeRerankingNMTTask(FairseqTask):
             "ntokens": NumelDataset(src_tokens, reduce=True),
         }
 
-        return NestedDictionaryDataset(dataset, sizes=[src_tokens.sizes],)
+        return NestedDictionaryDataset(
+            dataset,
+            sizes=[src_tokens.sizes],
+        )
 
-    def build_model(self, cfg: FairseqDataclass):
+    def build_model(self, cfg: FairseqDataclass, from_checkpoint: bool = False):
         return super().build_model(cfg)
 
     def build_generator(self, args):

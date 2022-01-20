@@ -256,8 +256,8 @@ class MultilingualLanguageModelingTask(LegacyFairseqTask):
 
         return cls(args, dictionary, output_dictionary, targets=targets)
 
-    def build_model(self, args):
-        model = super().build_model(args)
+    def build_model(self, args, from_checkpoint=False):
+        model = super().build_model(args, from_checkpoint)
         for target in self.targets:
             if target not in model.supported_targets:
                 raise ValueError(

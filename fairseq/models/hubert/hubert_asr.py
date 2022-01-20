@@ -269,7 +269,7 @@ class HubertEncoder(FairseqEncoder):
         if state is not None and "task_state" in state:
             # This will load the stored "dictionaries" object
             task.load_state_dict(state["task_state"])
-        model = task.build_model(w2v_args.model)
+        model = task.build_model(w2v_args.model, from_checkpoint=True)
 
         if state is not None and not cfg.no_pretrained_weights:
             # set strict=False because we omit some modules

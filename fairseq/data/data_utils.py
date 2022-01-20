@@ -400,6 +400,8 @@ def compute_mask_indices(
     min_masks: int = 0,
     no_overlap: bool = False,
     min_space: int = 0,
+    require_same_masks: bool = True,
+    pct_holes: float = 0.0,
 ) -> np.ndarray:
     """
     Computes random mask spans for a given shape
@@ -510,8 +512,14 @@ def compute_mask_indices(
 
     min_len = min([len(m) for m in mask_idcs])
     for i, mask_idc in enumerate(mask_idcs):
-        if len(mask_idc) > min_len:
+        if len(mask_idc) > min_len and require_same_masks:
             mask_idc = np.random.choice(mask_idc, min_len, replace=False)
+        if pct_holes > 0:
+            num_holes = np.rint(len(mask_idc) * pct_holes).astype(int)
+            mask_idc = np.random.choice(
+                mask_idc, len(mask_idc) - num_holes, replace=False
+            )
+
         mask[i, mask_idc] = True
 
     return mask

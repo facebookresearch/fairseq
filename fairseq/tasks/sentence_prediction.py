@@ -255,13 +255,13 @@ class SentencePredictionTask(FairseqTask):
         self.datasets[split] = dataset
         return self.datasets[split]
 
-    def build_model(self, cfg):
+    def build_model(self, cfg, from_checkpoint=False):
         from fairseq import models
 
         with open_dict(cfg) if OmegaConf.is_config(cfg) else contextlib.ExitStack():
             cfg.max_positions = self.cfg.max_positions
 
-        model = models.build_model(cfg, self)
+        model = models.build_model(cfg, self, from_checkpoint)
 
         model.register_classification_head(
             self.cfg.classification_head_name,

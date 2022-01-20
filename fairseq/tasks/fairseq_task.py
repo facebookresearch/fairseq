@@ -319,7 +319,7 @@ class FairseqTask(object):
 
         return epoch_iter
 
-    def build_model(self, cfg: FairseqDataclass):
+    def build_model(self, cfg: FairseqDataclass, from_checkpoint=False):
         """
         Build the :class:`~fairseq.models.BaseFairseqModel` instance for this
         task.
@@ -332,7 +332,7 @@ class FairseqTask(object):
         """
         from fairseq import models, quantization_utils
 
-        model = models.build_model(cfg, self)
+        model = models.build_model(cfg, self, from_checkpoint)
         model = quantization_utils.quantize_model_scalar(model, cfg)
         return model
 
@@ -655,7 +655,7 @@ class LegacyFairseqTask(FairseqTask):
     def has_sharded_data(self, split):
         return os.pathsep in getattr(self.args, "data", "")
 
-    def build_model(self, args: Namespace):
+    def build_model(self, args: Namespace, from_checkpoint=False):
         """
         Build the :class:`~fairseq.models.BaseFairseqModel` instance for this
         task.
@@ -668,7 +668,7 @@ class LegacyFairseqTask(FairseqTask):
         """
         from fairseq import models, quantization_utils
 
-        model = models.build_model(args, self)
+        model = models.build_model(args, self, from_checkpoint)
         model = quantization_utils.quantize_model_scalar(model, args)
         return model
 

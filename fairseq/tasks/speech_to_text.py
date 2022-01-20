@@ -115,11 +115,11 @@ class SpeechToTextTask(LegacyFairseqTask):
     def max_positions(self):
         return self.args.max_source_positions, self.args.max_target_positions
 
-    def build_model(self, args):
+    def build_model(self, args, from_checkpoint=False):
         args.input_feat_per_channel = self.data_cfg.input_feat_per_channel
         args.input_channels = self.data_cfg.input_channels
         args.speaker_to_id = self.speaker_to_id
-        return super(SpeechToTextTask, self).build_model(args)
+        return super(SpeechToTextTask, self).build_model(args, from_checkpoint)
 
     def build_generator(
         self,

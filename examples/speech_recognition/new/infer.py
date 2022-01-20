@@ -378,6 +378,8 @@ def main(cfg: InferConfig) -> float:
     if not cfg.common.cpu and not torch.cuda.is_available():
         raise ValueError("CUDA not found; set `cpu=True` to run without CUDA")
 
+    logger.info(cfg.common_eval.path)
+
     with InferenceProcessor(cfg) as processor:
         for sample in processor:
             processor.process_sample(sample)

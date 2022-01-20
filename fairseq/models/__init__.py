@@ -7,6 +7,7 @@
 import argparse
 import importlib
 import os
+
 from contextlib import ExitStack
 
 from fairseq.dataclass import FairseqDataclass
@@ -52,7 +53,7 @@ __all__ = [
 ]
 
 
-def build_model(cfg: FairseqDataclass, task):
+def build_model(cfg: FairseqDataclass, task, from_checkpoint=False):
 
     model = None
     model_type = getattr(cfg, "_name", None) or getattr(cfg, "arch", None)
@@ -86,7 +87,7 @@ def build_model(cfg: FairseqDataclass, task):
         if isinstance(cfg, argparse.Namespace):
             cfg = dc.from_namespace(cfg)
         else:
-            cfg = merge_with_parent(dc(), cfg)
+            cfg = merge_with_parent(dc(), cfg, from_checkpoint)
     else:
         if model_type in ARCH_CONFIG_REGISTRY:
             with open_dict(cfg) if OmegaConf.is_config(cfg) else ExitStack():
