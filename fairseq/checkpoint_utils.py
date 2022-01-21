@@ -18,8 +18,6 @@ from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
-
 from fairseq.data import data_utils
 from fairseq.dataclass.configs import CheckpointConfig
 from fairseq.dataclass.utils import (
@@ -29,6 +27,7 @@ from fairseq.dataclass.utils import (
 from fairseq.distributed.fully_sharded_data_parallel import FSDP, has_FSDP
 from fairseq.file_io import PathManager
 from fairseq.models import FairseqDecoder, FairseqEncoder
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +215,7 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
             cfg.save_dir, "checkpoint_last{}.pt".format(suffix)
         )
         first_launch = not PathManager.exists(checkpoint_path)
-        if first_launch and cfg.get("continue_once", None) is not None:
+        if first_launch and getattr(cfg, "continue_once", None) is not None:
             checkpoint_path = cfg.continue_once
         elif cfg.finetune_from_model is not None and first_launch:
             # if there is no last checkpoint to restore, start the finetune from pretrained model
