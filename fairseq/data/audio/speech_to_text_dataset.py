@@ -8,40 +8,37 @@ import io
 import logging
 import re
 from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
-from dataclasses import dataclass
 
 import numpy as np
 import torch
-from fairseq.data import (
-    ConcatDataset,
-    Dictionary,
-    FairseqDataset,
-    ResamplingDataset,
-    data_utils as fairseq_data_utils,
-)
+
+from fairseq.data import ConcatDataset, Dictionary, FairseqDataset, ResamplingDataset
+from fairseq.data import data_utils as fairseq_data_utils
 from fairseq.data.audio.audio_utils import (
+    FEATURE_OR_SF_AUDIO_FILE_EXTENSIONS,
     get_fbank,
     get_waveform,
-    read_from_stored_zip,
     is_npy_data,
     is_sf_audio_data,
     parse_path,
-    FEATURE_OR_SF_AUDIO_FILE_EXTENSIONS,
+    read_from_stored_zip,
 )
-from fairseq.data.audio.feature_transforms import CompositeAudioFeatureTransform
 from fairseq.data.audio.data_cfg import S2TDataConfig
-
+from fairseq.data.audio.feature_transforms import CompositeAudioFeatureTransform
 
 logger = logging.getLogger(__name__)
 
 
-def get_features_from_npy_or_audio(path):
+def get_features_from_npy_or_audio(path: str, start: int = 0, frames: int = -1):
     ext = Path(path).suffix
     if ext not in FEATURE_OR_SF_AUDIO_FILE_EXTENSIONS:
         raise ValueError(f'Unsupported file format for "{path}"')
-    return np.load(path) if ext == ".npy" else get_fbank(path)
+    return (
+        np.load(path) if ext == ".npy" else get_fbank(path, start=start, frames=frames)
+    )
 
 
 def get_features_or_waveform_from_stored_zip(
@@ -81,25 +78,27 @@ def get_features_or_waveform(path: str, need_waveform=False, use_sample_rate=Non
     Returns:
         features_or_waveform (numpy.ndarray): speech features or waveform.
     """
-    _path, slice_ptr = parse_path(path)
-    if len(slice_ptr) == 0:
+    parsed = parse_path(path)
+    if not parsed.is_zip:
         if need_waveform:
             return get_waveform(
-                _path, always_2d=False, output_sample_rate=use_sample_rate
+                parsed.path,
+                always_2d=False,
+                output_sample_rate=use_sample_rate,
+                frames=parsed.frames,
+                start=parsed.start,
             )[0]
-        return get_features_from_npy_or_audio(_path)
-    elif len(slice_ptr) == 2:
-        features_or_waveform = get_features_or_waveform_from_stored_zip(
-            _path,
-            slice_ptr[0],
-            slice_ptr[1],
+        return get_features_from_npy_or_audio(
+            parsed.path, start=parsed.start, frames=parsed.frames
+        )
+    else:
+        return get_features_or_waveform_from_stored_zip(
+            parsed.path,
+            byte_offset=parsed.zip_offset,
+            byte_size=parsed.zip_length,
             need_waveform=need_waveform,
             use_sample_rate=use_sample_rate,
         )
-    else:
-        raise ValueError(f"Invalid path: {path}")
-
-    return features_or_waveform
 
 
 def _collate_frames(
