@@ -419,7 +419,7 @@ class TranslationTask(FairseqTask):
 
                 def compute_bleu(meters):
                     import inspect
-
+                    import torch
                     try:
                         from sacrebleu.metrics import BLEU
 
@@ -438,8 +438,8 @@ class TranslationTask(FairseqTask):
                     bleu = comp_bleu(
                         correct=meters["_bleu_counts"].sum,
                         total=meters["_bleu_totals"].sum,
-                        sys_len=meters["_bleu_sys_len"].sum,
-                        ref_len=meters["_bleu_ref_len"].sum,
+                        sys_len=meters["_bleu_sys_len"].sum if torch.is_tensor(meters["_bleu_sys_len"].sum) == False else meters["_bleu_sys_len"].sum.long().item(),
+                        ref_len=meters["_bleu_ref_len"].sum if torch.is_tensor(meters["_bleu_ref_len"].sum) == False else meters["_bleu_ref_len"].sum.long().item(),
                         **smooth,
                     )
                     return round(bleu.score, 2)
