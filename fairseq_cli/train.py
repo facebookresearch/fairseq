@@ -495,7 +495,10 @@ def validate(
 
 
 def get_valid_stats(
-    cfg: DictConfig, trainer: Trainer, stats: Dict[str, Any], tracking_best: bool,
+    cfg: DictConfig,
+    trainer: Trainer,
+    stats: Dict[str, Any],
+    tracking_best: bool,
 ) -> Dict[str, Any]:
     stats["num_updates"] = trainer.get_num_updates()
     if tracking_best and hasattr(checkpoint_utils.save_checkpoint, "best"):
