@@ -65,8 +65,7 @@ fairseq-train ${FEATURE_MANIFEST_ROOT} --save-dir ${SAVE_DIR} \
   --num-workers 4 --max-sentences 6 --max-update 200000 \
   --task text_to_speech --criterion fastspeech2 --arch fastspeech2 \
   --clip-norm 5.0 --n-frames-per-step 1 \
-  --dropout 0.1 --attention-dropout 0.1 --activation-dropout 0.1 \
-  --encoder-normalize-before --decoder-normalize-before \
+  --dropout 0.1 --attention-dropout 0.1 \
   --optimizer adam --lr 5e-4 --lr-scheduler inverse_sqrt --warmup-updates 4000 \
   --seed 1 --update-freq 8 --eval-inference --best-checkpoint-metric mcd_loss
 ```

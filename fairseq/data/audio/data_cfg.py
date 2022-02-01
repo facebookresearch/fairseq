@@ -108,6 +108,9 @@ class S2TDataConfig(object):
         raw audio as inputs."""
         return self.config.get("use_audio_input", False)
 
+    def standardize_audio(self) -> bool:
+        return self.use_audio_input and self.config.get("standardize_audio", False)
+
     @property
     def use_sample_rate(self):
         """Needed by the dataset loader to see if the model requires

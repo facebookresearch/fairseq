@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from fairseq.data import (
     ConcatDataset,
     Dictionary,
@@ -258,10 +259,15 @@ class SpeechToTextDataset(FairseqDataset):
             need_waveform=self.cfg.use_audio_input,
             use_sample_rate=self.cfg.use_sample_rate,
         )
-        if self.feature_transforms is not None:
-            assert not self.cfg.use_audio_input
-            source = self.feature_transforms(source)
-        source = torch.from_numpy(source).float()
+        if self.cfg.use_audio_input:
+            source = torch.from_numpy(source).float()
+            if self.cfg.standardize_audio:
+                with torch.no_grad():
+                    source = F.layer_norm(source, source.shape)
+        else:
+            if self.feature_transforms is not None:
+                source = self.feature_transforms(source)
+            source = torch.from_numpy(source).float()
         return source
 
     def __getitem__(self, index: int) -> SpeechToTextDatasetItem:

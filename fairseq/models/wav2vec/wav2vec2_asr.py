@@ -162,9 +162,6 @@ class Wav2Vec2AsrConfig(FairseqDataclass):
     data: str = II("task.data")
     # this holds the loaded wav2vec args
     w2v_args: Any = None
-    checkpoint_activations: bool = field(
-        default=False, metadata={"help": "checkpoint_activations"}
-    )
     offload_activations: bool = field(
         default=False, metadata={"help": "offload_activations"}
     )
