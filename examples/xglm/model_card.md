@@ -5,13 +5,7 @@
 Meta AI
 
 ### Model type
-A multilingual autoregressive language model trained on a balanced corpus of a diverse set of languages. The largest trained model has 7.5 billion parameters. The language model can learn tasks from natural language descriptions and a few examples.
-
-### References
-Coming soon.
-
-### Citation details
-Coming soon.
+A family of multilingual autoregressive language models (ranging from 564 million to 7.5 billion parameters) trained on a balanced corpus of a diverse set of languages. The language model can learn tasks from natural language descriptions and a few examples.
 
 ### Model Feedback Channel
 https://github.com/pytorch/fairseq
@@ -71,11 +65,11 @@ XWinograd is a multilingual collection of Winograd Schemas in six languages that
 PAWS-X contains 23,659 human translated PAWS evaluation pairs and 296,406 machine translated training pairs in six typologically distinct languages: French, Spanish, German, Chinese, Japanese, and Korean. All translated pairs are sourced from examples in PAWS-Wiki.
 
 ## Responsible AI (RAI) evaluation
-### Hate speech
-Hate speech datasets introduced by Huang et al. (2020). This dataset is a multilingual Twitter corpus for the task of hate speech detection with inferred four author demographic factors: age, country, gender and race/ethnicity. The corpus covers five languages: English, Italian, Polish, Portuguese and Spanish.
+### Hate speech (Huang et al. 2020)
+This is a multilingual Twitter corpus for the task of hate speech detection with inferred four author demographic factors: age, country, gender and race/ethnicity. The corpus covers five languages: English, Italian, Polish, Portuguese and Spanish.
 
-### Bias dataset
-This dataset by De-Arteaga et al. 2019 is a bias detection dataset, where the aim is to study gender bias based on identifying a person’s occupation from their bios.
+### Bias dataset (De-Arteaga et al. 2019)
+The aim of this dataset is to study the gender bias of models that identify a person’s occupation from their bios.
 
 ----
 
@@ -119,3 +113,40 @@ Maria De-Arteaga, Alexey Romanov, Hanna Wallach, Jennifer Chayes, Christian Borg
 Nasrin Mostafazadeh, Nathanael Chambers, Xiaodong He, Devi Parikh, Dhruv Batra, Lucy Vanderwende, Pushmeet Kohli, James F. Allen. A Corpus and Evaluation Framework for Deeper Understanding of Commonsense Stories. CoRR abs/1604.01696.
 
 Jieyu Zhao, Subhabrata Mukherjee, Saghar Hosseini, Kai-Wei Chang, and Ahmed Hassan Awadallah. 2020. Gender bias in multilingual embeddings and crosslingual transfer. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, pages 2896–2907.
+
+## Citation details
+```
+@article{DBLP:journals/corr/abs-2112-10668,
+  author    = {Xi Victoria Lin and
+               Todor Mihaylov and
+               Mikel Artetxe and
+               Tianlu Wang and
+               Shuohui Chen and
+               Daniel Simig and
+               Myle Ott and
+               Naman Goyal and
+               Shruti Bhosale and
+               Jingfei Du and
+               Ramakanth Pasunuru and
+               Sam Shleifer and
+               Punit Singh Koura and
+               Vishrav Chaudhary and
+               Brian O'Horo and
+               Jeff Wang and
+               Luke Zettlemoyer and
+               Zornitsa Kozareva and
+               Mona T. Diab and
+               Veselin Stoyanov and
+               Xian Li},
+  title     = {Few-shot Learning with Multilingual Language Models},
+  journal   = {CoRR},
+  volume    = {abs/2112.10668},
+  year      = {2021},
+  url       = {https://arxiv.org/abs/2112.10668},
+  eprinttype = {arXiv},
+  eprint    = {2112.10668},
+  timestamp = {Tue, 04 Jan 2022 15:59:27 +0100},
+  biburl    = {https://dblp.org/rec/journals/corr/abs-2112-10668.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+```
