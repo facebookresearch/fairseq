@@ -17,6 +17,33 @@ Model | Layers | Model Dim | Languages | Download
 `XGLM 7.5B` | 32 | 4096 | trained on 30 languages|  [xglm.7.5B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.7.5B.tar.gz)
 `XGLM 4.5B` | 48 | 2048 | trained on 134 languages|  [xglm.4.5B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.4.5B.tar.gz)
 
+## Pre-training Data Format
+Our models were pre-trained with data in the following format (i.e. paragraphs are separated with new lines and documents were separated with double new lines).
+```
+<doc0,para0,tok0> ... <doc0,para0,tokX0> # X0: number of tokens in para0 of doc0
+<doc0,para1,tok0> ... <doc0,para1,tokY0> # Y0: number of tokens in para1 of doc0
+
+<doc1,para0,tok0> ... <doc1,para0,tokX1> # X1: number of tokens in para0 of doc1
+<doc1,para1,tok0> ... <doc1,para1,tokY1> # Y1: number of tokens in para1 of doc1
+
+...
+```
+Fairseq's preprocessing replaces newlines with the end-of-sentence symbol (`</s>`). As a result, the models never saw newline characters during pretraining and the same preprocessing should be run prior to few-shot inference to maximize performance. For example, our language model scoring function has `replace_newlines_with_eos` argument to trigger this preprocessing:
+```python
+from fairseq.models.transformer_lm import TransformerLanguageModel
+
+model_dir = 'path_to_decompressed_tar_gz_dir'
+lm = TransformerLanguageModel.from_pretrained(model_dir, bpe='sentencepiece')
+
+text = """First paragraph of the first document.
+Second paragraph of the first document.
+
+First paragraph of the second document.
+"""
+tokens = lm.score(text, replace_newlines_with_eos=True)['tokens']
+assert '\n' not in lm.decode(tokens)  # no newlines were encoded
+```
+
 ## Evaluation
 
 ### Example (COPA)
@@ -110,6 +137,11 @@ for lang in ['en', 'zh', 'hi']:
 # hi-0 1 1
 # hi-1 0 0
 ```
+
+## Preprint
+[Few-shot Learning with Multilingual Language Models](https://arxiv.org/abs/2112.10668).
+Xi Victoria Lin*, Todor Mihaylov, Mikel Artetxe, Tianlu Wang, Shuohui Chen, Daniel Simig, Myle Ott, Naman Goyal, Shruti Bhosale, Jingfei Du, Ramakanth Pasunuru, Sam Shleifer, Punit Singh Koura, Vishrav Chaudhary, Brian O'Horo, Jeff Wang, Luke Zettlemoyer, Zornitsa Kozareva, Mona Diab, Veselin Stoyanov, Xian Li* (* Equal Contribution).
+ArXiv 2021.
 
 ## Citation
 ```
