@@ -5,18 +5,19 @@
 
 import contextlib
 from argparse import Namespace
+from dataclasses import dataclass, field
 from typing import Any
 
 import torch
 import torch.nn as nn
-from dataclasses import dataclass, field
+from omegaconf import II, MISSING
+
 from fairseq import checkpoint_utils, tasks, utils
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.models import BaseFairseqModel, FairseqEncoder, register_model
 from fairseq.models.hubert.hubert import MASKING_DISTRIBUTION_CHOICES
 from fairseq.tasks import FairseqTask
-from omegaconf import II, MISSING
 
 
 @dataclass
@@ -348,7 +349,7 @@ class HubertEncoder(FairseqEncoder):
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):
     m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
-    nn.init.normal_(m.weight, mean=0, std=embedding_dim ** -0.5)
+    nn.init.normal_(m.weight, mean=0, std=embedding_dim**-0.5)
     nn.init.constant_(m.weight[padding_idx], 0)
     return m
 

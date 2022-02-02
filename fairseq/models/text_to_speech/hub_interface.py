@@ -4,9 +4,9 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
-from pathlib import Path
-from typing import Optional, Dict, Tuple
 import random
+from pathlib import Path
+from typing import Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -113,7 +113,9 @@ class TTSHubInterface(nn.Module):
             logger.info(f"speaker: {spk}")
         spk = None if spk is None else torch.Tensor([[spk]]).long()
 
-        src_tokens = task.src_dict.encode_line(tokenized, add_if_not_exist=False).view(1, -1)
+        src_tokens = task.src_dict.encode_line(tokenized, add_if_not_exist=False).view(
+            1, -1
+        )
         src_lengths = torch.Tensor([len(tokenized.split())]).long()
         return {
             "net_input": {

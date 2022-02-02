@@ -4,10 +4,10 @@
 # LICENSE file in the root directory of this source tree.
 
 import unittest
-from unittest.mock import patch
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Optional
+from unittest.mock import patch
 
 import torch
 
@@ -107,9 +107,7 @@ class TestEMA(unittest.TestCase):
             self.assertTrue(torch.allclose(ema_param, param))
 
         # Check that step_internal is called once
-        with patch.object(
-            ema, "_step_internal", return_value=None
-        ) as mock_method:
+        with patch.object(ema, "_step_internal", return_value=None) as mock_method:
             ema.step(model)
             mock_method.assert_called_once_with(model, None)
 
@@ -151,9 +149,7 @@ class TestEMA(unittest.TestCase):
                 )
 
         # Check that step_internal is called once
-        with patch.object(
-            ema, "_step_internal", return_value=None
-        ) as mock_method:
+        with patch.object(ema, "_step_internal", return_value=None) as mock_method:
             ema.step(model, updates=updates)
             mock_method.assert_called_once_with(model, updates)
 

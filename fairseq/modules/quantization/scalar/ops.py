@@ -18,7 +18,7 @@ def emulate_int(w, bits, method, scale=None, zero_point=None):
 
 def quantize(w, scale, zero_point, bits=8):
     # In the default behavior, max_val = 255.
-    max_val = 2 ** bits - 1
+    max_val = 2**bits - 1
     return (
         torch.clamp(torch.round(w / scale + zero_point), 0, max_val) - zero_point
     ) * scale

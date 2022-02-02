@@ -8,32 +8,27 @@ import io
 import logging
 import re
 from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
-from dataclasses import dataclass
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from fairseq.data import (
-    ConcatDataset,
-    Dictionary,
-    FairseqDataset,
-    ResamplingDataset,
-    data_utils as fairseq_data_utils,
-)
+
+from fairseq.data import ConcatDataset, Dictionary, FairseqDataset, ResamplingDataset
+from fairseq.data import data_utils as fairseq_data_utils
 from fairseq.data.audio.audio_utils import (
+    FEATURE_OR_SF_AUDIO_FILE_EXTENSIONS,
     get_fbank,
     get_waveform,
-    read_from_stored_zip,
     is_npy_data,
     is_sf_audio_data,
     parse_path,
-    FEATURE_OR_SF_AUDIO_FILE_EXTENSIONS,
+    read_from_stored_zip,
 )
-from fairseq.data.audio.feature_transforms import CompositeAudioFeatureTransform
 from fairseq.data.audio.data_cfg import S2TDataConfig
-
+from fairseq.data.audio.feature_transforms import CompositeAudioFeatureTransform
 
 logger = logging.getLogger(__name__)
 
@@ -455,7 +450,7 @@ class SpeechToTextDatasetCreator(object):
 
         sz_sum = sum(v for v in lp_to_sz.values())
         lp_to_prob = {k: v / sz_sum for k, v in lp_to_sz.items()}
-        lp_to_tgt_prob = {k: v ** alpha for k, v in lp_to_prob.items()}
+        lp_to_tgt_prob = {k: v**alpha for k, v in lp_to_prob.items()}
         prob_sum = sum(v for v in lp_to_tgt_prob.values())
         lp_to_tgt_prob = {k: v / prob_sum for k, v in lp_to_tgt_prob.items()}
         lp_to_sz_ratio = {

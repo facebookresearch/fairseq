@@ -8,6 +8,7 @@ from dataclasses import _MISSING_TYPE, dataclass, field
 from typing import Any, List, Optional
 
 import torch
+from omegaconf import II, MISSING
 
 from fairseq.dataclass.constants import (
     DATASET_IMPL_CHOICES,
@@ -20,8 +21,6 @@ from fairseq.dataclass.constants import (
     PRINT_ALIGNMENT_CHOICES,
     ZERO_SHARDING_CHOICES,
 )
-
-from omegaconf import II, MISSING
 
 
 @dataclass
@@ -152,7 +151,7 @@ class CommonConfig(FairseqDataclass):
         default=False, metadata={"help": "don't flatten FP16 grads tensor"}
     )
     fp16_init_scale: int = field(
-        default=2 ** 7, metadata={"help": "default FP16 loss scale"}
+        default=2**7, metadata={"help": "default FP16 loss scale"}
     )
     fp16_scale_window: Optional[int] = field(
         default=None,
@@ -188,7 +187,7 @@ class CommonConfig(FairseqDataclass):
         },
     )
     amp_init_scale: int = field(
-        default=2 ** 7, metadata={"help": "default AMP loss scale"}
+        default=2**7, metadata={"help": "default AMP loss scale"}
     )
     amp_scale_window: Optional[int] = field(
         default=None,

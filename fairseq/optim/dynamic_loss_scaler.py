@@ -7,7 +7,7 @@
 class DynamicLossScaler(object):
     def __init__(
         self,
-        init_scale=2.0 ** 15,
+        init_scale=2.0**15,
         scale_factor=2.0,
         scale_window=2000,
         tolerance=0.0,

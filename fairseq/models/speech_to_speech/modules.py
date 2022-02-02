@@ -26,7 +26,7 @@ class StackedEmbedding(nn.Embedding):
     def __init__(self, num_embeddings, embed_dim, padding_idx, num_stacked=1):
         super().__init__(num_embeddings, embed_dim, padding_idx)
         # follow transformer.Embedding
-        nn.init.normal_(self.weight, mean=0, std=embed_dim ** -0.5)
+        nn.init.normal_(self.weight, mean=0, std=embed_dim**-0.5)
         nn.init.constant_(self.weight[padding_idx], 0)
 
         self.offset = (

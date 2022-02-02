@@ -19,7 +19,6 @@ from fairseq.distributed import (
     TPUDistributedDataParallel,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -72,8 +71,8 @@ def DistributedFairseqModel(args, model, process_group, device):
             logger.info("enable fp16 communication hook in DDP")
             try:
                 from torch.distributed.algorithms.ddp_comm_hooks import (
-                    register_ddp_comm_hook,
                     DDPCommHookType,
+                    register_ddp_comm_hook,
                 )
             except:
                 logger.error(
@@ -87,7 +86,7 @@ def DistributedFairseqModel(args, model, process_group, device):
     elif args.ddp_backend in {"no_c10d", "legacy_ddp"}:
         wrapped_model = LegacyDistributedDataParallel(
             module=model.to(device),
-            buffer_size=2 ** 28,
+            buffer_size=2**28,
             process_group=process_group,
         )
         # forward missing getattr and state_dict/load_state_dict to orig model
