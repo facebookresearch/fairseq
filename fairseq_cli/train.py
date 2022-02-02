@@ -31,6 +31,7 @@ from fairseq import checkpoint_utils, options, quantization_utils, tasks, utils
 from fairseq.data import data_utils, iterators
 from fairseq.data.plasma_utils import PlasmaStore
 from fairseq.dataclass.configs import FairseqConfig
+from fairseq.dataclass.initialize import add_defaults
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.distributed import fsdp_enable_wrap, fsdp_wrap
 from fairseq.distributed import utils as distributed_utils
@@ -45,6 +46,7 @@ def main(cfg: FairseqConfig) -> None:
         cfg = convert_namespace_to_omegaconf(cfg)
 
     utils.import_user_module(cfg.common)
+    add_defaults(cfg)
 
     if (
         distributed_utils.is_master(cfg.distributed_training)
