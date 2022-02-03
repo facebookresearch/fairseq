@@ -334,8 +334,8 @@ class InferenceProcessor:
             self.num_sentences,
             self.gen_timer.n,
             self.gen_timer.sum,
-            self.num_sentences / self.gen_timer.sum,
-            1.0 / self.gen_timer.avg,
+            self.num_sentences / (self.gen_timer.sum + 1e-6),
+            1.0 / (self.gen_timer.avg + 1e-6),
         )
 
 

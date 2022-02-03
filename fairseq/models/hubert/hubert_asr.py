@@ -144,7 +144,7 @@ class HubertCtc(BaseFairseqModel):
     @classmethod
     def build_model(cls, cfg: HubertCtcConfig, task: FairseqTask):
         """Build a new model instance."""
-        w2v_encoder = HubertEncoder(cfg, task.target_dictionary)
+        w2v_encoder = HubertEncoder(cfg, task)
         return cls(cfg, w2v_encoder)
 
     def get_normalized_probs(self, net_output, log_probs):
@@ -225,7 +225,7 @@ class HubertSeq2SeqConfig(HubertAsrConfig):
 
 
 class HubertEncoder(FairseqEncoder):
-    def __init__(self, cfg: HubertAsrConfig, tgt_dict=None):
+    def __init__(self, cfg: HubertAsrConfig, task):
         self.apply_mask = cfg.apply_mask
 
         arg_overrides = {
@@ -266,19 +266,21 @@ class HubertEncoder(FairseqEncoder):
         )
 
         w2v_args.task.data = cfg.data
-        task = tasks.setup_task(w2v_args.task)
+        pretrain_task = tasks.setup_task(w2v_args.task)
         if state is not None and "task_state" in state:
             # This will load the stored "dictionaries" object
-            task.load_state_dict(state["task_state"])
-        model = task.build_model(w2v_args.model, from_checkpoint=True)
+            pretrain_task.load_state_dict(state["task_state"])
+        else:
+            pretrain_task.load_state_dict(task.state_dict())
 
+        model = pretrain_task.build_model(w2v_args.model, from_checkpoint=True)
         if state is not None and not cfg.no_pretrained_weights:
             # set strict=False because we omit some modules
             model.load_state_dict(state["model"], strict=False)
 
         model.remove_pretraining_modules()
 
-        super().__init__(task.source_dictionary)
+        super().__init__(pretrain_task.source_dictionary)
 
         d = w2v_args.model.encoder_embed_dim
 
@@ -288,8 +290,8 @@ class HubertEncoder(FairseqEncoder):
         self.freeze_finetune_updates = cfg.freeze_finetune_updates
         self.num_updates = 0
 
-        if tgt_dict is not None:
-            self.proj = Linear(d, len(tgt_dict))
+        if task.target_dictionary is not None:
+            self.proj = Linear(d, len(task.target_dictionary))
         elif getattr(cfg, "decoder_embed_dim", d) != d:
             self.proj = Linear(d, cfg.decoder_embed_dim)
         else:
