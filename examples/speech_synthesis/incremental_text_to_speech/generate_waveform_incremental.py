@@ -110,8 +110,6 @@ def main(args):
         for s in t:
             sample_idx, entry = s
 
-            if sample_idx < 3600:
-                continue
             args.results_path = main_results_path / str(sample_idx)
             args.results_path.mkdir(parents=True, exist_ok=True)
             latency_log = defaultdict(dict)
@@ -236,11 +234,11 @@ def summarize_latency(args, log_paths, out_file, sample_rate):
                                                                                sample_rate)
 
     with open(out_file, "w") as f:
-        f.write("Avg speaking latency (s), i.e. time elapsed between last input word and end of synthesized speech: "
-                "{0:0.2f}".format(avg_latency) + "\n")
-        f.write("Avg computation time (s): {0:0.2f}".format(avg_compute) + "\n")
-        f.write("Avg utterance play time (s): {0:0.2f}".format(avg_duration) + "\n")
-        f.write("Avg discontinuity (s): {0:0.2f}".format(avg_discontinuity) + "\n")
+        f.write(f"Avg speaking latency (s), i.e. time elapsed between last input word and end of synthesized speech: "
+                "{avg_latency:.2f}\n")
+        f.write(f"Avg computation time (s): {avg_compute:.2f}\n")
+        f.write(f"Avg utterance play time (s): {avg_duration:.2f}\n")
+        f.write(f"Avg discontinuity (s): {avg_discontinuity:.2f}\n")
 
 
 def cli_main():

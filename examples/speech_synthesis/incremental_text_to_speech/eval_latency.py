@@ -45,7 +45,6 @@ def calc_avg_stats(log_path, gen_audio_with_discontinuity=False, sr=22_050):
         utt_id = path.basename(log_file).split("_")[0]
         utt_dir = os.path.dirname(log_file)
         if gen_audio_with_discontinuity:
-            # outfile = path.join(utt_dir, "{0}_discont.wav".format(utt_id))
             out_frames_discont = []
 
         # Loop through words
@@ -120,9 +119,13 @@ def calc_avg_stats(log_path, gen_audio_with_discontinuity=False, sr=22_050):
             total_discontinuity / len(log_files))
 
 
-def trim_artifacts(bin_stream, num_frames):
+def trim_artifacts(bin_stream, num_frames, threshold=256):
+    """
+    The outputaudio will contain undesired popping artifacts when starting or ending with large non-zero values.
+    With this method, we trim the leading and trailing non-zero values exceeding a given threshold.
+    """
     def is_near_zero(i):
-        return abs(i) < 256
+        return abs(i) < threshold
 
     # Ensure we always start and end around 0
     first_near_zero_idx, last_near_zero_idx = None, None
@@ -145,10 +148,10 @@ def main(args):
                                                                                args.generate_audio_with_discontinuity)
 
     with open(args.output_path, "w") as f:
-        f.write("Avg speaking latency (s): {0:0.2f}".format(avg_latency) + "\n")
-        f.write("Avg computation time (s): {0:0.2f}".format(avg_compute) + "\n")
-        f.write("Avg play time (s): {0:0.2f}".format(avg_duration) + "\n")
-        f.write("Avg discontinuity (s): {0:0.2f}".format(avg_discontinuity) + "\n")
+        f.write(f"Avg speaking latency (s): {avg_latency:.2f}\n")
+        f.write(f"Avg computation time (s): {avg_compute:.2f}\n")
+        f.write(f"Avg play time (s): {avg_duration:.2f}\n")
+        f.write(f"Avg discontinuity (s): {avg_discontinuity:.2f}\n")
 
 
 if __name__ == '__main__':
