@@ -12,7 +12,11 @@ class TestS2TConformer(TestFairseqSpeech):
         self.set_up_librispeech()
 
     def test_librispeech_s2t_conformer_s_checkpoint(self):
-        self.librispeech_s2t_test_base("librispeech_conformer_rel_pos_s.pt", 12)
+        self.base_test(
+            ckpt_name="librispeech_conformer_rel_pos_s.pt",
+            reference_score=12,
+            arg_overrides={"config_yaml": "cfg_librispeech.yaml"},
+        )
 
 
 if __name__ == "__main__":
