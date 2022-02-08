@@ -23,6 +23,7 @@ km_nunits[base]=500
 test_dir=./examples/hubert/tests
 split=sample
 
+echo -e "${test_dir}\n6313-76958-0021.flac\t190800" > "${test_dir}/${split}.tsv"
 
 check_feature () {
   echo "checking features..."

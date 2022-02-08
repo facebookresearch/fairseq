@@ -83,7 +83,7 @@ def extract_fbank_features(
     _waveform, _ = convert_waveform(waveform, sample_rate, to_mono=True)
     # Kaldi compliance: 16-bit signed integers
     _waveform = _waveform * (2 ** 15)
-    _waveform = _waveform[0].numpy()
+    _waveform = _waveform.numpy()
 
     features = _get_kaldi_fbank(_waveform, sample_rate, n_mel_bins)
     if features is None:

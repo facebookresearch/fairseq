@@ -454,7 +454,10 @@ class RobertaModel(FairseqEncoderModel):
                     state_dict[prefix + "classification_heads." + k] = v
 
             # adapt data2vec models
-            if "encoder._ema" in state_dict and "encoder.lm_head.weight" not in state_dict:
+            if (
+                "encoder._ema" in state_dict
+                and "encoder.lm_head.weight" not in state_dict
+            ):
                 lm_state = self.encoder.lm_head.state_dict()
                 for k, v in lm_state.items():
                     state_dict["encoder.lm_head." + k] = v

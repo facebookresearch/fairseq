@@ -38,7 +38,7 @@ def encoder_init(m):
 
 def Embedding(num_embeddings, embedding_dim):
     m = nn.Embedding(num_embeddings, embedding_dim)
-    nn.init.normal_(m.weight, mean=0, std=embedding_dim ** -0.5)
+    nn.init.normal_(m.weight, mean=0, std=embedding_dim**-0.5)
     return m
 
 

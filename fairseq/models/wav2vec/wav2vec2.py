@@ -11,9 +11,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from fairseq import utils
 from fairseq.data.data_utils import compute_mask_indices
 from fairseq.dataclass import ChoiceEnum, FairseqDataclass
+from fairseq.distributed import fsdp_wrap
 from fairseq.models import BaseFairseqModel, register_model
 from fairseq.modules import (
     Fp32GroupNorm,
@@ -22,15 +24,15 @@ from fairseq.modules import (
     GumbelVectorQuantizer,
     LayerNorm,
     MultiheadAttention,
+    RelPositionalEncoding,
     SamePad,
     TransposeLast,
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
+from fairseq.modules.conformer_layer import ConformerWav2Vec2EncoderLayer
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from fairseq.utils import buffered_arange, index_put, is_xla_tensor
-from fairseq.distributed import fsdp_wrap
-from fairseq.modules.conformer_layer import ConformerWav2Vec2EncoderLayer
-from fairseq.modules import RelPositionalEncoding
+
 from .utils import pad_to_multiple
 
 EXTRACTOR_MODE_CHOICES = ChoiceEnum(["default", "layer_norm"])
@@ -549,7 +551,7 @@ class Wav2Vec2Model(BaseFairseqModel):
 
         if is_xla_tensor(logits) or neg_is_pos.any():
             if not hasattr(self, "_inftensor"):
-                fillval = -float(2 ** 30)
+                fillval = -float(2**30)
                 self._inftensor = (
                     torch.tensor(fillval).to(x.device)
                     if is_xla_tensor(logits)

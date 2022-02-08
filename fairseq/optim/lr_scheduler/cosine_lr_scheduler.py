@@ -125,17 +125,17 @@ class CosineLRSchedule(FairseqLRScheduler):
                         1 - curr_updates / self.period * (1 - self.t_mult), self.t_mult
                     )
                 )
-                t_i = self.t_mult ** i * self.period
+                t_i = self.t_mult**i * self.period
                 t_curr = (
                     curr_updates
-                    - (1 - self.t_mult ** i) / (1 - self.t_mult) * self.period
+                    - (1 - self.t_mult**i) / (1 - self.t_mult) * self.period
                 )
             else:
                 i = math.floor(curr_updates / self.period)
                 t_i = self.period
                 t_curr = curr_updates - (self.period * i)
 
-            lr_shrink = self.lr_shrink ** i
+            lr_shrink = self.lr_shrink**i
             min_lr = self.cfg.min_lr * lr_shrink
             max_lr = self.max_lr * lr_shrink
 

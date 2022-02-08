@@ -4,14 +4,13 @@
 # LICENSE file in the root directory of this source tree.
 
 
-from pathlib import Path
-from typing import BinaryIO, Optional, Tuple, Union, List
 import mmap
+from pathlib import Path
+from typing import BinaryIO, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-
 
 SF_AUDIO_FILE_EXTENSIONS = {".wav", ".flac", ".ogg"}
 FEATURE_OR_SF_AUDIO_FILE_EXTENSIONS = {".npy", ".wav", ".flac", ".ogg"}
@@ -112,7 +111,7 @@ def get_waveform(
     )
 
     if not normalization:
-        waveform *= 2 ** 15  # denormalized to 16-bit signed integers
+        waveform *= 2**15  # denormalized to 16-bit signed integers
     if not always_2d:
         waveform = waveform.squeeze(axis=0)
     return waveform, sample_rate
@@ -123,7 +122,7 @@ def _get_kaldi_fbank(
 ) -> Optional[np.ndarray]:
     """Get mel-filter bank features via PyKaldi."""
     try:
-        from kaldi.feat.fbank import FbankOptions, Fbank
+        from kaldi.feat.fbank import Fbank, FbankOptions
         from kaldi.feat.mel import MelBanksOptions
         from kaldi.feat.window import FrameExtractionOptions
         from kaldi.matrix import Vector
@@ -275,7 +274,7 @@ class TTSSpectrogram(torch.nn.Module):
         x = F.conv1d(x, self.basis, stride=self.hop_length)
         real_part = x[:, : self.n_fft // 2 + 1, :]
         imag_part = x[:, self.n_fft // 2 + 1 :, :]
-        magnitude = torch.sqrt(real_part ** 2 + imag_part ** 2)
+        magnitude = torch.sqrt(real_part**2 + imag_part**2)
         if self.return_phase:
             phase = torch.atan2(imag_part, real_part)
             return magnitude, phase

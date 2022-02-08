@@ -17,6 +17,8 @@ from itertools import chain
 from typing import Any, Dict, List
 
 import torch
+from omegaconf import OmegaConf
+
 from fairseq import checkpoint_utils, models, optim, utils
 from fairseq.dataclass.configs import FairseqConfig
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
@@ -27,7 +29,6 @@ from fairseq.models.ema import build_ema
 from fairseq.nan_detector import NanDetector
 from fairseq.optim import lr_scheduler
 from fairseq.utils import safe_hasattr
-from omegaconf import OmegaConf
 
 logger = logging.getLogger(__name__)
 
@@ -1253,7 +1254,7 @@ class Trainer(object):
             total_norm = distributed_utils.all_reduce(
                 total_norm, group=self.data_parallel_process_group
             )
-            return total_norm ** 0.5
+            return total_norm**0.5
 
         should_agg_norm = self.is_fsdp and (
             self.data_parallel_process_group is not None

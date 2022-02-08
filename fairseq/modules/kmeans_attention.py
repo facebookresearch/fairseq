@@ -1,11 +1,11 @@
+import math
+from functools import reduce, wraps
+from inspect import isfunction
+from operator import mul
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import math
-from inspect import isfunction
-from operator import mul
-from functools import reduce, wraps
-
 from aml.multimodal_video.utils.einops.lib import rearrange, repeat
 from aml.multimodal_video.utils.einops.lib.layers.torch import Rearrange
 
@@ -476,7 +476,7 @@ class KmeansAttention(nn.Module):
         )
         k, v = map(lambda x: torch.cat(x, dim=3), ((m_k, k), (m_v, v)))
 
-        dots = torch.einsum("bhnid,bhnjd->bhnij", q, k) * (d ** -0.5)
+        dots = torch.einsum("bhnid,bhnjd->bhnij", q, k) * (d**-0.5)
 
         mask_value = max_neg_value(dots)
 

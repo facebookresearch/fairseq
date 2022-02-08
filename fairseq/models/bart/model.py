@@ -6,19 +6,18 @@
 BART: Denoising Sequence-to-Sequence Pre-training for
 Natural Language Generation, Translation, and Comprehension
 """
-from typing import Optional
-
 import logging
+from typing import Optional
 
 import torch
 import torch.nn as nn
+
 from fairseq import utils
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.transformer import TransformerModel
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
 from .hub_interface import BARTHubInterface
-
 
 logger = logging.getLogger(__name__)
 
@@ -247,7 +246,7 @@ class BARTModel(TransformerModel):
             embed_dim = state_dict["encoder.embed_tokens.weight"].size(1)
 
             new_lang_embed_to_add = torch.zeros(num_langids_to_add, embed_dim)
-            nn.init.normal_(new_lang_embed_to_add, mean=0, std=embed_dim ** -0.5)
+            nn.init.normal_(new_lang_embed_to_add, mean=0, std=embed_dim**-0.5)
             new_lang_embed_to_add = new_lang_embed_to_add.to(
                 dtype=state_dict["encoder.embed_tokens.weight"].dtype,
             )

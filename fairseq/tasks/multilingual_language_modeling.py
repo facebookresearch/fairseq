@@ -272,7 +272,7 @@ class MultilingualLanguageModelingTask(LegacyFairseqTask):
         languages by upsampling them.
         """
         prob = dataset_lens / dataset_lens.sum()
-        smoothed_prob = prob ** self.args.multilang_sampling_alpha
+        smoothed_prob = prob**self.args.multilang_sampling_alpha
         smoothed_prob = smoothed_prob / smoothed_prob.sum()
         return smoothed_prob
 

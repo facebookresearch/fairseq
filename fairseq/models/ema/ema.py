@@ -16,6 +16,9 @@ EMA is a smoothed/ensemble model which might have better performance
 when used for inference or further fine-tuning. EMA class has a
 reverse function to load the EMA params into a model and use it
 like a regular model.
+
+This implementation is used for trainer-level ema tracking. For EMA tracking
+inside the model, please use fairseq/modules/ema_module.py instead.
 """
 
 import copy
@@ -185,11 +188,11 @@ class EMA(object):
             self._set_decay(
                 0 if updates < self.config.ema_start_update else self.config.ema_decay
             )
-            if updates is not None and self.config.ema_update_freq > 1:
-                self.update_freq_counter += 1
-                if self.update_freq_counter >= self.config.ema_update_freq:
-                    self._step_internal(new_model, updates)
-                    self.update_freq_counter = 0
+        if self.config.ema_update_freq > 1:
+            self.update_freq_counter += 1
+            if self.update_freq_counter >= self.config.ema_update_freq:
+                self._step_internal(new_model, updates)
+                self.update_freq_counter = 0
         else:
             self._step_internal(new_model, updates)
 

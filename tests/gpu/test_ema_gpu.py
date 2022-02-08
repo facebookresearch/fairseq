@@ -36,6 +36,7 @@ class EMAConfig(object):
     ema_start_update: int = 0
     ema_fp32: bool = False
     ema_seed_model: Optional[str] = None
+    ema_update_freq: int = 1
 
 
 @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
