@@ -34,6 +34,7 @@ class TestLMContextWindow(unittest.TestCase):
             dataset=dataset,
             batch_size=1,
             context_window=2,
+            num_workers=0,
         )
 
         batch = next(eval_dataloader)
