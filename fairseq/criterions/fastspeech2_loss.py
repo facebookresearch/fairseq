@@ -20,9 +20,7 @@ from fairseq.models.fairseq_model import FairseqEncoderModel
 
 @dataclass
 class FastSpeech2CriterionConfig(FairseqDataclass):
-    ctc_weight: float = field(
-        default=0.0, metadata={"help": "weight for CTC loss"}
-    )
+    ctc_weight: float = field(default=0.0, metadata={"help": "weight for CTC loss"})
 
 
 @register_criterion("fastspeech2", dataclass=FastSpeech2CriterionConfig)
@@ -44,7 +42,7 @@ class FastSpeech2Loss(FairseqCriterion):
             speaker=sample["speaker"],
             durations=sample["durations"],
             pitches=sample["pitches"],
-            energies=sample["energies"]
+            energies=sample["energies"],
         )
 
         src_mask = lengths_to_mask(sample["net_input"]["src_lengths"])
@@ -57,8 +55,7 @@ class FastSpeech2Loss(FairseqCriterion):
         feat_out, feat = _feat_out[tgt_mask], sample["target"][tgt_mask]
         l1_loss = F.l1_loss(feat_out, feat, reduction=reduction)
         if _feat_out_post is not None:
-            l1_loss += F.l1_loss(_feat_out_post[tgt_mask], feat,
-                                 reduction=reduction)
+            l1_loss += F.l1_loss(_feat_out_post[tgt_mask], feat, reduction=reduction)
 
         pitch_loss = F.mse_loss(pitch_out, pitches, reduction=reduction)
         energy_loss = F.mse_loss(energy_out, energies, reduction=reduction)
@@ -69,16 +66,23 @@ class FastSpeech2Loss(FairseqCriterion):
         log_dur = torch.log(dur + 1)[src_mask]
         dur_loss = F.mse_loss(log_dur_out, log_dur, reduction=reduction)
 
-        ctc_loss = torch.tensor(0.).type_as(l1_loss)
-        if self.ctc_weight > 0.:
+        ctc_loss = torch.tensor(0.0).type_as(l1_loss)
+        if self.ctc_weight > 0.0:
             lprobs = model.get_normalized_probs((_feat_out,), log_probs=True)
             lprobs = lprobs.transpose(0, 1)  # T x B x C
             src_mask = lengths_to_mask(src_lens)
             src_tokens_flat = src_tokens.masked_select(src_mask)
-            ctc_loss = F.ctc_loss(
-                lprobs, src_tokens_flat, tgt_lens, src_lens,
-                reduction=reduction, zero_infinity=True
-            ) * self.ctc_weight
+            ctc_loss = (
+                F.ctc_loss(
+                    lprobs,
+                    src_tokens_flat,
+                    tgt_lens,
+                    src_lens,
+                    reduction=reduction,
+                    zero_infinity=True,
+                )
+                * self.ctc_weight
+            )
 
         loss = l1_loss + dur_loss + pitch_loss + energy_loss + ctc_loss
 
@@ -102,8 +106,12 @@ class FastSpeech2Loss(FairseqCriterion):
         ntot = sum(ns)
         ws = [n / (ntot + 1e-8) for n in ns]
         for key in [
-            "loss", "l1_loss", "dur_loss", "pitch_loss", "energy_loss",
-            "ctc_loss"
+            "loss",
+            "l1_loss",
+            "dur_loss",
+            "pitch_loss",
+            "energy_loss",
+            "ctc_loss",
         ]:
             vals = [log.get(key, 0) for log in logging_outputs]
             val = sum(val * w for val, w in zip(vals, ws))
@@ -115,10 +123,10 @@ class FastSpeech2Loss(FairseqCriterion):
             return
         n = sum(log.get("targ_frames", 0) for log in logging_outputs)
         for key, new_key in [
-                ("mcd_loss", "mcd_loss"),
-                ("pred_frames", "pred_ratio"),
-                ("nins", "ins_rate"),
-                ("ndel", "del_rate"),
+            ("mcd_loss", "mcd_loss"),
+            ("pred_frames", "pred_ratio"),
+            ("nins", "ins_rate"),
+            ("ndel", "del_rate"),
         ]:
             val = sum(log.get(key, 0) for log in logging_outputs)
             metrics.log_scalar(new_key, val / n, n, round=3)

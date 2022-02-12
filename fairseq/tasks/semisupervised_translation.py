@@ -353,10 +353,10 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
             else "%s-%s" % (self.args.source_lang, self.args.target_lang),
         )
 
-    def build_model(self, args):
+    def build_model(self, args, from_checkpoint=False):
         from fairseq import models
 
-        model = models.build_model(args, self)
+        model = models.build_model(args, self, from_checkpoint)
         if not isinstance(model, FairseqMultiModel):
             raise ValueError(
                 "SemisupervisedTranslationTask requires a FairseqMultiModel architecture"

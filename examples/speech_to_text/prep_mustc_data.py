@@ -129,7 +129,7 @@ def process(args):
                     )
                     sf.write(
                         (audio_root / f"{utt_id}.flac").as_posix(),
-                        _wavform.numpy(), tgt_sample_rate
+                        _wavform.T.numpy(), tgt_sample_rate
                     )
             else:
                 print("Extracting log mel filter bank features...")
@@ -156,7 +156,10 @@ def process(args):
         print("ZIPing audios/features...")
         create_zip(audio_root, zip_path)
         print("Fetching ZIP manifest...")
-        audio_paths, audio_lengths = get_zip_manifest(zip_path)
+        audio_paths, audio_lengths = get_zip_manifest(
+            zip_path,
+            is_audio=args.use_audio_input,
+        )
         # Generate TSV manifest
         print("Generating manifest...")
         train_text = []

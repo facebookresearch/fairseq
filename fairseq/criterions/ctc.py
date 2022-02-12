@@ -83,7 +83,7 @@ class CtcCriterion(FairseqCriterion):
                 cfg.wer_word_score,
             ) = eval(cfg.wer_args)
 
-        if cfg.wer_kenlm_model is not None:
+        if cfg.wer_kenlm_model is not None and cfg.wer_kenlm_model != "":
             from examples.speech_recognition.w2l_decoder import W2lKenLMDecoder
 
             dec_args = Namespace()

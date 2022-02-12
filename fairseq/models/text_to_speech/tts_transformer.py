@@ -9,16 +9,24 @@ from typing import List, Optional
 import torch
 from torch import nn
 
-from fairseq.models import (FairseqEncoder, FairseqEncoderDecoderModel,
-                            FairseqIncrementalDecoder, register_model,
-                            register_model_architecture)
-from fairseq.modules import (
-    TransformerEncoderLayer, TransformerDecoderLayer
-)
-from fairseq.models.text_to_speech.tacotron2 import Prenet, Postnet
-from fairseq.modules import LayerNorm, PositionalEmbedding, FairseqDropout
-from fairseq.data.data_utils import lengths_to_padding_mask
 from fairseq import utils
+from fairseq.data.data_utils import lengths_to_padding_mask
+from fairseq.models import (
+    FairseqEncoder,
+    FairseqEncoderDecoderModel,
+    FairseqIncrementalDecoder,
+    register_model,
+    register_model_architecture,
+)
+from fairseq.models.text_to_speech.hub_interface import TTSHubInterface
+from fairseq.models.text_to_speech.tacotron2 import Postnet, Prenet
+from fairseq.modules import (
+    FairseqDropout,
+    LayerNorm,
+    PositionalEmbedding,
+    TransformerDecoderLayer,
+    TransformerEncoderLayer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +38,7 @@ def encoder_init(m):
 
 def Embedding(num_embeddings, embedding_dim):
     m = nn.Embedding(num_embeddings, embedding_dim)
-    nn.init.normal_(m.weight, mean=0, std=embedding_dim ** -0.5)
+    nn.init.normal_(m.weight, mean=0, std=embedding_dim**-0.5)
     return m
 
 
@@ -42,30 +50,31 @@ class TTSTransformerEncoder(FairseqEncoder):
         self.spk_emb_proj = None
         if embed_speaker is not None:
             self.spk_emb_proj = nn.Linear(
-                args.encoder_embed_dim + args.speaker_embed_dim,
-                args.encoder_embed_dim
+                args.encoder_embed_dim + args.speaker_embed_dim, args.encoder_embed_dim
             )
 
         self.dropout_module = FairseqDropout(
             p=args.dropout, module_name=self.__class__.__name__
         )
-        self.embed_tokens = nn.Embedding(len(src_dict), args.encoder_embed_dim,
-                                         padding_idx=self.padding_idx)
-        assert(args.encoder_conv_kernel_size % 2 == 1)
+        self.embed_tokens = nn.Embedding(
+            len(src_dict), args.encoder_embed_dim, padding_idx=self.padding_idx
+        )
+        assert args.encoder_conv_kernel_size % 2 == 1
         self.prenet = nn.ModuleList(
             nn.Sequential(
-                nn.Conv1d(args.encoder_embed_dim, args.encoder_embed_dim,
-                          kernel_size=args.encoder_conv_kernel_size,
-                          padding=((args.encoder_conv_kernel_size - 1) // 2)),
+                nn.Conv1d(
+                    args.encoder_embed_dim,
+                    args.encoder_embed_dim,
+                    kernel_size=args.encoder_conv_kernel_size,
+                    padding=((args.encoder_conv_kernel_size - 1) // 2),
+                ),
                 nn.BatchNorm1d(args.encoder_embed_dim),
                 nn.ReLU(),
                 nn.Dropout(args.encoder_dropout),
             )
             for _ in range(args.encoder_conv_layers)
         )
-        self.prenet_proj = nn.Linear(
-            args.encoder_embed_dim, args.encoder_embed_dim
-        )
+        self.prenet_proj = nn.Linear(args.encoder_embed_dim, args.encoder_embed_dim)
         self.embed_positions = PositionalEmbedding(
             args.max_source_positions, args.encoder_embed_dim, self.padding_idx
         )
@@ -112,7 +121,9 @@ class TTSTransformerEncoder(FairseqEncoder):
 
         return {
             "encoder_out": [x],  # T x B x C
-            "encoder_padding_mask": [padding_mask] if padding_mask.any() else [],  # B x T
+            "encoder_padding_mask": [padding_mask]
+            if padding_mask.any()
+            else [],  # B x T
             "encoder_embedding": [],  # B x T x C
             "encoder_states": [],  # List[T x B x C]
             "src_tokens": [],
@@ -126,12 +137,12 @@ def decoder_init(m):
 
 
 class TTSTransformerDecoder(FairseqIncrementalDecoder):
-    def __init__(self, args, src_dict):
+    def __init__(self, args, src_dict, padding_idx=1):
         super().__init__(None)
         self._future_mask = torch.empty(0)
 
         self.args = args
-        self.padding_idx = src_dict.pad()
+        self.padding_idx = src_dict.pad() if src_dict else padding_idx
         self.n_frames_per_step = args.n_frames_per_step
         self.out_dim = args.output_frame_dim * args.n_frames_per_step
 
@@ -143,15 +154,15 @@ class TTSTransformerDecoder(FairseqIncrementalDecoder):
         )
         self.pos_emb_alpha = nn.Parameter(torch.ones(1))
         self.prenet = nn.Sequential(
-            Prenet(self.out_dim, args.prenet_layers, args.prenet_dim,
-                   args.prenet_dropout),
+            Prenet(
+                self.out_dim, args.prenet_layers, args.prenet_dim, args.prenet_dropout
+            ),
             nn.Linear(args.prenet_dim, args.decoder_embed_dim),
         )
 
         self.n_transformer_layers = args.decoder_transformer_layers
         self.transformer_layers = nn.ModuleList(
-            TransformerDecoderLayer(args)
-            for _ in range(self.n_transformer_layers)
+            TransformerDecoderLayer(args) for _ in range(self.n_transformer_layers)
         )
         if args.decoder_normalize_before:
             self.layer_norm = LayerNorm(args.decoder_embed_dim)
@@ -161,19 +172,28 @@ class TTSTransformerDecoder(FairseqIncrementalDecoder):
         self.feat_proj = nn.Linear(args.decoder_embed_dim, self.out_dim)
         self.eos_proj = nn.Linear(args.decoder_embed_dim, 1)
 
-        self.postnet = Postnet(self.out_dim, args.postnet_conv_dim,
-                               args.postnet_conv_kernel_size,
-                               args.postnet_layers, args.postnet_dropout)
+        self.postnet = Postnet(
+            self.out_dim,
+            args.postnet_conv_dim,
+            args.postnet_conv_kernel_size,
+            args.postnet_layers,
+            args.postnet_dropout,
+        )
 
         self.ctc_proj = None
-        if getattr(args, "ctc_weight", 0.) > 0.:
+        if getattr(args, "ctc_weight", 0.0) > 0.0:
             self.ctc_proj = nn.Linear(self.out_dim, len(src_dict))
 
         self.apply(decoder_init)
 
     def extract_features(
-            self, prev_outputs, encoder_out=None, incremental_state=None,
-            target_lengths=None, speaker=None, **kwargs
+        self,
+        prev_outputs,
+        encoder_out=None,
+        incremental_state=None,
+        target_lengths=None,
+        speaker=None,
+        **kwargs,
     ):
         alignment_layer = self.n_transformer_layers - 1
         self_attn_padding_mask = lengths_to_padding_mask(target_lengths)
@@ -212,8 +232,8 @@ class TTSTransformerDecoder(FairseqIncrementalDecoder):
                 else None,
                 encoder_out["encoder_padding_mask"][0]
                 if (
-                        encoder_out is not None
-                        and len(encoder_out["encoder_padding_mask"]) > 0
+                    encoder_out is not None
+                    and len(encoder_out["encoder_padding_mask"]) > 0
                 )
                 else None,
                 incremental_state,
@@ -239,20 +259,37 @@ class TTSTransformerDecoder(FairseqIncrementalDecoder):
 
         return x, {"attn": attn, "inner_states": inner_states}
 
-    def forward(self, prev_output_tokens, encoder_out=None,
-                incremental_state=None, target_lengths=None, speaker=None,
-                **kwargs):
+    def forward(
+        self,
+        prev_output_tokens,
+        encoder_out=None,
+        incremental_state=None,
+        target_lengths=None,
+        speaker=None,
+        **kwargs,
+    ):
         x, extra = self.extract_features(
-            prev_output_tokens, encoder_out=encoder_out,
-            incremental_state=incremental_state, target_lengths=target_lengths,
-            speaker=speaker, **kwargs
+            prev_output_tokens,
+            encoder_out=encoder_out,
+            incremental_state=incremental_state,
+            target_lengths=target_lengths,
+            speaker=speaker,
+            **kwargs,
         )
         attn = extra["attn"]
         feat_out = self.feat_proj(x)
         bsz, seq_len, _ = x.size()
         eos_out = self.eos_proj(x)
         post_feat_out = feat_out + self.postnet(feat_out)
-        return post_feat_out, eos_out, {"attn": attn, "feature_out": feat_out}
+        return (
+            post_feat_out,
+            eos_out,
+            {
+                "attn": attn,
+                "feature_out": feat_out,
+                "inner_states": extra["inner_states"],
+            },
+        )
 
     def get_normalized_probs(self, net_output, log_probs, sample):
         logits = self.ctc_proj(net_output[2]["feature_out"])
@@ -281,6 +318,47 @@ class TTSTransformerModel(FairseqEncoderDecoderModel):
     """
     Implementation for https://arxiv.org/pdf/1809.08895.pdf
     """
+
+    @classmethod
+    def hub_models(cls):
+        base_url = "http://dl.fbaipublicfiles.com/fairseq/s2"
+        model_ids = [
+            "tts_transformer-en-ljspeech",
+            "tts_transformer-en-200_speaker-cv4",
+            "tts_transformer-es-css10",
+            "tts_transformer-fr-cv7_css10",
+            "tts_transformer-ru-cv7_css10",
+            "tts_transformer-zh-cv7_css10",
+            "tts_transformer-ar-cv7_css10",
+            "tts_transformer-tr-cv7_css10",
+            "tts_transformer-vi-cv7",
+        ]
+        return {i: f"{base_url}/{i}.tar.gz" for i in model_ids}
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        model_name_or_path,
+        checkpoint_file="model.pt",
+        data_name_or_path=".",
+        config_yaml="config.yaml",
+        vocoder: str = "griffin_lim",
+        fp16: bool = False,
+        **kwargs,
+    ):
+        from fairseq import hub_utils
+
+        x = hub_utils.from_pretrained(
+            model_name_or_path,
+            checkpoint_file,
+            data_name_or_path,
+            archive_map=cls.hub_models(),
+            config_yaml=config_yaml,
+            vocoder=vocoder,
+            fp16=fp16,
+            **kwargs,
+        )
+        return TTSHubInterface(x["args"], x["task"], x["models"][0])
 
     @staticmethod
     def add_args(parser):
@@ -328,8 +406,9 @@ class TTSTransformerModel(FairseqEncoderDecoderModel):
         return cls(encoder, decoder)
 
     def forward_encoder(self, src_tokens, src_lengths, speaker=None, **kwargs):
-        return self.encoder(src_tokens, src_lengths=src_lengths,
-                            speaker=speaker, **kwargs)
+        return self.encoder(
+            src_tokens, src_lengths=src_lengths, speaker=speaker, **kwargs
+        )
 
     def set_num_updates(self, num_updates):
         super().set_num_updates(num_updates)
@@ -348,7 +427,9 @@ def base_architecture(args):
     # encoder transformer layers
     args.encoder_transformer_layers = getattr(args, "encoder_transformer_layers", 6)
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 4 * args.encoder_embed_dim)
+    args.encoder_ffn_embed_dim = getattr(
+        args, "encoder_ffn_embed_dim", 4 * args.encoder_embed_dim
+    )
     args.encoder_normalize_before = getattr(args, "encoder_normalize_before", False)
     args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 4)
     args.attention_dropout = getattr(args, "attention_dropout", 0.0)
@@ -366,6 +447,8 @@ def base_architecture(args):
     # decoder transformer layers
     args.decoder_transformer_layers = getattr(args, "decoder_transformer_layers", 6)
     args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 512)
-    args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 4 * args.decoder_embed_dim)
+    args.decoder_ffn_embed_dim = getattr(
+        args, "decoder_ffn_embed_dim", 4 * args.decoder_embed_dim
+    )
     args.decoder_normalize_before = getattr(args, "decoder_normalize_before", False)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 4)

@@ -81,7 +81,7 @@ class ActivationQuantizer:
 
             # using straight-through estimator (STE)
             clamp_low = -self.scale * self.zero_point
-            clamp_high = self.scale * (2 ** self.bits - 1 - self.zero_point)
+            clamp_high = self.scale * (2**self.bits - 1 - self.zero_point)
             return torch.clamp(y, clamp_low.item(), clamp_high.item()) + noise.detach()
 
         # register hook

@@ -14,7 +14,7 @@ jobs:
       max-parallel: 4
       matrix:
         platform: [ubuntu-latest, macos-latest]
-        python-version: [3.6, 3.7]
+        python-version: [3.8, 3.9]
 
     runs-on: ${{ matrix.platform }}
 
@@ -53,3 +53,8 @@ jobs:
     - name: Run tests
       run: |
           python setup.py test
+
+    - name: Lint with black
+      run: |
+        pip install black
+        black --check . --extend-exclude 'examples|fairseq\/model_parallel\/megatron'

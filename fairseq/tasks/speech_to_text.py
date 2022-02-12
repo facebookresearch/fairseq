@@ -12,7 +12,7 @@ from fairseq.data.audio.speech_to_text_dataset import (
     S2TDataConfig,
     SpeechToTextDataset,
     SpeechToTextDatasetCreator,
-    get_features_or_waveform
+    get_features_or_waveform,
 )
 from fairseq.tasks import LegacyFairseqTask, register_task
 
@@ -101,7 +101,7 @@ class SpeechToTextTask(LegacyFairseqTask):
             is_train_split=is_train_split,
             epoch=epoch,
             seed=self.args.seed,
-            speaker_to_id=self.speaker_to_id
+            speaker_to_id=self.speaker_to_id,
         )
 
     @property
@@ -115,11 +115,11 @@ class SpeechToTextTask(LegacyFairseqTask):
     def max_positions(self):
         return self.args.max_source_positions, self.args.max_target_positions
 
-    def build_model(self, args):
+    def build_model(self, args, from_checkpoint=False):
         args.input_feat_per_channel = self.data_cfg.input_feat_per_channel
         args.input_channels = self.data_cfg.input_channels
         args.speaker_to_id = self.speaker_to_id
-        return super(SpeechToTextTask, self).build_model(args)
+        return super(SpeechToTextTask, self).build_model(args, from_checkpoint)
 
     def build_generator(
         self,
@@ -143,8 +143,7 @@ class SpeechToTextTask(LegacyFairseqTask):
             extra_gen_cls_kwargs = {}
         extra_gen_cls_kwargs["symbols_to_strip_from_output"] = lang_token_ids
         return super().build_generator(
-            models, args, seq_gen_cls=None,
-            extra_gen_cls_kwargs=extra_gen_cls_kwargs
+            models, args, seq_gen_cls=None, extra_gen_cls_kwargs=extra_gen_cls_kwargs
         )
 
     def build_tokenizer(self, args):

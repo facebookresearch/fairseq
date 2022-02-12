@@ -7,6 +7,7 @@ import logging
 import os
 
 import numpy as np
+
 from fairseq.data import (
     AppendTokenDataset,
     ConcatDataset,
@@ -22,7 +23,6 @@ from fairseq.data.encoders.utils import get_whole_word_mask
 from fairseq.tasks import register_task
 
 from .denoising import DenoisingTask
-
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ class MultilingualDenoisingTask(DenoisingTask):
         languages by upsampling them.
         """
         prob = dataset_lens / dataset_lens.sum()
-        smoothed_prob = prob ** self.args.multilang_sampling_alpha
+        smoothed_prob = prob**self.args.multilang_sampling_alpha
         smoothed_prob = smoothed_prob / smoothed_prob.sum()
         return smoothed_prob
 
