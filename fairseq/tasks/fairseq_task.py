@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 
 class StatefulContainer(object):
-
     def __init__(self):
         self._state = dict()
         self._factories = dict()
@@ -135,7 +134,7 @@ class FairseqTask(object):
         split: str,
         combine: bool = False,
         task_cfg: FairseqDataclass = None,
-        **kwargs
+        **kwargs,
     ):
         """Load a given dataset split.
 
@@ -220,6 +219,7 @@ class FairseqTask(object):
         epoch=1,
         data_buffer_size=0,
         disable_iterator_cache=False,
+        skip_remainder_batch=False,
         grouped_shuffling=False,
         update_epoch_batch_itr=False,
     ):
@@ -254,6 +254,9 @@ class FairseqTask(object):
             disable_iterator_cache (bool, optional): don't cache the
                 EpochBatchIterator (ignores `FairseqTask::can_reuse_epoch_itr`)
                 (default: False).
+            skip_remainder_batch (bool, optional): if set, discard the last
+                batch in each training epoch, as the last batch is often smaller than
+                    local_batch_size * distributed_word_size (default: ``True``).
             grouped_shuffling (bool, optional): group batches with each groups
                 containing num_shards batches and shuffle groups. Reduces difference
                 between sequence lengths among workers for batches sorted by length.
@@ -307,6 +310,7 @@ class FairseqTask(object):
             num_workers=num_workers,
             epoch=epoch,
             buffer_size=data_buffer_size,
+            skip_remainder_batch=skip_remainder_batch,
             grouped_shuffling=grouped_shuffling,
         )
 
@@ -315,7 +319,7 @@ class FairseqTask(object):
 
         return epoch_iter
 
-    def build_model(self, cfg: FairseqDataclass):
+    def build_model(self, cfg: FairseqDataclass, from_checkpoint=False):
         """
         Build the :class:`~fairseq.models.BaseFairseqModel` instance for this
         task.
@@ -328,7 +332,7 @@ class FairseqTask(object):
         """
         from fairseq import models, quantization_utils
 
-        model = models.build_model(cfg, self)
+        model = models.build_model(cfg, self, from_checkpoint)
         model = quantization_utils.quantize_model_scalar(model, cfg)
         return model
 
@@ -348,7 +352,12 @@ class FairseqTask(object):
         return criterions.build_criterion(cfg, self)
 
     def build_generator(
-        self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None, prefix_allowed_tokens_fn=None,
+        self,
+        models,
+        args,
+        seq_gen_cls=None,
+        extra_gen_cls_kwargs=None,
+        prefix_allowed_tokens_fn=None,
     ):
         """
         Build a :class:`~fairseq.SequenceGenerator` instance for this
@@ -646,7 +655,7 @@ class LegacyFairseqTask(FairseqTask):
     def has_sharded_data(self, split):
         return os.pathsep in getattr(self.args, "data", "")
 
-    def build_model(self, args: Namespace):
+    def build_model(self, args: Namespace, from_checkpoint=False):
         """
         Build the :class:`~fairseq.models.BaseFairseqModel` instance for this
         task.
@@ -659,7 +668,7 @@ class LegacyFairseqTask(FairseqTask):
         """
         from fairseq import models, quantization_utils
 
-        model = models.build_model(args, self)
+        model = models.build_model(args, self, from_checkpoint)
         model = quantization_utils.quantize_model_scalar(model, args)
         return model
 

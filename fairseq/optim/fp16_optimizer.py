@@ -7,8 +7,9 @@ from collections import defaultdict
 from itertools import chain
 
 import torch
-from fairseq import optim
 from omegaconf import DictConfig
+
+from fairseq import optim
 
 from .dynamic_loss_scaler import DynamicLossScaler
 
@@ -64,9 +65,9 @@ class _FP16OptimizerMixin(object):
             fp32_params = []
             for p in params:
                 p32 = torch.nn.Parameter(p.data.float())
-                if hasattr(p, 'expert'):
+                if hasattr(p, "expert"):
                     p32.expert = True
-                elif hasattr(p, 'base_expert'):
+                elif hasattr(p, "base_expert"):
                     p32.base_expert = True
                 p32.grad = torch.zeros_like(p32.data)
                 if hasattr(p, "param_group"):
@@ -209,7 +210,9 @@ class _FP16OptimizerMixin(object):
         self._sync_fp16_grads_to_fp32()
 
         if getattr(self, "supports_step_with_scale", False):
-            self.fp32_optimizer.step(closure, scale=(1.0 / self._multiply_factor), groups=groups)
+            self.fp32_optimizer.step(
+                closure, scale=(1.0 / self._multiply_factor), groups=groups
+            )
         else:
             self._unscale_grads()
             self.fp32_optimizer.step(closure, groups=groups)
@@ -263,7 +266,7 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
                 / cfg.common.model_parallel_size
             )
             scale_window = int(
-                2 ** 14 / data_parallel_size / cfg.optimization.update_freq[0]
+                2**14 / data_parallel_size / cfg.optimization.update_freq[0]
             )
         else:
             scale_window = cfg.common.fp16_scale_window
@@ -434,7 +437,9 @@ class _MemoryEfficientFP16OptimizerMixin(object):
         """Performs a single optimization step."""
         if getattr(self, "supports_step_with_scale", False):
             # NOTE(msb) optimizer divides by scale factor
-            self.wrapped_optimizer.step(closure, scale=(1.0 / self._multiply_factor), groups=groups)
+            self.wrapped_optimizer.step(
+                closure, scale=(1.0 / self._multiply_factor), groups=groups
+            )
         else:
             self._unscale_grads()
             self.wrapped_optimizer.step(closure, groups=groups)
@@ -495,7 +500,7 @@ class MemoryEfficientFP16Optimizer(
                 / cfg.common.model_parallel_size
             )
             scale_window = int(
-                2 ** 14 / data_parallel_size / cfg.optimization.update_freq[0]
+                2**14 / data_parallel_size / cfg.optimization.update_freq[0]
             )
         else:
             scale_window = cfg.common.fp16_scale_window

@@ -169,7 +169,7 @@ class CommonsenseQATask(LegacyFairseqTask):
         self.datasets[split] = dataset
         return self.datasets[split]
 
-    def build_model(self, args):
+    def build_model(self, args, from_checkpoint=False):
         from fairseq import models
 
         model = models.build_model(args, self)

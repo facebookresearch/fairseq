@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import torch
+
 from fairseq.models.ema import EMA
 
 
@@ -35,6 +36,7 @@ class EMAConfig(object):
     ema_start_update: int = 0
     ema_fp32: bool = False
     ema_seed_model: Optional[str] = None
+    ema_update_freq: int = 1
 
 
 @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
@@ -45,9 +47,7 @@ class TestEMAGPU(unittest.TestCase):
         other_norm = torch.norm(y.float())
 
         if msg is None:
-            msg = "|input - other| > {} + {} * |other|".format(
-                atol, rtol
-            )
+            msg = "|input - other| > {} + {} * |other|".format(atol, rtol)
 
         self.assertLessEqual(
             diff_norm,
@@ -104,9 +104,7 @@ class TestEMAGPU(unittest.TestCase):
 
         for key, param in model2.state_dict().items():
             ema_param = ema_state_dict[key]
-            self.assertTrue(
-                torch.allclose(ema_param, param)
-            )
+            self.assertTrue(torch.allclose(ema_param, param))
 
     def test_ema_fp32(self):
         model = DummyModule().cuda().half()
@@ -136,17 +134,27 @@ class TestEMAGPU(unittest.TestCase):
             # closer to the EMA update done in fp32 than in fp16.
             self.assertLessEqual(
                 torch.norm(
-                    ema_param.float() -
-                    (config.ema_decay * prev_param.float() + (1 - config.ema_decay) * param.float()).half().float()
+                    ema_param.float()
+                    - (
+                        config.ema_decay * prev_param.float()
+                        + (1 - config.ema_decay) * param.float()
+                    )
+                    .half()
+                    .float()
                 ),
                 torch.norm(
-                    ema_param.float() -
-                    (config.ema_decay * prev_param + (1 - config.ema_decay) * param).float()
+                    ema_param.float()
+                    - (
+                        config.ema_decay * prev_param + (1 - config.ema_decay) * param
+                    ).float()
                 ),
             )
             self.assertTorchAllClose(
                 ema_param,
-                (config.ema_decay * prev_param.float() + (1 - config.ema_decay) * param.float()).half(),
+                (
+                    config.ema_decay * prev_param.float()
+                    + (1 - config.ema_decay) * param.float()
+                ).half(),
             )
 
     def test_ema_fp16(self):
@@ -179,12 +187,19 @@ class TestEMAGPU(unittest.TestCase):
             # closer to the EMA update done in fp16 than in fp32.
             self.assertLessEqual(
                 torch.norm(
-                    ema_param.float() -
-                    (config.ema_decay * prev_param + (1 - config.ema_decay) * param).float()
+                    ema_param.float()
+                    - (
+                        config.ema_decay * prev_param + (1 - config.ema_decay) * param
+                    ).float()
                 ),
                 torch.norm(
-                    ema_param.float() -
-                    (config.ema_decay * prev_param.float() + (1 - config.ema_decay) * param.float()).half().float()
+                    ema_param.float()
+                    - (
+                        config.ema_decay * prev_param.float()
+                        + (1 - config.ema_decay) * param.float()
+                    )
+                    .half()
+                    .float()
                 ),
             )
             self.assertTorchAllClose(

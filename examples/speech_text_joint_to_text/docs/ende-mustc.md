@@ -21,7 +21,7 @@ Enhanced Joint Training: the joint training is enhanced with pre-trained models,
         --data-path ${must_c_en_de_src_text} \
         --out-path ${must_c_en_de_src_text_pho}
 ```
--   Replace the source text under the "src_text" column in the tsv file with the corresponding phoneme reprentation generated in the step above. 
+-   Replace the source text under the "src_text" column in the tsv file with the corresponding phoneme reprentation generated in the step above.
 -   Prepare phoneme dictionary and save to $MANIFEST_ROOT as [src_dict.txt](https://dl.fbaipublicfiles.com/joint_speech_text_4_s2t/must_c/en_de/src_dict.txt)
 #### Prepare WMT text data
 -   [Download wmt data](https://github.com/pytorch/fairseq/blob/main/examples/translation/prepare-wmt14en2de.sh)
@@ -32,7 +32,7 @@ Enhanced Joint Training: the joint training is enhanced with pre-trained models,
 The model is trained with 8 v100 GPUs.
 
 #### Download pretrained models
--    [pretrain_encoder](https://dl.fbaipublicfiles.com/fairseq/s2t/mustc_multilingual_asr_transformer_m.pt)
+-    [pretrain_encoder](https://dl.fbaipublicfiles.com/fairseq/s2t/mustc_joint_asr_transformer_m.pt)
 -    [pretrain_nmt](https://dl.fbaipublicfiles.com/joint_speech_text_4_s2t/must_c/en_de/checkpoint_mt.pt)
 
 #### Training scripts

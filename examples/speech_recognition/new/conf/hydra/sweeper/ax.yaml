@@ -5,8 +5,8 @@ ax_config:
   max_trials: 128
   early_stop:
     minimize: true
-    max_epochs_without_improvement: 32
-    epsilon: 1.0e-05
+    max_epochs_without_improvement: 10
+    epsilon: 0.025
   experiment:
     name: ${dataset.gen_subset}
     objective_name: wer
@@ -24,3 +24,6 @@ ax_config:
     decoding.wordscore:
       type: range
       bounds: [-5.0, 5.0]
+  decoding.silweight:
+        type: range
+        bounds: [ -8.0, 0.0 ]

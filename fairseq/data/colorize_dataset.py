@@ -9,7 +9,7 @@ from . import BaseWrapperDataset
 
 
 class ColorizeDataset(BaseWrapperDataset):
-    """ Adds 'colors' property to net input that is obtained from the provided color getter for use by models """
+    """Adds 'colors' property to net input that is obtained from the provided color getter for use by models"""
 
     def __init__(self, dataset, color_getter):
         super().__init__(dataset)

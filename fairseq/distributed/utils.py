@@ -201,9 +201,7 @@ def _pipeline_parallel_post_init(
         # distributed_world_size to be based on the total number of GPUs, so
         # we need to correct them to be based on the number of pipelines.
         assert cfg.distributed_world_size % num_pipeline_devices == 0
-        cfg.distributed_world_size = (
-            cfg.distributed_world_size // num_pipeline_devices
-        )
+        cfg.distributed_world_size = cfg.distributed_world_size // num_pipeline_devices
         # In the case of 4-way MP on nodes with 8 GPUs, we want
         # distributed_rank to be the starting GPU index for each pipeline
         # i.e., 0, 2, ...
@@ -306,8 +304,10 @@ def distributed_init(cfg: FairseqConfig):
         model_part_number = get_model_parallel_rank()
         cfg.checkpoint.checkpoint_suffix += "-model_part-{0}".format(model_part_number)
 
-    if hasattr(cfg,  "model") and getattr(cfg.model, "base_layers", 0) > 0:
-        cfg.checkpoint.checkpoint_suffix = f"-rank-{cfg.distributed_training.distributed_rank}"
+    if hasattr(cfg, "model") and getattr(cfg.model, "base_layers", 0) > 0:
+        cfg.checkpoint.checkpoint_suffix = (
+            f"-rank-{cfg.distributed_training.distributed_rank}"
+        )
 
     return cfg.distributed_training.distributed_rank
 
@@ -696,7 +696,7 @@ def broadcast_tensors(
             dist_device = torch.device("cpu")
 
     # share metadata first to simplify transfer
-    is_src_rank = (get_rank(group) == src_rank)
+    is_src_rank = get_rank(group) == src_rank
     if is_src_rank:
         metadata = [
             {"size": t.size(), "dtype": t.dtype, "device": t.device} for t in tensors
@@ -747,7 +747,10 @@ def broadcast_object(
 
 
 def _broadcast_object_slow(
-    obj: Any, src_rank: int, group: object, dist_device: torch.device,
+    obj: Any,
+    src_rank: int,
+    group: object,
+    dist_device: torch.device,
 ) -> Any:
     if get_rank(group) == src_rank:
         # Emit data

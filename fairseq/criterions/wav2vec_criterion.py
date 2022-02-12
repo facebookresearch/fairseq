@@ -33,6 +33,7 @@ class Wav2VecCriterionConfig(FairseqDataclass):
         metadata={"help": "output keys to log"},
     )
 
+
 @register_criterion("wav2vec", dataclass=Wav2VecCriterionConfig)
 class Wav2vecCriterion(FairseqCriterion):
     def __init__(self, task, infonce=False, loss_weights=None, log_keys=None):
@@ -76,16 +77,16 @@ class Wav2vecCriterion(FairseqCriterion):
             # we don't shrink tensors using mask_indices.
             # Instead, we use mask indices to adjust loss.
             mi = (
-                sample['net_input']['mask_indices']
+                sample["net_input"]["mask_indices"]
                 .transpose(0, 1)  # logits are transposed in `model.get_logits`
                 .reshape(logits.size(0))
             )
             loss = (loss * mi).sum() if reduce else (loss * mi)
 
-        if 'sample_size' in sample:
-            sample_size = sample['sample_size']
-        elif 'mask_indices' in sample['net_input']:
-            sample_size = sample['net_input']['mask_indices'].sum()
+        if "sample_size" in sample:
+            sample_size = sample["sample_size"]
+        elif "mask_indices" in sample["net_input"]:
+            sample_size = sample["net_input"]["mask_indices"].sum()
         else:
             sample_size = target.numel() if self.infonce else target.long().sum().item()
         losses.append(loss.detach().clone())
@@ -216,8 +217,8 @@ class Wav2vecCriterion(FairseqCriterion):
                     metrics.log_scalar(k, val / len(logging_outputs), round=3)
 
     # FIXME: revert when gather based xla reduction is implemented
-    #@staticmethod
-    #def logging_outputs_can_be_summed() -> bool:
+    # @staticmethod
+    # def logging_outputs_can_be_summed() -> bool:
     def logging_outputs_can_be_summed(self) -> bool:
         """
         Whether the logging outputs returned by `forward` can be summed

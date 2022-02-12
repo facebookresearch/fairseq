@@ -38,7 +38,7 @@ class LegacyDistributedDataParallel(nn.Module):
             performing all-reduce (default: 256M).
     """
 
-    def __init__(self, module, process_group, buffer_size=2 ** 28):
+    def __init__(self, module, process_group, buffer_size=2**28):
         super().__init__()
 
         self.module = module
@@ -137,7 +137,7 @@ class LegacyDistributedDataParallel(nn.Module):
                     if param.grad is None:
                         param.grad = torch.zeros_like(param)
 
-                    if hasattr(param, 'expert'):
+                    if hasattr(param, "expert"):
                         # Skip gradient sync for unshared parameters
                         continue
 
