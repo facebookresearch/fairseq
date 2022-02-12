@@ -19,7 +19,8 @@ class TestS2STransformer(TestFairseqSpeech):
                 "dev_shuf200.tsv",
                 "src_feat.zip",
                 "config_specaug_lb.yaml",
-                "config_letter_enc_unigram_dec.yaml",
+                "vocoder",
+                "vocoder_config.json",
             ],
         )
 
@@ -30,10 +31,13 @@ class TestS2STransformer(TestFairseqSpeech):
             dataset="dev_shuf200",
             arg_overrides={
                 "config_yaml": "config_specaug_lb.yaml",
+                "multitask_config_yaml": None,
                 "target_is_code": True,
                 "target_code_size": 100,
+                "eval_inference": False,
             },
             score_type="bleu",
+            strict=False,
         )
 
     def postprocess_tokens(self, task, target, hypo_tokens):

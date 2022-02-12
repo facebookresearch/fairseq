@@ -86,18 +86,6 @@ class TransformerXLDecoder(FairseqIncrementalDecoder):
         logger.info(config)
         self.model = TransfoXLLMHeadModel(config)
 
-        # Workaround a bug in huggingface's ``ProjectedAdaptiveLogSoftmax``
-        # which adds ``None`` values to an ``nn.ParameterList``, which is not
-        # supported in PyTorch. Instead we can replace this with an
-        # ``nn.ModuleList``, which does support ``None`` values.
-        try:
-            if all(p is None for p in self.model.crit.out_projs._parameters.values()):
-                self.model.crit.out_projs = torch.nn.ModuleList(
-                    [None] * len(self.model.crit.out_projs._parameters)
-                )
-        except Exception:
-            pass
-
         if cfg.checkpoint_activations or cfg.offload_activations:
             for i in range(len(self.model.transformer.layers)):
                 self.model.transformer.layers[i] = checkpoint_wrapper(

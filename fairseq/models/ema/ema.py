@@ -16,6 +16,9 @@ EMA is a smoothed/ensemble model which might have better performance
 when used for inference or further fine-tuning. EMA class has a
 reverse function to load the EMA params into a model and use it
 like a regular model.
+
+This implementation is used for trainer-level ema tracking. For EMA tracking
+inside the model, please use fairseq/modules/ema_module.py instead.
 """
 
 import copy
