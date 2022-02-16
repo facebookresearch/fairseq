@@ -663,7 +663,7 @@ class SequenceGenerator(nn.Module):
                 cum_unfin.append(prev)
         cum_fin_tensor = torch.tensor(cum_unfin, dtype=torch.int).to(bbsz_idx)
 
-        unfin_idx = bbsz_idx // beam_size
+        unfin_idx = torch.div(bbsz_idx, beam_size, rounding_mode='trunc')
         sent = unfin_idx + torch.index_select(cum_fin_tensor, 0, unfin_idx)
 
         # Create a set of "{sent}{unfin_idx}", where
