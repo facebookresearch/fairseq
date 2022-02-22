@@ -21,7 +21,10 @@ class TestConvtransformerSimulTrans(TestFairseqSpeech):
         """Only test model loading since fairseq currently doesn't support inference of simultaneous models"""
         _, _, _, _ = self.download_and_load_checkpoint(
             "checkpoint_best.pt",
-            arg_overrides={"config_yaml": "config_gcmvn_specaug.yaml"},
+            arg_overrides={
+                "config_yaml": "config_gcmvn_specaug.yaml",
+                "load_pretrained_encoder_from": None,
+            },
         )
         return
 
