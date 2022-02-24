@@ -292,12 +292,22 @@ class FairseqTask(object):
             )
 
         # create mini-batches with given size constraints
-        batch_sampler = dataset.batch_by_size(
-            indices,
-            max_tokens=max_tokens,
-            max_sentences=max_sentences,
-            required_batch_size_multiple=required_batch_size_multiple,
-        )
+        # FIXME:Temporary modifications to satisfy LRW.h5
+        """
+        Temporary modifications are included in FIXME
+        """
+        if 'mark' in dataset.__dir__():
+            if dataset.mark():
+                import numpy as np
+                batch_sampler = np.split(indices, [(i+1)*max_sentences for i in range(int(len(indices)/max_sentences))])
+        else:
+            batch_sampler = dataset.batch_by_size(
+                indices,
+                max_tokens=max_tokens,
+                max_sentences=max_sentences,
+                required_batch_size_multiple=required_batch_size_multiple,
+            )
+        # FIXME:Temporary modifications to satisfy LRW.h5
 
         # return a reusable, sharded iterator
         epoch_iter = iterators.EpochBatchIterator(
