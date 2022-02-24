@@ -323,7 +323,9 @@ class Wav2VecModel(BaseFairseqModel):
 
     def max_positions(self):
         """Maximum length supported by the model."""
-        return sys.maxsize
+        # return sys.maxsize
+        # FIXME: reset to origin after LRW model developed
+        return None
 
     def get_logits(self, net_output):
         logits = net_output["cpc_logits"]
