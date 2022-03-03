@@ -67,7 +67,7 @@ class AddTargetDataset(BaseWrapperDataset):
             collated["net_input"]["prev_output_tokens"] = data_utils.collate_tokens(
                 collated["net_input"]["prev_output_tokens"],
                 pad_idx=self.pad,
-                left_pad=False
+                left_pad=False,
             )
         else:
             collated["ntokens"] = sum([len(t) for t in target])
