@@ -4,29 +4,30 @@
 # LICENSE file in the root directory of this source tree.
 
 import contextlib
-import logging
 import json
+import logging
 import os
 import random
 import sys
 import tempfile
 import unittest
 from io import StringIO
-from typing import List, Dict
+from typing import Dict, List
+
 import torch
+
 from fairseq import options
 from fairseq_cli import eval_lm, train
 from tests.utils import (
     create_dummy_data,
+    create_laser_data_and_config_json,
     generate_main,
     preprocess_lm_data,
     preprocess_summarization_data,
     preprocess_translation_data,
-    create_laser_data_and_config_json,
-    train_translation_model,
     train_language_model,
+    train_translation_model,
 )
-
 
 try:
     import transformers  # noqa
@@ -1161,7 +1162,40 @@ class TestLanguageModeling(unittest.TestCase):
                 train_language_model(
                     data_dir,
                     "transformer_lm",
-                    ["--add-bos-token", '--nval',  '1'],
+                    ["--add-bos-token", "--nval", "1"],
+                    run_validation=True,
+                )
+                eval_lm_main(data_dir)
+                eval_lm_main(data_dir, extra_flags=["--context-window", "25"])
+                generate_main(
+                    data_dir,
+                    [
+                        "--task",
+                        "language_modeling",
+                        "--sample-break-mode",
+                        "eos",
+                        "--tokens-per-sample",
+                        "500",
+                    ],
+                )
+
+    def test_normformer_lm(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_transformer_lm") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_lm_data(data_dir)
+                train_language_model(
+                    data_dir,
+                    "transformer_lm",
+                    [
+                        "--add-bos-token",
+                        "--nval",
+                        "1",
+                        "--scale-fc",
+                        "--scale-heads",
+                        "--scale-attn",
+                        "--scale-fc",
+                    ],
                     run_validation=True,
                 )
                 eval_lm_main(data_dir)

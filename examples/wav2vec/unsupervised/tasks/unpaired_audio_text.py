@@ -441,7 +441,7 @@ class UnpairedAudioText(FairseqTask):
                     / meters["nsentences"].sum,
                 )
 
-    def build_model(self, cfg: FairseqDataclass):
+    def build_model(self, cfg: FairseqDataclass, from_checkpoint=False):
         model = super().build_model(cfg)
 
         return model

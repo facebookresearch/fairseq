@@ -99,11 +99,11 @@ class InferenceProcessor:
     def __init__(self, cfg: InferConfig) -> None:
         self.cfg = cfg
         self.task = tasks.setup_task(cfg.task)
-        self.tgt_dict = self.task.target_dictionary
 
         models, saved_cfg = self.load_model_ensemble()
         self.models = models
         self.saved_cfg = saved_cfg
+        self.tgt_dict = self.task.target_dictionary
 
         self.task.load_dataset(
             self.cfg.dataset.gen_subset,
@@ -334,8 +334,8 @@ class InferenceProcessor:
             self.num_sentences,
             self.gen_timer.n,
             self.gen_timer.sum,
-            self.num_sentences / self.gen_timer.sum,
-            1.0 / self.gen_timer.avg,
+            self.num_sentences / (self.gen_timer.sum + 1e-6),
+            1.0 / (self.gen_timer.avg + 1e-6),
         )
 
 
@@ -378,6 +378,8 @@ def main(cfg: InferConfig) -> float:
     if not cfg.common.cpu and not torch.cuda.is_available():
         raise ValueError("CUDA not found; set `cpu=True` to run without CUDA")
 
+    logger.info(cfg.common_eval.path)
+
     with InferenceProcessor(cfg) as processor:
         for sample in processor:
             processor.process_sample(sample)
@@ -419,6 +421,8 @@ def hydra_main(cfg: InferConfig) -> Union[float, Tuple[float, Optional[float]]]:
 
     if cfg.common.reset_logging:
         reset_logging()
+
+    utils.import_user_module(cfg.common)
 
     # logger.info("Config:\n%s", OmegaConf.to_yaml(cfg))
     wer = float("inf")

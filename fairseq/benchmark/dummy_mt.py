@@ -7,9 +7,9 @@ import logging
 
 import numpy as np
 import torch
+
 from fairseq.data import Dictionary, FairseqDataset
 from fairseq.tasks import LegacyFairseqTask, register_task
-
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class DummyMTTask(LegacyFairseqTask):
 
     @classmethod
     def setup_task(cls, args, **kwargs):
-        """Setup the task. """
+        """Setup the task."""
         dictionary = Dictionary()
         for i in range(args.dict_size):
             dictionary.add_symbol("word{}".format(i))

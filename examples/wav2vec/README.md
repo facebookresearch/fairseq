@@ -6,6 +6,10 @@ We learned speech representations in multiple languages as well in [Unsupervised
 
 We also combined wav2vec 2.0 with self-training in [Self-training and Pre-training are Complementary for Speech Recognition (Xu et al., 2020)](https://arxiv.org/abs/2010.11430).
 
+We combined speech data from multiple domains in [Robust wav2vec 2.0: Analyzing Domain Shift in Self-Supervised Pre-Training (Hsu, et al., 2021)](https://arxiv.org/abs/2104.01027).
+
+We finetuned XLSR-53 on multiple languages to transcribe unseen languages in [Simple and Effective Zero-shot Cross-lingual Phoneme Recognition (Xu et al., 2021)](https://arxiv.org/abs/2109.11680).
+
 ## Pre-trained models
 
 Model | Finetuning split | Dataset | Model
@@ -19,14 +23,24 @@ Wav2Vec 2.0 Large | 10 minutes | [Librispeech](http://www.openslr.org/12)  | [do
 Wav2Vec 2.0 Large | 100 hours | [Librispeech](http://www.openslr.org/12)  | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_big_100h.pt)
 Wav2Vec 2.0 Large | 960 hours | [Librispeech](http://www.openslr.org/12)  | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_big_960h.pt)
 Wav2Vec 2.0 Large (LV-60)* | No finetuning | [Libri-Light](https://github.com/facebookresearch/libri-light) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox_new.pt)
+Wav2Vec 2.0 Large conformer - rel_pos (LV-60)* | No finetuning | [Libri-Light](https://github.com/facebookresearch/libri-light) | [download](s3://dl.fbaipublicfiles.com/fairseq/conformer/wav2vec2/librilight/LL_relpos_PT_no_FT )
+Wav2Vec 2.0 Large conformer - rope (LV-60)* | No finetuning | [Libri-Light](https://github.com/facebookresearch/libri-light) | [download](s3://dl.fbaipublicfiles.com/fairseq/conformer/wav2vec2/librilight/LL_relpos_PT_no_FT )
 Wav2Vec 2.0 Large (LV-60)* | 10 minutes | [Libri-Light](https://github.com/facebookresearch/libri-light) + [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox_10m_new.pt)
 Wav2Vec 2.0 Large (LV-60)* | 100 hours | [Libri-Light](https://github.com/facebookresearch/libri-light) + [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox_100h_new.pt)
+Wav2Vec 2.0 Large conformer - rel_pos (LV-60)* | 100 hours | [Libri-Light](https://github.com/facebookresearch/libri-light) | [download](s3://dl.fbaipublicfiles.com/fairseq/conformer/wav2vec2/librilight/LL_relpos_PT_100h_FT.pt )
+Wav2Vec 2.0 Large conformer - rope (LV-60)* | 100 hours | [Libri-Light](https://github.com/facebookresearch/libri-light) | [download](s3://dl.fbaipublicfiles.com/fairseq/conformer/wav2vec2/librilight/LL_rope_PT_100h_FT.pt )
 Wav2Vec 2.0 Large (LV-60)* | 960 hours | [Libri-Light](https://github.com/facebookresearch/libri-light) + [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec2_vox_960h_new.pt)
+Wav2Vec 2.0 Large conformer - rel_pos (LV-60)* | 960 hours | [Libri-Light](https://github.com/facebookresearch/libri-light) | [download](s3://dl.fbaipublicfiles.com/fairseq/conformer/wav2vec2/librilight/LL_relpos_PT_960h_FT.pt )
+Wav2Vec 2.0 Large conformer - rope (LV-60)* | 960 hours | [Libri-Light](https://github.com/facebookresearch/libri-light) | [download](s3://dl.fbaipublicfiles.com/fairseq/conformer/wav2vec2/librilight/LL_rope_PT_960h_FT.pt )
 Wav2Vec 2.0 Large (LV-60) + Self Training * | 10 minutes | [Libri-Light](https://github.com/facebookresearch/libri-light) + [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox_10m_pl.pt)
 Wav2Vec 2.0 Large (LV-60) + Self Training * | 100 hours | [Libri-Light](https://github.com/facebookresearch/libri-light) + [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox_100h_pl.pt)
 Wav2Vec 2.0 Large (LV-60) + Self Training * | 960 hours | [Libri-Light](https://github.com/facebookresearch/libri-light) + [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox_960h_pl.pt)
+Wav2Vec 2.0 Large (LV-60 + CV + SWBD + FSH) ** | No finetuning | [Libri-Light](https://github.com/facebookresearch/libri-light) + [CommonVoice](https://commonvoice.mozilla.org/en/languages) + [Switchboard](https://catalog.ldc.upenn.edu/LDC97S62) + [Fisher](https://catalog.ldc.upenn.edu/LDC2004T19) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/w2v_large_lv_fsh_swbd_cv.pt)
+Wav2Vec 2.0 Large (LV-60 + CV + SWBD + FSH) ** | 960 hours Librispeech | [Libri-Light](https://github.com/facebookresearch/libri-light) + [CommonVoice](https://commonvoice.mozilla.org/en/languages) + [Switchboard](https://catalog.ldc.upenn.edu/LDC97S62) + [Fisher](https://catalog.ldc.upenn.edu/LDC2004T19) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/w2v_large_lv_fsh_swbd_cv_ftls960_updated.pt)
+Wav2Vec 2.0 Large (LV-60 + CV + SWBD + FSH) ** | 300 hours Switchboard | [Libri-Light](https://github.com/facebookresearch/libri-light) + [CommonVoice](https://commonvoice.mozilla.org/en/languages) + [Switchboard](https://catalog.ldc.upenn.edu/LDC97S62) + [Fisher](https://catalog.ldc.upenn.edu/LDC2004T19) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/w2v_large_lv_fsh_swbd_cv_ftsb300_updated.pt)
 
-\* updated (Oct. 24, 2020)
+\* updated (Oct. 24, 2020)\
+** updated (Nov. 13, 2021)
 
 We also release multilingual pre-trained wav2vec 2.0 (XLSR) models:
 
@@ -42,14 +56,25 @@ The XLSR model uses the following datasets for multilingual pretraining:
 
 * **[Babel](https://catalog.ldc.upenn.edu/byyear)** (17 languages, 1.7k hours): *Assamese, Bengali, Cantonese, Cebuano, Georgian, Haitian, Kazakh, Kurmanji, Lao, Pashto, Swahili, Tagalog, Tamil, Tok, Turkish, Vietnamese, Zulu*
 
+We also finetuned several models on languages from [CommonVoice](https://commonvoice.mozilla.org/en/languages) (version 6.1) and [Babel](https://catalog.ldc.upenn.edu/byyear). Please refer to [our paper](https://arxiv.org/abs/2109.11680) for details about which languages are used.
+
+Pretrained Model | Fintune Dataset | # Languages | Phonemizer | Model | Dictionary
+|---|---|---|---|---|---
+LV-60 | CommonVoice | 26 | [Espeak](https://github.com/espeak-ng/espeak-ng/blob/master/docs/languages.md) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/espeak_en_26lang_m10.pt) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/espeak_dict.txt)
+XLSR-53 | CommonVoice | 26 | [Espeak](https://github.com/espeak-ng/espeak-ng/blob/master/docs/languages.md) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/espeak_26lang_m10.pt) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/espeak_dict.txt)
+XLSR-53 | CommonVoice | 21 | [Phonetisaurus](https://github.com/AdolfVonKleist/Phonetisaurus) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/phonetisaurus_21lang_m10.pt) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/phonetisaurus_dict.txt)
+XLSR-53 | CommonVoice, BABEL | 21, 19 | [Phonetisaurus](https://github.com/AdolfVonKleist/Phonetisaurus) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/phonetisaurus_40lang_m10.pt) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/zero_shot/phonetisaurus_40lang.dict.txt)
+
+We release 2 models that are finetuned on data from 2 different phonemizers. Although the phonemes are all [IPA](https://en.wikipedia.org/wiki/International_Phonetic_Alphabet) symbols, there are still subtle differences between the phonemized transcriptions from the 2 phonemizers. Thus, it's better to use the corresponding model, if your data is phonemized by either phonemizer above.
 
 ## Training a new model with the CLI tools
 
 Given a directory containing wav files to be used for pretraining (we recommend splitting each file into separate file 10 to 30 seconds in length)
 
-### Prepare training data manifest:
+### Prepare training data manifest
 
 First, install the `soundfile` library:
+
 ```shell script
 pip install soundfile
 ```
@@ -57,7 +82,7 @@ pip install soundfile
 Next, run:
 
 ```shell script
-$ python examples/wav2vec/wav2vec_manifest.py /path/to/waves --dest /manifest/path --ext $ext --valid-percent $valid
+python examples/wav2vec/wav2vec_manifest.py /path/to/waves --dest /manifest/path --ext $ext --valid-percent $valid
 ```
 
 $ext should be set to flac, wav, or whatever format your dataset happens to use that soundfile can read.
@@ -66,7 +91,7 @@ $valid should be set to some reasonable percentage (like 0.01) of training data 
 To use a pre-defined validation set (like dev-other from librispeech), set to it 0 and then overwrite valid.tsv with a
 separately pre-processed manifest file.
 
-### Train a wav2vec 2.0 base model:
+### Train a wav2vec 2.0 base model
 
 This configuration was used for the base model trained on the Librispeech dataset in the wav2vec 2.0 paper
 
@@ -82,7 +107,7 @@ $ fairseq-hydra-train \
 Note: you can simulate 64 GPUs by using k GPUs and adding command line parameters (before `--config-dir`)
 `distributed_training.distributed_world_size=k` `+optimization.update_freq='[x]'` where x = 64/k
 
-### Train a wav2vec 2.0 large model:
+### Train a wav2vec 2.0 large model
 
 This configuration was used for the large model trained on the Libri-light dataset in the wav2vec 2.0 paper
 
@@ -96,7 +121,33 @@ $ fairseq-hydra-train \
 Note: you can simulate 128 GPUs by using k GPUs and adding command line parameters (before `--config-dir`)
 `distributed_training.distributed_world_size=k` `+optimization.update_freq='[x]'` where x = 128/k
 
-### Fine-tune a pre-trained model with CTC:
+### Train a wav2vec 2.0 model with conformer backbone
+
+To replace the transformer layers in the encoder with the conformer layers, set `--layer-type conformer --attn-type espnet --pos-enc-type ${POS_ENC_TYPE}`. `POS_ENC_TYPE` refers to positional encoding to be used in the conformer encoder.
+Set it to `abs`, `rope` or `rel_pos` to use the absolute positional encoding, rotary positional encoding or relative positional encoding in the conformer layer respectively.
+
+To train a base model with conformer:
+
+```shell script
+$ fairseq-hydra-train \
+    task.data=/path/to/data \
+    --config-dir /path/to/fairseq-py/examples/wav2vec/config/pretraining \
+    --config-name wav2vec2_conformer_base_librispeech \
+    --attn-type espnet --pos-enc-type ${POS_ENC_TYPE}
+```
+
+To train a large model with conformer:
+
+```shell script
+$ fairseq-hydra-train \
+    task.data=/path/to/data \
+    --config-dir /path/to/fairseq-py/examples/wav2vec/config/pretraining \
+    --config-name wav2vec2_conformer_large_librivox
+    --attn-type espnet --pos-enc-type ${POS_ENC_TYPE}
+
+```
+
+### Fine-tune a pre-trained model with CTC
 
 Fine-tuning a model requires parallel audio and labels file, as well as a vocabulary file in fairseq format.
 A letter vocabulary can be downloaded [here](https://dl.fbaipublicfiles.com/fairseq/wav2vec/dict.ltr.txt).
@@ -108,6 +159,7 @@ $ python libri_labels.py /path/to/tsv --output-dir /output/dir --output-name $sp
 ```
 
 Fine-tuning on 100h of Librispeech with letter targets:
+
 ```shell script
 $ fairseq-hydra-train \
     distributed_training.distributed_port=$PORT \
@@ -126,7 +178,7 @@ Note: you can simulate 24 GPUs by using k GPUs and adding command line parameter
 Decoding with a language model during training requires flashlight [python bindings](https://github.com/facebookresearch/flashlight/tree/master/bindings/python) (previously called [wav2letter](https://github.com/facebookresearch/wav2letter).
 If you want to use a language model, add `+criterion.wer_args='[/path/to/kenlm, /path/to/lexicon, 2, -1]'` to the command line.
 
-### Evaluating a CTC model:
+### Evaluating a CTC model
 
 Evaluating a CTC model with a language model requires [flashlight python bindings](https://github.com/facebookresearch/flashlight/tree/master/bindings/python) (previously called [wav2letter](https://github.com/facebookresearch/wav2letter) to be installed.
 
@@ -139,7 +191,7 @@ Next, run the evaluation command:
 
 ```shell script
 $subset=dev_other
-python examples/speech_recognition/infer.py /checkpoint/abaevski/data/speech/libri/10h/wav2vec/raw --task audio_pretraining \
+python examples/speech_recognition/infer.py /checkpoint/abaevski/data/speech/libri/10h/wav2vec/raw --task audio_finetuning \
 --nbest 1 --path /path/to/model --gen-subset $subset --results-path /path/to/save/results/for/sclite --w2l-decoder kenlm \
 --lm-model /path/to/kenlm.bin --lm-weight 2 --word-score -1 --sil-weight 0 --criterion ctc --labels ltr --max-tokens 4000000 \
 --post-process letter
@@ -147,7 +199,7 @@ python examples/speech_recognition/infer.py /checkpoint/abaevski/data/speech/lib
 
 To get raw numbers, use --w2l-decoder viterbi and omit the lexicon. To use the transformer language model, use --w2l-decoder fairseqlm.
 
-## Use wav2vec 2.0 with 🤗Transformers:
+## Use wav2vec 2.0 with 🤗Transformers
 
 Wav2Vec2 is also available in the [🤗Transformers library](https://github.com/huggingface/transformers) since version 4.4.
 
@@ -192,7 +244,7 @@ target_transcription = "A MAN SAID TO THE UNIVERSE I EXIST"
 
 # encode labels
 with processor.as_target_processor():
-	labels = processor(target_transcription, return_tensors="pt").input_ids
+  labels = processor(target_transcription, return_tensors="pt").input_ids
 
 # compute loss by passing labels
 loss = model(input_values, labels=labels).loss
@@ -209,7 +261,8 @@ Description | Dataset | Model
 ---|---|---
 Wav2Vec large | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_large.pt)
 
-#### Example usage:
+#### Example usage
+
 ```python
 import torch
 import fairseq
@@ -228,13 +281,13 @@ c = model.feature_aggregator(z)
 
 Given a directory containing wav files to be used for pretraining (we recommend splitting each file into separate files 10 to 30 seconds in length)
 
-### Prepare training data manifest:
+### Prepare training data manifest
 
 ```
-$ python examples/wav2vec/wav2vec_manifest.py /path/to/waves --dest /manifest/path --ext wav
+python examples/wav2vec/wav2vec_manifest.py /path/to/waves --dest /manifest/path --ext wav
 ```
 
-### Train a wav2vec model:
+### Train a wav2vec model
 
 ```
 $ python train.py /manifest/path --save-dir /model/path --num-workers 6 --fp16 --max-update 400000 --save-interval 1 --no-epoch-checkpoints \
@@ -245,11 +298,11 @@ $ python train.py /manifest/path --save-dir /model/path --num-workers 6 --fp16 -
 --max-sample-size 150000 --max-tokens 1500000 --skip-invalid-size-inputs-valid-test
 ```
 
-### Run wav2vec2 pre-training on Google Cloud TPUs:
+### Run wav2vec2 pre-training on Google Cloud TPUs
 
 Wav2Vec2 is now supported on TPUs! It's currently pre-training only.
 
-#### Using hydra on a v3-8:
+#### Using hydra on a v3-8
 
 ```
 $ OMP_NUM_THREADS=1 fairseq-hydra-train \
@@ -258,7 +311,9 @@ $ OMP_NUM_THREADS=1 fairseq-hydra-train \
   --config-name wav2vec2_large_librivox_tpu.yaml
 ```
 
-#### Using command line arguments on a v3-8:
+#### Using command line arguments on a v3-8
+
+Note: Commandline arguments way of execution has a [known-problem](https://github.com/pytorch/fairseq/issues/3741) currently.
 
 ```
 $ OMP_NUM_THREADS=1 python train.py /manifest/path --save-dir /model/path --num-workers 6 --fp16 --max-update 400000 --save-interval 1 --no-epoch-checkpoints \
@@ -271,7 +326,7 @@ $ OMP_NUM_THREADS=1 python train.py /manifest/path --save-dir /model/path --num-
 --encoder-layerdrop 0 --mask-channel-prob 0.1
 ```
 
-#### Using hydra on a pod slice (v3-N with N > 8):
+#### Using hydra on a pod slice (v3-N with N > 8)
 
 ```
 $ OMP_NUM_THREADS=1 fairseq-hydra-train \
@@ -280,8 +335,9 @@ $ OMP_NUM_THREADS=1 fairseq-hydra-train \
   --config-name wav2vec2_large_librivox_tpu-pod.yaml  # edit distributed-world-size accordingly
 ```
 
-#### Using command line arguments on a pod slice (v3-N with N > 8):
+#### Using command line arguments on a pod slice (v3-N with N > 8)
 
+Note: Commandline arguments way of execution has a [known-problem](https://github.com/pytorch/fairseq/issues/3741) currently.
 
 ```
 $ python -m torch_xla.distributed.xla_dist \
@@ -297,7 +353,7 @@ python train.py /manifest/path --save-dir /model/path --num-workers 6 --fp16 --m
 --encoder-layerdrop 0 --mask-channel-prob 0.1
 ```
 
-### Extract embeddings from the downstream task data:
+### Extract embeddings from the downstream task data
 
 ```
 $ PYTHONPATH=/path/to/fairseq python examples/wav2vec/wav2vec_featurize.py --input /path/to/task/waves --output /path/to/output \
@@ -318,7 +374,8 @@ vq-wav2vec Gumbel | [Librispeech](http://www.openslr.org/12) | [download](https:
 vq-wav2vec K-means | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/vq-wav2vec_kmeans.pt)
 Roberta on K-means codes | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/bert_kmeans.tar)
 
-#### Example usage:
+#### Example usage
+
 ```python
 import torch
 import fairseq
@@ -338,13 +395,13 @@ print(idxs.shape) # output: torch.Size([1, 60, 2]), 60 timesteps with 2 indexes 
 
 Given a directory containing wav files to be used for pretraining (we recommend splitting each file into separate file 10 to 30 seconds in length)
 
-### Prepare training data manifest:
+### Prepare training data manifest
 
 ```
-$ python examples/wav2vec/wav2vec_manifest.py /path/to/waves --dest /manifest/path --ext wav
+python examples/wav2vec/wav2vec_manifest.py /path/to/waves --dest /manifest/path --ext wav
 ```
 
-### Train a gumbel vq-wav2vec model:
+### Train a gumbel vq-wav2vec model
 
 ```
 $ python train.py /manifest/path --save-dir /model/path --num-workers 6 --fp16 --max-update 400000 \
@@ -361,7 +418,7 @@ $ python train.py /manifest/path --save-dir /model/path --num-workers 6 --fp16 -
 
 for k-means training, set vq-type with "kmeans" and add --loss-weights [1] argument. Pre-trained models were trained on 16 GPUs.
 
-### Tokenize audio data (e.g. for BERT training):
+### Tokenize audio data (e.g. for BERT training)
 
 ```
 $ PYTHONPATH=/path/to/fairseq python examples/wav2vec/vq-wav2vec_featurize.py --data-dir /manifest/path --output-dir /path/to/output \

@@ -191,6 +191,12 @@ def optimize_models(args, use_cuda, models):
             model.cuda()
 
 
+def apply_half(t):
+    if t.dtype is torch.float32:
+        return t.to(dtype=torch.half)
+    return t
+
+
 class ExistingEmissionsDecoder(object):
     def __init__(self, decoder, emissions):
         self.decoder = decoder
@@ -210,6 +216,7 @@ class ExistingEmissionsDecoder(object):
 def main(args, task=None, model_state=None):
     check_args(args)
 
+    use_fp16 = args.fp16
     if args.max_tokens is None and args.batch_size is None:
         args.max_tokens = 4000000
     logger.info(args)
@@ -317,6 +324,8 @@ def main(args, task=None, model_state=None):
         wps_meter = TimeMeter()
         for sample in t:
             sample = utils.move_to_cuda(sample) if use_cuda else sample
+            if use_fp16:
+                sample = utils.apply_to_sample(apply_half, sample)
             if "net_input" not in sample:
                 continue
 

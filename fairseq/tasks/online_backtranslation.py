@@ -12,6 +12,7 @@ from argparse import Namespace
 from collections import OrderedDict, defaultdict
 from pathlib import Path
 from typing import Dict, Sequence, Tuple
+from argparse import ArgumentError
 
 import numpy as np
 import torch
@@ -110,10 +111,14 @@ class OnlineBackTranslationTask(TranslationTask):
                             help='pad the target on the left')
         parser.add_argument('--upsample-primary', default=1, type=int,
                             help='amount to upsample primary dataset')
-        parser.add_argument('--max-source-positions', default=1024, type=int, metavar='N',
-                            help='max number of tokens in the source sequence')
-        parser.add_argument('--max-target-positions', default=1024, type=int, metavar='N',
-                            help='max number of tokens in the target sequence')
+        try:
+            parser.add_argument('--max-source-positions', default=1024, type=int, metavar='N',
+                                help='max number of tokens in the source sequence')
+            parser.add_argument('--max-target-positions', default=1024, type=int, metavar='N',
+                                help='max number of tokens in the target sequence')
+        except ArgumentError:
+            # this might have already been defined. Once we transition this to hydra it should be fine to add it here.
+            pass
         parser.add_argument('--truncate-source', action='store_true', default=False,
                             help='truncate source to max-source-positions')
         parser.add_argument('--num-batch-buckets', default=0, type=int, metavar='N',
@@ -349,9 +354,9 @@ class OnlineBackTranslationTask(TranslationTask):
     def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
         raise NotImplementedError
 
-    def build_model(self, args):
+    def build_model(self, args, from_checkpoint=False):
         # torch.autograd.set_detect_anomaly(True)
-        model = super().build_model(args)
+        model = super().build_model(args, from_checkpoint)
 
         add_secial_tokens_to_dict_and_model(self.common_dict, model, self.mono_langs)
 

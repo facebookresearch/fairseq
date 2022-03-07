@@ -1,21 +1,20 @@
 # HuBERT
 
 ## Pre-trained and fine-tuned (ASR) models
-Model | Pretraining Data | Finetuning Dataset | Model
-|---|---|---|---
-HuBERT Base (~95M params) | [Librispeech](http://www.openslr.org/12) 960 hr | No finetuning (Pretrained Model) | [download](https://dl.fbaipublicfiles.com/hubert/hubert_base_ls960.pt)
+Model | Pretraining Data | Finetuning Dataset | Model | Quantizer
+|---|---|---|---|---
+HuBERT Base (~95M params) | [Librispeech](http://www.openslr.org/12) 960 hr | No finetuning (Pretrained Model) | [download](https://dl.fbaipublicfiles.com/hubert/hubert_base_ls960.pt) | [L9 km500](https://dl.fbaipublicfiles.com/hubert/hubert_base_ls960_L9_km500.bin)
 HuBERT Large (~316M params) | [Libri-Light](https://github.com/facebookresearch/libri-light) 60k hr | No finetuning (Pretrained Model) | [download](https://dl.fbaipublicfiles.com/hubert/hubert_large_ll60k.pt)
 HuBERT Extra Large (~1B params) | [Libri-Light](https://github.com/facebookresearch/libri-light) 60k hr |  No finetuning (Pretrained Model) | [download](https://dl.fbaipublicfiles.com/hubert/hubert_xtralarge_ll60k.pt)
 HuBERT Large | [Libri-Light](https://github.com/facebookresearch/libri-light) 60k hr | [Librispeech](http://www.openslr.org/12) 960 hr | [download](https://dl.fbaipublicfiles.com/hubert/hubert_large_ll60k_finetune_ls960.pt)
 HuBERT Extra Large | [Libri-Light](https://github.com/facebookresearch/libri-light) 60k hr | [Librispeech](http://www.openslr.org/12) 960 hr | [download](https://dl.fbaipublicfiles.com/hubert/hubert_xtralarge_ll60k_finetune_ls960.pt)
 
-## Load a pretrained model
+## Load a model
 ```
 ckpt_path = "/path/to/the/checkpoint.pt"
-models, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([ckpt_path], strict=False)
+models, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([ckpt_path])
 model = models[0]
 ```
-** We will follow-up with a patch such that you wouldn't need to pass `strict=False` for loading the checkpoint in future.
 
 ## Train a new model
 
@@ -24,6 +23,7 @@ model = models[0]
 Follow the steps in `./simple_kmeans` to create:
 - `{train,valid}.tsv` waveform list files
 - `{train,valid}.km` frame-aligned pseudo label files.
+- `dict.km.txt` a dummy dictionary
 The `label_rate` is the same as the feature frame rate used for clustering,
 which is 100Hz for MFCC features and 50Hz for HuBERT features by default.
 
@@ -37,7 +37,7 @@ To train a base model (12 layer transformer), run:
 $ python fairseq_cli/hydra_train.py \
   --config-dir /path/to/fairseq-py/examples/hubert/config/pretrain \
   --config-name hubert_base_librispeech \
-  task.data=/path/to/data task.label_dir=/path/to/labels model.label_rate=100
+  task.data=/path/to/data task.label_dir=/path/to/labels task.labels='["km"]' model.label_rate=100
 ```
 
 ### Fine-tune a HuBERT model with a CTC loss

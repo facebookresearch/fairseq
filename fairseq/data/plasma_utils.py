@@ -4,10 +4,10 @@
 # LICENSE file in the root directory of this source tree.
 
 
-import subprocess
-import json
-import tempfile
 import hashlib
+import json
+import subprocess
+import tempfile
 from typing import Hashable
 
 try:
@@ -176,7 +176,7 @@ class PlasmaView:
         return self._n
 
 
-GB100 = (1024 ** 3) * 100
+GB100 = (1024**3) * 100
 
 
 class PlasmaStore:

@@ -1,0 +1,8 @@
+includes: projects/mtm/mmfusionmtm.yaml
+project_dir: mtm/vlm
+task_group:
+  pretrain:
+    dataset:
+      sampled_min_len: 8
+    loss:
+      loss_cls: MTM

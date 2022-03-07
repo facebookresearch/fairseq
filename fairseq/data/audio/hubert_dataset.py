@@ -152,10 +152,7 @@ class HubertDataset(FairseqDataset):
             self.label_offsets_list = [
                 load_label_offset(p, inds, tot) for p in label_paths
             ]
-        assert (
-            label_processors is None
-            or len(label_processors) == self.num_labels
-        )
+        assert label_processors is None or len(label_processors) == self.num_labels
         for label_path, label_rate in zip(label_paths, self.label_rates):
             verify_label_lengths(
                 self.sizes, sample_rate, label_path, label_rate, inds, tot
@@ -234,8 +231,7 @@ class HubertDataset(FairseqDataset):
         )
 
         targets_by_label = [
-            [s["label_list"][i] for s in samples]
-            for i in range(self.num_labels)
+            [s["label_list"][i] for s in samples] for i in range(self.num_labels)
         ]
         targets_list, lengths_list, ntokens_list = self.collater_label(
             targets_by_label, audio_size, audio_starts
@@ -270,9 +266,7 @@ class HubertDataset(FairseqDataset):
                 collated_audios[i] = audio
             elif diff < 0:
                 assert self.pad_audio
-                collated_audios[i] = torch.cat(
-                    [audio, audio.new_full((-diff,), 0.0)]
-                )
+                collated_audios[i] = torch.cat([audio, audio.new_full((-diff,), 0.0)])
                 padding_mask[i, diff:] = True
             else:
                 collated_audios[i], audio_starts[i] = self.crop_to_max_size(
@@ -280,9 +274,7 @@ class HubertDataset(FairseqDataset):
                 )
         return collated_audios, padding_mask, audio_starts
 
-    def collater_frm_label(
-        self, targets, audio_size, audio_starts, label_rate, pad
-    ):
+    def collater_frm_label(self, targets, audio_size, audio_starts, label_rate, pad):
         assert label_rate > 0
         s2f = label_rate / self.sample_rate
         frm_starts = [int(round(s * s2f)) for s in audio_starts]
@@ -290,24 +282,20 @@ class HubertDataset(FairseqDataset):
         if not self.pad_audio:
             rem_size = [len(t) - s for t, s in zip(targets, frm_starts)]
             frm_size = min(frm_size, *rem_size)
-        targets = [t[s: s + frm_size] for t, s in zip(targets, frm_starts)]
+        targets = [t[s : s + frm_size] for t, s in zip(targets, frm_starts)]
         logger.debug(f"audio_starts={audio_starts}")
         logger.debug(f"frame_starts={frm_starts}")
         logger.debug(f"frame_size={frm_size}")
 
         lengths = torch.LongTensor([len(t) for t in targets])
         ntokens = lengths.sum().item()
-        targets = data_utils.collate_tokens(
-            targets, pad_idx=pad, left_pad=False
-        )
+        targets = data_utils.collate_tokens(targets, pad_idx=pad, left_pad=False)
         return targets, lengths, ntokens
 
     def collater_seq_label(self, targets, pad):
         lengths = torch.LongTensor([len(t) for t in targets])
         ntokens = lengths.sum().item()
-        targets = data_utils.collate_tokens(
-            targets, pad_idx=pad, left_pad=False
-        )
+        targets = data_utils.collate_tokens(targets, pad_idx=pad, left_pad=False)
         return targets, lengths, ntokens
 
     def collater_label(self, targets_by_label, audio_size, audio_starts):
@@ -315,9 +303,7 @@ class HubertDataset(FairseqDataset):
         itr = zip(targets_by_label, self.label_rates, self.pad_list)
         for targets, label_rate, pad in itr:
             if label_rate == -1:
-                targets, lengths, ntokens = self.collater_seq_label(
-                    targets, pad
-                )
+                targets, lengths, ntokens = self.collater_seq_label(targets, pad)
             else:
                 targets, lengths, ntokens = self.collater_frm_label(
                     targets, audio_size, audio_starts, label_rate, pad

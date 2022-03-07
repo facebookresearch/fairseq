@@ -3,12 +3,10 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import contextlib
 import json
 import os
 import tempfile
 import unittest
-from io import StringIO
 
 import torch
 

@@ -69,6 +69,7 @@ def collate_tokens(
         copy_tensor(v, res[i][size - len(v) :] if left_pad else res[i][: len(v)])
     return res
 
+
 def load_indexed_dataset(
     path, dictionary=None, dataset_impl=None, combine=False, default="cached"
 ):
@@ -324,9 +325,7 @@ def batch_by_size(
         )
 
     # added int() to avoid TypeError: an integer is required
-    max_tokens = (
-        int(max_tokens) if max_tokens is not None else -1
-    )
+    max_tokens = int(max_tokens) if max_tokens is not None else -1
     max_sentences = max_sentences if max_sentences is not None else -1
     bsz_mult = required_batch_size_multiple
 
@@ -375,8 +374,9 @@ def post_process(sentence: str, symbol: str):
         sentence = sentence.replace(" ", "").replace("|", " ").strip()
     elif symbol == "silence":
         import re
+
         sentence = sentence.replace("<SIL>", "")
-        sentence = re.sub(' +', ' ', sentence).strip()
+        sentence = re.sub(" +", " ", sentence).strip()
     elif symbol == "_EOW":
         sentence = sentence.replace(" ", "").replace("_EOW", " ").strip()
     elif symbol in {"subword_nmt", "@@ ", "@@"}:
@@ -400,6 +400,8 @@ def compute_mask_indices(
     min_masks: int = 0,
     no_overlap: bool = False,
     min_space: int = 0,
+    require_same_masks: bool = True,
+    mask_dropout: float = 0.0,
 ) -> np.ndarray:
     """
     Computes random mask spans for a given shape
@@ -419,6 +421,8 @@ def compute_mask_indices(
         min_masks: minimum number of masked spans
         no_overlap: if false, will switch to an alternative recursive algorithm that prevents spans from overlapping
         min_space: only used if no_overlap is True, this is how many elements to keep unmasked between spans
+        require_same_masks: if true, will randomly drop out masks until same amount of masks remains in each sample
+        mask_dropout: randomly dropout this percentage of masks in each example
     """
 
     bsz, all_sz = shape
@@ -510,8 +514,14 @@ def compute_mask_indices(
 
     min_len = min([len(m) for m in mask_idcs])
     for i, mask_idc in enumerate(mask_idcs):
-        if len(mask_idc) > min_len:
+        if len(mask_idc) > min_len and require_same_masks:
             mask_idc = np.random.choice(mask_idc, min_len, replace=False)
+        if mask_dropout > 0:
+            num_holes = np.rint(len(mask_idc) * mask_dropout).astype(int)
+            mask_idc = np.random.choice(
+                mask_idc, len(mask_idc) - num_holes, replace=False
+            )
+
         mask[i, mask_idc] = True
 
     return mask
@@ -547,7 +557,7 @@ def get_buckets(sizes, num_buckets):
         np.percentile(
             sizes,
             np.linspace(0, 100, num_buckets + 1),
-            interpolation='lower',
+            interpolation="lower",
         )[1:]
     )
     return buckets
@@ -562,7 +572,6 @@ def get_bucketed_sizes(orig_sizes, buckets):
         sizes[mask] = end_val
         start_val = end_val
     return sizes
-
 
 
 def _find_extra_valid_paths(dataset_path: str) -> set:

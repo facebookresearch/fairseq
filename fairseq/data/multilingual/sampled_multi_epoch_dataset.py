@@ -8,10 +8,10 @@ import logging
 import math
 
 import numpy as np
+
 from fairseq.data import SampledMultiDataset
 
 from .sampled_multi_dataset import CollateFormat, default_virtual_size_func
-
 
 logger = logging.getLogger(__name__)
 
@@ -155,8 +155,8 @@ class SampledMultiEpochDataset(SampledMultiDataset):
                     ).hexdigest(),
                     16,
                 )
-                % (2 ** 32),
-                self.seed % (2 ** 32),  # global seed
+                % (2**32),
+                self.seed % (2**32),  # global seed
                 epoch,  # epoch index,
             ]
         )

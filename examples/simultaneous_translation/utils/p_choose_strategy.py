@@ -3,30 +3,34 @@ from torch import Tensor
 import torch
 
 
-def waitk(
-    query, key, waitk_lagging: int, num_heads: int, key_padding_mask: Optional[Tensor] = None,
+def waitk_p_choose(
+    tgt_len: int,
+    src_len: int,
+    bsz: int,
+    waitk_lagging: int,
+    key_padding_mask: Optional[Tensor] = None,
     incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None
 ):
+
+    max_src_len = src_len
     if incremental_state is not None:
         # Retrieve target length from incremental states
         # For inference the length of query is always 1
-        tgt_len = incremental_state["steps"]["tgt"]
-        assert tgt_len is not None
-        tgt_len = int(tgt_len)
+        max_tgt_len = incremental_state["steps"]["tgt"]
+        assert max_tgt_len is not None
+        max_tgt_len = int(max_tgt_len)
     else:
-        tgt_len, bsz, _ = query.size()
-
-    max_src_len, bsz, _ = key.size()
+        max_tgt_len = tgt_len
 
     if max_src_len < waitk_lagging:
         if incremental_state is not None:
-            tgt_len = 1
-        return query.new_zeros(
-            bsz * num_heads, tgt_len, max_src_len
+            max_tgt_len = 1
+        return torch.zeros(
+            bsz, max_tgt_len, max_src_len
         )
 
     # Assuming the p_choose looks like this for wait k=3
-    # src_len = 6, tgt_len = 5
+    # src_len = 6, max_tgt_len = 5
     #   [0, 0, 1, 0, 0, 0, 0]
     #   [0, 0, 0, 1, 0, 0, 0]
     #   [0, 0, 0, 0, 1, 0, 0]
@@ -39,21 +43,20 @@ def waitk(
     # 3 + 6 * 1
     # ...
     # n + src_len * n + k - 1 = n * (src_len + 1) + k - 1
-    # n from 0 to tgt_len - 1
+    # n from 0 to max_tgt_len - 1
     #
-    # First, generate the indices (activate_indices_offset: bsz, tgt_len)
-    # Second, scatter a zeros tensor (bsz, tgt_len * src_len)
+    # First, generate the indices (activate_indices_offset: bsz, max_tgt_len)
+    # Second, scatter a zeros tensor (bsz, max_tgt_len * src_len)
     # with activate_indices_offset
-    # Third, resize the tensor to (bsz, tgt_len, src_len)
+    # Third, resize the tensor to (bsz, max_tgt_len, src_len)
 
     activate_indices_offset = (
         (
-            torch.arange(tgt_len) * (max_src_len + 1)
+            torch.arange(max_tgt_len) * (max_src_len + 1)
             + waitk_lagging - 1
         )
         .unsqueeze(0)
-        .expand(bsz, tgt_len)
-        .to(query)
+        .expand(bsz, max_tgt_len)
         .long()
     )
 
@@ -71,54 +74,53 @@ def waitk(
             0,
             min(
                 [
-                    tgt_len,
+                    max_tgt_len,
                     max_src_len - waitk_lagging + 1
                 ]
             ) * max_src_len - 1
         )
     )
 
-    p_choose = torch.zeros(bsz, tgt_len * max_src_len).to(query)
+    p_choose = torch.zeros(bsz, max_tgt_len * max_src_len)
 
     p_choose = p_choose.scatter(
         1,
         activate_indices_offset,
         1.0
-    ).view(bsz, tgt_len, max_src_len)
+    ).view(bsz, max_tgt_len, max_src_len)
+
+    if key_padding_mask is not None:
+        p_choose = p_choose.to(key_padding_mask)
+        p_choose = p_choose.masked_fill(key_padding_mask.unsqueeze(1), 0)
 
     if incremental_state is not None:
         p_choose = p_choose[:, -1:]
-        tgt_len = 1
 
-    # Extend to each head
-    p_choose = (
-        p_choose.contiguous()
-        .unsqueeze(1)
-        .expand(-1, num_heads, -1, -1)
-        .contiguous()
-        .view(-1, tgt_len, max_src_len)
-    )
-
-    return p_choose
+    return p_choose.float()
 
 
-def hard_aligned(q_proj: Optional[Tensor], k_proj: Optional[Tensor], attn_energy, noise_mean: float = 0.0, noise_var: float = 0.0, training: bool = True):
+def learnable_p_choose(
+    energy,
+    noise_mean: float = 0.0,
+    noise_var: float = 0.0,
+    training: bool = True
+):
     """
     Calculating step wise prob for reading and writing
     1 to read, 0 to write
+    energy: bsz, tgt_len, src_len
     """
 
     noise = 0
     if training:
         # add noise here to encourage discretness
         noise = (
-            torch.normal(noise_mean, noise_var, attn_energy.size())
-            .type_as(attn_energy)
-            .to(attn_energy.device)
+            torch.normal(noise_mean, noise_var, energy.size())
+            .type_as(energy)
+            .to(energy.device)
         )
 
-    p_choose = torch.sigmoid(attn_energy + noise)
-    _, _, tgt_len, src_len = p_choose.size()
+    p_choose = torch.sigmoid(energy + noise)
 
     # p_choose: bsz * self.num_heads, tgt_len, src_len
-    return p_choose.view(-1, tgt_len, src_len)
+    return p_choose

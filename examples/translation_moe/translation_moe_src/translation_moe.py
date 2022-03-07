@@ -101,7 +101,7 @@ class TranslationMoETask(TranslationTask):
 
         super().__init__(cfg, src_dict, tgt_dict)
 
-    def build_model(self, cfg):
+    def build_model(self, cfg, from_checkpoint=False):
         from fairseq import models
 
         model = models.build_model(cfg, self)
