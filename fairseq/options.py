@@ -23,6 +23,7 @@ from fairseq.dataclass.configs import (
     EMAConfig,
 )
 from fairseq.dataclass.utils import gen_parser_from_dataclass
+from fairseq import criterions
 
 # this import is for backward compatibility
 from fairseq.utils import csv_str_list, eval_bool, eval_str_dict, eval_str_list  # noqa
@@ -42,6 +43,7 @@ def get_training_parser(default_task="translation"):
     add_optimization_args(parser)
     add_checkpoint_args(parser)
     add_ema_args(parser)
+    add_sequence_training_args(parser)
     return parser
 
 
@@ -330,7 +332,44 @@ def add_optimization_args(parser):
     group = parser.add_argument_group("optimization")
     # fmt: off
     gen_parser_from_dataclass(group, OptimizationConfig())
+    group.add_argument('--unkpen', default=0, type=float,
+                       help='unknown word penalty: <0 produces more unks, >0 produces fewer')
     # fmt: on
+    return group
+
+def add_sequence_training_args(parser):
+    group = parser.add_argument_group('Sequence level training options')
+    group.add_argument('--seq-criterion', metavar='CRIT', choices=criterions.sequence_criterions,
+                       help='sequence-level criterion ({})'.format(', '.join(criterions.sequence_criterions)))
+    group.add_argument('--seq-beam', default=5, type=int, metavar='N',
+                       help='beam size for sequence training')
+    group.add_argument('--seq-keep-reference', action='store_true',
+                       help='keep the reference in the set of hypotheses')
+    group.add_argument('--seq-max-len-a', default=0, type=float, metavar='N',
+                       help=('generate sequences of maximum length ax + b, '
+                             'where x is the source length'))
+    group.add_argument('--seq-max-len-b', default=200, type=int, metavar='N',
+                       help=('generate sequences of maximum length ax + b, '
+                             'where x is the source length'))
+    group.add_argument('--seq-combined-loss-alpha', metavar='D', default=0, type=float,
+                       help='combined loss = \\alpha*token_loss + seq_loss')
+    group.add_argument('--seq-scorer', metavar='SCORER',
+                       help='Optimization metric for sequence level training', default='bleu')
+    group.add_argument('--seq-risk-normbleu', action='store_true',
+                       help='Normalize bleu')
+
+    group.add_argument('--seq-unkpen', default=0, type=float,
+                       help='unknown word penalty to be used in seq generation')
+
+    group.add_argument('--seq-hypos-dropout', action='store_true',
+                       help="Use dropout to generate hypos")
+
+    group.add_argument('--seq-sampling', action='store_true',
+                       help="Use sampling instead of beam search")
+
+    group.add_argument('--seq-margin-cost-scale-factor', type=float, default=1, metavar='D',
+                       help='Scale optimized metric with respect to token loss, '
+                            'only relevant for margin losses')
     return group
 
 
