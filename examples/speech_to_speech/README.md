@@ -119,7 +119,7 @@ fairseq-train $DATA_ROOT \
 
 **Unit-based HiFi-GAN vocoder**
 
-Coming soon.
+The vocoder is trained with the [speech-resynthesis repo](https://github.com/facebookresearch/speech-resynthesis). See [here](https://github.com/facebookresearch/speech-resynthesis/tree/main/examples/speech_to_speech_translation) for instructions on how to train the unit-based HiFi-GAN vocoder with duration prediction. The same vocoder can support waveform generation for both _reduced_ unit sequences (with `--dur-prediction` set during inference) and original unit sequences.
 
 ## Inference
 
