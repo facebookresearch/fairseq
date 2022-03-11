@@ -43,6 +43,7 @@ fairseq-train ${MTEDX_ROOT}/es-es \
     --config-yaml config_asr.yaml --train-subset train_asr --valid-subset valid_asr \
     --save-dir ${ASR_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-epoch 200 \
     --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
+    --scoring wer --wer-tokenizer 13a --wer-remove-punct --wer-lowercase \
     --arch s2t_transformer_xs --optimizer adam --lr 2e-3 --lr-scheduler inverse_sqrt \
     --warmup-updates 10000 --clip-norm 10.0 --seed 1 --dropout 0.3 --label-smoothing 0.1 \
     --load-pretrained-encoder-from ${PRETRAINED_ENCODER} \
@@ -57,6 +58,7 @@ fairseq-train ${MTEDX_ROOT} \
     --valid-subset valid_es-es_asr,valid_fr-fr_asr,valid_pt-pt_asr,valid_it-it_asr,valid_ru-ru_asr,valid_el-el_asr,valid_ar-ar_asr,valid_de-de_asr \
     --save-dir ${MULTILINGUAL_ASR_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-epoch 200 \
     --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
+    --scoring wer --wer-tokenizer 13a --wer-remove-punct --wer-lowercase \
     --arch s2t_transformer_s --optimizer adam --lr 2e-3 --lr-scheduler inverse_sqrt \
     --warmup-updates 10000 --clip-norm 10.0 --seed 1 --dropout 0.3 --label-smoothing 0.1 \
     --skip-invalid-size-inputs-valid-test \
@@ -109,7 +111,8 @@ Es-En as example:
 fairseq-train ${MTEDX_ROOT}/es-en \
     --config-yaml config_st.yaml --train-subset train_st --valid-subset valid_st \
     --save-dir ${ST_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-epoch 200 \
-    --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
+    --task speech_to_text --criterion label_smoothed_cross_entropy \
+    --report-accuracy --scoring sacrebleu \
     --arch s2t_transformer_xs --optimizer adam --lr 2e-3 --lr-scheduler inverse_sqrt \
     --warmup-updates 10000 --clip-norm 10.0 --seed 1 --dropout 0.3 --label-smoothing 0.1 \
     --load-pretrained-encoder-from ${PRETRAINED_ENCODER} \
@@ -123,7 +126,8 @@ fairseq-train ${MTEDX_ROOT} \
     --train-subset train_el-en_st,train_es-en_st,train_es-fr_st,train_es-it_st,train_es-pt_st,train_fr-en_st,train_fr-es_st,train_fr-pt_st,train_it-en_st,train_it-es_st,train_pt-en_st,train_pt-es_st,train_ru-en_st \
     --valid-subset valid_el-en_st,valid_es-en_st,valid_es-fr_st,valid_es-it_st,valid_es-pt_st,valid_fr-en_st,valid_fr-es_st,valid_fr-pt_st,valid_it-en_st,valid_it-es_st,valid_pt-en_st,valid_pt-es_st,valid_ru-en_st \
     --save-dir ${MULTILINGUAL_ST_SAVE_DIR} --num-workers 4 --max-tokens 40000 --max-epoch 200 \
-    --task speech_to_text --criterion label_smoothed_cross_entropy --report-accuracy \
+    --task speech_to_text --criterion label_smoothed_cross_entropy \
+    --report-accuracy --scoring sacrebleu \
     --arch s2t_transformer_s --optimizer adam --lr 2e-3 --lr-scheduler inverse_sqrt \
     --warmup-updates 10000 --clip-norm 10.0 --seed 1 --dropout 0.3 --label-smoothing 0.1 \
     --skip-invalid-size-inputs-valid-test \
