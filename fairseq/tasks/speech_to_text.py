@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 from argparse import Namespace
 
+from fairseq import utils, metrics, scoring
 from fairseq.data import Dictionary, encoders
 from fairseq.data.audio.speech_to_text_dataset import (
     S2TDataConfig,
@@ -51,6 +52,9 @@ class SpeechToTextTask(LegacyFairseqTask):
         self.tgt_dict = tgt_dict
         self.data_cfg = S2TDataConfig(Path(args.data) / args.config_yaml)
         self.speaker_to_id = self._get_speaker_to_id()
+        self.pre_tokenizer = self.build_tokenizer(args)
+        self.bpe_tokenizer = self.build_bpe(args)
+        self.scorer = scoring.build_scorer(args, self.tgt_dict)
 
     def _get_speaker_to_id(self):
         speaker_to_id = None
@@ -75,6 +79,17 @@ class SpeechToTextTask(LegacyFairseqTask):
         if getattr(args, "train_subset", None) is not None:
             if not all(s.startswith("train") for s in args.train_subset.split(",")):
                 raise ValueError('Train splits should be named like "train*".')
+
+        if args.scoring == "wer":
+            if args.wer_tokenizer == "none":
+                logger.warning(
+                    "You are not using any tokenizer for WER scoring. Using '13a' is recommended."
+                )
+            if not args.wer_lowercase or not args.wer_remove_punct:
+                logger.warning(
+                    "You are not lowercasing or removing punctuation before WER scoring."
+                )
+
         return cls(args, tgt_dict)
 
     def build_criterion(self, args):
@@ -89,15 +104,13 @@ class SpeechToTextTask(LegacyFairseqTask):
 
     def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         is_train_split = split.startswith("train")
-        pre_tokenizer = self.build_tokenizer(self.args)
-        bpe_tokenizer = self.build_bpe(self.args)
         self.datasets[split] = SpeechToTextDatasetCreator.from_tsv(
             self.args.data,
             self.data_cfg,
             split,
             self.tgt_dict,
-            pre_tokenizer,
-            bpe_tokenizer,
+            self.pre_tokenizer,
+            self.bpe_tokenizer,
             is_train_split=is_train_split,
             epoch=epoch,
             seed=self.args.seed,
@@ -119,7 +132,42 @@ class SpeechToTextTask(LegacyFairseqTask):
         args.input_feat_per_channel = self.data_cfg.input_feat_per_channel
         args.input_channels = self.data_cfg.input_channels
         args.speaker_to_id = self.speaker_to_id
-        return super(SpeechToTextTask, self).build_model(args, from_checkpoint)
+        model = super(SpeechToTextTask, self).build_model(args, from_checkpoint)
+        self.sequence_generator = self.build_generator([model], args)
+        return model
+
+    def valid_step(self, sample, model, criterion):
+        loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
+
+        def decode(toks):
+            s = self.tgt_dict.string(toks)
+            if self.bpe_tokenizer:
+                s = self.bpe_tokenizer.decode(s)
+            if self.pre_tokenizer:
+                s = self.pre_tokenizer.decode(s)
+            return s
+
+        gen_out = self.inference_step(self.sequence_generator, [model], sample, prefix_tokens=None)
+        for i in range(len(gen_out)):
+            ref_tok = utils.strip_pad(sample["target"][i], self.tgt_dict.pad()).int().cpu()
+            pred_tok = gen_out[i][0]["tokens"].int().cpu()
+            ref = decode(ref_tok)
+            pred = decode(pred_tok)
+
+            if hasattr(self.scorer, "add_string"):
+                self.scorer.add_string(ref, pred)
+            else:
+                self.scorer.add(ref_tok, pred_tok)
+
+        return loss, sample_size, logging_output
+
+    def reduce_metrics(self, logging_outputs, criterion):
+        super().reduce_metrics(logging_outputs, criterion)
+
+        if not hasattr(self.scorer, "stat") or self.scorer.stat.predlen > 0:
+            metrics.log_scalar(self.args.scoring, round(self.scorer.score(), 2))
+        if hasattr(self.scorer, "reset"):
+            self.scorer.reset()
 
     def build_generator(
         self,
