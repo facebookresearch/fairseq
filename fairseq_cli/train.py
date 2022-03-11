@@ -512,6 +512,7 @@ def cli_main(
     modify_parser: Optional[Callable[[argparse.ArgumentParser], None]] = None
 ) -> None:
     parser = options.get_training_parser()
+    print("####PARSER####\n{}".format(parser))
     args = options.parse_args_and_arch(parser, modify_parser=modify_parser)
 
     cfg = convert_namespace_to_omegaconf(args)
