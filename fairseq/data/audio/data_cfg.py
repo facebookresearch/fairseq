@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 from argparse import Namespace
+from omegaconf import OmegaConf
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -10,21 +11,16 @@ from fairseq.data import Dictionary
 
 
 def get_config_from_yaml(yaml_path: Path):
-    try:
-        import yaml
-    except ImportError:
-        print("Please install PyYAML: pip install PyYAML")
     config = {}
     if yaml_path.is_file():
         try:
-            with open(yaml_path) as f:
-                config = yaml.load(f, Loader=yaml.FullLoader)
+            config = OmegaConf.load(yaml_path)
         except Exception as e:
             raise Exception(f"Failed to load config from {yaml_path.as_posix()}: {e}")
     else:
         raise FileNotFoundError(f"{yaml_path.as_posix()} not found")
 
-    return config
+    return OmegaConf.to_container(config, resolve=True)
 
 
 class S2TDataConfig(object):
