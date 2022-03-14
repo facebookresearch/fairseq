@@ -12,13 +12,13 @@ from fairseq.criterions.fairseq_criterion import (  # noqa
     FairseqCriterion,
     LegacyFairseqCriterion,
 )
-from .combined_sequence_criterion import CombinedSequenceCriterion
-from .fairseq_sequence_criterion import FairseqSequenceCriterion
-from .sequence_cross_entropy import SequenceCrossEntropyCriterion
-from .sequence_max_margin_criterion import SequenceMaxMarginCriterion
-from .sequence_risk_criterion import SequenceRiskCriterion
-from .sequence_soft_max_margin import SequenceSoftMaxMarginCriterion
-from .sequence_multi_margin_criterion import SequenceMultiMarginCriterion
+#from .combined_sequence_criterion import CombinedSequenceCriterion
+#from .fairseq_sequence_criterion import FairseqSequenceCriterion
+#from .sequence_cross_entropy import SequenceCrossEntropyCriterion
+#from .sequence_max_margin_criterion import SequenceMaxMarginCriterion
+#from .sequence_risk_criterion import SequenceRiskCriterion
+#from .sequence_soft_max_margin import SequenceSoftMaxMarginCriterion
+#from .sequence_multi_margin_criterion import SequenceMultiMarginCriterion
 from omegaconf import DictConfig
 
 sequence_criterions = [

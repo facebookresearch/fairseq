@@ -10,7 +10,7 @@ import math
 import operator
 from torch.autograd import Variable
 import torch.nn.functional as F
-from .fairseq_sequence_criterion import FairseqSequenceCriterion
+from .fairseq_sequence_criterion import FairseqSequenceCriterion, register_criterion
 #from fairseq.criterions import FairseqCriterion, register_criterion
 
 #@register_criterion("sequence_crossentropy")
