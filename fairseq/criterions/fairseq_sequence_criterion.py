@@ -9,7 +9,7 @@
 from torch.autograd import Variable
 import torch.nn.functional as F
 
-from fairseq import sequence_criterion
+#from fairseq import sequence_criterion
 from fairseq import bleu, data, tokenizer, utils
 from .fairseq_criterion import FairseqCriterion
 
