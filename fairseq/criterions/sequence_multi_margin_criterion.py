@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from .fairseq_sequence_criterion import FairseqSequenceCriterion
 #from fairseq.criterions import FairseqCriterion, register_criterion
 
-@register_criterion("sequence_multimargin")
+#@register_criterion("sequence_multimargin")
 class SequenceMultiMarginCriterion(FairseqSequenceCriterion):
 
     def __init__(self, args, dst_dict):

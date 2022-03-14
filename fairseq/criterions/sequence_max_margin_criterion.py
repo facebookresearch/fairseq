@@ -15,7 +15,7 @@ import math
 from .fairseq_sequence_criterion import FairseqSequenceCriterion
 #from fairseq.criterions import FairseqCriterion, register_criterion
 
-@register_criterion("sequence_maxmargin")
+#@register_criterion("sequence_maxmargin")
 class SequenceMaxMarginCriterion(FairseqSequenceCriterion):
 
     def __init__(self, args, dst_dict):
