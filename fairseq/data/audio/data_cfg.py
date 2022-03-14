@@ -158,7 +158,8 @@ class S2SDataConfig(S2TDataConfig):
 
     @property
     def vocab_filename(self):
-        return None
+        """fairseq vocabulary file under data root"""
+        return self.config.get("vocab_filename", None)
 
     @property
     def pre_tokenizer(self) -> Dict:

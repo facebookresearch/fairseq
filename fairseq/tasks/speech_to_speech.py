@@ -14,6 +14,7 @@ import torch.nn as nn
 from fairseq import utils
 from fairseq.data import Dictionary
 from fairseq.data.audio.data_cfg import S2SDataConfig, MultitaskConfig
+from fairseq.data.audio.speech_to_text_dataset import SpeechToTextDataset
 from fairseq.data.audio.speech_to_speech_dataset import SpeechToSpeechDatasetCreator
 from fairseq.tasks import LegacyFairseqTask, register_task
 from fairseq.tasks.text_to_speech import batch_mel_cepstral_distortion
@@ -196,8 +197,14 @@ class SpeechToSpeechTask(LegacyFairseqTask):
             choices=["griffin_lim", "hifigan", "code_hifigan"],
         )
         parser.add_argument("--spec-bwd-max-iter", type=int, default=8)
+        parser.add_argument(
+            "--infer-target-lang",
+            type=str,
+            default="",
+            help="target language for inference"
+        )
 
-    def __init__(self, args, tgt_dict):
+    def __init__(self, args, tgt_dict, infer_tgt_lang_id=None):
         super().__init__(args)
         self.tgt_dict = tgt_dict
         self.data_cfg = S2SDataConfig(Path(args.data) / args.config_yaml)
@@ -210,16 +217,34 @@ class SpeechToSpeechTask(LegacyFairseqTask):
                 self.multitask_tasks[task_name] = DummyMultiTask(
                     task_config, task_config.tgt_dict
                 )
+        self._infer_tgt_lang_id = infer_tgt_lang_id
 
     @classmethod
     def setup_task(cls, args, **kwargs):
+        data_cfg = data_cfg = S2SDataConfig(Path(args.data) / args.config_yaml)
         tgt_dict = None
+        infer_tgt_lang_id = None
         if args.target_is_code:
-            assert args.target_code_size is not None
+            if data_cfg.prepend_tgt_lang_tag:
+                # dictionary with language tags
+                dict_path = Path(args.data) / data_cfg.vocab_filename
+                if not dict_path.is_file():
+                    raise FileNotFoundError(f"Dict has to be provided when setting prepend_tgt_lang_tag: true, but dict not found: {dict_path}")
+                tgt_dict = Dictionary.load(dict_path.as_posix())
 
-            tgt_dict = Dictionary()
-            for i in range(args.target_code_size):
-                tgt_dict.add_symbol(str(i))
+                # target langauge for inference
+                if args.infer_target_lang != "":
+                    tgt_lang_tag = SpeechToTextDataset.LANG_TAG_TEMPLATE.format(
+                        args.infer_target_lang
+                    )
+                    infer_tgt_lang_id = tgt_dict.index(tgt_lang_tag)
+                    assert infer_tgt_lang_id != tgt_dict.unk()
+            else:
+                assert args.target_code_size is not None
+
+                tgt_dict = Dictionary()
+                for i in range(args.target_code_size):
+                    tgt_dict.add_symbol(str(i))
             logger.info(f"dictionary size: " f"{len(tgt_dict):,}")
 
         if getattr(args, "train_subset", None) is not None:
@@ -233,7 +258,7 @@ class SpeechToSpeechTask(LegacyFairseqTask):
             or (not args.target_is_code and args.vocoder != "code_hifigan")
         )
 
-        return cls(args, tgt_dict)
+        return cls(args, tgt_dict, infer_tgt_lang_id=infer_tgt_lang_id)
 
     def build_criterion(self, args):
         from fairseq import criterions
@@ -433,6 +458,26 @@ class SpeechToSpeechTask(LegacyFairseqTask):
 
         return hypos, losses
 
+    def inference_step(
+        self, generator, models, sample, prefix_tokens=None, constraints=None
+    ):
+        with torch.no_grad():
+            if self._infer_tgt_lang_id is not None:
+                return generator.generate(
+                    models,
+                    sample,
+                    prefix_tokens=prefix_tokens,
+                    constraints=constraints,
+                    bos_token=self._infer_tgt_lang_id
+                )
+            else:
+               return super().inference_step(
+                    generator,
+                    models,
+                    sample,
+                    prefix_tokens=prefix_tokens,
+                    constraints=constraints
+                )
 
 class DummyMultiTask(LegacyFairseqTask):
     def __init__(self, args, tgt_dict):
