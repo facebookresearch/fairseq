@@ -12,7 +12,7 @@ import torch.nn.functional as F
 
 from .fairseq_sequence_criterion import FairseqSequenceCriterion
 
-
+@register_criterion("sequence_risk")
 class SequenceRiskCriterion(FairseqSequenceCriterion):
 
     def __init__(self, args, dst_dict):
