@@ -429,6 +429,8 @@ def add_model_args(parser):
     group.add_argument('--arch', '-a', metavar='ARCH',
                        choices=ARCH_MODEL_REGISTRY.keys(),
                        help='model architecture')
+    group.add_argument('--label-smoothing', default=0, type=float, metavar='D',
+                       help='epsilon for label smoothing, 0 means no label smoothing')
     # fmt: on
     return group
 
