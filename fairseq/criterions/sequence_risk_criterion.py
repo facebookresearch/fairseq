@@ -11,7 +11,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 
 from .fairseq_sequence_criterion import FairseqSequenceCriterion
-from fairseq.criterions import FairseqCriterion, register_criterion
+from fairseq.criterions import register_criterion
 
 @register_criterion("sequence_risk")
 class SequenceRiskCriterion(FairseqSequenceCriterion):
