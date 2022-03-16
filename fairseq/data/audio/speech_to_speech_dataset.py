@@ -114,8 +114,8 @@ class SpeechToSpeechDataset(SpeechToTextDataset):
         source = self._get_source_audio(index)
 
         tgt_lang_tag = None
-        if self.cfg.prepend_tgt_lang_tag:
-            # prepend_tgt_lang_tag: modify prev_output_tokens instead of target
+        if self.cfg.prepend_tgt_lang_tag_as_bos:
+            # prepend_tgt_lang_tag_as_bos: put tgt_lang_tag as bos of target
             tgt_lang_tag = self.get_lang_tag_idx(self.tgt_langs[index], self.tgt_dict)
 
         if not self.target_is_code:

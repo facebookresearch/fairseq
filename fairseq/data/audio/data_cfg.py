@@ -192,6 +192,11 @@ class S2SDataConfig(S2TDataConfig):
         """Target speaker embedding file (one line per target audio sample)"""
         return self.config.get("target_speaker_embed", None)
 
+    @property
+    def prepend_tgt_lang_tag_as_bos(self) -> bool:
+        """Prepend target lang ID token as the target BOS."""
+        return self.config.get("prepend_tgt_lang_tag_as_bos", False)
+
 
 class MultitaskConfig(object):
     """Wrapper class for data config YAML"""
