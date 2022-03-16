@@ -6,25 +6,36 @@
 # can be found in the PATENTS file in the same directory.
 #
 
+import inspect
+from typing import Any, Dict, List
 from torch.autograd import Variable
-import torch.nn.functional as F
-
-#from fairseq import sequence_criterion
-#from fairseq import bleu, data, tokenizer, utils
-from .fairseq_criterion import FairseqCriterion
+import fairseq
+from fairseq import metrics, utils, data
+from fairseq.criterions import FairseqCriterion
+#from fairseq.sequence_generator import SequenceGenerator
 
 
 class FairseqSequenceCriterion(FairseqCriterion):
     """Base class for sequence-level criterions."""
 
-    def __init__(self, args, dst_dict):
-        super().__init__()
-        self.args = args
-        self.dst_dict = dst_dict
-        self.pad_idx = dst_dict.pad()
-        self.eos_idx = dst_dict.eos()
-        self.unk_idx = dst_dict.unk()
+    def __init__(self, task, seq_hypos_dropout, seq_unkpen,
+                 seq_sampling, seq_max_len_a, seq_max_len_b,
+                 seq_beam, seq_scorer):
+        super().__init__(task)
 
+        self.dst_dict = task.tgt_dict
+        self.pad_idx = task.tgt_dict.pad()
+        self.eos_idx = task.tgt_dict.eos()
+        self.unk_idx = task.tgt_dict.unk()
+
+        self.seq_hypos_dropout = seq_hypos_dropout
+        self.seq_unkpen = seq_unkpen
+        self.seq_sampling = seq_sampling
+        self.seq_max_len_a = seq_max_len_a
+        self.seq_max_len_b = seq_max_len_b
+        self.seq_beam = seq_beam
+        self.seq_scorer = seq_scorer
+        
         self._generator = None
         self._scorer = None
 
@@ -72,7 +83,8 @@ class FairseqSequenceCriterion(FairseqCriterion):
         target = sample['target'].data
         for i, hypos_i in enumerate(hypos):
             # insert reference as first hypothesis
-            ref = utils.lstrip_pad(target[i, :], self.pad_idx)
+            #ref = utils.lstrip_pad(target[i, :], self.pad_idx)
+            ref = utils.strip_pad(target[i, :], self.pad_idx)
             hypos_i.insert(0, {
                 'tokens': ref,
                 'score': None,
@@ -93,21 +105,28 @@ class FairseqSequenceCriterion(FairseqCriterion):
 
         target = sample['target'].data.int()
         for i, hypos_i in enumerate(hypos):
-            ref = utils.lstrip_pad(target[i, :], self.pad_idx).cpu()
-            r = self.dst_dict.string(ref, bpe_symbol='@@ ', escape_unk=True)
-            r = tokenizer.Tokenizer.tokenize(r, self.dst_dict, add_if_not_exist=True)
+            #ref = utils.lstrip_pad(target[i, :], self.pad_idx).cpu()
+            ref = utils.strip_pad(target[i, :], self.pad_idx).cpu()
+            #r = self.dst_dict.string(ref, bpe_symbol='@@ ', escape_unk=True)
+            #r = fairseq.tokenizer.Tokenizer.tokenize(r, self.dst_dict, add_if_not_exist=True)
+            #r = fairseq.tokenizer.tokenize_line(r)
             for hypo in hypos_i:
-                h = self.dst_dict.string(hypo['tokens'].int().cpu(), bpe_symbol='@@ ')
-                h = tokenizer.Tokenizer.tokenize(h, self.dst_dict, add_if_not_exist=True)
+                #h = self.dst_dict.string(hypo['tokens'].int().cpu(), bpe_symbol='@@ ')
+                #h = fairseq.tokenizer.Tokenizer.tokenize(h, self.dst_dict, add_if_not_exist=True)
+                #h = fairseq.tokenizer.tokenize_line(h)
                 # use +1 smoothing for sentence BLEU
-                hypo['bleu'] = self._scorer.score(r, h)
+                self._scorer.add(ref, hypo['tokens'].int().cpu())
+                hypo['bleu'] = self._scorer.score()
         return hypos
 
     def create_sequence_scorer(self):
-        if self.args.seq_scorer == "bleu":
-            self._scorer = BleuScorer(self.pad_idx, self.eos_idx, self.unk_idx)
+        if self.seq_scorer == "bleu":
+            config = fairseq.scoring.bleu.BleuConfig(pad=self.pad_idx,
+                                                     eos=self.eos_idx,
+                                                     unk=self.unk_idx)
+            self._scorer = fairseq.scoring.bleu.Scorer(config)
         else:
-            raise Exception("Unknown sequence scorer {}".format(self.args.seq_scorer))
+            raise Exception("Unknown sequence scorer {}".format(self.seq_scorer))
 
     def get_hypothesis_scores(self, net_output, sample, score_pad=False):
         """Return a tensor of model scores for each hypothesis.
@@ -146,7 +165,7 @@ class FairseqSequenceCriterion(FairseqCriterion):
         """
         model_state = model.training
         if model_state:
-            model.train(self.args.seq_hypos_dropout)
+            model.train(self.seq_hypos_dropout)
 
         # generate hypotheses
         hypos = self._generate_hypotheses(model, sample)
@@ -174,25 +193,29 @@ class FairseqSequenceCriterion(FairseqCriterion):
 
 
     def _generate_hypotheses(self, model, sample):
-        args = self.args
-
         # initialize generator
         if self._generator is None:
-            self._generator = sequence_generator.SequenceGenerator(
-                [model], self.dst_dict, unk_penalty=args.seq_unkpen, sampling=args.seq_sampling)
+            self._generator = fairseq.sequence_generator.SequenceGenerator(
+#                [model], self.dst_dict, unk_penalty=self.seq_unkpen, sampling=self.seq_sampling)
+              [model], self.dst_dict, unk_penalty=self.seq_unkpen)
             self._generator.cuda()
 
         # generate hypotheses
-        input = sample['net_input']
-        srclen = input['src_tokens'].size(1)
-        hypos = self._generator.generate(
-            input['src_tokens'], input['src_positions'],
-            maxlen=int(args.seq_max_len_a*srclen + args.seq_max_len_b),
-            beam_size=args.seq_beam)
+        # input = sample['net_input']
 
-        # add reference to the set of hypotheses
-        if self.args.seq_keep_reference:
-            hypos = self.add_reference_to_hypotheses(sample, hypos)
+        # print(input)
+        
+        # srclen = input['src_tokens'].size(1)
+        # hypos = self._generator.generate(
+        #     input['src_tokens'], input['src_positions'],
+        #     maxlen=int(self.seq_max_len_a * srclen + self.seq_max_len_b),
+        #     beam_size=self.seq_beam)
+
+        # # add reference to the set of hypotheses
+        # if self.args.seq_keep_reference:
+        #     hypos = self.add_reference_to_hypotheses(sample, hypos)
+
+        hypos = self._generator(sample)
 
         return hypos
 
@@ -200,20 +223,22 @@ class FairseqSequenceCriterion(FairseqCriterion):
         num_hypos_per_batch = len(hypos[0])
         assert all(len(h) == num_hypos_per_batch for h in hypos)
 
+        # TODO(noa): the below needs to be adapted to the new collate methods
+        
         def repeat_num_hypos_times(t):
             return t.repeat(1, num_hypos_per_batch).view(num_hypos_per_batch*t.size(0), t.size(1))
 
         input = sample['net_input']
         bsz = input['src_tokens'].size(0)
         input['src_tokens'].data = repeat_num_hypos_times(input['src_tokens'].data)
-        input['src_positions'].data = repeat_num_hypos_times(input['src_positions'].data)
+        input['src_lengths'].data = repeat_num_hypos_times(input['src_lengths'].data)
 
         input_hypos = [h['tokens'] for hypos_i in hypos for h in hypos_i]
         sample['hypotheses'] = data.LanguagePairDataset.collate_tokens(
             input_hypos, self.pad_idx, self.eos_idx, left_pad=True, move_eos_to_beginning=False)
         input['input_tokens'].data = data.LanguagePairDataset.collate_tokens(
             input_hypos, self.pad_idx, self.eos_idx, left_pad=True, move_eos_to_beginning=True)
-        input['input_positions'].data = data.LanguagePairDataset.collate_positions(
+        input['input_lengths'].data = data.LanguagePairDataset.collate_positions(
             input_hypos, self.pad_idx, left_pad=True)
 
         sample['target'].data = repeat_num_hypos_times(sample['target'].data)

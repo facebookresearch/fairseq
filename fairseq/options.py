@@ -339,8 +339,6 @@ def add_optimization_args(parser):
 
 def add_sequence_training_args(parser):
     group = parser.add_argument_group('Sequence level training options')
-    group.add_argument('--seq-criterion', metavar='CRIT', choices=criterions.sequence_criterions,
-                       help='sequence-level criterion ({})'.format(', '.join(criterions.sequence_criterions)))
     group.add_argument('--seq-beam', default=5, type=int, metavar='N',
                        help='beam size for sequence training')
     group.add_argument('--seq-keep-reference', action='store_true',

@@ -10,15 +10,53 @@ import torch
 from torch.autograd import Variable
 import torch.nn.functional as F
 
-from .fairseq_sequence_criterion import FairseqSequenceCriterion
-from fairseq.criterions import register_criterion
+from dataclasses import dataclass, field
 
+from fairseq.criterions import register_criterion
+from fairseq.dataclass import FairseqDataclass
+from fairseq.criterions import FairseqSequenceCriterion
+
+
+# Re: II, see:
+# https://omegaconf.readthedocs.io/en/2.0_branch/structured_config.html#interpolations
+
+# @dataclass
+# class SequenceRiskCriterionConfig(FairseqDataclass):
+#     seq_risk_normbleu: bool = field(
+#       default=True
+#     )
+#     seq_hypos_dropout: bool = field(
+#       default=True
+#     )
+#     seq_unkpen: float = field(
+#       default=
+#     )
+#     seq_sampling: bool = field(
+
+#     )
+#     seq_max_len_a: int = field(
+
+#     )
+#     seq_max_len_b: int = field(
+
+#     )
+#     seq_beam: int = field(
+      
+#     )
+    
+
+#@register_criterion("sequence_risk", dataclass=SequenceRiskCriterionConfig)
 @register_criterion("sequence_risk")
 class SequenceRiskCriterion(FairseqSequenceCriterion):
 
-    def __init__(self, args, dst_dict):
-        super().__init__(args, dst_dict)
-        self.scale_scores = args.seq_risk_normbleu
+    def __init__(self, task, seq_risk_normbleu=True,
+                 seq_hypos_dropout=True, seq_unkpen=0,
+                 seq_sampling=False, seq_max_len_a=0,
+                 seq_max_len_b=200, seq_beam=5, seq_scorer="bleu"):
+        super().__init__(task, seq_hypos_dropout, seq_unkpen, seq_sampling,
+                         seq_max_len_a, seq_max_len_b, seq_beam, seq_scorer)
+
+        self.scale_scores = seq_risk_normbleu
 
     def prepare_sample_and_hypotheses(self, model, sample, hypos):
         """Apply criterion-specific modifications to the given sample/hypotheses."""
