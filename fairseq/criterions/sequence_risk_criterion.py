@@ -52,9 +52,11 @@ class SequenceRiskCriterion(FairseqSequenceCriterion):
     def __init__(self, task, seq_risk_normbleu=True,
                  seq_hypos_dropout=True, seq_unkpen=0,
                  seq_sampling=False, seq_max_len_a=0,
-                 seq_max_len_b=200, seq_beam=5, seq_scorer="bleu"):
+                 seq_max_len_b=200, seq_beam=5, seq_scorer="bleu",
+                 seq_keep_reference=False):
         super().__init__(task, seq_hypos_dropout, seq_unkpen, seq_sampling,
-                         seq_max_len_a, seq_max_len_b, seq_beam, seq_scorer)
+                         seq_max_len_a, seq_max_len_b, seq_beam, seq_scorer,
+                         seq_keep_reference)
 
         self.scale_scores = seq_risk_normbleu
 

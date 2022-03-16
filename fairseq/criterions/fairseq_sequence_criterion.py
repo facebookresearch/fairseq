@@ -8,7 +8,9 @@
 
 import inspect
 from typing import Any, Dict, List
+import torch
 from torch.autograd import Variable
+import torch.nn.functional as F
 import fairseq
 from fairseq import metrics, utils, data
 from fairseq.criterions import FairseqCriterion
@@ -20,7 +22,7 @@ class FairseqSequenceCriterion(FairseqCriterion):
 
     def __init__(self, task, seq_hypos_dropout, seq_unkpen,
                  seq_sampling, seq_max_len_a, seq_max_len_b,
-                 seq_beam, seq_scorer):
+                 seq_beam, seq_scorer, seq_keep_reference):
         super().__init__(task)
 
         self.dst_dict = task.tgt_dict
@@ -35,6 +37,7 @@ class FairseqSequenceCriterion(FairseqCriterion):
         self.seq_max_len_b = seq_max_len_b
         self.seq_beam = seq_beam
         self.seq_scorer = seq_scorer
+        self.seq_keep_reference = seq_keep_reference
         
         self._generator = None
         self._scorer = None
@@ -115,6 +118,7 @@ class FairseqSequenceCriterion(FairseqCriterion):
                 #h = fairseq.tokenizer.Tokenizer.tokenize(h, self.dst_dict, add_if_not_exist=True)
                 #h = fairseq.tokenizer.tokenize_line(h)
                 # use +1 smoothing for sentence BLEU
+                self._scorer.reset(one_init=True)
                 self._scorer.add(ref, hypo['tokens'].int().cpu())
                 hypo['bleu'] = self._scorer.score()
         return hypos
@@ -134,7 +138,15 @@ class FairseqSequenceCriterion(FairseqCriterion):
         The returned tensor has dimensions [bsz, nhypos, hypolen]. This can be
         called from sequence_forward.
         """
+        print('hypothesis:')
+        print(sample['hypotheses'])
+        
         bsz, nhypos, hypolen, _ = net_output.size()
+
+        print(bsz)
+        print(nhypos)
+        print(hypolen)
+        
         hypotheses = Variable(sample['hypotheses'], requires_grad=False).view(bsz, nhypos, hypolen, 1)
         scores = net_output.gather(3, hypotheses)
         if not score_pad:
@@ -187,7 +199,8 @@ class FairseqSequenceCriterion(FairseqCriterion):
 
     def get_net_output(self, model, sample):
         """Return model outputs as log probabilities."""
-        net_output = model(**sample['net_input'])
+        net_output, _ = model(**sample['net_input'])
+        #print(net_output)
         return F.log_softmax(net_output, dim=1).view(
             sample['bsz'], sample['num_hypos_per_batch'], -1, net_output.size(1))
 
@@ -195,9 +208,10 @@ class FairseqSequenceCriterion(FairseqCriterion):
     def _generate_hypotheses(self, model, sample):
         # initialize generator
         if self._generator is None:
+            #      [model], self.dst_dict, unk_penalty=self.seq_unkpen, sampling=self.seq_sampling)
             self._generator = fairseq.sequence_generator.SequenceGenerator(
-#                [model], self.dst_dict, unk_penalty=self.seq_unkpen, sampling=self.seq_sampling)
-              [model], self.dst_dict, unk_penalty=self.seq_unkpen)
+              [model], self.dst_dict, unk_penalty=self.seq_unkpen,
+              beam_size=self.seq_beam, max_len_a=self.seq_max_len_a, max_len_b=self.seq_max_len_b)
             self._generator.cuda()
 
         # generate hypotheses
@@ -211,35 +225,38 @@ class FairseqSequenceCriterion(FairseqCriterion):
         #     maxlen=int(self.seq_max_len_a * srclen + self.seq_max_len_b),
         #     beam_size=self.seq_beam)
 
-        # # add reference to the set of hypotheses
-        # if self.args.seq_keep_reference:
-        #     hypos = self.add_reference_to_hypotheses(sample, hypos)
-
         hypos = self._generator(sample)
+
+        # # add reference to the set of hypotheses
+        if self.seq_keep_reference:
+          hypos = self.add_reference_to_hypotheses(sample, hypos)
 
         return hypos
 
     def _update_sample_with_hypos(self, sample, hypos):
+        # TODO(noa): this was significantly changed; needs review.
+      
         num_hypos_per_batch = len(hypos[0])
         assert all(len(h) == num_hypos_per_batch for h in hypos)
 
-        # TODO(noa): the below needs to be adapted to the new collate methods
-        
         def repeat_num_hypos_times(t):
             return t.repeat(1, num_hypos_per_batch).view(num_hypos_per_batch*t.size(0), t.size(1))
 
+        print(sample)
         input = sample['net_input']
+        print(input)
         bsz = input['src_tokens'].size(0)
         input['src_tokens'].data = repeat_num_hypos_times(input['src_tokens'].data)
-        input['src_lengths'].data = repeat_num_hypos_times(input['src_lengths'].data)
+        input['src_lengths'].data = input['src_lengths'].data.repeat(num_hypos_per_batch)
 
         input_hypos = [h['tokens'] for hypos_i in hypos for h in hypos_i]
-        sample['hypotheses'] = data.LanguagePairDataset.collate_tokens(
+        sample['hypotheses'] = fairseq.data.data_utils.collate_tokens(
             input_hypos, self.pad_idx, self.eos_idx, left_pad=True, move_eos_to_beginning=False)
-        input['input_tokens'].data = data.LanguagePairDataset.collate_tokens(
+        input['src_tokens'].data = fairseq.data.data_utils.collate_tokens(
             input_hypos, self.pad_idx, self.eos_idx, left_pad=True, move_eos_to_beginning=True)
-        input['input_lengths'].data = data.LanguagePairDataset.collate_positions(
-            input_hypos, self.pad_idx, left_pad=True)
+        #input['input_lengths'].data = data.LanguagePairDataset.collate_positions(
+        #    input_hypos, self.pad_idx, left_pad=True)
+        input['src_lengths'].data = torch.concat([torch.IntTensor(len(h)) for h in input_hypos])
 
         sample['target'].data = repeat_num_hypos_times(sample['target'].data)
         sample['ntokens'] = sample['target'].data.ne(self.pad_idx).sum()
