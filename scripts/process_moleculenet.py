@@ -4,6 +4,8 @@ import pandas as pd
 import argparse
 import os
 
+EMPTY_INDEX = -1
+
 p = argparse.ArgumentParser(description=__doc__,
                             formatter_class=argparse.RawDescriptionHelpFormatter)
 
@@ -28,6 +30,10 @@ if args.filter:
     nan_value = float("NaN")
     data_frame.replace("", nan_value, inplace=True)
     data_frame.dropna(subset=[data_frame.columns[args.class_index], data_frame.columns[args.smile_index]], inplace=True)
+else:
+    data_frame.replace("", EMPTY_INDEX, inplace=True)
+    data_frame.fillna(EMPTY_INDEX, inplace=True)
+
 
 print(data_frame)
 
