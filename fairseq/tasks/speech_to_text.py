@@ -147,7 +147,8 @@ class SpeechToTextTask(LegacyFairseqTask):
                 s = self.pre_tokenizer.decode(s)
             return s
 
-        gen_out = self.inference_step(self.sequence_generator, [model], sample, prefix_tokens=None)
+        prefix_tokens = sample['target'][:, 0].unsqueeze(1) if self.data_cfg.prepend_tgt_lang_tag else None
+        gen_out = self.inference_step(self.sequence_generator, [model], sample, prefix_tokens=prefix_tokens)
         for i in range(len(gen_out)):
             ref_tok = utils.strip_pad(sample["target"][i], self.tgt_dict.pad()).int().cpu()
             pred_tok = gen_out[i][0]["tokens"].int().cpu()
