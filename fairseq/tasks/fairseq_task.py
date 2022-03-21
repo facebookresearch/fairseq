@@ -452,7 +452,7 @@ class FairseqTask(object):
                 self.target_dictionary, args.constraints
             )
         elif prefix_allowed_tokens_fn and beam_bias > 0:
-            search_strategy = search.PreviousTranslationBiasedBeamSearch(
+            search_strategy = search.BiasedBeamSearch(
                 self.target_dictionary, prefix_allowed_tokens_fn, beam_bias
             )
         elif prefix_allowed_tokens_fn:

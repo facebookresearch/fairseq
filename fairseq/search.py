@@ -208,8 +208,8 @@ class PrefixConstrainedBeamSearch(Search):
         return scores_buf, indices_buf, beams_buf
 
 
-class PreviousTranslationBiasedBeamSearch(Search):
-    """Implements lexically constrained beam search as described in
+class BiasedBeamSearch(Search):
+    """Implements baised beam search as described in
 
         Re-Translation Strategies For Long Form, Simultaneous, Spoken Language Translation,
         ICASSP 2020. https://arxiv.org/abs/1912.03393 (Section 4.2)
