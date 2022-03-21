@@ -225,11 +225,11 @@ class SpeechToSpeechTask(LegacyFairseqTask):
         tgt_dict = None
         infer_tgt_lang_id = None
         if args.target_is_code:
-            if data_cfg.prepend_tgt_lang_tag:
+            if data_cfg.prepend_tgt_lang_tag_as_bos:
                 # dictionary with language tags
                 dict_path = Path(args.data) / data_cfg.vocab_filename
                 if not dict_path.is_file():
-                    raise FileNotFoundError(f"Dict has to be provided when setting prepend_tgt_lang_tag: true, but dict not found: {dict_path}")
+                    raise FileNotFoundError(f"Dict has to be provided when setting prepend_tgt_lang_tag_as_bos: true, but dict not found: {dict_path}")
                 tgt_dict = Dictionary.load(dict_path.as_posix())
 
                 # target langauge for inference
