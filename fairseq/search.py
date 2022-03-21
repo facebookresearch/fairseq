@@ -5,7 +5,6 @@
 
 import math
 from typing import List, Optional
-import itertools
 
 import torch
 import torch.nn as nn
@@ -249,23 +248,21 @@ class BiasedBeamSearch(Search):
         )
         if step < po_len:
             # pad previous translations with 1 based on max length
-            previous_outputs = [
-                nn.functional.pad(po, (0, po_len - po.shape[0]), value=1)
-                for po in previous_outputs
-            ]
-            # repeat previous translations 'beam size' times (batch x beam)
-            previous_outputs = list(
-                itertools.chain.from_iterable(
-                    itertools.repeat(x, beam) for x in previous_outputs
-                )
+            previous_outputs = torch.stack(
+                [
+                    nn.functional.pad(po, (0, po_len - po.shape[0]), value=self.pad)
+                    for po in previous_outputs
+                ]
             )
-            previous_outputs = torch.stack(previous_outputs)
+
+            previous_outputs = torch.repeat_interleave(previous_outputs, beam, dim=0)
+
             # one hot of previous translation for the current beam step
             previous_outputs = nn.functional.one_hot(
                 previous_outputs[:, step], num_classes=lprobs.shape[-1]
             )
             # mask tokens
-            previous_outputs[:, 1] = 0
+            previous_outputs[:, self.pad] = 0
             lprobs_ = nn.functional.softmax(lprobs, dim=1)
             # interpolate between current translation and previous translation
             lprobs_ = (1 - beta) * lprobs_ + beta * previous_outputs
