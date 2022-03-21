@@ -985,6 +985,9 @@ class GenerationConfig(FairseqDataclass):
         default=False,
         metadata={"help": "if set, dont use seed for initializing random generators"},
     )
+    beam_bias: float = field(
+        default=0.0, metadata={"help": "biasing the beam search with previous translation"}
+    )
 
 
 @dataclass
