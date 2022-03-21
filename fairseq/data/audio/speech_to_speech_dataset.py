@@ -146,9 +146,11 @@ class SpeechToSpeechDataset(SpeechToTextDataset):
             tgt_spk = torch.FloatTensor([])
 
         return SpeechToSpeechDatasetItem(
-            index=index, source=source, target=target,
+            index=index,
+            source=source,
+            target=target,
             target_speaker=tgt_spk,
-            tgt_lang_tag=tgt_lang_tag
+            tgt_lang_tag=tgt_lang_tag,
         )
 
     def _collate_target(self, samples: List[SpeechToSpeechDatasetItem]) -> torch.Tensor:
