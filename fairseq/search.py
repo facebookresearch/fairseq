@@ -5,6 +5,7 @@
 
 import math
 from typing import List, Optional
+import itertools
 
 import torch
 import torch.nn as nn
@@ -203,6 +204,112 @@ class PrefixConstrainedBeamSearch(Search):
         scores_buf = top_prediction[0]
         indices_buf = top_prediction[1]
         beams_buf = indices_buf // vocab_size
+        indices_buf = indices_buf.fmod(vocab_size)
+        return scores_buf, indices_buf, beams_buf
+
+
+class BiasedBeamSearch(Search):
+    """Implements baised beam search as described in
+
+        Re-Translation Strategies For Long Form, Simultaneous, Spoken Language Translation,
+        ICASSP 2020. https://arxiv.org/abs/1912.03393 (Section 4.2)
+
+        Due to incremental nature of source input in streaming translation, the vanilla beam search based
+        model produces unstable translations causing flickers in the translation. The biased beam search
+        reduces flickers and allows stable translation so that users can follow the translation output.
+
+    This is accomplished by modifying the beam search to interpolate between posterior
+    distribuiton provided by the NMT model (current prefix target sequence) and the degenerate
+    one hot distribution provided by the previous prefix target sequence).
+    """
+
+    def __init__(self, tgt_dict, prefix_allowed_tokens_fn, beam_bias):
+        """
+        Args:
+            tgt_dict: target_dictionary of the model
+            prefix_allowed_tokens_fn (Callable[List[int]]): [int, torch.Tensor]
+            If provided, this function biases the beam search with previous output
+            tokens, which are obtained with the previous prefix source sequence input. The
+            provided function should take 1 argument: list of batch IDs (`batch_id: int`). It
+            has to return a `List[int, torch.Tensor]` containing tokens of previous translations
+            of the current batch.
+        """
+
+        super().__init__(tgt_dict)
+        self.prefix_allowed_tokens_fn = prefix_allowed_tokens_fn
+        self.beam_bias = beam_bias
+
+    @torch.jit.export
+    def apply_bias(self, lprobs, original_batch_idxs, step):
+        beta = self.beam_bias
+        beam = lprobs.shape[0] // original_batch_idxs.shape[0]
+        previous_outputs = self.prefix_allowed_tokens_fn(original_batch_idxs)
+        po_len = (
+            max([po.shape[0] for po in previous_outputs]) if previous_outputs else 0
+        )
+        if step < po_len:
+            # pad previous translations with 1 based on max length
+            previous_outputs = [
+                nn.functional.pad(po, (0, po_len - po.shape[0]), value=1)
+                for po in previous_outputs
+            ]
+            # repeat previous translations 'beam size' times (batch x beam)
+            previous_outputs = list(
+                itertools.chain.from_iterable(
+                    itertools.repeat(x, beam) for x in previous_outputs
+                )
+            )
+            previous_outputs = torch.stack(previous_outputs)
+            # one hot of previous translation for the current beam step
+            previous_outputs = nn.functional.one_hot(
+                previous_outputs[:, step], num_classes=lprobs.shape[-1]
+            )
+            # mask tokens
+            previous_outputs[:, 1] = 0
+            lprobs_ = nn.functional.softmax(lprobs, dim=1)
+            # interpolate between current translation and previous translation
+            lprobs_ = (1 - beta) * lprobs_ + beta * previous_outputs
+            lprobs = torch.log(lprobs_)
+
+        return lprobs
+
+    @torch.jit.export
+    def step(
+        self,
+        step: int,
+        lprobs: Tensor,
+        scores: Tensor,
+        prev_output_tokens: Tensor,
+        original_batch_idxs: Tensor,
+    ):
+        bsz, beam_size, vocab_size = lprobs.size()
+
+        lprobs = self.apply_bias(
+            lprobs.view(bsz * beam_size, vocab_size), original_batch_idxs, step
+        ).view(bsz, beam_size, vocab_size)
+
+        if step == 0:
+            # at the first step all hypotheses are equally likely, so use
+            # only the first beam
+            lprobs = lprobs[:, ::beam_size, :].contiguous()
+        else:
+            # make probs contain cumulative scores for each hypothesis
+            assert scores is not None
+            lprobs = lprobs + scores[:, :, step - 1].unsqueeze(-1)
+
+        top_prediction = torch.topk(
+            lprobs.view(bsz, -1),
+            k=min(
+                # Take the best beam_size predictions. We'll choose the first
+                # beam_size of these which don't predict eos to continue with.
+                beam_size,
+                lprobs.view(bsz, -1).size(1) - 1,  # -1 so we never select pad
+            ),
+        )
+        scores_buf = top_prediction[0]
+        indices_buf = top_prediction[1]
+        # beams_buf = indices_buf // vocab_size
+        beams_buf = torch.div(indices_buf, vocab_size, rounding_mode="trunc")
         indices_buf = indices_buf.fmod(vocab_size)
         return scores_buf, indices_buf, beams_buf
 
