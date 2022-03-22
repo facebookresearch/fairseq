@@ -172,6 +172,9 @@ class SpeechToTextTask(LegacyFairseqTask):
             metrics.log_scalar(self.args.scoring, round(self.scorer.score(), 2))
         if hasattr(self.scorer, "reset"):
             self.scorer.reset()
+        else:
+            self.scorer.ref = []
+            self.scorer.pred = []
 
     def build_generator(
         self,
