@@ -96,10 +96,6 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
             cfg.checkpoint_activations = True  # offloading implies checkpointing
         encoder = cls.build_encoder(cfg, src_dict, encoder_embed_tokens)
         decoder = cls.build_decoder(cfg, tgt_dict, decoder_embed_tokens)
-        if not cfg.share_all_embeddings:
-            # fsdp_wrap is a no-op when --ddp-backend != fully_sharded
-            encoder = fsdp_wrap(encoder, min_num_params=cfg.min_params_to_wrap)
-            decoder = fsdp_wrap(decoder, min_num_params=cfg.min_params_to_wrap)
         return cls(cfg, encoder, decoder)
 
     @classmethod
