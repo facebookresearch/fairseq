@@ -3,22 +3,22 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from argparse import Namespace
 import json
 import logging
 import math
+from argparse import Namespace
 from pathlib import Path
+
 import torch
 import torch.nn as nn
 
 from fairseq import utils
 from fairseq.data import Dictionary
-from fairseq.data.audio.data_cfg import S2SDataConfig, MultitaskConfig
-from fairseq.data.audio.speech_to_text_dataset import SpeechToTextDataset
+from fairseq.data.audio.data_cfg import MultitaskConfig, S2SDataConfig
 from fairseq.data.audio.speech_to_speech_dataset import SpeechToSpeechDatasetCreator
+from fairseq.data.audio.speech_to_text_dataset import SpeechToTextDataset
 from fairseq.tasks import LegacyFairseqTask, register_task
 from fairseq.tasks.text_to_speech import batch_mel_cepstral_distortion
-
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +201,7 @@ class SpeechToSpeechTask(LegacyFairseqTask):
             "--infer-target-lang",
             type=str,
             default="",
-            help="target language for inference"
+            help="target language for inference",
         )
 
     def __init__(self, args, tgt_dict, infer_tgt_lang_id=None):
@@ -229,7 +229,9 @@ class SpeechToSpeechTask(LegacyFairseqTask):
                 # dictionary with language tags
                 dict_path = Path(args.data) / data_cfg.vocab_filename
                 if not dict_path.is_file():
-                    raise FileNotFoundError(f"Dict has to be provided when setting prepend_tgt_lang_tag_as_bos: true, but dict not found: {dict_path}")
+                    raise FileNotFoundError(
+                        f"Dict has to be provided when setting prepend_tgt_lang_tag_as_bos: true, but dict not found: {dict_path}"
+                    )
                 tgt_dict = Dictionary.load(dict_path.as_posix())
 
                 # target langauge for inference
@@ -468,16 +470,17 @@ class SpeechToSpeechTask(LegacyFairseqTask):
                     sample,
                     prefix_tokens=prefix_tokens,
                     constraints=constraints,
-                    bos_token=self._infer_tgt_lang_id
+                    bos_token=self._infer_tgt_lang_id,
                 )
             else:
-               return super().inference_step(
+                return super().inference_step(
                     generator,
                     models,
                     sample,
                     prefix_tokens=prefix_tokens,
-                    constraints=constraints
+                    constraints=constraints,
                 )
+
 
 class DummyMultiTask(LegacyFairseqTask):
     def __init__(self, args, tgt_dict):
