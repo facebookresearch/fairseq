@@ -65,7 +65,7 @@ def progress_bar(
             bar,
             aim_repo=aim_repo,
             aim_run_hash=aim_run_hash,
-            aim_param_checkpoint_dir=aim_param_checkpoint_dir
+            aim_param_checkpoint_dir=aim_param_checkpoint_dir,
         )
 
     if tensorboard_logdir:
@@ -329,6 +329,7 @@ try:
     @functools.lru_cache()
     def get_aim_run(repo, run_hash):
         from aim import Run
+
         return Run(run_hash=run_hash, repo=repo)
 
 except ImportError:
@@ -341,26 +342,26 @@ class AimProgressBarWrapper(BaseProgressBar):
 
     def __init__(self, wrapped_bar, aim_repo, aim_run_hash, aim_param_checkpoint_dir):
         self.wrapped_bar = wrapped_bar
-        if aim_repo:
-            logger.info(f"Storing logs at Aim repo: {aim_repo}")
-
-        if not aim_run_hash:
-            # Find run based on save_dir parameter
-            query = f"run.checkpoint.save_dir == '{aim_param_checkpoint_dir}'"
-            try:
-                runs_generator = AimRepo(aim_repo).query_runs(query)
-                run = next(runs_generator.iter_runs())
-                aim_run_hash = run.run.hash
-            except:
-                pass
-
-        if aim_run_hash:
-            logger.info(f"Continuing Aim run with hash: {aim_run_hash}")
 
         if get_aim_run is None:
-            logger.warning("Aim not found, please install with: pip install aim")
             self.run = None
+            logger.warning("Aim not found, please install with: pip install aim")
         else:
+            logger.info(f"Storing logs at Aim repo: {aim_repo}")
+
+            if not aim_run_hash:
+                # Find run based on save_dir parameter
+                query = f"run.checkpoint.save_dir == '{aim_param_checkpoint_dir}'"
+                try:
+                    runs_generator = AimRepo(aim_repo).query_runs(query)
+                    run = next(runs_generator.iter_runs())
+                    aim_run_hash = run.run.hash
+                except:
+                    pass
+
+            if aim_run_hash:
+                logger.info(f"Appending to run: {aim_run_hash}")
+
             self.run = get_aim_run(aim_repo, aim_run_hash)
 
     def __iter__(self):
