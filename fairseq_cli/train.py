@@ -280,6 +280,7 @@ def train(
             if distributed_utils.is_master(cfg.distributed_training)
             else None
         ),
+        aim_param_checkpoint_dir=cfg.checkpoint.save_dir,
         tensorboard_logdir=(
             cfg.common.tensorboard_logdir
             if distributed_utils.is_master(cfg.distributed_training)
@@ -475,6 +476,7 @@ def validate(
                 if distributed_utils.is_master(cfg.distributed_training)
                 else None
             ),
+            aim_param_checkpoint_dir=cfg.checkpoint.save_dir,
             tensorboard_logdir=(
                 cfg.common.tensorboard_logdir
                 if distributed_utils.is_master(cfg.distributed_training)

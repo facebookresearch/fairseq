@@ -33,6 +33,7 @@ def progress_bar(
     prefix: Optional[str] = None,
     aim_repo: Optional[str] = None,
     aim_run_hash: Optional[str] = None,
+    aim_param_checkpoint_dir: Optional[str] = None,
     tensorboard_logdir: Optional[str] = None,
     default_log_format: str = "tqdm",
     wandb_project: Optional[str] = None,
@@ -60,7 +61,12 @@ def progress_bar(
         raise ValueError("Unknown log format: {}".format(log_format))
 
     if aim_repo:
-        bar = AimProgressBarWrapper(bar, aim_repo=aim_repo, aim_run_hash=aim_run_hash)
+        bar = AimProgressBarWrapper(
+            bar,
+            aim_repo=aim_repo,
+            aim_run_hash=aim_run_hash,
+            aim_param_checkpoint_dir=aim_param_checkpoint_dir
+        )
 
     if tensorboard_logdir:
         try:
@@ -318,25 +324,39 @@ class TqdmProgressBar(BaseProgressBar):
 try:
     import functools
 
-    import aim
+    from aim import Repo as AimRepo
 
     @functools.lru_cache()
     def get_aim_run(repo, run_hash):
-        return aim.Run(run_hash=run_hash, repo=repo)
+        from aim import Run
+        return Run(run_hash=run_hash, repo=repo)
 
 except ImportError:
     get_aim_run = None
+    AimRepo = None
 
 
 class AimProgressBarWrapper(BaseProgressBar):
     """Log to Aim."""
 
-    def __init__(self, wrapped_bar, aim_repo, aim_run_hash):
+    def __init__(self, wrapped_bar, aim_repo, aim_run_hash, aim_param_checkpoint_dir):
         self.wrapped_bar = wrapped_bar
         if aim_repo:
             logger.info(f"Storing logs at Aim repo: {aim_repo}")
+
+        if not aim_run_hash:
+            # Find run based on save_dir parameter
+            query = f"run.checkpoint.save_dir == '{aim_param_checkpoint_dir}'"
+            try:
+                runs_generator = AimRepo(aim_repo).query_runs(query)
+                run = next(runs_generator.iter_runs())
+                aim_run_hash = run.run.hash
+            except:
+                pass
+
         if aim_run_hash:
             logger.info(f"Continuing Aim run with hash: {aim_run_hash}")
+
         if get_aim_run is None:
             logger.warning("Aim not found, please install with: pip install aim")
             self.run = None
