@@ -11,11 +11,11 @@ import os
 from typing import Any, Dict, Iterator, List
 
 import torch
-from fairseq import utils
-from fairseq.data import encoders
 from omegaconf import open_dict
 from torch import nn
 
+from fairseq import utils
+from fairseq.data import encoders
 
 logger = logging.getLogger(__name__)
 
@@ -132,11 +132,22 @@ class GeneratorHubInterface(nn.Module):
         batched_hypos = self.generate(tokenized_sentences, beam, verbose, **kwargs)
         return [self.decode(hypos[0]["tokens"]) for hypos in batched_hypos]
 
-    def score(self, sentences: List[str], **kwargs):
+    def score(
+        self, sentences: List[str], replace_newline_with_eos: bool = False, **kwargs
+    ):
         if isinstance(sentences, str):
-            return self.score([sentences], **kwargs)[0]
+            return self.score(
+                [sentences], replace_newline_with_eos=replace_newline_with_eos, **kwargs
+            )[0]
+
+        def encode(sentence):
+            if replace_newline_with_eos:
+                return torch.cat([self.encode(line) for line in sentence.splitlines()])
+            else:
+                return self.encode(sentence)
+
         # NOTE: this doesn't support translation tasks currently
-        tokenized_sentences = [self.encode(sentence) for sentence in sentences]
+        tokenized_sentences = [encode(sentence) for sentence in sentences]
         return [
             hypos[0]
             for hypos in self.generate(
@@ -151,6 +162,7 @@ class GeneratorHubInterface(nn.Module):
         verbose: bool = False,
         skip_invalid_size_inputs=False,
         inference_step_args=None,
+        prefix_allowed_tokens_fn=None,
         **kwargs
     ) -> List[List[Dict[str, torch.Tensor]]]:
         if torch.is_tensor(tokenized_sentences) and tokenized_sentences.dim() == 1:
@@ -164,7 +176,11 @@ class GeneratorHubInterface(nn.Module):
             gen_args.beam = beam
             for k, v in kwargs.items():
                 setattr(gen_args, k, v)
-        generator = self.task.build_generator(self.models, gen_args)
+        generator = self.task.build_generator(
+            self.models,
+            gen_args,
+            prefix_allowed_tokens_fn=prefix_allowed_tokens_fn,
+        )
 
         inference_step_args = inference_step_args or {}
         results = []

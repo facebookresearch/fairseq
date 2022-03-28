@@ -13,11 +13,13 @@ from fairseq.optim.fairseq_optimizer import (  # noqa
     FairseqOptimizer,
     LegacyFairseqOptimizer,
 )
+from fairseq.optim.amp_optimizer import AMPOptimizer
 from fairseq.optim.fp16_optimizer import FP16Optimizer, MemoryEfficientFP16Optimizer
 from fairseq.optim.shard import shard_
 from omegaconf import DictConfig
 
 __all__ = [
+    "AMPOptimizer",
     "FairseqOptimizer",
     "FP16Optimizer",
     "MemoryEfficientFP16Optimizer",
@@ -40,7 +42,7 @@ def build_optimizer(cfg: DictConfig, params, *extra_args, **extra_kwargs):
 
 
 # automatically import any Python files in the optim/ directory
-for file in os.listdir(os.path.dirname(__file__)):
+for file in sorted(os.listdir(os.path.dirname(__file__))):
     if file.endswith(".py") and not file.startswith("_"):
         file_name = file[: file.find(".py")]
         importlib.import_module("fairseq.optim." + file_name)

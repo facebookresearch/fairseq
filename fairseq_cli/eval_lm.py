@@ -16,14 +16,14 @@ from argparse import Namespace
 from typing import Iterable, List, Optional
 
 import torch
+from omegaconf import DictConfig
+
 import fairseq
 from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter
 from fairseq.sequence_scorer import SequenceScorer
-from omegaconf import DictConfig
-
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -42,7 +42,7 @@ def eval_lm(
     output_word_probs: bool = False,
     output_word_stats: bool = False,
     target_dictionary: Optional[fairseq.data.Dictionary] = None,
-    softmax_batch: int = False,
+    softmax_batch: int = 0,
     remove_bos_token: bool = False,
     device: Optional[torch.device] = None,
 ):
@@ -197,7 +197,7 @@ def eval_lm(
 
     return {
         "loss": avg_nll_loss,
-        "perplexity": 2 ** avg_nll_loss,
+        "perplexity": 2**avg_nll_loss,
     }
 
 

@@ -7,8 +7,9 @@
 from typing import List
 
 import torch
-from fairseq.modules.quant_noise import quant_noise
 from torch import nn
+
+from fairseq.modules.quant_noise import quant_noise
 
 
 class AdaptiveInput(nn.Module):
@@ -40,7 +41,7 @@ class AdaptiveInput(nn.Module):
         for i in range(len(self.cutoff)):
             prev = self.cutoff[i - 1] if i > 0 else 0
             size = self.cutoff[i] - prev
-            dim = int(initial_dim // (factor ** i))
+            dim = int(initial_dim // (factor**i))
             seq = nn.Sequential(
                 nn.Embedding(size, dim, self.padding_idx),
                 quant_noise(

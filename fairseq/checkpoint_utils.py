@@ -6,23 +6,28 @@
 import ast
 import collections
 import contextlib
+import inspect
 import logging
 import os
 import re
+import time
 import traceback
 from collections import OrderedDict
+from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
+import numpy as np
 import torch
-from fairseq.dataclass.configs import CheckpointConfig, FairseqConfig
+from fairseq.data import data_utils
+from fairseq.dataclass.configs import CheckpointConfig
 from fairseq.dataclass.utils import (
     convert_namespace_to_omegaconf,
     overwrite_args_by_name,
 )
+from fairseq.distributed.fully_sharded_data_parallel import FSDP, has_FSDP
 from fairseq.file_io import PathManager
 from fairseq.models import FairseqDecoder, FairseqEncoder
-from omegaconf import Container, DictConfig, open_dict, OmegaConf
-
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +50,8 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
     trainer.consolidate_optimizer()  # TODO(SS): do we need this if no_save_optimizer_state
 
     if not trainer.should_save_checkpoint_on_current_rank:
+        if trainer.always_call_state_dict_during_save_checkpoint:
+            trainer.state_dict()
         return
 
     write_timer = meters.StopwatchMeter()
@@ -74,11 +81,25 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
         or is_better(val_loss, save_checkpoint.best)
     )
     if val_loss is not None and cfg.keep_best_checkpoints > 0:
-        checkpoint_conds[
-            "checkpoint.best_{}_{:.2f}.pt".format(cfg.best_checkpoint_metric, val_loss)
-        ] = not hasattr(save_checkpoint, "best") or is_better(
-            val_loss, save_checkpoint.best
+        worst_best = getattr(save_checkpoint, "best", None)
+        chkpts = checkpoint_paths(
+            cfg.save_dir,
+            pattern=r"checkpoint\.best_{}_(\d+\.?\d*){}\.pt".format(
+                cfg.best_checkpoint_metric, suffix
+            ),
         )
+        if len(chkpts) > 0:
+            p = chkpts[-1] if cfg.maximize_best_checkpoint_metric else chkpts[0]
+            worst_best = float(p.rsplit("_")[-1].replace("{}.pt".format(suffix), ""))
+        # add random digits to resolve ties
+        with data_utils.numpy_seed(epoch, updates, val_loss):
+            rand_sfx = np.random.randint(0, cfg.keep_best_checkpoints)
+
+        checkpoint_conds[
+            "checkpoint.best_{}_{:.3f}{}{}.pt".format(
+                cfg.best_checkpoint_metric, val_loss, rand_sfx, suffix
+            )
+        ] = worst_best is None or is_better(val_loss, worst_best)
     checkpoint_conds[
         "checkpoint_last{}.pt".format(suffix)
     ] = not cfg.no_last_checkpoints
@@ -90,7 +111,7 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
     checkpoints = [
         os.path.join(cfg.save_dir, fn) for fn, cond in checkpoint_conds.items() if cond
     ]
-    if len(checkpoints) > 0:
+    if len(checkpoints) > 0 and trainer.should_save_checkpoint_on_current_rank:
         trainer.save_checkpoint(checkpoints[0], extra_state)
         for cp in checkpoints[1:]:
             if cfg.write_checkpoints_asynchronously:
@@ -114,19 +135,38 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
 
     if not end_of_epoch and cfg.keep_interval_updates > 0:
         # remove old checkpoints; checkpoints are sorted in descending order
-        checkpoints = checkpoint_paths(
-            cfg.save_dir, pattern=r"checkpoint_\d+_(\d+){}\.pt".format(suffix)
-        )
+        if cfg.keep_interval_updates_pattern == -1:
+            checkpoints = checkpoint_paths(
+                cfg.save_dir, pattern=r"checkpoint_\d+_(\d+){}\.pt".format(suffix)
+            )
+        else:
+            checkpoints = checkpoint_paths(
+                cfg.save_dir,
+                pattern=r"checkpoint_\d+_(\d+){}\.pt".format(suffix),
+                keep_match=True,
+            )
+            checkpoints = [
+                x[0]
+                for x in checkpoints
+                if x[1] % cfg.keep_interval_updates_pattern != 0
+            ]
+
         for old_chk in checkpoints[cfg.keep_interval_updates :]:
             if os.path.lexists(old_chk):
                 os.remove(old_chk)
+            elif PathManager.exists(old_chk):
+                PathManager.rm(old_chk)
 
     if cfg.keep_last_epochs > 0:
         # remove old epoch checkpoints; checkpoints are sorted in descending order
-        checkpoints = checkpoint_paths(cfg.save_dir, pattern=r"checkpoint(\d+){}\.pt".format(suffix))
+        checkpoints = checkpoint_paths(
+            cfg.save_dir, pattern=r"checkpoint(\d+){}\.pt".format(suffix)
+        )
         for old_chk in checkpoints[cfg.keep_last_epochs :]:
             if os.path.lexists(old_chk):
                 os.remove(old_chk)
+            elif PathManager.exists(old_chk):
+                PathManager.rm(old_chk)
 
     if cfg.keep_best_checkpoints > 0:
         # only keep the best N checkpoints according to validation metric
@@ -141,6 +181,8 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
         for old_chk in checkpoints[cfg.keep_best_checkpoints :]:
             if os.path.lexists(old_chk):
                 os.remove(old_chk)
+            elif PathManager.exists(old_chk):
+                PathManager.rm(old_chk)
 
 
 def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
@@ -173,7 +215,9 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
             cfg.save_dir, "checkpoint_last{}.pt".format(suffix)
         )
         first_launch = not PathManager.exists(checkpoint_path)
-        if cfg.finetune_from_model is not None and first_launch:
+        if first_launch and getattr(cfg, "continue_once", None) is not None:
+            checkpoint_path = cfg.continue_once
+        elif cfg.finetune_from_model is not None and first_launch:
             # if there is no last checkpoint to restore, start the finetune from pretrained model
             # else just use usual logic to load checkpoint, e.g. restart from last checkpoint and etc.
             if PathManager.exists(cfg.finetune_from_model):
@@ -328,6 +372,21 @@ def load_model_ensemble(
     return ensemble, args
 
 
+def get_maybe_sharded_checkpoint_filename(
+    filename: str, suffix: str, shard_idx: int, num_shards: int
+) -> str:
+    orig_filename = filename
+    filename = filename.replace(".pt", suffix + ".pt")
+    fsdp_filename = filename[:-3] + f"-shard{shard_idx}.pt"
+    model_parallel_filename = orig_filename[:-3] + f"_part{shard_idx}.pt"
+    if PathManager.exists(fsdp_filename):
+        return fsdp_filename
+    elif num_shards > 1:
+        return model_parallel_filename
+    else:
+        return filename
+
+
 def load_model_ensemble_and_task(
     filenames,
     arg_overrides: Optional[Dict[str, Any]] = None,
@@ -348,12 +407,13 @@ def load_model_ensemble_and_task(
     cfg = None
     for filename in filenames:
         orig_filename = filename
+        model_shard_state = {"shard_weights": [], "shard_metadata": []}
         assert num_shards > 0
+        st = time.time()
         for shard_idx in range(num_shards):
-            if num_shards == 1:
-                filename = filename.replace(".pt", suffix + ".pt")
-            else:
-                filename = orig_filename[:-3] + f"_part{shard_idx}.pt"
+            filename = get_maybe_sharded_checkpoint_filename(
+                orig_filename, suffix, shard_idx, num_shards
+            )
 
             if not PathManager.exists(filename):
                 raise IOError("Model file not found: {}".format(filename))
@@ -374,19 +434,93 @@ def load_model_ensemble_and_task(
             if "task_state" in state:
                 task.load_state_dict(state["task_state"])
 
-            # build model for ensemble
-            model = task.build_model(cfg.model)
+            if "fsdp_metadata" in state and num_shards > 1:
+                model_shard_state["shard_weights"].append(state["model"])
+                model_shard_state["shard_metadata"].append(state["fsdp_metadata"])
+                # check FSDP import before the code goes too far
+                if not has_FSDP:
+                    raise ImportError(
+                        "Cannot find FullyShardedDataParallel. "
+                        "Please install fairscale with: pip install fairscale"
+                    )
+                if shard_idx == num_shards - 1:
+                    consolidated_model_state = FSDP.consolidate_shard_weights(
+                        shard_weights=model_shard_state["shard_weights"],
+                        shard_metadata=model_shard_state["shard_metadata"],
+                    )
+                    model = task.build_model(cfg.model)
+                    if (
+                        "optimizer_history" in state
+                        and len(state["optimizer_history"]) > 0
+                        and "num_updates" in state["optimizer_history"][-1]
+                    ):
+                        model.set_num_updates(
+                            state["optimizer_history"][-1]["num_updates"]
+                        )
+                    model.load_state_dict(
+                        consolidated_model_state, strict=strict, model_cfg=cfg.model
+                    )
+            else:
+                # model parallel checkpoint or unsharded checkpoint
+                # support old external tasks
 
-            model.load_state_dict(state["model"], strict=strict, model_cfg=cfg.model)
+                argspec = inspect.getfullargspec(task.build_model)
+                if "from_checkpoint" in argspec.args:
+                    model = task.build_model(cfg.model, from_checkpoint=True)
+                else:
+                    model = task.build_model(cfg.model)
+                if (
+                    "optimizer_history" in state
+                    and len(state["optimizer_history"]) > 0
+                    and "num_updates" in state["optimizer_history"][-1]
+                ):
+                    model.set_num_updates(state["optimizer_history"][-1]["num_updates"])
+                model.load_state_dict(
+                    state["model"], strict=strict, model_cfg=cfg.model
+                )
 
             # reset state so it gets loaded for the next model in ensemble
             state = None
+            if shard_idx % 10 == 0 and shard_idx > 0:
+                elapsed = time.time() - st
+                logger.info(
+                    f"Loaded {shard_idx} shards in {elapsed:.2f}s, {elapsed / (shard_idx+1):.2f}s/shard"
+                )
 
+        # build model for ensemble
         ensemble.append(model)
     return ensemble, cfg, task
 
 
-def checkpoint_paths(path, pattern=r"checkpoint(\d+)\.pt"):
+def load_model_ensemble_and_task_from_hf_hub(
+    model_id,
+    cache_dir: Optional[str] = None,
+    arg_overrides: Optional[Dict[str, Any]] = None,
+    **kwargs: Any,
+):
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError:
+        raise ImportError(
+            "You need to install huggingface_hub to use `load_from_hf_hub`. "
+            "See https://pypi.org/project/huggingface-hub/ for installation."
+        )
+
+    library_name = "fairseq"
+    cache_dir = cache_dir or (Path.home() / ".cache" / library_name).as_posix()
+    cache_dir = snapshot_download(
+        model_id, cache_dir=cache_dir, library_name=library_name, **kwargs
+    )
+
+    _arg_overrides = arg_overrides or {}
+    _arg_overrides["data"] = cache_dir
+    return load_model_ensemble_and_task(
+        [p.as_posix() for p in Path(cache_dir).glob("*.pt")],
+        arg_overrides=_arg_overrides,
+    )
+
+
+def checkpoint_paths(path, pattern=r"checkpoint(\d+)\.pt", keep_match=False):
     """Retrieves all checkpoints found in `path` directory.
 
     Checkpoints are identified by matching filename to the specified pattern. If
@@ -394,7 +528,7 @@ def checkpoint_paths(path, pattern=r"checkpoint(\d+)\.pt"):
     descending order.
     """
     pt_regexp = re.compile(pattern)
-    files = os.listdir(path)
+    files = PathManager.ls(path)
 
     entries = []
     for i, f in enumerate(files):
@@ -402,7 +536,10 @@ def checkpoint_paths(path, pattern=r"checkpoint(\d+)\.pt"):
         if m is not None:
             idx = float(m.group(1)) if len(m.groups()) > 0 else i
             entries.append((idx, m.group(0)))
-    return [os.path.join(path, x[1]) for x in sorted(entries, reverse=True)]
+    if keep_match:
+        return [(os.path.join(path, x[1]), x[0]) for x in sorted(entries, reverse=True)]
+    else:
+        return [os.path.join(path, x[1]) for x in sorted(entries, reverse=True)]
 
 
 def torch_persistent_save(obj, filename, async_write: bool = False):
@@ -432,11 +569,11 @@ def _torch_persistent_save(obj, f):
         except Exception:
             if i == 2:
                 logger.error(traceback.format_exc())
+                raise
 
 
 def _upgrade_state_dict(state):
     """Helper for upgrading old model checkpoints."""
-    from fairseq import models, registry, tasks
 
     # add optimizer_history
     if "optimizer_history" not in state:
@@ -473,21 +610,21 @@ def _upgrade_state_dict(state):
     # keep track of number of updates
     if "num_updates" not in state["optimizer_history"][-1]:
         state["optimizer_history"][-1]["num_updates"] = 0
-    # old model checkpoints may not have separate source/target positions
-    if "args" in state and hasattr(state["args"], "max_positions") and not hasattr(
-        state["args"], "max_source_positions"
-    ):
-        state["args"].max_source_positions = state["args"].max_positions
-        state["args"].max_target_positions = state["args"].max_positions
     # use stateful training data iterator
     if "train_iterator" not in state["extra_state"]:
         state["extra_state"]["train_iterator"] = {
-            "epoch": state["extra_state"]["epoch"],
+            "epoch": state["extra_state"].get("epoch", 0),
             "iterations_in_epoch": state["extra_state"].get("batch_offset", 0),
         }
 
     # backward compatibility, cfg updates
     if "args" in state and state["args"] is not None:
+        # old model checkpoints may not have separate source/target positions
+        if hasattr(state["args"], "max_positions") and not hasattr(
+            state["args"], "max_source_positions"
+        ):
+            state["args"].max_source_positions = state["args"].max_positions
+            state["args"].max_target_positions = state["args"].max_positions
         # default to translation task
         if not hasattr(state["args"], "task"):
             state["args"].task = "translation"
@@ -508,12 +645,15 @@ def _upgrade_state_dict(state):
         if hasattr(state["args"], "min_lr"):
             state["args"].stop_min_lr = state["args"].min_lr
             del state["args"].min_lr
-        # binary_cross_entropy => wav2vec criterion
-        if (
-            hasattr(state["args"], "criterion")
-            and state["args"].criterion == "binary_cross_entropy"
-        ):
+        # binary_cross_entropy / kd_binary_cross_entropy => wav2vec criterion
+        if hasattr(state["args"], "criterion") and state["args"].criterion in [
+            "binary_cross_entropy",
+            "kd_binary_cross_entropy",
+        ]:
             state["args"].criterion = "wav2vec"
+        # remove log_keys if it's None (criteria will supply a default value of [])
+        if hasattr(state["args"], "log_keys") and state["args"].log_keys is None:
+            delattr(state["args"], "log_keys")
         # speech_pretraining => audio pretraining
         if (
             hasattr(state["args"], "task")
@@ -547,7 +687,9 @@ def _upgrade_state_dict(state):
             ):
                 cfg.task.eval_wer_config.print_alignment = "hard"
             if "generation" in cfg and isinstance(cfg.generation.print_alignment, bool):
-                cfg.generation.print_alignment = "hard"
+                cfg.generation.print_alignment = (
+                    "hard" if cfg.generation.print_alignment else None
+                )
             if (
                 "model" in cfg
                 and "w2v_args" in cfg.model
@@ -555,6 +697,8 @@ def _upgrade_state_dict(state):
                 and (
                     hasattr(cfg.model.w2v_args, "task") or "task" in cfg.model.w2v_args
                 )
+                and hasattr(cfg.model.w2v_args.task, "eval_wer_config")
+                and cfg.model.w2v_args.task.eval_wer_config is not None
                 and isinstance(
                     cfg.model.w2v_args.task.eval_wer_config.print_alignment, bool
                 )
@@ -658,7 +802,9 @@ def prune_state_dict(state_dict, model_cfg: Optional[DictConfig]):
 
 
 def load_pretrained_component_from_model(
-    component: Union[FairseqEncoder, FairseqDecoder], checkpoint: str
+    component: Union[FairseqEncoder, FairseqDecoder],
+    checkpoint: str,
+    strict: bool = True,
 ):
     """
     Load a pretrained FairseqEncoder or FairseqDecoder from checkpoint into the
@@ -684,7 +830,7 @@ def load_pretrained_component_from_model(
             # encoder.input_layers.0.0.weight --> input_layers.0.0.weight
             component_subkey = key[len(component_type) + 1 :]
             component_state_dict[component_subkey] = state["model"][key]
-    component.load_state_dict(component_state_dict, strict=True)
+    component.load_state_dict(component_state_dict, strict=strict)
     return component
 
 
@@ -702,3 +848,54 @@ def verify_checkpoint_directory(save_dir: str) -> None:
         raise e
     else:
         os.remove(temp_file_path)
+
+
+def save_ema_as_checkpoint(src_path, dst_path):
+    state = load_ema_from_checkpoint(src_path)
+    torch_persistent_save(state, dst_path)
+
+
+def load_ema_from_checkpoint(fpath):
+    """Loads exponential moving averaged (EMA) checkpoint from input and
+    returns a model with ema weights.
+
+    Args:
+      fpath: A string path of checkpoint to load from.
+
+    Returns:
+      A dict of string keys mapping to various values. The 'model' key
+      from the returned dict should correspond to an OrderedDict mapping
+      string parameter names to torch Tensors.
+    """
+    params_dict = collections.OrderedDict()
+    new_state = None
+
+    with PathManager.open(fpath, "rb") as f:
+        new_state = torch.load(
+            f,
+            map_location=(
+                lambda s, _: torch.serialization.default_restore_location(s, "cpu")
+            ),
+        )
+
+        # EMA model is stored in a separate "extra state"
+        model_params = new_state["extra_state"]["ema"]
+
+        for key in list(model_params.keys()):
+            p = model_params[key]
+            if isinstance(p, torch.HalfTensor):
+                p = p.float()
+            if key not in params_dict:
+                params_dict[key] = p.clone()
+                # NOTE: clone() is needed in case of p is a shared parameter
+            else:
+                raise ValueError("Key {} is repeated in EMA model params.".format(key))
+
+        if len(params_dict) == 0:
+            raise ValueError(
+                f"Input checkpoint path '{fpath}' does not contain "
+                "ema model weights, is this model trained with EMA?"
+            )
+
+    new_state["model"] = params_dict
+    return new_state

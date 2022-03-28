@@ -7,14 +7,20 @@ import argparse
 import json
 import os
 import random
+import shutil
+import string
 import sys
+import typing as tp
 from io import StringIO
 
 import torch
 import torch.nn.functional as F
+
+import fairseq.distributed.utils as distributed_utils
 from fairseq import options, utils
 from fairseq.data import Dictionary
 from fairseq.data.language_pair_dataset import collate
+from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderDecoderModel,
@@ -160,11 +166,13 @@ def sequence_generator_setup():
     return tgt_dict, w1, w2, src_tokens, src_lengths, model
 
 
-def create_dummy_data(data_dir, num_examples=100, maxlen=20, alignment=False):
-    def _create_dummy_data(filename):
+def create_dummy_data(
+    data_dir, num_examples=100, maxlen=20, alignment=False, languages=None
+):
+    def _create_dummy_data(dir, filename):
         data = torch.rand(num_examples * maxlen)
         data = 97 + torch.floor(26 * data).int()
-        with open(os.path.join(data_dir, filename), "w") as h:
+        with open(os.path.join(dir, filename), "w") as h:
             offset = 0
             for _ in range(num_examples):
                 ex_len = random.randint(1, maxlen)
@@ -191,12 +199,23 @@ def create_dummy_data(data_dir, num_examples=100, maxlen=20, alignment=False):
                 )
                 print(ex_str, file=h)
 
-    _create_dummy_data("train.in")
-    _create_dummy_data("train.out")
-    _create_dummy_data("valid.in")
-    _create_dummy_data("valid.out")
-    _create_dummy_data("test.in")
-    _create_dummy_data("test.out")
+    files_to_write = [
+        "train.in",
+        "train.out",
+        "valid.in",
+        "valid.out",
+        "test.in",
+        "test.out",
+    ]
+    if languages is None:  # En only dummy dataset
+        for f in files_to_write:
+            _create_dummy_data(data_dir, f)
+    else:
+        for lang in languages:
+            lang_dir = os.path.join(data_dir, lang)
+            os.makedirs(lang_dir, exist_ok=True)
+            for f in files_to_write:
+                _create_dummy_data(lang_dir, f)
 
     if alignment:
         _create_dummy_alignment_data("train.in", "train.out", "train.align")
@@ -204,22 +223,45 @@ def create_dummy_data(data_dir, num_examples=100, maxlen=20, alignment=False):
         _create_dummy_alignment_data("test.in", "test.out", "test.align")
 
 
-def preprocess_lm_data(data_dir):
+def preprocess_lm_data(data_dir, languages=None):
     preprocess_parser = options.get_preprocessing_parser()
-    preprocess_args = preprocess_parser.parse_args(
-        [
-            "--only-source",
-            "--trainpref",
-            os.path.join(data_dir, "train.out"),
-            "--validpref",
-            os.path.join(data_dir, "valid.out"),
-            "--testpref",
-            os.path.join(data_dir, "test.out"),
-            "--destdir",
-            data_dir,
-        ]
-    )
-    preprocess.main(preprocess_args)
+    if languages is None:
+        preprocess_args = preprocess_parser.parse_args(
+            [
+                "--only-source",
+                "--trainpref",
+                os.path.join(data_dir, "train.out"),
+                "--validpref",
+                os.path.join(data_dir, "valid.out"),
+                "--testpref",
+                os.path.join(data_dir, "test.out"),
+                "--destdir",
+                data_dir,
+            ]
+        )
+        preprocess.main(preprocess_args)
+    else:
+        for lang in languages:
+            lang_dir = os.path.join(data_dir, lang)
+            assert os.path.exists(lang_dir)
+            preprocess_args = preprocess_parser.parse_args(
+                [
+                    "--only-source",
+                    "--trainpref",
+                    os.path.join(lang_dir, "train.out"),
+                    "--validpref",
+                    os.path.join(lang_dir, "valid.out"),
+                    "--testpref",
+                    os.path.join(lang_dir, "test.out"),
+                    "--destdir",
+                    lang_dir,
+                ]
+            )
+            preprocess.main(preprocess_args)
+        shutil.copyfile(
+            os.path.join(data_dir, languages[0], "dict.txt"),
+            os.path.join(data_dir, "dict.txt"),
+        )
 
 
 def preprocess_translation_data(data_dir, extra_flags=None):
@@ -320,6 +362,7 @@ def train_translation_model(
     run_validation=False,
     lang_flags=None,
     extra_valid_flags=None,
+    world_size=1,
 ):
     if lang_flags is None:
         lang_flags = [
@@ -349,14 +392,16 @@ def train_translation_model(
             "1",
             "--no-progress-bar",
             "--distributed-world-size",
-            "1",
+            str(world_size),
             "--num-workers",
             "0",
         ]
         + lang_flags
         + (extra_flags or []),
     )
-    train.main(train_args)
+
+    cfg = convert_namespace_to_omegaconf(train_args)
+    distributed_utils.call_main(cfg, train.main)
 
     if run_validation:
         # test validation
@@ -449,7 +494,7 @@ class TestTranslationTask(LegacyFairseqTask):
     def setup_task(cls, args, src_dict=None, tgt_dict=None, model=None):
         return cls(args, src_dict, tgt_dict, model)
 
-    def build_model(self, args):
+    def build_model(self, args, from_checkpoint=False):
         return TestModel.build_model(args, self)
 
     @property
@@ -646,3 +691,98 @@ class TestAdditionalInputModel(FairseqEncoderDecoderModel):
             prev_output_tokens, encoder_out=encoder_out, **kwargs
         )
         return decoder_out
+
+
+def train_language_model(
+    data_dir,
+    arch,
+    extra_flags=None,
+    run_validation=False,
+    extra_valid_flags=None,
+    task="language_modeling",
+    world_size=1,
+):
+    train_parser = options.get_training_parser()
+    train_args = options.parse_args_and_arch(
+        train_parser,
+        [
+            "--task",
+            task,
+            data_dir,
+            "--arch",
+            arch,
+            "--optimizer",
+            "adam",
+            "--lr",
+            "0.0001",
+            "--max-tokens",
+            "500",
+            "--tokens-per-sample",
+            "500",
+            "--save-dir",
+            data_dir,
+            "--max-epoch",
+            "1",
+            "--no-progress-bar",
+            "--distributed-world-size",
+            str(world_size),
+            "--ddp-backend",
+            "no_c10d",
+            "--num-workers",
+            "0",
+        ]
+        + (extra_flags or []),
+    )
+    cfg = convert_namespace_to_omegaconf(train_args)
+    distributed_utils.call_main(cfg, train.main)
+
+    if run_validation:
+        # test validation
+        validate_parser = options.get_validation_parser()
+        validate_args = options.parse_args_and_arch(
+            validate_parser,
+            [
+                "--task",
+                task,
+                data_dir,
+                "--path",
+                os.path.join(data_dir, "checkpoint_last.pt"),
+                "--valid-subset",
+                "valid",
+                "--max-tokens",
+                "500",
+                "--no-progress-bar",
+                "--num-workers",
+                "0",
+            ]
+            + (extra_valid_flags or []),
+        )
+        validate.main(validate_args)
+
+
+def sizes(data):
+    return [len(sentence) for sentence in data]
+
+
+POPULATION = string.ascii_letters + string.digits
+
+
+def make_sentence() -> tp.List[str]:
+    length = random.randint(10, 50)
+    return random.choices(
+        population=POPULATION, k=length, weights=range(1, len(POPULATION) + 1)
+    )
+
+
+def make_data(length=1000, out_file=None) -> tp.List[tp.List[str]]:
+    data = (
+        [make_sentence() for _ in range(0, length)]
+        # add all the symbols at least once
+        + [list(string.ascii_letters), list(string.digits)]
+    )
+    if out_file is not None:
+        with open(out_file, "w", encoding="utf-8") as out:
+            for s in data:
+                print(" ".join(s), file=out)
+
+    return data

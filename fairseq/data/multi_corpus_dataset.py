@@ -6,7 +6,7 @@
 import logging
 import time
 from collections import OrderedDict
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 from fairseq.data import data_utils
@@ -18,13 +18,15 @@ logger = logging.getLogger(__name__)
 
 class MultiCorpusDataset(FairseqDataset):
     """
-    Stores multiple instances of FairseqDataset together. Requires each instance
+    Stores multiple instances of FairseqDataset together.
+    Unless batch_sample=True, requires each instance
     to be the same dataset, as the collate method needs to work on batches with
     samples from each dataset.
 
     Allows specifying a distribution over the datasets to use. Note that unlike
     MultiCorpusSampledDataset, this distribution allows sampling for each item,
-    rather than on a batch level.
+    rather than on a batch level. Note that datasets with sampling probabilty
+    of 0 will be skipped.
 
     Each time ordered_indices() is called, a new sample is generated with
     the specified distribution.
@@ -45,6 +47,7 @@ class MultiCorpusDataset(FairseqDataset):
         seed: int,
         sort_indices: bool = False,
         batch_sample: bool = False,
+        distributed_rank: Optional[int] = None,
     ):
         super().__init__()
         assert isinstance(datasets, OrderedDict)
@@ -55,28 +58,39 @@ class MultiCorpusDataset(FairseqDataset):
         self.seed = seed
         self.sort_indices = sort_indices
         self.batch_sample = batch_sample
+        self.distributed_rank = distributed_rank
 
         # Avoid repeated conversions to list later
         self.dataset_list = list(datasets.values())
         self.total_num_instances = 0
 
-        first_dataset = list(self.datasets.values())[0]
+        first_dataset = self.dataset_list[0]
 
+        self.num_instances_per_dataset = []
         self.dataset_offsets = []
-        for dataset in datasets.values():
+        for i, dataset in enumerate(self.dataset_list):
             assert isinstance(dataset, FairseqDataset)
             assert type(dataset) is type(first_dataset)
+            self.num_instances_per_dataset.append(
+                0 if self.distribution[i] == 0 else len(dataset)
+            )
             self.dataset_offsets.append(self.total_num_instances)
-            self.total_num_instances += len(dataset)
+            self.total_num_instances += self.num_instances_per_dataset[i]
 
     def ordered_indices(self):
         start = time.time()
         with data_utils.numpy_seed(self.seed, self.epoch):
+            logger.info(
+                f"sampling new dataset with seed {self.seed} epoch {self.epoch}"
+            )
             sampled_indices = []
             num_selected_instances = 0
 
             # For each dataset i, sample self.distribution[i] * self.total_num_instances
             for i, key in enumerate(self.datasets):
+                if self.distribution[i] == 0:
+                    # skip dataset if sampling probability is 0
+                    continue
 
                 if i < len(self.datasets) - 1:
                     num_instances = int(self.distribution[i] * self.total_num_instances)
@@ -133,10 +147,10 @@ class MultiCorpusDataset(FairseqDataset):
         maps to index 1 of B.
         """
         counter = 0
-        for key, dataset in self.datasets.items():
-            if index < counter + len(dataset):
+        for num_instances, key in zip(self.num_instances_per_dataset, self.datasets):
+            if index < counter + num_instances:
                 return index - counter, key
-            counter += len(dataset)
+            counter += num_instances
         raise ValueError(
             "Invalid index: {}, max: {}".format(index, self.total_num_instances)
         )
@@ -165,9 +179,17 @@ class MultiCorpusDataset(FairseqDataset):
         """
         if len(samples) == 0:
             return None
-        _, key = self._map_index(samples[0]["full_id"])
-
-        return self.datasets[key].collater(samples)
+        if "full_id" in samples[0]:
+            _, key = self._map_index(samples[0]["full_id"])
+            try:
+                batch = self.datasets[key].collater(samples)
+            except Exception:
+                print(f"Collating failed for key {key}", flush=True)
+                raise
+            return batch
+        else:
+            # Subclasses may override __getitem__ to not specify full_id
+            return list(self.datasets.values())[0].collater(samples)
 
     def num_tokens(self, index: int):
         index, key = self._map_index(index)
@@ -183,6 +205,7 @@ class MultiCorpusDataset(FairseqDataset):
 
     def set_epoch(self, epoch, **unused):
         super().set_epoch(epoch)
+        logger.info(f"setting epoch of multi_corpus_dataset to {epoch}")
         self.epoch = epoch
 
     @property
@@ -224,5 +247,10 @@ class MultiCorpusDataset(FairseqDataset):
             logger.info(f"Created {len(cur_batches)} batches for dataset {key}")
             batches += cur_batches
 
-        # Assume shuffling is handled in fairseq/data/iterators.py
+        # If this dataset is used in a distributed training setup,
+        # then shuffle such that the order is seeded by the distributed rank
+        # as well
+        if self.distributed_rank is not None:
+            with data_utils.numpy_seed(self.seed, self.epoch, self.distributed_rank):
+                np.random.shuffle(batches)
         return batches

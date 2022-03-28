@@ -96,4 +96,4 @@ print('Accuracy: ' + str(ncorrect / float(nsamples)))
 ```
 
 The above snippet is not batched, which makes it quite slow. See [instructions
-for batched prediction with RoBERTa](https://github.com/pytorch/fairseq/tree/master/examples/roberta#batched-prediction).
+for batched prediction with RoBERTa](https://github.com/pytorch/fairseq/tree/main/examples/roberta#batched-prediction).

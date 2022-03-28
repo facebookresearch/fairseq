@@ -1,0 +1,7 @@
+includes: projects/task/test_crosstask_zs.yaml
+model:
+  model_cls: MMFusionSeparateActionLocalization
+  mm_encoder_cls: 
+  video_encoder_cls: MMBertForEncoder
+  text_encoder_cls: BertModel  # dummy, not used.
+  num_hidden_video_layers: 6

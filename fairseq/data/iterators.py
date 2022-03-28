@@ -31,74 +31,54 @@ class CountingIterator(object):
         iterable (iterable): iterable to wrap
         start (int): starting iteration count. Note that this doesn't
             actually advance the iterator.
-        total (int): override the iterator length returned by
-            ``__len__``. This can be used to truncate *iterator*.
+        total (int): override the iterator length returned by ``__len``.
+            This can be used to truncate *iterator*.
 
     Attributes:
         n (int): number of elements consumed from this iterator
     """
 
     def __init__(self, iterable, start=None, total=None):
-        self.iterable = iterable
-        self.itr = iter(self)
-
-        if start is None:
-            self.n = getattr(iterable, "n", 0)
-        else:
-            self.n = start
-
-        if total is None:
-            self.total = self.n + len(iterable)
-        else:
-            self.total = total
+        self._itr = iter(iterable)
+        self.n = start or getattr(iterable, "n", 0)
+        self.total = total if total is not None else self.n + len(iterable)
 
     def __len__(self):
         return self.total
 
     def __iter__(self):
-        for x in self.iterable:
-            if self.n >= self.total:
-                raise RuntimeError(
-                    "Mismatch between actual and expected iterable length. "
-                    "This may be caused by resuming training from a checkpoint using "
-                    "a different number of GPUs, in which case you can try the "
-                    "--reset-dataloader option. Alternatively you may have a train or "
-                    "validation set that is smaller than the number of GPUs. If none "
-                    "of these apply, please report this to the fairseq developers."
-                )
-            self.n += 1
-            yield x
+        return self
 
     def __next__(self):
-        return next(self.itr)
+        if not self.has_next():
+            raise StopIteration
+        try:
+            x = next(self._itr)
+        except StopIteration:
+            raise IndexError(
+                f"Iterator expected to have length {self.total}, "
+                "but exhausted at position {self.n}."
+            )
+        self.n += 1
+        return x
 
     def has_next(self):
         """Whether the iterator has been exhausted."""
-        return self.n < len(self)
+        return self.n < self.total
 
-    def skip(self, num_to_skip):
-        """Fast-forward the iterator by skipping *num_to_skip* elements."""
-        next(itertools.islice(self.itr, num_to_skip, num_to_skip), None)
+    def skip(self, n):
+        """Fast-forward the iterator by skipping n elements."""
+        for _ in range(n):
+            next(self)
         return self
 
     def take(self, n):
-        """
-        Truncates the iterator to n elements at most.
-        """
+        """Truncate the iterator to n elements at most."""
         self.total = min(self.total, n)
-
         # Propagate this change to the underlying iterator
-        # Only take after what we have already consumed (i.e. after restarting
-        # from checkpoint mid epoch, we have to subtract self.n which is the
-        # starting point)
-        #
-        # This to maintain the invariant self.total = self.n + len(iterable),
-        # before calling __next__ or __iter__
-        propagated_take = max(n - self.n, 0)
-        if hasattr(self.iterable, "take"):
-            self.iterable.take(propagated_take)
-        else:
-            self.iterable = itertools.islice(self.iterable, propagated_take)
+        if hasattr(self._itr, "take"):
+            self._itr.take(max(n - self.n, 0))
+        return self
 
 
 class EpochBatchIterating(object):
@@ -236,6 +216,7 @@ class StreamingEpochBatchIterator(EpochBatchIterating):
             num_workers=self.num_workers,
             timeout=self.timeout,
             worker_init_fn=worker_init_fn,
+            pin_memory=True,
         )
 
         # Wrap with a BufferedIterator if needed
@@ -284,6 +265,12 @@ class EpochBatchIterator(EpochBatchIterating):
             from workers. Should always be non-negative (default: ``0``).
         disable_shuffling (bool, optional): force disable shuffling
             (default: ``False``).
+        skip_remainder_batch (bool, optional): if set, discard the last batch in an epoch
+            for the sake of training stability, as the last batch is usually smaller than
+                local_batch_size * distributed_word_size (default: ``False``).
+        grouped_shuffling (bool, optional): enable shuffling batches in groups
+            of num_shards. Ensures that each GPU receives similar length sequences when
+            batches are sorted by length.
     """
 
     def __init__(
@@ -299,6 +286,8 @@ class EpochBatchIterator(EpochBatchIterating):
         buffer_size=0,
         timeout=0,
         disable_shuffling=False,
+        skip_remainder_batch=False,
+        grouped_shuffling=False,
     ):
         assert isinstance(dataset, torch.utils.data.Dataset)
         self.dataset = dataset
@@ -316,6 +305,8 @@ class EpochBatchIterator(EpochBatchIterating):
         self.buffer_size = min(buffer_size, 20)
         self.timeout = timeout
         self.disable_shuffling = disable_shuffling
+        self.skip_remainder_batch = skip_remainder_batch
+        self.grouped_shuffling = grouped_shuffling
 
         self.epoch = max(epoch, 1)  # we use 1-based indexing for epochs
         self.shuffle = not disable_shuffling
@@ -377,6 +368,7 @@ class EpochBatchIterator(EpochBatchIterating):
         """
         if self.disable_shuffling:
             shuffle = False
+        prev_epoch = self.epoch
         self.epoch = self.next_epoch_idx
         if set_dataset_epoch and hasattr(self.dataset, "set_epoch"):
             self.dataset.set_epoch(self.epoch)
@@ -384,7 +376,7 @@ class EpochBatchIterator(EpochBatchIterating):
             self._cur_epoch_itr = self._next_epoch_itr
             self._next_epoch_itr = None
         else:
-            if callable(self.batch_sampler):
+            if callable(self.batch_sampler) and prev_epoch != self.epoch:
                 # reset _frozen_batches to refresh the next epoch
                 self._frozen_batches = None
             self._cur_epoch_itr = self._get_iterator_for_epoch(
@@ -453,7 +445,17 @@ class EpochBatchIterator(EpochBatchIterating):
     ):
         def shuffle_batches(batches, seed):
             with data_utils.numpy_seed(seed):
-                np.random.shuffle(batches)
+
+                if self.grouped_shuffling:
+                    grouped_batches = [
+                        batches[(i * self.num_shards) : ((i + 1) * self.num_shards)]
+                        for i in range((len(batches) // self.num_shards))
+                    ]
+                    np.random.shuffle(grouped_batches)
+                    batches = list(itertools.chain(*grouped_batches))
+                else:
+                    np.random.shuffle(batches)
+
             return batches
 
         if self._supports_prefetch:
@@ -491,6 +493,7 @@ class EpochBatchIterator(EpochBatchIterating):
             batch_sampler=batches[offset:],
             num_workers=self.num_workers,
             timeout=self.timeout,
+            pin_memory=True,
         )
 
         # Wrap with a BufferedIterator if needed
@@ -499,6 +502,14 @@ class EpochBatchIterator(EpochBatchIterating):
 
         # Wrap with CountingIterator
         itr = CountingIterator(itr, start=offset)
+
+        if self.skip_remainder_batch:
+            # TODO: Below is a lazy implementation which discard the final batch regardless
+            # of whether it is a full batch or not.
+            total_num_itrs = len(batches) - 1
+            itr.take(total_num_itrs)
+            logger.info(f"skip final residual batch, total_num_itrs = {total_num_itrs}")
+
         return itr
 
 
@@ -508,29 +519,47 @@ class GroupedIterator(CountingIterator):
     Args:
         iterable (iterable): iterable to wrap
         chunk_size (int): size of each chunk
-
+        skip_remainder_batch (bool, optional): if set, discard the last grouped batch in
+          each training epoch, as the last grouped batch is usually smaller than
+                local_batch_size * distributed_word_size * chunk_size (default: ``False``).
     Attributes:
         n (int): number of elements consumed from this iterator
     """
 
-    def __init__(self, iterable, chunk_size):
-        itr = _chunk_iterator(iterable, chunk_size)
+    def __init__(self, iterable, chunk_size, skip_remainder_batch=False):
+        if skip_remainder_batch:
+            total_num_itrs = int(math.floor(len(iterable) / float(chunk_size)))
+            logger.info(
+                f"skip final residual batch, grouped total_num_itrs = {total_num_itrs}"
+            )
+        else:
+            total_num_itrs = int(math.ceil(len(iterable) / float(chunk_size)))
+            logger.info(f"grouped total_num_itrs = {total_num_itrs}")
+
+        itr = _chunk_iterator(iterable, chunk_size, skip_remainder_batch)
         super().__init__(
             itr,
             start=int(math.ceil(getattr(iterable, "n", 0) / float(chunk_size))),
-            total=int(math.ceil(len(iterable) / float(chunk_size))),
+            total=total_num_itrs,
         )
         self.chunk_size = chunk_size
 
+        if skip_remainder_batch:
+            self.take(total_num_itrs)
+            # TODO: [Hack] Here the grouped iterator modifies the base iterator size so that
+            # training can move into the next epoch once the grouped iterator is exhausted.
+            # Double-check this implementation in case unexpected behavior occurs.
+            iterable.take(total_num_itrs * chunk_size)
 
-def _chunk_iterator(itr, chunk_size):
+
+def _chunk_iterator(itr, chunk_size, skip_remainder_batch=False):
     chunk = []
     for x in itr:
         chunk.append(x)
         if len(chunk) == chunk_size:
             yield chunk
             chunk = []
-    if len(chunk) > 0:
+    if not skip_remainder_batch and len(chunk) > 0:
         yield chunk
 
 
@@ -548,7 +577,12 @@ class ShardedIterator(CountingIterator):
         n (int): number of elements consumed from this iterator
     """
 
-    def __init__(self, iterable, num_shards, shard_id, fill_value=None):
+    def __init__(
+        self, iterable, num_shards, shard_id, fill_value=None, skip_remainder_batch=None
+    ):
+        """
+        Args:
+            skip_remainder_batch: ignored"""
         if shard_id < 0 or shard_id >= num_shards:
             raise ValueError("shard_id must be between 0 and num_shards")
         sharded_len = int(math.ceil(len(iterable) / float(num_shards)))
@@ -568,15 +602,20 @@ class ShardedIterator(CountingIterator):
 
 
 class BackgroundConsumer(Thread):
-    def __init__(self, queue, source, max_len):
+    def __init__(self, queue, source, max_len, cuda_device):
         Thread.__init__(self)
 
         self._queue = queue
         self._source = source
         self._max_len = max_len
         self.count = 0
+        self.cuda_device = cuda_device
 
     def run(self):
+        # set_device to avoid creation of GPU0 context when using pin_memory
+        if self.cuda_device is not None:
+            torch.cuda.set_device(self.cuda_device)
+
         try:
             for item in self._source:
                 self._queue.put(item)
@@ -608,6 +647,7 @@ class BufferedIterator(object):
             self._queue,
             self._iterable,
             self.total,
+            torch.cuda.current_device() if torch.cuda.is_available() else None,
         )
         self._consumer.daemon = True
         self._consumer.start()
@@ -620,10 +660,10 @@ class BufferedIterator(object):
 
     def take(self, n):
         self.total = min(self.total, n)
-
         # Propagate this change to the underlying iterator
         if hasattr(self._iterable, "take"):
             self._iterable.take(n)
+        return self
 
     def __next__(self):
         # Create consumer if not created yet
@@ -651,3 +691,131 @@ class BufferedIterator(object):
         if item is _sentinel:
             raise StopIteration()
         return item
+
+
+class GroupedEpochBatchIterator(EpochBatchIterator):
+    """Grouped version of EpochBatchIterator
+    It takes several samplers from different datasets.
+    Each epoch shuffle the dataset wise sampler individually with different
+    random seed. The those sub samplers are combined with into
+    one big samplers with deterministic permutation to mix batches from
+    different datasets. It will act like EpochBatchIterator but make sure
+    1) data from one data set each time
+    2) for different workers, they use the same order to fetch the data
+    so they will use data from the same dataset everytime
+    mult_rate is used for update_freq > 1 case where we want to make sure update_freq
+    mini-batches come from same source
+    """
+
+    def __init__(
+        self,
+        dataset,
+        collate_fn,
+        batch_samplers,
+        seed=1,
+        num_shards=1,
+        shard_id=0,
+        num_workers=0,
+        epoch=0,
+        mult_rate=1,
+        buffer_size=0,
+        skip_remainder_batch=False,
+    ):
+        super().__init__(
+            dataset,
+            collate_fn,
+            batch_samplers,
+            seed,
+            num_shards,
+            shard_id,
+            num_workers,
+            epoch,
+            buffer_size,
+            skip_remainder_batch=skip_remainder_batch,
+        )
+        # level 0: sub-samplers 1: batch_idx 2: batches
+        self._frozen_batches = tuple([tuple(sub_batch) for sub_batch in batch_samplers])
+        self.step_size = mult_rate * num_shards
+
+        self.lengths = [
+            (len(x) // self.step_size) * self.step_size for x in self.frozen_batches
+        ]
+
+    def __len__(self):
+        return sum(self.lengths)
+
+    @property
+    def first_batch(self):
+        if len(self.frozen_batches) == 0:
+            raise Exception(
+                "The dataset is empty. This could indicate "
+                "that all elements in the dataset have been skipped. "
+                "Try increasing the max number of allowed tokens or using "
+                "a larger dataset."
+            )
+
+        if self.dataset.supports_fetch_outside_dataloader:
+            return self.collate_fn([self.dataset[i] for i in self.frozen_batches[0][0]])
+        else:
+            return "DUMMY"
+
+    def _get_iterator_for_epoch(
+        self, epoch, shuffle, fix_batches_to_gpus=False, offset=0
+    ):
+        def shuffle_batches(batches, seed):
+            with data_utils.numpy_seed(seed):
+                np.random.shuffle(batches)
+            return batches
+
+        def return_full_batches(batch_sets, seed, shuffle):
+            if shuffle:
+                batch_sets = [shuffle_batches(list(x), seed) for x in batch_sets]
+
+            batch_sets = [
+                batch_sets[i][: self.lengths[i]] for i in range(len(batch_sets))
+            ]
+            batches = list(itertools.chain.from_iterable(batch_sets))
+
+            if shuffle:
+                with data_utils.numpy_seed(seed):
+                    idx = np.random.permutation(len(batches) // self.step_size)
+                    if len(idx) * self.step_size != len(batches):
+                        raise ValueError(
+                            "ERROR: %d %d %d %d"
+                            % (len(idx), self.step_size, len(batches), self.shard_id),
+                            ":".join(["%d" % x for x in self.lengths]),
+                        )
+                    mini_shards = [
+                        batches[i * self.step_size : (i + 1) * self.step_size]
+                        for i in idx
+                    ]
+                    batches = list(itertools.chain.from_iterable(mini_shards))
+
+            return batches
+
+        if self._supports_prefetch:
+            raise NotImplementedError("To be implemented")
+        else:
+            batches = return_full_batches(
+                self.frozen_batches, self.seed + epoch, shuffle
+            )
+            batches = list(
+                ShardedIterator(batches, self.num_shards, self.shard_id, fill_value=[])
+            )
+
+        if offset > 0 and offset >= len(batches):
+            return None
+
+        if self.num_workers > 0:
+            os.environ["PYTHONWARNINGS"] = "ignore:semaphore_tracker:UserWarning"
+
+        itr = torch.utils.data.DataLoader(
+            self.dataset,
+            collate_fn=self.collate_fn,
+            batch_sampler=batches[offset:],
+            num_workers=self.num_workers,
+        )
+        if self.buffer_size > 0:
+            itr = BufferedIterator(self.buffer_size, itr)
+
+        return CountingIterator(itr, start=offset)

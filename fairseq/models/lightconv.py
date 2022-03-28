@@ -8,6 +8,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from fairseq import utils
 from fairseq.models import (
     FairseqEncoder,
@@ -25,6 +26,7 @@ from fairseq.modules import (
     MultiheadAttention,
     PositionalEmbedding,
 )
+from fairseq.utils import safe_hasattr
 
 
 @register_model("lightconv")
@@ -257,9 +259,9 @@ class LightConvModel(FairseqEncoderDecoderModel):
         # make sure all arguments are present in older models
         base_architecture(args)
 
-        if not hasattr(args, "max_source_positions"):
+        if not safe_hasattr(args, "max_source_positions"):
             args.max_source_positions = 1024
-        if not hasattr(args, "max_target_positions"):
+        if not safe_hasattr(args, "max_target_positions"):
             args.max_target_positions = 1024
 
         src_dict, tgt_dict = task.source_dictionary, task.target_dictionary
@@ -503,7 +505,7 @@ class LightConvDecoder(FairseqIncrementalDecoder):
             self.embed_out = nn.Parameter(
                 torch.Tensor(len(dictionary), output_embed_dim)
             )
-            nn.init.normal_(self.embed_out, mean=0, std=output_embed_dim ** -0.5)
+            nn.init.normal_(self.embed_out, mean=0, std=output_embed_dim**-0.5)
         self.register_buffer("version", torch.Tensor([2]))
         self.normalize = args.decoder_normalize_before and final_norm
         if self.normalize:
@@ -889,7 +891,7 @@ class LightConvDecoderLayer(nn.Module):
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):
     m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
-    nn.init.normal_(m.weight, mean=0, std=embedding_dim ** -0.5)
+    nn.init.normal_(m.weight, mean=0, std=embedding_dim**-0.5)
     nn.init.constant_(m.weight[padding_idx], 0)
     return m
 

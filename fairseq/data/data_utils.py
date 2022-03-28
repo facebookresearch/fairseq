@@ -10,7 +10,7 @@ except ImportError:
 import contextlib
 import itertools
 import logging
-import os
+import re
 import warnings
 from typing import Optional, Tuple
 
@@ -18,7 +18,8 @@ import numpy as np
 import torch
 
 from fairseq.file_io import PathManager
-
+from fairseq import utils
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -324,9 +325,7 @@ def batch_by_size(
         )
 
     # added int() to avoid TypeError: an integer is required
-    max_tokens = (
-        int(max_tokens) if max_tokens is not None else -1
-    )
+    max_tokens = int(max_tokens) if max_tokens is not None else -1
     max_sentences = max_sentences if max_sentences is not None else -1
     bsz_mult = required_batch_size_multiple
 
@@ -373,6 +372,11 @@ def post_process(sentence: str, symbol: str):
         sentence = sentence.replace(" ", "").replace("_", " ").strip()
     elif symbol == "letter":
         sentence = sentence.replace(" ", "").replace("|", " ").strip()
+    elif symbol == "silence":
+        import re
+
+        sentence = sentence.replace("<SIL>", "")
+        sentence = re.sub(" +", " ", sentence).strip()
     elif symbol == "_EOW":
         sentence = sentence.replace(" ", "").replace("_EOW", " ").strip()
     elif symbol in {"subword_nmt", "@@ ", "@@"}:
@@ -396,6 +400,8 @@ def compute_mask_indices(
     min_masks: int = 0,
     no_overlap: bool = False,
     min_space: int = 0,
+    require_same_masks: bool = True,
+    mask_dropout: float = 0.0,
 ) -> np.ndarray:
     """
     Computes random mask spans for a given shape
@@ -415,6 +421,8 @@ def compute_mask_indices(
         min_masks: minimum number of masked spans
         no_overlap: if false, will switch to an alternative recursive algorithm that prevents spans from overlapping
         min_space: only used if no_overlap is True, this is how many elements to keep unmasked between spans
+        require_same_masks: if true, will randomly drop out masks until same amount of masks remains in each sample
+        mask_dropout: randomly dropout this percentage of masks in each example
     """
 
     bsz, all_sz = shape
@@ -506,8 +514,14 @@ def compute_mask_indices(
 
     min_len = min([len(m) for m in mask_idcs])
     for i, mask_idc in enumerate(mask_idcs):
-        if len(mask_idc) > min_len:
+        if len(mask_idc) > min_len and require_same_masks:
             mask_idc = np.random.choice(mask_idc, min_len, replace=False)
+        if mask_dropout > 0:
+            num_holes = np.rint(len(mask_idc) * mask_dropout).astype(int)
+            mask_idc = np.random.choice(
+                mask_idc, len(mask_idc) - num_holes, replace=False
+            )
+
         mask[i, mask_idc] = True
 
     return mask
@@ -543,7 +557,7 @@ def get_buckets(sizes, num_buckets):
         np.percentile(
             sizes,
             np.linspace(0, 100, num_buckets + 1),
-            interpolation='lower',
+            interpolation="lower",
         )[1:]
     )
     return buckets
@@ -558,3 +572,33 @@ def get_bucketed_sizes(orig_sizes, buckets):
         sizes[mask] = end_val
         start_val = end_val
     return sizes
+
+
+def _find_extra_valid_paths(dataset_path: str) -> set:
+    paths = utils.split_paths(dataset_path)
+    all_valid_paths = set()
+    for sub_dir in paths:
+        contents = PathManager.ls(sub_dir)
+        valid_paths = [c for c in contents if re.match("valid*[0-9].*", c) is not None]
+        all_valid_paths |= {os.path.basename(p) for p in valid_paths}
+    # Remove .bin, .idx etc
+    roots = {os.path.splitext(p)[0] for p in all_valid_paths}
+    return roots
+
+
+def raise_if_valid_subsets_unintentionally_ignored(train_cfg) -> None:
+    """Raises if there are paths matching 'valid*[0-9].*' which are not combined or ignored."""
+    if (
+        train_cfg.dataset.ignore_unused_valid_subsets
+        or train_cfg.dataset.combine_valid_subsets
+        or train_cfg.dataset.disable_validation
+        or not hasattr(train_cfg.task, "data")
+    ):
+        return
+    other_paths = _find_extra_valid_paths(train_cfg.task.data)
+    specified_subsets = train_cfg.dataset.valid_subset.split(",")
+    ignored_paths = [p for p in other_paths if p not in specified_subsets]
+    if ignored_paths:
+        advice = "Set --combine-val to combine them or --ignore-unused-valid-subsets to ignore them."
+        msg = f"Valid paths {ignored_paths} will be ignored. {advice}"
+        raise ValueError(msg)
