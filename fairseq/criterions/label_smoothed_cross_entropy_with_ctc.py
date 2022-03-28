@@ -12,28 +12,35 @@ import torch.nn.functional as F
 from fairseq import metrics, utils
 from fairseq.criterions import register_criterion
 from fairseq.criterions.label_smoothed_cross_entropy import (
-    LabelSmoothedCrossEntropyCriterion, LabelSmoothedCrossEntropyCriterionConfig
+    LabelSmoothedCrossEntropyCriterion,
+    LabelSmoothedCrossEntropyCriterionConfig,
 )
 from fairseq.data.data_utils import lengths_to_mask
 
 
 @dataclass
-class LabelSmoothedCrossEntropyWithCtcCriterionConfig(LabelSmoothedCrossEntropyCriterionConfig):
+class LabelSmoothedCrossEntropyWithCtcCriterionConfig(
+    LabelSmoothedCrossEntropyCriterionConfig
+):
     ctc_weight: float = field(default=1.0, metadata={"help": "weight for CTC loss"})
 
 
 @register_criterion(
     "label_smoothed_cross_entropy_with_ctc",
-    dataclass=LabelSmoothedCrossEntropyWithCtcCriterionConfig
+    dataclass=LabelSmoothedCrossEntropyWithCtcCriterionConfig,
 )
 class LabelSmoothedCrossEntropyWithCtcCriterion(LabelSmoothedCrossEntropyCriterion):
     def __init__(
-            self, task, sentence_avg, label_smoothing, ignore_prefix_size,
-            report_accuracy, ctc_weight
+        self,
+        task,
+        sentence_avg,
+        label_smoothing,
+        ignore_prefix_size,
+        report_accuracy,
+        ctc_weight,
     ):
         super().__init__(
-            task, sentence_avg, label_smoothing, ignore_prefix_size,
-            report_accuracy
+            task, sentence_avg, label_smoothing, ignore_prefix_size, report_accuracy
         )
         self.ctc_weight = ctc_weight
 
@@ -41,17 +48,24 @@ class LabelSmoothedCrossEntropyWithCtcCriterion(LabelSmoothedCrossEntropyCriteri
         net_output = model(**sample["net_input"])
         loss, nll_loss = self.compute_loss(model, net_output, sample, reduce=reduce)
 
-        ctc_loss = torch.tensor(0.).type_as(loss)
-        if self.ctc_weight > 0.:
+        ctc_loss = torch.tensor(0.0).type_as(loss)
+        if self.ctc_weight > 0.0:
             ctc_lprobs, ctc_lens = model.get_ctc_output(net_output, sample)
             ctc_tgt, ctc_tgt_lens = model.get_ctc_target(sample)
             ctc_tgt_mask = lengths_to_mask(ctc_tgt_lens)
             ctc_tgt_flat = ctc_tgt.masked_select(ctc_tgt_mask)
             reduction = "sum" if reduce else "none"
-            ctc_loss = F.ctc_loss(
-                ctc_lprobs, ctc_tgt_flat, ctc_lens, ctc_tgt_lens,
-                reduction=reduction, zero_infinity=True
-            ) * self.ctc_weight
+            ctc_loss = (
+                F.ctc_loss(
+                    ctc_lprobs,
+                    ctc_tgt_flat,
+                    ctc_lens,
+                    ctc_tgt_lens,
+                    reduction=reduction,
+                    zero_infinity=True,
+                )
+                * self.ctc_weight
+            )
         loss += ctc_loss
 
         sample_size = (
