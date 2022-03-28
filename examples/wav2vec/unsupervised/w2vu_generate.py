@@ -645,7 +645,7 @@ def main(cfg: UnsupGenerateConfig, model=None):
 
     lm_ppl = max(cfg.min_lm_ppl, lm_ppl)
 
-    if not cfg.unsupervised_tuning == 0:
+    if not cfg.unsupervised_tuning:
         weighted_score = wer
     else:
         weighted_score = math.log(lm_ppl) * (vt_diff or 1.0)

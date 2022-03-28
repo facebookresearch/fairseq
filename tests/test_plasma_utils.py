@@ -1,6 +1,6 @@
 import contextlib
-import unittest
 import tempfile
+import unittest
 from io import StringIO
 
 import numpy as np
@@ -9,7 +9,8 @@ from tests.utils import create_dummy_data, preprocess_lm_data, train_language_mo
 
 try:
     from pyarrow import plasma
-    from fairseq.data.plasma_utils import PlasmaView, PlasmaStore
+
+    from fairseq.data.plasma_utils import PlasmaStore, PlasmaView
 
     PYARROW_AVAILABLE = True
 except ImportError:
@@ -111,7 +112,7 @@ class TestPlasmaView(unittest.TestCase):
             server.kill()
 
     def test_object_id_overflow(self):
-        PlasmaView.get_object_id("", 2 ** 21)
+        PlasmaView.get_object_id("", 2**21)
 
     def test_training_lm_plasma(self):
         with contextlib.redirect_stdout(StringIO()):

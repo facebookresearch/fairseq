@@ -7,6 +7,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Dict, List
 
+import torch
+
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import FairseqDataclass
@@ -49,7 +51,6 @@ class ModelCriterion(FairseqCriterion):
     def forward(self, model, sample, reduce=True):
         net_output = model(**sample["net_input"])
 
-        sample_size = net_output["sample_size"]
         scaled_losses = {}
 
         if hasattr(model, "get_losses"):
@@ -71,6 +72,12 @@ class ModelCriterion(FairseqCriterion):
                 scaled_losses[lk] = coef * p.float()
 
         loss = sum(scaled_losses.values())
+
+        if "sample_size" in net_output:
+            sample_size = net_output["sample_size"]
+        else:
+            sample_size = loss.numel()
+
         if reduce and loss.numel() > 1:
             loss = loss.sum()
 
@@ -84,11 +91,21 @@ class ModelCriterion(FairseqCriterion):
 
         for lk in self.log_keys:
             if lk in net_output and net_output[lk] is not None:
-                logging_output[lk] = float(net_output[lk])
+                if not torch.is_tensor(net_output[lk]) or net_output[lk].numel() == 1:
+                    logging_output[lk] = float(net_output[lk])
+                else:
+                    for i, v in enumerate(net_output[lk]):
+                        logging_output[f"{lk}_{i}"] = float(v)
 
         if len(scaled_losses) > 1:
             for lk, l in scaled_losses.items():
+                if l.numel() > 1:
+                    l = l.sum()
                 logging_output[f"loss_{lk}"] = l.item()
+
+        if "logs" in net_output:
+            for lgw in net_output["logs"]:
+                logging_output[lgw] = net_output["logs"][lgw]
 
         return loss, sample_size, logging_output
 

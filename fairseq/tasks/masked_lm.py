@@ -101,6 +101,13 @@ class MaskedLMConfig(FairseqDataclass):
     )
     seed: int = II("common.seed")
 
+    include_target_tokens: bool = field(
+        default=False,
+        metadata={
+            "help": "include target tokens in model input. this is used for data2vec"
+        },
+    )
+
 
 @register_task("masked_lm", dataclass=MaskedLMConfig)
 class MaskedLMTask(FairseqTask):
@@ -193,21 +200,27 @@ class MaskedLMTask(FairseqTask):
         with data_utils.numpy_seed(self.cfg.seed):
             shuffle = np.random.permutation(len(src_dataset))
 
+        target_dataset = RightPadDataset(
+            tgt_dataset,
+            pad_idx=self.source_dictionary.pad(),
+        )
+
+        input_dict = {
+            "src_tokens": RightPadDataset(
+                src_dataset,
+                pad_idx=self.source_dictionary.pad(),
+            ),
+            "src_lengths": NumelDataset(src_dataset, reduce=False),
+        }
+        if self.cfg.include_target_tokens:
+            input_dict["target_tokens"] = target_dataset
+
         self.datasets[split] = SortDataset(
             NestedDictionaryDataset(
                 {
                     "id": IdDataset(),
-                    "net_input": {
-                        "src_tokens": RightPadDataset(
-                            src_dataset,
-                            pad_idx=self.source_dictionary.pad(),
-                        ),
-                        "src_lengths": NumelDataset(src_dataset, reduce=False),
-                    },
-                    "target": RightPadDataset(
-                        tgt_dataset,
-                        pad_idx=self.source_dictionary.pad(),
-                    ),
+                    "net_input": input_dict,
+                    "target": target_dataset,
                     "nsentences": NumSamplesDataset(),
                     "ntokens": NumelDataset(src_dataset, reduce=True),
                 },

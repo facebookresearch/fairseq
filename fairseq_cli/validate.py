@@ -11,12 +11,12 @@ from argparse import Namespace
 from itertools import chain
 
 import torch
+from omegaconf import DictConfig
+
 from fairseq import checkpoint_utils, distributed_utils, options, utils
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.logging import metrics, progress_bar
 from fairseq.utils import reset_logging
-from omegaconf import DictConfig
-
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -142,9 +142,7 @@ def cli_main():
 
     # only override args that are explicitly given on the command line
     override_parser = options.get_validation_parser()
-    override_args = options.parse_args_and_arch(
-        override_parser, suppress_defaults=True
-    )
+    override_args = options.parse_args_and_arch(override_parser, suppress_defaults=True)
 
     distributed_utils.call_main(
         convert_namespace_to_omegaconf(args), main, override_args=override_args

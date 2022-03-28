@@ -1,0 +1,24 @@
+includes: projects/task/test.yaml
+dataset:
+  split: test
+  test_path: data/coin/COIN.json
+  meta_processor: COINActionSegmentationMetaProcessor
+  vfeat_dir: data/feat/feat_coin_s3d
+  video_processor: VideoProcessor
+  text_processor: COINActionSegmentationTextProcessor
+  aligner: COINActionSegmentationAligner
+  num_iso_layer: 12
+  sliding_window: 16
+  sliding_window_size: 32
+model:
+  model_cls: MMFusionActionSegmentation
+  mm_encoder_cls: MMBertForTokenClassification
+eval:
+  save_path: runs/task/coin/eval
+fairseq:
+  dataset:
+    batch_size: 1
+  common_eval:
+    path: runs/task/coin/checkpoint_best.pt
+metric: COINActionSegmentationMetric
+predictor: COINPredictor

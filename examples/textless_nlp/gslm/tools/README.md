@@ -9,14 +9,17 @@ ACOUSTIC_MODEL_PATH=<path_of_pretrained_acoustic_model>
 LAYER=<layer_of_acoustic_model_to_extract_features_from>
 KM_MODEL_PATH=<output_path_of_the_kmeans_model>
 TTS_MODEL_PATH=<unit2speech_model_file_path>
+# A text file containing the codes, one per line
+CODE_DICT_PATH=<unit2speech_code_dict_path>
 WAVEGLOW_PATH=<path_where_you_have_downloaded_waveglow_checkpoint>
 
-PYTHONPATH=${FAIRSEQ_ROOT}:${FAIRSEQ_ROOT}/examples/textless_nlp/gslm/unit2speech python ${FAIRSEQ_ROOT}/examples/textless_nlp/gslm/tools/gen_speech.py \
+PYTHONPATH=${FAIRSEQ_ROOT}:${FAIRSEQ_ROOT}/examples/textless_nlp/gslm/unit2speech python ${FAIRSEQ_ROOT}/examples/textless_nlp/gslm/tools/resynthesize_speech.py \
     --feature_type $TYPE \
     --acoustic_model_path $ACOUSTIC_MODEL_PATH \
     --layer $LAYER \
     --kmeans_model_path $KM_MODEL_PATH \
     --tts_model_path $TTS_MODEL_PATH \
-    --waveglow_path  $WAVEGLOW_PATH \
+    --code_dict_path $CODE_DICT_PATH \
+    --waveglow_path $WAVEGLOW_PATH \
     --max_decoder_steps 2000
 ```

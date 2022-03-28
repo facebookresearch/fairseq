@@ -4,14 +4,15 @@
 # LICENSE file in the root directory of this source tree.
 
 import contextlib
-import logging
 import json
+import logging
 import os
 import tempfile
 import unittest
 from io import StringIO
 
 import torch
+
 from fairseq import options
 from fairseq_cli import train
 from tests.utils import (
@@ -19,8 +20,120 @@ from tests.utils import (
     generate_main,
     preprocess_lm_data,
     preprocess_translation_data,
+    train_language_model,
     train_translation_model,
 )
+
+
+@unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
+class TestMultiGPU(unittest.TestCase):
+    @staticmethod
+    def parse_logs(logfile):
+        logs = []
+        for ln in open(logfile, "r").readlines():
+            try:
+                logs.append(json.loads(ln))
+            except json.JSONDecodeError:
+                continue
+        return logs
+
+    @property
+    def world_size(self):
+        return torch.cuda.device_count()
+
+    def train_flags(self, mu):
+        return [
+            "--memory-efficient-fp16",
+            "--update-freq",
+            "1",
+            "--seed",
+            "1",
+            "--log-format",
+            "json",
+            "--max-update",
+            str(mu),
+            "--tokens-per-sample",
+            "20",
+            "--batch-size",
+            "2",
+            "--share-decoder-input-output-embed",
+            "--optimizer",
+            "adam",
+            "--max-valid-steps",
+            "1",
+            "--pad-to-fixed-length",
+            "--sample-break-mode",
+            "none",
+        ]
+
+    def _test_resume_multilingual_training(
+        self, extra_clargs, arch="transformer_lm_gpt2_tiny"
+    ):
+        languages = ["en_XX", "fr_XX", "zh_CN"]
+        save_interval = 5
+        mu = 10
+        flags = (
+            self.train_flags(mu)
+            + ["--save-interval-updates", str(save_interval), "--log-interval", "1"]
+            + extra_clargs
+        )
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_fp16") as data_dir:
+                log = os.path.join(data_dir, "train.log")
+                create_dummy_data(
+                    data_dir,
+                    num_examples=int(
+                        mu * 20 * self.world_size * 1.5
+                    ),  # make sure enough data for max updates
+                    languages=languages,
+                )
+                preprocess_lm_data(data_dir, languages)
+                train_language_model(
+                    data_dir,
+                    arch,
+                    flags + ["--log-file", log],
+                    task="multilingual_language_modeling",
+                    world_size=self.world_size,
+                )
+                log2 = os.path.join(data_dir, "resume.log")
+                ckpt_name = f"checkpoint_1_{save_interval}.pt"
+                restore_file = os.path.join(data_dir, ckpt_name)
+                train_language_model(
+                    data_dir,
+                    arch,
+                    flags
+                    + ["--log-file", log2, "--restore-file", restore_file, "--no-save"],
+                    task="multilingual_language_modeling",
+                    world_size=self.world_size,
+                )
+
+                l1 = self.parse_logs(log)
+                assert (
+                    int(l1[-1]["train_num_updates"]) == mu
+                ), f"The first run did not complete {mu} updates. Add more data"
+                l2 = self.parse_logs(log2)
+
+                if int(l2[0]["num_updates"]) != save_interval + 1:
+                    all_ckpt_files = [
+                        x for x in os.listdir(data_dir) if x.endswith(".pt")
+                    ]
+                    import shutil
+
+                    shutil.move(data_dir, "last_failed_resume")
+                    raise AssertionError(
+                        f"Likely failed to load {ckpt_name}. {all_ckpt_files} \n LOGS: {l1} \n\n {l2}. "
+                    )
+                for k in [
+                    "train_loss",
+                    "train_num_updates",
+                    "train_ppl",
+                    "train_gnorm",
+                ]:
+                    from_scratch, resumed = float(l1[-1][k]), float(l2[-1][k])
+                    # This fails without rounding!
+                    assert (
+                        from_scratch == resumed
+                    ), f"difference at {k} {from_scratch} != {resumed}"
 
 
 @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
@@ -32,15 +145,29 @@ class TestTranslationGPU(unittest.TestCase):
         logging.disable(logging.NOTSET)
 
     def test_fp16_multigpu(self):
+        self._test_multigpu("test_fp16", ["--fp16"])
+
+    def test_slowmo_multigpu(self):
+        self._test_multigpu(
+            "test_slowmo", ["--ddp-backend", "slowmo", "--nprocs-per-node", "1"]
+        )
+
+    def test_slowmo_single_node_multigpu(self):
+        self._test_multigpu(
+            "test_slowmo_single_node",
+            ["--ddp-backend", "slowmo", "--nprocs-per-node", "2"],
+        )
+
+    def _test_multigpu(self, test_name, test_args):
         with contextlib.redirect_stdout(StringIO()):
-            with tempfile.TemporaryDirectory("test_fp16") as data_dir:
+            with tempfile.TemporaryDirectory(test_name) as data_dir:
                 log = os.path.join(data_dir, "train.log")
                 create_dummy_data(data_dir)
                 preprocess_translation_data(data_dir)
                 train_translation_model(
                     data_dir,
                     "fconv_iwslt_de_en",
-                    ["--fp16", "--log-file", log],
+                    test_args + ["--log-file", log],
                     world_size=min(torch.cuda.device_count(), 2),
                 )
                 generate_main(data_dir)
@@ -60,7 +187,9 @@ class TestTranslationGPU(unittest.TestCase):
         self._test_resume_training(["--ddp-backend", "fully_sharded"])
 
     def test_resume_training_fsdp_sharded_state(self):
-        self._test_resume_training(["--ddp-backend", "fully_sharded", "--use-sharded-state"])
+        self._test_resume_training(
+            ["--ddp-backend", "fully_sharded", "--use-sharded-state"]
+        )
 
     def test_resume_training_noc10d(self):
         self._test_resume_training([])
@@ -84,7 +213,10 @@ class TestTranslationGPU(unittest.TestCase):
                 create_dummy_data(data_dir)
                 preprocess_translation_data(data_dir)
                 train_translation_model(
-                    data_dir, arch, flags + ["--log-file", log], world_size=world_size,
+                    data_dir,
+                    arch,
+                    flags + ["--log-file", log],
+                    world_size=world_size,
                 )
                 log2 = os.path.join(data_dir, "resume.log")
                 restore_file = os.path.join(data_dir, "checkpoint_1_2.pt")
@@ -244,7 +376,13 @@ class TestTranslationGPU(unittest.TestCase):
                 train_translation_model(
                     data_dir,
                     "fconv_iwslt_de_en",
-                    ["--log-file", log, "--ddp-backend", "fully_sharded", "--use-sharded-state"],
+                    [
+                        "--log-file",
+                        log,
+                        "--ddp-backend",
+                        "fully_sharded",
+                        "--use-sharded-state",
+                    ],
                     world_size=world_size,
                 )
                 generate_main(data_dir, ["--checkpoint-shard-count", str(world_size)])
@@ -373,6 +511,9 @@ def _quantize_language_model(data_dir, arch, extra_flags=None, run_validation=Fa
     train.main(quantize_args)
 
 
+@unittest.skipIf(
+    int(torch.__version__[2]) < 10, reason="quantized kernels are only supported on CPU"
+)
 @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
 class TestQuantization(unittest.TestCase):
     def setUp(self):

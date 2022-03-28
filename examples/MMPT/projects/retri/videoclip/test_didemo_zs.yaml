@@ -1,0 +1,31 @@
+slurm_config: big
+task_type: local_predict
+dataset:
+  split: test
+  video_processor: VideoProcessor
+  aligner: DiDeMoAligner
+  bert_name: bert-base-uncased
+  meta_processor: DiDeMoMetaProcessor
+  test_path: data/didemo/test_data.json
+  vfeat_dir: data/feat/feat_didemo_s3d
+  text_processor: DiDeMoTextProcessor
+  num_iso_layer: 12
+  max_video_len: 32
+  max_len: 96
+fairseq:
+  dataset:
+    batch_size: 256
+    valid_subset: test
+    num_workers: 2
+  common_eval:
+    path: runs/retri/videoclip/checkpoint_best.pt
+model:
+  model_cls: MMFusionSeparate
+  mm_encoder_cls: null
+  video_encoder_cls: MMBertForEncoder
+  text_encoder_cls: BertModel
+  num_hidden_video_layers: 6
+eval:
+  save_path: runs/retri/videoclip/didemo_zs/eval
+metric: DiDeMoMetric
+predictor: DiDeMoPredictor

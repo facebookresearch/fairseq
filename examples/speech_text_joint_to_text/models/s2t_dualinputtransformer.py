@@ -265,7 +265,9 @@ class DualInputEncoder(FairseqEncoder):
                 spch_encoder.transformer_layers[-args.encoder_shared_layers :]
             ):
                 ly_id = i + args.text_encoder_layers - args.encoder_shared_layers
-                assert isinstance(text_encoder.layers[ly_id], type(ly))
+                if not isinstance(text_encoder.layers[ly_id], type(ly)):
+                    if text_encoder.layers[ly_id]._get_name() not in ('TransformerEncoderLayerBase', 'TransformerEncoderLayer'):
+                        raise ValueError("The shared layers are expected from the same class")
                 text_encoder.layers[ly_id] = cls.set_shared_layer(
                     args.encoder_shared_layer_level,
                     text_encoder.layers[ly_id],
@@ -848,6 +850,7 @@ class DualInputS2TTransformerModel(FairseqEncoderDecoderModel):
             "adaptive_softmax_cutoff": args.adaptive_softmax_cutoff,
             "tie_adaptive_weights": args.tie_adaptive_weights,
             "no_token_positional_embeddings": args.no_token_positional_embeddings,
+            "encoder": {"embed_dim":args.encoder_embed_dim}
         }
         dec_cfg = namedtuple("args", dec_cfg.keys())(*dec_cfg.values())
         dec_emb = nn.Embedding(

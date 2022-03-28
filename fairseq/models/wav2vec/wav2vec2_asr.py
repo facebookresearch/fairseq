@@ -3,22 +3,24 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from argparse import Namespace
 import contextlib
 import copy
+import logging
 import math
+import re
+from argparse import Namespace
+from dataclasses import dataclass, field
+from typing import Any, Optional
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dataclasses import dataclass, field
-from omegaconf import MISSING, II, open_dict
-from typing import Any, Optional
+from omegaconf import II, MISSING, open_dict
 
 from fairseq import checkpoint_utils, tasks, utils
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
-from fairseq.tasks import FairseqTask
 from fairseq.models import (
     BaseFairseqModel,
     FairseqEncoder,
@@ -27,11 +29,10 @@ from fairseq.models import (
     register_model,
 )
 from fairseq.models.wav2vec.wav2vec2 import MASKING_DISTRIBUTION_CHOICES
-from fairseq.modules import (
-    LayerNorm,
-    PositionalEmbedding,
-    TransformerDecoderLayer,
-)
+from fairseq.modules import LayerNorm, PositionalEmbedding, TransformerDecoderLayer
+from fairseq.tasks import FairseqTask
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -109,6 +110,17 @@ class Wav2Vec2AsrConfig(FairseqDataclass):
         default=1,
         metadata={"help": "min space between spans (if no overlap is enabled)"},
     )
+    require_same_masks: bool = field(
+        default=True,
+        metadata={
+            "help": "whether to number of masked timesteps must be the same across all "
+            "examples in a batch"
+        },
+    )
+    mask_dropout: float = field(
+        default=0.0,
+        metadata={"help": "percent of masks to unmask for each sample"},
+    )
 
     # channel masking
     mask_channel_length: int = field(
@@ -149,6 +161,26 @@ class Wav2Vec2AsrConfig(FairseqDataclass):
     data: str = II("task.data")
     # this holds the loaded wav2vec args
     w2v_args: Any = None
+    offload_activations: bool = field(
+        default=False, metadata={"help": "offload_activations"}
+    )
+    min_params_to_wrap: int = field(
+        default=int(1e8),
+        metadata={
+            "help": "minimum number of params for a layer to be wrapped with FSDP() when "
+            "training with --ddp-backend=fully_sharded. Smaller values will "
+            "improve memory efficiency, but may make torch.distributed "
+            "communication less efficient due to smaller input sizes. This option "
+            "is set to 0 (i.e., always wrap) when --checkpoint-activations or "
+            "--offload-activations are passed."
+        },
+    )
+
+    checkpoint_activations: bool = field(
+        default=False,
+        metadata={"help": "recompute activations and save memory for extra compute"},
+    )
+    ddp_backend: str = II("distributed_training.ddp_backend")
 
 
 @dataclass
@@ -187,8 +219,12 @@ class Wav2VecCtc(BaseFairseqModel):
                 raise Exception(f"invalid blank mode {self.blank_mode}")
 
         if net_output["padding_mask"] is not None and net_output["padding_mask"].any():
-            logits[net_output["padding_mask"].T][..., 0] = float("inf")
-            logits[net_output["padding_mask"].T][..., 1:] = float("-inf")
+            number_of_classes = logits.size(-1)
+            masking_tensor = torch.ones(
+                number_of_classes, device=logits.device
+            ) * float("-inf")
+            masking_tensor[0] = 0
+            logits[net_output["padding_mask"].T] = masking_tensor.type_as(logits)
 
         if normalize:
             logits = utils.log_softmax(logits.float(), dim=-1)
@@ -319,6 +355,8 @@ class Wav2VecEncoder(FairseqEncoder):
             "attention_dropout": cfg.attention_dropout,
             "mask_length": cfg.mask_length,
             "mask_prob": cfg.mask_prob,
+            "require_same_masks": getattr(cfg, "require_same_masks", True),
+            "pct_holes": getattr(cfg, "mask_dropout", 0),
             "mask_selection": cfg.mask_selection,
             "mask_other": cfg.mask_other,
             "no_mask_overlap": cfg.no_mask_overlap,
@@ -330,6 +368,9 @@ class Wav2VecEncoder(FairseqEncoder):
             "no_mask_channel_overlap": cfg.no_mask_channel_overlap,
             "encoder_layerdrop": cfg.layerdrop,
             "feature_grad_mult": cfg.feature_grad_mult,
+            "checkpoint_activations": cfg.checkpoint_activations,
+            "offload_activations": cfg.offload_activations,
+            "min_params_to_wrap": cfg.min_params_to_wrap,
         }
 
         if cfg.w2v_args is None:
@@ -340,25 +381,35 @@ class Wav2VecEncoder(FairseqEncoder):
             w2v_args.criterion = None
             w2v_args.lr_scheduler = None
             cfg.w2v_args = w2v_args
+
+            logger.info(w2v_args)
+
         else:
             state = None
             w2v_args = cfg.w2v_args
             if isinstance(w2v_args, Namespace):
                 cfg.w2v_args = w2v_args = convert_namespace_to_omegaconf(w2v_args)
 
-        assert cfg.normalize == w2v_args.task.normalize, (
+        model_normalized = w2v_args.task.get(
+            "normalize", w2v_args.model.get("normalize", False)
+        )
+        assert cfg.normalize == model_normalized, (
             "Fine-tuning works best when data normalization is the same. "
             "Please check that --normalize is set or unset for both pre-training and here"
         )
 
+        if hasattr(cfg, "checkpoint_activations") and cfg.checkpoint_activations:
+            with open_dict(w2v_args):
+                w2v_args.model.checkpoint_activations = cfg.checkpoint_activations
+
         w2v_args.task.data = cfg.data
         task = tasks.setup_task(w2v_args.task)
-        model = task.build_model(w2v_args.model)
-
-        if state is not None and not cfg.no_pretrained_weights:
-            model.load_state_dict(state["model"], strict=True)
+        model = task.build_model(w2v_args.model, from_checkpoint=True)
 
         model.remove_pretraining_modules()
+
+        if state is not None and not cfg.no_pretrained_weights:
+            self.load_model_weights(state, model, cfg)
 
         super().__init__(task.source_dictionary)
 
@@ -380,6 +431,39 @@ class Wav2VecEncoder(FairseqEncoder):
 
         if targ_d is not None:
             self.proj = Linear(d, targ_d)
+
+    def load_model_weights(self, state, model, cfg):
+        if cfg.ddp_backend == "fully_sharded":
+            from fairseq.distributed import FullyShardedDataParallel
+
+            for name, module in model.named_modules():
+                if "encoder.layers" in name and len(name.split(".")) == 3:
+                    # Only for layers, we do a special handling and load the weights one by one
+                    # We dont load all weights together as that wont be memory efficient and may
+                    # cause oom
+                    new_dict = {
+                        k.replace(name + ".", ""): v
+                        for (k, v) in state["model"].items()
+                        if name + "." in k
+                    }
+                    assert isinstance(module, FullyShardedDataParallel)
+                    with module.summon_full_params():
+                        module.load_state_dict(new_dict, strict=True)
+                    module._reset_lazy_init()
+
+            # Once layers are loaded, filter them out and load everything else.
+            r = re.compile("encoder.layers.\d.")
+            filtered_list = list(filter(r.match, state["model"].keys()))
+
+            new_big_dict = {
+                k: v for (k, v) in state["model"].items() if k not in filtered_list
+            }
+
+            model.load_state_dict(new_big_dict, strict=False)
+        else:
+            if "_ema" in state["model"]:
+                del state["model"]["_ema"]
+            model.load_state_dict(state["model"], strict=True)
 
     def set_num_updates(self, num_updates):
         """Set the number of parameters updates."""
@@ -428,9 +512,9 @@ class Wav2VecEncoder(FairseqEncoder):
                 1, new_order
             )
         if encoder_out["padding_mask"] is not None:
-            encoder_out["padding_mask"] = encoder_out[
-                "padding_mask"
-            ].index_select(0, new_order)
+            encoder_out["padding_mask"] = encoder_out["padding_mask"].index_select(
+                0, new_order
+            )
         return encoder_out
 
     def max_positions(self):
@@ -518,7 +602,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             self.embed_out = nn.Parameter(
                 torch.Tensor(len(dictionary), self.output_embed_dim)
             )
-            nn.init.normal_(self.embed_out, mean=0, std=self.output_embed_dim ** -0.5)
+            nn.init.normal_(self.embed_out, mean=0, std=self.output_embed_dim**-0.5)
 
         if transformer_cfg.decoder_normalize_before:
             self.layer_norm = LayerNorm(embed_dim)
@@ -606,7 +690,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                     self_attn_mask=self.buffered_future_mask(x)
                     if incremental_state is None
                     else None,
-                    self_attn_padding_mask=self_attn_padding_mask
+                    self_attn_padding_mask=self_attn_padding_mask,
                 )
                 inner_states.append(x)
 
@@ -651,7 +735,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):
     m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
-    nn.init.normal_(m.weight, mean=0, std=embedding_dim ** -0.5)
+    nn.init.normal_(m.weight, mean=0, std=embedding_dim**-0.5)
     nn.init.constant_(m.weight[padding_idx], 0)
     return m
 

@@ -2,12 +2,12 @@
 # Licensed under the MIT License.
 
 """ Wrapper for ngram_repeat_block cuda extension """
+import math
+import warnings
+from typing import Dict, List, Optional
+
 import torch
 from torch import nn
-
-import math
-from typing import Dict, List, Optional
-import warnings
 
 try:
     from fairseq import ngram_repeat_block_cuda
@@ -37,7 +37,7 @@ def is_cuda_extension_usable() -> bool:
 
 
 class NGramRepeatBlock(nn.Module):
-    """ Wrapper class for calling ngram_repeat_block cuda extension """
+    """Wrapper class for calling ngram_repeat_block cuda extension"""
 
     def __init__(self, no_repeat_ngram_size: int, use_extension: bool = True):
         super().__init__()

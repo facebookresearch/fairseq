@@ -12,8 +12,8 @@ Enhanced Joint Training: the joint training is enhanced with pre-trained models,
 -   Dictionary [dict.txt](https://dl.fbaipublicfiles.com/joint_speech_text_4_s2t/must_c/en_de/dict.txt)
 -   config [config.yaml](https://dl.fbaipublicfiles.com/joint_speech_text_4_s2t/must_c/en_de/config.yaml)
 #### Prepare MuST-C data set
--   [Please follow the data preparation in the S2T example](https://github.com/pytorch/fairseq/blob/main/examples/speech_to_text/docs/mustc_example.md)
--   Append src_text in the tsv file with phoneme representation.
+-   Please follow the data preparation in the [S2T example](https://github.com/pytorch/fairseq/blob/main/examples/speech_to_text/docs/mustc_example.md)
+-   Convert source text under the "src_text" column in the tsv file into phoneme representation.
 ```bash
     python examples/speech_text_joint_to_text/scripts/g2p_encode.py \
         --lower-case --do-filter --use-word-start --no-punc \
@@ -21,7 +21,7 @@ Enhanced Joint Training: the joint training is enhanced with pre-trained models,
         --data-path ${must_c_en_de_src_text} \
         --out-path ${must_c_en_de_src_text_pho}
 ```
--   Update tsv data with src_text generated above and save to $MANIFEST_ROOT
+-   Replace the source text under the "src_text" column in the tsv file with the corresponding phoneme reprentation generated in the step above.
 -   Prepare phoneme dictionary and save to $MANIFEST_ROOT as [src_dict.txt](https://dl.fbaipublicfiles.com/joint_speech_text_4_s2t/must_c/en_de/src_dict.txt)
 #### Prepare WMT text data
 -   [Download wmt data](https://github.com/pytorch/fairseq/blob/main/examples/translation/prepare-wmt14en2de.sh)
@@ -32,7 +32,7 @@ Enhanced Joint Training: the joint training is enhanced with pre-trained models,
 The model is trained with 8 v100 GPUs.
 
 #### Download pretrained models
--    [pretrain_encoder](https://dl.fbaipublicfiles.com/fairseq/s2t/mustc_multilingual_asr_transformer_m.pt)
+-    [pretrain_encoder](https://dl.fbaipublicfiles.com/fairseq/s2t/mustc_joint_asr_transformer_m.pt)
 -    [pretrain_nmt](https://dl.fbaipublicfiles.com/joint_speech_text_4_s2t/must_c/en_de/checkpoint_mt.pt)
 
 #### Training scripts
@@ -97,8 +97,8 @@ python ./fairseq_cli/generate.py \
         --results-path ${infer_results} \
         --batch-size 512 \
         --path ${model} \
-        --gen-subset tst-COMMON \
-        --config-yaml config_spm.yaml \
+        --gen-subset tst-COMMON_st \
+        --config-yaml config.yaml \
         --scoring sacrebleu \
         --beam 5 --lenpen 1.0 \
         --user-dir examples/speech_text_joint_to_text \

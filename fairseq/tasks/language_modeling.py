@@ -85,10 +85,12 @@ class LanguageModelingConfig(FairseqDataclass):
         },
     )
     pad_to_fixed_length: Optional[bool] = field(
-        default=False, metadata={"help": "pad to fixed length"},
+        default=False,
+        metadata={"help": "pad to fixed length"},
     )
     pad_to_fixed_bsz: Optional[bool] = field(
-        default=False, metadata={"help": "boolean to pad to fixed batch size"},
+        default=False,
+        metadata={"help": "boolean to pad to fixed batch size"},
     )
 
     # TODO common vars below add to parent
@@ -185,8 +187,8 @@ class LanguageModelingTask(LegacyFairseqTask):
 
         return cls(args, dictionary, output_dictionary, targets=targets)
 
-    def build_model(self, args):
-        model = super().build_model(args)
+    def build_model(self, args, from_checkpoint=False):
+        model = super().build_model(args, from_checkpoint)
         for target in self.targets:
             if target not in model.supported_targets:
                 raise ValueError(
@@ -247,7 +249,9 @@ class LanguageModelingTask(LegacyFairseqTask):
 
         pad_to_bsz = None
         if self.args.pad_to_fixed_bsz:
-            pad_to_bsz = self.args.batch_size_valid if 'valid' in split else self.args.batch_size
+            pad_to_bsz = (
+                self.args.batch_size_valid if "valid" in split else self.args.batch_size
+            )
 
         self.datasets[split] = MonolingualDataset(
             dataset=dataset,

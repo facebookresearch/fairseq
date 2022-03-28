@@ -11,20 +11,19 @@ from fairseq.tasks.text_to_speech import TextToSpeechTask
 
 
 logging.basicConfig(
-        format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
 
 
-@register_task('frm_text_to_speech')
+@register_task("frm_text_to_speech")
 class FrmTextToSpeechTask(TextToSpeechTask):
     @staticmethod
     def add_args(parser):
         TextToSpeechTask.add_args(parser)
-        parser.add_argument(
-            "--do_chunk", action="store_true", help="train on chunks"
-        )
+        parser.add_argument("--do_chunk", action="store_true", help="train on chunks")
         parser.add_argument("--chunk_bound", default=-1, type=int)
         parser.add_argument("--chunk_init", default=50, type=int)
         parser.add_argument("--chunk_incr", default=5, type=int)
@@ -52,5 +51,5 @@ class FrmTextToSpeechTask(TextToSpeechTask):
             chunk_incr=self.args.chunk_incr,
             add_eos=self.args.add_eos,
             dedup=self.args.dedup,
-            ref_fpu=self.args.ref_fpu
+            ref_fpu=self.args.ref_fpu,
         )

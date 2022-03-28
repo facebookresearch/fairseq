@@ -1,0 +1,19 @@
+includes: projects/task/test.yaml
+dataset:
+  meta_processor: MSRVTTMetaProcessor
+  test_path: data/msrvtt/MSRVTT_JSFUSION_test.csv
+  video_processor: VideoProcessor
+  vfeat_dir: data/feat/feat_vtt_s3d
+  text_processor: MSRVTTTextProcessor
+  num_iso_layer: 12
+model:
+  model_cls: MMFusionJoint
+  mm_encoder_cls: MMBertForJoint
+eval:
+  save_path: runs/task/vtt/eval
+fairseq:
+  # read code and find what is the checkpoint arg.
+  common_eval:
+    path: runs/task/vtt/checkpoint_last.pt
+metric: RetrievalMetric
+predictor: RetrievalPredictor

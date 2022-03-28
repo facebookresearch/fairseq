@@ -3,11 +3,17 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import sys
 import unittest
+from typing import List
 
 import torch
-from fairseq.token_generation_constraints import *
+
+from fairseq.token_generation_constraints import (
+    ConstraintNode,
+    OrderedConstraintState,
+    UnorderedConstraintState,
+    pack_constraints,
+)
 
 
 def tensorize(constraints: List[List[int]]) -> torch.Tensor:
@@ -53,7 +59,7 @@ class TestUnorderedConstraintState(unittest.TestCase):
         self.examples = [
             (
                 tensorize([[1, 2, 3], [1, 3], [1, 4], [4, 5, 6, 7], [1], [4, 5]]),
-                "([None].False#6 ([1].True#4 ([2].False#1 [3].True#1) [3].True#1 [4].True#1) ([4].False#2 ([5].True#2 ([6].False#1 [7].True#1))))",
+                "([None].False#6 ([1].True#4 ([2].False#1 [3].True#1) [3].True#1 [4].True#1) ([4].False#2 ([5].True#2 ([6].False#1 [7].True#1))))",  # noqa
                 {1: 4, 2: 1, 3: 2, 4: 3, 5: 2, 6: 1, 7: 1},
             ),
             ([], "[None].False#0", {}),

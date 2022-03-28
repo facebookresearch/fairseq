@@ -11,8 +11,8 @@ This directory contains the code from paper ["FST: the FAIR Speech Translation S
 -   Config [config.yaml](https://dl.fbaipublicfiles.com/joint_speech_text_4_s2t/iwslt/iwslt_data/config.yaml)
 
 #### Prepare
--   [Please follow the data preparation in speech-to-text](https://github.com/pytorch/fairseq/blob/main/examples/speech_to_text/docs/mtedx_example.md)
-
+-   Please follow the data preparation in [speech-to-text](https://github.com/pytorch/fairseq/blob/main/examples/speech_to_text/docs/mtedx_example.md) with option "--use-audio-input" for raw audio tsv files. 
+-   Prepare tsv files with phoneme based source text (under column 'src_text') as [MuST-C](ende-mustc.md) example.
 
 
 ## Training

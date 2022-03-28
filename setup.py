@@ -7,10 +7,8 @@
 import os
 import subprocess
 import sys
-from setuptools import setup, find_packages, Extension
 
 from setuptools import Extension, find_packages, setup
-
 
 if sys.version_info < (3, 6):
     sys.exit("Sorry, Python >= 3.6 is required for fairseq.")
@@ -117,7 +115,13 @@ try:
                 sources=[
                     "fairseq/clib/libnat/edit_dist.cpp",
                 ],
-            )
+            ),
+            cpp_extension.CppExtension(
+                "alignment_train_cpu_binding",
+                sources=[
+                    "examples/operators/alignment_train_cpu.cpp",
+                ],
+            ),
         ]
     )
     if "CUDA_HOME" in os.environ:
@@ -135,6 +139,13 @@ try:
                     sources=[
                         "fairseq/clib/cuda/ngram_repeat_block_cuda.cpp",
                         "fairseq/clib/cuda/ngram_repeat_block_cuda_kernel.cu",
+                    ],
+                ),
+                cpp_extension.CppExtension(
+                    "alignment_train_cuda_binding",
+                    sources=[
+                        "examples/operators/alignment_train_kernel.cu",
+                        "examples/operators/alignment_train_cuda.cpp",
                     ],
                 ),
             ]
@@ -264,7 +275,8 @@ if __name__ == "__main__":
 
         package_data = {
             "fairseq": (
-                get_files(fairseq_examples) + get_files(os.path.join("fairseq", "config"))
+                get_files(fairseq_examples)
+                + get_files(os.path.join("fairseq", "config"))
             )
         }
         do_setup(package_data)

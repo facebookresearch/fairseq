@@ -67,7 +67,9 @@ def make_builder(out_file, impl, vocab_size=None):
     elif impl == "fasta":
         raise NotImplementedError
     elif impl == "huffman":
-        raise ValueError("Use HuffmanCodeBuilder directly as it has a different interface.")
+        raise ValueError(
+            "Use HuffmanCodeBuilder directly as it has a different interface."
+        )
     else:
         return IndexedDatasetBuilder(out_file)
 
@@ -118,7 +120,7 @@ _code_to_dtype = {
     3: np.int16,
     4: np.int32,
     5: np.int64,
-    6: np.float,
+    6: np.float64,
     7: np.double,
     8: np.uint16,
     9: np.uint32,
@@ -325,7 +327,7 @@ class IndexedDatasetBuilder:
         np.int16: 2,
         np.int32: 4,
         np.int64: 8,
-        np.float: 4,
+        np.float64: 4,
         np.double: 8,
     }
 

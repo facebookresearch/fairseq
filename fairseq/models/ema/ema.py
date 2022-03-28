@@ -16,12 +16,16 @@ EMA is a smoothed/ensemble model which might have better performance
 when used for inference or further fine-tuning. EMA class has a
 reverse function to load the EMA params into a model and use it
 like a regular model.
+
+This implementation is used for trainer-level ema tracking. For EMA tracking
+inside the model, please use fairseq/modules/ema_module.py instead.
 """
 
 import copy
 import logging
 
 import torch
+
 from fairseq import checkpoint_utils
 
 
@@ -62,7 +66,7 @@ class EMA(object):
     Note this is enabled only when ema_fp32=True
     """
 
-    def __init__(self, model, config, device=None):
+    def __init__(self, model, config, device=None, skip_keys=None):
         """
         @param model model to initialize the EMA with
         @param config EMAConfig object with configuration like
@@ -75,10 +79,13 @@ class EMA(object):
         self.model = copy.deepcopy(model)
         self.model.requires_grad_(False)
         self.config = config
+        self.skip_keys = skip_keys or set()
         self.fp32_params = {}
 
         if self.config.ema_seed_model is not None:
-            state = checkpoint_utils.load_ema_from_checkpoint(self.config.ema_seed_model)
+            state = checkpoint_utils.load_ema_from_checkpoint(
+                self.config.ema_seed_model
+            )
             self.model.load_state_dict(state["model"], strict=True)
 
         if device is not None:
@@ -119,7 +126,7 @@ class EMA(object):
                 self.fp32_params[param_key] = _to_float(state_dict[param_key])
 
     def restore(self, state_dict, build_fp32_params=False):
-        """ Load data from a model spec into EMA model """
+        """Load data from a model spec into EMA model"""
         self.model.load_state_dict(state_dict, strict=False)
         if build_fp32_params:
             self.build_fp32_params(state_dict)
@@ -131,27 +138,38 @@ class EMA(object):
         return self.decay
 
     def _step_internal(self, new_model, updates=None):
-        """ One update of the EMA model based on new model weights """
+        """One update of the EMA model based on new model weights"""
         decay = self.decay
 
         ema_state_dict = {}
-        ema_params = self.fp32_params if self.config.ema_fp32 else self.model.state_dict()
+        ema_params = (
+            self.fp32_params if self.config.ema_fp32 else self.model.state_dict()
+        )
         for key, param in new_model.state_dict().items():
+            if isinstance(param, dict):
+                continue
             try:
                 ema_param = ema_params[key]
             except KeyError:
-                ema_param = param.float().clone() if param.ndim == 1 else copy.deepcopy(param)
+                ema_param = (
+                    param.float().clone() if param.ndim == 1 else copy.deepcopy(param)
+                )
 
             if param.shape != ema_param.shape:
                 raise ValueError(
                     "incompatible tensor shapes between model param and ema param"
                     + "{} vs. {}".format(param.shape, ema_param.shape)
                 )
+
             if "version" in key:
                 # Do not decay a model.version pytorch param
                 continue
-            ema_param.mul_(decay)
-            ema_param.add_(param.to(dtype=ema_param.dtype), alpha=1-decay)
+
+            if key in self.skip_keys:
+                ema_param = param.to(dtype=ema_param.dtype).clone()
+            else:
+                ema_param.mul_(decay)
+                ema_param.add_(param.to(dtype=ema_param.dtype), alpha=1 - decay)
             ema_state_dict[key] = ema_param
         self.restore(ema_state_dict, build_fp32_params=False)
 
@@ -166,13 +184,11 @@ class EMA(object):
         When model updates >= ema_start_updates, then EMA is updated with
         a decay of self.config.ema_decay.
         """
-        self._set_decay(
-            0
-            if updates is not None
-            and updates < self.config.ema_start_update
-            else self.config.ema_decay
-        )
-        if updates is not None and self.config.ema_update_freq > 1:
+        if updates is not None:
+            self._set_decay(
+                0 if updates < self.config.ema_start_update else self.config.ema_decay
+            )
+        if self.config.ema_update_freq > 1:
             self.update_freq_counter += 1
             if self.update_freq_counter >= self.config.ema_update_freq:
                 self._step_internal(new_model, updates)
@@ -185,5 +201,9 @@ class EMA(object):
         Load the model parameters from EMA model.
         Useful for inference or fine-tuning from the EMA model.
         """
-        model.load_state_dict(self.model.state_dict(), strict=False)
+        d = self.model.state_dict()
+        if "_ema" in d:
+            del d["_ema"]
+
+        model.load_state_dict(d, strict=False)
         return model

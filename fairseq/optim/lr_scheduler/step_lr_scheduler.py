@@ -36,8 +36,7 @@ class StepLRScheduleConfig(FairseqDataclass):
 
 @register_lr_scheduler("step", dataclass=StepLRScheduleConfig)
 class StepLRSchedule(FairseqLRScheduler):
-    """Decay learning rate every k updates by a fixed factor
-    """
+    """Decay learning rate every k updates by a fixed factor"""
 
     def __init__(self, cfg: StepLRScheduleConfig, fairseq_optimizer):
         super().__init__(cfg, fairseq_optimizer)
@@ -50,16 +49,16 @@ class StepLRSchedule(FairseqLRScheduler):
             cfg.warmup_init_lr if cfg.warmup_init_lr >= 0 else self.min_lr
         )
 
-        assert(self.lr_deacy_period > 0)
-        assert(self.lr_decay <= 1)
-        assert(self.min_lr >= 0)
-        assert(self.max_lr > self.min_lr)
+        assert self.lr_deacy_period > 0
+        assert self.lr_decay <= 1
+        assert self.min_lr >= 0
+        assert self.max_lr > self.min_lr
 
         if cfg.warmup_updates > 0:
             # linearly warmup for the first cfg.warmup_updates
             self.warmup_lr_step = (
-                (self.max_lr - self.warmup_init_lr) / self.warmup_updates
-            )
+                self.max_lr - self.warmup_init_lr
+            ) / self.warmup_updates
         else:
             self.warmup_lr_step = 1
 

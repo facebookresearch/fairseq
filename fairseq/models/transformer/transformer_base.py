@@ -7,16 +7,17 @@ from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+from torch import Tensor
+
 from fairseq import utils
 from fairseq.dataclass.utils import gen_parser_from_dataclass
 from fairseq.distributed import fsdp_wrap
 from fairseq.models import FairseqEncoderDecoderModel
 from fairseq.models.transformer import (
-    TransformerEncoderBase,
-    TransformerDecoderBase,
     TransformerConfig,
+    TransformerDecoderBase,
+    TransformerEncoderBase,
 )
-from torch import Tensor
 
 
 class TransformerModelBase(FairseqEncoderDecoderModel):
@@ -95,10 +96,6 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
             cfg.checkpoint_activations = True  # offloading implies checkpointing
         encoder = cls.build_encoder(cfg, src_dict, encoder_embed_tokens)
         decoder = cls.build_decoder(cfg, tgt_dict, decoder_embed_tokens)
-        if not cfg.share_all_embeddings:
-            # fsdp_wrap is a no-op when --ddp-backend != fully_sharded
-            encoder = fsdp_wrap(encoder, min_num_params=cfg.min_params_to_wrap)
-            decoder = fsdp_wrap(decoder, min_num_params=cfg.min_params_to_wrap)
         return cls(cfg, encoder, decoder)
 
     @classmethod
@@ -174,6 +171,6 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):
     m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
-    nn.init.normal_(m.weight, mean=0, std=embedding_dim ** -0.5)
+    nn.init.normal_(m.weight, mean=0, std=embedding_dim**-0.5)
     nn.init.constant_(m.weight[padding_idx], 0)
     return m

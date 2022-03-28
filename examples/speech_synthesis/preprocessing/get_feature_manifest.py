@@ -25,7 +25,8 @@ from examples.speech_to_text.data_utils import (
 )
 from examples.speech_synthesis.data_utils import (
     extract_logmel_spectrogram, extract_pitch, extract_energy, get_global_cmvn,
-    ipa_phonemize, get_mfa_alignment, get_unit_alignment
+    ipa_phonemize, get_mfa_alignment, get_unit_alignment,
+    get_feature_value_min_max
 )
 
 
@@ -126,9 +127,23 @@ def process(args):
         energy_paths, energy_lengths = get_zip_manifest(energy_zip_path)
     # Generate TSV manifest
     print("Generating manifest...")
+    id_to_cer = None
+    if args.cer_threshold is not None:
+        assert Path(args.cer_tsv_path).is_file()
+        id_to_cer = {
+            x["id"]: x["uer"] for x in load_tsv_to_dicts(args.cer_tsv_path)
+        }
     manifest_by_split = {split: defaultdict(list) for split in args.splits}
     for sample in tqdm(samples):
         sample_id, split = sample["id"], sample["split"]
+
+        if args.snr_threshold is not None and "snr" in sample \
+                and sample["snr"] < args.snr_threshold:
+            continue
+        if args.cer_threshold is not None \
+                and id_to_cer[sample_id] > args.cer_threhold:
+            continue
+
         normalized_utt = sample["tgt_text"]
         if id_to_alignment is not None:
             normalized_utt = " ".join(id_to_alignment[sample_id].tokens)
@@ -186,7 +201,7 @@ def process(args):
         "sample_rate": args.sample_rate,
         "features": {
             "type": "spectrogram+melscale+log",
-            "eps": 1e-2, "n_mels": args.n_mels, "n_fft": args.n_fft,
+            "eps": 1e-5, "n_mels": args.n_mels, "n_fft": args.n_fft,
             "window_fn": "hann", "win_length": args.win_length,
             "hop_length": args.hop_length, "sample_rate": args.sample_rate,
             "win_len_t": win_len_t, "hop_len_t": hop_len_t,
@@ -196,6 +211,17 @@ def process(args):
     }
     if len(speakers) > 1:
         extra["speaker_set_filename"] = "speakers.txt"
+    if args.add_fastspeech_targets:
+        pitch_min, pitch_max = get_feature_value_min_max(
+            [(out_root / n).as_posix() for n in pitch_paths.values()]
+        )
+        energy_min, energy_max = get_feature_value_min_max(
+            [(out_root / n).as_posix() for n in energy_paths.values()]
+        )
+        extra["features"]["pitch_min"] = pitch_min
+        extra["features"]["pitch_max"] = pitch_max
+        extra["features"]["energy_min"] = energy_min
+        extra["features"]["energy_max"] = energy_max
     gen_config_yaml(
         out_root, spm_filename=spm_filename, vocab_name=vocab_name,
         audio_root=out_root.as_posix(), input_channels=None,
@@ -224,6 +250,9 @@ def main():
     parser.add_argument("--textgrid-zip", type=str, default=None)
     parser.add_argument("--id-to-units-tsv", type=str, default=None)
     parser.add_argument("--add-fastspeech-targets", action="store_true")
+    parser.add_argument("--snr-threshold", type=float, default=None)
+    parser.add_argument("--cer-threshold", type=float, default=None)
+    parser.add_argument("--cer-tsv-path", type=str, default="")
     args = parser.parse_args()
 
     process(args)
