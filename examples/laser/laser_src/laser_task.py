@@ -8,6 +8,7 @@ from collections import OrderedDict, defaultdict
 import json
 import os
 import logging
+from argparse import ArgumentError
 
 from fairseq import options, models
 from fairseq.data import (
@@ -59,20 +60,24 @@ class LaserTask(LegacyFairseqTask):
             metavar="BOOL",
             help="pad the target on the left (default: False)",
         )
-        parser.add_argument(
-            "--max-source-positions",
-            default=1024,
-            type=int,
-            metavar="N",
-            help="max number of tokens in the source sequence",
-        )
-        parser.add_argument(
-            "--max-target-positions",
-            default=1024,
-            type=int,
-            metavar="N",
-            help="max number of tokens in the target sequence",
-        )
+        try:
+            parser.add_argument(
+                "--max-source-positions",
+                default=1024,
+                type=int,
+                metavar="N",
+                help="max number of tokens in the source sequence",
+            )
+            parser.add_argument(
+                "--max-target-positions",
+                default=1024,
+                type=int,
+                metavar="N",
+                help="max number of tokens in the target sequence",
+            )
+        except ArgumentError:
+            # this might have already been defined. Once we transition this to hydra it should be fine to add it here.
+            pass
 
     def __init__(self, args, config, src_dictionary, tgt_dictionary, num_tasks):
         super().__init__(args)
@@ -107,7 +112,7 @@ class LaserTask(LegacyFairseqTask):
         return cls(args, config, src_dictionary, tgt_dictionary, num_tasks)
 
     # Experimental overriding for backtranslation
-    def build_model(self, args):
+    def build_model(self, args, from_checkpoint=False):
         model = models.build_model(args, self)
         return model
 
@@ -277,6 +282,9 @@ class LaserTask(LegacyFairseqTask):
         epoch=1,
         data_buffer_size=0,
         disable_iterator_cache=False,
+        grouped_shuffling=False,
+        update_epoch_batch_itr=False,
+        **kwargs,
     ):
 
         assert isinstance(dataset, OrderedDict)

@@ -4,21 +4,20 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
+import math
 import tempfile
 import unittest
-import math
-import numpy as np
 
+import numpy as np
+import torch
 
 import tests.utils as test_utils
-import torch
 from fairseq import search
 from fairseq.data.dictionary import Dictionary
 from fairseq.models.transformer import TransformerModel
-from fairseq.sequence_generator import EnsembleModel, SequenceGenerator
 from fairseq.ngram_repeat_block import NGramRepeatBlock
+from fairseq.sequence_generator import EnsembleModel, SequenceGenerator
 from fairseq.tasks.fairseq_task import LegacyFairseqTask
-
 
 DEFAULT_TEST_VOCAB_SIZE = 100
 
@@ -321,7 +320,7 @@ class TestSequenceGenerator(TestSequenceGeneratorBase):
         sample = self.sample.copy()
         sample["net_input"]["fancy_other_input"] = sample["net_input"]["src_tokens"]
         hypos = generator.forward(self.sample)
-        eos, w1, w2 = self.tgt_dict.eos(), self.w1, self.w2
+        eos, w1 = self.tgt_dict.eos(), self.w1
         # sentence 1, beam 1
         self.assertHypoTokens(hypos[0][0], [w1, eos])
         self.assertHypoScore(hypos[0][0], [0.9, 1.0])

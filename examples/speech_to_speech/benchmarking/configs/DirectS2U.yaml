@@ -1,0 +1,22 @@
+general:
+  dataset_path: $npy_dataset_path
+  cpu: True
+  model_type: S2UT
+  dataset_size: 5
+  dump_speech_waveforms_dir: $dump_waveforms_dir_path
+
+stage1:
+  data: $data_bin
+  task: speech_to_speech
+  path:  $checkpoint
+  config_yaml: config.yaml
+  max_len_b: 100000
+  beam: 10
+  target_is_code: True
+  max_target_positions: 3000
+  target_code_size: 100
+
+stage2:
+  vocoder: $vocoder_path
+  vocoder_cfg: $vocoder_cfg_json
+  dur_prediction: True

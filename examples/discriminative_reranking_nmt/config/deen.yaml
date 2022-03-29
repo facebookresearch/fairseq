@@ -1,0 +1,56 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: json
+  log_interval: 50
+  seed: 2
+
+checkpoint:
+  no_epoch_checkpoints: true
+  best_checkpoint_metric: bleu
+  maximize_best_checkpoint_metric: true
+
+task:
+  _name: discriminative_reranking_nmt
+  data: ???
+  num_data_splits: ???
+  include_src: true
+  mt_beam: 50
+  eval_target_metric: true
+  target_metric: bleu
+
+dataset:
+  batch_size: 50
+  num_workers: 6
+  required_batch_size_multiple: 50
+  valid_subset: ???
+
+criterion:
+  _name: kl_divergence_rereanking
+  target_dist_norm: minmax
+  temperature: 0.5
+
+optimization:
+  max_epoch: 200
+  lr: [0.00005]
+  update_freq: [32]
+
+optimizer:
+  _name: adam
+  adam_betas: (0.9,0.98)
+  adam_eps: 1e-06
+
+lr_scheduler:
+  _name: polynomial_decay
+  warmup_updates: 8000
+  total_num_update: 320000
+
+model:
+  _name: discriminative_nmt_reranker
+  pretrained_model: ???
+  classifier_dropout: 0.2
+
+distributed_training:
+  ddp_backend: no_c10d
+  distributed_world_size: 16

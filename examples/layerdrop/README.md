@@ -126,9 +126,9 @@ This model override command overrides the training parameters and updates the mo
 
 Looking to reproduce the results in the paper?
 
-1. For Translation on WMT16 en-de, we followed this setting [here](https://github.com/pytorch/fairseq/blob/master/examples/scaling_nmt/README.md)
-2. To train RoBERTa, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/roberta)
-3. To train Language Models on Wikitext-103, we followed this setting [here](https://github.com/pytorch/fairseq/tree/master/examples/language_model)
+1. For Translation on WMT16 en-de, we followed this setting [here](https://github.com/pytorch/fairseq/blob/main/examples/scaling_nmt/README.md)
+2. To train RoBERTa, we followed this setting [here](https://github.com/pytorch/fairseq/tree/main/examples/roberta)
+3. To train Language Models on Wikitext-103, we followed this setting [here](https://github.com/pytorch/fairseq/tree/main/examples/language_model)
 
 
 ## Tips

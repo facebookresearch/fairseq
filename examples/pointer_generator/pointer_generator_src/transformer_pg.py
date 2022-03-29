@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional, List, Tuple
 
 import torch
 import torch.nn as nn
-from fairseq import metrics, utils
+from fairseq import utils
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.transformer import (
     DEFAULT_MAX_SOURCE_POSITIONS,
@@ -300,7 +300,7 @@ class TransformerPointerGeneratorDecoder(TransformerDecoder):
             prev_output_embed *= self.embed_scale
             predictors = torch.cat((prev_output_embed, x), 2)
             p_gens = self.project_p_gens(predictors)
-            p_gens = torch.sigmoid(p_gens)
+            p_gens = torch.sigmoid(p_gens.float())
             # Torchscript complains if encoder_out or attn are None because
             # `output_layer()` signature expects tensors instead
             attn: Optional[Tensor] = extra["attn"][0]
@@ -351,18 +351,18 @@ class TransformerPointerGeneratorDecoder(TransformerDecoder):
         # vocab_size]. Each attention weight will be written into a location
         # that is for other dimensions the same as in the index tensor, but for
         # the third dimension it's the value of the index tensor (the token ID).
-        attn = torch.mul(attn, 1 - p_gens)
+        attn = torch.mul(attn.float(), 1 - p_gens)
         index = src_tokens[:, None, :]
         index = index.expand(batch_size, output_length, src_length)
         attn_dists_size = (batch_size, output_length, self.num_types)
         attn_dists = attn.new_zeros(attn_dists_size)
-        attn_dists.scatter_add_(2, index, attn)
+        attn_dists.scatter_add_(2, index, attn.float())
 
         # Final distributions, [batch_size, output_length, num_types].
         return gen_dists + attn_dists
 
     def get_normalized_probs(
-        self, 
+        self,
         net_output: Tuple[Tensor, Optional[Dict[str, List[Optional[Tensor]]]]],
         log_probs: bool,
         sample: Optional[Dict[str, Tensor]] = None,

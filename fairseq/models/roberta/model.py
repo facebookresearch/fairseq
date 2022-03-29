@@ -11,6 +11,7 @@ import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from fairseq import utils
 from fairseq.models import (
     FairseqEncoder,
@@ -18,13 +19,13 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
-from fairseq.models.transformer import TransformerEncoder
+from fairseq.models.transformer import DEFAULT_MIN_PARAMS_TO_WRAP, TransformerEncoder
 from fairseq.modules import LayerNorm
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
+from fairseq.utils import safe_getattr, safe_hasattr
 
 from .hub_interface import RobertaHubInterface
-
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +123,11 @@ class RobertaModel(FairseqEncoderModel):
             action="store_true",
             help="(re-)register and load heads when loading checkpoints",
         )
+        parser.add_argument(
+            "--untie-weights-roberta",
+            action="store_true",
+            help="Untie weights between embeddings and classifiers in RoBERTa",
+        )
         # args for "Reducing Transformer Depth on Demand with Structured Dropout" (Fan et al., 2019)
         parser.add_argument(
             "--encoder-layerdrop",
@@ -157,29 +163,82 @@ class RobertaModel(FairseqEncoderModel):
             default=0,
             help="scalar quantization noise and scalar quantization at training time",
         )
-        parser.add_argument(
-            "--untie-weights-roberta",
-            action="store_true",
-            help="Untie weights between embeddings and classifiers in RoBERTa",
-        )
+        # args for "Better Fine-Tuning by Reducing Representational Collapse" (Aghajanyan et al. 2020)
         parser.add_argument(
             "--spectral-norm-classification-head",
             action="store_true",
             default=False,
             help="Apply spectral normalization on the classification head",
         )
+        # args for Fully Sharded Data Parallel (FSDP) training
+        parser.add_argument(
+            "--min-params-to-wrap",
+            type=int,
+            metavar="D",
+            default=DEFAULT_MIN_PARAMS_TO_WRAP,
+            help=(
+                "minimum number of params for a layer to be wrapped with FSDP() when "
+                "training with --ddp-backend=fully_sharded. Smaller values will "
+                "improve memory efficiency, but may make torch.distributed "
+                "communication less efficient due to smaller input sizes. This option "
+                "is set to 0 (i.e., always wrap) when --checkpoint-activations or "
+                "--offload-activations are passed."
+            ),
+        )
+        # args for AdaPruning
+        # In short, it adds regularizarion for the multihead attention module and feed forward neural nets
+        # For more details, please refer to the paper https://openreview.net/forum?id=_CMSV7FTzGI
+        parser.add_argument(
+            "--mha-reg-scale-factor",
+            type=float,
+            metavar="D",
+            default=0.0,
+            help="scaling factor for regularization term in adptive pruning, recommendation is 0.000375",
+        )
+        parser.add_argument(
+            "--ffn-reg-scale-factor",
+            type=float,
+            metavar="D",
+            default=0.0,
+            help="scaling factor for regularization term in adptive pruning, recommendation is 0.000375",
+        )
+        parser.add_argument(
+            "--mha-heads-to-keep",
+            type=int,
+            metavar="D",
+            default=-1,
+            help="number of heads to keep in each multi-head attention module, -1 means keeping all heads",
+        )
+        parser.add_argument(
+            "--ffn-blocks-to-remove",
+            type=int,
+            metavar="D",
+            default=-1,
+            help="number of feedforward blocks to remove in each transformer layer, -1 means keeping all ffn blocks",
+        )
 
     @classmethod
     def build_model(cls, args, task):
         """Build a new model instance."""
 
+        from omegaconf import OmegaConf
+
+        if OmegaConf.is_config(args):
+            OmegaConf.set_struct(args, False)
+
         # make sure all arguments are present
         base_architecture(args)
 
-        if not hasattr(args, "max_positions"):
+        if not safe_hasattr(args, "max_positions"):
+            if not safe_hasattr(args, "tokens_per_sample"):
+                args.tokens_per_sample = task.max_positions()
             args.max_positions = args.tokens_per_sample
 
         encoder = RobertaEncoder(args, task.source_dictionary)
+
+        if OmegaConf.is_config(args):
+            OmegaConf.set_struct(args, True)
+
         return cls(args, encoder)
 
     def forward(
@@ -188,7 +247,7 @@ class RobertaModel(FairseqEncoderModel):
         features_only=False,
         return_all_hiddens=False,
         classification_head_name=None,
-        **kwargs
+        **kwargs,
     ):
         if classification_head_name is not None:
             features_only = True
@@ -198,6 +257,66 @@ class RobertaModel(FairseqEncoderModel):
         if classification_head_name is not None:
             x = self.classification_heads[classification_head_name](x)
         return x, extra
+
+    def _get_adaptive_head_loss(self):
+        norm_loss = 0
+        scaling = float(self.args.mha_reg_scale_factor)
+        for layer in self.encoder.sentence_encoder.layers:
+            norm_loss_layer = 0
+            for i in range(layer.self_attn.num_heads):
+                start_idx = i * layer.self_attn.head_dim
+                end_idx = (i + 1) * layer.self_attn.head_dim
+                norm_loss_layer += scaling * (
+                    torch.sum(
+                        torch.abs(
+                            layer.self_attn.q_proj.weight[
+                                start_idx:end_idx,
+                            ]
+                        )
+                    )
+                    + torch.sum(
+                        torch.abs(layer.self_attn.q_proj.bias[start_idx:end_idx])
+                    )
+                )
+                norm_loss_layer += scaling * (
+                    torch.sum(
+                        torch.abs(
+                            layer.self_attn.k_proj.weight[
+                                start_idx:end_idx,
+                            ]
+                        )
+                    )
+                    + torch.sum(
+                        torch.abs(layer.self_attn.k_proj.bias[start_idx:end_idx])
+                    )
+                )
+                norm_loss_layer += scaling * (
+                    torch.sum(
+                        torch.abs(
+                            layer.self_attn.v_proj.weight[
+                                start_idx:end_idx,
+                            ]
+                        )
+                    )
+                    + torch.sum(
+                        torch.abs(layer.self_attn.v_proj.bias[start_idx:end_idx])
+                    )
+                )
+
+            norm_loss += norm_loss_layer
+        return norm_loss
+
+    def _get_adaptive_ffn_loss(self):
+        ffn_scale_factor = float(self.args.ffn_reg_scale_factor)
+        filter_loss = 0
+        for layer in self.encoder.sentence_encoder.layers:
+            filter_loss += torch.sum(
+                torch.abs(layer.fc1.weight * ffn_scale_factor)
+            ) + torch.sum(torch.abs(layer.fc2.weight * ffn_scale_factor))
+            filter_loss += torch.sum(
+                torch.abs(layer.fc1.bias * ffn_scale_factor)
+            ) + torch.sum(torch.abs(layer.fc2.bias * ffn_scale_factor))
+        return filter_loss
 
     def get_normalized_probs(self, net_output, log_probs, sample=None):
         """Get normalized probabilities (or log probs) from a net's output."""
@@ -243,7 +362,7 @@ class RobertaModel(FairseqEncoderModel):
         checkpoint_file="model.pt",
         data_name_or_path=".",
         bpe="gpt2",
-        **kwargs
+        **kwargs,
     ):
         from fairseq import hub_utils
 
@@ -333,6 +452,19 @@ class RobertaModel(FairseqEncoderModel):
                 if prefix + "classification_heads." + k not in state_dict:
                     logger.info("Overwriting " + prefix + "classification_heads." + k)
                     state_dict[prefix + "classification_heads." + k] = v
+
+            # adapt data2vec models
+            if (
+                "encoder._ema" in state_dict
+                and "encoder.lm_head.weight" not in state_dict
+            ):
+                lm_state = self.encoder.lm_head.state_dict()
+                for k, v in lm_state.items():
+                    state_dict["encoder.lm_head." + k] = v
+
+            for k in list(state_dict.keys()):
+                if k.startswith("encoder.regression_head") or k == "encoder._ema":
+                    del state_dict[k]
 
 
 class RobertaLMHead(nn.Module):
@@ -442,16 +574,13 @@ class RobertaEncoder(FairseqEncoder):
     def build_lm_head(self, embed_dim, output_dim, activation_fn, weight):
         return RobertaLMHead(embed_dim, output_dim, activation_fn, weight)
 
-    def build_lm_head(self, embed_dim, output_dim, activation_fn, weight):
-        return RobertaLMHead(embed_dim, output_dim, activation_fn, weight)
-
     def forward(
         self,
         src_tokens,
         features_only=False,
         return_all_hiddens=False,
         masked_tokens=None,
-        **unused
+        **unused,
     ):
         """
         Args:
@@ -497,52 +626,54 @@ class RobertaEncoder(FairseqEncoder):
 
 @register_model_architecture("roberta", "roberta")
 def base_architecture(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 12)
-    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 768)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 3072)
-    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 12)
+    args.encoder_layers = safe_getattr(args, "encoder_layers", 12)
+    args.encoder_embed_dim = safe_getattr(args, "encoder_embed_dim", 768)
+    args.encoder_ffn_embed_dim = safe_getattr(args, "encoder_ffn_embed_dim", 3072)
+    args.encoder_attention_heads = safe_getattr(args, "encoder_attention_heads", 12)
 
-    args.dropout = getattr(args, "dropout", 0.1)
-    args.attention_dropout = getattr(args, "attention_dropout", 0.1)
-    args.activation_dropout = getattr(args, "activation_dropout", 0.0)
-    args.pooler_dropout = getattr(args, "pooler_dropout", 0.0)
+    args.dropout = safe_getattr(args, "dropout", 0.1)
+    args.attention_dropout = safe_getattr(args, "attention_dropout", 0.1)
+    args.activation_dropout = safe_getattr(args, "activation_dropout", 0.0)
+    args.pooler_dropout = safe_getattr(args, "pooler_dropout", 0.0)
 
-    args.max_source_positions = getattr(args, "max_positions", 512)
-    args.no_token_positional_embeddings = getattr(
+    args.max_source_positions = safe_getattr(args, "max_positions", 512)
+    args.no_token_positional_embeddings = safe_getattr(
         args, "no_token_positional_embeddings", False
     )
 
     # BERT has a few structural differences compared to the original Transformer
-    args.encoder_learned_pos = getattr(args, "encoder_learned_pos", True)
-    args.layernorm_embedding = getattr(args, "layernorm_embedding", True)
-    args.no_scale_embedding = getattr(args, "no_scale_embedding", True)
-    args.activation_fn = getattr(args, "activation_fn", "gelu")
-    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", False)
-    args.pooler_activation_fn = getattr(args, "pooler_activation_fn", "tanh")
-    args.untie_weights_roberta = getattr(args, "untie_weights_roberta", False)
+    args.encoder_learned_pos = safe_getattr(args, "encoder_learned_pos", True)
+    args.layernorm_embedding = safe_getattr(args, "layernorm_embedding", True)
+    args.no_scale_embedding = safe_getattr(args, "no_scale_embedding", True)
+    args.activation_fn = safe_getattr(args, "activation_fn", "gelu")
+    args.encoder_normalize_before = safe_getattr(
+        args, "encoder_normalize_before", False
+    )
+    args.pooler_activation_fn = safe_getattr(args, "pooler_activation_fn", "tanh")
+    args.untie_weights_roberta = safe_getattr(args, "untie_weights_roberta", False)
 
     # Adaptive input config
-    args.adaptive_input = getattr(args, "adaptive_input", False)
+    args.adaptive_input = safe_getattr(args, "adaptive_input", False)
 
     # LayerDrop config
-    args.encoder_layerdrop = getattr(args, "encoder_layerdrop", 0.0)
-    args.encoder_layers_to_keep = getattr(args, "encoder_layers_to_keep", None)
+    args.encoder_layerdrop = safe_getattr(args, "encoder_layerdrop", 0.0)
+    args.encoder_layers_to_keep = safe_getattr(args, "encoder_layers_to_keep", None)
 
     # Quantization noise config
-    args.quant_noise_pq = getattr(args, "quant_noise_pq", 0)
-    args.quant_noise_pq_block_size = getattr(args, "quant_noise_pq_block_size", 8)
-    args.quant_noise_scalar = getattr(args, "quant_noise_scalar", 0)
+    args.quant_noise_pq = safe_getattr(args, "quant_noise_pq", 0)
+    args.quant_noise_pq_block_size = safe_getattr(args, "quant_noise_pq_block_size", 8)
+    args.quant_noise_scalar = safe_getattr(args, "quant_noise_scalar", 0)
 
     # R4F config
-    args.spectral_norm_classification_head = getattr(
+    args.spectral_norm_classification_head = safe_getattr(
         args, "spectral_norm_classification_head", False
     )
 
 
 @register_model_architecture("roberta", "roberta_prenorm")
 def roberta_prenorm_architecture(args):
-    args.layernorm_embedding = getattr(args, "layernorm_embedding", False)
-    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", True)
+    args.layernorm_embedding = safe_getattr(args, "layernorm_embedding", False)
+    args.encoder_normalize_before = safe_getattr(args, "encoder_normalize_before", True)
     base_architecture(args)
 
 
@@ -553,17 +684,17 @@ def roberta_base_architecture(args):
 
 @register_model_architecture("roberta", "roberta_large")
 def roberta_large_architecture(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 24)
-    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 1024)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 4096)
-    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 16)
+    args.encoder_layers = safe_getattr(args, "encoder_layers", 24)
+    args.encoder_embed_dim = safe_getattr(args, "encoder_embed_dim", 1024)
+    args.encoder_ffn_embed_dim = safe_getattr(args, "encoder_ffn_embed_dim", 4096)
+    args.encoder_attention_heads = safe_getattr(args, "encoder_attention_heads", 16)
     base_architecture(args)
 
 
 @register_model_architecture("roberta", "xlm")
 def xlm_architecture(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 16)
-    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 1280)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 1280 * 4)
-    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 16)
+    args.encoder_layers = safe_getattr(args, "encoder_layers", 16)
+    args.encoder_embed_dim = safe_getattr(args, "encoder_embed_dim", 1280)
+    args.encoder_ffn_embed_dim = safe_getattr(args, "encoder_ffn_embed_dim", 1280 * 4)
+    args.encoder_attention_heads = safe_getattr(args, "encoder_attention_heads", 16)
     base_architecture(args)

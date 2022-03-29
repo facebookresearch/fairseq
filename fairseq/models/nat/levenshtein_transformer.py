@@ -9,7 +9,8 @@ import torch.nn.functional as F
 from fairseq.iterative_refinement_generator import DecoderOut
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.nat import FairseqNATDecoder, FairseqNATModel, ensemble_decoder
-from fairseq.models.transformer import Embedding, TransformerDecoderLayer
+from fairseq.models.transformer import Embedding
+from fairseq.modules import TransformerDecoderLayer
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
 from .levenshtein_utils import (

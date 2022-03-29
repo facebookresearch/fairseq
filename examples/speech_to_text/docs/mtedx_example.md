@@ -11,7 +11,7 @@ with translations to a subset of 5 target languages.
 `${MTEDX_ROOT}/${LANG_PAIR}`, then preprocess it with
 ```bash
 # additional Python packages for S2T data processing/model training
-pip install pandas torchaudio sentencepiece
+pip install pandas torchaudio soundfile sentencepiece
 
 # Generate TSV manifests, features, vocabulary
 # and configuration for each language
@@ -176,10 +176,11 @@ For multilingual models, we force decoding from the target language ID token (as
 ## Citation
 Please cite as:
 ```
-@misc{salesky2021mtedx,
-      title={Multilingual TEDx Corpus for Speech Recognition and Translation},
-      author={Elizabeth Salesky and Matthew Wiesner and Jacob Bremerman and Roldano Cattoni and Matteo Negri and Marco Turchi and Douglas W. Oard and Matt Post},
-      year={2021},
+@inproceedings{salesky2021mtedx,
+  title={Multilingual TEDx Corpus for Speech Recognition and Translation},
+  author={Elizabeth Salesky and Matthew Wiesner and Jacob Bremerman and Roldano Cattoni and Matteo Negri and Marco Turchi and Douglas W. Oard and Matt Post},
+  booktitle={Proceedings of Interspeech},
+  year={2021},
 }
 
 @inproceedings{wang2020fairseqs2t,

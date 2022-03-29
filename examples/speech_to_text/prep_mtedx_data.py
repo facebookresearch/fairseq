@@ -14,7 +14,7 @@ from tempfile import NamedTemporaryFile
 from typing import Tuple
 
 import pandas as pd
-import torchaudio
+import soundfile as sf
 from examples.speech_to_text.data_utils import (
     create_zip,
     extract_fbank_features,
@@ -25,15 +25,19 @@ from examples.speech_to_text.data_utils import (
     load_df_from_tsv,
     save_df_to_tsv,
 )
-from torch import Tensor
+import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
+
+from fairseq.data.audio.audio_utils import get_waveform, convert_waveform
 
 
 log = logging.getLogger(__name__)
 
 
-MANIFEST_COLUMNS = ["id", "audio", "n_frames", "tgt_text", "speaker", "tgt_lang"]
+MANIFEST_COLUMNS = [
+    "id", "audio", "n_frames", "tgt_text", "speaker", "tgt_lang"
+]
 
 
 class mTEDx(Dataset):
@@ -44,9 +48,9 @@ class mTEDx(Dataset):
     """
 
     SPLITS = ["train", "valid", "test"]
-    LANGPAIRS = ["es-es", "fr-fr", "pt-pt", "it-it", "ru-ru", "el-el", "ar-ar", "de-de",
-                 "es-en", "es-fr", "es-pt", "es-it", "fr-en", "fr-es", "fr-pt",
-                 "pt-en", "pt-es", "it-en", "it-es", "ru-en", "el-en"]
+    LANGPAIRS = ["es-es", "fr-fr", "pt-pt", "it-it", "ru-ru", "el-el", "ar-ar",
+                 "de-de", "es-en", "es-fr", "es-pt", "es-it", "fr-en", "fr-es",
+                 "fr-pt", "pt-en", "pt-es", "it-en", "it-es", "ru-en", "el-en"]
 
     def __init__(self, root: str, lang: str, split: str) -> None:
         assert split in self.SPLITS and lang in self.LANGPAIRS
@@ -57,7 +61,9 @@ class mTEDx(Dataset):
         try:
             import yaml
         except ImportError:
-            print("Please install PyYAML to load the Multilingual TEDx YAML files")
+            print(
+                "Please install PyYAML to load the Multilingual TEDx YAML files"
+            )
         with open(txt_root / f"{split}.yaml") as f:
             segments = yaml.load(f, Loader=yaml.BaseLoader)
         # Load source and target utterances
@@ -73,7 +79,7 @@ class mTEDx(Dataset):
         for wav_filename, _seg_group in groupby(segments, lambda x: x["wav"]):
             wav_filename = wav_filename.replace(".wav", ".flac")
             wav_path = wav_root / wav_filename
-            sample_rate = torchaudio.info(wav_path.as_posix())[0].rate
+            sample_rate = sf.info(wav_path.as_posix()).samplerate
             seg_group = sorted(_seg_group, key=lambda x: float(x["offset"]))
             for i, segment in enumerate(seg_group):
                 offset = int(float(segment["offset"]) * sample_rate)
@@ -93,9 +99,13 @@ class mTEDx(Dataset):
                     )
                 )
 
-    def __getitem__(self, n: int) -> Tuple[Tensor, int, str, str, str, str, str]:
-        wav_path, offset, n_frames, sr, src_utt, tgt_utt, spk_id, tgt_lang, utt_id = self.data[n]
-        waveform, _ = torchaudio.load(wav_path, offset=offset, num_frames=n_frames)
+    def __getitem__(
+            self, n: int
+    ) -> Tuple[torch.Tensor, int, str, str, str, str, str]:
+        wav_path, offset, n_frames, sr, src_utt, tgt_utt, spk_id, tgt_lang, \
+            utt_id = self.data[n]
+        waveform, _ = get_waveform(wav_path, frames=n_frames, start=offset)
+        waveform = torch.from_numpy(waveform)
         return waveform, sr, src_utt, tgt_utt, spk_id, tgt_lang, utt_id
 
     def __len__(self) -> int:
@@ -110,36 +120,50 @@ def process(args):
             print(f"{cur_root.as_posix()} does not exist. Skipped.")
             continue
         # Extract features
-        feature_root = cur_root / "fbank80"
-        feature_root.mkdir(exist_ok=True)
+        audio_root = cur_root / ("flac" if args.use_audio_input else "fbank80")
+        audio_root.mkdir(exist_ok=True)
         for split in mTEDx.SPLITS:
             print(f"Fetching split {split}...")
             dataset = mTEDx(root.as_posix(), lang, split)
-            print("Extracting log mel filter bank features...")
-            for waveform, sample_rate, _, _, _, _, utt_id in tqdm(dataset):
-                extract_fbank_features(
-                    waveform, sample_rate, feature_root / f"{utt_id}.npy"
-                )
+            if args.use_audio_input:
+                print("Converting audios...")
+                for waveform, sample_rate, _, _, _, utt_id in tqdm(dataset):
+                    tgt_sample_rate = 16_000
+                    _wavform, _ = convert_waveform(
+                        waveform, sample_rate, to_mono=True,
+                        to_sample_rate=tgt_sample_rate
+                    )
+                    sf.write(
+                        (audio_root / f"{utt_id}.flac").as_posix(),
+                        _wavform.numpy(), tgt_sample_rate
+                    )
+            else:
+                print("Extracting log mel filter bank features...")
+                for waveform, sample_rate, _, _, _, _, utt_id in tqdm(dataset):
+                    extract_fbank_features(
+                        waveform, sample_rate, audio_root / f"{utt_id}.npy"
+                    )
         # Pack features into ZIP
-        zip_path = cur_root / "fbank80.zip"
-        print("ZIPing features...")
-        create_zip(feature_root, zip_path)
+        zip_path = cur_root / f"{audio_root.name}.zip"
+        print("ZIPing audios/features...")
+        create_zip(audio_root, zip_path)
         print("Fetching ZIP manifest...")
-        zip_manifest = get_zip_manifest(zip_path)
+        audio_paths, audio_lengths = get_zip_manifest(zip_path)
         # Generate TSV manifest
         print("Generating manifest...")
         train_text = []
         for split in mTEDx.SPLITS:
             is_train_split = split.startswith("train")
             manifest = {c: [] for c in MANIFEST_COLUMNS}
-            dataset = mTEDx(args.data_root, lang, split)
-            for wav, sr, src_utt, tgt_utt, speaker_id, tgt_lang, utt_id in tqdm(dataset):
+            ds = mTEDx(args.data_root, lang, split)
+            for _, _, src_utt, tgt_utt, spk_id, tgt_lang, utt_id in tqdm(ds):
                 manifest["id"].append(utt_id)
-                manifest["audio"].append(zip_manifest[utt_id])
-                duration_ms = int(wav.size(1) / sr * 1000)
-                manifest["n_frames"].append(int(1 + (duration_ms - 25) / 10))
-                manifest["tgt_text"].append(src_utt if args.task == "asr" else tgt_utt)
-                manifest["speaker"].append(speaker_id)
+                manifest["audio"].append(audio_paths[utt_id])
+                manifest["n_frames"].append(audio_lengths[utt_id])
+                manifest["tgt_text"].append(
+                    src_utt if args.task == "asr" else tgt_utt
+                )
+                manifest["speaker"].append(spk_id)
                 manifest["tgt_lang"].append(tgt_lang)
             if is_train_split:
                 train_text.extend(manifest["tgt_text"])
@@ -159,14 +183,23 @@ def process(args):
                 args.vocab_size,
             )
         # Generate config YAML
-        gen_config_yaml(
-            cur_root,
-            spm_filename_prefix + ".model",
-            yaml_filename=f"config_{args.task}.yaml",
-            specaugment_policy="lb",
-        )
+        if args.use_audio_input:
+            gen_config_yaml(
+                cur_root,
+                spm_filename=spm_filename_prefix + ".model",
+                yaml_filename=f"config_{args.task}.yaml",
+                specaugment_policy=None,
+                extra={"use_audio_input": True}
+            )
+        else:
+            gen_config_yaml(
+                cur_root,
+                spm_filename=spm_filename_prefix + ".model",
+                yaml_filename=f"config_{args.task}.yaml",
+                specaugment_policy="lb",
+            )
         # Clean up
-        shutil.rmtree(feature_root)
+        shutil.rmtree(audio_root)
 
 
 def process_joint(args):
@@ -185,7 +218,9 @@ def process_joint(args):
         special_symbols = None
         if args.joint:
             # Add tgt_lang tags to dict
-            special_symbols = list({f'<lang:{lang.split("-")[1]}>' for lang in mTEDx.LANGPAIRS})
+            special_symbols = list(
+                {f'<lang:{lang.split("-")[1]}>' for lang in mTEDx.LANGPAIRS}
+            )
         gen_vocab(
             Path(f.name),
             cur_root / spm_filename_prefix,
@@ -196,7 +231,7 @@ def process_joint(args):
     # Generate config YAML
     gen_config_yaml(
         cur_root,
-        spm_filename_prefix + ".model",
+        spm_filename=spm_filename_prefix + ".model",
         yaml_filename=f"config_{args.task}.yaml",
         specaugment_policy="ld",
         prepend_tgt_lang_tag=(args.joint),
@@ -223,6 +258,7 @@ def main():
     parser.add_argument("--vocab-size", default=8000, type=int)
     parser.add_argument("--task", type=str, choices=["asr", "st"])
     parser.add_argument("--joint", action="store_true", help="")
+    parser.add_argument("--use-audio-input", action="store_true")
     args = parser.parse_args()
 
     if args.joint:

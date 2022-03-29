@@ -201,9 +201,7 @@ def _pipeline_parallel_post_init(
         # distributed_world_size to be based on the total number of GPUs, so
         # we need to correct them to be based on the number of pipelines.
         assert cfg.distributed_world_size % num_pipeline_devices == 0
-        cfg.distributed_world_size = (
-            cfg.distributed_world_size // num_pipeline_devices
-        )
+        cfg.distributed_world_size = cfg.distributed_world_size // num_pipeline_devices
         # In the case of 4-way MP on nodes with 8 GPUs, we want
         # distributed_rank to be the starting GPU index for each pipeline
         # i.e., 0, 2, ...
@@ -281,7 +279,6 @@ def distributed_init(cfg: FairseqConfig):
         cfg.distributed_training.device_id = xm.get_local_ordinal()
         cfg.distributed_training.distributed_rank = xm.get_ordinal()
         xm.rendezvous("distributed_init")  # wait for all workers
-        xm.mark_step()
 
     if is_master(cfg.distributed_training):
         logging.getLogger().setLevel(logging.INFO)
@@ -306,6 +303,11 @@ def distributed_init(cfg: FairseqConfig):
         model_parallel_cuda_manual_seed(cfg.common.seed)
         model_part_number = get_model_parallel_rank()
         cfg.checkpoint.checkpoint_suffix += "-model_part-{0}".format(model_part_number)
+
+    if hasattr(cfg, "model") and getattr(cfg.model, "base_layers", 0) > 0:
+        cfg.checkpoint.checkpoint_suffix = (
+            f"-rank-{cfg.distributed_training.distributed_rank}"
+        )
 
     return cfg.distributed_training.distributed_rank
 
@@ -357,7 +359,10 @@ def call_main(cfg: FairseqConfig, main, **kwargs):
         xmp.spawn(
             fn=distributed_main,
             args=(main, cfg, kwargs),
-            nprocs=8,  # use all 8 TPU cores
+            # tpu-comment:
+            #   8 devices in one TPU VM, is the max processes to be spawned.
+            #   The rest is driven by xm.distributed.xla_dist
+            nprocs=min(cfg.distributed_training.distributed_world_size, 8),
         )
     else:
         # single GPU main
@@ -657,7 +662,7 @@ def all_reduce_dict(data: Mapping[str, Any], device, group) -> Dict[str, Any]:
             return data
         buf = torch.cat([t.view(-1) for t in data.values()]).to(device=device)
         all_reduce(buf, group=group)
-        split_buf = torch.split(buf, [t.numel() for t in data.values()])
+        split_buf = torch.split(buf.clone(), [t.numel() for t in data.values()])
         reduced_data = [t.view_as(orig) for t, orig in zip(split_buf, data.values())]
         return OrderedDict(zip(data.keys(), reduced_data))
 
@@ -691,7 +696,7 @@ def broadcast_tensors(
             dist_device = torch.device("cpu")
 
     # share metadata first to simplify transfer
-    is_src_rank = (get_rank(group) == src_rank)
+    is_src_rank = get_rank(group) == src_rank
     if is_src_rank:
         metadata = [
             {"size": t.size(), "dtype": t.dtype, "device": t.device} for t in tensors
@@ -742,7 +747,10 @@ def broadcast_object(
 
 
 def _broadcast_object_slow(
-    obj: Any, src_rank: int, group: object, dist_device: torch.device,
+    obj: Any,
+    src_rank: int,
+    group: object,
+    dist_device: torch.device,
 ) -> Any:
     if get_rank(group) == src_rank:
         # Emit data

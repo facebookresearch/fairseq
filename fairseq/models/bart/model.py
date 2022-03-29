@@ -6,19 +6,18 @@
 BART: Denoising Sequence-to-Sequence Pre-training for
 Natural Language Generation, Translation, and Comprehension
 """
-from typing import Optional
-
 import logging
+from typing import Optional
 
 import torch
 import torch.nn as nn
+
 from fairseq import utils
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.transformer import TransformerModel
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
 from .hub_interface import BARTHubInterface
-
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +89,7 @@ class BARTModel(TransformerModel):
             src_tokens,
             src_lengths=src_lengths,
             token_embeddings=token_embeddings,
-            return_all_hiddens=return_all_hiddens
+            return_all_hiddens=return_all_hiddens,
         )
         x, extra = self.decoder(
             prev_output_tokens,
@@ -103,9 +102,9 @@ class BARTModel(TransformerModel):
         )
         eos: int = self.eos
         if classification_head_name is not None:
-            sentence_representation = x[
-                src_tokens.eq(eos), :
-            ].view(x.size(0), -1, x.size(-1))[:, -1, :]
+            sentence_representation = x[src_tokens.eq(eos), :].view(
+                x.size(0), -1, x.size(-1)
+            )[:, -1, :]
             for k, head in self.classification_heads.items():
                 # for torch script only supports iteration
                 if k == classification_head_name:
@@ -247,7 +246,7 @@ class BARTModel(TransformerModel):
             embed_dim = state_dict["encoder.embed_tokens.weight"].size(1)
 
             new_lang_embed_to_add = torch.zeros(num_langids_to_add, embed_dim)
-            nn.init.normal_(new_lang_embed_to_add, mean=0, std=embed_dim ** -0.5)
+            nn.init.normal_(new_lang_embed_to_add, mean=0, std=embed_dim**-0.5)
             new_lang_embed_to_add = new_lang_embed_to_add.to(
                 dtype=state_dict["encoder.embed_tokens.weight"].dtype,
             )

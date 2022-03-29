@@ -7,13 +7,13 @@ import contextlib
 from typing import Optional
 
 import torch
-
 from fairseq.dataclass.configs import DistributedTrainingConfig
 from fairseq.distributed import utils as dist_utils
 
 
 try:
     from fairscale.nn.data_parallel import FullyShardedDataParallel as FSDP
+
     has_FSDP = True
 except ImportError:
     FSDP = torch.nn.Module
@@ -43,7 +43,14 @@ class FullyShardedDataParallel(FSDP):
         super().__init__(*args, **kwargs)
         self.use_sharded_state = use_sharded_state
 
-    def state_dict(self, destination=None, prefix='', keep_vars=False):
+    @property
+    def unwrapped_module(self) -> torch.nn.Module:
+        if self.flatten_parameters:
+            return self.module.module
+        else:
+            return self.module
+
+    def state_dict(self, destination=None, prefix="", keep_vars=False):
         if self.use_sharded_state:
             return super().local_state_dict(
                 destination=destination, prefix=prefix, keep_vars=keep_vars
@@ -70,7 +77,7 @@ class FullyShardedDataParallel(FSDP):
 
 
 @contextlib.contextmanager
-def fsdp_enable_wrap(cfg: DistributedTrainingConfig, use_sharded_state: bool = False):
+def fsdp_enable_wrap(cfg: DistributedTrainingConfig):
     try:
         from fairscale.nn import enable_wrap
     except ImportError:
@@ -83,18 +90,24 @@ def fsdp_enable_wrap(cfg: DistributedTrainingConfig, use_sharded_state: bool = F
     group = dist_utils.get_data_parallel_group()
     if group is None and cfg.distributed_world_size == 1:
         from fairscale.utils.testing import DummyProcessGroup
+
         group = DummyProcessGroup(rank=0, size=1)
     fsdp_config = {
         "process_group": group,
         "reshard_after_forward": not cfg.no_reshard_after_forward,
         "mixed_precision": cfg.fp16 and not cfg.memory_efficient_fp16,
         "fp32_reduce_scatter": cfg.fp32_reduce_scatter,
-        "flatten_parameters": True,
+        "flatten_parameters": not cfg.not_fsdp_flatten_parameters,
         "cpu_offload": cfg.cpu_offload,
         "compute_dtype": torch.float16 if cfg.fp16 else torch.float32,
         "bucket_cap_mb": cfg.bucket_cap_mb,
+        "state_dict_device": torch.device("cpu"),  # reduce GPU mem usage
     }
-    with enable_wrap(use_sharded_state=use_sharded_state, **fsdp_config):
+    with enable_wrap(
+        wrapper_cls=FullyShardedDataParallel,
+        use_sharded_state=cfg.use_sharded_state,
+        **fsdp_config,
+    ):
         yield
 
 
@@ -109,14 +122,14 @@ def fsdp_wrap(module, min_num_params: Optional[int] = None, **kwargs):
     """
     try:
         from fairscale.nn import wrap
-        cls = FullyShardedDataParallel
+
         if min_num_params is not None:
             num_params = sum(p.numel() for p in module.parameters())
             if num_params >= min_num_params:
-                return wrap(module, cls=cls, **kwargs)
+                return wrap(module, **kwargs)
             else:
                 return module
         else:
-            return wrap(module, cls=cls, **kwargs)
+            return wrap(module, **kwargs)
     except ImportError:
         return module

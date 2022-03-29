@@ -7,9 +7,9 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
-import numpy as np
 import torch
-from fairseq.data import Dictionary, FairseqDataset
+from .dummy_dataset import DummyDataset
+from fairseq.data import Dictionary
 from fairseq.dataclass import FairseqDataclass
 from fairseq.tasks import FairseqTask, register_task
 from omegaconf import II
@@ -33,7 +33,6 @@ class DummyLMConfig(FairseqDataclass):
 
 @register_task("dummy_lm", dataclass=DummyLMConfig)
 class DummyLMTask(FairseqTask):
-
     def __init__(self, cfg: DummyLMConfig):
         super().__init__(cfg)
 
@@ -82,37 +81,3 @@ class DummyLMTask(FairseqTask):
     @property
     def target_dictionary(self):
         return self.dictionary
-
-
-class DummyDataset(FairseqDataset):
-    def __init__(self, batch, num_items, item_size):
-        super().__init__()
-        self.batch = batch
-        self.num_items = num_items
-        self.item_size = item_size
-
-    def __getitem__(self, index):
-        return index
-
-    def __len__(self):
-        return self.num_items
-
-    def collater(self, samples):
-        return self.batch
-
-    @property
-    def sizes(self):
-        return np.array([self.item_size] * self.num_items)
-
-    def num_tokens(self, index):
-        return self.item_size
-
-    def size(self, index):
-        return self.item_size
-
-    def ordered_indices(self):
-        return np.arange(self.num_items)
-
-    @property
-    def supports_prefetch(self):
-        return False

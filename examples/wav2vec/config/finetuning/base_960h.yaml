@@ -10,7 +10,7 @@ checkpoint:
   best_checkpoint_metric: wer
 
 task:
-  _name: audio_pretraining
+  _name: audio_finetuning
   data: ???
   normalize: false
   labels: ltr
@@ -31,7 +31,7 @@ criterion:
 
 optimization:
   max_update: 320000
-  lr: [0.00001]
+  lr: [0.0001]
   sentence_avg: true
 
 optimizer:
@@ -55,4 +55,3 @@ model:
   activation_dropout: 0.1
   feature_grad_mult: 0.0
   freeze_finetune_updates: 0
-

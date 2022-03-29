@@ -4,28 +4,30 @@
 # LICENSE file in the root directory of this source tree.
 
 import contextlib
-import logging
 import json
+import logging
 import os
 import random
 import sys
 import tempfile
 import unittest
 from io import StringIO
-from typing import List, Dict
+from typing import Dict, List
+
 import torch
+
 from fairseq import options
-from fairseq_cli import eval_lm, train, validate
+from fairseq_cli import eval_lm, train
 from tests.utils import (
     create_dummy_data,
+    create_laser_data_and_config_json,
     generate_main,
     preprocess_lm_data,
     preprocess_summarization_data,
     preprocess_translation_data,
-    create_laser_data_and_config_json,
+    train_language_model,
     train_translation_model,
 )
-
 
 try:
     import transformers  # noqa
@@ -1160,7 +1162,40 @@ class TestLanguageModeling(unittest.TestCase):
                 train_language_model(
                     data_dir,
                     "transformer_lm",
-                    ["--add-bos-token"],
+                    ["--add-bos-token", "--nval", "1"],
+                    run_validation=True,
+                )
+                eval_lm_main(data_dir)
+                eval_lm_main(data_dir, extra_flags=["--context-window", "25"])
+                generate_main(
+                    data_dir,
+                    [
+                        "--task",
+                        "language_modeling",
+                        "--sample-break-mode",
+                        "eos",
+                        "--tokens-per-sample",
+                        "500",
+                    ],
+                )
+
+    def test_normformer_lm(self):
+        with contextlib.redirect_stdout(StringIO()):
+            with tempfile.TemporaryDirectory("test_transformer_lm") as data_dir:
+                create_dummy_data(data_dir)
+                preprocess_lm_data(data_dir)
+                train_language_model(
+                    data_dir,
+                    "transformer_lm",
+                    [
+                        "--add-bos-token",
+                        "--nval",
+                        "1",
+                        "--scale-fc",
+                        "--scale-heads",
+                        "--scale-attn",
+                        "--scale-fc",
+                    ],
                     run_validation=True,
                 )
                 eval_lm_main(data_dir)
@@ -1850,71 +1885,6 @@ def train_roberta_head(data_dir, arch, num_classes=2, extra_flags=None):
         + (extra_flags or []),
     )
     train.main(train_args)
-
-
-def train_language_model(
-    data_dir,
-    arch,
-    extra_flags=None,
-    run_validation=False,
-    extra_valid_flags=None,
-    task="language_modeling",
-):
-    train_parser = options.get_training_parser()
-    train_args = options.parse_args_and_arch(
-        train_parser,
-        [
-            "--task",
-            task,
-            data_dir,
-            "--arch",
-            arch,
-            "--optimizer",
-            "adam",
-            "--lr",
-            "0.0001",
-            "--max-tokens",
-            "500",
-            "--tokens-per-sample",
-            "500",
-            "--save-dir",
-            data_dir,
-            "--max-epoch",
-            "1",
-            "--no-progress-bar",
-            "--distributed-world-size",
-            "1",
-            "--ddp-backend",
-            "no_c10d",
-            "--num-workers",
-            "0",
-        ]
-        + (extra_flags or []),
-    )
-    train.main(train_args)
-
-    if run_validation:
-        # test validation
-        validate_parser = options.get_validation_parser()
-        validate_args = options.parse_args_and_arch(
-            validate_parser,
-            [
-                "--task",
-                task,
-                data_dir,
-                "--path",
-                os.path.join(data_dir, "checkpoint_last.pt"),
-                "--valid-subset",
-                "valid",
-                "--max-tokens",
-                "500",
-                "--no-progress-bar",
-                "--num-workers",
-                "0",
-            ]
-            + (extra_valid_flags or []),
-        )
-        validate.main(validate_args)
 
 
 def eval_lm_main(data_dir, extra_flags=None):
