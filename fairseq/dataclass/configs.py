@@ -113,6 +113,17 @@ class CommonConfig(FairseqDataclass):
     log_file: Optional[str] = field(
         default=None, metadata={"help": "log file to copy metrics to."}
     )
+    aim_repo: Optional[str] = field(
+        default=None,
+        metadata={"help": "path to Aim repository"},
+    )
+    aim_run_hash: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Aim run hash. If skipped, creates or continues run "
+            "based on save_dir"
+        },
+    )
     tensorboard_logdir: Optional[str] = field(
         default=None,
         metadata={

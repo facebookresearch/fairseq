@@ -270,6 +270,17 @@ def train(
         log_file=cfg.common.log_file,
         log_interval=cfg.common.log_interval,
         epoch=epoch_itr.epoch,
+        aim_repo=(
+            cfg.common.aim_repo
+            if distributed_utils.is_master(cfg.distributed_training)
+            else None
+        ),
+        aim_run_hash=(
+            cfg.common.aim_run_hash
+            if distributed_utils.is_master(cfg.distributed_training)
+            else None
+        ),
+        aim_param_checkpoint_dir=cfg.checkpoint.save_dir,
         tensorboard_logdir=(
             cfg.common.tensorboard_logdir
             if distributed_utils.is_master(cfg.distributed_training)
@@ -455,6 +466,17 @@ def validate(
             log_interval=cfg.common.log_interval,
             epoch=epoch_itr.epoch,
             prefix=f"valid on '{subset}' subset",
+            aim_repo=(
+                cfg.common.aim_repo
+                if distributed_utils.is_master(cfg.distributed_training)
+                else None
+            ),
+            aim_run_hash=(
+                cfg.common.aim_run_hash
+                if distributed_utils.is_master(cfg.distributed_training)
+                else None
+            ),
+            aim_param_checkpoint_dir=cfg.checkpoint.save_dir,
             tensorboard_logdir=(
                 cfg.common.tensorboard_logdir
                 if distributed_utils.is_master(cfg.distributed_training)
