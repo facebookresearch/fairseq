@@ -3,25 +3,22 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import torch
-from fairseq.data import (
-    ConcatDataset,
-    data_utils as fairseq_data_utils,
-    Dictionary,
-)
+
+from fairseq.data import ConcatDataset, Dictionary
+from fairseq.data import data_utils as fairseq_data_utils
 from fairseq.data.audio.data_cfg import S2SDataConfig
 from fairseq.data.audio.speech_to_text_dataset import (
-    _collate_frames,
-    get_features_or_waveform,
     SpeechToTextDataset,
     SpeechToTextDatasetCreator,
+    _collate_frames,
+    get_features_or_waveform,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -146,9 +143,11 @@ class SpeechToSpeechDataset(SpeechToTextDataset):
             tgt_spk = torch.FloatTensor([])
 
         return SpeechToSpeechDatasetItem(
-            index=index, source=source, target=target,
+            index=index,
+            source=source,
+            target=target,
             target_speaker=tgt_spk,
-            tgt_lang_tag=tgt_lang_tag
+            tgt_lang_tag=tgt_lang_tag,
         )
 
     def _collate_target(self, samples: List[SpeechToSpeechDatasetItem]) -> torch.Tensor:
