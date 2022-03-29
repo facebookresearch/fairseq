@@ -356,7 +356,7 @@ class AimProgressBarWrapper(BaseProgressBar):
                     runs_generator = AimRepo(aim_repo).query_runs(query)
                     run = next(runs_generator.iter_runs())
                     aim_run_hash = run.run.hash
-                except:
+                except Exception:
                     pass
 
             if aim_run_hash:
