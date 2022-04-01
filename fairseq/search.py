@@ -137,7 +137,7 @@ class BeamSearch(Search):
         scores_buf = top_prediction[0]
         indices_buf = top_prediction[1]
         # Project back into relative indices and beams
-        beams_buf = indices_buf // vocab_size
+        beams_buf = torch.div(indices_buf, vocab_size, rounding_mode="trunc")
         indices_buf = indices_buf.fmod(vocab_size)
 
         # At this point, beams_buf and indices_buf are single-dim and contain relative indices

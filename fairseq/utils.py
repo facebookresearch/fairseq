@@ -501,6 +501,8 @@ def import_user_module(args):
                     from fairseq.models import import_models
 
                     import_models(models_path, f"{module_name}.models")
+            elif module_path in sys.modules[module_name].__path__:
+                logger.info(f"--user-dir={module_path} has already been imported.")
             else:
                 raise ImportError(
                     "Failed to import --user-dir={} because the corresponding module name "

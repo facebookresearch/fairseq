@@ -24,6 +24,6 @@ ax_config:
     decoding.wordscore:
       type: range
       bounds: [-5.0, 5.0]
-  decoding.silweight:
-        type: range
-        bounds: [ -8.0, 0.0 ]
+    decoding.silweight:
+      type: range
+      bounds: [ -8.0, 0.0 ]
