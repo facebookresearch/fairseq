@@ -104,7 +104,11 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     #     - ...
     #   - dev
     #   - test
+
+    # speech filter by ASR error?
 fi
+
+
 
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ] && [ "${model_architect}" == "s2ut" ] ; then
     log "Stage 2: Extract discrete unit (only for s2ut-based model)"
@@ -168,7 +172,13 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ] && [ "${use_mtl}" == "true" ]; 
     cp -r ${dumpdir}/target_letter ${dumpdir}/decoder_target_ctc
 
     # add softlink for config
-    ln -sf examples/speech_to_speech/recipe/conf/config_multitask.yaml ${dumpdir}/${model_architect}
+    if [[ "${model_architect}" == "s2ut" ]]; then
+        ln -sf examples/speech_to_speech/recipe/conf/config_multitask_ut.yaml ${dumpdir}/${model_architect}
+    elif [[ "${model_architect}" == "s2spect" ]]; then
+        ln -sf examples/speech_to_speech/recipe/conf/config_multitask_spect.yaml ${dumpdir}/${model_architect}
+    else
+        log "Not supported model architecture ${model_architect}"
+    fi
 fi
 
 
