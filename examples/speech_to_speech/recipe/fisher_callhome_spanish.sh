@@ -248,22 +248,37 @@ if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
 fi
 
 if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
-    log "Stage 7: Model Evaluation and Scoring"
+    log "Stage 7: Model Evaluation Prepare (ASR recognition)"
     # recognizer
     python examples/speech_to_speech/recipe/scripts/wav2vec2_en_recognizer.py \
         --audios ${result_path} \
         --extension ".wav" \
-        --recognized_output ${result_path}/hyp/recognized.txt
+        --recognized_output ${result_path}/score/recognized.txt
 
     # text cleaner (we use espnet_tts_frontend for tacotron_cleaner)
     if [[ "${model_architect}" == "s2ut" ]]; then
         python examples/speech_to_speech/recipe/scripts/text_clean.py \
-            --recognized_output ${result_path}/hyp/recognized.txt \
+            --recognized_output ${result_path}/score/recognized.txt \
             --sort
     else
         python examples/speech_to_speech/recipe/scripts/text_clean.py \
-            --recognized_output ${result_path}/hyp/recognized.txt
+            --recognized_output ${result_path}/score/recognized.txt
     fi
+
+    python examples/speech_to_speech/recipe/scripts/text_clean.py
+        --recognized_output ${src_text}/text.${test_set} \
+        --output_path ${result_path}/score/ref.txt.cleaned
 fi
 
+if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
+    log "Stage 8: Scoring"
+    detokenizer.perl -l en -q < "${result_path}/score/ref.txt.cleaned" \
+        > "${result_path}/score/ref.txt.cleaned.detok"
+    detokenizer.perl -l en -q < "${result_path}/score/recognized.txt.cleaned" \
+        > "${result_path}/score/recognized.txt.cleaned"
 
+    sacrebleu -lc "${result_path}/score/ref.txt.cleaned.detok" \
+                -i "${result_path}/score/recognized.txt.cleaned" \
+                -m bleu chrf ter \
+                >> ${result_path}/score/result.lc.txt
+fi
