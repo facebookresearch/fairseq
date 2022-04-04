@@ -228,8 +228,14 @@ class CodeHiFiGANVocoder(nn.Module):
     def forward(self, x: Dict[str, torch.Tensor], dur_prediction=False) -> torch.Tensor:
         assert "code" in x
         x["dur_prediction"] = dur_prediction
-        mask = x["code"] >= 0  # remove invalid code
+
+        # remove invalid code
+        mask = x["code"] >= 0
         x["code"] = x["code"][mask].unsqueeze(dim=0)
+        if "f0" in x:
+            f0_up_ratio = x["f0"].size(1) // x["code"].size(1)
+            mask = mask.unsqueeze(2).repeat(1, 1, f0_up_ratio).view(-1, x["f0"].size(1))
+            x["f0"] = x["f0"][mask].unsqueeze(dim=0)
 
         return self.model(**x).detach().squeeze()
 
