@@ -1,0 +1,23 @@
+includes: projects/task/ft.yaml
+dataset:
+  meta_processor: MSRVTTMetaProcessor
+  train_path: data/msrvtt/MSRVTT_train.csv
+  dup: 20
+  val_path: data/msrvtt/MSRVTT_JSFUSION_test.csv
+  vfeat_dir: data/feat/feat_vtt_s3d
+  text_processor: MSRVTTTextProcessor
+  json_path: data/msrvtt/MSRVTT_data.json
+  aligner: DSAligner
+  num_iso_layer: 12
+model:
+  model_cls: MMFusionJoint
+  mm_encoder_cls: MMBertForJoint
+loss:
+  loss_cls: V2TContraLoss
+fairseq:
+  dataset:
+    batch_size: 128
+  optimization:
+    max_epoch: 5
+  checkpoint:
+    save_dir: runs/task/vttqa

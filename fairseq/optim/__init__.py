@@ -13,11 +13,13 @@ from fairseq.optim.fairseq_optimizer import (  # noqa
     FairseqOptimizer,
     LegacyFairseqOptimizer,
 )
+from fairseq.optim.amp_optimizer import AMPOptimizer
 from fairseq.optim.fp16_optimizer import FP16Optimizer, MemoryEfficientFP16Optimizer
 from fairseq.optim.shard import shard_
 from omegaconf import DictConfig
 
 __all__ = [
+    "AMPOptimizer",
     "FairseqOptimizer",
     "FP16Optimizer",
     "MemoryEfficientFP16Optimizer",

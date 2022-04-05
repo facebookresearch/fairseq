@@ -5,37 +5,32 @@ defaults:
 
 hydra:
   run:
-    dir: ${common_eval.results_path}/beam${decoding.decoder.beam}_lmw${decoding.decoder.lmweight}_wrd${decoding.decoder.wordscore}_sil${decoding.decoder.silweight}
+    dir: ${common_eval.results_path}/beam${decoding.beam}_th${decoding.beamthreshold}_lmw${decoding.lmweight}_wrd${decoding.wordscore}_sil${decoding.silweight}
   sweep:
     dir: ${common_eval.results_path}
-    subdir: beam${decoding.decoder.beam}_th${decoding.decoder.beamthreshold}_lmw${decoding.decoder.lmweight}_wrd${decoding.decoder.wordscore}_sil${decoding.decoder.silweight}
+    subdir: beam${decoding.beam}_th${decoding.beamthreshold}_lmw${decoding.lmweight}_wrd${decoding.wordscore}_sil${decoding.silweight}
 
 task:
   _name: hubert_pretraining
   single_target: true
+  fine_tuning: true
   data: ???
   normalize: ???
 
 decoding:
-  exp_dir: ???
-  decoder:
-    name: fairseqlm
-    lexicon: ???
-    lmpath: ???
-    beamthreshold: 25 # 100
-    beam: 500
-    lmweight: 2
-    wordscore: -1
-    silweight: 0
-  write_sentences: true
+  type: fairseqlm
+  lexicon: ???
+  lmpath: ???
+  beamthreshold: 25
+  beam: 500
+  lmweight: 2
+  wordscore: -1
+  silweight: 0
   unique_wer_file: true
 common_eval:
-  results_path: ${decoding.exp_dir}/decode/${decoding.decoder.name}/${dataset.gen_subset}
+  results_path: ???
   path: ???
   post_process: letter
-generation:
-  nbest: 1
-  beam: 500
 dataset:
   max_tokens: 1100000
   gen_subset: ???

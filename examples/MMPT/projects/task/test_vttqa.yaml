@@ -1,0 +1,20 @@
+includes: projects/task/test.yaml
+dataset:
+  meta_processor: MSRVTTQAMetaProcessor
+  test_path: data/msrvtt-qa/MSR_MC_test.csv
+  video_processor: VideoProcessor
+  vfeat_dir: data/feat/feat_vtt_s3d
+  text_processor: MSRVTTQATextProcessor
+  aligner: MSRVTTQAAligner
+  num_iso_layer: 12
+model:
+  model_cls: MMFusionJoint
+  mm_encoder_cls: MMBertForJoint
+eval:
+  save_path: runs/task/vttqa/eval
+fairseq:
+  # read code and find what is the checkpoint arg.
+  common_eval:
+    path: runs/task/vttqa/checkpoint_last.pt
+metric: QAMetric
+predictor: QAPredictor

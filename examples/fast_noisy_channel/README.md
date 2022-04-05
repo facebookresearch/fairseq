@@ -29,9 +29,9 @@ This framework provides a great way to utlize strong target language models trai
 
 ### Training Translation Models and Language Models
 
-For training Transformer models in fairseq for machine translation, refer to instructions [here](https://github.com/pytorch/fairseq/tree/master/examples/translation)
+For training Transformer models in fairseq for machine translation, refer to instructions [here](https://github.com/pytorch/fairseq/tree/main/examples/translation)
 
-For training Transformer models in fairseq for language modeling, refer to instructions [here](https://github.com/pytorch/fairseq/tree/master/examples/language_model)
+For training Transformer models in fairseq for language modeling, refer to instructions [here](https://github.com/pytorch/fairseq/tree/main/examples/language_model)
 
 ### Generation with Language Model for German-English translation with fairseq
 

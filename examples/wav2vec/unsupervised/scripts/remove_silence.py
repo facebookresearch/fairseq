@@ -58,7 +58,6 @@ for i in tqdm.trange(len(paths)):
     if not os.path.isdir("/".join(outpath.split("/")[:-1])):
         os.makedirs("/".join(outpath.split("/")[:-1]))
     if not os.path.exists(outpath):
-        print(outpath)
         torchaudio.save(outpath, data_filtered, sample_rate=16000)
     else:
         print(outpath, "exists!")

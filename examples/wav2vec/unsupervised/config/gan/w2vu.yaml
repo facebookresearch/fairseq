@@ -10,9 +10,14 @@ common:
   suppress_crashes: false
 
 checkpoint:
+  save_interval: 1000
+  save_interval_updates: 1000
   no_epoch_checkpoints: true
   best_checkpoint_metric: weighted_lm_ppl
   save_dir: .
+
+distributed_training:
+  distributed_world_size: 1
 
 task:
   _name: unpaired_audio_text
@@ -30,6 +35,8 @@ dataset:
   batch_size: 160
   skip_invalid_size_inputs_valid_test: true
   valid_subset: valid
+  validate_interval: 1000
+  validate_interval_updates: 1000
 
 criterion:
   _name: model

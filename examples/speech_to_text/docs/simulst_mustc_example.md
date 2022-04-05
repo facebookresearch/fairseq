@@ -6,7 +6,7 @@ This is a tutorial of training and evaluating a transformer *wait-k* simultaneou
 
 ## Data Preparation
 This section introduces the data preparation for training and evaluation.
-If you only want to evaluate the model, please jump to [Inference & Evaluation](#inference-&-evaluation)
+If you only want to evaluate the model, please jump to [Inference & Evaluation](#inference--evaluation)
 
 [Download](https://ict.fbk.eu/must-c) and unpack MuST-C data to a path
 `${MUSTC_ROOT}/en-${TARGET_LANG_ID}`, then preprocess it with

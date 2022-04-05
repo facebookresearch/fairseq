@@ -13,6 +13,7 @@ from .conv_tbc import ConvTBC
 from typing import Dict, Optional
 from torch import Tensor
 
+
 @with_incremental_state
 class LinearizedConvolution(ConvTBC):
     """An optimized version of nn.Conv1d.
@@ -41,7 +42,11 @@ class LinearizedConvolution(ConvTBC):
             del state_dict[prefix + "_linearized_weight"]
 
     @torch.jit.export
-    def forward(self, input, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None):
+    def forward(
+        self,
+        input,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
+    ):
         """
         Args:
             incremental_state: Used to buffer signal; if not None, then input is
@@ -80,18 +85,28 @@ class LinearizedConvolution(ConvTBC):
         return output.view(bsz, 1, -1)
 
     @torch.jit.unused
-    def reorder_incremental_state(self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]], new_order):
+    def reorder_incremental_state(
+        self,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        new_order,
+    ):
         input_buffer = self._get_input_buffer(incremental_state)
         if input_buffer is not None:
             input_buffer = input_buffer.index_select(0, new_order)
             self._set_input_buffer(incremental_state, input_buffer)
 
     @torch.jit.unused
-    def _get_input_buffer(self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]):
+    def _get_input_buffer(
+        self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]
+    ):
         return utils.get_incremental_state(self, incremental_state, "input_buffer")
 
     @torch.jit.unused
-    def _set_input_buffer(self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]], new_buffer):
+    def _set_input_buffer(
+        self,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        new_buffer,
+    ):
         return utils.set_incremental_state(
             self, incremental_state, "input_buffer", new_buffer
         )

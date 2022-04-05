@@ -1,0 +1,32 @@
+includes: projects/task/test.yaml
+dataset:
+  split: test
+  meta_processor: CrossTaskMetaProcessor
+  test_path: data/crosstask/crosstask_release/videos_val.csv
+  train_csv_path: data/crosstask/crosstask_release/videos.csv
+  val_path: data/crosstask/crosstask_release/videos_val.csv  # dummy
+  val_csv_path: data/crosstask/crosstask_release/videos_val.csv    
+  primary_path: data/crosstask/crosstask_release/tasks_primary.txt
+  related_path: data/crosstask/crosstask_release/tasks_related.txt
+  vfeat_dir: data/feat/feat_crosstask_s3d
+  annotation_path: data/crosstask/crosstask_release/annotations
+  n_train: 30
+  video_processor: CrossTaskVideoProcessor
+  text_processor: CrossTaskTextProcessor
+  aligner: CrossTaskAligner
+  num_iso_layer: 12
+  sliding_window: 16
+  sliding_window_size: 32
+model:
+  model_cls: MMFusionActionLocalization
+  mm_encoder_cls: MMBertForJoint
+eval:
+  save_path: runs/task/crosstask_zs/eval
+fairseq:
+  # read code and find what is the checkpoint arg.
+  dataset:
+    batch_size: 1
+  common_eval:
+    path: runs/task/checkpoint_best.pt  # load the best from how2 on ACL submission:  runs/task/checkpoint11.pt
+metric: CrossTaskMetric
+predictor: CrossTaskPredictor

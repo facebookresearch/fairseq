@@ -5,30 +5,25 @@ defaults:
 
 hydra:
   run:
-    dir: ${common_eval.results_path}/beam${decoding.decoder.beam}_lmw${decoding.decoder.lmweight}_wrd${decoding.decoder.wordscore}_sil${decoding.decoder.silweight}
+    dir: ${common_eval.results_path}/viterbi
   sweep:
     dir: ${common_eval.results_path}
-    subdir: beam${decoding.decoder.beam}_th${decoding.decoder.beamthreshold}_lmw${decoding.decoder.lmweight}_wrd${decoding.decoder.wordscore}_sil${decoding.decoder.silweight}
+    subdir: viterbi
 
 task:
   _name: hubert_pretraining
   single_target: true
+  fine_tuning: true
   data: ???
   normalize: ???
 
 decoding:
-  exp_dir: ???
-  decoder:
-    name: viterbi
-  write_sentences: true
+  type: viterbi
   unique_wer_file: true
 common_eval:
-  results_path: ${decoding.exp_dir}/decode/${decoding.decoder.name}/${dataset.gen_subset}
+  results_path: ???
   path: ???
   post_process: letter
-generation:
-  nbest: 1
-  beam: 500
 dataset:
   max_tokens: 1100000
   gen_subset: ???

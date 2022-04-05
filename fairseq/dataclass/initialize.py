@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def hydra_init(cfg_name="config") -> None:
 
     cs = ConfigStore.instance()
-    cs.store(name=cfg_name, node=FairseqConfig)
+    cs.store(name=f"{cfg_name}", node=FairseqConfig)
 
     for k in FairseqConfig.__dataclass_fields__:
         v = FairseqConfig.__dataclass_fields__[k].default
@@ -28,7 +28,7 @@ def hydra_init(cfg_name="config") -> None:
 
 
 def add_defaults(cfg: DictConfig) -> None:
-    """This function adds default values that are stored in dataclasses that hydra doesn't know about """
+    """This function adds default values that are stored in dataclasses that hydra doesn't know about"""
 
     from fairseq.registry import REGISTRIES
     from fairseq.tasks import TASK_DATACLASS_REGISTRY
@@ -47,7 +47,7 @@ def add_defaults(cfg: DictConfig) -> None:
                 field_cfg = DictConfig({"_name": field_cfg})
                 field_cfg.__dict__["_parent"] = field_cfg.__dict__["_parent"]
 
-            name = field_cfg.get("_name")
+            name = getattr(field_cfg, "_name", None)
 
             if k == "task":
                 dc = TASK_DATACLASS_REGISTRY.get(name)

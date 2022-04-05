@@ -428,8 +428,6 @@ def generate(cfg: UnsupGenerateConfig, models, saved_cfg, use_cuda):
                 )
                 hypo_futures.append(hypos)
                 samples.append(sample)
-                if cfg.debug:
-                    break
         itr = list(zip(hypo_futures, samples))
         start = 0
         end = len(itr)
@@ -577,7 +575,7 @@ def main(cfg: UnsupGenerateConfig, model=None):
 
     overrides = ast.literal_eval(cfg.fairseq.common_eval.model_overrides)
 
-    if cfg.fairseq.task._name == "gan_audio_pretraining_feats":
+    if cfg.fairseq.task._name == "unpaired_audio_text":
         overrides["model"] = {
             "blank_weight": cfg.blank_weight,
             "blank_mode": cfg.blank_mode,
@@ -647,7 +645,7 @@ def main(cfg: UnsupGenerateConfig, model=None):
 
     lm_ppl = max(cfg.min_lm_ppl, lm_ppl)
 
-    if not cfg.unsupervised_tuning == 0:
+    if not cfg.unsupervised_tuning:
         weighted_score = wer
     else:
         weighted_score = math.log(lm_ppl) * (vt_diff or 1.0)
@@ -681,6 +679,9 @@ def hydra_main(cfg):
     )
     OmegaConf.set_struct(cfg, True)
     logger.info(cfg)
+
+    utils.import_user_module(cfg.fairseq.common)
+
     _, score = main(cfg)
 
     if cfg.is_ax:

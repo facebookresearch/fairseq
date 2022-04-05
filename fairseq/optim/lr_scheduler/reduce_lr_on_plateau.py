@@ -101,7 +101,7 @@ class ReduceLROnPlateauLRSchedule(FairseqLRScheduler):
 
         # initial learning rate
         # this self.lr is used only during init and/or warm up period
-        self.lr = cfg.warmup_init_lr
+        self.lr = warmup_end_lr if self.warmup_end else cfg.warmup_init_lr
         self.optimizer.set_lr(self.lr)
 
     def state_dict(self):

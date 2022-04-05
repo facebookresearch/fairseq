@@ -37,7 +37,7 @@ class NanDetector:
         gradients = {}
         for name, param in self.named_parameters:
             if param.grad is not None:
-                grad_norm = torch.norm(param.grad.data, p=2, dtype=torch.float32)
+                grad_norm = torch.norm(param.grad.data.float(), p=2)
                 norm[name] = grad_norm.item()
                 if torch.isnan(grad_norm).any() or torch.isinf(grad_norm).any():
                     gradients[name] = param.grad.data

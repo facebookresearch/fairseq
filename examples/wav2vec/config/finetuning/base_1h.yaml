@@ -6,14 +6,14 @@ common:
   log_interval: 200
 
 checkpoint:
-  save_interval: 1000
-  save_interval_updates: 50
+  save_interval: 50
+  save_interval_updates: 1000
   keep_interval_updates: 1
   no_epoch_checkpoints: true
   best_checkpoint_metric: wer
 
 task:
-  _name: audio_pretraining
+  _name: audio_finetuning
   data: ???
   normalize: false
   labels: ltr
@@ -61,4 +61,3 @@ model:
   activation_dropout: 0.1
   feature_grad_mult: 0.0
   freeze_finetune_updates: 10000
-
