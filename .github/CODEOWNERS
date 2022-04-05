@@ -1,0 +1,18 @@
+# Setting up CODEOWNERS for UST related codebase
+# Documentation for open sourced models relevant to UST
+examples/speech_to_text     @kahne @sravyapopuri388 @jmp84
+examples/speech_to_speech   @an918tw @sravyapopuri388 @jmp84
+examples/speech_synthesis   @kahne @jmp84
+examples/simultaneous_translation   @kahne @jmp84
+examples/speech_text_joint_to_text  @yuntang @jmp84
+
+# Speech related models relevant to UST
+fairseq/models/speech_to_speech @sravyapopuri388 @jmp84
+fairseq/models/speech_to_text   @kahne @sravyapopuri388 @jmp84
+fairseq/models/text_to_speech   @kahne @jmp84
+
+# CONFORMER IMPLEMENTATION
+fairseq/modules/conformer_layer.py @sravyapopuri388 @jmp84
+fairseq/modules/espnet_multihead_attention.py @sravyapopuri388 @jmp84
+fairseq/modules/rotary_positional_embedding.py @sravyapopuri388 @jmp84
+fairseq/modules/positional_encoding.py @sravyapopuri388 @jmp84
