@@ -16,6 +16,7 @@ task:
   fine_tuning: true
   data: ???
   normalize: ???
+  pad_audio: true
 
 decoding:
   type: kenlm
