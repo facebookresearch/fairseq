@@ -288,7 +288,7 @@ class DistributedTrainingConfig(FairseqDataclass):
     device_id: int = field(
         default=os.getenv("LOCAL_RANK", 0),
         metadata={
-            "help": "which GPU to use (usually configured automatically)",
+            "help": "which GPU to use (by default looks for $LOCAL_RANK, usually configured automatically)",
             "argparse_alias": "--local_rank",
         },
     )
