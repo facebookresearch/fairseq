@@ -141,7 +141,7 @@ class HubertDataset(FairseqDataset):
         self.single_target = single_target
         self.label_rates = (
             [label_rates for _ in range(len(label_paths))]
-            if isinstance(label_rates, int)
+            if isinstance(label_rates, float)
             else label_rates
         )
         self.store_labels = store_labels
@@ -302,7 +302,7 @@ class HubertDataset(FairseqDataset):
         targets_list, lengths_list, ntokens_list = [], [], []
         itr = zip(targets_by_label, self.label_rates, self.pad_list)
         for targets, label_rate, pad in itr:
-            if label_rate == -1:
+            if label_rate == -1.0:
                 targets, lengths, ntokens = self.collater_seq_label(targets, pad)
             else:
                 targets, lengths, ntokens = self.collater_frm_label(

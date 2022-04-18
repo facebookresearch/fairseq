@@ -232,7 +232,7 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
                 )
             else:
                 raise ValueError(
-                    f"--funetune-from-model {cfg.finetune_from_model} does not exist"
+                    f"--finetune-from-model {cfg.finetune_from_model} does not exist"
                 )
     elif suffix is not None:
         checkpoint_path = cfg.restore_file.replace(".pt", suffix + ".pt")
