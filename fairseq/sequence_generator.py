@@ -80,6 +80,7 @@ class SequenceGenerator(nn.Module):
         self.beam_size = beam_size
         # the max beam size is the dictionary size - 1, since we never select pad
         self.beam_size = min(beam_size, self.vocab_size - 1)
+        self.model.set_decoder_beam_size(self.beam_size)
         self.max_len_a = max_len_a
         self.max_len_b = max_len_b
         self.min_len = min_len
@@ -767,6 +768,13 @@ class EnsembleModel(nn.Module):
             ]
             + [sys.maxsize]
         )
+
+    def set_decoder_beam_size(self, beam_size):
+        """Set beam size for efficient beamable enc-dec attention."""
+        if beam_size > 1:
+            for model in self.models:
+                if hasattr(model, 'set_beam_size'):
+                    model.set_beam_size(beam_size)
 
     @torch.jit.export
     def forward_encoder(self, net_input: Dict[str, Tensor]):

@@ -279,6 +279,17 @@ class BARTModel(TransformerModel):
                     logger.info("Overwriting " + prefix + "classification_heads." + k)
                     state_dict[prefix + "classification_heads." + k] = v
 
+    def set_beam_size(self, beam):
+        """Set beam size for efficient beamable enc-dec attention."""
+        beamable = False
+        for layer in self.decoder.layers:
+            if layer.encoder_attn is not None:
+                if hasattr(layer.encoder_attn, "set_beam_size"):
+                    layer.encoder_attn.set_beam_size(beam)
+                    beamable = True
+        if beamable:
+            self.encoder.reorder_encoder_out = self.encoder._reorder_encoder_out
+
 
 class BARTClassificationHead(nn.Module):
     """Head for sentence-level classification tasks."""
