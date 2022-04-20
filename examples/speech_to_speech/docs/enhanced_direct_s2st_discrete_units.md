@@ -38,7 +38,7 @@ sed -i "1s/.*/$var/" ${SPLIT}.tsv
 
 **Speech-to-unit translation (S2UT)**
 
-Here's an example for finetuning S2UT models with 1000 discrete units as target. You can download the config file and vocabulary from here[add links]:
+Here's an example for finetuning S2UT models with 1000 discrete units as target. You can download the [config](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/config.yaml) file and [vocabulary](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/dict.txt) from here:
 
 ```
 fairseq-train $DATA_ROOT \

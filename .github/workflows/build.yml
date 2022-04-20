@@ -56,5 +56,5 @@ jobs:
 
     - name: Lint with black
       run: |
-        pip install black
+        pip install black==22.3.0
         black --check . --extend-exclude 'examples|fairseq\/model_parallel\/megatron'
