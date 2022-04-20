@@ -366,7 +366,7 @@ class SequenceGenerator(nn.Module):
             if (
                 prefix_tokens is not None
                 and step < prefix_tokens.size(1)
-                and step < max_len
+                and step < max_len + 1
             ):
                 lprobs, tokens, scores = self._prefix_tokens(
                     step, lprobs, scores, tokens, prefix_tokens, beam_size
@@ -449,7 +449,7 @@ class SequenceGenerator(nn.Module):
                 break
             if self.search.stop_on_max_len and step >= max_len:
                 break
-            assert step < max_len, f"{step} < {max_len}"
+            assert step < max_len + 1, f"{step} < {max_len + 1}"
 
             # Remove finalized sentences (ones for which {beam_size}
             # finished hypotheses have been generated) from the batch.
