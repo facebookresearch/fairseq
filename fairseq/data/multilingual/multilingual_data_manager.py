@@ -919,7 +919,7 @@ class MultilingualDatasetManager(object):
                     # monolingual data requires tgt only
                     assert src is None or src == tgt, (
                         f"error: src={src}, "
-                        "tgt={tgt} for data_category={data_category}"
+                        f"tgt={tgt} for data_category={data_category}"
                     )
                     num_shards_dict[key] = shards_dict[tgt]
                 else:
@@ -972,7 +972,7 @@ class MultilingualDatasetManager(object):
             lang_dirs = [x if len(x) > 1 else (x[0], x[0]) for x in lang_dirs]
             for src, tgt in lang_dirs:
                 assert src is not None or data_category == "mono_dae", (
-                    f"error: src={src}, " "tgt={tgt} for data_category={data_category}"
+                    f"error: src={src}, " f"tgt={tgt} for data_category={data_category}"
                 )
                 # logger.info(f"preparing param for {data_category}: {src} - {tgt}")
                 key = self.get_dataset_key(data_category, src, tgt)
