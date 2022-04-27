@@ -352,9 +352,13 @@ class MultiheadAttention(nn.Module):
             else:
                 if self.beam_size > 1 and bsz == key.size(1):
                     # key is [T, bsz*beam_size, C], reduce to [T, bsz, C]
-                    key = key.view(key.size(0), -1, self.beam_size, key.size(2))[:, :, 0, :]
+                    key = key.view(key.size(0), -1, self.beam_size, key.size(2))[
+                        :, :, 0, :
+                    ]
                     if key_padding_mask is not None:
-                        key_padding_mask = key_padding_mask.view(-1, self.beam_size, key_padding_mask.size(1))[:, 0, :]
+                        key_padding_mask = key_padding_mask.view(
+                            -1, self.beam_size, key_padding_mask.size(1)
+                        )[:, 0, :]
                 k = self.k_proj(key)
                 v = self.v_proj(key)
 
@@ -419,7 +423,9 @@ class MultiheadAttention(nn.Module):
                 _prev_value = saved_state["prev_value"]
                 assert _prev_value is not None
                 assert kv_bsz == _prev_value.size(0)
-                prev_value = _prev_value.view(kv_bsz * self.num_heads, -1, self.head_dim)
+                prev_value = _prev_value.view(
+                    kv_bsz * self.num_heads, -1, self.head_dim
+                )
                 if static_kv:
                     v = prev_value
                 else:
@@ -438,7 +444,9 @@ class MultiheadAttention(nn.Module):
             )
 
             saved_state["prev_key"] = k.view(kv_bsz, self.num_heads, -1, self.head_dim)
-            saved_state["prev_value"] = v.view(kv_bsz, self.num_heads, -1, self.head_dim)
+            saved_state["prev_value"] = v.view(
+                kv_bsz, self.num_heads, -1, self.head_dim
+            )
             saved_state["prev_key_padding_mask"] = key_padding_mask
             # In this branch incremental_state is never None
             assert incremental_state is not None
@@ -498,7 +506,9 @@ class MultiheadAttention(nn.Module):
             # don't attend to padding symbols
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
             if not is_tpu:
-                attn_weights = attn_weights.view(kv_bsz, -1, self.num_heads, tgt_len, src_len)
+                attn_weights = attn_weights.view(
+                    kv_bsz, -1, self.num_heads, tgt_len, src_len
+                )
                 attn_weights = attn_weights.masked_fill(
                     key_padding_mask.unsqueeze(1)
                     .unsqueeze(2)
@@ -525,8 +535,21 @@ class MultiheadAttention(nn.Module):
         if self.encoder_decoder_attention and bsz != kv_bsz:
             attn = torch.einsum(
                 "bxhts,bhsd->bxhtd",
-                attn_probs.view((kv_bsz, -1, self.num_heads,) + attn_probs.size()[1:]),
-                v.view((kv_bsz, self.num_heads,) + v.size()[1:]),
+                attn_probs.view(
+                    (
+                        kv_bsz,
+                        -1,
+                        self.num_heads,
+                    )
+                    + attn_probs.size()[1:]
+                ),
+                v.view(
+                    (
+                        kv_bsz,
+                        self.num_heads,
+                    )
+                    + v.size()[1:]
+                ),
             )
             attn = attn.reshape((-1,) + attn.size()[-2:])
         else:
@@ -610,7 +633,11 @@ class MultiheadAttention(nn.Module):
                         if input_buffer_k.size(0) * self.beam_size == new_order.size(0):
                             return incremental_state
                         elif self.beam_size > 1:
-                            input_buffer[k] = input_buffer_k.index_select(0, new_order.reshape(-1, self.beam_size)[:, 0] // self.beam_size)
+                            input_buffer[k] = input_buffer_k.index_select(
+                                0,
+                                new_order.reshape(-1, self.beam_size)[:, 0]
+                                // self.beam_size,
+                            )
                         else:
                             input_buffer[k] = input_buffer_k.index_select(0, new_order)
                     else:
