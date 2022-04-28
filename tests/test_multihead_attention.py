@@ -6,11 +6,11 @@
 import unittest
 
 import torch
+
 from fairseq.modules.multihead_attention import MultiheadAttention
 
 
 def test_mask_padding_parity():
-
     def old_padding_code(key_padding_mask, attn_mask):
         if attn_mask is not None:
             attn_mask = torch.cat(
@@ -20,9 +20,7 @@ def test_mask_padding_parity():
             key_padding_mask = torch.cat(
                 [
                     key_padding_mask,
-                    torch.zeros(key_padding_mask.size(0), 1).type_as(
-                        key_padding_mask
-                    ),
+                    torch.zeros(key_padding_mask.size(0), 1).type_as(key_padding_mask),
                 ],
                 dim=1,
             )
@@ -84,8 +82,12 @@ def test_add_bias_parity():
     k = torch.rand((seq_len, bsz, embedding))
     v = torch.rand((seq_len, bsz, embedding))
 
-    k_orig, v_orig, kp_mask_orig, a_mask_orig = old_bias_code(k, v, key_padding_mask, attn_mask, bsz)
-    k_new, v_new, kp_mask_new, a_mask_new = mha._add_bias(k, v, key_padding_mask, attn_mask, bsz)
+    k_orig, v_orig, kp_mask_orig, a_mask_orig = old_bias_code(
+        k, v, key_padding_mask, attn_mask, bsz
+    )
+    k_new, v_new, kp_mask_new, a_mask_new = mha._add_bias(
+        k, v, key_padding_mask, attn_mask, bsz
+    )
 
     assert torch.equal(k_orig, k_new)
     assert torch.equal(v_orig, v_new)

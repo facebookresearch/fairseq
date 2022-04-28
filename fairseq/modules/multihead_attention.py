@@ -272,7 +272,9 @@ class MultiheadAttention(nn.Module):
         assert self.bias_v is not None
         k = torch.cat([k, self.bias_k.repeat(1, bsz, 1)])
         v = torch.cat([v, self.bias_v.repeat(1, bsz, 1)])
-        key_padding_mask, attn_mask = self._pad_masks(key_padding_mask=key_padding_mask, attn_mask=attn_mask)
+        key_padding_mask, attn_mask = self._pad_masks(
+            key_padding_mask=key_padding_mask, attn_mask=attn_mask
+        )
         return k, v, key_padding_mask, attn_mask
 
     def _append_zero_attn(
@@ -289,7 +291,9 @@ class MultiheadAttention(nn.Module):
         v = torch.cat(
             [v, torch.zeros(zero_attn_shape, dtype=v.dtype, device=v.device)], dim=-2
         )
-        key_padding_mask, attn_mask = self._pad_masks(key_padding_mask=key_padding_mask, attn_mask=attn_mask)
+        key_padding_mask, attn_mask = self._pad_masks(
+            key_padding_mask=key_padding_mask, attn_mask=attn_mask
+        )
         return k, v, key_padding_mask, attn_mask
 
     def forward(
