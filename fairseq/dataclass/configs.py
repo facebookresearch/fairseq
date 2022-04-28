@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import os
 import sys
 from dataclasses import _MISSING_TYPE, dataclass, field
 from typing import Any, List, Optional
@@ -285,9 +286,9 @@ class DistributedTrainingConfig(FairseqDataclass):
         },
     )
     device_id: int = field(
-        default=0,
+        default=os.getenv("LOCAL_RANK", 0),
         metadata={
-            "help": "which GPU to use (usually configured automatically)",
+            "help": "which GPU to use (by default looks for $LOCAL_RANK, usually configured automatically)",
             "argparse_alias": "--local_rank",
         },
     )
