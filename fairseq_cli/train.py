@@ -39,6 +39,7 @@ from fairseq.file_io import PathManager
 from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from fairseq.trainer import Trainer
+from fairseq.deepspeed_trainer import DeepSpeedTrainer
 
 
 def main(cfg: FairseqConfig) -> None:
@@ -88,10 +89,23 @@ def main(cfg: FairseqConfig) -> None:
 
     assert cfg.criterion, "Please specify criterion to train a model"
 
+    os.environ['LOCAL_RANK'] = str(cfg.distributed_training.device_id)
+    if cfg.distributed_training.distributed_world_size == 1:
+        os.environ['RANK'] = "0"
+        os.environ['WORLD_SIZE'] = "1"
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ['MASTER_PORT'] = "29500"
+
     # Build model and criterion
     if cfg.distributed_training.ddp_backend == "fully_sharded":
         with fsdp_enable_wrap(cfg.distributed_training):
             model = fsdp_wrap(task.build_model(cfg.model))
+    elif cfg.common.zero == 3:
+        import deepspeed
+        logger.info("Creating model within ZeRO-3 context")
+        with deepspeed.zero.Init(mem_efficient_linear=True):
+            model = task.build_model(cfg.model)
+        logger.info("Finished creating model within ZeRO-3 context")
     else:
         model = task.build_model(cfg.model)
     criterion = task.build_criterion(cfg.criterion)
@@ -143,7 +157,9 @@ def main(cfg: FairseqConfig) -> None:
         quantizer = None
 
     # Build trainer
-    if cfg.common.model_parallel_size == 1:
+    if cfg.common.deepspeed:
+        trainer = DeepSpeedTrainer(cfg, task, model, criterion, quantizer)
+    elif cfg.common.model_parallel_size == 1:
         trainer = Trainer(cfg, task, model, criterion, quantizer)
     else:
         trainer = MegatronTrainer(cfg, task, model, criterion)

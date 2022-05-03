@@ -383,7 +383,7 @@ class Trainer(object):
             )  # only returns on rank 0
             self._gathered_optim_state = st
 
-    def state_dict(self):
+    def state_dict(self, exclude_model_and_optim=False):
         state_dict = {
             "args": None,  # legacy
             "cfg": (
@@ -391,7 +391,7 @@ class Trainer(object):
                 if OmegaConf.is_config(self.cfg)
                 else self.cfg
             ),
-            "model": self.model.state_dict(),
+            "model": None if exclude_model_and_optim else self.model.state_dict(),
             "criterion": (
                 self.criterion.state_dict()
                 if utils.has_parameters(self.criterion)
@@ -423,7 +423,7 @@ class Trainer(object):
                 state_dict["last_optimizer_state"] = self._gathered_optim_state
                 self._gathered_optim_state = None
             else:
-                state_dict["last_optimizer_state"] = self.optimizer.state_dict()
+                state_dict["last_optimizer_state"] = None if exclude_model_and_optim else self.optimizer.state_dict()
         if self.is_fsdp:
             # save meta data for recombining checkpoint upon loading
             state_dict["fsdp_metadata"] = self.model.local_metadata_dict()

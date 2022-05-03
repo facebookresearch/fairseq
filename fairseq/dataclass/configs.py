@@ -249,7 +249,31 @@ class CommonConfig(FairseqDataclass):
             "help": "path to run plasma_store, defaults to /tmp/plasma. Paths outside /tmp tend to fail."
         },
     )
-
+    deepspeed: bool = field(
+        default=False,
+        metadata={
+            "help": "enable DeepSpeed trainer"
+        },
+    )
+    ds_config: Optional[str] = field(
+        default="",
+        metadata={
+            "help": "path to ds_config.json, this is optional and will override auto-generated "
+            "values from the fairseq DeepSpeedTrainer"
+        }
+    )
+    zero: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": "ZeRO stage when using the DeepSpeed trainer"
+        }
+    )
+    exit_interval: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": "Exit the program after the iteration is divisible by this value."
+        } 
+    )
 
 @dataclass
 class DistributedTrainingConfig(FairseqDataclass):

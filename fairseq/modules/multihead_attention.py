@@ -15,6 +15,7 @@ from fairseq import utils
 from fairseq.incremental_decoding_utils import with_incremental_state
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
+import deepspeed
 
 
 @with_incremental_state
@@ -94,24 +95,26 @@ class MultiheadAttention(nn.Module):
         self.onnx_trace = True
 
     def reset_parameters(self):
-        if self.qkv_same_dim:
-            # Empirically observed the convergence to be much better with
-            # the scaled initialization
-            nn.init.xavier_uniform_(self.k_proj.weight, gain=1 / math.sqrt(2))
-            nn.init.xavier_uniform_(self.v_proj.weight, gain=1 / math.sqrt(2))
-            nn.init.xavier_uniform_(self.q_proj.weight, gain=1 / math.sqrt(2))
-        else:
-            nn.init.xavier_uniform_(self.k_proj.weight)
-            nn.init.xavier_uniform_(self.v_proj.weight)
-            nn.init.xavier_uniform_(self.q_proj.weight)
+        params = [self.k_proj.weight, self.v_proj.weight, self.q_proj.weight, self.out_proj.weight, self.out_proj.bias]
+        with deepspeed.zero.GatheredParameters(params=params, modifier_rank=0):
+            if self.qkv_same_dim:
+                # Empirically observed the convergence to be much better with
+                # the scaled initialization
+                nn.init.xavier_uniform_(self.k_proj.weight, gain=1 / math.sqrt(2))
+                nn.init.xavier_uniform_(self.v_proj.weight, gain=1 / math.sqrt(2))
+                nn.init.xavier_uniform_(self.q_proj.weight, gain=1 / math.sqrt(2))
+            else:
+                nn.init.xavier_uniform_(self.k_proj.weight)
+                nn.init.xavier_uniform_(self.v_proj.weight)
+                nn.init.xavier_uniform_(self.q_proj.weight)
 
-        nn.init.xavier_uniform_(self.out_proj.weight)
-        if self.out_proj.bias is not None:
-            nn.init.constant_(self.out_proj.bias, 0.0)
-        if self.bias_k is not None:
-            nn.init.xavier_normal_(self.bias_k)
-        if self.bias_v is not None:
-            nn.init.xavier_normal_(self.bias_v)
+            nn.init.xavier_uniform_(self.out_proj.weight)
+            if self.out_proj.bias is not None:
+                nn.init.constant_(self.out_proj.bias, 0.0)
+            if self.bias_k is not None:
+                nn.init.xavier_normal_(self.bias_k)
+            if self.bias_v is not None:
+                nn.init.xavier_normal_(self.bias_v)
 
     def _get_reserve_head_index(self, num_heads_to_keep: int):
         k_proj_heads_norm = []
