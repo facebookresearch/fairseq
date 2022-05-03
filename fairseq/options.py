@@ -20,7 +20,7 @@ from fairseq.dataclass.configs import (
     GenerationConfig,
     InteractiveConfig,
     OptimizationConfig,
-    EMAConfig
+    EMAConfig,
 )
 from fairseq.dataclass.utils import gen_parser_from_dataclass
 
