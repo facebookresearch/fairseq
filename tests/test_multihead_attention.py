@@ -3,11 +3,343 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import random
 import unittest
 
+import pytest
 import torch
+from fairseq.modules.multihead_attention import MultiheadAttention, _mask_for_xformers
 
-from fairseq.modules.multihead_attention import MultiheadAttention
+BATCH = [20, 41, 97]
+SEQ = [64]
+EMB = [48]
+HEADS = [4]
+DROP = 0.1
+DEVICE = ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
+ATTN_MASK_DTYPE = [None, torch.uint8, torch.bool, torch.float]
+KEY_PADDING_MASK_DTYPE = [None, torch.uint8, torch.bool]
+
+
+# FIXME: some tests fail when decimal=2, fix this and set decimal to 2
+def assert_almost_equal(x, y, decimal=1, err_msg=""):
+    import numpy.testing as npt
+
+    if isinstance(x, torch.Tensor):
+        x = x.cpu().detach().numpy()
+    if isinstance(y, torch.Tensor):
+        y = y.cpu().detach().numpy()
+    npt.assert_array_almost_equal(x, y, err_msg=err_msg, decimal=decimal)
+
+
+def _reset_seeds():
+    torch.manual_seed(0)
+    torch.random.manual_seed(0)
+    random.seed(0)
+    torch.cuda.manual_seed_all(0)
+
+
+def _get_mask(to_dtype: torch.dtype, dim0: int, dim1: int):
+    if to_dtype == torch.float:
+        mask = torch.randint(0, 2, (dim0, dim1)).to(dtype=torch.bool)
+        return mask.to(dtype=to_dtype).masked_fill(mask, -float("inf"))
+    return torch.randint(0, 2, (dim0, dim1)).to(dtype=to_dtype)
+
+
+def test_mask_for_xformers():
+    # Additive Mask
+    m_float_add = torch.tensor([float("-inf"), 0]).to(torch.float)
+    m_float_add_flipped = torch.tensor([0, float("-inf")]).to(torch.float)
+    m_float16_add = torch.tensor([float("-inf"), 0]).to(torch.float16)
+    m_float16_add_flipped = torch.tensor([0, float("-inf")]).to(torch.float16)
+    m_uint = torch.tensor([1, 0]).to(torch.uint8)
+    m_uint_flipped = torch.tensor([0, 1]).to(torch.uint8)
+    m_bool = torch.tensor([False, True])
+
+    assert torch.equal(_mask_for_xformers(m_float_add), m_float_add)
+    assert torch.equal(_mask_for_xformers(m_float16_add), m_float16_add)
+    assert torch.equal(_mask_for_xformers(m_uint), m_uint_flipped)
+    assert torch.equal(_mask_for_xformers(m_bool), ~m_bool)
+
+    assert torch.equal(
+        _mask_for_xformers(m_float_add, to_dtype=torch.float16), m_float16_add
+    )
+    assert torch.equal(
+        _mask_for_xformers(m_float_add, to_dtype=torch.float), m_float_add
+    )
+    assert torch.equal(_mask_for_xformers(m_float_add, to_dtype=torch.bool), m_bool)
+    assert torch.equal(
+        _mask_for_xformers(m_float_add, to_dtype=torch.uint8), m_uint_flipped
+    )
+
+    assert torch.equal(
+        _mask_for_xformers(m_float16_add, to_dtype=torch.float16), m_float16_add
+    )
+    assert torch.equal(
+        _mask_for_xformers(m_float16_add, to_dtype=torch.float), m_float_add
+    )
+    assert torch.equal(_mask_for_xformers(m_float16_add, to_dtype=torch.bool), m_bool)
+    assert torch.equal(
+        _mask_for_xformers(m_float16_add, to_dtype=torch.uint8), m_uint_flipped
+    )
+
+    assert torch.equal(
+        _mask_for_xformers(m_bool, to_dtype=torch.float16), m_float16_add_flipped
+    )
+    assert torch.equal(
+        _mask_for_xformers(m_bool, to_dtype=torch.float), m_float_add_flipped
+    )
+    assert torch.equal(_mask_for_xformers(m_bool, to_dtype=torch.bool), ~m_bool)
+    assert torch.equal(_mask_for_xformers(m_bool, to_dtype=torch.uint8), m_uint)
+
+    assert torch.equal(
+        _mask_for_xformers(m_uint, to_dtype=torch.float16), m_float16_add
+    )
+    assert torch.equal(_mask_for_xformers(m_uint, to_dtype=torch.float), m_float_add)
+    assert torch.equal(_mask_for_xformers(m_uint, to_dtype=torch.bool), m_bool)
+    assert torch.equal(_mask_for_xformers(m_uint, to_dtype=torch.uint8), m_uint_flipped)
+
+
+@pytest.mark.parametrize("device", ["cuda"])
+@pytest.mark.parametrize("attn_dtype", ATTN_MASK_DTYPE)
+@pytest.mark.parametrize("key_padding_dtype", KEY_PADDING_MASK_DTYPE)
+@pytest.mark.parametrize("add_zero_attn", [False])
+@pytest.mark.parametrize("batch_size", [20])
+@pytest.mark.parametrize("embedding", [64])
+@pytest.mark.parametrize("seq_len", [64])
+@pytest.mark.parametrize("num_heads", [4])
+def test_xformers_blocksparse_parity(
+    device,
+    attn_dtype,
+    key_padding_dtype,
+    add_zero_attn,
+    batch_size,
+    embedding,
+    seq_len,
+    num_heads,
+):
+
+    xformers_att_config = '{"name": "scaled_dot_product"}'
+    xformers_blocksparse_blocksize = 16
+    xformers_blocksparse_layout = torch.ones(
+        seq_len // xformers_blocksparse_blocksize,
+        seq_len // xformers_blocksparse_blocksize,
+    )
+
+    attn_mask = (
+        None
+        if attn_dtype is None
+        else _get_mask(to_dtype=attn_dtype, dim0=seq_len, dim1=seq_len).to(device)
+    )
+
+    key_padding_mask = (
+        None
+        if key_padding_dtype is None
+        else _get_mask(to_dtype=key_padding_dtype, dim0=batch_size, dim1=seq_len).to(
+            device
+        )
+    )
+
+    q = torch.rand(seq_len, batch_size, embedding).to(device).half()
+    q.requires_grad = True
+    k = torch.rand(seq_len, batch_size, embedding).to(device).half()
+    k.requires_grad = True
+    v = torch.rand(seq_len, batch_size, embedding).to(device).half()
+    v.requires_grad = True
+
+    q_ = q.detach().clone().half()
+    q_.requires_grad = True
+    k_ = k.detach().clone().half()
+    k_.requires_grad = True
+    v_ = v.detach().clone().half()
+    v_.requires_grad = True
+
+    _reset_seeds()
+    xf_blocksparse_mha = (
+        MultiheadAttention(
+            embedding,
+            num_heads,
+            dropout=0.0,
+            add_zero_attn=add_zero_attn,
+            xformers_att_config=xformers_att_config,
+            xformers_blocksparse_layout=xformers_blocksparse_layout,
+            xformers_blocksparse_blocksize=xformers_blocksparse_blocksize,
+        )
+        .to(device)
+        .half()
+    )
+
+    xf_blocksparse_output, _ = xf_blocksparse_mha(
+        q,
+        k,
+        v,
+        key_padding_mask=key_padding_mask,
+        attn_mask=attn_mask,
+    )
+
+    _reset_seeds()
+    xformers_mha = (
+        MultiheadAttention(
+            embedding,
+            num_heads,
+            dropout=0.0,
+            add_zero_attn=add_zero_attn,
+            xformers_att_config=xformers_att_config,
+            xformers_blocksparse_layout=None,
+        )
+        .to(device)
+        .half()
+    )
+
+    xformers_output, _ = xformers_mha(
+        q_,
+        k_,
+        v_,
+        key_padding_mask=key_padding_mask,
+        attn_mask=attn_mask,
+    )
+
+    # # account for when nan != nan
+    rand = random.uniform(0, 1)
+    xformers_output = xformers_output.masked_fill(xformers_output.isnan(), rand)
+    xf_blocksparse_output = xf_blocksparse_output.masked_fill(
+        xf_blocksparse_output.isnan(), rand
+    )
+
+    assert_almost_equal(xformers_output, xf_blocksparse_output)
+
+    loss_blocksparse = torch.norm(xformers_output)
+    loss_original = torch.norm(xf_blocksparse_output)
+    loss_blocksparse.backward()
+    loss_original.backward()
+
+    q.masked_fill(q.isnan(), rand)
+    q_.masked_fill(q_.isnan(), rand)
+    k.masked_fill(k.isnan(), rand)
+    k_.masked_fill(k_.isnan(), rand)
+    v.masked_fill(v.isnan(), rand)
+    v_.masked_fill(v_.isnan(), rand)
+
+    assert_almost_equal(q.grad, q_.grad)
+    assert_almost_equal(k.grad, k_.grad)
+    assert_almost_equal(v.grad, v_.grad)
+
+
+@pytest.mark.parametrize("device", DEVICE)
+@pytest.mark.parametrize("attn_dtype", ATTN_MASK_DTYPE)
+@pytest.mark.parametrize("key_padding_dtype", KEY_PADDING_MASK_DTYPE)
+@pytest.mark.parametrize("add_bias_kv", [True, False])
+@pytest.mark.parametrize("add_zero_attn", [True, False])
+# TODO: test with static_kv True
+@pytest.mark.parametrize("static_kv", [False])
+@pytest.mark.parametrize("batch_size", BATCH)
+@pytest.mark.parametrize("embedding", EMB)
+@pytest.mark.parametrize("seq_len", SEQ)
+@pytest.mark.parametrize("num_heads", HEADS)
+def test_xformers_single_forward_parity(
+    device,
+    attn_dtype,
+    key_padding_dtype,
+    add_bias_kv,
+    add_zero_attn,
+    static_kv,
+    batch_size,
+    embedding,
+    seq_len,
+    num_heads,
+):
+
+    xformers_att_config = '{"name": "scaled_dot_product"}'
+
+    attn_mask = (
+        None
+        if attn_dtype is None
+        else _get_mask(to_dtype=attn_dtype, dim0=seq_len, dim1=seq_len).to(device)
+    )
+    key_padding_mask = (
+        None
+        if key_padding_dtype is None
+        else _get_mask(to_dtype=key_padding_dtype, dim0=batch_size, dim1=seq_len).to(
+            device
+        )
+    )
+
+    q = torch.rand(seq_len, batch_size, embedding).to(device)
+    q.requires_grad = True
+    k = torch.rand(seq_len, batch_size, embedding).to(device)
+    k.requires_grad = True
+    v = torch.rand(seq_len, batch_size, embedding).to(device)
+    v.requires_grad = True
+
+    q_ = q.detach().clone()
+    q_.requires_grad = True
+    k_ = k.detach().clone()
+    k_.requires_grad = True
+    v_ = v.detach().clone()
+    v_.requires_grad = True
+
+    # TODO: dropouts in the two implementations lead to different entries dropped.
+    _reset_seeds()
+    xformers_mha = MultiheadAttention(
+        embedding,
+        num_heads,
+        dropout=0.0,
+        xformers_att_config=xformers_att_config,
+        add_bias_kv=add_bias_kv,
+        add_zero_attn=add_zero_attn,
+    ).to(device)
+    xformers_output, _ = xformers_mha(
+        q,
+        k,
+        v,
+        key_padding_mask=key_padding_mask,
+        attn_mask=attn_mask,
+        static_kv=static_kv,
+    )
+
+    _reset_seeds()
+    original_mha = MultiheadAttention(
+        embedding,
+        num_heads,
+        dropout=0.0,
+        xformers_att_config=None,
+        add_bias_kv=add_bias_kv,
+        add_zero_attn=add_zero_attn,
+    ).to(device)
+    original_output, _ = original_mha(
+        q_,
+        k_,
+        v_,
+        key_padding_mask=key_padding_mask,
+        attn_mask=attn_mask,
+        static_kv=static_kv,
+    )
+
+    # account for when nan != nan
+    if xformers_output.isnan().any() or original_output.isnan().any():
+        rand = random.uniform(0, 1)
+        xformers_output = xformers_output.masked_fill(xformers_output.isnan(), rand)
+        original_output = original_output.masked_fill(original_output.isnan(), rand)
+
+    # torch.equal works for cpu, on cuda allclose is needed.
+    assert torch.allclose(
+        xformers_output, original_output, atol=1e-06
+    ), f"max diff is {torch.max(torch.abs(xformers_output - original_output))}"
+
+    loss_xformers = torch.norm(xformers_output)
+    loss_original = torch.norm(original_output)
+    loss_xformers.backward()
+    loss_original.backward()
+
+    # torch.equal works for cpu, on cuda allclose is needed.
+    assert torch.allclose(
+        q.grad, q_.grad
+    ), f"max diff is {torch.max(torch.abs(q.grad - q_.grad))}"
+    assert torch.allclose(
+        k.grad, k_.grad
+    ), f"max diff is {torch.max(torch.abs(k.grad - k_.grad))}"
+    assert torch.allclose(
+        v.grad, v_.grad
+    ), f"max diff is {torch.max(torch.abs(v.grad - v_.grad))}"
 
 
 def test_mask_padding_parity():
@@ -28,7 +360,7 @@ def test_mask_padding_parity():
 
     # values don't matter for this test.
     mha = MultiheadAttention(
-        embedding=8,
+        embed_dim=8,
         num_heads=2,
         dropout=0.0,
         add_bias_kv=True,
@@ -50,7 +382,7 @@ def test_mask_padding_parity():
 def test_add_bias_parity():
     # values don't matter for this test.
     mha = MultiheadAttention(
-        embedding=8,
+        embed_dim=8,
         num_heads=2,
         dropout=0.0,
         add_bias_kv=True,

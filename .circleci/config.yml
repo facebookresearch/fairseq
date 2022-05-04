@@ -45,6 +45,17 @@ install_dep_fused_ops: &install_dep_fused_ops
         cd Megatron-LM
         pip install -e .
 
+install_dep_xformers: &install_dep_xformers
+  - run:
+      name: Install xFormers Dependencies
+      working_directory: ~/
+      command: |
+        source activate fairseq
+        git clone https://github.com/facebookresearch/xformers.git
+        cd xformers
+        pip install -r requirements.txt
+        pip install -e .
+
 
 install_dep_pt19: &install_dep_pt19
   - run:
@@ -123,6 +134,7 @@ jobs:
       - <<: *install_dep_pt19
       - <<: *install_dep_common
       - <<: *install_dep_fused_ops
+      - <<: *install_dep_xformers
       - save_cache:
           paths:
             - ~/miniconda/
@@ -144,6 +156,7 @@ jobs:
       - <<: *install_dep_pt18
       - <<: *install_dep_common
       - <<: *install_dep_fused_ops
+      - <<: *install_dep_xformers
       - save_cache:
           paths:
             - ~/miniconda/
