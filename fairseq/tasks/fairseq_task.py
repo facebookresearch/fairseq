@@ -405,6 +405,7 @@ class FairseqTask(object):
         match_source_len = getattr(args, "match_source_len", False)
         diversity_rate = getattr(args, "diversity_rate", -1)
         constrained = getattr(args, "constraints", False)
+        beam_bias = getattr(args, "beam_bias", 0.0)
         if prefix_allowed_tokens_fn is None:
             prefix_allowed_tokens_fn = getattr(args, "prefix_allowed_tokens_fn", None)
         if (
@@ -449,6 +450,10 @@ class FairseqTask(object):
         elif constrained:
             search_strategy = search.LexicallyConstrainedBeamSearch(
                 self.target_dictionary, args.constraints
+            )
+        elif prefix_allowed_tokens_fn and beam_bias > 0:
+            search_strategy = search.BiasedBeamSearch(
+                self.target_dictionary, prefix_allowed_tokens_fn, beam_bias
             )
         elif prefix_allowed_tokens_fn:
             search_strategy = search.PrefixConstrainedBeamSearch(
