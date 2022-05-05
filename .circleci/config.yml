@@ -56,7 +56,6 @@ install_dep_xformers: &install_dep_xformers
         pip install -r requirements.txt
         pip install -e .
 
-
 install_dep_pt19: &install_dep_pt19
   - run:
       name: Install Pytorch Dependencies
@@ -120,6 +119,7 @@ create_conda_env: &create_conda_env
 # -------------------------------------------------------------------------------------
 
 jobs:
+
   gpu_tests_pt19:
     <<: *gpu
 
@@ -134,7 +134,6 @@ jobs:
       - <<: *install_dep_pt19
       - <<: *install_dep_common
       - <<: *install_dep_fused_ops
-      - <<: *install_dep_xformers
       - save_cache:
           paths:
             - ~/miniconda/
@@ -156,7 +155,6 @@ jobs:
       - <<: *install_dep_pt18
       - <<: *install_dep_common
       - <<: *install_dep_fused_ops
-      - <<: *install_dep_xformers
       - save_cache:
           paths:
             - ~/miniconda/

@@ -8,6 +8,7 @@ import unittest
 
 import pytest
 import torch
+
 from fairseq.modules.multihead_attention import MultiheadAttention, _mask_for_xformers
 
 BATCH = [20, 41, 97]
@@ -99,9 +100,8 @@ def test_mask_for_xformers():
     assert torch.equal(_mask_for_xformers(m_uint, to_dtype=torch.uint8), m_uint_flipped)
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="blocksparse requires gpu")
 @pytest.mark.parametrize("device", ["cuda"])
-@pytest.mark.parametrize("attn_dtype", ATTN_MASK_DTYPE)
-@pytest.mark.parametrize("key_padding_dtype", KEY_PADDING_MASK_DTYPE)
 @pytest.mark.parametrize("add_zero_attn", [False])
 @pytest.mark.parametrize("batch_size", [20])
 @pytest.mark.parametrize("embedding", [64])
@@ -109,8 +109,6 @@ def test_mask_for_xformers():
 @pytest.mark.parametrize("num_heads", [4])
 def test_xformers_blocksparse_parity(
     device,
-    attn_dtype,
-    key_padding_dtype,
     add_zero_attn,
     batch_size,
     embedding,
@@ -123,20 +121,7 @@ def test_xformers_blocksparse_parity(
     xformers_blocksparse_layout = torch.ones(
         seq_len // xformers_blocksparse_blocksize,
         seq_len // xformers_blocksparse_blocksize,
-    )
-
-    attn_mask = (
-        None
-        if attn_dtype is None
-        else _get_mask(to_dtype=attn_dtype, dim0=seq_len, dim1=seq_len).to(device)
-    )
-
-    key_padding_mask = (
-        None
-        if key_padding_dtype is None
-        else _get_mask(to_dtype=key_padding_dtype, dim0=batch_size, dim1=seq_len).to(
-            device
-        )
+        dtype=torch.int32,
     )
 
     q = torch.rand(seq_len, batch_size, embedding).to(device).half()
@@ -172,8 +157,6 @@ def test_xformers_blocksparse_parity(
         q,
         k,
         v,
-        key_padding_mask=key_padding_mask,
-        attn_mask=attn_mask,
     )
 
     _reset_seeds()
@@ -194,8 +177,6 @@ def test_xformers_blocksparse_parity(
         q_,
         k_,
         v_,
-        key_padding_mask=key_padding_mask,
-        attn_mask=attn_mask,
     )
 
     # # account for when nan != nan

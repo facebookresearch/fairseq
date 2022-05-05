@@ -54,7 +54,7 @@ jobs:
 
     - name: Run tests
       run: |
-          python setup.py test
+         python setup.py test
 
     - name: Lint with black
       run: |

@@ -10,8 +10,14 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn import Parameter
-from xformers.components.attention import build_attention
-from xformers.components.attention.utils import maybe_merge_masks
+
+try:
+    from xformers.components.attention import build_attention
+    from xformers.components.attention.utils import maybe_merge_masks
+
+    _xformers_available = True
+except ImportError:
+    _xformers_available = False
 
 from fairseq import utils
 from fairseq.incremental_decoding_utils import with_incremental_state
@@ -53,6 +59,7 @@ def _mask_for_xformers(mask: Tensor, to_dtype: Optional[torch.dtype] = None):
     mask = mask.to(to_dtype)
     return mask
 
+
 @with_incremental_state
 class MultiheadAttention(nn.Module):
     """Multi-headed attention.
@@ -88,6 +95,8 @@ class MultiheadAttention(nn.Module):
 
         xformers_att_config = utils.eval_str_dict(xformers_att_config)
         self.use_xformers = xformers_att_config is not None
+        if self.use_xformers and not _xformers_available:
+            raise ImportError("\n\n  Please install xFormers.")
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
         self.vdim = vdim if vdim is not None else embed_dim
@@ -420,9 +429,12 @@ class MultiheadAttention(nn.Module):
                 k=k, v=v, key_padding_mask=key_padding_mask, attn_mask=attn_mask
             )
 
-        if attn_mask is not None:
+        kwargs = {}
+
+        if attn_mask is not None and self.attention.supports_attention_mask:
             to_dtype = torch.float16 if self.fp16_mask else q.dtype
             attn_mask = _mask_for_xformers(attn_mask, to_dtype=to_dtype)
+            kwargs["att_mask"] = attn_mask
 
         if key_padding_mask is not None:
             to_dtype = torch.float16 if self.fp16_mask else torch.bool
@@ -437,10 +449,11 @@ class MultiheadAttention(nn.Module):
                     num_heads=self.num_heads,
                 )
                 key_padding_mask = None
+                kwargs["att_mask"] = attn_mask
+            if self.attention.supports_key_padding_mask:
+                kwargs["key_padding_mask"] = key_padding_mask
 
-        y = self.attention(
-            q, k, v, att_mask=attn_mask, key_padding_mask=key_padding_mask
-        )
+        y = self.attention(q, k, v, **kwargs)
 
         y = (
             y.view(bsz, self.num_heads, tgt_len, self.head_dim)
