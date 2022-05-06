@@ -144,7 +144,6 @@ class MultiheadAttention(nn.Module):
         self.beam_size = 1
         self.reset_parameters()
 
-        self.fp16_mask = False
         if self.use_xformers:
             xformers_att_config["dropout"] = xformers_att_config.get("dropout", dropout)
             xformers_att_config["num_heads"] = xformers_att_config.get(
@@ -156,8 +155,6 @@ class MultiheadAttention(nn.Module):
                 xformers_att_config["block_size"] = xformers_blocksparse_blocksize
                 xformers_att_config["layout"] = xformers_blocksparse_layout
                 xformers_att_config["name"] = "blocksparse"
-                # Mask required to be float16
-                self.fp16_mask = True
 
             self.attention = build_attention(xformers_att_config)
 
@@ -432,13 +429,11 @@ class MultiheadAttention(nn.Module):
         kwargs = {}
 
         if attn_mask is not None and self.attention.supports_attention_mask:
-            to_dtype = torch.float16 if self.fp16_mask else q.dtype
-            attn_mask = _mask_for_xformers(attn_mask, to_dtype=to_dtype)
+            attn_mask = _mask_for_xformers(attn_mask, to_dtype=q.dtype)
             kwargs["att_mask"] = attn_mask
 
         if key_padding_mask is not None:
-            to_dtype = torch.float16 if self.fp16_mask else torch.bool
-            key_padding_mask = _mask_for_xformers(key_padding_mask, to_dtype=to_dtype)
+            key_padding_mask = _mask_for_xformers(key_padding_mask, to_dtype=torch.bool)
             if not self.attention.requires_separate_masks:
                 attn_mask = maybe_merge_masks(
                     attn_mask,
