@@ -1,0 +1,73 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: json # other?
+  log_interval: 200 # what's this?
+  tensorboard_logdir: tblog
+  seed: 1337
+
+checkpoint:
+  save_interval: 5
+  save_interval_updates: 500
+  keep_interval_updates: 1
+  no_epoch_checkpoints: true
+  best_checkpoint_metric: wer
+
+distributed_training:
+  ddp_backend: c10d
+  find_unused_parameters: true
+  distributed_world_size: 1
+  distributed_port: 29671
+  nprocs_per_node: 8
+
+task:
+  _name: audio_pretrain
+  data: ???
+  label_dir: ???
+  labels: ["ltr"]
+  streaming: true # to config the model is non-streaming or streaming
+
+
+dataset:
+
+criterion:
+  _name: 
+
+optimization:
+  max_update: 
+  lr: [0.004] #The training of the model uses Adam optimizer (Kingma & Ba, 2015) with 0:004 peak learning rate and 25000 warmup steps.
+  clip_norm: 
+
+optimizer:
+  _name: adam
+  adam_betas: (0.9,0.98)
+  adam_eps: 1e-09 # All same as Transformer
+  weight_decay: 0.01
+
+lr_scheduler:
+  _name: transformer #! I can not find this scheduler in fairseq
+  warmup_updates: 25000 # #The training of the model uses Adam optimizer (Kingma & Ba, 2015) with 0:004 peak learning rate and 25000 warmup steps.
+
+model:
+  _name: random_projection_pretrain
+  mask_prob: 0.01 # The pre-training uses mask length 400ms with masking probability of 0.01
+  mask_length: 400 #ms
+  mask_prob_streaming: 0.02 # The masking length is 400ms and the masking probability is 0.02
+  mask_length_streaming: 400
+
+
+hydra:
+  job:
+    config:
+      override_dirname:
+        kv_sep: '-'
+        item_sep: '__'
+        exclude_keys:
+          - run
+          - task.data
+          - task.label_dir
+  run:
+    dir: 
+  sweep:
+    dir:

@@ -1,0 +1,55 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: json
+  log_interval: 200
+  tensorboard_logdir: tblog
+  seed: 1337
+
+checkpoint:
+  save_interval: 5
+  save_interval_updates: 500
+  keep_interval_updates: 1
+  no_epoch_checkpoints: true
+  best_checkpoint_metric: wer
+
+distributed_training:
+  ddp_backend: c10d
+  find_unused_parameters: true
+  distributed_world_size: 1
+  distributed_port: 29671
+  nprocs_per_node: 8
+
+task:
+  _name: random_projection_finetune
+  data: ???
+  fine_tuning: true
+  label_dir: ???
+  normalize: false  # must be consistent with pre-training
+  labels: ["ltr"]
+  single_target: 
+
+dataset:
+
+optimization:
+  max_update:
+  encoder_lr: [0.0003] # The encoder use 0:0003 peak learning rate and 5000 warmup steps
+  decoder_lr: [0.001] # while the decoder use 0:001 peak learning rate and 1500 warmup steps
+  sentence_avg: true
+  update_freq: [1]
+
+lr_scheduler:
+  _name: transformer # !! I can not find
+  encoder_waemup_steps: 5000
+  decoder_warmup_steps: 1500 
+
+
+model:
+  _name: random_projection_finetune
+
+
+hydra:
+  job:
+  run:
+  sweep:

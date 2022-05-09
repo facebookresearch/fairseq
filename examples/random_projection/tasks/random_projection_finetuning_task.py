@@ -1,0 +1,1 @@
+from fairseq.models.speech_to_speech import s2s_conformer
