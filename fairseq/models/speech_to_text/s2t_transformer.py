@@ -295,15 +295,15 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
         return sample["target"], sample["target_lengths"]
 
     def get_ctc_output(
-            self,
-            net_output: Tuple[Tensor, Optional[Dict[str, List[Optional[Tensor]]]]],
-            sample: Optional[Dict[str, Tensor]]
+        self,
+        net_output: Tuple[Tensor, Optional[Dict[str, List[Optional[Tensor]]]]],
+        sample: Optional[Dict[str, Tensor]],
     ):
         encoder_out = net_output[1]["encoder_out"]["encoder_out"][0]
         logits = self.encoder.ctc_proj(encoder_out)  # T x B x C
         out = utils.log_softmax(logits.float(), dim=-1)
         padding_mask = net_output[1]["encoder_out"]["encoder_padding_mask"]
-        lens = out.new_full((out.shape[1], ), out.shape[0]).long()
+        lens = out.new_full((out.shape[1],), out.shape[0]).long()
         if len(padding_mask) > 0:
             lens -= padding_mask[0].sum(dim=-1)
         return out, lens
@@ -359,7 +359,7 @@ class S2TTransformerEncoder(FairseqEncoder):
             self.layer_norm = None
 
         self.ctc_proj = None
-        if getattr(args, "ctc_weight", 0.) > 0.:
+        if getattr(args, "ctc_weight", 0.0) > 0.0:
             self.ctc_proj = nn.Linear(args.encoder_embed_dim, args.tgt_dict_size)
 
     def _forward(self, src_tokens, src_lengths, return_all_hiddens=False):
