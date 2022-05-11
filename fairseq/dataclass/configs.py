@@ -997,6 +997,10 @@ class GenerationConfig(FairseqDataclass):
         default=False,
         metadata={"help": "if set, dont use seed for initializing random generators"},
     )
+    eos_token: Optional[str] = field(
+        default=None,
+        metadata={"help": "EOS token"},
+    )
 
 
 @dataclass
