@@ -1,5 +1,10 @@
 # X-MOD: Lifting the Curse of Multilinguality by Pre-training Modular Transformers
 
+https://arxiv.org/abs/2205.06266
+
+
+## Introduction
+
 X-MOD extends multilingual masked language models like XLM-R to include language-specific modular components, introduced at each transformer layer. Each module is only used by one language. For fine-tuning, the modular components are frozen, and replaced with the target language in cross-lingual transfer settings.
 
 
@@ -130,4 +135,17 @@ predict(
     hypothesis='Patxik babarrunak bazkaldu zituen.',
     lang='eu_ES',
 )  # neutral
+```
+
+
+## Citation
+
+```bibtex
+@misc{pfeiffer2022xmod,
+  doi = {10.48550/ARXIV.2205.06266},
+  url = {https://arxiv.org/abs/2205.06266},    
+  title = {Lifting the Curse of Multilinguality by Pre-training Modular Transformers},
+  publisher = {arXiv},
+  year = {2022},
+}
 ```
