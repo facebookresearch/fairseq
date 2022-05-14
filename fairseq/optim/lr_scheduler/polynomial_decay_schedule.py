@@ -18,16 +18,13 @@ class PolynomialDecayLRScheduleConfig(FairseqDataclass):
         metadata={"help": "warmup the learning rate linearly for the first N updates"},
     )
     force_anneal: Optional[int] = field(
-        default=None,
-        metadata={"help": "force annealing at specified epoch"},
+        default=None, metadata={"help": "force annealing at specified epoch"},
     )
     end_learning_rate: float = field(
-        default=0.0,
-        metadata={"help": "learning rate to decay to"},
+        default=0.0, metadata={"help": "learning rate to decay to"},
     )
     power: float = field(
-        default=1.0,
-        metadata={"help": "decay exponent"},
+        default=1.0, metadata={"help": "decay exponent"},
     )
     total_num_update: float = field(
         default=II("optimization.max_update"),

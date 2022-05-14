@@ -9,17 +9,12 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 import torch
-from fairseq.data import (
-    ConcatDataset,
-    Dictionary,
-    FairseqDataset,
-    ResamplingDataset
-)
+from fairseq.data import ConcatDataset, Dictionary, FairseqDataset, ResamplingDataset
 from fairseq.data.audio.data_cfg import S2TDataConfig
 from fairseq.data.audio.speech_to_text_dataset import (
     SpeechToTextDatasetItem,
     SpeechToTextDataset,
-    SpeechToTextDatasetCreator
+    SpeechToTextDatasetCreator,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,7 +28,6 @@ class SpeechToTextDatasetItemWithDomain(SpeechToTextDatasetItem):
 
 
 class SpeechToTextDatasetWithDomain(SpeechToTextDataset):
-
     def __init__(
         self,
         split: str,
@@ -54,13 +48,25 @@ class SpeechToTextDatasetWithDomain(SpeechToTextDataset):
         speaker_to_id=None,
         src_lang_ids: Optional[List[int]] = None,
         tgt_lang_ids: Optional[List[int]] = None,
-        domain_ids: Optional[List[int]] = None
+        domain_ids: Optional[List[int]] = None,
     ):
         super().__init__(
-            split, is_train_split, cfg, audio_paths, n_frames,
-            src_texts, tgt_texts, speakers, src_langs, tgt_langs,
-            ids, tgt_dict, pre_tokenizer, bpe_tokenizer,
-            n_frames_per_step, speaker_to_id
+            split,
+            is_train_split,
+            cfg,
+            audio_paths,
+            n_frames,
+            src_texts,
+            tgt_texts,
+            speakers,
+            src_langs,
+            tgt_langs,
+            ids,
+            tgt_dict,
+            pre_tokenizer,
+            bpe_tokenizer,
+            n_frames_per_step,
+            speaker_to_id,
         )
         assert src_lang_ids is None or len(src_lang_ids) == self.n_samples
         assert tgt_lang_ids is None or len(tgt_lang_ids) == self.n_samples
@@ -76,11 +82,13 @@ class SpeechToTextDatasetWithDomain(SpeechToTextDataset):
         tgt_lang_id = self.tgt_lang_ids[index]
         domain_id = self.domain_ids[index]
         return SpeechToTextDatasetItemWithDomain(
-            index=item.index, source=item.source,
-            target=item.target, speaker_id=item.speaker_id,
+            index=item.index,
+            source=item.source,
+            target=item.target,
+            speaker_id=item.speaker_id,
             src_lang_id=src_lang_id,
             tgt_lang_id=tgt_lang_id,
-            domain_id=domain_id
+            domain_id=domain_id,
         )
 
     def collater(
@@ -90,9 +98,15 @@ class SpeechToTextDatasetWithDomain(SpeechToTextDataset):
             return {}
         out = super().collater(samples, return_order=True)
         order = out["order"]
-        src_lang_ids = torch.tensor([x.src_lang_id for x in samples], dtype=torch.long).index_select(0, order)
-        tgt_lang_ids = torch.tensor([x.tgt_lang_id for x in samples], dtype=torch.long).index_select(0, order)
-        domain_ids = torch.tensor([x.domain_id for x in samples], dtype=torch.long).index_select(0, order)
+        src_lang_ids = torch.tensor(
+            [x.src_lang_id for x in samples], dtype=torch.long
+        ).index_select(0, order)
+        tgt_lang_ids = torch.tensor(
+            [x.tgt_lang_id for x in samples], dtype=torch.long
+        ).index_select(0, order)
+        domain_ids = torch.tensor(
+            [x.domain_id for x in samples], dtype=torch.long
+        ).index_select(0, order)
 
         out["src_lang_ids"] = src_lang_ids
         out["tgt_lang_ids"] = tgt_lang_ids
@@ -119,7 +133,7 @@ class SpeechToTextDatasetCreatorWithDomain(SpeechToTextDatasetCreator):
         pre_tokenizer,
         bpe_tokenizer,
         n_frames_per_step,
-        speaker_to_id
+        speaker_to_id,
     ) -> SpeechToTextDatasetWithDomain:
         audio_root = Path(cfg.audio_root)
         ids = [s[cls.KEY_ID] for s in samples]
@@ -130,8 +144,12 @@ class SpeechToTextDatasetCreatorWithDomain(SpeechToTextDatasetCreator):
         speakers = [s.get(cls.KEY_SPEAKER, cls.DEFAULT_SPEAKER) for s in samples]
         src_langs = [s.get(cls.KEY_SRC_LANG, cls.DEFAULT_LANG) for s in samples]
         tgt_langs = [s.get(cls.KEY_TGT_LANG, cls.DEFAULT_LANG) for s in samples]
-        src_lang_ids = [s.get(cls.KEY_SRC_LANG_ID, cls.DEFAULT_SRC_LANG_ID) for s in samples]
-        tgt_lang_ids = [s.get(cls.KEY_TGT_LANG_ID, cls.DEFAULT_TGT_LANG_ID) for s in samples]
+        src_lang_ids = [
+            s.get(cls.KEY_SRC_LANG_ID, cls.DEFAULT_SRC_LANG_ID) for s in samples
+        ]
+        tgt_lang_ids = [
+            s.get(cls.KEY_TGT_LANG_ID, cls.DEFAULT_TGT_LANG_ID) for s in samples
+        ]
         domain_ids = [s.get(cls.KEY_DOMAIN_ID, cls.DEFAULT_DOMAIN_ID) for s in samples]
         return SpeechToTextDatasetWithDomain(
             split_name,
@@ -152,17 +170,12 @@ class SpeechToTextDatasetCreatorWithDomain(SpeechToTextDatasetCreator):
             speaker_to_id=speaker_to_id,
             src_lang_ids=src_lang_ids,
             tgt_lang_ids=tgt_lang_ids,
-            domain_ids=domain_ids
+            domain_ids=domain_ids,
         )
 
     @classmethod
     def _load_samples_from_tsv(
-        cls,
-        root: str,
-        split: str,
-        src_lang_map,
-        tgt_lang_map,
-        domain_map
+        cls, root: str, split: str, src_lang_map, tgt_lang_map, domain_map
     ):
         # metadata from split
         _, src_lang, tgt_lang, domain = split.split("_")
@@ -172,11 +185,13 @@ class SpeechToTextDatasetCreatorWithDomain(SpeechToTextDatasetCreator):
 
         samples = SpeechToTextDatasetCreator._load_samples_from_tsv(root, split)
         for s in samples:
-            s.update({
-                cls.KEY_SRC_LANG_ID: src_lang_id,
-                cls.KEY_TGT_LANG_ID: tgt_lang_id,
-                cls.KEY_DOMAIN_ID: domain_id
-            })
+            s.update(
+                {
+                    cls.KEY_SRC_LANG_ID: src_lang_id,
+                    cls.KEY_TGT_LANG_ID: tgt_lang_id,
+                    cls.KEY_DOMAIN_ID: domain_id,
+                }
+            )
         return samples
 
     @classmethod
@@ -193,15 +208,21 @@ class SpeechToTextDatasetCreatorWithDomain(SpeechToTextDatasetCreator):
         speaker_to_id,
         src_lang_map: Dict[str, int],
         tgt_lang_map: Dict[str, int],
-        domain_map: Dict[str, int]
+        domain_map: Dict[str, int],
     ) -> SpeechToTextDatasetItemWithDomain:
         samples = cls._load_samples_from_tsv(
-            root, split, src_lang_map,
-            tgt_lang_map, domain_map
+            root, split, src_lang_map, tgt_lang_map, domain_map
         )
         return cls._from_list(
-            split, is_train_split, samples, cfg, tgt_dict, pre_tokenizer,
-            bpe_tokenizer, n_frames_per_step, speaker_to_id
+            split,
+            is_train_split,
+            samples,
+            cfg,
+            tgt_dict,
+            pre_tokenizer,
+            bpe_tokenizer,
+            n_frames_per_step,
+            speaker_to_id,
         )
 
     @classmethod
@@ -220,11 +241,22 @@ class SpeechToTextDatasetCreatorWithDomain(SpeechToTextDatasetCreator):
         tgt_lang_map: Dict[str, int],
         domain_map: Dict[str, int],
         n_frames_per_step: int = 1,
-        speaker_to_id=None
+        speaker_to_id=None,
     ) -> SpeechToTextDatasetWithDomain:
         datasets = [
             cls._from_tsv(
-                root, cfg, split, tgt_dict, is_train_split, pre_tokenizer, bpe_tokenizer, n_frames_per_step, speaker_to_id, src_lang_map, tgt_lang_map, domain_map
+                root,
+                cfg,
+                split,
+                tgt_dict,
+                is_train_split,
+                pre_tokenizer,
+                bpe_tokenizer,
+                n_frames_per_step,
+                speaker_to_id,
+                src_lang_map,
+                tgt_lang_map,
+                domain_map,
             )
             for split in splits.split(",")
         ]

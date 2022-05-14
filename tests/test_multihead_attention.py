@@ -108,12 +108,7 @@ def test_mask_for_xformers():
 @pytest.mark.parametrize("seq_len", [64])
 @pytest.mark.parametrize("num_heads", [4])
 def test_xformers_blocksparse_parity(
-    device,
-    add_zero_attn,
-    batch_size,
-    embedding,
-    seq_len,
-    num_heads,
+    device, add_zero_attn, batch_size, embedding, seq_len, num_heads,
 ):
 
     xformers_att_config = '{"name": "scaled_dot_product"}'
@@ -153,11 +148,7 @@ def test_xformers_blocksparse_parity(
         .half()
     )
 
-    xf_blocksparse_output, _ = xf_blocksparse_mha(
-        q,
-        k,
-        v,
-    )
+    xf_blocksparse_output, _ = xf_blocksparse_mha(q, k, v,)
 
     _reset_seeds()
     xformers_mha = (
@@ -173,11 +164,7 @@ def test_xformers_blocksparse_parity(
         .half()
     )
 
-    xformers_output, _ = xformers_mha(
-        q_,
-        k_,
-        v_,
-    )
+    xformers_output, _ = xformers_mha(q_, k_, v_,)
 
     # # account for when nan != nan
     rand = random.uniform(0, 1)
@@ -341,11 +328,7 @@ def test_mask_padding_parity():
 
     # values don't matter for this test.
     mha = MultiheadAttention(
-        embed_dim=8,
-        num_heads=2,
-        dropout=0.0,
-        add_bias_kv=True,
-        add_zero_attn=True,
+        embed_dim=8, num_heads=2, dropout=0.0, add_bias_kv=True, add_zero_attn=True,
     )
 
     key_padding_mask = torch.rand((8, 64))
@@ -363,11 +346,7 @@ def test_mask_padding_parity():
 def test_add_bias_parity():
     # values don't matter for this test.
     mha = MultiheadAttention(
-        embed_dim=8,
-        num_heads=2,
-        dropout=0.0,
-        add_bias_kv=True,
-        add_zero_attn=True,
+        embed_dim=8, num_heads=2, dropout=0.0, add_bias_kv=True, add_zero_attn=True,
     )
 
     def old_bias_code(k, v, key_padding_mask, attn_mask, bsz):
@@ -417,11 +396,7 @@ class TestMultiheadAttention(unittest.TestCase):
             # no padding mask
             (None, None, None),
             # current padding mask only
-            (
-                torch.tensor([[1]]).bool(),
-                None,
-                torch.tensor([[0, 0, 0, 1]]).bool(),
-            ),
+            (torch.tensor([[1]]).bool(), None, torch.tensor([[0, 0, 0, 1]]).bool(),),
             # previous padding mask only
             (
                 None,
@@ -449,11 +424,7 @@ class TestMultiheadAttention(unittest.TestCase):
         ]
         for c in cases:
             key_padding_mask = MultiheadAttention._append_prev_key_padding_mask(
-                c[0],
-                c[1],
-                batch_size=bsz,
-                src_len=src_len,
-                static_kv=False,
+                c[0], c[1], batch_size=bsz, src_len=src_len, static_kv=False,
             )
 
             if key_padding_mask is not None:

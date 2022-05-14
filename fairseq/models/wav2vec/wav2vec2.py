@@ -129,8 +129,7 @@ class Wav2Vec2Config(FairseqDataclass):
         default=1.0, metadata={"help": "multiply feature extractor var grads by this"}
     )
     quantizer_depth: int = field(
-        default=1,
-        metadata={"help": "number of quantizer layers"},
+        default=1, metadata={"help": "number of quantizer layers"},
     )
     quantizer_factor: int = field(
         default=3,
@@ -184,8 +183,7 @@ class Wav2Vec2Config(FairseqDataclass):
         },
     )
     mask_dropout: float = field(
-        default=0.0,
-        metadata={"help": "percent of masks to unmask for each sample"},
+        default=0.0, metadata={"help": "percent of masks to unmask for each sample"},
     )
 
     # channel masking
@@ -241,8 +239,7 @@ class Wav2Vec2Config(FairseqDataclass):
         metadata={"help": "number of groups for convolutional positional embedding"},
     )
     pos_conv_depth: int = field(
-        default=1,
-        metadata={"help": "depth of positional encoder network"},
+        default=1, metadata={"help": "depth of positional encoder network"},
     )
 
     latent_temp: Tuple[float, float, float] = field(
@@ -280,8 +277,7 @@ class Wav2Vec2Config(FairseqDataclass):
         },
     )
     attn_type: str = field(
-        default="",
-        metadata={"help": "if espnet use ESPNET MHA"},
+        default="", metadata={"help": "if espnet use ESPNET MHA"},
     )
     pos_enc_type: str = field(
         default="abs",
@@ -412,11 +408,7 @@ class Wav2Vec2Model(BaseFairseqModel):
         return cls(cfg)
 
     def apply_mask(
-        self,
-        x,
-        padding_mask,
-        mask_indices=None,
-        mask_channel_indices=None,
+        self, x, padding_mask, mask_indices=None, mask_channel_indices=None,
     ):
         B, T, C = x.shape
 
@@ -551,7 +543,7 @@ class Wav2Vec2Model(BaseFairseqModel):
 
         if is_xla_tensor(logits) or neg_is_pos.any():
             if not hasattr(self, "_inftensor"):
-                fillval = -float(2**30)
+                fillval = -float(2 ** 30)
                 self._inftensor = (
                     torch.tensor(fillval).to(x.device)
                     if is_xla_tensor(logits)
@@ -693,9 +685,7 @@ class Wav2Vec2Model(BaseFairseqModel):
                 y = self.project_q(y)
 
                 negs, _ = self.sample_negatives(
-                    y,
-                    mask_indices[0].sum(),
-                    padding_count=padding_count,
+                    y, mask_indices[0].sum(), padding_count=padding_count,
                 )
                 y = y[mask_indices].view(y.size(0), -1, y.size(-1))
 
@@ -710,9 +700,7 @@ class Wav2Vec2Model(BaseFairseqModel):
                 y = self.project_q(y)
 
                 negs, _ = self.sample_negatives(
-                    y,
-                    y.size(1),
-                    padding_count=padding_count,
+                    y, y.size(1), padding_count=padding_count,
                 )
 
             if self.codebook_negatives > 0:
@@ -729,16 +717,12 @@ class Wav2Vec2Model(BaseFairseqModel):
 
             if self.negatives_from_everywhere:
                 negs, _ = self.sample_negatives(
-                    unmasked_features,
-                    y.size(1),
-                    padding_count=padding_count,
+                    unmasked_features, y.size(1), padding_count=padding_count,
                 )
                 negs = self.project_q(negs)
             else:
                 negs, _ = self.sample_negatives(
-                    y,
-                    y.size(1),
-                    padding_count=padding_count,
+                    y, y.size(1), padding_count=padding_count,
                 )
 
         if not is_xla_tensor(x):
@@ -898,13 +882,7 @@ class ConvFeatureExtractionModel(nn.Module):
 
 
 def make_conv_pos(e, k, g):
-    pos_conv = nn.Conv1d(
-        e,
-        e,
-        kernel_size=k,
-        padding=k // 2,
-        groups=g,
-    )
+    pos_conv = nn.Conv1d(e, e, kernel_size=k, padding=k // 2, groups=g,)
     dropout = 0
     std = math.sqrt((4 * (1.0 - dropout)) / (k * e))
     nn.init.normal_(pos_conv.weight, mean=0, std=std)
@@ -962,13 +940,7 @@ class TransformerEncoder(nn.Module):
                 return nn.Sequential(
                     *[
                         nn.Sequential(
-                            nn.Conv1d(
-                                e,
-                                e,
-                                kernel_size=k,
-                                padding=k // 2,
-                                groups=g,
-                            ),
+                            nn.Conv1d(e, e, kernel_size=k, padding=k // 2, groups=g,),
                             SamePad(k),
                             TransposeLast(),
                             LayerNorm(e, elementwise_affine=False),
@@ -985,9 +957,7 @@ class TransformerEncoder(nn.Module):
 
         else:
             self.pos_conv = make_conv_pos(
-                self.embedding_dim,
-                args.conv_pos,
-                args.conv_pos_groups,
+                self.embedding_dim, args.conv_pos, args.conv_pos_groups,
             )
 
         self.layers = nn.ModuleList(
@@ -1008,11 +978,7 @@ class TransformerEncoder(nn.Module):
         return x, layer_results
 
     def extract_features(
-        self,
-        x,
-        padding_mask=None,
-        tgt_layer=None,
-        min_layer=0,
+        self, x, padding_mask=None, tgt_layer=None, min_layer=0,
     ):
 
         if padding_mask is not None:

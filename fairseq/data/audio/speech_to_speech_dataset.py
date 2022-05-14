@@ -121,9 +121,7 @@ class SpeechToSpeechDataset(SpeechToTextDataset):
             target = self.pack_frames(target)
         else:
             target = self.tgt_dict.encode_line(
-                self.tgt_audio_paths[index],
-                add_if_not_exist=False,
-                append_eos=True,
+                self.tgt_audio_paths[index], add_if_not_exist=False, append_eos=True,
             ).long()
             if self.n_frames_per_step > 1:
                 n_tgt_frame = target.size(0) - 1  # exclude <eos>

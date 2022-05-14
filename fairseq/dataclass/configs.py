@@ -115,8 +115,7 @@ class CommonConfig(FairseqDataclass):
         default=None, metadata={"help": "log file to copy metrics to."}
     )
     aim_repo: Optional[str] = field(
-        default=None,
-        metadata={"help": "path to Aim repository"},
+        default=None, metadata={"help": "path to Aim repository"},
     )
     aim_run_hash: Optional[str] = field(
         default=None,
@@ -137,8 +136,7 @@ class CommonConfig(FairseqDataclass):
         metadata={"help": "Weights and Biases project name to use for logging"},
     )
     azureml_logging: Optional[bool] = field(
-        default=False,
-        metadata={"help": "Log scalars to AzureML context"},
+        default=False, metadata={"help": "Log scalars to AzureML context"},
     )
     seed: int = field(
         default=1, metadata={"help": "pseudo random number generator seed"}
@@ -163,7 +161,7 @@ class CommonConfig(FairseqDataclass):
         default=False, metadata={"help": "don't flatten FP16 grads tensor"}
     )
     fp16_init_scale: int = field(
-        default=2**7, metadata={"help": "default FP16 loss scale"}
+        default=2 ** 7, metadata={"help": "default FP16 loss scale"}
     )
     fp16_scale_window: Optional[int] = field(
         default=None,
@@ -199,7 +197,7 @@ class CommonConfig(FairseqDataclass):
         },
     )
     amp_init_scale: int = field(
-        default=2**7, metadata={"help": "default AMP loss scale"}
+        default=2 ** 7, metadata={"help": "default AMP loss scale"}
     )
     amp_scale_window: Optional[int] = field(
         default=None,
@@ -440,23 +438,19 @@ class DistributedTrainingConfig(FairseqDataclass):
     tpu: bool = II("common.tpu")
     # configuration for --ddp-backend=fully_sharded
     no_reshard_after_forward: bool = field(
-        default=False,
-        metadata={"help": "don't reshard parameters after forward pass"},
+        default=False, metadata={"help": "don't reshard parameters after forward pass"},
     )
     fp32_reduce_scatter: bool = field(
-        default=False,
-        metadata={"help": "reduce-scatter grads in FP32"},
+        default=False, metadata={"help": "reduce-scatter grads in FP32"},
     )
     cpu_offload: bool = field(
         default=False, metadata={"help": "offload FP32 params to CPU"}
     )
     use_sharded_state: bool = field(
-        default=False,
-        metadata={"help": "use sharded checkpoint files"},
+        default=False, metadata={"help": "use sharded checkpoint files"},
     )
     not_fsdp_flatten_parameters: bool = field(
-        default=False,
-        metadata={"help": "not flatten parameter param for fsdp"},
+        default=False, metadata={"help": "not flatten parameter param for fsdp"},
     )
 
 
@@ -808,12 +802,10 @@ class FairseqBMUFConfig(FairseqDataclass):
 @dataclass
 class GenerationConfig(FairseqDataclass):
     beam: int = field(
-        default=5,
-        metadata={"help": "beam size"},
+        default=5, metadata={"help": "beam size"},
     )
     nbest: int = field(
-        default=1,
-        metadata={"help": "number of hypotheses to output"},
+        default=1, metadata={"help": "number of hypotheses to output"},
     )
     max_len_a: float = field(
         default=0,
@@ -828,24 +820,19 @@ class GenerationConfig(FairseqDataclass):
         },
     )
     min_len: int = field(
-        default=1,
-        metadata={"help": "minimum generation length"},
+        default=1, metadata={"help": "minimum generation length"},
     )
     match_source_len: bool = field(
-        default=False,
-        metadata={"help": "generations should match the source length"},
+        default=False, metadata={"help": "generations should match the source length"},
     )
     unnormalized: bool = field(
-        default=False,
-        metadata={"help": "compare unnormalized hypothesis scores"},
+        default=False, metadata={"help": "compare unnormalized hypothesis scores"},
     )
     no_early_stop: bool = field(
-        default=False,
-        metadata={"help": "deprecated"},
+        default=False, metadata={"help": "deprecated"},
     )
     no_beamable_mm: bool = field(
-        default=False,
-        metadata={"help": "don't use BeamableMM in attention layers"},
+        default=False, metadata={"help": "don't use BeamableMM in attention layers"},
     )
     lenpen: float = field(
         default=1,
@@ -867,12 +854,10 @@ class GenerationConfig(FairseqDataclass):
         },
     )
     sacrebleu: bool = field(
-        default=False,
-        metadata={"help": "score with sacrebleu"},
+        default=False, metadata={"help": "score with sacrebleu"},
     )
     score_reference: bool = field(
-        default=False,
-        metadata={"help": "just score the reference translation"},
+        default=False, metadata={"help": "just score the reference translation"},
     )
     prefix_size: int = field(
         default=0,
@@ -906,12 +891,10 @@ class GenerationConfig(FairseqDataclass):
         },
     )
     temperature: float = field(
-        default=1.0,
-        metadata={"help": "temperature for generation"},
+        default=1.0, metadata={"help": "temperature for generation"},
     )
     diverse_beam_groups: int = field(
-        default=-1,
-        metadata={"help": "number of groups for Diverse Beam Search"},
+        default=-1, metadata={"help": "number of groups for Diverse Beam Search"},
     )
     diverse_beam_strength: float = field(
         default=0.5,
@@ -930,16 +913,13 @@ class GenerationConfig(FairseqDataclass):
         },
     )
     print_step: bool = field(
-        default=False,
-        metadata={"help": "print steps"},
+        default=False, metadata={"help": "print steps"},
     )
     lm_path: Optional[str] = field(
-        default=None,
-        metadata={"help": "path to lm checkpoint for lm fusion"},
+        default=None, metadata={"help": "path to lm checkpoint for lm fusion"},
     )
     lm_weight: float = field(
-        default=0.0,
-        metadata={"help": "weight for lm probs for lm fusion"},
+        default=0.0, metadata={"help": "weight for lm probs for lm fusion"},
     )
 
     # arguments for iterative refinement generator
@@ -948,8 +928,7 @@ class GenerationConfig(FairseqDataclass):
         metadata={"help": "if > 0.0, it penalized early-stopping in decoding."},
     )
     iter_decode_max_iter: int = field(
-        default=10,
-        metadata={"help": "maximum iterations for iterative refinement."},
+        default=10, metadata={"help": "maximum iterations for iterative refinement."},
     )
     iter_decode_force_max_iter: bool = field(
         default=False,
@@ -976,8 +955,7 @@ class GenerationConfig(FairseqDataclass):
         },
     )
     retain_dropout: bool = field(
-        default=False,
-        metadata={"help": "Use dropout at inference time"},
+        default=False, metadata={"help": "Use dropout at inference time"},
     )
     # temporarily set to Any until https://github.com/facebookresearch/hydra/issues/1117 is fixed
     # retain_dropout_modules: Optional[List[str]] = field(
@@ -1002,8 +980,7 @@ class GenerationConfig(FairseqDataclass):
 @dataclass
 class CommonEvalConfig(FairseqDataclass):
     path: Optional[str] = field(
-        default=None,
-        metadata={"help": "path(s) to model file(s), colon separated"},
+        default=None, metadata={"help": "path(s) to model file(s), colon separated"},
     )
     post_process: Optional[str] = field(
         default=None,
@@ -1065,8 +1042,7 @@ class InteractiveConfig(FairseqDataclass):
         },
     )
     input: str = field(
-        default="-",
-        metadata={"help": "file to read from; use - for stdin"},
+        default="-", metadata={"help": "file to read from; use - for stdin"},
     )
 
 

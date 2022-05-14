@@ -61,12 +61,7 @@ class RandomCropDataset(TruncateDataset):
 
 
 def maybe_shorten_dataset(
-    dataset,
-    split,
-    shorten_data_split_list,
-    shorten_method,
-    tokens_per_sample,
-    seed,
+    dataset, split, shorten_data_split_list, shorten_method, tokens_per_sample, seed,
 ):
     truncate_split = (
         split in shorten_data_split_list.split(",") or len(shorten_data_split_list) == 0

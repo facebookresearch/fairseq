@@ -8,7 +8,7 @@ from .how2processor import (
     ShardedVideoProcessor,
     ShardedTextProcessor,
     VariedLenAligner,
-    OverlappedAligner
+    OverlappedAligner,
 )
 
 
@@ -17,9 +17,15 @@ class ShardedHow2VideoRetriMetaProcessor(ShardedHow2MetaProcessor):
         super().__init__(config)
         self.num_video_per_batch = config.num_video_per_batch
         self.cands = [
-            self.data[batch_offset:batch_offset + self.num_video_per_batch]
-            for batch_offset in
-            range(0, (len(self.data) // (8 * self.num_video_per_batch)) * 8 * self.num_video_per_batch, self.num_video_per_batch)]
+            self.data[batch_offset : batch_offset + self.num_video_per_batch]
+            for batch_offset in range(
+                0,
+                (len(self.data) // (8 * self.num_video_per_batch))
+                * 8
+                * self.num_video_per_batch,
+                self.num_video_per_batch,
+            )
+        ]
 
     def __len__(self):
         return len(self.cands)
@@ -70,9 +76,11 @@ class VideoRetriAligner(VariedLenAligner):
     # Retritask will trim dim-0.
     def __call__(self, sharded_video_idxs, video_features, text_features):
         from transformers import default_data_collator
+
         batch, video_ids = [], []
-        for video_id, video_feature, text_feature in \
-                zip(sharded_video_idxs, video_features, text_features):
+        for video_id, video_feature, text_feature in zip(
+            sharded_video_idxs, video_features, text_features
+        ):
             sub_batch = super().__call__(video_id, video_feature, text_feature)
             batch.append(sub_batch)
             if isinstance(video_id, tuple):
@@ -87,9 +95,11 @@ class VideoRetriOverlappedAligner(OverlappedAligner):
     # Retritask will trim dim-0.
     def __call__(self, sharded_video_idxs, video_features, text_features):
         from transformers import default_data_collator
+
         batch, video_ids = [], []
-        for video_id, video_feature, text_feature in \
-                zip(sharded_video_idxs, video_features, text_features):
+        for video_id, video_feature, text_feature in zip(
+            sharded_video_idxs, video_features, text_features
+        ):
             sub_batch = super().__call__(video_id, video_feature, text_feature)
             batch.append(sub_batch)
             if isinstance(video_id, tuple):

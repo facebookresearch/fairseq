@@ -22,7 +22,7 @@ MASTER_64_URL = ROOT + "master64-8a5dfb4bb92753dd.th"
 def _demucs(pretrained, url, **kwargs):
     model = Demucs(**kwargs)
     if pretrained:
-        state_dict = torch.hub.load_state_dict_from_url(url, map_location='cpu')
+        state_dict = torch.hub.load_state_dict_from_url(url, map_location="cpu")
         model.load_state_dict(state_dict)
     return model
 
@@ -41,20 +41,21 @@ def master64(pretrained=True):
 
 def add_model_flags(parser):
     group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument("-m", "--model_path", help="Path to local trained model.")
     group.add_argument(
-        "-m", "--model_path", help="Path to local trained model."
+        "--dns48",
+        action="store_true",
+        help="Use pre-trained real time H=48 model trained on DNS.",
     )
     group.add_argument(
-        "--dns48", action="store_true",
-        help="Use pre-trained real time H=48 model trained on DNS."
+        "--dns64",
+        action="store_true",
+        help="Use pre-trained real time H=64 model trained on DNS.",
     )
     group.add_argument(
-        "--dns64", action="store_true",
-        help="Use pre-trained real time H=64 model trained on DNS."
-    )
-    group.add_argument(
-        "--master64", action="store_true",
-        help="Use pre-trained real time H=64 model trained on DNS and Valentini."
+        "--master64",
+        action="store_true",
+        help="Use pre-trained real time H=64 model trained on DNS and Valentini.",
     )
 
 

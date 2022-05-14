@@ -8,9 +8,7 @@ from typing import Tuple, List
 import torch
 import torch.nn.functional as F
 from fairseq.models import FairseqEncoder
-from fairseq.models.speech_to_text import (
-    ConvTransformerEncoder,
-)
+from fairseq.models.speech_to_text import ConvTransformerEncoder
 from fairseq.models.speech_to_text.utils import attention_suppression
 from fairseq.models.speech_to_text.utils import (
     lengths_to_encoder_padding_mask,
@@ -390,10 +388,7 @@ class SequenceEncoder(FairseqEncoder):
         self.right_context = args.right_context
 
     def forward(
-        self,
-        src_tokens: Tensor,
-        src_lengths: Tensor,
-        states=None,
+        self, src_tokens: Tensor, src_lengths: Tensor, states=None,
     ):
 
         seg_src_tokens_lengths = sequence_to_segments(
@@ -409,9 +404,7 @@ class SequenceEncoder(FairseqEncoder):
 
         for seg_src_tokens, seg_src_lengths in seg_src_tokens_lengths:
             (seg_encoder_states, seg_enc_lengths, states) = self.module(
-                seg_src_tokens,
-                seg_src_lengths,
-                states=states,
+                seg_src_tokens, seg_src_lengths, states=states,
             )
 
             seg_encoder_states_lengths.append((seg_encoder_states, seg_enc_lengths))
@@ -437,19 +430,14 @@ class SequenceEncoder(FairseqEncoder):
         }
 
     def incremental_encode(
-        self,
-        seg_src_tokens: Tensor,
-        seg_src_lengths: Tensor,
-        states=None,
+        self, seg_src_tokens: Tensor, seg_src_lengths: Tensor, states=None,
     ):
         """
         Different from forward function, this function takes segmented speech
         as input, and append encoder states to previous states
         """
         (seg_encoder_states, seg_enc_lengths, states) = self.module(
-            seg_src_tokens,
-            seg_src_lengths,
-            states=states,
+            seg_src_tokens, seg_src_lengths, states=states,
         )
         return seg_encoder_states, seg_enc_lengths, states
 

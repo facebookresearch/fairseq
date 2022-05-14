@@ -30,9 +30,7 @@ def dump_result(args, data, sample_id, pred_wav):
         out_file = Path(args.results_path) / fname
 
     sf.write(
-        out_file.as_posix(),
-        pred_wav.detach().cpu().numpy(),
-        args.sample_rate,
+        out_file.as_posix(), pred_wav.detach().cpu().numpy(), args.sample_rate,
     )
 
 
@@ -97,10 +95,7 @@ def cli_main():
         "--vocoder", type=str, required=True, help="path to the vocoder"
     )
     parser.add_argument(
-        "--vocoder-cfg",
-        type=str,
-        required=True,
-        help="path to the vocoder config",
+        "--vocoder-cfg", type=str, required=True, help="path to the vocoder config",
     )
     parser.add_argument("--sample-rate", type=int, default=16_000)
     parser.add_argument(

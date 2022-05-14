@@ -96,10 +96,7 @@ def cli_main():
     parser = make_parser()
     args = options.parse_args_and_arch(parser)
 
-    with open(
-        args.config,
-        "r",
-    ) as f:
+    with open(args.config, "r",) as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
     dict_args = vars(args)
     dict_args.update(config["general"])

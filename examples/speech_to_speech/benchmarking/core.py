@@ -55,9 +55,7 @@ class BenchmarkingBase(nn.Module):
         return time_elapsed / repeat
 
     def count_flops(
-        self,
-        dataset,
-        repeat,
+        self, dataset, repeat,
     ):
         """Use PYPAPI library to count average flops for model inference.
         Note: It only works if the model is being run on cpu"""
@@ -104,9 +102,7 @@ class BenchmarkingBase(nn.Module):
             try:
                 wave_preds = to_np(resample_fn(hypo["waveform"]))
                 sf.write(
-                    f"{output_dir}/{prefix}_{i}_pred.wav",
-                    wave_preds,
-                    sample_rate,
+                    f"{output_dir}/{prefix}_{i}_pred.wav", wave_preds, sample_rate,
                 )
             except Exception as e:
                 raise Exception(
@@ -153,9 +149,7 @@ class Processing(BenchmarkingBase):
         self.model.prepare_for_inference_(cfg)
 
         self.generator = self.task.build_generator(
-            [self.model],
-            cfg.generation,
-            extra_gen_cls_kwargs={},
+            [self.model], cfg.generation, extra_gen_cls_kwargs={},
         )
         # Handle tokenization and BPE
         self.tokenizer = self.task.build_tokenizer(cfg.tokenizer)
@@ -192,11 +186,7 @@ class Processing(BenchmarkingBase):
 
     def forward(self, sample):
         hypos = self.task.inference_step(
-            self.generator,
-            [self.model],
-            sample,
-            prefix_tokens=None,
-            constraints=None,
+            self.generator, [self.model], sample, prefix_tokens=None, constraints=None,
         )
         return hypos
 
@@ -276,10 +266,7 @@ class SpeechGeneration(BenchmarkingBase):
             self.model.cuda()
             # criterion.cuda()
         self.model.eval()
-        self.generator = self.task.build_generator(
-            [self.model],
-            args,
-        )
+        self.generator = self.task.build_generator([self.model], args,)
 
     def processTextInput(self, text):
         """Generate source tokens from text input"""
@@ -344,15 +331,11 @@ class S2UT(BenchmarkingBase):
             self.s2u_output = self.generate_s2u_outputs(dataset)
             self.vocoder_input = self.vocoder.generate_vocoder_input(self.s2u_output)
 
-        s2u_metrics = getattr(self.s2u, metric_type)(
-            dataset,
-            repeat,
-        )
+        s2u_metrics = getattr(self.s2u, metric_type)(dataset, repeat,)
         vocoder_metrics = 0
         if self.vocoder:
             vocoder_metrics = getattr(self.vocoder, metric_type)(
-                self.vocoder_input,
-                repeat,
+                self.vocoder_input, repeat,
             )
         print(
             f"metric_type = {metric_type} s2u_metrics = {s2u_metrics} \t vocoder_metrics = {vocoder_metrics}"
@@ -408,15 +391,9 @@ class Cascaded2StageS2ST(BenchmarkingBase):
             s2t_outputs = self.generate_s2t_outputs(dataset)
             self.tts_inputs = self.generate_tts_inputs(s2t_outputs)
 
-        s2t_metrics = getattr(self.s2t, metric_type)(
-            dataset,
-            repeat,
-        )
+        s2t_metrics = getattr(self.s2t, metric_type)(dataset, repeat,)
 
-        tts_metrics = getattr(self.tts, metric_type)(
-            self.tts_inputs,
-            repeat,
-        )
+        tts_metrics = getattr(self.tts, metric_type)(self.tts_inputs, repeat,)
         print(
             f"metric_type = {metric_type} s2t_metrics = {s2t_metrics} \t tts_metrics = {tts_metrics}"
         )
@@ -469,15 +446,9 @@ class Cascaded3StageS2ST(Cascaded2StageS2ST):
             mt_outputs = self.generate_mt_outputs(self.mt_inputs)
             self.tts_inputs = self.generate_tts_inputs(mt_outputs)
 
-        s2t_metrics = getattr(self.s2t, metric_type)(
-            dataset,
-            repeat,
-        )
+        s2t_metrics = getattr(self.s2t, metric_type)(dataset, repeat,)
         mt_metrics = getattr(self.mt, metric_type)(self.mt_inputs, repeat)
-        tts_metrics = getattr(self.tts, metric_type)(
-            self.tts_inputs,
-            repeat,
-        )
+        tts_metrics = getattr(self.tts, metric_type)(self.tts_inputs, repeat,)
         print(
             f"metric_type = {metric_type}  s2t_metrics = {s2t_metrics} \t mt_metrics = {mt_metrics} \t tts_metrics = {tts_metrics}"
         )

@@ -94,7 +94,7 @@ class MultilingualDenoisingTask(DenoisingTask):
         languages by upsampling them.
         """
         prob = dataset_lens / dataset_lens.sum()
-        smoothed_prob = prob**self.args.multilang_sampling_alpha
+        smoothed_prob = prob ** self.args.multilang_sampling_alpha
         smoothed_prob = smoothed_prob / smoothed_prob.sum()
         return smoothed_prob
 
@@ -186,10 +186,7 @@ class MultilingualDenoisingTask(DenoisingTask):
             )
             lang_datasets.append(lang_dataset)
 
-        dataset_lengths = np.array(
-            [len(d) for d in lang_datasets],
-            dtype=float,
-        )
+        dataset_lengths = np.array([len(d) for d in lang_datasets], dtype=float,)
         logger.info(
             "loaded total {} blocks for all languages".format(
                 int(dataset_lengths.sum()),
@@ -226,9 +223,7 @@ class MultilingualDenoisingTask(DenoisingTask):
                 )
                 for i, d in enumerate(lang_datasets)
             ]
-            dataset = ConcatDataset(
-                resampled_lang_datasets,
-            )
+            dataset = ConcatDataset(resampled_lang_datasets,)
         else:
             dataset = ConcatDataset(lang_datasets)
             lang_splits = [split]
@@ -246,9 +241,5 @@ class MultilingualDenoisingTask(DenoisingTask):
             shuffle = np.random.permutation(len(dataset))
 
         self.datasets[split] = SortDataset(
-            dataset,
-            sort_order=[
-                shuffle,
-                dataset.sizes,
-            ],
+            dataset, sort_order=[shuffle, dataset.sizes,],
         )

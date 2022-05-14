@@ -28,9 +28,7 @@ class LabelEncoder(object):
 
     def __call__(self, label: str) -> List[str]:
         return self.dictionary.encode_line(
-            label,
-            append_eos=False,
-            add_if_not_exist=False,
+            label, append_eos=False, add_if_not_exist=False,
         )
 
 
@@ -51,13 +49,10 @@ class HubertPretrainingConfig(FairseqDataclass):
     )
     label_dir: Optional[str] = field(
         default=None,
-        metadata={
-            "help": "if set, looks for labels in this directory instead",
-        },
+        metadata={"help": "if set, looks for labels in this directory instead",},
     )
     label_rate: float = field(
-        default=-1.0,
-        metadata={"help": "label frame rate. -1.0 for sequence label"},
+        default=-1.0, metadata={"help": "label frame rate. -1.0 for sequence label"},
     )
     sample_rate: int = field(
         default=16_000,
@@ -71,20 +66,16 @@ class HubertPretrainingConfig(FairseqDataclass):
         metadata={"help": "if set, normalizes input to have 0 mean and unit variance"},
     )
     enable_padding: bool = field(
-        default=False,
-        metadata={"help": "pad shorter samples instead of cropping"},
+        default=False, metadata={"help": "pad shorter samples instead of cropping"},
     )
     max_keep_size: Optional[int] = field(
-        default=None,
-        metadata={"help": "exclude sample longer than this"},
+        default=None, metadata={"help": "exclude sample longer than this"},
     )
     max_sample_size: Optional[int] = field(
-        default=None,
-        metadata={"help": "max sample size to crop to for batching"},
+        default=None, metadata={"help": "max sample size to crop to for batching"},
     )
     min_sample_size: Optional[int] = field(
-        default=None,
-        metadata={"help": "min sample size to crop to for batching"},
+        default=None, metadata={"help": "min sample size to crop to for batching"},
     )
     single_target: Optional[bool] = field(
         default=False,
@@ -93,8 +84,7 @@ class HubertPretrainingConfig(FairseqDataclass):
         },
     )
     random_crop: Optional[bool] = field(
-        default=True,
-        metadata={"help": "always crop from the beginning if false"},
+        default=True, metadata={"help": "always crop from the beginning if false"},
     )
     pad_audio: Optional[bool] = field(
         default=False,
@@ -107,10 +97,7 @@ class HubertPretrainingTask(FairseqTask):
 
     cfg: HubertPretrainingConfig
 
-    def __init__(
-        self,
-        cfg: HubertPretrainingConfig,
-    ) -> None:
+    def __init__(self, cfg: HubertPretrainingConfig,) -> None:
         super().__init__(cfg)
 
         logger.info(f"current directory is {os.getcwd()}")

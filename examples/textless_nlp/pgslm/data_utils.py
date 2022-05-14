@@ -24,9 +24,9 @@ class Stat:
         new_z = new_x.log()
 
         self.x += new_x.sum()
-        self.x2 += (new_x**2).sum()
+        self.x2 += (new_x ** 2).sum()
         self.z += new_z.sum()
-        self.z2 += (new_z**2).sum()
+        self.z2 += (new_z ** 2).sum()
         self.n += len(new_x)
         self.u += 1
 
@@ -39,7 +39,7 @@ class Stat:
 
     @property
     def std(self):
-        return (self.x2 / self.n - self.mean**2) ** 0.5
+        return (self.x2 / self.n - self.mean ** 2) ** 0.5
 
     @property
     def mean_log(self):
@@ -47,7 +47,7 @@ class Stat:
 
     @property
     def std_log(self):
-        return (self.z2 / self.n - self.mean_log**2) ** 0.5
+        return (self.z2 / self.n - self.mean_log ** 2) ** 0.5
 
     @property
     def n_frms(self):

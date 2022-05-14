@@ -18,8 +18,7 @@ from fairseq.dataclass import FairseqDataclass
 @dataclass
 class HubertCriterionConfig(FairseqDataclass):
     pred_masked_weight: float = field(
-        default=1.0,
-        metadata={"help": "weight for predictive loss for masked frames"},
+        default=1.0, metadata={"help": "weight for predictive loss for masked frames"},
     )
     pred_nomask_weight: float = field(
         default=0.0,
@@ -30,8 +29,7 @@ class HubertCriterionConfig(FairseqDataclass):
         metadata={"help": "weights for additional loss terms (not first one)"},
     )
     log_keys: List[str] = field(
-        default_factory=lambda: [],
-        metadata={"help": "output keys to log"},
+        default_factory=lambda: [], metadata={"help": "output keys to log"},
     )
 
 

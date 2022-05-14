@@ -50,9 +50,7 @@ class MaskedLmLoss(FairseqCriterion):
                 masked_tokens = None
         else:
             masked_tokens = torch.where(
-                masked_tokens.any(),
-                masked_tokens,
-                masked_tokens.new([True]),
+                masked_tokens.any(), masked_tokens, masked_tokens.new([True]),
             )
 
         logits = model(**sample["net_input"], masked_tokens=masked_tokens)[0]

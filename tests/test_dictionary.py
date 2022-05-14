@@ -23,26 +23,10 @@ class TestDictionary(unittest.TestCase):
             "D",
         ]
         ref_ids1 = list(
-            map(
-                torch.IntTensor,
-                [
-                    [4, 5, 6, 7, 2],
-                    [5, 6, 7, 2],
-                    [6, 7, 2],
-                    [7, 2],
-                ],
-            )
+            map(torch.IntTensor, [[4, 5, 6, 7, 2], [5, 6, 7, 2], [6, 7, 2], [7, 2],],)
         )
         ref_ids2 = list(
-            map(
-                torch.IntTensor,
-                [
-                    [7, 6, 5, 4, 2],
-                    [6, 5, 4, 2],
-                    [5, 4, 2],
-                    [4, 2],
-                ],
-            )
+            map(torch.IntTensor, [[7, 6, 5, 4, 2], [6, 5, 4, 2], [5, 4, 2], [4, 2],],)
         )
 
         # build dictionary

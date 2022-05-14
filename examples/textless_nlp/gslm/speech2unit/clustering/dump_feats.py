@@ -35,9 +35,7 @@ def get_parser():
         help="Features file path to write to",
     )
     parser.add_argument(
-        "--checkpoint_path",
-        type=str,
-        help="Pretrained acoustic model checkpoint",
+        "--checkpoint_path", type=str, help="Pretrained acoustic model checkpoint",
     )
     parser.add_argument(
         "--layer",
@@ -52,9 +50,7 @@ def get_parser():
         default=0.1,
     )
     parser.add_argument(
-        "--out_features_path",
-        type=str,
-        help="Path to save log mel fbank features",
+        "--out_features_path", type=str, help="Path to save log mel fbank features",
     )
     return parser
 

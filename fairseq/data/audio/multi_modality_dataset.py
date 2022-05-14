@@ -112,10 +112,9 @@ class MultiModalityDataset(ConcatDataset):
         with data_utils.numpy_seed(seed):
             indices = self.ordered_indices()
         for i, ds in enumerate(self.datasets):
-            indices[i] = ds.filter_indices_by_size(
-                indices[i],
-                self.max_positions[i],
-            )[0]
+            indices[i] = ds.filter_indices_by_size(indices[i], self.max_positions[i],)[
+                0
+            ]
             sub_batch_sampler = ds.batch_by_size(
                 indices[i],
                 max_tokens=self.max_tokens[i],

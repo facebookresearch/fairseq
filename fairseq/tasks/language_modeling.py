@@ -85,12 +85,10 @@ class LanguageModelingConfig(FairseqDataclass):
         },
     )
     pad_to_fixed_length: Optional[bool] = field(
-        default=False,
-        metadata={"help": "pad to fixed length"},
+        default=False, metadata={"help": "pad to fixed length"},
     )
     pad_to_fixed_bsz: Optional[bool] = field(
-        default=False,
-        metadata={"help": "boolean to pad to fixed batch size"},
+        default=False, metadata={"help": "boolean to pad to fixed batch size"},
     )
 
     # TODO common vars below add to parent

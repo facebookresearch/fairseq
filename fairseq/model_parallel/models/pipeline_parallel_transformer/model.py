@@ -670,9 +670,7 @@ class TransformerDecoder(FairseqDecoder):
                 )
 
     def forward(
-        self,
-        prev_output_tokens,
-        encoder_out=None,
+        self, prev_output_tokens, encoder_out=None,
     ):
         """
         Args:

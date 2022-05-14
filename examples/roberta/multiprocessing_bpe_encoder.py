@@ -24,30 +24,19 @@ def main():
     """
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--encoder-json",
-        help="path to encoder.json",
+        "--encoder-json", help="path to encoder.json",
     )
     parser.add_argument(
-        "--vocab-bpe",
-        type=str,
-        help="path to vocab.bpe",
+        "--vocab-bpe", type=str, help="path to vocab.bpe",
     )
     parser.add_argument(
-        "--inputs",
-        nargs="+",
-        default=["-"],
-        help="input files to filter/encode",
+        "--inputs", nargs="+", default=["-"], help="input files to filter/encode",
     )
     parser.add_argument(
-        "--outputs",
-        nargs="+",
-        default=["-"],
-        help="path to save encoded outputs",
+        "--outputs", nargs="+", default=["-"], help="path to save encoded outputs",
     )
     parser.add_argument(
-        "--keep-empty",
-        action="store_true",
-        help="keep empty lines",
+        "--keep-empty", action="store_true", help="keep empty lines",
     )
     parser.add_argument("--workers", type=int, default=20)
     args = parser.parse_args()

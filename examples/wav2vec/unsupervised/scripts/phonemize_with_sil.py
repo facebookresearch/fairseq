@@ -26,9 +26,7 @@ def get_parser():
         help="if set, surrounds each example with silence",
     )
     parser.add_argument(
-        "--lexicon",
-        help="lexicon to convert to phones",
-        required=True,
+        "--lexicon", help="lexicon to convert to phones", required=True,
     )
 
     return parser

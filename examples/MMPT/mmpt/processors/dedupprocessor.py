@@ -76,9 +76,7 @@ class CaptionDedupProcessor(object):
             pickle.dump(self.data, fw, pickle.HIGHEST_PROTOCOL)
 
     def save_stat(self, video_id, caption):
-        video_fn = os.path.join(
-            "data/feat/feat_how2_s3d", video_id + ".npy"
-        )
+        video_fn = os.path.join("data/feat/feat_how2_s3d", video_id + ".npy")
         if os.path.isfile(video_fn):
             with open(video_fn, "rb", 1) as fr:  # 24 is the buffer size. buffered
                 version = np.lib.format.read_magic(fr)
@@ -159,9 +157,9 @@ class CaptionDedupProcessor(object):
 
         for clip_idx, (start, end, text) in enumerate(
             zip(
-                caption["start"][clip_idx + 1:],
-                caption["end"][clip_idx + 1:],
-                caption["text"][clip_idx + 1:],
+                caption["start"][clip_idx + 1 :],
+                caption["end"][clip_idx + 1 :],
+                caption["text"][clip_idx + 1 :],
             )
         ):
             if not isinstance(text, str):
@@ -211,7 +209,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="dedup how2 caption")
-    parser.add_argument('--how2dir', default="data/how2")
+    parser.add_argument("--how2dir", default="data/how2")
     args = parser.parse_args()
 
     raw_caption_json = os.path.join(args.how2dir, "raw_caption.json")

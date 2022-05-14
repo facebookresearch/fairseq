@@ -17,7 +17,7 @@ import os
 import logging
 from tqdm import tqdm
 
-AUDIO_SUFFIX = '.wav'
+AUDIO_SUFFIX = ".wav"
 FS_MS = 30
 SCALE = 6e-5
 THRESHOLD = 0.3
@@ -27,7 +27,7 @@ def read_wave(path):
     """Reads a .wav file.
     Takes the path, and returns (PCM audio data, sample rate).
     """
-    with contextlib.closing(wave.open(path, 'rb')) as wf:
+    with contextlib.closing(wave.open(path, "rb")) as wf:
         num_channels = wf.getnchannels()
         assert num_channels == 1
         sample_width = wf.getsampwidth()
@@ -42,7 +42,7 @@ def write_wave(path, audio, sample_rate):
     """Writes a .wav file.
     Takes path, PCM audio data, and sample rate.
     """
-    with contextlib.closing(wave.open(path, 'wb')) as wf:
+    with contextlib.closing(wave.open(path, "wb")) as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
         wf.setframerate(sample_rate)
@@ -51,6 +51,7 @@ def write_wave(path, audio, sample_rate):
 
 class Frame(object):
     """Represents a "frame" of audio data."""
+
     def __init__(self, bytes, timestamp, duration):
         self.bytes = bytes
         self.timestamp = timestamp
@@ -68,13 +69,12 @@ def frame_generator(frame_duration_ms, audio, sample_rate):
     timestamp = 0.0
     duration = (float(n) / sample_rate) / 2.0
     while offset + n < len(audio):
-        yield Frame(audio[offset:offset + n], timestamp, duration)
+        yield Frame(audio[offset : offset + n], timestamp, duration)
         timestamp += duration
         offset += n
 
 
-def vad_collector(sample_rate, frame_duration_ms,
-                  padding_duration_ms, vad, frames):
+def vad_collector(sample_rate, frame_duration_ms, padding_duration_ms, vad, frames):
     """Filters out non-voiced audio frames.
     Given a webrtcvad.Vad and a source of audio frames, yields only
     the voiced audio.
@@ -131,15 +131,21 @@ def vad_collector(sample_rate, frame_duration_ms,
             # audio we've collected.
             if num_unvoiced > 0.9 * ring_buffer.maxlen:
                 triggered = False
-                yield [b''.join([f.bytes for f in voiced_frames]),
-                       voiced_frames[0].timestamp, voiced_frames[-1].timestamp]
+                yield [
+                    b"".join([f.bytes for f in voiced_frames]),
+                    voiced_frames[0].timestamp,
+                    voiced_frames[-1].timestamp,
+                ]
                 ring_buffer.clear()
                 voiced_frames = []
     # If we have any leftover voiced audio when we run out of input,
     # yield it.
     if voiced_frames:
-        yield [b''.join([f.bytes for f in voiced_frames]),
-               voiced_frames[0].timestamp, voiced_frames[-1].timestamp]
+        yield [
+            b"".join([f.bytes for f in voiced_frames]),
+            voiced_frames[0].timestamp,
+            voiced_frames[-1].timestamp,
+        ]
 
 
 def main(args):
@@ -171,22 +177,25 @@ def main(args):
                 if i and timestamp_start:
                     sil_duration = segment[1] - timestamp_end
                     if sil_duration > THRESHOLD:
-                        merge_segments.append(int(THRESHOLD / SCALE)*(b'\x00'))
+                        merge_segments.append(int(THRESHOLD / SCALE) * (b"\x00"))
                     else:
-                        merge_segments.append(int((sil_duration / SCALE))*(b'\x00'))
+                        merge_segments.append(int((sil_duration / SCALE)) * (b"\x00"))
                 timestamp_start = segment[1]
                 timestamp_end = segment[2]
-            segment = b''.join(merge_segments)
+            segment = b"".join(merge_segments)
             write_wave(audio_outpath, segment, sample_rate)
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Apply vad to a file of fils.')
-    parser.add_argument('in_path', type=str, help='Path to the input files')
-    parser.add_argument('out_path', type=str,
-                        help='Path to save the processed files')
-    parser.add_argument('--agg', type=int, default=3,
-                        help='The level of aggressiveness of the VAD: [0-3]')
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Apply vad to a file of fils.")
+    parser.add_argument("in_path", type=str, help="Path to the input files")
+    parser.add_argument("out_path", type=str, help="Path to save the processed files")
+    parser.add_argument(
+        "--agg",
+        type=int,
+        default=3,
+        help="The level of aggressiveness of the VAD: [0-3]",
+    )
     args = parser.parse_args()
 
     main(args)

@@ -13,10 +13,7 @@ setup(
     ext_modules=[
         CUDAExtension(
             name="dynamicconv_cuda",
-            sources=[
-                "dynamicconv_cuda.cpp",
-                "dynamicconv_cuda_kernel.cu",
-            ],
+            sources=["dynamicconv_cuda.cpp", "dynamicconv_cuda_kernel.cu",],
         ),
     ],
     cmdclass={"build_ext": BuildExtension},

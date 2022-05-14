@@ -28,8 +28,8 @@ class TestSparseMultiheadAttention(unittest.TestCase):
         bidirectional_attention = SparseMultiheadAttention(
             16, 1, stride=4, expressivity=1, is_bidirectional=True
         )
-        bidirectional_attention_sparse_mask = (
-            bidirectional_attention.buffered_sparse_mask(attn_weights, 8, 8)
+        bidirectional_attention_sparse_mask = bidirectional_attention.buffered_sparse_mask(
+            attn_weights, 8, 8
         )
         torch.all(
             torch.eq(bidirectional_attention_sparse_mask, bidirectional_sparse_mask)

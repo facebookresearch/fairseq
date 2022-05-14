@@ -38,9 +38,7 @@ class BaseDecoder:
         return self.decode(emissions)
 
     def get_emissions(
-        self,
-        models: List[FairseqModel],
-        encoder_input: Dict[str, Any],
+        self, models: List[FairseqModel], encoder_input: Dict[str, Any],
     ) -> torch.FloatTensor:
         model = models[0]
         encoder_out = model(**encoder_input)
@@ -56,7 +54,6 @@ class BaseDecoder:
         return torch.LongTensor(list(idxs))
 
     def decode(
-        self,
-        emissions: torch.FloatTensor,
+        self, emissions: torch.FloatTensor,
     ) -> List[List[Dict[str, torch.LongTensor]]]:
         raise NotImplementedError

@@ -245,7 +245,6 @@ def main(args, task=None, model_state=None):
         optimize_models(args, use_cuda, models)
         task.load_dataset(args.gen_subset, task_cfg=saved_cfg.task)
 
-
     # Set dictionary
     tgt_dict = task.target_dictionary
 

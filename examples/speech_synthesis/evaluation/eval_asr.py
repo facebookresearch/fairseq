@@ -20,14 +20,9 @@ def preprocess_text(text):
     return text
 
 
-def prepare_w2v_data(
-        dict_dir, sample_rate, label, audio_paths, texts, split, data_dir
-):
+def prepare_w2v_data(dict_dir, sample_rate, label, audio_paths, texts, split, data_dir):
     data_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(
-        dict_dir / f"dict.{label}.txt",
-        data_dir / f"dict.{label}.txt"
-    )
+    shutil.copyfile(dict_dir / f"dict.{label}.txt", data_dir / f"dict.{label}.txt")
     with open(data_dir / f"{split}.tsv", "w") as f:
         f.write("/\n")
         for audio_path in audio_paths:
@@ -62,28 +57,23 @@ def compute_error_rate(hyp_wrd_path, ref_wrd_path, unit="word"):
     """each line is "<text> (None-<index>)" """
     tokenize_line = {
         "word": lambda x: re.sub(r" \(.*\)$", "", x.rstrip()).split(),
-        "char": lambda x: list(re.sub(r" \(.*\)$", "", x.rstrip()))
+        "char": lambda x: list(re.sub(r" \(.*\)$", "", x.rstrip())),
     }.get(unit)
     if tokenize_line is None:
         raise ValueError(f"{unit} not supported")
 
-    inds = [int(re.sub(r"\D*(\d*)\D*", r"\1", line))
-            for line in open(hyp_wrd_path)]
+    inds = [int(re.sub(r"\D*(\d*)\D*", r"\1", line)) for line in open(hyp_wrd_path)]
     hyps = [tokenize_line(line) for line in open(hyp_wrd_path)]
     refs = [tokenize_line(line) for line in open(ref_wrd_path)]
-    assert(len(hyps) == len(refs))
-    err_rates = [
-        editdistance.eval(hyp, ref) / len(ref) for hyp, ref in zip(hyps, refs)
-    ]
+    assert len(hyps) == len(refs)
+    err_rates = [editdistance.eval(hyp, ref) / len(ref) for hyp, ref in zip(hyps, refs)]
     ind_to_err_rates = {i: e for i, e in zip(inds, err_rates)}
     return ind_to_err_rates
 
 
 def main(args):
     samples = load_tsv_to_dicts(args.raw_manifest)
-    ids = [
-        sample[args.id_header] if args.id_header else "" for sample in samples
-    ]
+    ids = [sample[args.id_header] if args.id_header else "" for sample in samples]
     audio_paths = [sample[args.audio_header] for sample in samples]
     texts = [sample[args.text_header] for sample in samples]
 
@@ -94,7 +84,7 @@ def main(args):
         audio_paths,
         texts,
         args.split,
-        args.asr_dir
+        args.asr_dir,
     )
     run_asr(args.asr_dir, args.split, args.w2v_ckpt, args.w2v_label, args.asr_dir)
     ind_to_err_rates = compute_error_rate(

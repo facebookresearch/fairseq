@@ -54,9 +54,7 @@ def get_parser():
         help="Features file path to write to",
     )
     parser.add_argument(
-        "--checkpoint_path",
-        type=str,
-        help="Pretrained acoustic model checkpoint",
+        "--checkpoint_path", type=str, help="Pretrained acoustic model checkpoint",
     )
     parser.add_argument(
         "--layer",
@@ -83,10 +81,7 @@ def get_parser():
         default=150,
     )
     parser.add_argument(
-        "--batch_size",
-        type=int,
-        help="Batch size for K-means training",
-        default=10000,
+        "--batch_size", type=int, help="Batch size for K-means training", default=10000,
     )
     parser.add_argument("--tol", default=0.0, type=float)
     parser.add_argument("--max_no_improvement", default=100, type=int)
@@ -174,9 +169,7 @@ def main(args, logger):
             )
         )
         if args.out_features_path:
-            logger.info(
-                f"Saved extracted features at {args.out_features_path}"
-            )
+            logger.info(f"Saved extracted features at {args.out_features_path}")
     logger.info(f"Features shape = {features_batch.shape}\n")
 
     # Learn and save K-means model

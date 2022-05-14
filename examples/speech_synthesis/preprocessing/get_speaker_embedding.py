@@ -22,9 +22,7 @@ from examples.speech_synthesis.preprocessing.speaker_embedder import SpkrEmbedde
 def extract_embedding(audio_path, embedder):
     wav, sr = torchaudio.load(audio_path)  # 2D
     if sr != embedder.RATE:
-        wav, sr = ta_sox.apply_effects_tensor(
-            wav, sr, [["rate", str(embedder.RATE)]]
-        )
+        wav, sr = ta_sox.apply_effects_tensor(wav, sr, [["rate", str(embedder.RATE)]])
     try:
         emb = embedder([wav[0].cuda().float()]).cpu().numpy()
     except RuntimeError:
@@ -35,8 +33,7 @@ def extract_embedding(audio_path, embedder):
 def process(args):
     print("Fetching data...")
     raw_manifest_root = Path(args.raw_manifest_root).absolute()
-    samples = [load_tsv_to_dicts(raw_manifest_root / (s + ".tsv"))
-               for s in args.splits]
+    samples = [load_tsv_to_dicts(raw_manifest_root / (s + ".tsv")) for s in args.splits]
     samples = list(chain(*samples))
     with open(args.config, "r") as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
@@ -53,9 +50,7 @@ def process(args):
             speaker_to_emb[sample["speaker"]] += emb
     if len(speaker_to_emb) != len(speaker_to_id):
         missed = set(speaker_to_id) - set(speaker_to_emb.keys())
-        print(
-            f"WARNING: missing embeddings for {len(missed)} speaker:\n{missed}"
-        )
+        print(f"WARNING: missing embeddings for {len(missed)} speaker:\n{missed}")
     speaker_emb_mat = np.zeros((len(speaker_to_id), len(emb)), float)
     for speaker in speaker_to_emb:
         idx = speaker_to_id[speaker]
@@ -74,12 +69,12 @@ def process(args):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--raw-manifest-root", "-m", required=True, type=str)
-    parser.add_argument("--splits", "-s", type=str, nargs="+",
-                        default=["train"])
+    parser.add_argument("--splits", "-s", type=str, nargs="+", default=["train"])
     parser.add_argument("--config", "-c", required=True, type=str)
     parser.add_argument("--new-config", "-n", required=True, type=str)
-    parser.add_argument("--ckpt", required=True, type=str,
-                        help="speaker embedder checkpoint")
+    parser.add_argument(
+        "--ckpt", required=True, type=str, help="speaker embedder checkpoint"
+    )
     args = parser.parse_args()
 
     process(args)

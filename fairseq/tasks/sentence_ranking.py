@@ -93,9 +93,7 @@ class SentenceRankingTask(LegacyFairseqTask):
 
         # load data dictionary
         data_dict = cls.load_dictionary(
-            args,
-            os.path.join(args.data, "input0", "dict.txt"),
-            source=True,
+            args, os.path.join(args.data, "input0", "dict.txt"), source=True,
         )
         logger.info("[input] dictionary: {} types".format(len(data_dict)))
         return SentenceRankingTask(args, data_dict)

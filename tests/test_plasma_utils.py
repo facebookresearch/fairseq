@@ -112,7 +112,7 @@ class TestPlasmaView(unittest.TestCase):
             server.kill()
 
     def test_object_id_overflow(self):
-        PlasmaView.get_object_id("", 2**21)
+        PlasmaView.get_object_id("", 2 ** 21)
 
     def test_training_lm_plasma(self):
         with contextlib.redirect_stdout(StringIO()):

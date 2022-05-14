@@ -9,7 +9,7 @@ def waitk_p_choose(
     bsz: int,
     waitk_lagging: int,
     key_padding_mask: Optional[Tensor] = None,
-    incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None
+    incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
 ):
 
     max_src_len = src_len
@@ -25,9 +25,7 @@ def waitk_p_choose(
     if max_src_len < waitk_lagging:
         if incremental_state is not None:
             max_tgt_len = 1
-        return torch.zeros(
-            bsz, max_tgt_len, max_src_len
-        )
+        return torch.zeros(bsz, max_tgt_len, max_src_len)
 
     # Assuming the p_choose looks like this for wait k=3
     # src_len = 6, max_tgt_len = 5
@@ -51,10 +49,7 @@ def waitk_p_choose(
     # Third, resize the tensor to (bsz, max_tgt_len, src_len)
 
     activate_indices_offset = (
-        (
-            torch.arange(max_tgt_len) * (max_src_len + 1)
-            + waitk_lagging - 1
-        )
+        (torch.arange(max_tgt_len) * (max_src_len + 1) + waitk_lagging - 1)
         .unsqueeze(0)
         .expand(bsz, max_tgt_len)
         .long()
@@ -63,31 +58,18 @@ def waitk_p_choose(
     if key_padding_mask is not None:
         if key_padding_mask[:, 0].any():
             # Left padding
-            activate_indices_offset += (
-                key_padding_mask.sum(dim=1, keepdim=True)
-            )
+            activate_indices_offset += key_padding_mask.sum(dim=1, keepdim=True)
 
     # Need to clamp the indices that are too large
-    activate_indices_offset = (
-        activate_indices_offset
-        .clamp(
-            0,
-            min(
-                [
-                    max_tgt_len,
-                    max_src_len - waitk_lagging + 1
-                ]
-            ) * max_src_len - 1
-        )
+    activate_indices_offset = activate_indices_offset.clamp(
+        0, min([max_tgt_len, max_src_len - waitk_lagging + 1]) * max_src_len - 1
     )
 
     p_choose = torch.zeros(bsz, max_tgt_len * max_src_len)
 
-    p_choose = p_choose.scatter(
-        1,
-        activate_indices_offset,
-        1.0
-    ).view(bsz, max_tgt_len, max_src_len)
+    p_choose = p_choose.scatter(1, activate_indices_offset, 1.0).view(
+        bsz, max_tgt_len, max_src_len
+    )
 
     if key_padding_mask is not None:
         p_choose = p_choose.to(key_padding_mask)
@@ -100,10 +82,7 @@ def waitk_p_choose(
 
 
 def learnable_p_choose(
-    energy,
-    noise_mean: float = 0.0,
-    noise_var: float = 0.0,
-    training: bool = True
+    energy, noise_mean: float = 0.0, noise_var: float = 0.0, training: bool = True
 ):
     """
     Calculating step wise prob for reading and writing

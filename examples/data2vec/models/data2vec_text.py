@@ -315,7 +315,9 @@ class Data2VecTextEncoder(FairseqEncoder):
         return nn.Embedding(vocab_size, embedding_dim, padding_idx)
 
     def build_encoder(self, cfg, dictionary, embed_tokens):
-        encoder = TransformerEncoder(cfg.transformer, dictionary, embed_tokens, return_fc=True)
+        encoder = TransformerEncoder(
+            cfg.transformer, dictionary, embed_tokens, return_fc=True
+        )
         encoder.apply(init_bert_params)
         return encoder
 
@@ -323,10 +325,7 @@ class Data2VecTextEncoder(FairseqEncoder):
         return RobertaLMHead(embed_dim, output_dim, activation_fn, weight)
 
     def make_ema_teacher(self):
-        ema_config = EMAModuleConfig(
-            ema_decay=self.cfg.ema_decay,
-            ema_fp32=True,
-        )
+        ema_config = EMAModuleConfig(ema_decay=self.cfg.ema_decay, ema_fp32=True,)
         skip_keys = set()
         if self.cfg.ema_transformer_layers_only:
             for k, _ in self.sentence_encoder.embed_positions.named_parameters():
@@ -343,11 +342,7 @@ class Data2VecTextEncoder(FairseqEncoder):
                 for k, _ in self.sentence_encoder.layer_norm.named_parameters():
                     skip_keys.add(f"layernorm_embedding.{k}")
 
-        self.ema = EMAModule(
-            self.sentence_encoder,
-            ema_config,
-            skip_keys=skip_keys,
-        )
+        self.ema = EMAModule(self.sentence_encoder, ema_config, skip_keys=skip_keys,)
 
     def set_num_updates(self, num_updates):
         super().set_num_updates(num_updates)
@@ -423,10 +418,7 @@ class Data2VecTextEncoder(FairseqEncoder):
             # use EMA parameter as the teacher
             self.ema.model.eval()
 
-            encoder_out = self.ema.model(
-                target_tokens,
-                return_all_hiddens=True,
-            )
+            encoder_out = self.ema.model(target_tokens, return_all_hiddens=True,)
             y = encoder_out["fc_results"]
 
             y = y[-self.average_top_k_layers :]
@@ -489,9 +481,7 @@ class Data2VecTextEncoder(FairseqEncoder):
         }
 
         # logging other values
-        other_logs = {
-            "ema_decay": self.ema.get_decay() * 1000
-        }
+        other_logs = {"ema_decay": self.ema.get_decay() * 1000}
         result["logs"] = other_logs
         return result
 
@@ -504,10 +494,13 @@ class Data2VecTextEncoder(FairseqEncoder):
         # T x B x C -> B x T x C
         features = encoder_out["encoder_out"][0].transpose(0, 1)
         inner_states = encoder_out["encoder_states"] if return_all_hiddens else None
-        return features, {
-            "inner_states": inner_states,
-            "encoder_embedding": encoder_out["encoder_embedding"][0],
-        }
+        return (
+            features,
+            {
+                "inner_states": inner_states,
+                "encoder_embedding": encoder_out["encoder_embedding"][0],
+            },
+        )
 
     def output_layer(self, features, masked_tokens=None, **unused):
         return self.lm_head(features, masked_tokens)

@@ -28,11 +28,7 @@ def score_target_hypo(
     gen_output_lst, bitext1_lst, bitext2_lst, lm_res_lst = load_score_files(args)
     dict = dictionary.Dictionary()
     scorer = scorer = bleu.Scorer(
-        bleu.BleuConfig(
-            pad=dict.pad(),
-            eos=dict.eos(),
-            unk=dict.unk(),
-        )
+        bleu.BleuConfig(pad=dict.pad(), eos=dict.eos(), unk=dict.unk(),)
     )
 
     ordered_hypos = {}

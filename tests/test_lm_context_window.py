@@ -31,10 +31,7 @@ class TestLMContextWindow(unittest.TestCase):
         task = LanguageModelingTask(config, dictionary)
 
         eval_dataloader = task.eval_lm_dataloader(
-            dataset=dataset,
-            batch_size=1,
-            context_window=2,
-            num_workers=0,
+            dataset=dataset, batch_size=1, context_window=2, num_workers=0,
         )
 
         batch = next(eval_dataloader)

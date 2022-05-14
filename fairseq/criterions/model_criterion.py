@@ -20,12 +20,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ModelCriterionConfig(FairseqDataclass):
     loss_weights: Dict[str, float] = field(
-        default_factory=dict,
-        metadata={"help": "weights for the loss terms"},
+        default_factory=dict, metadata={"help": "weights for the loss terms"},
     )
     log_keys: List[str] = field(
-        default_factory=list,
-        metadata={"help": "additional output keys to log"},
+        default_factory=list, metadata={"help": "additional output keys to log"},
     )
 
 

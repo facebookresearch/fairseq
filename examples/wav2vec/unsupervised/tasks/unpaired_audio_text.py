@@ -168,10 +168,7 @@ class UnpairedAudioText(FairseqTask):
             optimizer.step()
 
     def valid_step(self, sample, model, criterion):
-        res = model(
-            **sample["net_input"],
-            dense_x_only=True,
-        )
+        res = model(**sample["net_input"], dense_x_only=True,)
 
         dense_x = res["logits"]
         padding_mask = res["padding_mask"]

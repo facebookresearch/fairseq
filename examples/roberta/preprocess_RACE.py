@@ -63,12 +63,10 @@ def main():
     """
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--input-dir",
-        help="input directory for downloaded RACE dataset",
+        "--input-dir", help="input directory for downloaded RACE dataset",
     )
     parser.add_argument(
-        "--output-dir",
-        help="output directory for extracted data",
+        "--output-dir", help="output directory for extracted data",
     )
     args = parser.parse_args()
 

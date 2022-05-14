@@ -95,8 +95,7 @@ def main(cfg: DictConfig, override_args=None):
             max_tokens=cfg.dataset.max_tokens,
             max_sentences=cfg.dataset.batch_size,
             max_positions=utils.resolve_max_positions(
-                task.max_positions(),
-                *[m.max_positions() for m in models],
+                task.max_positions(), *[m.max_positions() for m in models],
             ),
             ignore_invalid_inputs=cfg.dataset.skip_invalid_size_inputs_valid_test,
             required_batch_size_multiple=cfg.dataset.required_batch_size_multiple,

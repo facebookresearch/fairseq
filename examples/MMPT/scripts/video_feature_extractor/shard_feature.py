@@ -10,22 +10,14 @@ from mmpt.utils import ShardedTensor
 
 
 class Shard(object):
-    def __init__(
-        self,
-        vfeat_dir,
-        tfeat_dir,
-        target_dir,
-        file_paths,
-        shard_size=4096
-    ):
+    def __init__(self, vfeat_dir, tfeat_dir, target_dir, file_paths, shard_size=4096):
         self.vfeat_dir = vfeat_dir
         self.tfeat_dir = tfeat_dir
         self.target_dir = target_dir
         self.video_ids = {}
         for split, file_path in zip(["train", "val"], file_paths):
             with open(file_path) as fr:
-                self.video_ids[split] = [
-                    line.strip() for line in fr.readlines()]
+                self.video_ids[split] = [line.strip() for line in fr.readlines()]
         self.shard_size = shard_size
 
     def __call__(self, split="train"):
@@ -37,7 +29,9 @@ class Shard(object):
                 print(shard_idx)
                 meta_shard = []
                 video_shard = []
-                for video_id in self.video_ids[split][shard_offset:shard_offset+self.shard_size]:
+                for video_id in self.video_ids[split][
+                    shard_offset : shard_offset + self.shard_size
+                ]:
                     meta_shard.append(video_id)
                     npy_file = os.path.join(self.vfeat_dir, video_id + ".npy")
                     video_shard.append(np.load(npy_file))
@@ -45,7 +39,8 @@ class Shard(object):
                 meta[shard_idx] = meta_shard
                 video_shard = ShardedTensor.from_list(video_shard)
                 target_path = os.path.join(
-                    self.target_dir, split + "_" + str(shard_idx))
+                    self.target_dir, split + "_" + str(shard_idx)
+                )
                 video_shard.save(target_path)
 
             target_path = os.path.join(self.target_dir, split + "_meta")
@@ -58,7 +53,7 @@ if __name__ == "__main__":
         "data/feat/feat_how2_s3d",
         "data/how2/raw_caption_dedup.bert-base-uncased",
         "data/feat/feat_how2_s3d_shard_small",
-        ["data/how2/how2_s3d_train.lst", "data/how2/how2_s3d_val.lst"]
+        ["data/how2/how2_s3d_train.lst", "data/how2/how2_s3d_val.lst"],
     )
 
     shard()

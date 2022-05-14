@@ -124,8 +124,7 @@ class MultilingualLanguageModelingConfig(FairseqDataclass):
     )
     # TODO: legacy parameter kept for compatibility
     baseline_model: str = field(
-        default="",
-        metadata={"help": "path to the baseline model (default: none)"},
+        default="", metadata={"help": "path to the baseline model (default: none)"},
     )
 
     lang_to_offline_shard_ratio: str = field(
@@ -272,7 +271,7 @@ class MultilingualLanguageModelingTask(LegacyFairseqTask):
         languages by upsampling them.
         """
         prob = dataset_lens / dataset_lens.sum()
-        smoothed_prob = prob**self.args.multilang_sampling_alpha
+        smoothed_prob = prob ** self.args.multilang_sampling_alpha
         smoothed_prob = smoothed_prob / smoothed_prob.sum()
         return smoothed_prob
 
@@ -300,8 +299,7 @@ class MultilingualLanguageModelingTask(LegacyFairseqTask):
                     lang_to_offline_shard_ratio[lang] = ratio
 
             logger.info(
-                "Found offline sharded ratio: %s",
-                lang_to_offline_shard_ratio,
+                "Found offline sharded ratio: %s", lang_to_offline_shard_ratio,
             )
 
         if split == self.args.train_subset:
@@ -382,14 +380,9 @@ class MultilingualLanguageModelingTask(LegacyFairseqTask):
                 )
             )
 
-        dataset_lengths = np.array(
-            [len(d) for d in lang_datasets],
-            dtype=float,
-        )
+        dataset_lengths = np.array([len(d) for d in lang_datasets], dtype=float,)
         logger.info(
-            "loaded total {} blocks for all languages".format(
-                dataset_lengths.sum(),
-            )
+            "loaded total {} blocks for all languages".format(dataset_lengths.sum(),)
         )
         if split == self.args.train_subset:
             dataset_lengths_ratio_multiplier = np.ones(len(dataset_lengths))
@@ -399,8 +392,7 @@ class MultilingualLanguageModelingTask(LegacyFairseqTask):
                     assert (
                         lang in lang_to_offline_shard_ratio
                     ), "Lang: {0} missing in offline shard ratio file: {1}".format(
-                        lang,
-                        self.args.lang_to_offline_shard_ratio,
+                        lang, self.args.lang_to_offline_shard_ratio,
                     )
                     dataset_lengths_ratio_multiplier.append(
                         lang_to_offline_shard_ratio[lang]
@@ -486,11 +478,7 @@ class MultilingualLanguageModelingTask(LegacyFairseqTask):
             shuffle = np.random.permutation(len(dataset))
 
         self.datasets[split] = SortDataset(
-            dataset,
-            sort_order=[
-                shuffle,
-                dataset.sizes,
-            ],
+            dataset, sort_order=[shuffle, dataset.sizes,],
         )
 
     def build_dataset_for_inference(

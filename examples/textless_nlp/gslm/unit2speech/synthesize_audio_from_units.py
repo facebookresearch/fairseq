@@ -8,9 +8,7 @@ import logging
 import os
 
 import soundfile as sf
-from examples.textless_nlp.gslm.unit2speech.tts_data import (
-    TacotronInputDataset,
-)
+from examples.textless_nlp.gslm.unit2speech.tts_data import TacotronInputDataset
 from examples.textless_nlp.gslm.unit2speech.utils import (
     load_quantized_audio_from_file,
     load_tacotron,
@@ -27,35 +25,25 @@ def get_logger():
 
 
 def get_parser():
-    parser = argparse.ArgumentParser(
-        description="Wav2Vec 2.0 speech generator."
-    )
+    parser = argparse.ArgumentParser(description="Wav2Vec 2.0 speech generator.")
     parser.add_argument(
         "--quantized_unit_path",
         type=str,
         help="K-means model file path to use for inference",
     )
     parser.add_argument(
-        "--tts_model_path",
-        type=str,
-        help="TTS model file path to use for inference",
+        "--tts_model_path", type=str, help="TTS model file path to use for inference",
     )
     parser.add_argument(
-        "--waveglow_path",
-        type=str,
-        help="Path to the waveglow checkpoint (vocoder).",
+        "--waveglow_path", type=str, help="Path to the waveglow checkpoint (vocoder).",
     )
     parser.add_argument(
-        "--code_dict_path",
-        type=str,
-        help="Code dict file path to use for inference",
+        "--code_dict_path", type=str, help="Code dict file path to use for inference",
     )
     parser.add_argument("--max_decoder_steps", type=int, default=2000)
     parser.add_argument("--denoiser_strength", type=float, default=0.1)
     parser.add_argument(
-        "--out_audio_dir",
-        type=str,
-        help="Output directory to dump audio files",
+        "--out_audio_dir", type=str, help="Output directory to dump audio files",
     )
 
     return parser
@@ -92,9 +80,7 @@ def main(args, logger):
             strength=args.denoiser_strength,
         )
         out_file_path = os.path.join(args.out_audio_dir, f"{name}.wav")
-        sf.write(
-            f"{out_file_path}", aud_dn[0].cpu().float().numpy(), sample_rate
-        )
+        sf.write(f"{out_file_path}", aud_dn[0].cpu().float().numpy(), sample_rate)
 
 
 if __name__ == "__main__":

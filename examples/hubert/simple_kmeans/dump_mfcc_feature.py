@@ -43,9 +43,7 @@ class MfccFeatureReader(object):
             x = x.view(1, -1)
 
             mfccs = torchaudio.compliance.kaldi.mfcc(
-                waveform=x,
-                sample_frequency=self.sample_rate,
-                use_energy=False,
+                waveform=x, sample_frequency=self.sample_rate, use_energy=False,
             )  # (time, freq)
             mfccs = mfccs.transpose(0, 1)  # (freq, time)
             deltas = torchaudio.functional.compute_deltas(mfccs)
@@ -59,7 +57,6 @@ def main(tsv_dir, split, nshard, rank, feat_dir, sample_rate):
     reader = MfccFeatureReader(sample_rate)
     generator, num = get_path_iterator(f"{tsv_dir}/{split}.tsv", nshard, rank)
     dump_feature(reader, generator, num, split, nshard, rank, feat_dir)
-
 
 
 if __name__ == "__main__":

@@ -46,8 +46,7 @@ class MegatronTrainer(Trainer):
             return total_norm
 
         return self.optimizer.clip_grad_norm(
-            clip_norm,
-            aggregate_norm_fn=_aggregate_model_parallel_grad_norm,
+            clip_norm, aggregate_norm_fn=_aggregate_model_parallel_grad_norm,
         )
 
     def save_checkpoint(self, filename, extra_state):

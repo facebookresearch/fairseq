@@ -79,9 +79,7 @@ class WSCCriterion(LegacyFairseqCriterion):
                 sample["query_masks"][i].unsqueeze(0),
             )
             cand_lprobs = self.get_lprobs(
-                model,
-                sample["candidate_tokens"][i],
-                sample["candidate_masks"][i],
+                model, sample["candidate_tokens"][i], sample["candidate_masks"][i],
             )
 
             pred = (query_lprobs >= cand_lprobs).all().item()
@@ -142,14 +140,10 @@ class WinograndeCriterion(WSCCriterion):
     def forward(self, model, sample, reduce=True):
         # compute loss and accuracy
         query_lprobs = self.get_lprobs(
-            model,
-            sample["query_tokens"],
-            sample["query_masks"],
+            model, sample["query_tokens"], sample["query_masks"],
         )
         cand_lprobs = self.get_lprobs(
-            model,
-            sample["candidate_tokens"],
-            sample["candidate_masks"],
+            model, sample["candidate_tokens"], sample["candidate_masks"],
         )
         pred = query_lprobs >= cand_lprobs
         loss = self.get_loss(query_lprobs, cand_lprobs)

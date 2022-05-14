@@ -24,13 +24,7 @@ class BucketPadLengthDataset(BaseWrapperDataset):
     """
 
     def __init__(
-        self,
-        dataset,
-        sizes,
-        num_buckets,
-        pad_idx,
-        left_pad,
-        tensor_key=None,
+        self, dataset, sizes, num_buckets, pad_idx, left_pad, tensor_key=None,
     ):
         super().__init__(dataset)
         self.pad_idx = pad_idx

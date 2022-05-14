@@ -340,10 +340,7 @@ class Trainer(object):
             )
 
         if self.cfg.optimization.use_bmuf:
-            self._optimizer = optim.FairseqBMUF(
-                self.cfg.bmuf,
-                self._optimizer,
-            )
+            self._optimizer = optim.FairseqBMUF(self.cfg.bmuf, self._optimizer,)
 
         if self.cfg.distributed_training.zero_sharding == "os":
             if (
@@ -361,8 +358,7 @@ class Trainer(object):
         # We should initialize the learning rate scheduler immediately after
         # building the optimizer, so that the initial learning rate is set.
         self._lr_scheduler = lr_scheduler.build_lr_scheduler(
-            self.cfg.lr_scheduler,
-            self.optimizer,
+            self.cfg.lr_scheduler, self.optimizer,
         )
         self._lr_scheduler.step_update(0)
 
@@ -719,9 +715,7 @@ class Trainer(object):
         return batch_iterator
 
     def get_valid_iterator(
-        self,
-        subset,
-        disable_iterator_cache=False,
+        self, subset, disable_iterator_cache=False,
     ):
         """Return an EpochBatchIterator over given validation subset for a given epoch."""
         batch_iterator = self.task.get_batch_iterator(
@@ -729,8 +723,7 @@ class Trainer(object):
             max_tokens=self.cfg.dataset.max_tokens_valid,
             max_sentences=self.cfg.dataset.batch_size_valid,
             max_positions=utils.resolve_max_positions(
-                self.task.max_positions(),
-                self.model.max_positions(),
+                self.task.max_positions(), self.model.max_positions(),
             ),
             ignore_invalid_inputs=self.cfg.dataset.skip_invalid_size_inputs_valid_test,
             required_batch_size_multiple=self.cfg.dataset.required_batch_size_multiple,
@@ -885,11 +878,7 @@ class Trainer(object):
             train_time = self._local_cumulative_training_time()
             (
                 logging_outputs,
-                (
-                    sample_size,
-                    ooms,
-                    total_train_time,
-                ),
+                (sample_size, ooms, total_train_time,),
             ) = self._aggregate_logging_outputs(
                 logging_outputs, sample_size, ooms, train_time, ignore=is_dummy_batch
             )
@@ -1010,8 +999,7 @@ class Trainer(object):
             if self.cfg.ema.store_ema:
                 # Step EMA forward with new model.
                 self.ema.step(
-                    self.get_model(),
-                    self.get_num_updates(),
+                    self.get_model(), self.get_num_updates(),
                 )
                 metrics.log_scalar(
                     "ema_decay",
@@ -1145,9 +1133,7 @@ class Trainer(object):
         # gather logging outputs from all replicas
         if self.data_parallel_world_size > 1:
             logging_outputs, (sample_size,) = self._aggregate_logging_outputs(
-                logging_outputs,
-                sample_size,
-                ignore=is_dummy_batch,
+                logging_outputs, sample_size, ignore=is_dummy_batch,
             )
 
         # log validation stats
@@ -1254,7 +1240,7 @@ class Trainer(object):
             total_norm = distributed_utils.all_reduce(
                 total_norm, group=self.data_parallel_process_group
             )
-            return total_norm**0.5
+            return total_norm ** 0.5
 
         should_agg_norm = self.is_fsdp and (
             self.data_parallel_process_group is not None
@@ -1349,10 +1335,9 @@ class Trainer(object):
             return False
         elif self.cfg.optimization.use_bmuf:
             return (
-                self.get_num_updates() + 1
-            ) % self.cfg.bmuf.global_sync_iter == 0 and (
-                self.get_num_updates() + 1
-            ) > self.cfg.bmuf.warmup_iterations
+                (self.get_num_updates() + 1) % self.cfg.bmuf.global_sync_iter == 0
+                and (self.get_num_updates() + 1) > self.cfg.bmuf.warmup_iterations
+            )
         else:
             return True
 
@@ -1365,10 +1350,7 @@ class Trainer(object):
         sys.stderr.flush()
 
     def _aggregate_logging_outputs(
-        self,
-        logging_outputs: List[Dict[str, Any]],
-        *extra_stats_to_sum,
-        ignore=False,
+        self, logging_outputs: List[Dict[str, Any]], *extra_stats_to_sum, ignore=False,
     ):
         if self.task.__class__.logging_outputs_can_be_summed(self.get_criterion()):
             return self._fast_stat_sync_sum(
@@ -1380,10 +1362,7 @@ class Trainer(object):
             )
 
     def _all_gather_list_sync(
-        self,
-        logging_outputs: List[Dict[str, Any]],
-        *extra_stats_to_sum,
-        ignore=False,
+        self, logging_outputs: List[Dict[str, Any]], *extra_stats_to_sum, ignore=False,
     ):
         """
         Sync logging outputs across workers. all_gather_list_sync is
@@ -1408,10 +1387,7 @@ class Trainer(object):
         return logging_outputs, extra_stats_to_sum
 
     def _fast_stat_sync_sum(
-        self,
-        logging_outputs: List[Dict[str, Any]],
-        *extra_stats_to_sum,
-        ignore=False,
+        self, logging_outputs: List[Dict[str, Any]], *extra_stats_to_sum, ignore=False,
     ):
         """
         Sync logging outputs across workers. fast_stat_sync_sum is

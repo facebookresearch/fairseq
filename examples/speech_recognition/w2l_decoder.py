@@ -82,7 +82,7 @@ class W2lDecoder(object):
         model = models[0]
         encoder_out = model(**encoder_input)
         if hasattr(model, "get_logits"):
-            emissions = model.get_logits(encoder_out) # no need to normalize emissions
+            emissions = model.get_logits(encoder_out)  # no need to normalize emissions
         else:
             emissions = model.get_normalized_probs(encoder_out, log_probs=True)
         return emissions.transpose(0, 1).float().cpu().contiguous()
@@ -176,8 +176,13 @@ class W2lKenLMDecoder(W2lDecoder):
                 self.unit_lm,
             )
         else:
-            assert args.unit_lm, "lexicon free decoding can only be done with a unit language model"
-            from flashlight.lib.text.decoder import LexiconFreeDecoder, LexiconFreeDecoderOptions
+            assert (
+                args.unit_lm
+            ), "lexicon free decoding can only be done with a unit language model"
+            from flashlight.lib.text.decoder import (
+                LexiconFreeDecoder,
+                LexiconFreeDecoderOptions,
+            )
 
             d = {w: [[w]] for w in tgt_dict.symbols}
             self.word_dict = create_word_dict(d)
@@ -212,7 +217,7 @@ class W2lKenLMDecoder(W2lDecoder):
         for i, token_idx in enumerate(token_idxs):
             if token_idx == self.blank:
                 continue
-            if i == 0 or token_idx != token_idxs[i-1]:
+            if i == 0 or token_idx != token_idxs[i - 1]:
                 timesteps.append(i)
         return timesteps
 
@@ -440,8 +445,13 @@ class W2lFairseqLMDecoder(W2lDecoder):
                 self.unit_lm,
             )
         else:
-            assert args.unit_lm, "lexicon free decoding can only be done with a unit language model"
-            from flashlight.lib.text.decoder import LexiconFreeDecoder, LexiconFreeDecoderOptions
+            assert (
+                args.unit_lm
+            ), "lexicon free decoding can only be done with a unit language model"
+            from flashlight.lib.text.decoder import (
+                LexiconFreeDecoder,
+                LexiconFreeDecoderOptions,
+            )
 
             d = {w: [[w]] for w in tgt_dict.symbols}
             self.word_dict = create_word_dict(d)

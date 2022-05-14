@@ -51,8 +51,7 @@ def DistributedFairseqModel(args, model, process_group, device):
     assert isinstance(model, nn.Module)
     if args.tpu:
         wrapped_model = TPUDistributedDataParallel(
-            module=model.to(device),
-            process_group=process_group,
+            module=model.to(device), process_group=process_group,
         )
         # forward missing getattr and state_dict/load_state_dict to orig model
         wrapped_model = ModuleProxyWrapper(wrapped_model)
@@ -85,9 +84,7 @@ def DistributedFairseqModel(args, model, process_group, device):
         wrapped_model = ModuleProxyWrapper(wrapped_model)
     elif args.ddp_backend in {"no_c10d", "legacy_ddp"}:
         wrapped_model = LegacyDistributedDataParallel(
-            module=model.to(device),
-            buffer_size=2**28,
-            process_group=process_group,
+            module=model.to(device), buffer_size=2 ** 28, process_group=process_group,
         )
         # forward missing getattr and state_dict/load_state_dict to orig model
         wrapped_model = ModuleProxyWrapper(wrapped_model)

@@ -266,7 +266,7 @@ class FP16Optimizer(_FP16OptimizerMixin, optim.FairseqOptimizer):
                 / cfg.common.model_parallel_size
             )
             scale_window = int(
-                2**14 / data_parallel_size / cfg.optimization.update_freq[0]
+                2 ** 14 / data_parallel_size / cfg.optimization.update_freq[0]
             )
         else:
             scale_window = cfg.common.fp16_scale_window
@@ -500,7 +500,7 @@ class MemoryEfficientFP16Optimizer(
                 / cfg.common.model_parallel_size
             )
             scale_window = int(
-                2**14 / data_parallel_size / cfg.optimization.update_freq[0]
+                2 ** 14 / data_parallel_size / cfg.optimization.update_freq[0]
             )
         else:
             scale_window = cfg.common.fp16_scale_window

@@ -14,9 +14,7 @@ from fairseq.models.transformer.transformer_config import (
     DEFAULT_MAX_TARGET_POSITIONS,
     DEFAULT_MIN_PARAMS_TO_WRAP,
 )
-from fairseq.models.transformer.transformer_base import (
-    TransformerModelBase,
-)
+from fairseq.models.transformer.transformer_base import TransformerModelBase
 
 
 @register_model("transformer")

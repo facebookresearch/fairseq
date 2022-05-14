@@ -8,14 +8,10 @@ import torch
 from scipy.interpolate import interp1d
 import torchaudio
 
-from fairseq.tasks.text_to_speech import (
-    batch_compute_distortion, compute_rms_dist
-)
+from fairseq.tasks.text_to_speech import batch_compute_distortion, compute_rms_dist
 
 
-def batch_mel_spectral_distortion(
-        y1, y2, sr, normalize_type="path", mel_fn=None
-):
+def batch_mel_spectral_distortion(y1, y2, sr, normalize_type="path", mel_fn=None):
     """
     https://arxiv.org/pdf/2011.03568.pdf
 
@@ -23,14 +19,22 @@ def batch_mel_spectral_distortion(
     """
     if mel_fn is None or mel_fn.sample_rate != sr:
         mel_fn = torchaudio.transforms.MelSpectrogram(
-            sr, n_fft=int(0.05 * sr), win_length=int(0.05 * sr),
-            hop_length=int(0.0125 * sr), f_min=20, n_mels=80,
-            window_fn=torch.hann_window
+            sr,
+            n_fft=int(0.05 * sr),
+            win_length=int(0.05 * sr),
+            hop_length=int(0.0125 * sr),
+            f_min=20,
+            n_mels=80,
+            window_fn=torch.hann_window,
         ).to(y1[0].device)
     offset = 1e-6
     return batch_compute_distortion(
-        y1, y2, sr, lambda y: torch.log(mel_fn(y) + offset).transpose(-1, -2),
-        compute_rms_dist, normalize_type
+        y1,
+        y2,
+        sr,
+        lambda y: torch.log(mel_fn(y) + offset).transpose(-1, -2),
+        compute_rms_dist,
+        normalize_type,
     )
 
 
@@ -44,7 +48,7 @@ def _same_t_in_true_and_est(func):
         assert type(est_f) is np.ndarray
 
         interpolated_f = interp1d(
-            est_t, est_f, bounds_error=False, kind='nearest', fill_value=0
+            est_t, est_f, bounds_error=False, kind="nearest", fill_value=0
         )(true_t)
         return func(true_t, true_f, true_t, interpolated_f)
 
@@ -60,9 +64,7 @@ def gross_pitch_error(true_t, true_f, est_t, est_f):
     """
 
     correct_frames = _true_voiced_frames(true_t, true_f, est_t, est_f)
-    gross_pitch_error_frames = _gross_pitch_error_frames(
-        true_t, true_f, est_t, est_f
-    )
+    gross_pitch_error_frames = _gross_pitch_error_frames(true_t, true_f, est_t, est_f)
     return np.sum(gross_pitch_error_frames) / np.sum(correct_frames)
 
 
@@ -83,14 +85,13 @@ def _voicing_decision_error_frames(true_t, true_f, est_t, est_f):
 
 @_same_t_in_true_and_est
 def f0_frame_error(true_t, true_f, est_t, est_f):
-    gross_pitch_error_frames = _gross_pitch_error_frames(
-        true_t, true_f, est_t, est_f
-    )
+    gross_pitch_error_frames = _gross_pitch_error_frames(true_t, true_f, est_t, est_f)
     voicing_decision_error_frames = _voicing_decision_error_frames(
         true_t, true_f, est_t, est_f
     )
-    return (np.sum(gross_pitch_error_frames) +
-            np.sum(voicing_decision_error_frames)) / (len(true_t))
+    return (
+        np.sum(gross_pitch_error_frames) + np.sum(voicing_decision_error_frames)
+    ) / (len(true_t))
 
 
 @_same_t_in_true_and_est

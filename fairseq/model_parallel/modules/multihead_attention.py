@@ -71,7 +71,7 @@ class ModelParallelMultiheadAttention(nn.Module):
         assert (
             self.head_dim * num_heads == self.embed_dim
         ), "embed_dim must be divisible by num_heads"
-        self.scaling = self.head_dim**-0.5
+        self.scaling = self.head_dim ** -0.5
 
         self.self_attention = self_attention
         self.encoder_decoder_attention = encoder_decoder_attention
@@ -198,14 +198,12 @@ class ModelParallelMultiheadAttention(nn.Module):
             if "prev_key_padding_mask" in saved_state:
                 prev_key_padding_mask = saved_state["prev_key_padding_mask"]
             assert k is not None and v is not None
-            key_padding_mask = (
-                ModelParallelMultiheadAttention._append_prev_key_padding_mask(
-                    key_padding_mask=key_padding_mask,
-                    prev_key_padding_mask=prev_key_padding_mask,
-                    batch_size=bsz,
-                    src_len=k.size(1),
-                    static_kv=static_kv,
-                )
+            key_padding_mask = ModelParallelMultiheadAttention._append_prev_key_padding_mask(
+                key_padding_mask=key_padding_mask,
+                prev_key_padding_mask=prev_key_padding_mask,
+                batch_size=bsz,
+                src_len=k.size(1),
+                static_kv=static_kv,
             )
 
             saved_state["prev_key"] = k.view(

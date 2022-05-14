@@ -21,12 +21,17 @@ from examples.speech_to_text.data_utils import (
     gen_vocab,
     get_zip_manifest,
     load_tsv_to_dicts,
-    save_df_to_tsv
+    save_df_to_tsv,
 )
 from examples.speech_synthesis.data_utils import (
-    extract_logmel_spectrogram, extract_pitch, extract_energy, get_global_cmvn,
-    ipa_phonemize, get_mfa_alignment, get_unit_alignment,
-    get_feature_value_min_max
+    extract_logmel_spectrogram,
+    extract_pitch,
+    extract_energy,
+    get_global_cmvn,
+    ipa_phonemize,
+    get_mfa_alignment,
+    get_unit_alignment,
+    get_feature_value_min_max,
 )
 
 
@@ -78,8 +83,10 @@ def process(args):
         for sample in tqdm(samples):
             waveform, sample_rate = torchaudio.load(sample["audio"])
             waveform, sample_rate = convert_waveform(
-                waveform, sample_rate, normalize_volume=args.normalize_volume,
-                to_sample_rate=args.sample_rate
+                waveform,
+                sample_rate,
+                normalize_volume=args.normalize_volume,
+                to_sample_rate=args.sample_rate,
             )
             sample_id = sample["id"]
             target_length = None
@@ -89,25 +96,36 @@ def process(args):
                 if a.start_sec is not None and a.end_sec is not None:
                     start_frame = int(a.start_sec * sample_rate)
                     end_frame = int(a.end_sec * sample_rate)
-                    waveform = waveform[:, start_frame: end_frame]
+                    waveform = waveform[:, start_frame:end_frame]
             extract_logmel_spectrogram(
-                waveform, sample_rate, feature_root / f"{sample_id}.npy",
-                win_length=args.win_length, hop_length=args.hop_length,
-                n_fft=args.n_fft, n_mels=args.n_mels, f_min=args.f_min,
-                f_max=args.f_max, target_length=target_length
+                waveform,
+                sample_rate,
+                feature_root / f"{sample_id}.npy",
+                win_length=args.win_length,
+                hop_length=args.hop_length,
+                n_fft=args.n_fft,
+                n_mels=args.n_mels,
+                f_min=args.f_min,
+                f_max=args.f_max,
+                target_length=target_length,
             )
             if args.add_fastspeech_targets:
                 assert id_to_alignment is not None
                 extract_pitch(
-                    waveform, sample_rate, pitch_root / f"{sample_id}.npy",
-                    hop_length=args.hop_length, log_scale=True,
-                    phoneme_durations=id_to_alignment[sample_id].frame_durations
+                    waveform,
+                    sample_rate,
+                    pitch_root / f"{sample_id}.npy",
+                    hop_length=args.hop_length,
+                    log_scale=True,
+                    phoneme_durations=id_to_alignment[sample_id].frame_durations,
                 )
                 extract_energy(
-                    waveform, energy_root / f"{sample_id}.npy",
-                    hop_length=args.hop_length, n_fft=args.n_fft,
+                    waveform,
+                    energy_root / f"{sample_id}.npy",
+                    hop_length=args.hop_length,
+                    n_fft=args.n_fft,
                     log_scale=True,
-                    phoneme_durations=id_to_alignment[sample_id].frame_durations
+                    phoneme_durations=id_to_alignment[sample_id].frame_durations,
                 )
         print("ZIPing features...")
         create_zip(feature_root, zip_path)
@@ -130,18 +148,18 @@ def process(args):
     id_to_cer = None
     if args.cer_threshold is not None:
         assert Path(args.cer_tsv_path).is_file()
-        id_to_cer = {
-            x["id"]: x["uer"] for x in load_tsv_to_dicts(args.cer_tsv_path)
-        }
+        id_to_cer = {x["id"]: x["uer"] for x in load_tsv_to_dicts(args.cer_tsv_path)}
     manifest_by_split = {split: defaultdict(list) for split in args.splits}
     for sample in tqdm(samples):
         sample_id, split = sample["id"], sample["split"]
 
-        if args.snr_threshold is not None and "snr" in sample \
-                and sample["snr"] < args.snr_threshold:
+        if (
+            args.snr_threshold is not None
+            and "snr" in sample
+            and sample["snr"] < args.snr_threshold
+        ):
             continue
-        if args.cer_threshold is not None \
-                and id_to_cer[sample_id] > args.cer_threhold:
+        if args.cer_threshold is not None and id_to_cer[sample_id] > args.cer_threhold:
             continue
 
         normalized_utt = sample["tgt_text"]
@@ -167,8 +185,7 @@ def process(args):
             manifest_by_split[split]["energy"].append(energy_paths[sample_id])
     for split in args.splits:
         save_df_to_tsv(
-            pd.DataFrame.from_dict(manifest_by_split[split]),
-            out_root / f"{split}.tsv"
+            pd.DataFrame.from_dict(manifest_by_split[split]), out_root / f"{split}.tsv"
         )
     # Generate vocab
     vocab_name, spm_filename = None, None
@@ -201,13 +218,19 @@ def process(args):
         "sample_rate": args.sample_rate,
         "features": {
             "type": "spectrogram+melscale+log",
-            "eps": 1e-5, "n_mels": args.n_mels, "n_fft": args.n_fft,
-            "window_fn": "hann", "win_length": args.win_length,
-            "hop_length": args.hop_length, "sample_rate": args.sample_rate,
-            "win_len_t": win_len_t, "hop_len_t": hop_len_t,
-            "f_min": args.f_min, "f_max": args.f_max,
-            "n_stft": args.n_fft // 2 + 1
-        }
+            "eps": 1e-5,
+            "n_mels": args.n_mels,
+            "n_fft": args.n_fft,
+            "window_fn": "hann",
+            "win_length": args.win_length,
+            "hop_length": args.hop_length,
+            "sample_rate": args.sample_rate,
+            "win_len_t": win_len_t,
+            "hop_len_t": hop_len_t,
+            "f_min": args.f_min,
+            "f_max": args.f_max,
+            "n_stft": args.n_fft // 2 + 1,
+        },
     }
     if len(speakers) > 1:
         extra["speaker_set_filename"] = "speakers.txt"
@@ -223,10 +246,16 @@ def process(args):
         extra["features"]["energy_min"] = energy_min
         extra["features"]["energy_max"] = energy_max
     gen_config_yaml(
-        out_root, spm_filename=spm_filename, vocab_name=vocab_name,
-        audio_root=out_root.as_posix(), input_channels=None,
-        input_feat_per_channel=None, specaugment_policy=None,
-        cmvn_type="global", gcmvn_path=gcmvn_npz_path, extra=extra
+        out_root,
+        spm_filename=spm_filename,
+        vocab_name=vocab_name,
+        audio_root=out_root.as_posix(),
+        input_channels=None,
+        input_feat_per_channel=None,
+        specaugment_policy=None,
+        cmvn_type="global",
+        gcmvn_path=gcmvn_npz_path,
+        extra=extra,
     )
 
 
@@ -234,8 +263,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--audio-manifest-root", "-m", required=True, type=str)
     parser.add_argument("--output-root", "-o", required=True, type=str)
-    parser.add_argument("--splits", "-s", type=str, nargs="+",
-                        default=["train", "dev", "test"])
+    parser.add_argument(
+        "--splits", "-s", type=str, nargs="+", default=["train", "dev", "test"]
+    )
     parser.add_argument("--ipa-vocab", action="store_true")
     parser.add_argument("--use-g2p", action="store_true")
     parser.add_argument("--lang", type=str, default="en-us")

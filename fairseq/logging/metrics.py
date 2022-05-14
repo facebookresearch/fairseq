@@ -132,10 +132,7 @@ def log_scalar(
 
 
 def log_scalar_sum(
-    key: str,
-    value: float,
-    priority: int = 10,
-    round: Optional[int] = None,
+    key: str, value: float, priority: int = 10, round: Optional[int] = None,
 ):
     """Log a scalar value that is summed for reporting.
 
@@ -166,10 +163,7 @@ def log_derived(key: str, fn: Callable[[MetersDict], float], priority: int = 20)
 
 
 def log_speed(
-    key: str,
-    value: float,
-    priority: int = 30,
-    round: Optional[int] = None,
+    key: str, value: float, priority: int = 30, round: Optional[int] = None,
 ):
     """Log the rate of some quantity per second.
 
@@ -222,11 +216,7 @@ def log_stop_time(key: str, weight: float = 0.0, prehook=None):
 
 
 def log_custom(
-    new_meter_fn: Callable[[], Meter],
-    key: str,
-    *args,
-    priority: int = 50,
-    **kwargs,
+    new_meter_fn: Callable[[], Meter], key: str, *args, priority: int = 50, **kwargs,
 ):
     """Log using a custom Meter.
 

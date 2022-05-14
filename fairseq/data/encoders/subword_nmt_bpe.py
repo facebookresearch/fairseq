@@ -27,12 +27,7 @@ class SubwordNMTBPE(object):
 
             bpe_parser = apply_bpe.create_parser()
             bpe_args = bpe_parser.parse_args(
-                [
-                    "--codes",
-                    codes,
-                    "--separator",
-                    cfg.bpe_separator,
-                ]
+                ["--codes", codes, "--separator", cfg.bpe_separator,]
             )
             self.bpe = apply_bpe.BPE(
                 bpe_args.codes,

@@ -253,10 +253,7 @@ def create_LG(
                     check=True,
                 )
                 res = subprocess.run(
-                    [
-                        fstdeterminizestar,
-                        "--use-log=true",
-                    ],
+                    [fstdeterminizestar, "--use-log=true",],
                     input=res.stdout,
                     capture_output=True,
                 )
@@ -267,10 +264,7 @@ def create_LG(
                     check=True,
                 )
                 res = subprocess.run(
-                    [fstpushspecial],
-                    input=res.stdout,
-                    capture_output=True,
-                    check=True,
+                    [fstpushspecial], input=res.stdout, capture_output=True, check=True,
                 )
                 res = subprocess.run(
                     [fstarcsort, "--sort_type=ilabel"],
@@ -449,11 +443,7 @@ def create_HLGa(
         try:
             with open(hlga_graph, "wb") as out_f:
                 res = subprocess.run(
-                    [
-                        fsttablecompose,
-                        h_graph,
-                        lg_graph,
-                    ],
+                    [fsttablecompose, h_graph, lg_graph,],
                     capture_output=True,
                     check=True,
                 )
@@ -470,10 +460,7 @@ def create_HLGa(
                     check=True,
                 )
                 res = subprocess.run(
-                    [fstrmepslocal],
-                    input=res.stdout,
-                    capture_output=True,
-                    check=True,
+                    [fstrmepslocal], input=res.stdout, capture_output=True, check=True,
                 )
                 res = subprocess.run(
                     [fstminimizeencoded],
@@ -512,11 +499,7 @@ def create_HLa(
         try:
             with open(hla_graph, "wb") as out_f:
                 res = subprocess.run(
-                    [
-                        fsttablecompose,
-                        h_graph,
-                        l_graph,
-                    ],
+                    [fsttablecompose, h_graph, l_graph,],
                     capture_output=True,
                     check=True,
                 )
@@ -533,10 +516,7 @@ def create_HLa(
                     check=True,
                 )
                 res = subprocess.run(
-                    [fstrmepslocal],
-                    input=res.stdout,
-                    capture_output=True,
-                    check=True,
+                    [fstrmepslocal], input=res.stdout, capture_output=True, check=True,
                 )
                 res = subprocess.run(
                     [fstminimizeencoded],
@@ -593,11 +573,7 @@ def create_HLG(
             my_env["LD_LIBRARY_PATH"] = f"{kaldi_lib}:{my_env['LD_LIBRARY_PATH']}"
 
             subprocess.run(
-                [
-                    add_self_loop,
-                    hlga_graph,
-                    hlg_graph,
-                ],
+                [add_self_loop, hlga_graph, hlg_graph,],
                 check=True,
                 capture_output=True,
                 env=my_env,

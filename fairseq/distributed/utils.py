@@ -91,8 +91,7 @@ def _infer_slurm_init(cfg: DistributedTrainingConfig, num_pipelines_per_node):
                 ["scontrol", "show", "hostnames", node_list]
             )
             cfg.distributed_init_method = "tcp://{host}:{port}".format(
-                host=hostnames.split()[0].decode("utf-8"),
-                port=cfg.distributed_port,
+                host=hostnames.split()[0].decode("utf-8"), port=cfg.distributed_port,
             )
             nnodes = int(os.environ.get("SLURM_NNODES"))
             ntasks_per_node = os.environ.get("SLURM_NTASKS_PER_NODE")
@@ -262,8 +261,7 @@ def distributed_init(cfg: FairseqConfig):
             )
             logger.info(
                 "initialized host {} as rank {}".format(
-                    socket.gethostname(),
-                    cfg.distributed_training.distributed_rank,
+                    socket.gethostname(), cfg.distributed_training.distributed_rank,
                 )
             )
 
@@ -721,10 +719,7 @@ def broadcast_tensors(
 
 
 def broadcast_object(
-    obj: Any,
-    src_rank: int,
-    group: object,
-    dist_device: Optional[torch.device] = None,
+    obj: Any, src_rank: int, group: object, dist_device: Optional[torch.device] = None,
 ) -> Any:
     """Broadcast an arbitrary Python object to other workers."""
     if dist_device is None:
@@ -747,10 +742,7 @@ def broadcast_object(
 
 
 def _broadcast_object_slow(
-    obj: Any,
-    src_rank: int,
-    group: object,
-    dist_device: torch.device,
+    obj: Any, src_rank: int, group: object, dist_device: torch.device,
 ) -> Any:
     if get_rank(group) == src_rank:
         # Emit data

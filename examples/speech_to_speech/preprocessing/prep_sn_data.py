@@ -59,10 +59,7 @@ def main():
     parser.add_argument("--audio-dir", required=True, type=str, help="audio directory")
     parser.add_argument("--ext", default="flac", type=str, help="audio extension")
     parser.add_argument(
-        "--data-name",
-        required=True,
-        type=str,
-        help="dataset name",
+        "--data-name", required=True, type=str, help="dataset name",
     )
     parser.add_argument(
         "--output-dir", required=True, type=str, help="output directory"

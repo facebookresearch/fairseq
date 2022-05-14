@@ -135,13 +135,12 @@ class KenLMDecoder(BaseDecoder):
         for i, token_idx in enumerate(token_idxs):
             if token_idx == self.blank:
                 continue
-            if i == 0 or token_idx != token_idxs[i-1]:
+            if i == 0 or token_idx != token_idxs[i - 1]:
                 timesteps.append(i)
         return timesteps
 
     def decode(
-        self,
-        emissions: torch.FloatTensor,
+        self, emissions: torch.FloatTensor,
     ) -> List[List[Dict[str, torch.LongTensor]]]:
         B, T, N = emissions.size()
         hypos = []
@@ -167,12 +166,7 @@ class KenLMDecoder(BaseDecoder):
 
 
 FairseqLMState = namedtuple(
-    "FairseqLMState",
-    [
-        "prefix",
-        "incremental_state",
-        "probs",
-    ],
+    "FairseqLMState", ["prefix", "incremental_state", "probs",],
 )
 
 
@@ -213,10 +207,7 @@ class FairseqLM(LM):
         return state
 
     def score(
-        self,
-        state: LMState,
-        token_index: int,
-        no_cache: bool = False,
+        self, state: LMState, token_index: int, no_cache: bool = False,
     ) -> Tuple[LMState, int]:
         """
         Evaluate language model based on the current lm state and new word
@@ -401,8 +392,7 @@ class FairseqLMDecoder(BaseDecoder):
             )
 
     def decode(
-        self,
-        emissions: torch.FloatTensor,
+        self, emissions: torch.FloatTensor,
     ) -> List[List[Dict[str, torch.LongTensor]]]:
         B, T, N = emissions.size()
         hypos = []

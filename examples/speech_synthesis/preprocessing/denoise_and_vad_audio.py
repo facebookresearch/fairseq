@@ -12,6 +12,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import torchaudio
+
 try:
     import webrtcvad
 except ImportError:
@@ -22,8 +23,13 @@ from tqdm import tqdm
 from examples.speech_synthesis.preprocessing.denoiser.pretrained import master64
 import examples.speech_synthesis.preprocessing.denoiser.utils as utils
 from examples.speech_synthesis.preprocessing.vad import (
-    frame_generator, vad_collector, read_wave, write_wave, FS_MS, THRESHOLD,
-    SCALE
+    frame_generator,
+    vad_collector,
+    read_wave,
+    write_wave,
+    FS_MS,
+    THRESHOLD,
+    SCALE,
 )
 from examples.speech_to_text.data_utils import save_df_to_tsv
 
@@ -35,8 +41,13 @@ MIN_T = 0.05
 
 
 def generate_tmp_filename(extension="txt"):
-    return tempfile._get_default_tempdir() + "/" + \
-           next(tempfile._get_candidate_names()) + "." + extension
+    return (
+        tempfile._get_default_tempdir()
+        + "/"
+        + next(tempfile._get_candidate_names())
+        + "."
+        + extension
+    )
 
 
 def convert_sr(inpath, sr, output_path=None):
@@ -61,20 +72,19 @@ def apply_vad(vad, inpath):
         if i and timestamp_start:
             sil_duration = segment[1] - timestamp_end
             if sil_duration > THRESHOLD:
-                merge_segments.append(int(THRESHOLD / SCALE) * (b'\x00'))
+                merge_segments.append(int(THRESHOLD / SCALE) * (b"\x00"))
             else:
-                merge_segments.append(int((sil_duration / SCALE)) * (b'\x00'))
+                merge_segments.append(int((sil_duration / SCALE)) * (b"\x00"))
         timestamp_start = segment[1]
         timestamp_end = segment[2]
-    segment = b''.join(merge_segments)
+    segment = b"".join(merge_segments)
     return segment, sample_rate
 
 
 def write(wav, filename, sr=16_000):
     # Normalize audio if it prevents clipping
     wav = wav / max(wav.abs().max().item(), 1)
-    torchaudio.save(filename, wav.cpu(), sr, encoding="PCM_S",
-                    bits_per_sample=16)
+    torchaudio.save(filename, wav.cpu(), sr, encoding="PCM_S", bits_per_sample=16)
 
 
 def process(args):
@@ -141,16 +151,17 @@ def process(args):
                 segment, sample_rate = apply_vad(vad, tmp_path)
                 if len(segment) < sample_rate * MIN_T:
                     keep_sample = False
-                    print((
-                        f"WARNING: skip {filename} because it is too short "
-                        f"after VAD ({len(segment) / sample_rate} < {MIN_T})"
-                    ))
+                    print(
+                        (
+                            f"WARNING: skip {filename} because it is too short "
+                            f"after VAD ({len(segment) / sample_rate} < {MIN_T})"
+                        )
+                    )
                 else:
                     if sample_rate != sr:
                         tmp_path = generate_tmp_filename("wav")
                         write_wave(tmp_path, segment, sample_rate)
-                        convert_sr(tmp_path, sr,
-                                   output_path=str(output_path_vad))
+                        convert_sr(tmp_path, sr, output_path=str(output_path_vad))
                     else:
                         write_wave(str(output_path_vad), segment, sample_rate)
                     final_output = str(output_path_vad)
@@ -173,27 +184,42 @@ def process(args):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--audio-manifest", "-i", required=True,
-                        type=str, help="path to the input manifest.")
     parser.add_argument(
-        "--output-dir", "-o", required=True, type=str,
-        help="path to the output dir. it will contain files after denoising and"
-             " vad"
-    )
-    parser.add_argument("--vad-agg-level", "-a", type=int, default=2,
-                        help="the aggresive level of the vad [0-3].")
-    parser.add_argument(
-        "--dry-wet", "-dw", type=float, default=0.01,
-        help="the level of linear interpolation between noisy and enhanced "
-             "files."
+        "--audio-manifest",
+        "-i",
+        required=True,
+        type=str,
+        help="path to the input manifest.",
     )
     parser.add_argument(
-        "--device", "-d", type=str, default="cpu",
-        help="the device to be used for the speech enhancement model: "
-             "cpu | cuda."
+        "--output-dir",
+        "-o",
+        required=True,
+        type=str,
+        help="path to the output dir. it will contain files after denoising and" " vad",
     )
-    parser.add_argument("--denoise", action="store_true",
-                        help="apply a denoising")
+    parser.add_argument(
+        "--vad-agg-level",
+        "-a",
+        type=int,
+        default=2,
+        help="the aggresive level of the vad [0-3].",
+    )
+    parser.add_argument(
+        "--dry-wet",
+        "-dw",
+        type=float,
+        default=0.01,
+        help="the level of linear interpolation between noisy and enhanced " "files.",
+    )
+    parser.add_argument(
+        "--device",
+        "-d",
+        type=str,
+        default="cpu",
+        help="the device to be used for the speech enhancement model: " "cpu | cuda.",
+    )
+    parser.add_argument("--denoise", action="store_true", help="apply a denoising")
     parser.add_argument("--vad", action="store_true", help="apply a VAD")
     args = parser.parse_args()
 

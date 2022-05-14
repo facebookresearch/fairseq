@@ -79,14 +79,11 @@ class AudioPretrainingConfig(FairseqDataclass):
         default=None, metadata={"help": "min sample size to skip small examples"}
     )
     num_batch_buckets: int = field(
-        default=0,
-        metadata={"help": "number of buckets"},
+        default=0, metadata={"help": "number of buckets"},
     )
     precompute_mask_indices: bool = field(
         default=False,
-        metadata={
-            "help": "flag to compute mask indices in data preparation.",
-        },
+        metadata={"help": "flag to compute mask indices in data preparation.",},
     )
 
     inferred_w2v_config: Optional[InferredW2vConfig] = field(

@@ -23,9 +23,7 @@ from fairseq.models.transformer import (
     TransformerEncoder,
     TransformerDecoder,
 )
-from fairseq.modules import (
-    TransformerDecoderLayer,
-)
+from fairseq.modules import TransformerDecoderLayer
 
 logger = logging.getLogger(__name__)
 

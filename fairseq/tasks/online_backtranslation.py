@@ -627,9 +627,7 @@ def extend_embedding(
 
 
 def add_secial_tokens_to_dict_and_model(
-    dictionary: "fairseq.data.Dictionary",
-    model: nn.Module,
-    mono_langs: Sequence[str],
+    dictionary: "fairseq.data.Dictionary", model: nn.Module, mono_langs: Sequence[str],
 ) -> None:
     embs = model.encoder.embed_tokens
     vocab_size, embedding_dim = embs.weight.shape

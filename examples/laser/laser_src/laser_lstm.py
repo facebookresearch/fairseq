@@ -250,9 +250,7 @@ class LSTMEncoder(FairseqEncoder):
         if self.left_pad:
             # convert left-padding to right-padding
             src_tokens = utils.convert_padding_direction(
-                src_tokens,
-                self.padding_idx,
-                left_to_right=True,
+                src_tokens, self.padding_idx, left_to_right=True,
             )
 
         bsz, seqlen = src_tokens.size()

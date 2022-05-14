@@ -18,9 +18,7 @@ from fairseq.models.speech_to_speech import (
     S2UTTransformerModel,
     s2ut_architecture_base as s2ut_transformer_architecture_base,
 )
-from fairseq.models.transformer import (
-    Linear,
-)
+from fairseq.models.transformer import Linear
 
 
 logger = logging.getLogger(__name__)

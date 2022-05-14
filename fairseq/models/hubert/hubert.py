@@ -66,20 +66,16 @@ class HubertConfig(FairseqDataclass):
 
     # dropouts
     dropout: float = field(
-        default=0.1,
-        metadata={"help": "dropout probability for the transformer"},
+        default=0.1, metadata={"help": "dropout probability for the transformer"},
     )
     attention_dropout: float = field(
-        default=0.1,
-        metadata={"help": "dropout probability for attention weights"},
+        default=0.1, metadata={"help": "dropout probability for attention weights"},
     )
     activation_dropout: float = field(
-        default=0.0,
-        metadata={"help": "dropout probability after activation in FFN"},
+        default=0.0, metadata={"help": "dropout probability after activation in FFN"},
     )
     encoder_layerdrop: float = field(
-        default=0.0,
-        metadata={"help": "probability of dropping a tarnsformer layer"},
+        default=0.0, metadata={"help": "probability of dropping a tarnsformer layer"},
     )
     dropout_input: float = field(
         default=0.0,
@@ -98,12 +94,10 @@ class HubertConfig(FairseqDataclass):
         },
     )
     untie_final_proj: bool = field(
-        default=False,
-        metadata={"help": "use separate projection for each target"},
+        default=False, metadata={"help": "use separate projection for each target"},
     )
     layer_norm_first: bool = field(
-        default=False,
-        metadata={"help": "apply layernorm first in the transformer"},
+        default=False, metadata={"help": "apply layernorm first in the transformer"},
     )
     conv_feature_layers: str = field(
         default="[(512,10,5)] + [(512,3,2)] * 4 + [(512,2,2)] * 2",
@@ -123,15 +117,13 @@ class HubertConfig(FairseqDataclass):
         default=False, metadata={"help": "adds projection + glu to targets"}
     )
     feature_grad_mult: float = field(
-        default=1.0,
-        metadata={"help": "multiply feature extractor var grads by this"},
+        default=1.0, metadata={"help": "multiply feature extractor var grads by this"},
     )
 
     # masking
     mask_length: int = field(default=10, metadata={"help": "mask length"})
     mask_prob: float = field(
-        default=0.65,
-        metadata={"help": "probability of replacing a token with mask"},
+        default=0.65, metadata={"help": "probability of replacing a token with mask"},
     )
     mask_selection: MASKING_DISTRIBUTION_CHOICES = field(
         default="static", metadata={"help": "how to choose mask length"}
@@ -154,12 +146,10 @@ class HubertConfig(FairseqDataclass):
 
     # channel masking
     mask_channel_length: int = field(
-        default=10,
-        metadata={"help": "length of the mask for features (channels)"},
+        default=10, metadata={"help": "length of the mask for features (channels)"},
     )
     mask_channel_prob: float = field(
-        default=0.0,
-        metadata={"help": "probability of replacing a feature with 0"},
+        default=0.0, metadata={"help": "probability of replacing a feature with 0"},
     )
     mask_channel_selection: MASKING_DISTRIBUTION_CHOICES = field(
         default="static",
@@ -174,8 +164,7 @@ class HubertConfig(FairseqDataclass):
         },
     )
     no_mask_channel_overlap: bool = field(
-        default=False,
-        metadata={"help": "whether to allow channel masks to overlap"},
+        default=False, metadata={"help": "whether to allow channel masks to overlap"},
     )
     mask_channel_min_space: int = field(
         default=1,
@@ -193,18 +182,15 @@ class HubertConfig(FairseqDataclass):
     )
 
     latent_temp: Tuple[float, float, float] = field(
-        default=(2, 0.5, 0.999995),
-        metadata={"help": "legacy (to be removed)"},
+        default=(2, 0.5, 0.999995), metadata={"help": "legacy (to be removed)"},
     )
 
     # loss computation
     skip_masked: bool = field(
-        default=False,
-        metadata={"help": "skip computing losses over masked frames"},
+        default=False, metadata={"help": "skip computing losses over masked frames"},
     )
     skip_nomask: bool = field(
-        default=False,
-        metadata={"help": "skip computing losses over unmasked frames"},
+        default=False, metadata={"help": "skip computing losses over unmasked frames"},
     )
 
     checkpoint_activations: bool = field(
@@ -228,8 +214,7 @@ class HubertConfig(FairseqDataclass):
         },
     )
     attn_type: str = field(
-        default="",
-        metadata={"help": "if espnet use ESPNET MHA"},
+        default="", metadata={"help": "if espnet use ESPNET MHA"},
     )
     pos_enc_type: str = field(
         default="abs",
@@ -398,9 +383,7 @@ class HubertModel(BaseFairseqModel):
         return features
 
     def forward_targets(
-        self,
-        features: torch.Tensor,
-        target_list: List[torch.Tensor],
+        self, features: torch.Tensor, target_list: List[torch.Tensor],
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # Trim features to ensure labels exist and then get aligned labels
         feat_tsz = features.size(2)
@@ -413,9 +396,7 @@ class HubertModel(BaseFairseqModel):
         return features, target_list
 
     def forward_padding_mask(
-        self,
-        features: torch.Tensor,
-        padding_mask: torch.Tensor,
+        self, features: torch.Tensor, padding_mask: torch.Tensor,
     ) -> torch.Tensor:
         extra = padding_mask.size(1) % features.size(1)
         if extra > 0:

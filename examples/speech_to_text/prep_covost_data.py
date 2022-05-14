@@ -238,10 +238,7 @@ def process(args):
         for t in train_text:
             f.write(t + "\n")
         gen_vocab(
-            Path(f.name),
-            root / spm_filename_prefix,
-            args.vocab_type,
-            args.vocab_size
+            Path(f.name), root / spm_filename_prefix, args.vocab_type, args.vocab_size
         )
     # Generate config YAML
     gen_config_yaml(
@@ -257,8 +254,11 @@ def process(args):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--data-root", "-d", required=True, type=str,
-        help="data root with sub-folders for each language <root>/<src_lang>"
+        "--data-root",
+        "-d",
+        required=True,
+        type=str,
+        help="data root with sub-folders for each language <root>/<src_lang>",
     )
     parser.add_argument(
         "--vocab-type",

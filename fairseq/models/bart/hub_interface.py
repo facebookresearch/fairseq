@@ -80,8 +80,7 @@ class BARTHubInterface(GeneratorHubInterface):
     def _build_sample(self, src_tokens: List[torch.LongTensor]):
         # assert torch.is_tensor(src_tokens)
         dataset = self.task.build_dataset_for_inference(
-            src_tokens,
-            [x.numel() for x in src_tokens],
+            src_tokens, [x.numel() for x in src_tokens],
         )
         sample = dataset.collater(dataset)
         sample = utils.apply_to_sample(lambda tensor: tensor.to(self.device), sample)
@@ -198,10 +197,7 @@ class BARTHubInterface(GeneratorHubInterface):
             batch_tokens.append(tokens)
 
         # ensure beam size is at least as big as topk
-        generate_kwargs["beam"] = max(
-            topk,
-            generate_kwargs.get("beam", -1),
-        )
+        generate_kwargs["beam"] = max(topk, generate_kwargs.get("beam", -1),)
         generate_kwargs["match_source_len"] = match_source_len
         batch_hypos = self.generate(batch_tokens, **generate_kwargs)
 

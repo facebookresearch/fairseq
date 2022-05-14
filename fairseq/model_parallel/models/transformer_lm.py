@@ -64,17 +64,14 @@ class ModelParallelTransformerLanguageModel(TransformerLanguageModel):
             )
 
         decoder = ModelParallelTransformerDecoder(
-            args,
-            task.target_dictionary,
-            embed_tokens,
-            no_encoder_attn=True,
+            args, task.target_dictionary, embed_tokens, no_encoder_attn=True,
         )
         return cls(decoder)
 
     @classmethod
     def build_embedding(cls, args, dictionary, embed_dim, path=None):
         def _vocab_init(tensor, **kwargs):
-            nn.init.normal_(tensor, mean=0, std=embed_dim**-0.5)
+            nn.init.normal_(tensor, mean=0, std=embed_dim ** -0.5)
             nn.init.constant_(tensor[1], 0)
 
         embed_tokens = VocabParallelEmbedding(

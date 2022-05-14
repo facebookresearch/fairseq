@@ -42,16 +42,13 @@ class CtcCriterionConfig(FairseqDataclass):
         },
     )
     wer_lexicon: Optional[str] = field(
-        default=None,
-        metadata={"help": "lexicon to use with wer_kenlm_model"},
+        default=None, metadata={"help": "lexicon to use with wer_kenlm_model"},
     )
     wer_lm_weight: float = field(
-        default=2.0,
-        metadata={"help": "lm weight to use with wer_kenlm_model"},
+        default=2.0, metadata={"help": "lm weight to use with wer_kenlm_model"},
     )
     wer_word_score: float = field(
-        default=-1.0,
-        metadata={"help": "lm word score to use with wer_kenlm_model"},
+        default=-1.0, metadata={"help": "lm word score to use with wer_kenlm_model"},
     )
 
     wer_args: Optional[str] = field(

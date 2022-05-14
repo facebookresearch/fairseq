@@ -34,9 +34,7 @@ class FakeTask(fairseq.tasks.LegacyFairseqTask):
 
 @functools.lru_cache()
 def get_toy_model(
-    device: str,
-    architecture: str = "roberta_enc_dec",
-    **extra_args: Any,
+    device: str, architecture: str = "roberta_enc_dec", **extra_args: Any,
 ):
     assert device in ("gpu", "cpu")
     kwargs = {
@@ -177,10 +175,7 @@ class RobertaTest(unittest.TestCase):
             enc_dec,
             [
                 ["encoder.embed_tokens.weight"],
-                [
-                    "decoder.embed_tokens.weight",
-                    "decoder.output_projection.weight",
-                ],
+                ["decoder.embed_tokens.weight", "decoder.output_projection.weight",],
             ],
         )
 
@@ -322,10 +317,7 @@ class RobertaTest(unittest.TestCase):
 
     @cpu_gpu
     def test_ffn_prune_for_adaprune_in_roberta(self, device: str):
-        _, model = get_toy_model(
-            device=device,
-            architecture="roberta_base",
-        )
+        _, model = get_toy_model(device=device, architecture="roberta_base",)
         sample = mk_sample("en", device, batch_size=1)
         for layer in model.encoder.sentence_encoder.layers:
             fc1_original_size = layer.fc1.out_features

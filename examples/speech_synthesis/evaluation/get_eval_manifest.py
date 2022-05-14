@@ -16,8 +16,12 @@ def main(args):
     ext = args.audio_format
     with open(args.audio_manifest) as f, open(args.output_path, "w") as f_out:
         reader = csv.DictReader(
-            f, delimiter="\t", quotechar=None, doublequote=False,
-            lineterminator="\n", quoting=csv.QUOTE_NONE
+            f,
+            delimiter="\t",
+            quotechar=None,
+            doublequote=False,
+            lineterminator="\n",
+            quoting=csv.QUOTE_NONE,
         )
         header = ["id", "syn", "ref", "text", "speaker"]
         f_out.write("\t".join(header) + "\n")
@@ -37,24 +41,24 @@ def main(args):
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--generation-root",  help="output directory for generate_waveform.py"
+        "--generation-root", help="output directory for generate_waveform.py"
     )
     parser.add_argument(
-        "--audio-manifest",
-        help="used to determine the original utterance ID and text"
+        "--audio-manifest", help="used to determine the original utterance ID and text"
+    )
+    parser.add_argument("--output-path", help="path to output evaluation spec file")
+    parser.add_argument(
+        "--use-resynthesized-target",
+        action="store_true",
+        help="use resynthesized reference instead of the original audio",
     )
     parser.add_argument(
-        "--output-path", help="path to output evaluation spec file"
-    )
-    parser.add_argument(
-        "--use-resynthesized-target", action="store_true",
-        help="use resynthesized reference instead of the original audio"
-    )
-    parser.add_argument(
-        "--eval-target", action="store_true",
-        help="evaluate reference instead of model prediction"
+        "--eval-target",
+        action="store_true",
+        help="evaluate reference instead of model prediction",
     )
     parser.add_argument("--vocoder", type=str, default="griffin_lim")
     parser.add_argument("--sample-rate", type=int, default=22_050)

@@ -71,9 +71,7 @@ def main(args):
     # Load ensemble
     print("| loading model(s) from {}".format(args.path))
     models, _model_args = checkpoint_utils.load_model_ensemble(
-        args.path.split(":"),
-        arg_overrides=eval(args.model_overrides),
-        task=task,
+        args.path.split(":"), arg_overrides=eval(args.model_overrides), task=task,
     )
 
     # Optimize ensemble for generation
@@ -95,9 +93,7 @@ def main(args):
     itr = task.get_batch_iterator(
         dataset=task.dataset(args.gen_subset),
         max_tokens=args.max_tokens,
-        max_positions=utils.resolve_max_positions(
-            task.max_positions(),
-        ),
+        max_positions=utils.resolve_max_positions(task.max_positions(),),
         ignore_invalid_inputs=args.skip_invalid_size_inputs_valid_test,
         required_batch_size_multiple=args.required_batch_size_multiple,
         num_shards=args.num_shards,

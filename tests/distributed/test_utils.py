@@ -36,8 +36,7 @@ class TestBroadcastObject(DistributedTest):
     def test_tensor(self):
         spawn_and_init(
             functools.partial(
-                TestBroadcastObject._test_broadcast_object,
-                torch.rand(5),
+                TestBroadcastObject._test_broadcast_object, torch.rand(5),
             ),
             world_size=2,
         )
@@ -70,8 +69,7 @@ class TestAllGatherList(DistributedTest):
     def test_str_equality(self):
         spawn_and_init(
             functools.partial(
-                TestAllGatherList._test_all_gather_list_equality,
-                "hello world",
+                TestAllGatherList._test_all_gather_list_equality, "hello world",
             ),
             world_size=2,
         )
@@ -79,8 +77,7 @@ class TestAllGatherList(DistributedTest):
     def test_tensor_equality(self):
         spawn_and_init(
             functools.partial(
-                TestAllGatherList._test_all_gather_list_equality,
-                torch.rand(5),
+                TestAllGatherList._test_all_gather_list_equality, torch.rand(5),
             ),
             world_size=2,
         )

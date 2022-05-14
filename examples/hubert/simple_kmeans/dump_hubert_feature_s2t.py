@@ -13,9 +13,7 @@ import sys
 from dump_hubert_feature import HubertFeatureReader
 from feature_utils import get_shard_range, dump_feature
 from fairseq.data.audio.audio_utils import get_waveform
-from fairseq.data.audio.speech_to_text_dataset import (
-    read_from_uncompressed_zip,
-)
+from fairseq.data.audio.speech_to_text_dataset import read_from_uncompressed_zip
 
 
 logging.basicConfig(
@@ -58,19 +56,18 @@ def get_path_iterator(root, tsv, nshard, rank):
         subpaths = [op.join(root, e["audio"]) for e in reader]
         start, end = get_shard_range(len(subpaths), nshard, rank)
         subpaths = subpaths[start:end]
+
         def iterate():
             for subpath in subpaths:
                 yield op.join(root, subpath), None
+
     return iterate, len(subpaths)
 
 
-def main(
-    root, tsv_path, ckpt_path, layer, nshard, rank, feat_dir, split, max_chunk
-):
+def main(root, tsv_path, ckpt_path, layer, nshard, rank, feat_dir, split, max_chunk):
     reader = HubertFeatureReaderS2T(ckpt_path, layer, max_chunk)
     generator, num = get_path_iterator(root, tsv_path, nshard, rank)
     dump_feature(reader, generator, num, split, nshard, rank, feat_dir)
-
 
 
 if __name__ == "__main__":

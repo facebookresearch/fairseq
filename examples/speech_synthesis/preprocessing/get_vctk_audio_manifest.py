@@ -23,7 +23,7 @@ SPLITS = ["train", "dev", "test"]
 
 
 def normalize_text(text):
-    return re.sub(r"[^a-zA-Z.?!,'\- ]", '', text)
+    return re.sub(r"[^a-zA-Z.?!,'\- ]", "", text)
 
 
 def process(args):
@@ -59,7 +59,7 @@ def process(args):
     for _split in SPLITS:
         save_df_to_tsv(
             pd.DataFrame.from_dict(manifest_by_split[_split]),
-            manifest_root / f"{_split}.audio.tsv"
+            manifest_root / f"{_split}.audio.tsv",
         )
 
 

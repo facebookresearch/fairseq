@@ -168,9 +168,7 @@ class RobertaHubInterface(nn.Module):
             .strip()
         )
         tokens = self.task.source_dictionary.encode_line(
-            "<s> " + text_spans_bpe + " </s>",
-            append_eos=False,
-            add_if_not_exist=False,
+            "<s> " + text_spans_bpe + " </s>", append_eos=False, add_if_not_exist=False,
         )
 
         masked_index = (tokens == self.task.mask_idx).nonzero(as_tuple=False)

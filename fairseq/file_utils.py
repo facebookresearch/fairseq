@@ -59,10 +59,7 @@ def load_archive_file(archive_file):
         logger.info(
             "Archive name '{}' was not found in archive name list. "
             "We assumed '{}' was a path or URL but couldn't find any file "
-            "associated to this path or URL.".format(
-                archive_file,
-                archive_file,
-            )
+            "associated to this path or URL.".format(archive_file, archive_file,)
         )
         return None
 

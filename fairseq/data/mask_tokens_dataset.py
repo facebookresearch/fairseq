@@ -212,9 +212,7 @@ class MaskTokensDataset(BaseWrapperDataset):
                         num_rand = rand_mask.sum()
 
                     new_item[rand_mask] = np.random.choice(
-                        len(self.vocab),
-                        num_rand,
-                        p=self.weights,
+                        len(self.vocab), num_rand, p=self.weights,
                     )
 
             return torch.from_numpy(new_item)

@@ -10,7 +10,6 @@ from torch.nn.modules.loss import _Loss
 
 
 class HeadSelectionLoss(_Loss):
-
     def __init__(self, args):
         super().__init__()
         self.args = args
@@ -21,7 +20,11 @@ class HeadSelectionLoss(_Loss):
         head_scores: (num_tasks, num_layers, num_heads)
         sample_sizes: (num_tasks, )
         """
-        kl_loss = (head_samples * (torch.log(head_samples + eps) - math.log(prior))).sum(-1).sum(-1)
-        kl_loss /= (torch.numel(head_samples) / head_samples.size(0))
+        kl_loss = (
+            (head_samples * (torch.log(head_samples + eps) - math.log(prior)))
+            .sum(-1)
+            .sum(-1)
+        )
+        kl_loss /= torch.numel(head_samples) / head_samples.size(0)
         kl_loss = self.kl_weight * torch.matmul(kl_loss, sample_sizes)
         return kl_loss

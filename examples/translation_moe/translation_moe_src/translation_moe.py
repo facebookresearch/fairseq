@@ -22,28 +22,23 @@ METHOD_CHOICES = ChoiceEnum(["sMoElp", "sMoEup", "hMoElp", "hMoEup"])
 @dataclass
 class TranslationMoEConfig(TranslationConfig):
     method: METHOD_CHOICES = field(
-        default="hMoEup",
-        metadata={"help": "MoE method"},
+        default="hMoEup", metadata={"help": "MoE method"},
     )
     num_experts: int = field(
-        default=3,
-        metadata={"help": "number of experts"},
+        default=3, metadata={"help": "number of experts"},
     )
     mean_pool_gating_network: bool = field(
-        default=False,
-        metadata={"help": "use a simple mean-pooling gating network"},
+        default=False, metadata={"help": "use a simple mean-pooling gating network"},
     )
     mean_pool_gating_network_dropout: float = field(
-        default=0,
-        metadata={"help": "dropout for mean-pooling gating network"},
+        default=0, metadata={"help": "dropout for mean-pooling gating network"},
     )
     mean_pool_gating_network_encoder_dim: int = field(
         default=0,
         metadata={"help": "encoder output dim for mean-pooling gating network"},
     )
     gen_expert: int = field(
-        default=0,
-        metadata={"help": "which expert to use for generation"},
+        default=0, metadata={"help": "which expert to use for generation"},
     )
     sentence_avg: bool = II("optimization.sentence_avg")
 
@@ -122,12 +117,12 @@ class TranslationMoETask(TranslationTask):
                 elif getattr(cfg, "dropout", None):
                     dropout = cfg.dropout
                 else:
-                    raise ValueError("Must specify task.mean_pool_gating_network_dropout")
+                    raise ValueError(
+                        "Must specify task.mean_pool_gating_network_dropout"
+                    )
 
                 model.gating_network = MeanPoolGatingNetwork(
-                    encoder_dim,
-                    self.cfg.num_experts,
-                    dropout,
+                    encoder_dim, self.cfg.num_experts, dropout,
                 )
             else:
                 raise ValueError(
@@ -149,8 +144,7 @@ class TranslationMoETask(TranslationTask):
 
         def get_lprob_y(encoder_out, prev_output_tokens_k):
             net_output = model.decoder(
-                prev_output_tokens=prev_output_tokens_k,
-                encoder_out=encoder_out,
+                prev_output_tokens=prev_output_tokens_k, encoder_out=encoder_out,
             )
             loss, _ = criterion.compute_loss(model, net_output, sample, reduce=False)
             loss = loss.view(bsz, -1)

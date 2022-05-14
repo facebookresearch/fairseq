@@ -62,7 +62,9 @@ class Wav2VecFeatureReader(object):
                     source = F.layer_norm(source, source.shape)
             source = source.view(1, -1)
 
-            m_res = self.model(source=source, mask=False, features_only=True, layer=self.layer)
+            m_res = self.model(
+                source=source, mask=False, features_only=True, layer=self.layer
+            )
             return m_res["x"].squeeze(0).cpu()
 
 

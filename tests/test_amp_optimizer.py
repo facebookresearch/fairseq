@@ -38,10 +38,7 @@ class TestGradientScalingAMP(unittest.TestCase):
             threshold_loss_scale=1,
             min_loss_scale=1e-4,
         )
-        self.scaler = GradScaler(
-            init_scale=1,
-            growth_interval=1,
-        )
+        self.scaler = GradScaler(init_scale=1, growth_interval=1,)
 
     def run_iter(self, model, params, optimizer):
         optimizer.zero_grad()
@@ -58,12 +55,10 @@ class TestGradientScalingAMP(unittest.TestCase):
         self.scaler.step(optimizer)
         self.scaler.update()
         self.assertEqual(
-            model.weight,
-            torch.tensor([[3.1]], device="cuda:0", requires_grad=True),
+            model.weight, torch.tensor([[3.1]], device="cuda:0", requires_grad=True),
         )
         self.assertEqual(
-            model.bias,
-            torch.tensor([5.1], device="cuda:0", requires_grad=True),
+            model.bias, torch.tensor([5.1], device="cuda:0", requires_grad=True),
         )
         self.assertEqual(self.scaler.get_scale(), 2.0)
 

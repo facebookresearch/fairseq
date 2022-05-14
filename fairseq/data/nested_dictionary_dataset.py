@@ -52,13 +52,7 @@ class NestedDictionaryDataset(FairseqDataset):
 
         first = None
         for v in self.defn.values():
-            if not isinstance(
-                v,
-                (
-                    FairseqDataset,
-                    torch.utils.data.Dataset,
-                ),
-            ):
+            if not isinstance(v, (FairseqDataset, torch.utils.data.Dataset,),):
                 raise ValueError("Expected Dataset but found: {}".format(v.__class__))
             first = first or v
             if len(v) > 0:

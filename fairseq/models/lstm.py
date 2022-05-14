@@ -255,10 +255,7 @@ class LSTMEncoder(FairseqEncoder):
             self.output_units *= 2
 
     def forward(
-        self,
-        src_tokens: Tensor,
-        src_lengths: Tensor,
-        enforce_sorted: bool = True,
+        self, src_tokens: Tensor, src_lengths: Tensor, enforce_sorted: bool = True,
     ):
         """
         Args:
@@ -618,8 +615,7 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         return x
 
     def get_cached_state(
-        self,
-        incremental_state: Dict[str, Dict[str, Optional[Tensor]]],
+        self, incremental_state: Dict[str, Dict[str, Optional[Tensor]]],
     ) -> Tuple[List[Tensor], List[Tensor], Optional[Tensor]]:
         cached_state = self.get_incremental_state(incremental_state, "cached_state")
         assert cached_state is not None

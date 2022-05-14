@@ -326,11 +326,7 @@ class SpeechToSpeechTask(LegacyFairseqTask):
         return model
 
     def build_generator(
-        self,
-        models,
-        args,
-        seq_gen_cls=None,
-        extra_gen_cls_kwargs=None,
+        self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None,
     ):
 
         if not self.args.target_is_code or self.args.eval_inference:
@@ -356,8 +352,7 @@ class SpeechToSpeechTask(LegacyFairseqTask):
                     getattr(args, "beam", 1) == 1 and getattr(args, "nbest", 1) == 1
                 ), "only support viterbi search for stacked units"
                 seq_generator = StackUnitSequenceGenerator(
-                    self.tgt_dict,
-                    self.args.target_code_size,
+                    self.tgt_dict, self.args.target_code_size,
                 )
         else:
             if getattr(args, "teacher_forcing", False):

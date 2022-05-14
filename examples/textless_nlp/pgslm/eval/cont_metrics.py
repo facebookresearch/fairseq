@@ -477,8 +477,9 @@ def correlation(args, dataset, model, criterion, tgt_dict, rank, world_size):
         if args.debug and len(mean_dur_prefix) > 10:
             break
 
-    mean_dur_prefix, mean_dur_cont = torch.cat(mean_dur_prefix), torch.cat(
-        mean_dur_cont
+    mean_dur_prefix, mean_dur_cont = (
+        torch.cat(mean_dur_prefix),
+        torch.cat(mean_dur_cont),
     )
     mean_f0_prefix, mean_f0_cont = torch.cat(mean_f0_prefix), torch.cat(mean_f0_cont)
 
@@ -714,13 +715,7 @@ def cli_main():
         os.environ["MASTER_PORT"] = str(random.randint(10_000, 50_000))
 
         mp.spawn(
-            main,
-            nprocs=world_size,
-            args=(
-                world_size,
-                args,
-            ),
-            join=True,
+            main, nprocs=world_size, args=(world_size, args,), join=True,
         )
     else:
         main(rank=0, world_size=world_size, args=args)

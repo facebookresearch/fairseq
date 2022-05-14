@@ -166,10 +166,7 @@ class DenoisingTask(LegacyFairseqTask):
         split_path = os.path.join(data_path, split)
 
         dataset = data_utils.load_indexed_dataset(
-            split_path,
-            self.dictionary,
-            self.args.dataset_impl,
-            combine=combine,
+            split_path, self.dictionary, self.args.dataset_impl, combine=combine,
         )
         if dataset is None:
             raise FileNotFoundError(
@@ -221,8 +218,7 @@ class DenoisingTask(LegacyFairseqTask):
         )
         logger.info(
             "Split: {0}, Loaded {1} samples of denoising_dataset".format(
-                split,
-                len(self.datasets[split]),
+                split, len(self.datasets[split]),
             )
         )
 

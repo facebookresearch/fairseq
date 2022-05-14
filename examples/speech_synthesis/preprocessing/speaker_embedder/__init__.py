@@ -13,13 +13,13 @@ import torchaudio
 
 
 EMBEDDER_PARAMS = {
-    'num_mels': 40,
-    'n_fft': 512,
-    'emb_dim': 256,
-    'lstm_hidden': 768,
-    'lstm_layers': 3,
-    'window': 80,
-    'stride': 40,
+    "num_mels": 40,
+    "n_fft": 512,
+    "emb_dim": 256,
+    "lstm_hidden": 768,
+    "lstm_layers": 3,
+    "window": 80,
+    "stride": 40,
 }
 
 
@@ -50,10 +50,12 @@ class LinearNorm(nn.Module):
 class SpeechEmbedder(nn.Module):
     def __init__(self, hp):
         super(SpeechEmbedder, self).__init__()
-        self.lstm = nn.LSTM(hp["num_mels"],
-                            hp["lstm_hidden"],
-                            num_layers=hp["lstm_layers"],
-                            batch_first=True)
+        self.lstm = nn.LSTM(
+            hp["num_mels"],
+            hp["lstm_hidden"],
+            num_layers=hp["lstm_layers"],
+            batch_first=True,
+        )
         self.proj = LinearNorm(hp)
         self.hp = hp
 
@@ -92,13 +94,16 @@ class SpkrEmbedder(nn.Module):
         set_requires_grad(self.embedder, requires_grad=False)
         self.embedder_params = embedder_params
 
-        self.register_buffer('mel_basis', torch.from_numpy(
-            librosa.filters.mel(
-                sr=self.RATE,
-                n_fft=self.embedder_params["n_fft"],
-                n_mels=self.embedder_params["num_mels"])
+        self.register_buffer(
+            "mel_basis",
+            torch.from_numpy(
+                librosa.filters.mel(
+                    sr=self.RATE,
+                    n_fft=self.embedder_params["n_fft"],
+                    n_mels=self.embedder_params["num_mels"],
+                )
+            ),
         )
-                             )
 
         self.resample = None
         if rate != self.RATE:
@@ -112,10 +117,13 @@ class SpkrEmbedder(nn.Module):
             y = F.pad(y, (0, 14000 - y.shape[-1]))
 
         window = torch.hann_window(self.win_length).to(y)
-        y = torch.stft(y, n_fft=self.embedder_params["n_fft"],
-                       hop_length=self.hop_length,
-                       win_length=self.win_length,
-                       window=window)
+        y = torch.stft(
+            y,
+            n_fft=self.embedder_params["n_fft"],
+            hop_length=self.hop_length,
+            win_length=self.win_length,
+            window=window,
+        )
         magnitudes = torch.norm(y, dim=-1, p=2) ** 2
         mel = torch.log10(self.mel_basis @ magnitudes + 1e-6)
         return mel

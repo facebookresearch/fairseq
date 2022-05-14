@@ -33,28 +33,24 @@ class LabelSmoothedCrossEntropyCriterionLatencyAugmentConfig(
     LabelSmoothedCrossEntropyCriterionConfig
 ):
     latency_avg_weight: float = field(
-        default=0.0,
-        metadata={"help": "weight fot average latency loss."},
+        default=0.0, metadata={"help": "weight fot average latency loss."},
     )
     latency_var_weight: float = field(
-        default=0.0,
-        metadata={"help": "weight fot variance latency loss."},
+        default=0.0, metadata={"help": "weight fot variance latency loss."},
     )
     latency_avg_type: str = field(
         default="differentiable_average_lagging",
         metadata={"help": "latency type for average loss"},
     )
     latency_var_type: str = field(
-        default="variance_delay",
-        metadata={"help": "latency typ for variance loss"},
+        default="variance_delay", metadata={"help": "latency typ for variance loss"},
     )
     latency_gather_method: str = field(
         default="weighted_average",
         metadata={"help": "method to gather latency loss for all heads"},
     )
     latency_update_after: int = field(
-        default=0,
-        metadata={"help": "Add latency loss after certain steps"},
+        default=0, metadata={"help": "Add latency loss after certain steps"},
     )
 
 

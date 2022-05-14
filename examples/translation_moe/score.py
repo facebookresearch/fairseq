@@ -20,6 +20,7 @@ import numpy as np
 import sacrebleu
 from sacrebleu import corpus_bleu as _corpus_bleu
 
+
 def main():
     parser = argparse.ArgumentParser(sys.argv[0])
     parser.add_argument(
@@ -120,11 +121,7 @@ def sentence_bleu(hypothesis, reference):
         bleu.counts[i] += 1
         bleu.totals[i] += 1
     bleu = sacrebleu.BLEU.compute_bleu(
-        bleu.counts,
-        bleu.totals,
-        bleu.sys_len,
-        bleu.ref_len,
-        smooth_method="exp",
+        bleu.counts, bleu.totals, bleu.sys_len, bleu.ref_len, smooth_method="exp",
     )
     return bleu.score
 

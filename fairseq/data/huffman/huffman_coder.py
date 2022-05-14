@@ -78,12 +78,7 @@ class HuffmanCoder:
 
     @classmethod
     def from_file(
-        cls,
-        filename: str,
-        bos="<s>",
-        pad="<pad>",
-        eos="</s>",
-        unk="<unk>",
+        cls, filename: str, bos="<s>", pad="<pad>", eos="</s>", unk="<unk>",
     ) -> "HuffmanCoder":
         builder = HuffmanCodeBuilder.from_file(filename)
         return builder.build_code(bos=bos, pad=pad, eos=eos, unk=unk)
@@ -218,11 +213,7 @@ class HuffmanCodeBuilder:
         return new_b
 
     def build_code(
-        self,
-        bos="<s>",
-        pad="<pad>",
-        eos="</s>",
-        unk="<unk>",
+        self, bos="<s>", pad="<pad>", eos="</s>", unk="<unk>",
     ) -> HuffmanCoder:
         assert len(self.symbols) > 0, "cannot build code from empty list of symbols"
 

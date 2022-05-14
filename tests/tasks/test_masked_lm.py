@@ -51,9 +51,7 @@ class TestMaskedLM(unittest.TestCase):
 
             mask_index = task.source_dictionary.index("<mask>")
             iterator = task.get_batch_iterator(
-                dataset=masked_dataset,
-                max_tokens=65_536,
-                max_positions=4_096,
+                dataset=masked_dataset, max_tokens=65_536, max_positions=4_096,
             ).next_epoch_itr(shuffle=False)
             for batch in iterator:
                 for sample in range(len(batch)):

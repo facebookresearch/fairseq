@@ -154,8 +154,7 @@ def main(cfg: FairseqConfig) -> None:
     )
     logger.info(
         "max tokens per device = {} and max sentences per device = {}".format(
-            cfg.dataset.max_tokens,
-            cfg.dataset.batch_size,
+            cfg.dataset.max_tokens, cfg.dataset.batch_size,
         )
     )
 
@@ -258,9 +257,7 @@ def train(
         else cfg.optimization.update_freq[-1]
     )
     itr = iterators.GroupedIterator(
-        itr,
-        update_freq,
-        skip_remainder_batch=cfg.optimization.skip_remainder_batch,
+        itr, update_freq, skip_remainder_batch=cfg.optimization.skip_remainder_batch,
     )
     if cfg.common.tpu:
         itr = utils.tpu_data_loader(itr)
@@ -519,10 +516,7 @@ def validate(
 
 
 def get_valid_stats(
-    cfg: DictConfig,
-    trainer: Trainer,
-    stats: Dict[str, Any],
-    tracking_best: bool,
+    cfg: DictConfig, trainer: Trainer, stats: Dict[str, Any], tracking_best: bool,
 ) -> Dict[str, Any]:
     stats["num_updates"] = trainer.get_num_updates()
     if tracking_best and hasattr(checkpoint_utils.save_checkpoint, "best"):

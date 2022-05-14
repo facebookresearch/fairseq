@@ -204,8 +204,7 @@ class IterativeRefinementGenerator(object):
                 "decoding_format": self.decoding_format,
             }
             prev_decoder_out = prev_decoder_out._replace(
-                step=step,
-                max_step=self.max_iter + 1,
+                step=step, max_step=self.max_iter + 1,
             )
 
             decoder_out = model.forward_decoder(
@@ -221,9 +220,7 @@ class IterativeRefinementGenerator(object):
                     decoder_out.attn,
                 )
                 decoder_out = decoder_out._replace(
-                    output_tokens=out_tokens,
-                    output_scores=out_scores,
-                    attn=out_attn,
+                    output_tokens=out_tokens, output_scores=out_scores, attn=out_attn,
                 )
 
             else:

@@ -24,8 +24,7 @@ from fairseq.tasks import FairseqTask
 class HubertAsrConfig(FairseqDataclass):
     w2v_path: str = field(default=MISSING, metadata={"help": "path to hubert model"})
     no_pretrained_weights: bool = field(
-        default=False,
-        metadata={"help": "if true, does not load pretrained weights"},
+        default=False, metadata={"help": "if true, does not load pretrained weights"},
     )
     dropout_input: float = field(
         default=0.0,
@@ -36,8 +35,7 @@ class HubertAsrConfig(FairseqDataclass):
         metadata={"help": "dropout after transformer and before final projection"},
     )
     dropout: float = field(
-        default=0.0,
-        metadata={"help": "dropout probability inside hubert model"},
+        default=0.0, metadata={"help": "dropout probability inside hubert model"},
     )
     attention_dropout: float = field(
         default=0.0,
@@ -83,12 +81,10 @@ class HubertAsrConfig(FairseqDataclass):
 
     # channel masking
     mask_channel_length: int = field(
-        default=10,
-        metadata={"help": "length of the mask for features (channels)"},
+        default=10, metadata={"help": "length of the mask for features (channels)"},
     )
     mask_channel_prob: float = field(
-        default=0.0,
-        metadata={"help": "probability of replacing a feature with 0"},
+        default=0.0, metadata={"help": "probability of replacing a feature with 0"},
     )
     mask_channel_selection: MASKING_DISTRIBUTION_CHOICES = field(
         default="static",
@@ -103,20 +99,16 @@ class HubertAsrConfig(FairseqDataclass):
         },
     )
     no_mask_channel_overlap: bool = field(
-        default=False,
-        metadata={"help": "whether to allow channel masks to overlap"},
+        default=False, metadata={"help": "whether to allow channel masks to overlap"},
     )
     freeze_finetune_updates: int = field(
-        default=0,
-        metadata={"help": "dont finetune hubert for this many updates"},
+        default=0, metadata={"help": "dont finetune hubert for this many updates"},
     )
     feature_grad_mult: float = field(
-        default=0.0,
-        metadata={"help": "reset feature grad mult in hubert to this"},
+        default=0.0, metadata={"help": "reset feature grad mult in hubert to this"},
     )
     layerdrop: float = field(
-        default=0.0,
-        metadata={"help": "probability of dropping a layer in hubert"},
+        default=0.0, metadata={"help": "probability of dropping a layer in hubert"},
     )
     normalize: bool = II("task.normalize")
     data: str = II("task.data")
@@ -191,8 +183,7 @@ class HubertSeq2SeqConfig(HubertAsrConfig):
         metadata={"help": "use learned positional embeddings in the decoder"},
     )
     decoder_normalize_before: bool = field(
-        default=False,
-        metadata={"help": "apply layernorm before each decoder block"},
+        default=False, metadata={"help": "apply layernorm before each decoder block"},
     )
     no_token_positional_embeddings: bool = field(
         default=False,
@@ -219,8 +210,7 @@ class HubertSeq2SeqConfig(HubertAsrConfig):
         default=2048, metadata={"help": "max target positions"}
     )
     share_decoder_input_output_embed: bool = field(
-        default=False,
-        metadata={"help": "share decoder input and output embeddings"},
+        default=False, metadata={"help": "share decoder input and output embeddings"},
     )
 
 
@@ -351,7 +341,7 @@ class HubertEncoder(FairseqEncoder):
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):
     m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
-    nn.init.normal_(m.weight, mean=0, std=embedding_dim**-0.5)
+    nn.init.normal_(m.weight, mean=0, std=embedding_dim ** -0.5)
     nn.init.constant_(m.weight[padding_idx], 0)
     return m
 

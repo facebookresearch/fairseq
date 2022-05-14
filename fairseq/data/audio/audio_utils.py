@@ -111,7 +111,7 @@ def get_waveform(
     )
 
     if not normalization:
-        waveform *= 2**15  # denormalized to 16-bit signed integers
+        waveform *= 2 ** 15  # denormalized to 16-bit signed integers
     if not always_2d:
         waveform = waveform.squeeze(axis=0)
     return waveform, sample_rate
@@ -274,7 +274,7 @@ class TTSSpectrogram(torch.nn.Module):
         x = F.conv1d(x, self.basis, stride=self.hop_length)
         real_part = x[:, : self.n_fft // 2 + 1, :]
         imag_part = x[:, self.n_fft // 2 + 1 :, :]
-        magnitude = torch.sqrt(real_part**2 + imag_part**2)
+        magnitude = torch.sqrt(real_part ** 2 + imag_part ** 2)
         if self.return_phase:
             phase = torch.atan2(imag_part, real_part)
             return magnitude, phase

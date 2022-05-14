@@ -98,11 +98,7 @@ class EnsembleLevT(BasicEnsembleModel):
         can_del_word = output_tokens.ne(self.pad).sum(1) > 2
         if can_del_word.sum() != 0:  # we cannot delete, skip
             output_tokens, output_scores, attn = self.forward_word_del(
-                encoder_outs,
-                output_tokens,
-                output_scores,
-                attn,
-                can_del_word,
+                encoder_outs, output_tokens, output_scores, attn, can_del_word,
             )
 
         # insert placeholders
@@ -121,11 +117,7 @@ class EnsembleLevT(BasicEnsembleModel):
         can_ins_word = output_tokens.eq(self.unk).sum(1) > 0
         if can_ins_word.sum() != 0:
             output_tokens, output_scores, attn = self.forward_word_ins(
-                encoder_outs,
-                output_tokens,
-                output_scores,
-                attn,
-                can_ins_word,
+                encoder_outs, output_tokens, output_scores, attn, can_ins_word,
             )
 
         # delete some unnecessary paddings

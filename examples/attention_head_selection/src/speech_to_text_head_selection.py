@@ -8,13 +8,14 @@ from fairseq.optim.amp_optimizer import AMPOptimizer
 from fairseq.tasks import register_task
 from fairseq.tasks.speech_to_text import SpeechToTextTask
 
-from .data.speech_to_text_dataset_with_domain import SpeechToTextDatasetCreatorWithDomain
+from .data.speech_to_text_dataset_with_domain import (
+    SpeechToTextDatasetCreatorWithDomain,
+)
 from .loss.attention_head_selection import HeadSelectionLoss
 
 
 @register_task("speech_to_text_head_selection")
 class SpeechToTextHeadSelectionTask(SpeechToTextTask):
-
     @classmethod
     def add_args(cls, parser):
         SpeechToTextTask.add_args(parser)
@@ -22,29 +23,37 @@ class SpeechToTextHeadSelectionTask(SpeechToTextTask):
             "--task-type",
             type=str,
             default="lang",
-            help="task type for head selection, lang or domain"
+            help="task type for head selection, lang or domain",
         )
         parser.add_argument(
-            "--kl-weight",
-            type=float,
-            default=0.0,
-            help="the weight of KL loss"
+            "--kl-weight", type=float, default=0.0, help="the weight of KL loss"
         )
 
     def __init__(self, args, tgt_dict):
         super().__init__(args, tgt_dict)
         self.task_type = args.task_type
-        assert self.task_type in ["lang", "domain"], "invalid task_type: {}, should be either lang or domain".format(self.task_type)
+        assert self.task_type in [
+            "lang",
+            "domain",
+        ], "invalid task_type: {}, should be either lang or domain".format(
+            self.task_type
+        )
         self.map_task_to_id(args.train_subset)
-        self.encoder_head_prior = float(args.decoder_attention_heads) / args.total_decoder_attention_heads
-        self.decoder_head_prior = float(args.encoder_attention_heads) / args.total_encoder_attention_heads
+        self.encoder_head_prior = (
+            float(args.decoder_attention_heads) / args.total_decoder_attention_heads
+        )
+        self.decoder_head_prior = (
+            float(args.encoder_attention_heads) / args.total_encoder_attention_heads
+        )
         self.kl_loss = HeadSelectionLoss(args)
 
     def map_task_to_id(self, train_subset):
         src_lang_set, tgt_lang_set, domain_set = set(), set(), set()
         for split in train_subset.split(","):
             seq = split.split("_")
-            assert len(seq) == 4, "subset {} should be in the format of train_src_tgt_domain".format(split)
+            assert (
+                len(seq) == 4
+            ), "subset {} should be in the format of train_src_tgt_domain".format(split)
             _, src_lang, tgt_lang, domain = seq
             src_lang_set.add(src_lang)
             tgt_lang_set.add(tgt_lang)
@@ -79,7 +88,7 @@ class SpeechToTextHeadSelectionTask(SpeechToTextTask):
             src_lang_map=self.src_lang_map,
             tgt_lang_map=self.tgt_lang_map,
             domain_map=self.domain_map,
-            speaker_to_id=self.speaker_to_id
+            speaker_to_id=self.speaker_to_id,
         )
 
     def build_model(self, args):
@@ -95,7 +104,7 @@ class SpeechToTextHeadSelectionTask(SpeechToTextTask):
         bsz = task_ids.size(0)
         mat = torch.zeros((num_tasks, bsz), device=task_ids.device)
         mat[task_ids, torch.arange(bsz)] = 1.0
-        ntokens = torch.sum(sample['target'] != 1, dim=-1)
+        ntokens = torch.sum(sample["target"] != 1, dim=-1)
         sample_sizes = torch.matmul(mat, ntokens.float())
         return sample_sizes
 
@@ -119,25 +128,31 @@ class SpeechToTextHeadSelectionTask(SpeechToTextTask):
                 loss, sample_size, logging_output = criterion(model, sample)
                 # KL loss
                 if self.args.encoder_attn_head_select:
-                    sample_sizes = self.get_sample_sizes(sample, encoder_task_ids, self.encoder_tasks)
+                    sample_sizes = self.get_sample_sizes(
+                        sample, encoder_task_ids, self.encoder_tasks
+                    )
                     loss += self.kl_loss(
                         model.encoder.attn_head_selector.head_samples,
                         sample_sizes,
-                        self.encoder_head_prior
+                        self.encoder_head_prior,
                     )
                 if self.args.decoder_self_attn_head_select:
-                    sample_sizes = self.get_sample_sizes(sample, decoder_task_ids, self.decoder_tasks)
+                    sample_sizes = self.get_sample_sizes(
+                        sample, decoder_task_ids, self.decoder_tasks
+                    )
                     loss += self.kl_loss(
                         model.decoder.self_attn_head_selector.head_samples,
                         sample_sizes,
-                        self.decoder_head_prior
+                        self.decoder_head_prior,
                     )
                 if self.args.dec_enc_attn_head_select:
-                    sample_sizes = self.get_sample_sizes(sample, decoder_task_ids, self.decoder_tasks)
+                    sample_sizes = self.get_sample_sizes(
+                        sample, decoder_task_ids, self.decoder_tasks
+                    )
                     loss += self.kl_loss(
                         model.decoder.enc_attn_head_selector.head_sampes,
                         sample_sizes,
-                        self.decoder_head_prior
+                        self.decoder_head_prior,
                     )
 
         if ignore_grad:

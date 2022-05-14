@@ -71,9 +71,7 @@ def get_mock_cfg(finetune_from_model):
                 "model_parallel_size": 1,
                 "restore_file": "checkpoint_last.pt",
             },
-            "common": {
-                "model_parallel_size": 1,
-            },
+            "common": {"model_parallel_size": 1,},
         }
     )
     return cfg_mock

@@ -31,14 +31,12 @@ class Evaluator(object):
     def __call__(self):
         try:
             print(self.predictor.pred_dir)
-            for pred_file in glob.glob(
-                    self.predictor.pred_dir + "/*_merged.npy"):
+            for pred_file in glob.glob(self.predictor.pred_dir + "/*_merged.npy"):
                 outputs = np.load(pred_file)
                 results = self.metric.compute_metrics(outputs)
                 self.metric.print_computed_metrics(results)
 
-            outputs = np.load(os.path.join(
-                    self.predictor.pred_dir, "merged.npy"))
+            outputs = np.load(os.path.join(self.predictor.pred_dir, "merged.npy"))
             results = self.metric.compute_metrics(outputs)
             return {"results": results, "metric": self.metric}
         except FileNotFoundError:
@@ -48,7 +46,6 @@ class Evaluator(object):
     def evaluate(self, model, eval_dataloader=None, output_file="merged"):
         if eval_dataloader is None:
             eval_dataloader = self.eval_dataloader
-        outputs = self.predictor.predict_loop(
-            model, eval_dataloader, output_file)
+        outputs = self.predictor.predict_loop(model, eval_dataloader, output_file)
         results = self.metric.compute_metrics(**outputs)
         return results

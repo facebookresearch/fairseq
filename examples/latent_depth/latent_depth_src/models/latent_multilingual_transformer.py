@@ -27,15 +27,12 @@ class LatentMultilingualTransformerModel(MultilingualTransformerModel):
         """Add model-specific arguments to the parser."""
         MultilingualTransformerModel.add_args(parser)
         parser.add_argument(
-            '--soft-select',
-            action='store_true',
-            help='use soft samples in training an inference',
+            "--soft-select",
+            action="store_true",
+            help="use soft samples in training an inference",
         )
         parser.add_argument(
-            '--sampling-tau',
-            type=float,
-            default=5.,
-            help='sampling temperature',
+            "--sampling-tau", type=float, default=5.0, help="sampling temperature",
         )
 
     @classmethod

@@ -50,9 +50,7 @@ def process(args):
         print("Extracting log mel filter bank features...")
         for wav, sample_rate, _, spk_id, chapter_no, utt_no in tqdm(dataset):
             sample_id = f"{spk_id}-{chapter_no}-{utt_no}"
-            extract_fbank_features(
-                wav, sample_rate, feature_root / f"{sample_id}.npy"
-            )
+            extract_fbank_features(wav, sample_rate, feature_root / f"{sample_id}.npy")
     # Pack features into ZIP
     zip_path = out_root / "fbank80.zip"
     print("ZIPing features...")
@@ -72,9 +70,7 @@ def process(args):
             manifest["n_frames"].append(audio_lengths[sample_id])
             manifest["tgt_text"].append(utt.lower())
             manifest["speaker"].append(spk_id)
-        save_df_to_tsv(
-            pd.DataFrame.from_dict(manifest), out_root / f"{split}.tsv"
-        )
+        save_df_to_tsv(pd.DataFrame.from_dict(manifest), out_root / f"{split}.tsv")
         if split.startswith("train"):
             train_text.extend(manifest["tgt_text"])
     # Generate vocab
@@ -91,9 +87,7 @@ def process(args):
         )
     # Generate config YAML
     gen_config_yaml(
-        out_root,
-        spm_filename=spm_filename_prefix + ".model",
-        specaugment_policy="ld"
+        out_root, spm_filename=spm_filename_prefix + ".model", specaugment_policy="ld"
     )
     # Clean up
     shutil.rmtree(feature_root)

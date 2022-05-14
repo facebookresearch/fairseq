@@ -99,10 +99,7 @@ def load_dataset_raw_to_waveforms(
 
 
 def load_dataset_task(
-    args,
-    batch_size=1,
-    limit_size=None,
-    ref_dataset=None,
+    args, batch_size=1, limit_size=None, ref_dataset=None,
 ):
     """Loads dataset based on args by creating a task"""
     if not args.data or not args.subset or not args.task:

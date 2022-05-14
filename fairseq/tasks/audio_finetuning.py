@@ -109,8 +109,7 @@ class AudioFinetuningTask(AudioPretrainingTask):
     cfg: AudioFinetuningConfig
 
     def __init__(
-        self,
-        cfg: AudioFinetuningConfig,
+        self, cfg: AudioFinetuningConfig,
     ):
         super().__init__(cfg)
         self.blank_symbol = "<s>"
@@ -194,8 +193,7 @@ class AudioFinetuningTask(AudioPretrainingTask):
 
         if self.cfg.eval_wer and self.cfg.autoregressive:
             self.sequence_generator = self.build_generator(
-                [model],
-                self.cfg.eval_wer_config,
+                [model], self.cfg.eval_wer_config,
             )
             if self.cfg.eval_wer_tokenizer:
                 self.tokenizer = encoders.build_tokenizer(self.cfg.eval_wer_tokenizer)
@@ -222,9 +220,7 @@ class AudioFinetuningTask(AudioPretrainingTask):
 
         def decode(toks):
             s = self.target_dictionary.string(
-                toks.int().cpu(),
-                self.cfg.eval_wer_post_process,
-                escape_unk=True,
+                toks.int().cpu(), self.cfg.eval_wer_post_process, escape_unk=True,
             )
             if self.tokenizer:
                 s = self.tokenizer.decode(s)

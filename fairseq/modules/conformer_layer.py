@@ -45,12 +45,7 @@ class ConvolutionModule(torch.nn.Module):
         ) % 2 == 0, "kernel_size should be a odd number for 'SAME' padding"
         self.layer_norm = LayerNorm(embed_dim, export=export)
         self.pointwise_conv1 = torch.nn.Conv1d(
-            embed_dim,
-            2 * channels,
-            kernel_size=1,
-            stride=1,
-            padding=0,
-            bias=bias,
+            embed_dim, 2 * channels, kernel_size=1, stride=1, padding=0, bias=bias,
         )
         self.glu = torch.nn.GLU(dim=1)
         self.depthwise_conv = torch.nn.Conv1d(
@@ -65,12 +60,7 @@ class ConvolutionModule(torch.nn.Module):
         self.batch_norm = torch.nn.BatchNorm1d(channels)
         self.activation = get_activation_fn(activation_fn)(channels)
         self.pointwise_conv2 = torch.nn.Conv1d(
-            channels,
-            embed_dim,
-            kernel_size=1,
-            stride=1,
-            padding=0,
-            bias=bias,
+            channels, embed_dim, kernel_size=1, stride=1, padding=0, bias=bias,
         )
         self.dropout = torch.nn.Dropout(dropout)
 
@@ -173,21 +163,14 @@ class ConformerEncoderLayer(torch.nn.Module):
         self.pos_enc_type = pos_enc_type
         super(ConformerEncoderLayer, self).__init__()
 
-        self.ffn1 = FeedForwardModule(
-            embed_dim,
-            ffn_embed_dim,
-            dropout,
-            dropout,
-        )
+        self.ffn1 = FeedForwardModule(embed_dim, ffn_embed_dim, dropout, dropout,)
 
         self.self_attn_layer_norm = LayerNorm(embed_dim, export=False)
         self.self_attn_dropout = torch.nn.Dropout(dropout)
         if attn_type == "espnet":
             if self.pos_enc_type == "rel_pos":
                 self.self_attn = RelPositionMultiHeadedAttention(
-                    embed_dim,
-                    attention_heads,
-                    dropout=dropout,
+                    embed_dim, attention_heads, dropout=dropout,
                 )
             elif self.pos_enc_type == "rope":
                 self.self_attn = RotaryPositionMultiHeadedAttention(
@@ -195,18 +178,14 @@ class ConformerEncoderLayer(torch.nn.Module):
                 )
             elif self.pos_enc_type == "abs":
                 self.self_attn = ESPNETMultiHeadedAttention(
-                    embed_dim,
-                    attention_heads,
-                    dropout=dropout,
+                    embed_dim, attention_heads, dropout=dropout,
                 )
             else:
                 raise Exception(f"Unsupported attention type {self.pos_enc_type}")
         else:
             # Default to fairseq MHA
             self.self_attn = MultiheadAttention(
-                embed_dim,
-                attention_heads,
-                dropout=dropout,
+                embed_dim, attention_heads, dropout=dropout,
             )
 
         self.conv_module = ConvolutionModule(
@@ -218,11 +197,7 @@ class ConformerEncoderLayer(torch.nn.Module):
         )
 
         self.ffn2 = FeedForwardModule(
-            embed_dim,
-            ffn_embed_dim,
-            dropout,
-            dropout,
-            activation_fn=activation_fn,
+            embed_dim, ffn_embed_dim, dropout, dropout, activation_fn=activation_fn,
         )
         self.final_layer_norm = LayerNorm(embed_dim, export=False)
 
