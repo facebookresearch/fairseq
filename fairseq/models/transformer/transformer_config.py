@@ -49,6 +49,13 @@ class EncDecBaseConfig(FairseqDataclass):
         default=None, metadata={"help": "which layers to *keep* when pruning"}
     )
 
+    xformers_att_config: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "config for xFormers attention, defined in xformers.components.attention.AttentionConfig"
+        },
+    )
+
 
 @dataclass
 class DecoderConfig(EncDecBaseConfig):

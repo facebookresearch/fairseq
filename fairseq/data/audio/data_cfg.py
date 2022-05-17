@@ -83,6 +83,11 @@ class S2TDataConfig(object):
         return self.config.get("prepend_tgt_lang_tag", False)
 
     @property
+    def prepend_bos_and_append_tgt_lang_tag(self) -> bool:
+        """Prepend BOS and append target lang ID token to the target (e.g. mBART with language token pretraining)."""
+        return self.config.get("prepend_bos_and_append_tgt_lang_tag", False)
+
+    @property
     def input_feat_per_channel(self):
         """The dimension of input features (per audio channel)"""
         return self.config.get("input_feat_per_channel", 80)

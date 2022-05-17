@@ -7,6 +7,8 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
+from omegaconf import II
+
 from fairseq import options, utils
 from fairseq.dataclass import ChoiceEnum, FairseqDataclass
 from fairseq.models import (
@@ -21,8 +23,6 @@ from fairseq.models.transformer import (
 )
 from fairseq.modules import AdaptiveInput, CharacterTokenEmbedder
 from fairseq.utils import safe_getattr, safe_hasattr
-from omegaconf import II
-
 
 DEFAULT_MAX_TARGET_POSITIONS = 1024
 
@@ -210,6 +210,15 @@ class TransformerLanguageModelConfig(FairseqDataclass):
         default=False,
         metadata={"help": "Learn a scale coefficient for each residual connection"},
     )
+
+    # xFormers arguments
+    decoder_xformers_att_config: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "config for xFormers library attention, defined in xformers.components.attention.AttentionConfig",
+        },
+    )
+
     # options from other parts of the config
     add_bos_token: bool = II("task.add_bos_token")
     tokens_per_sample: int = II("task.tokens_per_sample")

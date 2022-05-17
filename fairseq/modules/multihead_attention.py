@@ -11,10 +11,53 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn import Parameter
 
+try:
+    from xformers.components.attention import build_attention
+    from xformers.components.attention.utils import maybe_merge_masks
+
+    _xformers_available = True
+except ImportError:
+    _xformers_available = False
+
 from fairseq import utils
 from fairseq.incremental_decoding_utils import with_incremental_state
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
+
+
+# TODO: move this into xformers?
+# TODO: uint8 input type should just output a bool
+def _mask_for_xformers(mask: Tensor, to_dtype: Optional[torch.dtype] = None):
+    """
+    call to pytorch multihead accepts three mask types:
+        - ByteTensor where non-zero means to mask
+        - FloatTensor which is an additive mask
+        - BoolTensor where True means to mask
+    xFormers currently accepts boolean and additive maks. For boolean masks
+    the values have opposite meaning. For a BoolTensor True mean to keep the value.
+    """
+    float_types = [torch.float, torch.float16]
+    # If an input mask is a float it is an additive mask. Otherwise it is either uint8 or bool.
+    additive = mask.dtype in float_types
+    # If to_dype is not specified, keep same dtype as mask.
+    to_dtype = mask.dtype if to_dtype is None else to_dtype
+    to_additive = to_dtype in float_types
+
+    if additive:
+        if to_additive:
+            return mask.to(to_dtype)
+        mask = mask < 0
+
+    if to_additive:
+        # return additive mask
+        new_mask = torch.zeros_like(mask, dtype=to_dtype)
+        new_mask = new_mask.masked_fill_(mask, -float("inf"))
+        return new_mask
+
+    # In xFormers True is value to keep rather than value to mask
+    mask = ~mask.to(torch.bool)
+    mask = mask.to(to_dtype)
+    return mask
 
 
 @with_incremental_state
@@ -38,8 +81,22 @@ class MultiheadAttention(nn.Module):
         encoder_decoder_attention=False,
         q_noise=0.0,
         qn_block_size=8,
+        # TODO: pass in config rather than string.
+        # config defined in xformers.components.attention.AttentionConfig
+        xformers_att_config: Optional[str] = None,
+        xformers_blocksparse_layout: Optional[
+            torch.Tensor
+        ] = None,  # This should be part of the config
+        xformers_blocksparse_blocksize: Optional[
+            int
+        ] = 16,  # This should be part of the config
     ):
         super().__init__()
+
+        xformers_att_config = utils.eval_str_dict(xformers_att_config)
+        self.use_xformers = xformers_att_config is not None
+        if self.use_xformers and not _xformers_available:
+            raise ImportError("\n\n  Please install xFormers.")
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
         self.vdim = vdim if vdim is not None else embed_dim
@@ -86,6 +143,20 @@ class MultiheadAttention(nn.Module):
         self.add_zero_attn = add_zero_attn
         self.beam_size = 1
         self.reset_parameters()
+
+        if self.use_xformers:
+            xformers_att_config["dropout"] = xformers_att_config.get("dropout", dropout)
+            xformers_att_config["num_heads"] = xformers_att_config.get(
+                "num_heads", num_heads
+            )
+
+            if xformers_blocksparse_layout is not None:
+                # Could be part of a single config passed only once
+                xformers_att_config["block_size"] = xformers_blocksparse_blocksize
+                xformers_att_config["layout"] = xformers_blocksparse_layout
+                xformers_att_config["name"] = "blocksparse"
+
+            self.attention = build_attention(xformers_att_config)
 
         self.onnx_trace = False
         self.skip_embed_dim_check = False
@@ -241,6 +312,159 @@ class MultiheadAttention(nn.Module):
     def _set_skip_embed_dim_check(self):
         self.skip_embed_dim_check = True
 
+    def _pad_masks(
+        self,
+        key_padding_mask: Optional[Tensor],
+        attn_mask: Optional[Tensor],
+    ) -> Tuple[Optional[Tensor], Optional[Tensor]]:
+        if attn_mask is not None:
+            shape = attn_mask.size()[:-1] + torch.Size([1])
+            attn_mask = torch.cat([attn_mask, attn_mask.new_zeros(shape)], dim=-1)
+        if key_padding_mask is not None:
+            shape = key_padding_mask.size()[:-1] + torch.Size([1])
+            key_padding_mask = torch.cat(
+                [
+                    key_padding_mask,
+                    key_padding_mask.new_zeros(shape),
+                ],
+                dim=-1,
+            )
+        return key_padding_mask, attn_mask
+
+    def _add_bias(
+        self,
+        k: Tensor,
+        v: Tensor,
+        key_padding_mask: Optional[Tensor],
+        attn_mask: Optional[Tensor],
+        bsz: int,
+    ) -> Tuple[Tensor, Tensor, Optional[Tensor], Optional[Tensor]]:
+        assert self.bias_k is not None
+        assert self.bias_v is not None
+        k = torch.cat([k, self.bias_k.repeat(1, bsz, 1)])
+        v = torch.cat([v, self.bias_v.repeat(1, bsz, 1)])
+        key_padding_mask, attn_mask = self._pad_masks(
+            key_padding_mask=key_padding_mask, attn_mask=attn_mask
+        )
+        return k, v, key_padding_mask, attn_mask
+
+    def _append_zero_attn(
+        self,
+        k: Tensor,
+        v: Tensor,
+        key_padding_mask: Optional[Tensor],
+        attn_mask: Optional[Tensor],
+    ) -> Tuple[Tensor, Tensor, Optional[Tensor], Optional[Tensor]]:
+        zero_attn_shape = k.size()[:-2] + torch.Size([1]) + k.size()[-1:]
+        k = torch.cat(
+            [k, torch.zeros(zero_attn_shape, dtype=k.dtype, device=k.device)], dim=-2
+        )
+        v = torch.cat(
+            [v, torch.zeros(zero_attn_shape, dtype=v.dtype, device=v.device)], dim=-2
+        )
+        key_padding_mask, attn_mask = self._pad_masks(
+            key_padding_mask=key_padding_mask, attn_mask=attn_mask
+        )
+        return k, v, key_padding_mask, attn_mask
+
+    def _xformers_attn_forward(
+        self,
+        query,
+        key: Optional[Tensor],
+        value: Optional[Tensor],
+        key_padding_mask: Optional[Tensor] = None,
+        need_weights: bool = True,
+        attn_mask: Optional[Tensor] = None,
+    ) -> Tuple[Tensor, Optional[Tensor]]:
+
+        tgt_len, bsz, embed_dim = query.size()
+
+        if key_padding_mask is not None:
+            assert key_padding_mask.size(0) == bsz
+            assert key_padding_mask.size(1) == tgt_len
+
+        if self.self_attention:
+            key = query
+            value = query
+        elif self.encoder_decoder_attention:
+            value = key
+
+        q = self.q_proj(query)
+        k = self.k_proj(key)
+        v = self.v_proj(value)
+
+        if self.bias_k is not None:
+            assert self.bias_v is not None
+            k, v, attn_mask, key_padding_mask = self._add_bias(
+                k, v, attn_mask, key_padding_mask, bsz
+            )
+
+        def fold_heads(x):
+            return (
+                x.contiguous()
+                .view(-1, bsz * self.num_heads, self.head_dim)
+                .transpose(0, 1)
+            )
+
+        def split_heads(x):
+            return (
+                x.contiguous()
+                .view(-1, bsz, self.num_heads, self.head_dim)
+                .transpose(0, 1)
+                .transpose(1, 2)
+            )
+
+        massage = split_heads if self.attention.requires_head_dimension else fold_heads
+        q = massage(q)
+        if k is not None:
+            k = massage(k)
+        if v is not None:
+            v = massage(v)
+
+        if self.add_zero_attn:
+            k, v, key_padding_mask, attn_mask = self._append_zero_attn(
+                k=k, v=v, key_padding_mask=key_padding_mask, attn_mask=attn_mask
+            )
+
+        kwargs = {}
+
+        if attn_mask is not None and self.attention.supports_attention_mask:
+            attn_mask = _mask_for_xformers(attn_mask, to_dtype=q.dtype)
+            kwargs["att_mask"] = attn_mask
+
+        if key_padding_mask is not None:
+            key_padding_mask = _mask_for_xformers(key_padding_mask, to_dtype=torch.bool)
+            if not self.attention.requires_separate_masks:
+                attn_mask = maybe_merge_masks(
+                    attn_mask,
+                    key_padding_mask,
+                    batch_size=bsz,
+                    src_len=k.size(-2),
+                    tgt_len=q.size(-2),
+                    num_heads=self.num_heads,
+                )
+                key_padding_mask = None
+                kwargs["att_mask"] = attn_mask
+            if self.attention.supports_key_padding_mask:
+                kwargs["key_padding_mask"] = key_padding_mask
+
+        y = self.attention(q, k, v, **kwargs)
+
+        y = (
+            y.view(bsz, self.num_heads, tgt_len, self.head_dim)
+            .transpose(1, 2)
+            .flatten(start_dim=2, end_dim=3)
+            .transpose(0, 1)
+        )
+        assert list(y.size()) == [tgt_len, bsz, embed_dim]
+
+        # Dropout not needed because already applied in attention.
+        # It is applied to the attention weights before matmul with v.
+        y = self.out_proj(y)
+
+        # TODO: support returning attention weights if needed.
+        return y, None
+
     def forward(
         self,
         query,
@@ -304,29 +528,36 @@ class MultiheadAttention(nn.Module):
             and not self.skip_embed_dim_check
         ):
             assert key is not None and value is not None
-            return F.multi_head_attention_forward(
-                query,
-                key,
-                value,
-                self.embed_dim,
-                self.num_heads,
-                torch.empty([0]),
-                torch.cat((self.q_proj.bias, self.k_proj.bias, self.v_proj.bias)),
-                self.bias_k,
-                self.bias_v,
-                self.add_zero_attn,
-                self.dropout_module.p,
-                self.out_proj.weight,
-                self.out_proj.bias,
-                self.training or self.dropout_module.apply_during_inference,
-                key_padding_mask,
-                need_weights,
-                attn_mask,
-                use_separate_proj_weight=True,
-                q_proj_weight=self.q_proj.weight,
-                k_proj_weight=self.k_proj.weight,
-                v_proj_weight=self.v_proj.weight,
-            )
+
+            if self.use_xformers:
+                return self._xformers_attn_forward(
+                    query, key, value, key_padding_mask, need_weights, attn_mask
+                )
+
+            else:
+                return F.multi_head_attention_forward(
+                    query,
+                    key,
+                    value,
+                    self.embed_dim,
+                    self.num_heads,
+                    torch.empty([0]),
+                    torch.cat((self.q_proj.bias, self.k_proj.bias, self.v_proj.bias)),
+                    self.bias_k,
+                    self.bias_v,
+                    self.add_zero_attn,
+                    self.dropout_module.p,
+                    self.out_proj.weight,
+                    self.out_proj.bias,
+                    self.training or self.dropout_module.apply_during_inference,
+                    key_padding_mask,
+                    need_weights,
+                    attn_mask,
+                    use_separate_proj_weight=True,
+                    q_proj_weight=self.q_proj.weight,
+                    k_proj_weight=self.k_proj.weight,
+                    v_proj_weight=self.v_proj.weight,
+                )
 
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
@@ -352,9 +583,13 @@ class MultiheadAttention(nn.Module):
             else:
                 if self.beam_size > 1 and bsz == key.size(1):
                     # key is [T, bsz*beam_size, C], reduce to [T, bsz, C]
-                    key = key.view(key.size(0), -1, self.beam_size, key.size(2))[:, :, 0, :]
+                    key = key.view(key.size(0), -1, self.beam_size, key.size(2))[
+                        :, :, 0, :
+                    ]
                     if key_padding_mask is not None:
-                        key_padding_mask = key_padding_mask.view(-1, self.beam_size, key_padding_mask.size(1))[:, 0, :]
+                        key_padding_mask = key_padding_mask.view(
+                            -1, self.beam_size, key_padding_mask.size(1)
+                        )[:, 0, :]
                 k = self.k_proj(key)
                 v = self.v_proj(key)
 
@@ -367,20 +602,9 @@ class MultiheadAttention(nn.Module):
 
         if self.bias_k is not None:
             assert self.bias_v is not None
-            k = torch.cat([k, self.bias_k.repeat(1, bsz, 1)])
-            v = torch.cat([v, self.bias_v.repeat(1, bsz, 1)])
-            if attn_mask is not None:
-                attn_mask = torch.cat(
-                    [attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1
-                )
-            if key_padding_mask is not None:
-                key_padding_mask = torch.cat(
-                    [
-                        key_padding_mask,
-                        key_padding_mask.new_zeros(key_padding_mask.size(0), 1),
-                    ],
-                    dim=1,
-                )
+            k, v, attn_mask, key_padding_mask = self._add_bias(
+                k, v, attn_mask, key_padding_mask, bsz
+            )
 
         q = (
             q.contiguous()
@@ -419,7 +643,9 @@ class MultiheadAttention(nn.Module):
                 _prev_value = saved_state["prev_value"]
                 assert _prev_value is not None
                 assert kv_bsz == _prev_value.size(0)
-                prev_value = _prev_value.view(kv_bsz * self.num_heads, -1, self.head_dim)
+                prev_value = _prev_value.view(
+                    kv_bsz * self.num_heads, -1, self.head_dim
+                )
                 if static_kv:
                     v = prev_value
                 else:
@@ -438,7 +664,9 @@ class MultiheadAttention(nn.Module):
             )
 
             saved_state["prev_key"] = k.view(kv_bsz, self.num_heads, -1, self.head_dim)
-            saved_state["prev_value"] = v.view(kv_bsz, self.num_heads, -1, self.head_dim)
+            saved_state["prev_value"] = v.view(
+                kv_bsz, self.num_heads, -1, self.head_dim
+            )
             saved_state["prev_key_padding_mask"] = key_padding_mask
             # In this branch incremental_state is never None
             assert incremental_state is not None
@@ -458,22 +686,9 @@ class MultiheadAttention(nn.Module):
         if self.add_zero_attn:
             assert v is not None
             src_len += 1
-            k = torch.cat([k, k.new_zeros((k.size(0), 1) + k.size()[2:])], dim=1)
-            v = torch.cat([v, v.new_zeros((v.size(0), 1) + v.size()[2:])], dim=1)
-            if attn_mask is not None:
-                attn_mask = torch.cat(
-                    [attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1
-                )
-            if key_padding_mask is not None:
-                key_padding_mask = torch.cat(
-                    [
-                        key_padding_mask,
-                        torch.zeros(key_padding_mask.size(0), 1).type_as(
-                            key_padding_mask
-                        ),
-                    ],
-                    dim=1,
-                )
+            k, v, key_padding_mask, attn_mask = self._append_zero_attn(
+                k=k, v=v, key_padding_mask=key_padding_mask, attn_mask=attn_mask
+            )
 
         if self.encoder_decoder_attention and bsz != kv_bsz:
             attn_weights = torch.einsum(
@@ -498,7 +713,9 @@ class MultiheadAttention(nn.Module):
             # don't attend to padding symbols
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
             if not is_tpu:
-                attn_weights = attn_weights.view(kv_bsz, -1, self.num_heads, tgt_len, src_len)
+                attn_weights = attn_weights.view(
+                    kv_bsz, -1, self.num_heads, tgt_len, src_len
+                )
                 attn_weights = attn_weights.masked_fill(
                     key_padding_mask.unsqueeze(1)
                     .unsqueeze(2)
@@ -525,8 +742,21 @@ class MultiheadAttention(nn.Module):
         if self.encoder_decoder_attention and bsz != kv_bsz:
             attn = torch.einsum(
                 "bxhts,bhsd->bxhtd",
-                attn_probs.view((kv_bsz, -1, self.num_heads,) + attn_probs.size()[1:]),
-                v.view((kv_bsz, self.num_heads,) + v.size()[1:]),
+                attn_probs.view(
+                    (
+                        kv_bsz,
+                        -1,
+                        self.num_heads,
+                    )
+                    + attn_probs.size()[1:]
+                ),
+                v.view(
+                    (
+                        kv_bsz,
+                        self.num_heads,
+                    )
+                    + v.size()[1:]
+                ),
             )
             attn = attn.reshape((-1,) + attn.size()[-2:])
         else:
@@ -610,7 +840,11 @@ class MultiheadAttention(nn.Module):
                         if input_buffer_k.size(0) * self.beam_size == new_order.size(0):
                             return incremental_state
                         elif self.beam_size > 1:
-                            input_buffer[k] = input_buffer_k.index_select(0, new_order.reshape(-1, self.beam_size)[:, 0] // self.beam_size)
+                            input_buffer[k] = input_buffer_k.index_select(
+                                0,
+                                new_order.reshape(-1, self.beam_size)[:, 0]
+                                // self.beam_size,
+                            )
                         else:
                             input_buffer[k] = input_buffer_k.index_select(0, new_order)
                     else:

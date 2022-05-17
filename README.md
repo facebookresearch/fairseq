@@ -69,6 +69,7 @@ We provide reference implementations of various sequence modeling papers:
 </p></details>
 
 ### What's New:
+* May 2022 [Integration with xFormers](https://github.com/facebookresearch/xformers)
 * December 2021 [Released Direct speech-to-speech translation code](examples/speech_to_speech/README.md)
 * October 2021 [Released VideoCLIP and VLM models](examples/MMPT/README.md)
 * October 2021 [Released multilingual finetuned XLSR-53 model](examples/wav2vec/README.md)
