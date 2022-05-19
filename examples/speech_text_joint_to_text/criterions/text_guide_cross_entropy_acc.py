@@ -42,13 +42,13 @@ class GuidedCrossEntAccCriterion(FairseqCriterion):
     @staticmethod
     def add_args(parser):
         """Add criterion-specific arguments to the parser."""
-        # fmt: off
+        # fmt: on
         parser.add_argument('--label-smoothing', default=0., type=float, metavar='D',
                             help='epsilon for label smoothing, 0 means no label smoothing')
-        # fmt: off
+        # fmt: on
         parser.add_argument('--guide-alpha', default=0., type=float, metavar='D',
                             help='alpha to merge kd cost from text to speech input with ce loss')
-        # fmt: off
+        # fmt: on
         parser.add_argument('--disable-text-guide-update-num', default=0, type=int, metavar='D',
                             help='disable guided target from text for the first N updates.')
         parser.add_argument("--attentive-cost-regularization", default=0.0, type=float, metavar='D',

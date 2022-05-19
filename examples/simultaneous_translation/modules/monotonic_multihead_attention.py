@@ -65,7 +65,7 @@ class MonotonicAttention(MultiheadAttention):
 
     @staticmethod
     def add_args(parser):
-        # fmt: off
+        # fmt: on
         parser.add_argument('--no-mass-preservation', action="store_false",
                             dest="mass_preservation",
                             help='Do not stay on the last token when decoding')
