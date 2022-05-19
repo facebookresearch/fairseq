@@ -111,7 +111,7 @@ class MultiheadAttention(nn.Module):
         assert (
             self.head_dim * num_heads == self.embed_dim
         ), "embed_dim must be divisible by num_heads"
-        self.scaling = self.head_dim ** -0.5
+        self.scaling = self.head_dim**-0.5
 
         self.self_attention = self_attention
         self.encoder_decoder_attention = encoder_decoder_attention
@@ -193,15 +193,33 @@ class MultiheadAttention(nn.Module):
             start_idx = i * self.head_dim
             end_idx = (i + 1) * self.head_dim
             k_proj_heads_norm.append(
-                torch.sum(torch.abs(self.k_proj.weight[start_idx:end_idx,])).tolist()
+                torch.sum(
+                    torch.abs(
+                        self.k_proj.weight[
+                            start_idx:end_idx,
+                        ]
+                    )
+                ).tolist()
                 + torch.sum(torch.abs(self.k_proj.bias[start_idx:end_idx])).tolist()
             )
             q_proj_heads_norm.append(
-                torch.sum(torch.abs(self.q_proj.weight[start_idx:end_idx,])).tolist()
+                torch.sum(
+                    torch.abs(
+                        self.q_proj.weight[
+                            start_idx:end_idx,
+                        ]
+                    )
+                ).tolist()
                 + torch.sum(torch.abs(self.q_proj.bias[start_idx:end_idx])).tolist()
             )
             v_proj_heads_norm.append(
-                torch.sum(torch.abs(self.v_proj.weight[start_idx:end_idx,])).tolist()
+                torch.sum(
+                    torch.abs(
+                        self.v_proj.weight[
+                            start_idx:end_idx,
+                        ]
+                    )
+                ).tolist()
                 + torch.sum(torch.abs(self.v_proj.bias[start_idx:end_idx])).tolist()
             )
 
@@ -233,18 +251,24 @@ class MultiheadAttention(nn.Module):
         for ele in reserve_head_index:
             start_idx, end_idx = ele
             new_q_weight.append(
-                self.q_proj.weight[start_idx:end_idx,]
+                self.q_proj.weight[
+                    start_idx:end_idx,
+                ]
             )
             new_q_bias.append(self.q_proj.bias[start_idx:end_idx])
 
             new_k_weight.append(
-                self.k_proj.weight[start_idx:end_idx,]
+                self.k_proj.weight[
+                    start_idx:end_idx,
+                ]
             )
 
             new_k_bias.append(self.k_proj.bias[start_idx:end_idx])
 
             new_v_weight.append(
-                self.v_proj.weight[start_idx:end_idx,]
+                self.v_proj.weight[
+                    start_idx:end_idx,
+                ]
             )
             new_v_bias.append(self.v_proj.bias[start_idx:end_idx])
 
@@ -289,7 +313,9 @@ class MultiheadAttention(nn.Module):
         self.skip_embed_dim_check = True
 
     def _pad_masks(
-        self, key_padding_mask: Optional[Tensor], attn_mask: Optional[Tensor],
+        self,
+        key_padding_mask: Optional[Tensor],
+        attn_mask: Optional[Tensor],
     ) -> Tuple[Optional[Tensor], Optional[Tensor]]:
         if attn_mask is not None:
             shape = attn_mask.size()[:-1] + torch.Size([1])
@@ -297,7 +323,11 @@ class MultiheadAttention(nn.Module):
         if key_padding_mask is not None:
             shape = key_padding_mask.size()[:-1] + torch.Size([1])
             key_padding_mask = torch.cat(
-                [key_padding_mask, key_padding_mask.new_zeros(shape),], dim=-1,
+                [
+                    key_padding_mask,
+                    key_padding_mask.new_zeros(shape),
+                ],
+                dim=-1,
             )
         return key_padding_mask, attn_mask
 
@@ -712,8 +742,21 @@ class MultiheadAttention(nn.Module):
         if self.encoder_decoder_attention and bsz != kv_bsz:
             attn = torch.einsum(
                 "bxhts,bhsd->bxhtd",
-                attn_probs.view((kv_bsz, -1, self.num_heads,) + attn_probs.size()[1:]),
-                v.view((kv_bsz, self.num_heads,) + v.size()[1:]),
+                attn_probs.view(
+                    (
+                        kv_bsz,
+                        -1,
+                        self.num_heads,
+                    )
+                    + attn_probs.size()[1:]
+                ),
+                v.view(
+                    (
+                        kv_bsz,
+                        self.num_heads,
+                    )
+                    + v.size()[1:]
+                ),
             )
             attn = attn.reshape((-1,) + attn.size()[-2:])
         else:

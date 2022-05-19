@@ -181,11 +181,16 @@ class S2STransformerMultitaskModelBase(FairseqEncoderDecoderModel):
                 decoder_args,
                 tgt_dict,
                 embed_tokens=TransformerModelBase.build_embedding(
-                    decoder_args, tgt_dict, decoder_args.decoder_embed_dim,
+                    decoder_args,
+                    tgt_dict,
+                    decoder_args.decoder_embed_dim,
                 ),
             )
         elif args.decoder_type == "ctc":
-            task_decoder = CTCDecoder(dictionary=tgt_dict, in_dim=in_dim,)
+            task_decoder = CTCDecoder(
+                dictionary=tgt_dict,
+                in_dim=in_dim,
+            )
         else:
             raise NotImplementedError(
                 "currently only support multitask decoder_type 'transformer', 'ctc'"
@@ -377,7 +382,11 @@ class S2UTTransformerModel(S2STransformerMultitaskModelBase):
             num_stacked=args.n_frames_per_step,
         )
 
-        return TransformerUnitDecoder(args, tgt_dict, embed_tokens,)
+        return TransformerUnitDecoder(
+            args,
+            tgt_dict,
+            embed_tokens,
+        )
 
     def forward(
         self,
@@ -393,7 +402,10 @@ class S2UTTransformerModel(S2STransformerMultitaskModelBase):
             tgt_speaker=tgt_speaker,
             return_all_hiddens=return_all_hiddens,
         )
-        decoder_out = self.decoder(prev_output_tokens, encoder_out=encoder_out,)
+        decoder_out = self.decoder(
+            prev_output_tokens,
+            encoder_out=encoder_out,
+        )
         if return_all_hiddens:
             decoder_out[-1]["encoder_states"] = encoder_out["encoder_states"]
             decoder_out[-1]["encoder_padding_mask"] = encoder_out[

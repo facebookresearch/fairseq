@@ -41,12 +41,17 @@ class TestBinarizer(unittest.TestCase):
         data = make_data(length=1)
         vocab = build_vocab(data)
 
-        binarizer = VocabularyDatasetBinarizer(vocab,)
+        binarizer = VocabularyDatasetBinarizer(
+            vocab,
+        )
 
         sentence = data[0]
         summary = BinarizeSummary()
 
-        tensor = binarizer.binarize_line(" ".join(sentence), summary,)
+        tensor = binarizer.binarize_line(
+            " ".join(sentence),
+            summary,
+        )
 
         self.assertEqual(len(tensor), len(sentence) + 1)
 
@@ -63,7 +68,10 @@ class TestBinarizer(unittest.TestCase):
             data = make_data(out_file=raw_file)
             vocab = build_vocab(data)
 
-            binarizer = VocabularyDatasetBinarizer(vocab, append_eos=False,)
+            binarizer = VocabularyDatasetBinarizer(
+                vocab,
+                append_eos=False,
+            )
 
             summary = FileBinarizer._binarize_chunk_and_finalize(
                 binarizer,
@@ -84,7 +92,10 @@ class TestBinarizer(unittest.TestCase):
             impl = "mmap"
             data = make_data(out_file=raw_file)
             vocab = build_vocab(data)
-            binarizer = VocabularyDatasetBinarizer(vocab, append_eos=False,)
+            binarizer = VocabularyDatasetBinarizer(
+                vocab,
+                append_eos=False,
+            )
             # with one worker
             summary = FileBinarizer.multiprocess_dataset(
                 raw_file,

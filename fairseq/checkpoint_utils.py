@@ -361,7 +361,13 @@ def load_model_ensemble(
         strict and num_shards > 1
     ), "Cannot load state dict with strict=True and checkpoint shards > 1"
     ensemble, args, _task = load_model_ensemble_and_task(
-        filenames, arg_overrides, task, strict, suffix, num_shards, state,
+        filenames,
+        arg_overrides,
+        task,
+        strict,
+        suffix,
+        num_shards,
+        state,
     )
     return ensemble, args
 

@@ -96,7 +96,8 @@ class QuantNoiseConfig(FairseqDataclass):
 @dataclass
 class TransformerConfig(FairseqDataclass):
     activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
-        default="relu", metadata={"help": "activation function to use"},
+        default="relu",
+        metadata={"help": "activation function to use"},
     )
     dropout: float = field(default=0.1, metadata={"help": "dropout probability"})
     attention_dropout: float = field(

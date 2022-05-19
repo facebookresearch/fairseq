@@ -33,7 +33,9 @@ class HuggingFaceByteLevelBPE(object):
         bpe_merges = file_utils.cached_path(cfg.bpe_merges)
 
         self.bpe = ByteLevelBPETokenizer(
-            bpe_vocab, bpe_merges, add_prefix_space=cfg.bpe_add_prefix_space,
+            bpe_vocab,
+            bpe_merges,
+            add_prefix_space=cfg.bpe_add_prefix_space,
         )
 
     def encode(self, x: str) -> str:

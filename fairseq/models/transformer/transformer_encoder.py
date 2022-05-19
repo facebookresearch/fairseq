@@ -22,7 +22,9 @@ from fairseq.modules import transformer_layer
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 from torch import Tensor
-from fairseq.models.transformer import TransformerConfig
+from fairseq.models.transformer import (
+    TransformerConfig,
+)
 
 
 # rewrite name for backward compatibility in `make_generation_fast_`
@@ -358,4 +360,6 @@ class TransformerEncoder(TransformerEncoderBase):
         )
 
     def build_encoder_layer(self, args):
-        return super().build_encoder_layer(TransformerConfig.from_namespace(args),)
+        return super().build_encoder_layer(
+            TransformerConfig.from_namespace(args),
+        )

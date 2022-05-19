@@ -15,6 +15,7 @@ from ..modules.multihead_functional import multi_head_attention_forward
 
 
 class MultiheadAttentionSelection(MultiheadAttention):
+
     def __init__(
         self,
         embed_dim,
@@ -31,7 +32,7 @@ class MultiheadAttentionSelection(MultiheadAttention):
         q_noise=0.0,
         qn_block_size=8,
         layer_idx=0,
-        attn_head_selector=None,
+        attn_head_selector=None
     ):
         super().__init__(
             embed_dim,
@@ -52,19 +53,13 @@ class MultiheadAttentionSelection(MultiheadAttention):
         self.total_num_heads = total_num_heads
         self.total_embed_dim = self.head_dim * total_num_heads
         self.k_proj = quant_noise(
-            nn.Linear(self.kdim, self.total_embed_dim, bias=bias),
-            q_noise,
-            qn_block_size,
+            nn.Linear(self.kdim, self.total_embed_dim, bias=bias), q_noise, qn_block_size
         )
         self.v_proj = quant_noise(
-            nn.Linear(self.vdim, self.total_embed_dim, bias=bias),
-            q_noise,
-            qn_block_size,
+            nn.Linear(self.vdim, self.total_embed_dim, bias=bias), q_noise, qn_block_size
         )
         self.q_proj = quant_noise(
-            nn.Linear(embed_dim, self.total_embed_dim, bias=bias),
-            q_noise,
-            qn_block_size,
+            nn.Linear(embed_dim, self.total_embed_dim, bias=bias), q_noise, qn_block_size
         )
         if add_bias_kv:
             self.bias_k = Parameter(torch.Tensor(1, 1, self.total_embed_dim))
@@ -139,7 +134,7 @@ class MultiheadAttentionSelection(MultiheadAttention):
                 k_proj_weight=self.k_proj.weight,
                 v_proj_weight=self.v_proj.weight,
                 subset_heads=subset_heads,
-                subset_weights=subset_weights,
+                subset_weights=subset_weights
             )
 
         if incremental_state is not None:
@@ -224,9 +219,7 @@ class MultiheadAttentionSelection(MultiheadAttention):
             if "prev_value" in saved_state:
                 _prev_value = saved_state["prev_value"]
                 assert _prev_value is not None
-                prev_value = _prev_value.view(
-                    bsz * self.total_num_heads, -1, self.head_dim
-                )
+                prev_value = _prev_value.view(bsz * self.total_num_heads, -1, self.head_dim)
                 if static_kv:
                     v = prev_value
                 else:
@@ -244,12 +237,8 @@ class MultiheadAttentionSelection(MultiheadAttention):
                 static_kv=static_kv,
             )
 
-            saved_state["prev_key"] = k.view(
-                bsz, self.total_num_heads, -1, self.head_dim
-            )
-            saved_state["prev_value"] = v.view(
-                bsz, self.total_num_heads, -1, self.head_dim
-            )
+            saved_state["prev_key"] = k.view(bsz, self.total_num_heads, -1, self.head_dim)
+            saved_state["prev_value"] = v.view(bsz, self.total_num_heads, -1, self.head_dim)
             saved_state["prev_key_padding_mask"] = key_padding_mask
             # In this branch incremental_state is never None
             assert incremental_state is not None
@@ -289,11 +278,7 @@ class MultiheadAttentionSelection(MultiheadAttention):
         attn_weights = torch.bmm(q, k.transpose(1, 2))
         attn_weights = self.apply_sparse_mask(attn_weights, tgt_len, src_len, bsz)
 
-        assert list(attn_weights.size()) == [
-            bsz * self.total_num_heads,
-            tgt_len,
-            src_len,
-        ]
+        assert list(attn_weights.size()) == [bsz * self.total_num_heads, tgt_len, src_len]
 
         if attn_mask is not None:
             attn_mask = attn_mask.unsqueeze(0)
@@ -303,9 +288,7 @@ class MultiheadAttentionSelection(MultiheadAttention):
 
         if key_padding_mask is not None:
             # don't attend to padding symbols
-            attn_weights = attn_weights.view(
-                bsz, self.total_num_heads, tgt_len, src_len
-            )
+            attn_weights = attn_weights.view(bsz, self.total_num_heads, tgt_len, src_len)
             if not is_tpu:
                 attn_weights = attn_weights.masked_fill(
                     key_padding_mask.unsqueeze(1).unsqueeze(2).to(torch.bool),
@@ -337,17 +320,9 @@ class MultiheadAttentionSelection(MultiheadAttention):
             attn = torch.bmm(attn_probs, v)
         else:
             # training with head selection
-            mixed_attn = (
-                torch.bmm(attn_probs, v)
-                .contiguous()
-                .view(bsz, self.total_num_heads, tgt_len, self.head_dim)
-            )
+            mixed_attn = torch.bmm(attn_probs, v).contiguous().view(bsz, self.total_num_heads, tgt_len, self.head_dim)
             attn = torch.stack(
-                [
-                    mixed_attn[torch.arange(bsz), subset_heads[:, col], :, :]
-                    for col in range(subset_heads.size(1))
-                ],
-                dim=1,
+                [mixed_attn[torch.arange(bsz), subset_heads[:, col], :, :] for col in range(subset_heads.size(1))], dim=1
             )
             attn = attn * subset_weights.unsqueeze(2).unsqueeze(3)
             attn = attn.contiguous().view(bsz * self.num_heads, tgt_len, self.head_dim)
@@ -371,13 +346,7 @@ class MultiheadAttentionSelection(MultiheadAttention):
                     bsz, self.total_num_heads, tgt_len, src_len
                 )
                 attn_weights = torch.stack(
-                    [
-                        mixed_attn_weights[
-                            torch.arange(bsz), subset_heads[:, col], :, :
-                        ]
-                        for col in range(subset_heads.size(1))
-                    ],
-                    dim=1,
+                    [mixed_attn_weights[torch.arange(bsz), subset_heads[:, col], :, :] for col in range(subset_heads.size(1))], dim=1
                 ).transpose(1, 0)
             if not need_head_weights:
                 # average attention weights over heads

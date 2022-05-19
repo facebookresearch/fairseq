@@ -246,7 +246,7 @@ class BARTModel(TransformerModel):
             embed_dim = state_dict["encoder.embed_tokens.weight"].size(1)
 
             new_lang_embed_to_add = torch.zeros(num_langids_to_add, embed_dim)
-            nn.init.normal_(new_lang_embed_to_add, mean=0, std=embed_dim ** -0.5)
+            nn.init.normal_(new_lang_embed_to_add, mean=0, std=embed_dim**-0.5)
             new_lang_embed_to_add = new_lang_embed_to_add.to(
                 dtype=state_dict["encoder.embed_tokens.weight"].dtype,
             )

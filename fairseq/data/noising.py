@@ -171,7 +171,11 @@ class WordShuffle(WordNoising):
         assert max_shuffle_distance > 1
 
         # define noise word scores
-        noise = np.random.uniform(0, max_shuffle_distance, size=(x.size(0), x.size(1)),)
+        noise = np.random.uniform(
+            0,
+            max_shuffle_distance,
+            size=(x.size(0), x.size(1)),
+        )
         noise[0] = -1  # do not move start sentence symbol
         # be sure to shuffle entire words
         word_idx = self.get_word_idx(x)
@@ -226,7 +230,9 @@ class UnsupervisedMTNoising(WordNoising):
     def noising(self, x, lengths):
         # 1. Word Shuffle
         noisy_src_tokens, noisy_src_lengths = self.word_shuffle.noising(
-            x=x, lengths=lengths, max_shuffle_distance=self.max_word_shuffle_distance,
+            x=x,
+            lengths=lengths,
+            max_shuffle_distance=self.max_word_shuffle_distance,
         )
         # 2. Word Dropout
         noisy_src_tokens, noisy_src_lengths = self.word_dropout.noising(
@@ -285,7 +291,10 @@ class NoisingDataset(torch.utils.data.Dataset):
         self.noiser = (
             noiser
             if noiser is not None
-            else noising_class(dictionary=src_dict, **kwargs,)
+            else noising_class(
+                dictionary=src_dict,
+                **kwargs,
+            )
         )
         self.sizes = src_dataset.sizes
 

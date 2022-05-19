@@ -51,7 +51,9 @@ def main():
 
     logging.info("loading en2fr model from:" + args.en2fr)
     en2fr = TransformerModel.from_pretrained(
-        model_name_or_path=args.en2fr, tokenizer="moses", bpe="sentencepiece",
+        model_name_or_path=args.en2fr,
+        tokenizer="moses",
+        bpe="sentencepiece",
     ).eval()
 
     logging.info("loading fr2en model from:" + args.fr2en)

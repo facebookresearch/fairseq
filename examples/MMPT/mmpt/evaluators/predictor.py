@@ -18,7 +18,6 @@ class Predictor(object):
         (and being called by a evaluator later).
         Predictor has minimum support of single gpu prediction.
     """
-
     def __init__(self, config):
         self.pred_dir = None  # on-the-fly eval does not save the results.
         if hasattr(config, "eval") and config.eval is not None:
@@ -59,16 +58,14 @@ class Predictor(object):
 
 class NLGPredictor(Predictor):
     """Predicting Text from MMFusion models."""
-
     """TODO: make a context."""
-
     def __init__(self, config):
         super().__init__(config)
         from transformers import AutoTokenizer
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            config.dataset.bert_name, bos_token="[CLS]", eos_token="[SEP]"
-        )
+            config.dataset.bert_name,
+            bos_token="[CLS]", eos_token="[SEP]")
         self.bos_token_id = self.tokenizer.bos_token_id
         self.eos_token_id = self.tokenizer.eos_token_id
 
@@ -85,14 +82,16 @@ class NLGPredictor(Predictor):
         return self.finalize(outputs, output_file)
 
     def __call__(self, data, model, outputs):
-        data.update(
-            {"bos_token_id": self.bos_token_id, "eos_token_id": self.eos_token_id}
-        )
+        data.update({
+            "bos_token_id": self.bos_token_id,
+            "eos_token_id": self.eos_token_id
+        })
 
         output = model.generate(**data)
         assert len(output) == len(data["ref"])
         for idx, _output in enumerate(output):
-            generated_text = self.tokenizer.decode(_output, skip_special_tokens=True)
+            generated_text = self.tokenizer.decode(
+                _output, skip_special_tokens=True)
             if generated_text == "":
                 generated_text = "none"
             outputs["outputs"].append(generated_text)
@@ -104,21 +103,26 @@ class NLGPredictor(Predictor):
 
     def finalize(self, outputs, output_file=None):
         if output_file is not None:
-            with open(os.path.join(self.pred_dir, output_file + ".json"), "w") as fw:
+            with open(os.path.join(
+                    self.pred_dir, output_file + ".json"), "w") as fw:
                 json.dump(outputs, fw, indent=4)
         return outputs
 
 
 class RetrievalPredictor(Predictor):
     """generated `pooled_video` and `pooled_text`."""
-
     def __init__(self, config):
         super().__init__(config)
         from transformers import AutoTokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            config.dataset.bert_name)
 
-        self.tokenizer = AutoTokenizer.from_pretrained(config.dataset.bert_name)
-
-    def predict_loop(self, model, eval_dataloader, output_file="retrieval.npy"):
+    def predict_loop(
+        self,
+        model,
+        eval_dataloader,
+        output_file="retrieval.npy"
+    ):
         """on-the-fly prediction on a single gpu."""
         full_scores = []
         texts = []
@@ -133,14 +137,16 @@ class RetrievalPredictor(Predictor):
                         "cmasks": data[1],
                         "vfeats": data[2],
                         "vmasks": data[3],
-                        "video_id": data[4],
+                        "video_id": data[4]
                     }
                 data = self.to_ctx(data)
                 outputs = model(**data)
                 outputs.update(data)
                 self(outputs, full_scores)
                 for _cap in data["caps"]:
-                    texts.append(self.tokenizer.decode(_cap, skip_special_tokens=True))
+                    texts.append(
+                        self.tokenizer.decode(_cap, skip_special_tokens=True)
+                    )
 
         return self.finalize(full_scores, texts, output_file)
 
@@ -179,7 +185,6 @@ class RetrievalPredictor(Predictor):
 
 class QAPredictor(Predictor):
     """generated `pooled_video` and `pooled_text`."""
-
     def __init__(self, config):
         super().__init__(config)
         """predictor maintains scores and aggregate them."""
@@ -194,15 +199,8 @@ class QAPredictor(Predictor):
                 # reshape ans and dup video 5 times.
                 v_len = data["vfeats"].size(1)
                 hidden_size = data["vfeats"].size(2)
-                data["vfeats"] = (
-                    data["vfeats"]
-                    .unsqueeze(1)
-                    .repeat(1, 5, 1, 1)
-                    .view(-1, v_len, hidden_size)
-                )
-                data["vmasks"] = (
-                    data["vmasks"].unsqueeze(1).repeat(1, 5, 1).view(-1, v_len)
-                )
+                data["vfeats"] = data["vfeats"].unsqueeze(1).repeat(1, 5, 1, 1).view(-1, v_len, hidden_size)
+                data["vmasks"] = data["vmasks"].unsqueeze(1).repeat(1, 5, 1).view(-1, v_len)
 
                 t_len = data["caps"].size(-1)
                 data["caps"] = data["caps"].view(-1, t_len)
@@ -249,7 +247,6 @@ class CrossTaskPredictor(Predictor):
     CrossTaskPredictor needs to compute the average of logits
     for overlapped sliding-window.
     """
-
     def __init__(self, config):
         super().__init__(config)
         self.lsm = torch.nn.LogSoftmax(dim=1)
@@ -276,8 +273,7 @@ class CrossTaskPredictor(Predictor):
     def __call__(self, sample, model, Y_pred, Y_true):
         # please install dp from `https://github.com/DmZhukov/CrossTask`
         from dp import dp
-
-        vid, task = sample["video_id"][0], sample["task"][0]
+        vid, task = sample['video_id'][0], sample['task'][0]
         sample = self.to_ctx(sample)
         # compute the average logits over sliding windows.
         output = model(**sample)
@@ -292,21 +288,16 @@ class CrossTaskPredictor(Predictor):
         batch_logit_idx = 0
         for window_start in range(0, video_len, self.sliding_window):
             video_end = min(video_len - window_start, self.sliding_window_size)
-            logits[window_start : window_start + video_end] += batch_logits[
-                batch_logit_idx : batch_logit_idx + video_end
-            ]
+            logits[window_start: window_start + video_end] += batch_logits[
+                batch_logit_idx: batch_logit_idx + video_end]
             batch_logit_idx += video_end
-            logits_counts[window_start : window_start + video_end] += torch.ones(
-                (video_end, 1), dtype=torch.long
-            )
+            logits_counts[window_start: window_start + video_end] += torch.ones((video_end, 1), dtype=torch.long)
 
             if (video_len - window_start) <= self.sliding_window_size:
                 break
 
         logits /= logits_counts
-        assert logits.size() == (video_len, batch_logits.size(1)), "{}, {}".format(
-            logits.size(), video_len
-        )
+        assert logits.size() == (video_len, batch_logits.size(1)), "{}, {}".format(logits.size(), video_len)
 
         O = self.lsm(logits)
         y = np.zeros(O.size(), dtype=np.float32)
@@ -314,20 +305,22 @@ class CrossTaskPredictor(Predictor):
         if task not in Y_pred:
             Y_pred[task] = {}
         Y_pred[task][vid] = y
-        annot_path = os.path.join(self.annotation_path, task + "_" + vid + ".csv")
+        annot_path = os.path.join(
+            self.annotation_path, task+'_'+vid+'.csv')
         if os.path.exists(annot_path):
             if task not in Y_true:
                 Y_true[task] = {}
-            Y_true[task][vid] = self._read_assignment(*y.shape, annot_path)
+            Y_true[task][vid] = self._read_assignment(
+                *y.shape, annot_path)
 
     def finalize(self, Y_pred, Y_true, output_file=None):
         if output_file is not None:
-            with open(os.path.join(self.pred_dir, output_file + ".pkl"), "wb") as fw:
+            with open(
+                    os.path.join(self.pred_dir, output_file + ".pkl"),
+                    "wb") as fw:
                 pickle.dump(
-                    {"Y_pred": Y_pred, "Y_true": Y_true},
-                    fw,
-                    protocol=pickle.HIGHEST_PROTOCOL,
-                )
+                    {"Y_pred": Y_pred, "Y_true": Y_true}, fw,
+                    protocol=pickle.HIGHEST_PROTOCOL)
         return {"outputs": Y_pred, "targets": Y_true}
 
     def _read_assignment(self, T, K, path):
@@ -344,9 +337,9 @@ class CrossTaskPredictor(Predictor):
         """
 
         Y = np.zeros([T, K], dtype=np.uint8)
-        with open(path, "r") as f:
+        with open(path, 'r') as f:
             for line in f:
-                step, start, end = line.strip().split(",")
+                step, start, end = line.strip().split(',')
                 start = int(math.floor(float(start)))
                 end = int(math.ceil(float(end)))
                 step = int(step) - 1
@@ -358,7 +351,6 @@ class COINPredictor(Predictor):
     """
     COINPredictor is similar to CrossTask on sliding windows.
     """
-
     def __init__(self, config):
         super().__init__(config)
         self.max_video_len = config.dataset.max_video_len
@@ -405,19 +397,14 @@ class COINPredictor(Predictor):
         batch_logit_idx = 0
         for window_start in range(0, video_len, self.sliding_window):
             video_end = min(video_len - window_start, self.sliding_window_size)
-            logits[window_start : window_start + video_end] += batch_logits[
-                batch_logit_idx : batch_logit_idx + video_end
-            ]
+            logits[window_start: window_start + video_end] += batch_logits[
+                batch_logit_idx: batch_logit_idx + video_end]
             batch_logit_idx += video_end
-            logits_counts[window_start : window_start + video_end] += torch.ones(
-                (video_end, 1), dtype=torch.long
-            )
+            logits_counts[window_start: window_start + video_end] += torch.ones((video_end, 1), dtype=torch.long)
             if (video_len - window_start) <= self.sliding_window_size:
                 break
         logits /= logits_counts
-        assert logits.size() == (video_len, batch_logits.size(1)), "{}, {}".format(
-            logits.size(), video_len
-        )
+        assert logits.size() == (video_len, batch_logits.size(1)), "{}, {}".format(logits.size(), video_len)
         return logits
 
     def finalize(self, Y_pred, Y_true, output_file=None):
@@ -430,12 +417,12 @@ class COINPredictor(Predictor):
         print("sample error", Y_pred[error_mask][10:20], Y_true[error_mask][10:20])
 
         if output_file is not None:
-            with open(os.path.join(self.pred_dir, output_file + ".pkl"), "wb") as fw:
+            with open(
+                    os.path.join(self.pred_dir, output_file + ".pkl"),
+                    "wb") as fw:
                 pickle.dump(
-                    {"Y_pred": Y_pred, "Y_true": Y_true},
-                    fw,
-                    protocol=pickle.HIGHEST_PROTOCOL,
-                )
+                    {"Y_pred": Y_pred, "Y_true": Y_true}, fw,
+                    protocol=pickle.HIGHEST_PROTOCOL)
         return {"outputs": Y_pred, "targets": Y_true}
 
 
@@ -458,16 +445,13 @@ class COINZSPredictor(COINPredictor):
 
         with torch.no_grad():
             outputs = eval_dataloader.dataset.meta_processor.meta_text_labels(
-                self.dataset_config
-            )
+                self.dataset_config)
             outputs = self.to_ctx(outputs, ctx)
             label_hidden_states = model.forward_text(**outputs).cpu()
             label_sim = label_hidden_states @ label_hidden_states.t()
             num_labels = label_sim.size(0)
             eye_mask = ~torch.eye(num_labels, dtype=torch.bool)
-            label_sim = label_sim.masked_select(eye_mask).view(
-                num_labels, num_labels - 1
-            )
+            label_sim = label_sim.masked_select(eye_mask).view(num_labels, num_labels - 1)
             lbd = label_sim.max()
 
         # this is not a loss but just compute neg_log_prob.
@@ -495,10 +479,7 @@ class COINZSPredictor(COINPredictor):
         # compute the average logits over sliding windows.
         sample["output_hidden_states"] = True
         video_outputs = model.forward_video(**sample).cpu()
-        output = {
-            "logits": video_outputs[:, 1 : sample["vmasks"].size(1) + 1]
-            @ label_hidden_states.t()
-        }
+        output = {"logits": video_outputs[:, 1:sample["vmasks"].size(1)+1] @ label_hidden_states.t()}
         logits = self._merge_windows(sample, output)
         # logic of zero-shot for sequence labeling.
         logits_argmax = logits.argmax(dim=1) + 1  # 0 is "O" label.
@@ -521,12 +502,12 @@ class COINZSPredictor(COINPredictor):
         print("sample error", Y_pred[error_mask][10:20], Y_true[error_mask][10:20])
 
         if output_file is not None:
-            with open(os.path.join(self.pred_dir, output_file + ".pkl"), "wb") as fw:
+            with open(
+                    os.path.join(self.pred_dir, output_file + ".pkl"),
+                    "wb") as fw:
                 pickle.dump(
-                    {"Y_pred": Y_pred, "Y_true": Y_true},
-                    fw,
-                    protocol=pickle.HIGHEST_PROTOCOL,
-                )
+                    {"Y_pred": Y_pred, "Y_true": Y_true}, fw,
+                    protocol=pickle.HIGHEST_PROTOCOL)
         return {"outputs": Y_pred, "targets": Y_true}
 
 
@@ -534,7 +515,6 @@ class DiDeMoPredictor(Predictor):
     """reference: https://github.com/LisaAnne/LocalizingMoments/blob/master/utils/eval.py
     https://github.com/LisaAnne/LocalizingMoments/blob/master/utils/data_processing.py
     """
-
     def __init__(self, config):
         super().__init__(config)
         # load targets.
@@ -546,9 +526,8 @@ class DiDeMoPredictor(Predictor):
         TODO: two solutions here.
         """
         import itertools
-
         # 21 chunks.
-        self.possible_segments = [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5)]
+        self.possible_segments = [(0,0), (1,1), (2,2), (3,3), (4,4), (5,5)]
         for i in itertools.combinations(range(6), 2):
             self.possible_segments.append(i)
         # pick segments from a video.
@@ -565,7 +544,10 @@ class DiDeMoPredictor(Predictor):
                 hidden_video = model.forward_video(**data)
                 data["output_hidden_states"] = False
                 pooled_text = model.forward_text(**data)
-                outputs = {"hidden_video": hidden_video, "pooled_text": pooled_text}
+                outputs = {
+                    "hidden_video": hidden_video,
+                    "pooled_text": pooled_text
+                }
                 outputs.update(data)
                 self(outputs)
         return self.finalize(output_file)
@@ -583,13 +565,12 @@ class DiDeMoPredictor(Predictor):
         for s, e in self.possible_segments:
             pooled_video.append(
                 torch.mean(
-                    hidden_video[:, int(s * 5) : int((e + 1) * 5), :],
-                    dim=1,
-                    keepdim=True,
-                )
+                    hidden_video[:, int(s*5):int((e+1)*5), :],
+                    dim=1, keepdim=True)
             )
         pooled_video = torch.cat(pooled_video, dim=1)
-        scores = torch.bmm(pooled_video, pooled_text.unsqueeze(-1)).squeeze(-1).cpu()
+        scores = torch.bmm(
+            pooled_video, pooled_text.unsqueeze(-1)).squeeze(-1).cpu()
 
         ranks = scores.argsort(dim=-1, descending=True)
 
@@ -597,7 +578,9 @@ class DiDeMoPredictor(Predictor):
             rank_of_moment = []
             for m_idx, moment in enumerate(rank):
                 s, e = self.possible_segments[moment.item()]
-                if torch.any(vmasks[batch_idx, int(s * 5) : int((e + 1) * 5)]):
+                if torch.any(
+                    vmasks[batch_idx, int(s*5):int((e+1)*5)]
+                ):
                     rank_of_moment.append((s, e))
             self.full_scores.append(rank_of_moment)
 

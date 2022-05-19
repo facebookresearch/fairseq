@@ -50,7 +50,8 @@ config_path = Path(__file__).resolve().parent / "conf"
 @dataclass
 class DecodingConfig(DecoderConfig, FlashlightDecoderConfig):
     unique_wer_file: bool = field(
-        default=False, metadata={"help": "If set, use a unique file for storing WER"},
+        default=False,
+        metadata={"help": "If set, use a unique file for storing WER"},
     )
     results_path: Optional[str] = field(
         default=None,
@@ -105,7 +106,8 @@ class InferenceProcessor:
         self.tgt_dict = self.task.target_dictionary
 
         self.task.load_dataset(
-            self.cfg.dataset.gen_subset, task_cfg=saved_cfg.task,
+            self.cfg.dataset.gen_subset,
+            task_cfg=saved_cfg.task,
         )
         self.generator = Decoder(cfg.decoding, self.tgt_dict)
         self.gen_timer = StopwatchMeter()
@@ -257,7 +259,11 @@ class InferenceProcessor:
         return distributed_utils.get_data_parallel_rank()
 
     def process_sentence(
-        self, sample: Dict[str, Any], hypo: Dict[str, Any], sid: int, batch_id: int,
+        self,
+        sample: Dict[str, Any],
+        hypo: Dict[str, Any],
+        sid: int,
+        batch_id: int,
     ) -> Tuple[int, int]:
         speaker = None  # Speaker can't be parsed from dataset.
 
@@ -297,7 +303,9 @@ class InferenceProcessor:
     def process_sample(self, sample: Dict[str, Any]) -> None:
         self.gen_timer.start()
         hypos = self.task.inference_step(
-            generator=self.generator, models=self.models, sample=sample,
+            generator=self.generator,
+            models=self.models,
+            sample=sample,
         )
         num_generated_tokens = sum(len(h[0]["tokens"]) for h in hypos)
         self.gen_timer.stop(num_generated_tokens)

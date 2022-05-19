@@ -30,7 +30,9 @@ class TestGradientScaling(unittest.TestCase):
 
         self.cfg_dls = OmegaConf.create(
             {
-                "optimization": {"lr": [0.1],},
+                "optimization": {
+                    "lr": [0.1],
+                },
                 "optimizer": {
                     "_name": "adam",
                     "lr": [0.1],

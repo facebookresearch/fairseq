@@ -14,7 +14,8 @@ from .base_decoder import BaseDecoder
 
 class ViterbiDecoder(BaseDecoder):
     def decode(
-        self, emissions: torch.FloatTensor,
+        self,
+        emissions: torch.FloatTensor,
     ) -> List[List[Dict[str, torch.LongTensor]]]:
         def get_pred(e):
             toks = e.argmax(dim=-1).unique_consecutive()

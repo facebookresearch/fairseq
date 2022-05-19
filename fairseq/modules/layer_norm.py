@@ -21,7 +21,6 @@ try:
                 with torch.cuda.device(x.device):
                     return super().forward(x)
 
-
 except ImportError:
     has_fused_layernorm = False
 

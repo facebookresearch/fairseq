@@ -257,7 +257,9 @@ class Discriminator(nn.Module):
             emb_net.append(nn.GELU())
 
         self.net = nn.Sequential(
-            *emb_net, nn.Dropout(cfg.discriminator_dropout), *inner_net,
+            *emb_net,
+            nn.Dropout(cfg.discriminator_dropout),
+            *inner_net,
         )
 
     def forward(self, x, padding_mask):
@@ -579,7 +581,9 @@ class Wav2vec_U(BaseFairseqModel):
 
         if d_step:
             loss_dense = F.binary_cross_entropy_with_logits(
-                dense_y, dense_y.new_ones(dense_y.shape) - fake_smooth, reduction="sum",
+                dense_y,
+                dense_y.new_ones(dense_y.shape) - fake_smooth,
+                reduction="sum",
             )
             loss_token = F.binary_cross_entropy_with_logits(
                 token_y,

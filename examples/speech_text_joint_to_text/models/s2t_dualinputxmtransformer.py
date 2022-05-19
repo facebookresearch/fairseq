@@ -18,7 +18,7 @@ from fairseq.models.speech_to_text import Wav2VecEncoderWithAdaptor
 from fairseq.models.speech_to_text.xm_transformer import (
     set_default_adaptor_args,
     set_default_w2v_encoder_args,
-    need_finetuning,
+    need_finetuning
 )
 from fairseq.models.transformer import TransformerEncoder, TransformerDecoder
 from fairseq.models.wav2vec import TransformerSentenceEncoderLayer
@@ -76,9 +76,9 @@ class SharedEncoder(FairseqEncoder):
         super().__init__(None)
         self.w2v_encoder = wav2vec_enc
         self.shared_layers = self.w2v_encoder.w2v_model.encoder.layers[-shared_layers:]
-        self.w2v_encoder.w2v_model.encoder.layers = self.w2v_encoder.w2v_model.encoder.layers[
-            :-shared_layers
-        ]
+        self.w2v_encoder.w2v_model.encoder.layers = (
+            self.w2v_encoder.w2v_model.encoder.layers[:-shared_layers]
+        )
         self.adaptor = adaptor
         if self.shared_layers[-1].layer_norm_first:
             self.final_layer_norm = mbart_enc.layer_norm
@@ -139,9 +139,9 @@ class StackedWav2VecEncoderWithAdaptor(FairseqEncoder):
         self.mbart_encoder_layers = mbart_enc_layers
         self.final_layer_norm = mbart_layer_norm
         if drop_w2v_layers > 0:
-            self.w2v_encoder.w2v_model.encoder.layers = self.w2v_encoder.w2v_model.encoder.layers[
-                :-drop_w2v_layers
-            ]
+            self.w2v_encoder.w2v_model.encoder.layers = (
+                self.w2v_encoder.w2v_model.encoder.layers[:-drop_w2v_layers]
+            )
 
     def forward(self, src_tokens, src_lengths=None, return_all_hiddens=False, **kwargs):
         padding_mask = lengths_to_padding_mask(src_lengths)
@@ -441,15 +441,17 @@ class DualInputXMTransformerModel(DualInputS2TTransformerModel):
 
         for k, p in spch_encoder.named_parameters():
             # Freeze pretrained models by default
-            if safe_hasattr(args, "finetune_w2v_params") and need_finetuning(
-                args.finetune_w2v_params, k
-            ):
+            if safe_hasattr(
+                args, "finetune_w2v_params"
+            ) and need_finetuning(args.finetune_w2v_params, k):
                 p.requires_grad = True
             else:
                 p.requires_grad = False
         for k, p in text_encoder.named_parameters():
             # Freeze pretrained models by default
-            if safe_hasattr(args, "finetune_mbart_encoder_params") and need_finetuning(
+            if safe_hasattr(
+                args, "finetune_mbart_encoder_params"
+            ) and need_finetuning(
                 args.finetune_mbart_encoder_params, k
             ):
                 p.requires_grad = True
@@ -486,7 +488,9 @@ class DualInputXMTransformerModel(DualInputS2TTransformerModel):
             decoder.layer_norm = None
         for k, p in decoder.named_parameters():
             # Freeze pretrained models by default
-            if safe_hasattr(args, "finetune_mbart_decoder_params") and need_finetuning(
+            if safe_hasattr(
+                args, "finetune_mbart_decoder_params"
+            ) and need_finetuning(
                 args.finetune_mbart_decoder_params, k
             ):
                 p.requires_grad = True

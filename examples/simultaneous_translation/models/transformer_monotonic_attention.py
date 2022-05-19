@@ -22,7 +22,7 @@ from fairseq.models.transformer import (
     base_architecture,
     transformer_iwslt_de_en,
     transformer_vaswani_wmt_en_de_big,
-    tiny_architecture,
+    tiny_architecture
 )
 from torch import Tensor
 
@@ -68,7 +68,10 @@ class TransformerMonotonicEncoder(TransformerEncoder):
         self.dictionary = dictionary
         self.layers = nn.ModuleList([])
         self.layers.extend(
-            [TransformerMonotonicEncoderLayer(args) for i in range(args.encoder_layers)]
+            [
+                TransformerMonotonicEncoderLayer(args)
+                for i in range(args.encoder_layers)
+            ]
         )
 
 
@@ -91,7 +94,10 @@ class TransformerMonotonicDecoder(TransformerDecoder):
         self.dictionary = dictionary
         self.layers = nn.ModuleList([])
         self.layers.extend(
-            [TransformerMonotonicDecoderLayer(args) for _ in range(args.decoder_layers)]
+            [
+                TransformerMonotonicDecoderLayer(args)
+                for _ in range(args.decoder_layers)
+            ]
         )
         self.policy_criterion = getattr(args, "policy_criterion", "any")
         self.num_updates = None
@@ -107,7 +113,8 @@ class TransformerMonotonicDecoder(TransformerDecoder):
     ):
         positions = (
             self.embed_positions(
-                prev_output_tokens, incremental_state=incremental_state,
+                prev_output_tokens,
+                incremental_state=incremental_state,
             )
             if self.embed_positions is not None
             else None
@@ -226,9 +233,7 @@ class TransformerMonotonicDecoder(TransformerDecoder):
                     assert attn is not None
                     if self.policy_criterion == "any":
                         # Any head decide to read than read
-                        head_read = layer.encoder_attn._get_monotonic_buffer(
-                            incremental_state
-                        )["head_read"]
+                        head_read = layer.encoder_attn._get_monotonic_buffer(incremental_state)["head_read"]
                         assert head_read is not None
                         if head_read.any():
                             # We need to prune the last self_attn saved_state
@@ -236,28 +241,22 @@ class TransformerMonotonicDecoder(TransformerDecoder):
                             # otherwise there will be duplicated saved_state
                             self.clean_cache(incremental_state, i + 1)
 
-                            return (
-                                x,
-                                TransformerMonotonicDecoderOut(
-                                    action=0,
-                                    p_choose=p_choose,
-                                    attn_list=None,
-                                    encoder_out=None,
-                                    encoder_padding_mask=None,
-                                ),
+                            return x, TransformerMonotonicDecoderOut(
+                                action=0,
+                                p_choose=p_choose,
+                                attn_list=None,
+                                encoder_out=None,
+                                encoder_padding_mask=None,
                             )
 
         x = self.post_attention(x)
 
-        return (
-            x,
-            TransformerMonotonicDecoderOut(
-                action=1,
-                p_choose=p_choose,
-                attn_list=attn_list,
-                encoder_out=encoder_out,
-                encoder_padding_mask=encoder_padding_mask,
-            ),
+        return x, TransformerMonotonicDecoderOut(
+            action=1,
+            p_choose=p_choose,
+            attn_list=attn_list,
+            encoder_out=encoder_out,
+            encoder_padding_mask=encoder_padding_mask,
         )
 
 

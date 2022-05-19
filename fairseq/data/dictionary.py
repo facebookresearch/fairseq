@@ -330,7 +330,11 @@ class Dictionary:
 
     @staticmethod
     def _add_file_to_dictionary_single_worker(
-        filename, tokenize, eos_word, start_offset, end_offset,
+        filename,
+        tokenize,
+        eos_word,
+        start_offset,
+        end_offset,
     ):
         counter = Counter()
         with Chunker(filename, start_offset, end_offset) as line_iterator:

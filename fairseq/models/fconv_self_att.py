@@ -122,7 +122,8 @@ class FConvModelSelfAtt(FairseqEncoderDecoderModel):
                 if os.path.exists(new_pretrained_checkpoint):
                     args.pretrained_checkpoint = new_pretrained_checkpoint
             trained_model = checkpoint_utils.load_model_ensemble(
-                filenames=[args.pretrained_checkpoint], task=task,
+                filenames=[args.pretrained_checkpoint],
+                task=task,
             )[0][0]
             trained_decoder = list(trained_model.children())[1]
             trained_encoder = list(trained_model.children())[0]
@@ -192,7 +193,9 @@ class FConvEncoder(FairseqEncoder):
         self.padding_idx = dictionary.pad()
         self.embed_tokens = Embedding(num_embeddings, embed_dim, self.padding_idx)
         self.embed_positions = PositionalEmbedding(
-            max_positions, embed_dim, self.padding_idx,
+            max_positions,
+            embed_dim,
+            self.padding_idx,
         )
 
         def expand_bool_array(val):
@@ -359,7 +362,9 @@ class FConvDecoder(FairseqDecoder):
         self.embed_tokens = Embedding(num_embeddings, embed_dim, padding_idx)
 
         self.embed_positions = PositionalEmbedding(
-            max_positions, embed_dim, padding_idx,
+            max_positions,
+            embed_dim,
+            padding_idx,
         )
 
         self.fc1 = Linear(embed_dim, in_channels, dropout=dropout)

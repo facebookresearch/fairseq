@@ -41,7 +41,11 @@ def shard_(optimizer, group):
             Broadcasts the entire state_dict to all other ranks
             each rank is responsible to load their own partition of data
             """
-            return utils.broadcast_object(state_dict, src_rank=0, group=self.group,)
+            return utils.broadcast_object(
+                state_dict,
+                src_rank=0,
+                group=self.group,
+            )
 
     torch_optimizer = optimizer.optimizer
     optim_cls = type(torch_optimizer)

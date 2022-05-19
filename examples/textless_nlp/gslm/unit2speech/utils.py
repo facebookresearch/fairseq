@@ -6,7 +6,9 @@
 
 import torch
 from examples.textless_nlp.gslm.unit2speech.tacotron2.model import Tacotron2
-from examples.textless_nlp.gslm.unit2speech.tacotron2.waveglow_denoiser import Denoiser
+from examples.textless_nlp.gslm.unit2speech.tacotron2.waveglow_denoiser import (
+    Denoiser,
+)
 
 
 def load_quantized_audio_from_file(file_path):

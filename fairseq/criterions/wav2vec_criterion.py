@@ -29,7 +29,8 @@ class Wav2VecCriterionConfig(FairseqDataclass):
         metadata={"help": "weights for additional loss terms (not first one)"},
     )
     log_keys: List[str] = field(
-        default_factory=lambda: [], metadata={"help": "output keys to log"},
+        default_factory=lambda: [],
+        metadata={"help": "output keys to log"},
     )
 
 

@@ -177,7 +177,9 @@ class GeneratorHubInterface(nn.Module):
             for k, v in kwargs.items():
                 setattr(gen_args, k, v)
         generator = self.task.build_generator(
-            self.models, gen_args, prefix_allowed_tokens_fn=prefix_allowed_tokens_fn,
+            self.models,
+            gen_args,
+            prefix_allowed_tokens_fn=prefix_allowed_tokens_fn,
         )
 
         inference_step_args = inference_step_args or {}

@@ -38,7 +38,9 @@ def get_parser():
         help="Acoustic feature type",
     )
     parser.add_argument(
-        "--acoustic_model_path", type=str, help="Pretrained acoustic model checkpoint",
+        "--acoustic_model_path",
+        type=str,
+        help="Pretrained acoustic model checkpoint",
     )
     parser.add_argument("--layer", type=int, help="Layer of acoustic model")
     parser.add_argument(
@@ -48,10 +50,14 @@ def get_parser():
         help="K-means model file path to use for inference",
     )
     parser.add_argument(
-        "--tts_model_path", type=str, help="TTS model file path to use for inference",
+        "--tts_model_path",
+        type=str,
+        help="TTS model file path to use for inference",
     )
     parser.add_argument(
-        "--code_dict_path", type=str, help="Code dict file path to use for inference",
+        "--code_dict_path",
+        type=str,
+        help="Code dict file path to use for inference",
     )
     parser.add_argument(
         "--waveglow_path",

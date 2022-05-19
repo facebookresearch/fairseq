@@ -329,7 +329,10 @@ class LexicallyConstrainedBeamSearch(Search):
             assert scores is not None
             lprobs = lprobs + scores[:, :, step - 1].unsqueeze(-1)
 
-        top_prediction = torch.topk(lprobs.view(batch_size, -1), self.num_cands,)
+        top_prediction = torch.topk(
+            lprobs.view(batch_size, -1),
+            self.num_cands,
+        )
         scores_buf, indices_buf = top_prediction
         # Project back into relative indices and beams
         beams_buf = indices_buf // vocab_size
@@ -342,7 +345,9 @@ class LexicallyConstrainedBeamSearch(Search):
         # STEP 1: get top-1 from each hypothesis across all sentences in the batch
         if step > 0:
             top_scores, top_indices = torch.topk(
-                lprobs.view(batch_size * beam_size, -1), k=each_k, dim=1,
+                lprobs.view(batch_size * beam_size, -1),
+                k=each_k,
+                dim=1,
             )
             top_scores = top_scores.view(batch_size, -1)
             top_indices = top_indices.view(batch_size, -1)
@@ -698,11 +703,15 @@ class Sampling(Search):
         # sample
         if step == 0:
             indices_buf = torch.multinomial(
-                probs.view(bsz, -1), beam_size, replacement=True,
+                probs.view(bsz, -1),
+                beam_size,
+                replacement=True,
             ).view(bsz, beam_size)
         else:
             indices_buf = torch.multinomial(
-                probs.view(bsz * beam_size, -1), 1, replacement=True,
+                probs.view(bsz * beam_size, -1),
+                1,
+                replacement=True,
             ).view(bsz, beam_size)
 
         if step == 0:
@@ -793,7 +802,8 @@ class DiverseSiblingsSearch(Search):
         final_indices = torch.LongTensor().to(device=lprobs.device)
         final_beams = torch.LongTensor().to(device=lprobs.device)
         (final_scores, final_indices) = torch.topk(
-            torch.stack(s_list, dim=1).view(bsz, -1), k,
+            torch.stack(s_list, dim=1).view(bsz, -1),
+            k,
         )
 
         final_beams = final_indices // k

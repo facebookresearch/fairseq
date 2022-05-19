@@ -13,7 +13,12 @@ from fairseq.data.data_utils_fast import batch_by_size_fn, batch_by_size_vec
 class TestBatchBySize(unittest.TestCase):
     @classmethod
     def batch_by_size_baseline(
-        cls, indices, num_tokens_vec, max_tokens, max_sentences, bsz_mult,
+        cls,
+        indices,
+        num_tokens_vec,
+        max_tokens,
+        max_sentences,
+        bsz_mult,
     ):
         """Simple, reliable and slow implementation of batch by size"""
         batches = []
@@ -111,7 +116,11 @@ class TestBatchBySizeVec(TestBatchBySize):
 class TestBatchBySizeFn(TestBatchBySize):
     def test_compare_with_baseline(self):
         def batch_by_size_fn_wrapper(
-            indices, num_tokens_vec, max_tokens, max_sentences, bsz_mult,
+            indices,
+            num_tokens_vec,
+            max_tokens,
+            max_sentences,
+            bsz_mult,
         ):
             def num_tokens_fn(idx):
                 return num_tokens_vec[idx]

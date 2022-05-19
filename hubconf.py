@@ -67,4 +67,7 @@ except ImportError:
 # automatically expose models defined in FairseqModel::hub_models
 for _model_type, _cls in MODEL_REGISTRY.items():
     for model_name in _cls.hub_models().keys():
-        globals()[model_name] = functools.partial(_cls.from_pretrained, model_name,)
+        globals()[model_name] = functools.partial(
+            _cls.from_pretrained,
+            model_name,
+        )

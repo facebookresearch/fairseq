@@ -109,7 +109,11 @@ class TransformerXLDecoder(FairseqIncrementalDecoder):
         else:
             mems = self._mems
 
-        output = self.model(input_ids=src_tokens, mems=mems, return_dict=False,)
+        output = self.model(
+            input_ids=src_tokens,
+            mems=mems,
+            return_dict=False,
+        )
 
         if len(output) >= 2:
             if incremental_state is not None:

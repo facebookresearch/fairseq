@@ -38,7 +38,12 @@ class SamplingMethod:
     def add_arguments(parser):
         parser.add_argument(
             "--sampling-method",
-            choices=["uniform", "temperature", "concat", "RoundRobin",],
+            choices=[
+                "uniform",
+                "temperature",
+                "concat",
+                "RoundRobin",
+            ],
             type=str,
             default="concat",
             help="The method to sample data per language pairs",

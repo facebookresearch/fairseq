@@ -20,10 +20,12 @@ class LabelSmoothedCrossEntropyCriterionConfig(FairseqDataclass):
         metadata={"help": "epsilon for label smoothing, 0 means no label smoothing"},
     )
     report_accuracy: bool = field(
-        default=False, metadata={"help": "report accuracy metric"},
+        default=False,
+        metadata={"help": "report accuracy metric"},
     )
     ignore_prefix_size: int = field(
-        default=0, metadata={"help": "Ignore first N tokens"},
+        default=0,
+        metadata={"help": "Ignore first N tokens"},
     )
     sentence_avg: bool = II("optimization.sentence_avg")
 
@@ -104,7 +106,11 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
     def compute_loss(self, model, net_output, sample, reduce=True):
         lprobs, target = self.get_lprobs_and_target(model, net_output, sample)
         loss, nll_loss = label_smoothed_nll_loss(
-            lprobs, target, self.eps, ignore_index=self.padding_idx, reduce=reduce,
+            lprobs,
+            target,
+            self.eps,
+            ignore_index=self.padding_idx,
+            reduce=reduce,
         )
         return loss, nll_loss
 

@@ -17,7 +17,6 @@ try:
         else:
             return a
 
-
 except ImportError:
     torch = None
 
@@ -144,7 +143,10 @@ class TimeMeter(Meter):
     """Computes the average occurrence of some event per second"""
 
     def __init__(
-        self, init: int = 0, n: int = 0, round: Optional[int] = None,
+        self,
+        init: int = 0,
+        n: int = 0,
+        round: Optional[int] = None,
     ):
         self.round = round
         self.reset(init, n)

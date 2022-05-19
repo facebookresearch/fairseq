@@ -29,7 +29,10 @@ def main():
 
     dictionary = Dictionary.load(args.dict) if args.dict is not None else None
     dataset = data_utils.load_indexed_dataset(
-        args.input, dictionary, dataset_impl=args.dataset_impl, default="lazy",
+        args.input,
+        dictionary,
+        dataset_impl=args.dataset_impl,
+        default="lazy",
     )
 
     for tensor_line in dataset:

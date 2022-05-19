@@ -80,7 +80,9 @@ class CMLMNATransformerModel(NATransformerModel):
         # execute the decoder
         output_masks = output_tokens.eq(self.unk)
         _scores, _tokens = self.decoder(
-            normalize=True, prev_output_tokens=output_tokens, encoder_out=encoder_out,
+            normalize=True,
+            prev_output_tokens=output_tokens,
+            encoder_out=encoder_out,
         ).max(-1)
         output_tokens.masked_scatter_(output_masks, _tokens[output_masks])
         output_scores.masked_scatter_(output_masks, _scores[output_masks])

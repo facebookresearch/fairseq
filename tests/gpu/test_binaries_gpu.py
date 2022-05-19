@@ -213,7 +213,10 @@ class TestTranslationGPU(unittest.TestCase):
                 create_dummy_data(data_dir)
                 preprocess_translation_data(data_dir)
                 train_translation_model(
-                    data_dir, arch, flags + ["--log-file", log], world_size=world_size,
+                    data_dir,
+                    arch,
+                    flags + ["--log-file", log],
+                    world_size=world_size,
                 )
                 log2 = os.path.join(data_dir, "resume.log")
                 restore_file = os.path.join(data_dir, "checkpoint_1_2.pt")

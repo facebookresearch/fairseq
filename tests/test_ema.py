@@ -50,7 +50,9 @@ class TestEMA(unittest.TestCase):
             msg = "|input - other| > {} + {} * |other|".format(atol, rtol)
 
         self.assertLessEqual(
-            diff_norm, atol + rtol * other_norm, msg=msg,
+            diff_norm,
+            atol + rtol * other_norm,
+            msg=msg,
         )
 
     def test_ema(self):
@@ -137,7 +139,8 @@ class TestEMA(unittest.TestCase):
                 continue
             if updates == 0:
                 self.assertTorchAllClose(
-                    ema_param, param,
+                    ema_param,
+                    param,
                 )
             else:
                 self.assertTorchAllClose(

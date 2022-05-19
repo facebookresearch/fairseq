@@ -125,7 +125,7 @@ class ResamplingDataset(BaseWrapperDataset):
         rng = np.random.RandomState(
             [
                 42,  # magic number
-                self.seed % (2 ** 32),  # global seed
+                self.seed % (2**32),  # global seed
                 self._cur_epoch,  # epoch index
             ]
         )

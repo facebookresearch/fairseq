@@ -59,7 +59,7 @@ class ChunkLineIterator:
             if (
                 self._end_offset > 0
                 and pos > self._end_offset
-                and pos < self._end_offset + 2 ** 32
+                and pos < self._end_offset + 2**32
             ):
                 break
             yield line

@@ -71,10 +71,16 @@ class SpeechUnitLmCriterion(FairseqCriterion):
             net_output["token"], sample["target"], sample["mask"], reduce
         )
         dur_loss = self.dur_loss_fn(
-            net_output["duration"], sample["dur_target"], sample["dur_mask"], reduce,
+            net_output["duration"],
+            sample["dur_target"],
+            sample["dur_mask"],
+            reduce,
         )
         f0_loss = self.f0_loss_fn(
-            net_output["f0"], sample["f0_target"], sample["f0_mask"], reduce,
+            net_output["f0"],
+            sample["f0_target"],
+            sample["f0_mask"],
+            reduce,
         )
         loss = self.weights.to(token_loss.device) * torch.stack(
             [token_loss, dur_loss, f0_loss], dim=-1

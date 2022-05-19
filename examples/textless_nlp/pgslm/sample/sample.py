@@ -596,7 +596,13 @@ def cli_main():
         print(f"Using {world_size} devices, master port {os.environ['MASTER_PORT']}")
 
         mp.spawn(
-            main, nprocs=world_size, args=(world_size, args,), join=True,
+            main,
+            nprocs=world_size,
+            args=(
+                world_size,
+                args,
+            ),
+            join=True,
         )
     else:
         main(rank=0, world_size=world_size, args=args)

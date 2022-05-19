@@ -16,9 +16,8 @@ def sinc(t):
 
     :param t: the input tensor
     """
-    return th.where(
-        t == 0, th.tensor(1.0, device=t.device, dtype=t.dtype), th.sin(t) / t
-    )
+    return th.where(t == 0, th.tensor(1., device=t.device, dtype=t.dtype),
+                    th.sin(t) / t)
 
 
 def kernel_upsample2(zeros=56):
@@ -74,7 +73,7 @@ def downsample2(x, zeros=56):
     xodd = x[..., 1::2]
     *other, time = xodd.shape
     kernel = kernel_downsample2(zeros).to(x)
-    out = xeven + F.conv1d(xodd.view(-1, 1, time), kernel, padding=zeros)[
-        ..., :-1
-    ].view(*other, time)
+    out = xeven + F.conv1d(
+        xodd.view(-1, 1, time), kernel, padding=zeros
+    )[..., :-1].view(*other, time)
     return out.view(*other, -1).mul(0.5)

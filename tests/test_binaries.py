@@ -79,7 +79,9 @@ class TestTranslation(unittest.TestCase):
                 preprocess_translation_data(data_dir)
                 with self.assertRaises(Exception) as context:
                     train_translation_model(
-                        data_dir, "fconv_iwslt_de_en", ["--max-target-positions", "5"],
+                        data_dir,
+                        "fconv_iwslt_de_en",
+                        ["--max-target-positions", "5"],
                     )
                 self.assertTrue(
                     "skip this example with --skip-invalid-size-inputs-valid-test"
@@ -141,11 +143,22 @@ class TestTranslation(unittest.TestCase):
                     ],
                 )
                 generate_main(
-                    data_dir, ["--diversity-rate", "0.5", "--beam", "6",],
+                    data_dir,
+                    [
+                        "--diversity-rate",
+                        "0.5",
+                        "--beam",
+                        "6",
+                    ],
                 )
                 with self.assertRaises(ValueError):
                     generate_main(
-                        data_dir, ["--diverse-beam-groups", "4", "--match-source-len",],
+                        data_dir,
+                        [
+                            "--diverse-beam-groups",
+                            "4",
+                            "--match-source-len",
+                        ],
                     )
                 generate_main(data_dir, ["--prefix-size", "2"])
                 generate_main(data_dir, ["--retain-dropout"])
@@ -1237,7 +1250,10 @@ class TestLanguageModeling(unittest.TestCase):
                 create_dummy_data(data_dir)
                 preprocess_lm_data(data_dir)
                 train_language_model(
-                    data_dir, "lightconv_lm", ["--add-bos-token"], run_validation=True,
+                    data_dir,
+                    "lightconv_lm",
+                    ["--add-bos-token"],
+                    run_validation=True,
                 )
                 eval_lm_main(data_dir)
                 generate_main(
@@ -1258,7 +1274,10 @@ class TestLanguageModeling(unittest.TestCase):
                 create_dummy_data(data_dir)
                 preprocess_lm_data(data_dir)
                 train_language_model(
-                    data_dir, "lstm_lm", ["--add-bos-token"], run_validation=True,
+                    data_dir,
+                    "lstm_lm",
+                    ["--add-bos-token"],
+                    run_validation=True,
                 )
                 eval_lm_main(data_dir)
                 generate_main(
@@ -1316,7 +1335,11 @@ class TestLanguageModeling(unittest.TestCase):
                 train_language_model(
                     data_dir=data_dir,
                     arch="transformer_xl",
-                    extra_flags=task_flags + ["--n-layer", "2",],
+                    extra_flags=task_flags
+                    + [
+                        "--n-layer",
+                        "2",
+                    ],
                     task="truncated_bptt_lm",
                     run_validation=True,
                     extra_valid_flags=task_flags,
@@ -1327,7 +1350,11 @@ class TestLanguageModeling(unittest.TestCase):
                     data_dir=data_dir,
                     arch="transformer_xl",
                     extra_flags=task_flags
-                    + ["--n-layer", "2", "--offload-activations",],
+                    + [
+                        "--n-layer",
+                        "2",
+                        "--offload-activations",
+                    ],
                     task="truncated_bptt_lm",
                     run_validation=True,
                     extra_valid_flags=task_flags,

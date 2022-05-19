@@ -49,14 +49,24 @@ class NGramRepeatBlock(nn.Module):
 
     @torch.jit.unused
     def call_cuda_extension(
-        self, tokens, lprobs, bsz: int, beam_size: int, step: int,
+        self,
+        tokens,
+        lprobs,
+        bsz: int,
+        beam_size: int,
+        step: int,
     ):
         return ngram_repeat_block_cuda.forward(
             tokens, lprobs, bsz, step, beam_size, self.no_repeat_ngram_size
         )
 
     def forward(
-        self, tokens, lprobs, bsz: int, beam_size: int, step: int,
+        self,
+        tokens,
+        lprobs,
+        bsz: int,
+        beam_size: int,
+        step: int,
     ):
         """
         Args:
@@ -75,7 +85,13 @@ class NGramRepeatBlock(nn.Module):
             return self.call_cuda_extension(tokens, lprobs, bsz, beam_size, step)
 
         else:
-            return self._no_repeat_ngram(tokens, lprobs, bsz, beam_size, step,)
+            return self._no_repeat_ngram(
+                tokens,
+                lprobs,
+                bsz,
+                beam_size,
+                step,
+            )
 
     def _no_repeat_ngram(self, tokens, lprobs, bsz: int, beam_size: int, step: int):
         """For each hypothesis generate a list of previous ngrams and set associated lprobs to -inf"""

@@ -250,7 +250,8 @@ class SequenceGenerator(nn.Module):
             max_len = src_lengths.max().item()
         else:
             max_len = min(
-                int(self.max_len_a * src_len + self.max_len_b), self.max_len - 1,
+                int(self.max_len_a * src_len + self.max_len_b),
+                self.max_len - 1,
             )
         assert (
             self.min_len <= max_len

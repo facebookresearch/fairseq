@@ -12,7 +12,9 @@ from fairseq.modules import LayerNorm, MultiheadAttention
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
 from torch import Tensor
-from fairseq.models.transformer import TransformerConfig
+from fairseq.models.transformer import (
+    TransformerConfig,
+)
 
 
 class TransformerEncoderLayerBase(nn.Module):
@@ -268,7 +270,10 @@ class TransformerDecoderLayerBase(nn.Module):
         self.cross_self_attention = cfg.cross_self_attention
 
         self.self_attn = self.build_self_attention(
-            self.embed_dim, cfg, add_bias_kv=add_bias_kv, add_zero_attn=add_zero_attn,
+            self.embed_dim,
+            cfg,
+            add_bias_kv=add_bias_kv,
+            add_zero_attn=add_zero_attn,
         )
         self.attn_ln = (
             LayerNorm(self.embed_dim)
@@ -309,7 +314,12 @@ class TransformerDecoderLayerBase(nn.Module):
             else None
         )
         self.w_resid = (
-            nn.Parameter(torch.ones(self.embed_dim,), requires_grad=True,)
+            nn.Parameter(
+                torch.ones(
+                    self.embed_dim,
+                ),
+                requires_grad=True,
+            )
             if utils.safe_getattr(cfg, "scale_resids", False)
             else None
         )
@@ -548,5 +558,6 @@ class TransformerDecoderLayer(TransformerDecoderLayerBase):
 
     def build_encoder_attention(self, embed_dim, args):
         return super().build_encoder_attention(
-            embed_dim, TransformerConfig.from_namespace(args),
+            embed_dim,
+            TransformerConfig.from_namespace(args),
         )

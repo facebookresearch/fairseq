@@ -14,7 +14,7 @@ class TextCompressionLevel(Enum):
 
 class TextCompressor(object):
     def __init__(
-        self, level: TextCompressionLevel, max_input_byte_length: int = 2 ** 16
+        self, level: TextCompressionLevel, max_input_byte_length: int = 2**16
     ):
         self.level = level
         self.max_input_length = max_input_byte_length

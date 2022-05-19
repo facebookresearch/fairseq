@@ -70,7 +70,7 @@ class SingleHeadAttention(nn.Module):
         else:
             self.out_proj = Linear(out_proj_size, out_channels, bias=bias)
 
-        self.scaling = self.head_dim ** -0.5
+        self.scaling = self.head_dim**-0.5
 
     def forward(
         self,
@@ -150,7 +150,8 @@ class SingleHeadAttention(nn.Module):
                         size, self.num_heads, tgt_len, src_len
                     )
                 attn_weights = attn_weights.masked_fill(
-                    key_padding_mask.unsqueeze(1).unsqueeze(2), -math.inf,
+                    key_padding_mask.unsqueeze(1).unsqueeze(2),
+                    -math.inf,
                 )
                 attn_weights = attn_weights.view(size, tgt_len, src_len)
         attn_weights = F.softmax(attn_weights, dim=-1)

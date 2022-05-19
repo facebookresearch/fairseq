@@ -85,7 +85,7 @@ class GumbelVectorQuantizer(nn.Module):
 
     def set_num_updates(self, num_updates):
         self.curr_temp = max(
-            self.max_temp * self.temp_decay ** num_updates, self.min_temp
+            self.max_temp * self.temp_decay**num_updates, self.min_temp
         )
 
     def get_codebook_indices(self):
@@ -100,7 +100,7 @@ class GumbelVectorQuantizer(nn.Module):
 
             if not self.combine_groups:
                 self.codebook_indices = self.codebook_indices.view(
-                    self.num_vars ** self.groups, -1
+                    self.num_vars**self.groups, -1
                 )
                 for b in range(1, self.groups):
                     self.codebook_indices[:, b] += self.num_vars * b
@@ -112,7 +112,7 @@ class GumbelVectorQuantizer(nn.Module):
         return (
             self.vars.squeeze(0)
             .index_select(0, indices)
-            .view(self.num_vars ** self.groups, -1)
+            .view(self.num_vars**self.groups, -1)
         )
 
     def sample_from_codebook(self, b, n):
@@ -132,7 +132,7 @@ class GumbelVectorQuantizer(nn.Module):
         res = indices.new_full(indices.shape[:-1], 0)
         for i in range(self.groups):
             exponent = self.groups - i - 1
-            res += indices[..., i] * (self.num_vars ** exponent)
+            res += indices[..., i] * (self.num_vars**exponent)
         return res
 
     def forward_idx(self, x):

@@ -13,7 +13,12 @@ logger = logging.getLogger(__name__)
 
 def _cross_entropy_pytorch(logits, target, ignore_index=None, reduction="mean"):
     lprobs = F.log_softmax(logits, dim=-1, dtype=torch.float32)
-    return F.nll_loss(lprobs, target, ignore_index=ignore_index, reduction=reduction,)
+    return F.nll_loss(
+        lprobs,
+        target,
+        ignore_index=ignore_index,
+        reduction=reduction,
+    )
 
 
 try:
@@ -30,7 +35,11 @@ try:
 
             half_to_float = logits.dtype == torch.half
             losses = xentropy.SoftmaxCrossEntropyLoss.apply(
-                logits, target, 0.0, ignore_index, half_to_float,
+                logits,
+                target,
+                0.0,
+                ignore_index,
+                half_to_float,
             )
             if reduction == "sum":
                 return losses.sum()
@@ -43,7 +52,6 @@ try:
                 return losses
             else:
                 raise NotImplementedError
-
 
 except ImportError:
 

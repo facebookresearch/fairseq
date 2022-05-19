@@ -13,13 +13,11 @@ import numpy as np
 from examples.textless_nlp.gslm.speech2unit.clustering.utils import get_audio_files
 from examples.textless_nlp.gslm.speech2unit.pretrained.utils import get_features
 
-
 def get_logger():
     log_format = "[%(asctime)s] [%(levelname)s]: %(message)s"
     logging.basicConfig(format=log_format, level=logging.INFO)
     logger = logging.getLogger(__name__)
     return logger
-
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -46,7 +44,9 @@ def get_parser():
         help="Manifest file containing the root dir and file names",
     )
     parser.add_argument(
-        "--checkpoint_path", type=str, help="Pretrained model checkpoint",
+        "--checkpoint_path",
+        type=str,
+        help="Pretrained model checkpoint",
     )
     parser.add_argument(
         "--layer",
@@ -68,7 +68,6 @@ def get_parser():
 
 def one_hot(feat, n_clusters):
     return np.eye(n_clusters)[feat]
-
 
 def main(args, logger):
     # Feature extraction
@@ -99,7 +98,6 @@ def main(args, logger):
         output_path = os.path.join(args.out_dir_path, f"{base_fname}.npy")
         with open(output_path, "wb") as f:
             np.save(f, emb)
-
 
 if __name__ == "__main__":
     parser = get_parser()

@@ -19,10 +19,12 @@ class TriStageLRScheduleConfig(FairseqDataclass):
         metadata={"help": "warmup the learning rate linearly for the first N updates"},
     )
     hold_steps: int = field(
-        default=0, metadata={"help": "steps in hold stage"},
+        default=0,
+        metadata={"help": "steps in hold stage"},
     )
     decay_steps: int = field(
-        default=0, metadata={"help": "steps in decay stages"},
+        default=0,
+        metadata={"help": "steps in decay stages"},
     )
     phase_ratio: Optional[Tuple[float, float, float]] = field(
         default=None,
@@ -38,7 +40,8 @@ class TriStageLRScheduleConfig(FairseqDataclass):
         metadata={"help": "initial learning rate scale during warmup phase"},
     )
     final_lr_scale: float = field(
-        default=0.01, metadata={"help": "final learning rate scale"},
+        default=0.01,
+        metadata={"help": "final learning rate scale"},
     )
     max_update: float = II("optimization.max_update")
     lr: List[float] = II("optimization.lr")

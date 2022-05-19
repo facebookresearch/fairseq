@@ -43,7 +43,9 @@ class DistributedTimeoutWrapper(nn.Module):
         if timeout > 0:
             self._heartbeat = threading.Event()
             self._heartbeat_thread = threading.Thread(
-                target=self._check_heartbeat, args=(os.getpid(),), daemon=True,
+                target=self._check_heartbeat,
+                args=(os.getpid(),),
+                daemon=True,
             )
             self._heartbeat_thread.start()
             self._terminated = False

@@ -180,7 +180,9 @@ class FConvEncoder(FairseqEncoder):
             )
 
         self.embed_positions = PositionalEmbedding(
-            max_positions, embed_dim, self.padding_idx,
+            max_positions,
+            embed_dim,
+            self.padding_idx,
         )
 
         convolutions = extend_conv_spec(convolutions)
@@ -420,7 +422,11 @@ class FConvDecoder(FairseqIncrementalDecoder):
             )
 
         self.embed_positions = (
-            PositionalEmbedding(max_positions, embed_dim, padding_idx,)
+            PositionalEmbedding(
+                max_positions,
+                embed_dim,
+                padding_idx,
+            )
             if positional_embeddings
             else None
         )

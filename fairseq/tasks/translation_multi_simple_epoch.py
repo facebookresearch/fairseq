@@ -197,7 +197,11 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         return dataset
 
     def build_generator(
-        self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None,
+        self,
+        models,
+        args,
+        seq_gen_cls=None,
+        extra_gen_cls_kwargs=None,
     ):
         if not getattr(args, "keep_inference_langtok", False):
             _, tgt_langtok_spec = self.args.langtoks["main"]

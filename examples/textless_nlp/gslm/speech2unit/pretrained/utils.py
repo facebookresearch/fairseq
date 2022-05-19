@@ -46,14 +46,18 @@ def get_feature_iterator(
         lines = fp.read().split("\n")
         root = lines.pop(0).strip()
         file_path_list = [
-            os.path.join(root, line.split("\t")[0]) for line in lines if len(line) > 0
+            os.path.join(root, line.split("\t")[0])
+            for line in lines
+            if len(line) > 0
         ]
         if sample_pct < 1.0:
             file_path_list = random.sample(
                 file_path_list, int(sample_pct * len(file_path_list))
             )
         num_files = len(file_path_list)
-        reader = feature_reader_cls(checkpoint_path=checkpoint_path, layer=layer)
+        reader = feature_reader_cls(
+            checkpoint_path=checkpoint_path, layer=layer
+        )
 
         def iterate():
             for file_path in file_path_list:
@@ -114,7 +118,8 @@ def get_and_dump_features(
     out_dir_path = os.path.dirname(out_features_path)
     os.makedirs(out_dir_path, exist_ok=True)
     shutil.copyfile(
-        manifest_path, os.path.join(out_dir_path, os.path.basename(manifest_path)),
+        manifest_path,
+        os.path.join(out_dir_path, os.path.basename(manifest_path)),
     )
     np.save(out_features_path, features_batch)
 

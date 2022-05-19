@@ -10,7 +10,9 @@ from examples.simultaneous_translation.utils.functions import (
 
 
 def expected_alignment_from_p_choose(
-    p_choose: Tensor, padding_mask: Optional[Tensor] = None, eps: float = 1e-6
+    p_choose: Tensor,
+    padding_mask: Optional[Tensor] = None,
+    eps: float = 1e-6
 ):
     """
     Calculating expected alignment for from stepwise probability
@@ -62,7 +64,7 @@ def expected_soft_attention(
     soft_energy: Tensor,
     padding_mask: Optional[Tensor] = None,
     chunk_size: Optional[int] = None,
-    eps: float = 1e-10,
+    eps: float = 1e-10
 ):
     """
     Function to compute expected soft attention for
@@ -83,7 +85,9 @@ def expected_soft_attention(
     """
     if padding_mask is not None:
         alpha = alpha.masked_fill(padding_mask.unsqueeze(1), 0.0)
-        soft_energy = soft_energy.masked_fill(padding_mask.unsqueeze(1), -float("inf"))
+        soft_energy = soft_energy.masked_fill(
+            padding_mask.unsqueeze(1), -float("inf")
+        )
 
     prob_check(alpha)
 
@@ -97,8 +101,12 @@ def expected_soft_attention(
 
     if chunk_size is not None:
         # Chunkwise
-        beta = exp_soft_energy * moving_sum(
-            alpha / (eps + moving_sum(exp_soft_energy, chunk_size, 1)), 1, chunk_size
+        beta = (
+            exp_soft_energy
+            * moving_sum(
+                alpha / (eps + moving_sum(exp_soft_energy, chunk_size, 1)),
+                1, chunk_size
+            )
         )
     else:
         # Infinite lookback
@@ -106,12 +114,15 @@ def expected_soft_attention(
         # where chunksize = inf
         inner_items = alpha / (eps + torch.cumsum(exp_soft_energy, dim=2))
 
-        beta = exp_soft_energy * torch.cumsum(inner_items.flip(dims=[2]), dim=2).flip(
-            dims=[2]
+        beta = (
+            exp_soft_energy
+            * torch.cumsum(inner_items.flip(dims=[2]), dim=2)
+            .flip(dims=[2])
         )
 
     if padding_mask is not None:
-        beta = beta.masked_fill(padding_mask.unsqueeze(1).to(torch.bool), 0.0)
+        beta = beta.masked_fill(
+            padding_mask.unsqueeze(1).to(torch.bool), 0.0)
 
     # Mix precision to prevent overflow for fp16
     beta = beta.type(dtype)
@@ -124,7 +135,9 @@ def expected_soft_attention(
 
 
 def mass_preservation(
-    alpha: Tensor, padding_mask: Optional[Tensor] = None, left_padding: bool = False
+    alpha: Tensor,
+    padding_mask: Optional[Tensor] = None,
+    left_padding: bool = False
 ):
     """
     Function to compute the mass perservation for alpha.
@@ -144,9 +157,9 @@ def mass_preservation(
 
     if padding_mask is not None:
         if not left_padding:
-            assert not padding_mask[
-                :, 0
-            ].any(), "Find padding on the beginning of the sequence."
+            assert not padding_mask[:, 0].any(), (
+                "Find padding on the beginning of the sequence."
+            )
         alpha = alpha.masked_fill(padding_mask.unsqueeze(1), 0.0)
 
     if left_padding or padding_mask is None:

@@ -50,10 +50,12 @@ class DecoderType(Enum):
 class UnsupGenerateConfig(FairseqDataclass):
     fairseq: FairseqConfig = FairseqConfig()
     lm_weight: float = field(
-        default=2.0, metadata={"help": "language model weight"},
+        default=2.0,
+        metadata={"help": "language model weight"},
     )
     w2l_decoder: DecoderType = field(
-        default=DecoderType.VITERBI, metadata={"help": "type of decoder to use"},
+        default=DecoderType.VITERBI,
+        metadata={"help": "type of decoder to use"},
     )
     kaldi_decoder_config: Optional[KaldiDecoderConfig] = None
     lexicon: Optional[str] = field(
@@ -63,58 +65,74 @@ class UnsupGenerateConfig(FairseqDataclass):
         },
     )
     lm_model: Optional[str] = field(
-        default=None, metadata={"help": "path to language model (kenlm or fairseq)"},
+        default=None,
+        metadata={"help": "path to language model (kenlm or fairseq)"},
     )
     unit_lm: bool = field(
-        default=False, metadata={"help": "whether to use unit lm"},
+        default=False,
+        metadata={"help": "whether to use unit lm"},
     )
     beam_threshold: float = field(
-        default=50.0, metadata={"help": "beam score threshold"},
+        default=50.0,
+        metadata={"help": "beam score threshold"},
     )
     beam_size_token: float = field(
-        default=100.0, metadata={"help": "max tokens per beam"},
+        default=100.0,
+        metadata={"help": "max tokens per beam"},
     )
     beam: int = field(
-        default=5, metadata={"help": "decoder beam size"},
+        default=5,
+        metadata={"help": "decoder beam size"},
     )
     nbest: int = field(
-        default=1, metadata={"help": "number of results to return"},
+        default=1,
+        metadata={"help": "number of results to return"},
     )
     word_score: float = field(
-        default=1.0, metadata={"help": "word score to add at end of word"},
+        default=1.0,
+        metadata={"help": "word score to add at end of word"},
     )
     unk_weight: float = field(
-        default=-math.inf, metadata={"help": "unknown token weight"},
+        default=-math.inf,
+        metadata={"help": "unknown token weight"},
     )
     sil_weight: float = field(
-        default=0.0, metadata={"help": "silence token weight"},
+        default=0.0,
+        metadata={"help": "silence token weight"},
     )
     targets: Optional[str] = field(
         default=None,
         metadata={"help": "extension of ground truth labels to compute UER"},
     )
     results_path: Optional[str] = field(
-        default=None, metadata={"help": "where to store results"},
+        default=None,
+        metadata={"help": "where to store results"},
     )
     post_process: Optional[str] = field(
-        default=None, metadata={"help": "how to post process results"},
+        default=None,
+        metadata={"help": "how to post process results"},
     )
     vocab_usage_power: float = field(
-        default=2, metadata={"help": "for unsupervised param tuning"},
+        default=2,
+        metadata={"help": "for unsupervised param tuning"},
     )
 
     viterbi_transcript: Optional[str] = field(
-        default=None, metadata={"help": "for unsupervised param tuning"},
+        default=None,
+        metadata={"help": "for unsupervised param tuning"},
     )
     min_lm_ppl: float = field(
-        default=0, metadata={"help": "for unsupervised param tuning"},
+        default=0,
+        metadata={"help": "for unsupervised param tuning"},
     )
     min_vt_uer: float = field(
-        default=0, metadata={"help": "for unsupervised param tuning"},
+        default=0,
+        metadata={"help": "for unsupervised param tuning"},
     )
 
     blank_weight: float = field(
-        default=0, metadata={"help": "value to add or set for blank emission"},
+        default=0,
+        metadata={"help": "value to add or set for blank emission"},
     )
     blank_mode: str = field(
         default="set",
@@ -123,7 +141,8 @@ class UnsupGenerateConfig(FairseqDataclass):
         },
     )
     sil_is_blank: bool = field(
-        default=False, metadata={"help": "if true, <SIL> token is same as blank token"},
+        default=False,
+        metadata={"help": "if true, <SIL> token is same as blank token"},
     )
 
     unsupervised_tuning: bool = field(
@@ -156,7 +175,11 @@ def get_dataset_itr(cfg, task):
 
 
 def process_predictions(
-    cfg: UnsupGenerateConfig, hypos, tgt_dict, target_tokens, res_files,
+    cfg: UnsupGenerateConfig,
+    hypos,
+    tgt_dict,
+    target_tokens,
+    res_files,
 ):
     retval = []
     word_preds = []
@@ -246,7 +269,10 @@ def prepare_result_files(cfg: UnsupGenerateConfig):
             file_prefix = f"{cfg.fairseq.dataset.shard_id}_{file_prefix}"
         path = os.path.join(
             cfg.results_path,
-            "{}{}.txt".format(cfg.fairseq.dataset.gen_subset, file_prefix,),
+            "{}{}.txt".format(
+                cfg.fairseq.dataset.gen_subset,
+                file_prefix,
+            ),
         )
         return open(path, "w", buffering=1)
 
@@ -328,7 +354,10 @@ def generate(cfg: UnsupGenerateConfig, models, saved_cfg, use_cuda):
 
             assert cfg.kaldi_decoder_config is not None
 
-            return KaldiDecoder(cfg.kaldi_decoder_config, cfg.beam,)
+            return KaldiDecoder(
+                cfg.kaldi_decoder_config,
+                cfg.beam,
+            )
         else:
             raise NotImplementedError(
                 "only wav2letter decoders with (viterbi, kenlm, fairseqlm) options are supported at the moment but found "
@@ -442,7 +471,11 @@ def generate(cfg: UnsupGenerateConfig, models, saved_cfg, use_cuda):
                     hyp_pieces,
                     hyp_words,
                 ) = process_predictions(
-                    cfg, hypos[i], tgt_dict, target_tokens, res_files,
+                    cfg,
+                    hypos[i],
+                    tgt_dict,
+                    target_tokens,
+                    res_files,
                 )
                 errs_t += errs
                 lengths_hyp_t += length_hyp
@@ -548,7 +581,9 @@ def main(cfg: UnsupGenerateConfig, model=None):
             "blank_mode": cfg.blank_mode,
             "blank_is_sil": cfg.sil_is_blank,
             "no_softmax": True,
-            "segmentation": {"type": "NONE",},
+            "segmentation": {
+                "type": "NONE",
+            },
         }
     else:
         overrides["model"] = {

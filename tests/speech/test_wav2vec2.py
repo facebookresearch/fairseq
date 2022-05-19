@@ -29,7 +29,9 @@ class TestWav2Vec2(TestFairseqSpeech):
                 "dict.ltr_100.txt",
             ],
         )
-        self.unzip_files("test-other.zip",)
+        self.unzip_files(
+            "test-other.zip",
+        )
 
     def test_transformer_w2v2(self):
         self.base_test(

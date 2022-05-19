@@ -505,7 +505,7 @@ class LightConvDecoder(FairseqIncrementalDecoder):
             self.embed_out = nn.Parameter(
                 torch.Tensor(len(dictionary), output_embed_dim)
             )
-            nn.init.normal_(self.embed_out, mean=0, std=output_embed_dim ** -0.5)
+            nn.init.normal_(self.embed_out, mean=0, std=output_embed_dim**-0.5)
         self.register_buffer("version", torch.Tensor([2]))
         self.normalize = args.decoder_normalize_before and final_norm
         if self.normalize:
@@ -533,7 +533,8 @@ class LightConvDecoder(FairseqIncrementalDecoder):
         # embed positions
         positions = (
             self.embed_positions(
-                prev_output_tokens, incremental_state=incremental_state,
+                prev_output_tokens,
+                incremental_state=incremental_state,
             )
             if self.embed_positions is not None
             else None
@@ -715,11 +716,13 @@ class LightConvEncoderLayer(nn.Module):
             return x
 
     def extra_repr(self):
-        return "dropout={}, relu_dropout={}, input_dropout={}, normalize_before={}".format(
-            self.dropout_module.p,
-            self.relu_dropout_module.p,
-            self.input_dropout_module.p,
-            self.normalize_before,
+        return (
+            "dropout={}, relu_dropout={}, input_dropout={}, normalize_before={}".format(
+                self.dropout_module.p,
+                self.relu_dropout_module.p,
+                self.input_dropout_module.p,
+                self.normalize_before,
+            )
         )
 
 
@@ -876,17 +879,19 @@ class LightConvDecoderLayer(nn.Module):
         self.need_attn = need_attn
 
     def extra_repr(self):
-        return "dropout={}, relu_dropout={}, input_dropout={}, normalize_before={}".format(
-            self.dropout_module.p,
-            self.relu_dropout_module.p,
-            self.input_dropout_module.p,
-            self.normalize_before,
+        return (
+            "dropout={}, relu_dropout={}, input_dropout={}, normalize_before={}".format(
+                self.dropout_module.p,
+                self.relu_dropout_module.p,
+                self.input_dropout_module.p,
+                self.normalize_before,
+            )
         )
 
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):
     m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
-    nn.init.normal_(m.weight, mean=0, std=embedding_dim ** -0.5)
+    nn.init.normal_(m.weight, mean=0, std=embedding_dim**-0.5)
     nn.init.constant_(m.weight[padding_idx], 0)
     return m
 

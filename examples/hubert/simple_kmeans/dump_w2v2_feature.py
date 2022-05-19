@@ -26,9 +26,11 @@ logger = logging.getLogger("dump_w2v2_feature")
 
 class Wav2Vec2FeatureReader(object):
     def __init__(self, ckpt_path, layer, max_chunk=1600000):
-        (model, cfg, task,) = fairseq.checkpoint_utils.load_model_ensemble_and_task(
-            [ckpt_path]
-        )
+        (
+            model,
+            cfg,
+            task,
+        ) = fairseq.checkpoint_utils.load_model_ensemble_and_task([ckpt_path])
         self.model = model[0].eval().cuda()
         self.task = task
         self.layer = layer  # assume this is 1-based like HuBERT
@@ -57,9 +59,12 @@ class Wav2Vec2FeatureReader(object):
 
             feat = []
             for start in range(0, x.size(1), self.max_chunk):
-                x_chunk = x[:, start : start + self.max_chunk]
+                x_chunk = x[:, start: start + self.max_chunk]
                 res = self.model.extract_features(
-                    source=x_chunk, padding_mask=None, mask=False, layer=self.layer - 1,
+                    source=x_chunk,
+                    padding_mask=None,
+                    mask=False,
+                    layer=self.layer - 1,
                 )
                 feat_chunk = res["x"]
                 feat.append(feat_chunk)

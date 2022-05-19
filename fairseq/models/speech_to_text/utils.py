@@ -377,7 +377,10 @@ def pad_sequence(
         size = (extra_left_context,)
         fill_value = 0
         indices = torch.full(
-            size=size, fill_value=fill_value, dtype=torch.long, device=sequence.device,
+            size=size,
+            fill_value=fill_value,
+            dtype=torch.long,
+            device=sequence.device,
         )
         left_padding = torch.index_select(sequence, time_axis, indices)
         tensors_to_concat.append(left_padding)
@@ -548,7 +551,9 @@ def attention_suppression(attention_weights: Tensor, scale: float):
     inf_tensor = attention_prob.new_zeros(attention_prob.size()).detach()
     inf_tensor[:] = float("-inf")
     attention_weights_float = torch.where(
-        attention_prob < key_thread, inf_tensor, attention_weights.float(),
+        attention_prob < key_thread,
+        inf_tensor,
+        attention_weights.float(),
     )
 
     return attention_weights_float.type_as(attention_weights)

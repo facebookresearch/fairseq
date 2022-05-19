@@ -41,7 +41,10 @@ def dummy_dictionary(vocab_size, prefix="token_"):
 
 
 def dummy_dataloader(
-    samples, padding_idx=1, eos_idx=2, batch_size=None,
+    samples,
+    padding_idx=1,
+    eos_idx=2,
+    batch_size=None,
 ):
     if batch_size is None:
         batch_size = len(samples)

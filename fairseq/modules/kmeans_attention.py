@@ -476,7 +476,7 @@ class KmeansAttention(nn.Module):
         )
         k, v = map(lambda x: torch.cat(x, dim=3), ((m_k, k), (m_v, v)))
 
-        dots = torch.einsum("bhnid,bhnjd->bhnij", q, k) * (d ** -0.5)
+        dots = torch.einsum("bhnid,bhnjd->bhnij", q, k) * (d**-0.5)
 
         mask_value = max_neg_value(dots)
 

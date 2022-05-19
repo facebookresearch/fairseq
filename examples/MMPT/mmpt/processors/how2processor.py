@@ -30,7 +30,7 @@ from .processor import (
     MetaProcessor,
     TextProcessor,
     Aligner,
-    MMAttentionMask2DProcessor,
+    MMAttentionMask2DProcessor
 )
 
 from ..utils import ShardedTensor
@@ -97,15 +97,18 @@ class ShardedVideoProcessor(Processor):
         _, _, shard_id, video_idx = video_id
         if self.split == "train":
             shard = ShardedTensor.load(
-                os.path.join(self.vfeat_dir, "train" + "_" + str(shard_id)), "r"
+                os.path.join(self.vfeat_dir, "train" + "_" + str(shard_id)),
+                "r"
             )
         elif self.split == "valid":
             shard = ShardedTensor.load(
-                os.path.join(self.vfeat_dir, "val" + "_" + str(shard_id)), "r"
+                os.path.join(self.vfeat_dir, "val" + "_" + str(shard_id)),
+                "r"
             )
         elif self.split == "test":
             shard = ShardedTensor.load(
-                os.path.join(self.vfeat_dir, "val" + "_" + str(shard_id)), "r"
+                os.path.join(self.vfeat_dir, "val" + "_" + str(shard_id)),
+                "r"
             )
         else:
             raise ValueError("unknown split", self.split)
@@ -129,8 +132,10 @@ class ShardedTextProcessor(Processor):
         else:
             raise ValueError("unknown split", self.split)
 
-        startend = ShardedTensor.load(target_path + ".startends", "r")[shard_idx]
-        cap_ids = ShardedTensor.load(target_path + ".caps_ids", "r")[shard_idx]
+        startend = ShardedTensor.load(
+            target_path + ".startends", "r")[shard_idx]
+        cap_ids = ShardedTensor.load(
+            target_path + ".caps_ids", "r")[shard_idx]
         cap = []
         for clip_idx in range(len(cap_ids)):
             clip = cap_ids[clip_idx]
@@ -168,7 +173,8 @@ class FixedLenAligner(Aligner):
         `config.clip_per_video` (used by RetriTask) doesn't
             change batch_size in trainer.
         """
-        subsampling = config.subsampling if config.subsampling is not None else None
+        subsampling = config.subsampling \
+            if config.subsampling is not None else None
         if config.clip_per_video is not None:
             subsampling = config.clip_per_video
         self.subsampling = subsampling
@@ -179,31 +185,30 @@ class FixedLenAligner(Aligner):
 
     def __call__(self, video_id, video_feature, text_feature):
         from transformers import default_data_collator
-
         video_idx = video_id[1]
         if self.subsampling is not None and self.subsampling >= 1:
             batch = []
             for _ in range(self.subsampling):
-                centerclip_idx = random.randint(0, len(text_feature["start"]) - 1)
+                centerclip_idx = random.randint(
+                                    0, len(text_feature["start"]) - 1)
                 batch.append(
                     self.sampling(
                         video_idx,
                         video_feature,
                         text_feature,
                         centerclip_idx,
-                        self._get_text_maxlen(),
-                    )
-                )
+                        self._get_text_maxlen()
+                    ))
             batch = self.batch_post_processing(batch, video_feature)
             batch = default_data_collator(batch)
         else:
             raise ValueError(
-                "dataset.subsampling must be >= 1 for efficient video loading."
-            )
+                "dataset.subsampling must be >= 1 for efficient video loading.")
             batch = self.sampling(video_idx, video_feature, text_feature)
             batch = self.batch_post_processing(batch, video_feature)
 
-        batch["video_id"] = video_id if isinstance(video_id, str) else video_id[0]
+        batch["video_id"] = video_id if isinstance(video_id, str) \
+            else video_id[0]
         # e2e: make sure frame ids is into tensor.
         assert torch.is_tensor(batch["vfeats"])
         return batch
@@ -217,23 +222,34 @@ class FixedLenAligner(Aligner):
         sampled_max_text_len=None,
     ):
         text_clip_indexs = self.text_clip_sampler(
-            text_feature, centerclip_idx, sampled_max_text_len
+            text_feature, centerclip_idx,
+            sampled_max_text_len
         )
         if isinstance(video_feature, np.ndarray):
             video_len = len(video_feature)
         else:
             video_len = math.ceil(text_feature["end"][-1])
 
-        video_end = min(math.ceil(text_feature["end"][text_clip_indexs[-1]]), video_len)
+        video_end = min(
+            math.ceil(text_feature["end"][text_clip_indexs[-1]]),
+            video_len
+        )
         video_start = max(
-            min(math.floor(text_feature["start"][text_clip_indexs[0]]), video_end), 0
+            min(
+                math.floor(text_feature["start"][text_clip_indexs[0]]),
+                video_end),
+            0
         )
 
         video_clips = {"start": [video_start], "end": [video_end]}
 
         # tensorize.
-        vfeats, vmasks = self._build_video_seq(video_feature, video_clips)
-        caps, cmasks = self._build_text_seq(text_feature, text_clip_indexs)
+        vfeats, vmasks = self._build_video_seq(
+            video_feature, video_clips
+        )
+        caps, cmasks = self._build_text_seq(
+            text_feature, text_clip_indexs
+        )
 
         text_start = text_clip_indexs[0]
         text_end = text_clip_indexs[-1] + 1
@@ -269,13 +285,13 @@ class StartClipAligner(VariedLenAligner):
         centerclip_idx=None,
         sampled_max_text_len=None,
     ):
-        return super().sampling(video_idx, video_feature, text_feature, 0)
+        return super().sampling(
+            video_idx, video_feature, text_feature, 0)
 
 
 class OverlappedAligner(VariedLenAligner):
     """video clip and text clip has overlappings
     but may not be the same start/end."""
-
     def __init__(self, config):
         super().__init__(config)
         self.sampled_video_min_len = config.sampled_video_min_len
@@ -284,7 +300,8 @@ class OverlappedAligner(VariedLenAligner):
         self.video_clip_sampler = VideoClipSamplingProcessor()
 
     def _get_video_maxlen(self):
-        return random.randint(self.sampled_video_min_len, self.sampled_video_max_len)
+        return random.randint(
+            self.sampled_video_min_len, self.sampled_video_max_len)
 
     def sampling(
         self,
@@ -295,7 +312,8 @@ class OverlappedAligner(VariedLenAligner):
         sampled_max_text_len=None,
     ):
         text_clip_indexs = self.text_clip_sampler(
-            text_feature, centerclip_idx, sampled_max_text_len
+            text_feature, centerclip_idx,
+            sampled_max_text_len
         )
         if isinstance(video_feature, np.ndarray):
             video_len = len(video_feature)
@@ -318,8 +336,12 @@ class OverlappedAligner(VariedLenAligner):
         video_end = video_clips["end"][0]
 
         # tensorize.
-        vfeats, vmasks = self._build_video_seq(video_feature, video_clips)
-        caps, cmasks = self._build_text_seq(text_feature, text_clip_indexs)
+        vfeats, vmasks = self._build_video_seq(
+            video_feature, video_clips
+        )
+        caps, cmasks = self._build_text_seq(
+            text_feature, text_clip_indexs
+        )
 
         text_start = text_clip_indexs[0]
         text_end = text_clip_indexs[-1] + 1
@@ -350,23 +372,23 @@ class MFMMLMAligner(FixedLenAligner):
         self.sampled_min_len = config.sampled_min_len
         self.sampled_max_len = config.sampled_max_len
         self.masked_token_sampler = TextMaskingProcessor(config)
-        self.mm_type = config.mm_type if config.mm_type is not None else "full"
-        self.attnmasker = (
-            MMAttentionMask2DProcessor() if self.mm_type == "textgen" else None
-        )
+        self.mm_type = config.mm_type \
+            if config.mm_type is not None else "full"
+        self.attnmasker = MMAttentionMask2DProcessor() \
+            if self.mm_type == "textgen" else None
         self.masked_frame_sampler = FrameMaskingProcessor(config)
         self.lazy_vfeat_mask = (
             False if config.lazy_vfeat_mask is None else config.lazy_vfeat_mask
         )
-        self.mm_prob = config.mm_prob if config.mm_prob is not None else 0.0
+        self.mm_prob = config.mm_prob if config.mm_prob is not None else 0.
 
     def __call__(self, video_id, video_feature, text_feature):
         from transformers import default_data_collator
-
         if self.subsampling is not None and self.subsampling > 1:
             batch = []
             for _ in range(self.subsampling):
-                centerclip_idx = random.randint(0, len(text_feature["start"]) - 1)
+                centerclip_idx = random.randint(
+                                    0, len(text_feature["start"]) - 1)
                 sampled_max_text_len = random.randint(
                     self.sampled_min_len, self.sampled_max_len
                 )
@@ -384,7 +406,8 @@ class MFMMLMAligner(FixedLenAligner):
         else:
             batch = self.sampling(video_id, video_feature, text_feature)
             batch = self.batch_post_processing(batch, video_feature)
-        batch["video_id"] = video_id if isinstance(video_id, str) else video_id[0]
+        batch["video_id"] = video_id if isinstance(video_id, str) \
+            else video_id[0]
         return batch
 
     def sampling(
@@ -395,14 +418,9 @@ class MFMMLMAligner(FixedLenAligner):
         centerclip_idx=None,
         sampled_max_text_len=None,
     ):
-        output = FixedLenAligner.sampling(
-            self,
-            video_id,
-            video_feature,
-            text_feature,
-            centerclip_idx,
-            sampled_max_text_len,
-        )
+        output = FixedLenAligner.sampling(self,
+            video_id, video_feature, text_feature,
+            centerclip_idx, sampled_max_text_len)
 
         masking_text, masking_video = None, None
         if random.random() < self.mm_prob:
@@ -412,19 +430,22 @@ class MFMMLMAligner(FixedLenAligner):
                 masking_text, masking_video = "no", "full"
         video_feats = output["vfeats"] if not self.lazy_vfeat_mask else None
         video_label = self.masked_frame_sampler(
-            output["vmasks"], masking_video, vfeats=video_feats
-        )
-        caps, text_label = self.masked_token_sampler(output["caps"], masking_text)
+            output["vmasks"], masking_video, vfeats=video_feats)
+        caps, text_label = self.masked_token_sampler(
+            output["caps"], masking_text)
 
-        output.update(
-            {"caps": caps, "video_label": video_label, "text_label": text_label,}
-        )
+        output.update({
+            "caps": caps,
+            "video_label": video_label,
+            "text_label": text_label,
+        })
 
         if self.attnmasker is not None:
             attention_mask = self.attnmasker(
-                output["vmasks"], output["cmasks"], masking_text
-            )
-            output.update({"attention_mask": attention_mask})
+                output["vmasks"], output["cmasks"], masking_text)
+            output.update({
+                "attention_mask": attention_mask
+            })
         return output
 
 
@@ -444,17 +465,17 @@ class FrameMaskingProcessor(Processor):
         video_label = vmasks.clone()
         if modality_masking is not None:
             if modality_masking == "full":
-                probability_matrix = torch.full(video_label.shape, 1.0)
+                probability_matrix = torch.full(video_label.shape, 1.)
             elif modality_masking == "no":
-                probability_matrix = torch.full(video_label.shape, 0.0)
+                probability_matrix = torch.full(video_label.shape, 0.)
             elif modality_masking == "inverse":
                 probability_matrix = torch.full(
-                    video_label.shape, 1.0 - self.mfm_probability
-                )
+                    video_label.shape, 1. - self.mfm_probability)
             else:
                 raise ValueError("unknown modality masking.", modality_masking)
         else:
-            probability_matrix = torch.full(video_label.shape, self.mfm_probability)
+            probability_matrix = torch.full(
+                video_label.shape, self.mfm_probability)
         masked_indices = torch.bernoulli(probability_matrix).bool()
         # We only compute loss on masked tokens
         video_label[~masked_indices] = 0
@@ -475,7 +496,9 @@ class TextGenerationProcessor(Processor):
         # keep [SEP] for text.
         pad_mask = labels == self.pad_token_id
         labels[pad_mask] = -100
-        inputs[2:] = torch.cat([torch.LongTensor([self.bos_token_id]), inputs[2:-1]])
+        inputs[2:] = torch.cat([
+            torch.LongTensor([self.bos_token_id]),
+            inputs[2:-1]])
         inputs[pad_mask] = self.pad_token_id
         assert len(inputs) == len(labels)
         return inputs, labels
@@ -492,17 +515,14 @@ class TextMaskingProcessor(Processor):
         # [CLS] is used as bos_token and [SEP] is used as eos_token.
         # https://huggingface.co/transformers/master/model_doc/bertgeneration.html
         from transformers import AutoTokenizer
-
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self.bert_name, bos_token="[CLS]", eos_token="[SEP]"
-        )
+            self.bert_name, bos_token="[CLS]", eos_token="[SEP]")
         self.textgen = TextGenerationProcessor(self.tokenizer)
 
     def __call__(
-        self,
-        inputs: torch.Tensor,
+        self, inputs: torch.Tensor,
         modality_masking=None,
-        special_tokens_mask: Optional[torch.Tensor] = None,
+        special_tokens_mask: Optional[torch.Tensor] = None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         expand modality_masking into
@@ -520,9 +540,9 @@ class TextMaskingProcessor(Processor):
         # (with probability `self.mlm_probability`)
         if modality_masking is not None:
             if modality_masking == "full":
-                probability_matrix = torch.full(labels.shape, 1.0)
+                probability_matrix = torch.full(labels.shape, 1.)
             elif modality_masking == "no":
-                probability_matrix = torch.full(labels.shape, 0.0)
+                probability_matrix = torch.full(labels.shape, 0.)
             elif modality_masking.startswith("textgen"):
                 # [CLS] [SEP] <s> ...
                 inputs, labels = self.textgen(inputs)
@@ -535,9 +555,7 @@ class TextMaskingProcessor(Processor):
                 labels = torch.full(inputs.shape, -100)
                 return inputs, labels
             elif modality_masking == "inverse":
-                probability_matrix = torch.full(
-                    labels.shape, 1.0 - self.mlm_probability
-                )
+                probability_matrix = torch.full(labels.shape, 1. - self.mlm_probability)
             else:
                 raise ValueError("unknown modality masking.", modality_masking)
         else:
@@ -547,7 +565,8 @@ class TextMaskingProcessor(Processor):
             special_tokens_mask = self.get_special_tokens_mask(
                 labels.tolist(), already_has_special_tokens=True
             )
-            special_tokens_mask = torch.tensor(special_tokens_mask, dtype=torch.bool)
+            special_tokens_mask = torch.tensor(
+                special_tokens_mask, dtype=torch.bool)
         else:
             special_tokens_mask = special_tokens_mask.bool()
 
@@ -558,7 +577,8 @@ class TextMaskingProcessor(Processor):
         # 80% of the time,
         # we replace masked input tokens with tokenizer.mask_token ([MASK])
         indices_replaced = (
-            torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & masked_indices
+            torch.bernoulli(
+                torch.full(labels.shape, 0.8)).bool() & masked_indices
         )
         inputs[indices_replaced] = self.tokenizer.convert_tokens_to_ids(
             self.tokenizer.mask_token
@@ -581,18 +601,21 @@ class TextMaskingProcessor(Processor):
 
     def mask_input(self, inputs, special_tokens_mask=None):
         # the following is new with masked autoregressive.
-        probability_matrix = torch.full(inputs.shape, self.mlm_probability)
+        probability_matrix = torch.full(
+            inputs.shape, self.mlm_probability)
         if special_tokens_mask is None:
             special_tokens_mask = self.get_special_tokens_mask(
                 inputs.tolist(), already_has_special_tokens=True
             )
-            special_tokens_mask = torch.tensor(special_tokens_mask, dtype=torch.bool)
+            special_tokens_mask = torch.tensor(
+                special_tokens_mask, dtype=torch.bool)
         else:
             special_tokens_mask = special_tokens_mask.bool()
         probability_matrix.masked_fill_(special_tokens_mask, value=0.0)
         masked_indices = torch.bernoulli(probability_matrix).bool()
         indices_replaced = (
-            torch.bernoulli(torch.full(inputs.shape, 0.8)).bool() & masked_indices
+            torch.bernoulli(
+                torch.full(inputs.shape, 0.8)).bool() & masked_indices
         )
         inputs[indices_replaced] = self.tokenizer.convert_tokens_to_ids(
             self.tokenizer.mask_token
@@ -611,10 +634,9 @@ class TextMaskingProcessor(Processor):
         return inputs
 
     def get_special_tokens_mask(
-        self,
-        token_ids_0: List[int],
+        self, token_ids_0: List[int],
         token_ids_1: Optional[List[int]] = None,
-        already_has_special_tokens: bool = False,
+        already_has_special_tokens: bool = False
     ) -> List[int]:
         """
         Note: the version from transformers do not consider pad
@@ -629,19 +651,10 @@ class TextMaskingProcessor(Processor):
                     "ids is already formated with special tokens "
                     "for the model."
                 )
-            return list(
-                map(
-                    lambda x: 1
-                    if x
-                    in [
-                        self.tokenizer.sep_token_id,
-                        self.tokenizer.cls_token_id,
-                        self.tokenizer.pad_token_id,
-                    ]
-                    else 0,
-                    token_ids_0,
-                )
-            )
+            return list(map(lambda x: 1 if x in [
+                self.tokenizer.sep_token_id,
+                self.tokenizer.cls_token_id,
+                self.tokenizer.pad_token_id] else 0, token_ids_0))
 
         if token_ids_1 is not None:
             return [1] + ([0] * len(token_ids_0)) + [1] + ([0] * len(token_ids_1)) + [1]
@@ -682,7 +695,9 @@ class TextClipSamplingProcessor(Processor):
         text_len = len(text_feature["cap"][start_idx])
 
         video_len = max(
-            0, text_feature["end"][start_idx] - text_feature["start"][start_idx],
+            0,
+            text_feature["end"][start_idx]
+            - text_feature["start"][start_idx],
         )
 
         while (
@@ -761,7 +776,7 @@ class How2MILNCEAligner(FixedLenAligner):
         video_feature,
         text_feature,
         centerclip_idx=None,  # will be ignored.
-        sampled_max_text_len=None,  # will be ignored.
+        sampled_max_text_len=None  # will be ignored.
     ):
         text, start, end = self._get_text(text_feature)
         video = self._get_video(video_feature, start, end)
@@ -816,7 +831,7 @@ class How2MILNCEAligner(FixedLenAligner):
     def _find_nearest_candidates(self, caption, ind):
         """find the range of the clips."""
         start, end = ind, ind
-        # diff = caption["end"][end] - caption["start"][start]
+        #diff = caption["end"][end] - caption["start"][start]
         n_candidate = 1
         while n_candidate < self.num_candidates:
             # the first clip
@@ -848,7 +863,6 @@ class PKLJSONStrTextProcessor(TextProcessor):
             self.data = pickle.load(fd)
         self.max_clip_text_len = max_clip_text_len
         from transformers import AutoTokenizer
-
         self.tokenizer = AutoTokenizer.from_pretrained(
             str(config.bert_name), use_fast=config.use_fast
         )
@@ -857,14 +871,14 @@ class PKLJSONStrTextProcessor(TextProcessor):
         caption = self.data[video_id]
         if isinstance(caption, str):
             import json
-
             caption = json.loads(caption)
             cap = []
             for clip_idx, text_clip in enumerate(caption["text"]):
                 clip_ids = []
                 if isinstance(text_clip, str):
                     clip_ids = self.tokenizer(
-                        text_clip[: self.max_clip_text_len], add_special_tokens=False
+                        text_clip[: self.max_clip_text_len],
+                        add_special_tokens=False
                     )["input_ids"]
                 cap.append(clip_ids)
             caption["cap"] = cap

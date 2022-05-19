@@ -258,7 +258,8 @@ class MaskedLMEncoder(FairseqEncoder):
         """
 
         inner_states, sentence_rep = self.sentence_encoder(
-            src_tokens, segment_labels=segment_labels,
+            src_tokens,
+            segment_labels=segment_labels,
         )
 
         x = inner_states[-1].transpose(0, 1)
@@ -282,14 +283,11 @@ class MaskedLMEncoder(FairseqEncoder):
         if self.sentence_projection_layer:
             sentence_logits = self.sentence_projection_layer(pooled_output)
 
-        return (
-            x,
-            {
-                "inner_states": inner_states,
-                "pooled_output": pooled_output,
-                "sentence_logits": sentence_logits,
-            },
-        )
+        return x, {
+            "inner_states": inner_states,
+            "pooled_output": pooled_output,
+            "sentence_logits": sentence_logits,
+        }
 
     def max_positions(self):
         """Maximum output length supported by the encoder."""

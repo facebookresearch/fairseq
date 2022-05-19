@@ -237,7 +237,7 @@ class Sentence_Embedding(nn.Module):
         x = F.relu(self.fc1(x))
         x = th.max(x, dim=1)[0]
         x = self.fc2(x)
-        return {"text_embedding": x}
+        return {'text_embedding': x}
 
 
 class S3D(nn.Module):
@@ -295,7 +295,8 @@ class S3D(nn.Module):
             self.mixed_5b.output_dim, 384, 192, 384, 48, 128, 128
         )
         self.fc = nn.Linear(self.mixed_5c.output_dim, num_classes)
-        self.text_module = Sentence_Embedding(num_classes, token_to_word_path=dict_path)
+        self.text_module = Sentence_Embedding(num_classes,
+            token_to_word_path=dict_path)
 
     def _space_to_depth(self, input):
         """3D space to depth trick for TPU optimization.
@@ -332,4 +333,4 @@ class S3D(nn.Module):
         net = self.mixed_5b(net)
         net = self.mixed_5c(net)
         net = th.mean(net, dim=[2, 3, 4])
-        return {"video_embedding": self.fc(net), "mixed_5c": net}
+        return {'video_embedding': self.fc(net), 'mixed_5c': net}

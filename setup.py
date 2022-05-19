@@ -101,7 +101,9 @@ try:
         [
             cpp_extension.CppExtension(
                 "fairseq.libbase",
-                sources=["fairseq/clib/libbase/balanced_assignment.cpp",],
+                sources=[
+                    "fairseq/clib/libbase/balanced_assignment.cpp",
+                ],
             )
         ]
     )
@@ -109,11 +111,16 @@ try:
     extensions.extend(
         [
             cpp_extension.CppExtension(
-                "fairseq.libnat", sources=["fairseq/clib/libnat/edit_dist.cpp",],
+                "fairseq.libnat",
+                sources=[
+                    "fairseq/clib/libnat/edit_dist.cpp",
+                ],
             ),
             cpp_extension.CppExtension(
                 "alignment_train_cpu_binding",
-                sources=["examples/operators/alignment_train_cpu.cpp",],
+                sources=[
+                    "examples/operators/alignment_train_cpu.cpp",
+                ],
             ),
         ]
     )

@@ -179,7 +179,8 @@ class RawAudioDataset(FairseqDataset):
             padding_mask_reshaped = padding_mask_reshaped.all(-1)
             input["padding_count"] = padding_mask_reshaped.sum(-1).max().item()
             mask_indices, mask_channel_indices = self._compute_mask_indices(
-                (B, T, self._C), padding_mask_reshaped,
+                (B, T, self._C),
+                padding_mask_reshaped,
             )
             input["mask_indices"] = mask_indices
             input["mask_channel_indices"] = mask_channel_indices
@@ -214,7 +215,12 @@ class RawAudioDataset(FairseqDataset):
 
         if self.shuffle:
             order = [np.random.permutation(len(self))]
-            order.append(np.minimum(np.array(self.sizes), self.max_sample_size,))
+            order.append(
+                np.minimum(
+                    np.array(self.sizes),
+                    self.max_sample_size,
+                )
+            )
             return np.lexsort(order)[::-1]
         else:
             return np.arange(len(self))
@@ -223,9 +229,13 @@ class RawAudioDataset(FairseqDataset):
         self.num_buckets = num_buckets
         if self.num_buckets > 0:
             self._collated_sizes = np.minimum(
-                np.array(self.sizes), self.max_sample_size,
+                np.array(self.sizes),
+                self.max_sample_size,
             )
-            self.buckets = get_buckets(self._collated_sizes, self.num_buckets,)
+            self.buckets = get_buckets(
+                self._collated_sizes,
+                self.num_buckets,
+            )
             self._bucketed_sizes = get_bucketed_sizes(
                 self._collated_sizes, self.buckets
             )

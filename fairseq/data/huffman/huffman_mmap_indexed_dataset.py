@@ -159,7 +159,9 @@ class HuffmanMMapIndexedDataset(torch.utils.data.Dataset):
             indexed_dataset.data_file_path(self._prefix_path), os.O_RDONLY
         )
         self._bin_buffer_mmap = mmap.mmap(
-            self._file, self._index.data_len, access=mmap.ACCESS_READ,
+            self._file,
+            self._index.data_len,
+            access=mmap.ACCESS_READ,
         )
         self._bin_buffer = memoryview(self._bin_buffer_mmap)
 

@@ -50,7 +50,9 @@ class TestEMAGPU(unittest.TestCase):
             msg = "|input - other| > {} + {} * |other|".format(atol, rtol)
 
         self.assertLessEqual(
-            diff_norm, atol + rtol * other_norm, msg=msg,
+            diff_norm,
+            atol + rtol * other_norm,
+            msg=msg,
         )
 
     def test_ema(self):

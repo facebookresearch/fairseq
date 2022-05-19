@@ -111,7 +111,9 @@ class TestRelPositionMultiHeadedAttention(unittest.TestCase):
         x = self.MHA.rel_shift(self.sample_x)
         self.assertTrue(
             np.allclose(
-                expected_x.cpu().detach().numpy(), x.cpu().detach().numpy(), atol=1e-4,
+                expected_x.cpu().detach().numpy(),
+                x.cpu().detach().numpy(),
+                atol=1e-4,
             )
         )
 

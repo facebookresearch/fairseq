@@ -13,7 +13,9 @@ from g2p_en import G2p
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--compact", action="store_true", help="if set, compacts phones",
+        "--compact",
+        action="store_true",
+        help="if set, compacts phones",
     )
     args = parser.parse_args()
 

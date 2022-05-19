@@ -144,7 +144,7 @@ class MultiLingualMaskedLMTask(LegacyFairseqTask):
         languages by upsampling them.
         """
         prob = dataset_lens / dataset_lens.sum()
-        smoothed_prob = prob ** self.args.multilang_sampling_alpha
+        smoothed_prob = prob**self.args.multilang_sampling_alpha
         smoothed_prob = smoothed_prob / smoothed_prob.sum()
         return smoothed_prob
 
@@ -235,9 +235,14 @@ class MultiLingualMaskedLMTask(LegacyFairseqTask):
             )
             lang_datasets.append(lang_dataset)
 
-        dataset_lengths = np.array([len(d) for d in lang_datasets], dtype=float,)
+        dataset_lengths = np.array(
+            [len(d) for d in lang_datasets],
+            dtype=float,
+        )
         logger.info(
-            "loaded total {} blocks for all languages".format(dataset_lengths.sum(),)
+            "loaded total {} blocks for all languages".format(
+                dataset_lengths.sum(),
+            )
         )
         if split == self.args.train_subset:
             # For train subset, additionally up or down sample languages.
@@ -289,7 +294,11 @@ class MultiLingualMaskedLMTask(LegacyFairseqTask):
             shuffle = np.random.permutation(len(dataset))
 
         self.datasets[split] = SortDataset(
-            dataset, sort_order=[shuffle, dataset.sizes,],
+            dataset,
+            sort_order=[
+                shuffle,
+                dataset.sizes,
+            ],
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, sort=True):

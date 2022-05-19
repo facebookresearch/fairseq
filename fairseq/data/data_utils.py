@@ -338,11 +338,19 @@ def batch_by_size(
     if fixed_shapes is None:
         if num_tokens_vec is None:
             return batch_by_size_fn(
-                indices, num_tokens_fn, max_tokens, max_sentences, bsz_mult,
+                indices,
+                num_tokens_fn,
+                max_tokens,
+                max_sentences,
+                bsz_mult,
             )
         else:
             return batch_by_size_vec(
-                indices, num_tokens_vec, max_tokens, max_sentences, bsz_mult,
+                indices,
+                num_tokens_vec,
+                max_tokens,
+                max_sentences,
+                bsz_mult,
             )
 
     else:
@@ -547,7 +555,9 @@ def lengths_to_mask(lens):
 def get_buckets(sizes, num_buckets):
     buckets = np.unique(
         np.percentile(
-            sizes, np.linspace(0, 100, num_buckets + 1), interpolation="lower",
+            sizes,
+            np.linspace(0, 100, num_buckets + 1),
+            interpolation="lower",
         )[1:]
     )
     return buckets

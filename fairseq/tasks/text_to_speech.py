@@ -123,7 +123,8 @@ class TextToSpeechTask(SpeechToTextTask):
                 speaker_emb_mat = np.load(args.speaker_emb_path)
                 assert speaker_emb_mat.shape[1] == args.speaker_embed_dim
                 embed_speaker = torch.nn.Embedding.from_pretrained(
-                    torch.from_numpy(speaker_emb_mat), freeze=True,
+                    torch.from_numpy(speaker_emb_mat),
+                    freeze=True,
                 )
                 logger.info(
                     f"load speaker embeddings from {args.speaker_emb_path}. "

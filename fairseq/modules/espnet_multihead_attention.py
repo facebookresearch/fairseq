@@ -198,7 +198,12 @@ class RelPositionMultiHeadedAttention(ESPNETMultiHeadedAttention):
 
 class RotaryPositionMultiHeadedAttention(ESPNETMultiHeadedAttention):
     def __init__(
-        self, n_feat, n_head, dropout, precision, rotary_emd_base=10000,
+        self,
+        n_feat,
+        n_head,
+        dropout,
+        precision,
+        rotary_emd_base=10000,
     ):
         """Construct an RotaryPositionMultiHeadedAttention object."""
         super().__init__(n_feat, n_head, dropout)

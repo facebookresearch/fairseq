@@ -16,7 +16,9 @@ def get_parser():
         description="reads text from stdin and outputs normalized, lid-filtered version to stdout"
     )
     parser.add_argument(
-        "--fasttext-model", help="path to fasttext model", default="lid.187.bin",
+        "--fasttext-model",
+        help="path to fasttext model",
+        default="lid.187.bin",
     )
     parser.add_argument("--lang", help="language id", required=True)
     parser.add_argument(

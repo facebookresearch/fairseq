@@ -28,7 +28,11 @@ class MMDataset(Dataset):
     """
 
     def __init__(
-        self, meta_processor, video_processor, text_processor, align_processor,
+        self,
+        meta_processor,
+        video_processor,
+        text_processor,
+        align_processor,
     ):
         self.split = meta_processor.split
         self.meta_processor = meta_processor
@@ -62,7 +66,8 @@ class MMDataset(Dataset):
             batch = OrderedDict()
             for key in samples[0]:
                 if samples[0][key] is not None:
-                    batch[key] = default_collate([sample[key] for sample in samples])
+                    batch[key] = default_collate(
+                        [sample[key] for sample in samples])
                 # if torch.is_tensor(batch[key]):
                 #    print(key, batch[key].size())
                 # else:

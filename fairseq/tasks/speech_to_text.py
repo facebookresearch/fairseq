@@ -129,7 +129,11 @@ class SpeechToTextTask(LegacyFairseqTask):
         return super(SpeechToTextTask, self).build_model(args, from_checkpoint)
 
     def build_generator(
-        self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None,
+        self,
+        models,
+        args,
+        seq_gen_cls=None,
+        extra_gen_cls_kwargs=None,
     ):
         if self.data_cfg.prepend_tgt_lang_tag and args.prefix_size != 1:
             raise ValueError(

@@ -12,11 +12,11 @@ class LayerSelect(nn.Module):
     either (soft) weighting or (hard) selection of residual connection.
     https://arxiv.org/abs/2009.13102
     """
-
-    def __init__(self, num_layers, num_logits, soft_select=False, sampling_tau=5.0):
+    def __init__(self, num_layers, num_logits, soft_select=False, sampling_tau=5.):
         super(LayerSelect, self).__init__()
         self.layer_logits = torch.nn.Parameter(
-            torch.Tensor(num_logits, num_layers), requires_grad=True,
+            torch.Tensor(num_logits, num_layers),
+            requires_grad=True,
         )
         self.hard_select = not soft_select
         self.tau = sampling_tau

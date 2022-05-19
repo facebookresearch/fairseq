@@ -124,7 +124,8 @@ def split_non_tensors(
 
 
 def unpack_non_tensors(
-    tensors: Tuple[torch.Tensor], packed_non_tensors: Dict[str, List[Any]],
+    tensors: Tuple[torch.Tensor],
+    packed_non_tensors: Dict[str, List[Any]],
 ) -> Tuple[Any]:
     if packed_non_tensors is None:
         return tensors

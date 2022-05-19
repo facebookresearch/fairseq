@@ -147,7 +147,10 @@ class Data2VecAudioModel(BaseFairseqModel):
         self.num_updates = 0
 
     def make_ema_teacher(self):
-        ema_config = EMAModuleConfig(ema_decay=self.cfg.ema_decay, ema_fp32=True,)
+        ema_config = EMAModuleConfig(
+            ema_decay=self.cfg.ema_decay,
+            ema_fp32=True,
+        )
         skip_keys = set()
         if self.cfg.ema_layers_only:
             self.cfg.ema_transformer_only = True
@@ -206,7 +209,11 @@ class Data2VecAudioModel(BaseFairseqModel):
         return cls(cfg)
 
     def apply_mask(
-        self, x, padding_mask, mask_indices=None, mask_channel_indices=None,
+        self,
+        x,
+        padding_mask,
+        mask_indices=None,
+        mask_channel_indices=None,
     ):
         B, T, C = x.shape
 
@@ -356,7 +363,11 @@ class Data2VecAudioModel(BaseFairseqModel):
             x = features
             mask_indices = None
 
-        x, layer_results = self.encoder(x, padding_mask=padding_mask, layer=layer,)
+        x, layer_results = self.encoder(
+            x,
+            padding_mask=padding_mask,
+            layer=layer,
+        )
 
         if features_only:
             return {
@@ -385,7 +396,9 @@ class Data2VecAudioModel(BaseFairseqModel):
                 }
             else:
                 y = self.ema.model.extract_features(
-                    source=source, padding_mask=orig_padding_mask, mask=False,
+                    source=source,
+                    padding_mask=orig_padding_mask,
+                    mask=False,
                 )
 
             target_layer_results = [l[2] for l in y["layer_results"]]
@@ -503,9 +516,15 @@ class Data2VecAudioModel(BaseFairseqModel):
         else:
             return torch.sqrt(y.var(dim=0) + 1e-6).mean()
 
-    def extract_features(self, source, padding_mask, mask=False, layer=None):
+    def extract_features(
+        self, source, padding_mask, mask=False, layer=None
+    ):
         res = self.forward(
-            source, padding_mask, mask=mask, features_only=True, layer=layer,
+            source,
+            padding_mask,
+            mask=mask,
+            features_only=True,
+            layer=layer,
         )
         return res
 

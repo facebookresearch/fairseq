@@ -203,7 +203,10 @@ class MaskedLMDataset(FairseqDataset):
 
                 # mask according to specified probabilities.
                 masked_blk_one, masked_tgt_one = self._mask_block(
-                    s["block_one"], self.mask_idx, self.pad_idx, token_range,
+                    s["block_one"],
+                    self.mask_idx,
+                    self.pad_idx,
+                    token_range,
                 )
 
                 tokens = np.concatenate([[self.classif_token_idx], masked_blk_one])

@@ -105,7 +105,8 @@ class CharacterTokenEmbedder(torch.nn.Module):
         nn.init.constant_(self.projection.bias, 0.0)
 
     def forward(
-        self, input: torch.Tensor,
+        self,
+        input: torch.Tensor,
     ):
         if self.char_inputs:
             chars = input.view(-1, self.max_char_len)
@@ -152,7 +153,8 @@ class CharacterTokenEmbedder(torch.nn.Module):
         return word_embs.view(input.size()[:2] + (-1,))
 
     def _convolve(
-        self, char_idxs: torch.Tensor,
+        self,
+        char_idxs: torch.Tensor,
     ):
         char_embs = self.char_embeddings(char_idxs)
         char_embs = char_embs.transpose(1, 2)  # BTC -> BCT

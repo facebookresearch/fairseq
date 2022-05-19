@@ -530,7 +530,10 @@ class CodeDataset(FairseqDataset):
 
         mask, dur_mask, f0_mask = [
             data_utils.collate_tokens(
-                [s[k] for s in samples], pad_idx=1, eos_idx=1, left_pad=False,
+                [s[k] for s in samples],
+                pad_idx=1,
+                eos_idx=1,
+                left_pad=False,
             )
             for k in ["mask", "dur_mask", "f0_mask"]
         ]

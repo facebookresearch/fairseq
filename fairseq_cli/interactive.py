@@ -218,7 +218,10 @@ def main(cfg: FairseqConfig):
                     constraints = constraints.cuda()
 
             sample = {
-                "net_input": {"src_tokens": src_tokens, "src_lengths": src_lengths,},
+                "net_input": {
+                    "src_tokens": src_tokens,
+                    "src_lengths": src_lengths,
+                },
             }
             translate_start_time = time.time()
             translations = task.inference_step(

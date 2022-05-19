@@ -26,7 +26,8 @@ def get_shard_range(tot, nshard, rank):
     end = round(tot / nshard * (rank + 1))
     assert start < end, f"start={start}, end={end}"
     logger.info(
-        f"rank {rank} of {nshard}, process {end-start} " f"({start}-{end}) out of {tot}"
+        f"rank {rank} of {nshard}, process {end-start} "
+        f"({start}-{end}) out of {tot}"
     )
     return start, end
 
@@ -37,12 +38,10 @@ def get_path_iterator(tsv, nshard, rank):
         lines = [line.rstrip() for line in f]
         start, end = get_shard_range(len(lines), nshard, rank)
         lines = lines[start:end]
-
         def iterate():
             for line in lines:
                 subpath, nsample = line.split("\t")
                 yield f"{root}/{subpath}", int(nsample)
-
     return iterate, len(lines)
 
 
@@ -63,3 +62,5 @@ def dump_feature(reader, generator, num, split, nshard, rank, feat_dir):
             feat_f.append(feat.cpu().numpy())
             leng_f.write(f"{len(feat)}\n")
     logger.info("finished successfully")
+
+

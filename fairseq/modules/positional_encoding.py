@@ -122,7 +122,8 @@ class RelPositionalEncoding(nn.Module):
         x = x.transpose(0, 1)  # Change TBC to BTC
         self.extend_pe(x)
         pos_emb = self.pe[
-            :, self.pe.size(1) // 2 - x.size(1) + 1 : self.pe.size(1) // 2 + x.size(1),
+            :,
+            self.pe.size(1) // 2 - x.size(1) + 1 : self.pe.size(1) // 2 + x.size(1),
         ]
         pos_emb = pos_emb.transpose(0, 1)  # change to TBC
         return pos_emb

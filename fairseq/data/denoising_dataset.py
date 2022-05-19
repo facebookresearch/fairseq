@@ -78,7 +78,10 @@ def collate(
     batch = {
         "id": id,
         "ntokens": ntokens,
-        "net_input": {"src_tokens": src_tokens, "src_lengths": src_lengths,},
+        "net_input": {
+            "src_tokens": src_tokens,
+            "src_lengths": src_lengths,
+        },
         "target": target,
         "nsentences": samples[0]["source"].size(0),
         "sort_order": sort_order,
@@ -361,7 +364,8 @@ class DenoisingDataset(FairseqDataset):
     def add_rolling_noise(self, tokens):
         offset = np.random.randint(1, max(1, tokens.size(-1) - 1) + 1)
         tokens = torch.cat(
-            (tokens[0:1], tokens[offset:-1], tokens[1:offset], tokens[-1:]), dim=0,
+            (tokens[0:1], tokens[offset:-1], tokens[1:offset], tokens[-1:]),
+            dim=0,
         )
         return tokens
 

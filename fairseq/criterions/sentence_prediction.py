@@ -20,7 +20,9 @@ class SentencePredictionConfig(FairseqDataclass):
         default="sentence_classification_head",
         metadata={"help": "name of the classification head to use"},
     )
-    regression_target: bool = field(default=False,)
+    regression_target: bool = field(
+        default=False,
+    )
 
 
 @register_criterion("sentence_prediction", dataclass=SentencePredictionConfig)

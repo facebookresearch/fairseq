@@ -104,7 +104,11 @@ class TestReproducibility(unittest.TestCase):
     def test_reproducibility_fp16(self):
         self._test_reproducibility(
             "test_reproducibility_fp16",
-            ["--fp16", "--fp16-init-scale", "4096",],
+            [
+                "--fp16",
+                "--fp16-init-scale",
+                "4096",
+            ],
             delta=0.011,
         )
 
@@ -112,14 +116,22 @@ class TestReproducibility(unittest.TestCase):
     def test_reproducibility_memory_efficient_fp16(self):
         self._test_reproducibility(
             "test_reproducibility_memory_efficient_fp16",
-            ["--memory-efficient-fp16", "--fp16-init-scale", "4096",],
+            [
+                "--memory-efficient-fp16",
+                "--fp16-init-scale",
+                "4096",
+            ],
         )
 
     @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
     def test_reproducibility_amp(self):
         self._test_reproducibility(
             "test_reproducibility_amp",
-            ["--amp", "--fp16-init-scale", "4096",],
+            [
+                "--amp",
+                "--fp16-init-scale",
+                "4096",
+            ],
             delta=0.011,
         )
 

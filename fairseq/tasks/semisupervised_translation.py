@@ -256,7 +256,10 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                 )
                 logger.info(
                     "backtranslate-{}: {} {} {} examples".format(
-                        tgt, data_path, split, len(backtranslate_datasets[lang_pair]),
+                        tgt,
+                        data_path,
+                        split,
+                        len(backtranslate_datasets[lang_pair]),
                     )
                 )
                 self.backtranslate_datasets[lang_pair] = backtranslate_datasets[
@@ -303,7 +306,10 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                 )
                 logger.info(
                     "denoising-{}: {} {} {} examples".format(
-                        tgt, data_path, split, len(noising_datasets[lang_pair]),
+                        tgt,
+                        data_path,
+                        split,
+                        len(noising_datasets[lang_pair]),
                     )
                 )
 
@@ -380,7 +386,9 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                     sequence_generator=self.sequence_generators[key],
                 ):
                     return sequence_generator.generate(
-                        [model], sample, bos_token=bos_token,
+                        [model],
+                        sample,
+                        bos_token=bos_token,
                     )
 
                 self.backtranslators[lang_pair] = backtranslate_fn

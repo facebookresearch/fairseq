@@ -36,5 +36,8 @@ class TPUDistributedDataParallel(nn.Module):
         import torch_xla.core.xla_model as xm
 
         xm.all_reduce(
-            "sum", gradients, scale=1.0 / self.world_size, groups=self.process_group[1],
+            "sum",
+            gradients,
+            scale=1.0 / self.world_size,
+            groups=self.process_group[1],
         )

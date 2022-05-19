@@ -181,10 +181,18 @@ class TranslationConfig(FairseqDataclass):
         },
     )
     source_lang: Optional[str] = field(
-        default=None, metadata={"help": "source language", "argparse_alias": "-s",},
+        default=None,
+        metadata={
+            "help": "source language",
+            "argparse_alias": "-s",
+        },
     )
     target_lang: Optional[str] = field(
-        default=None, metadata={"help": "target language", "argparse_alias": "-t",},
+        default=None,
+        metadata={
+            "help": "target language",
+            "argparse_alias": "-t",
+        },
     )
     load_alignments: bool = field(
         default=False, metadata={"help": "load the binarized alignments"}
@@ -246,7 +254,10 @@ class TranslationConfig(FairseqDataclass):
     )
     eval_bleu_remove_bpe: Optional[str] = field(
         default=None,
-        metadata={"help": "remove BPE before computing BLEU", "argparse_const": "@@ ",},
+        metadata={
+            "help": "remove BPE before computing BLEU",
+            "argparse_const": "@@ ",
+        },
     )
     eval_bleu_print_samples: bool = field(
         default=False, metadata={"help": "print sample generations during validation"}

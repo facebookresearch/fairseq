@@ -389,7 +389,12 @@ class TestRepeatNgramBlocking(TestSequenceGeneratorBase):
                 dtype=torch.long,
             )
             self._compare_cuda_ext_to_default_implem(
-                batch_size, beam_size, generated_tok, lprobs, step, block_param,
+                batch_size,
+                beam_size,
+                generated_tok,
+                lprobs,
+                step,
+                block_param,
             )
 
     def _compare_cuda_ext_to_default_implem(
@@ -398,9 +403,21 @@ class TestRepeatNgramBlocking(TestSequenceGeneratorBase):
         """Assert that cuda extension and default implem return the same thing."""
         blocker = NGramRepeatBlock(block_param)
         assert blocker.use_extension, "Extension not compiled"
-        cuda_ext_result = blocker(generated_tok, lprobs.clone(), bsz, beam_size, step,)
+        cuda_ext_result = blocker(
+            generated_tok,
+            lprobs.clone(),
+            bsz,
+            beam_size,
+            step,
+        )
         blocker.use_extension = False
-        baseline_result = blocker(generated_tok, lprobs.clone(), bsz, beam_size, step,)
+        baseline_result = blocker(
+            generated_tok,
+            lprobs.clone(),
+            bsz,
+            beam_size,
+            step,
+        )
         self.assertTensorEqual(cuda_ext_result, baseline_result)
         blocker.use_extension = True
         return cuda_ext_result, baseline_result
@@ -419,7 +436,10 @@ class TestDiverseBeamSearch(TestSequenceGeneratorBase):
 
         # construct source data
         self.src_tokens = torch.LongTensor(
-            [[self.w1, self.w2, self.eos], [self.w1, self.w2, self.eos],]
+            [
+                [self.w1, self.w2, self.eos],
+                [self.w1, self.w2, self.eos],
+            ]
         )
         self.src_lengths = torch.LongTensor([2, 2])
 
@@ -473,7 +493,10 @@ class TestDiverseBeamSearch(TestSequenceGeneratorBase):
             self.tgt_dict, num_groups=2, diversity_strength=0.0
         )
         generator = SequenceGenerator(
-            [self.model], self.tgt_dict, beam_size=2, search_strategy=search_strategy,
+            [self.model],
+            self.tgt_dict,
+            beam_size=2,
+            search_strategy=search_strategy,
         )
         sample = {
             "net_input": {
@@ -552,7 +575,10 @@ class TestTopPSamplingSearch(TestSequenceGeneratorBase):
 
         # construct source data
         self.src_tokens = torch.LongTensor(
-            [[self.w1, self.w2, self.eos], [self.w1, self.w2, self.eos],]
+            [
+                [self.w1, self.w2, self.eos],
+                [self.w1, self.w2, self.eos],
+            ]
         )
         self.src_lengths = torch.LongTensor([2, 2])
 

@@ -58,10 +58,12 @@ class MaskedLMConfig(FairseqDataclass):
         metadata={"help": "max number of tokens per sample for LM dataset"},
     )
     mask_prob: float = field(
-        default=0.15, metadata={"help": "probability of replacing a token with mask"},
+        default=0.15,
+        metadata={"help": "probability of replacing a token with mask"},
     )
     leave_unmasked_prob: float = field(
-        default=0.1, metadata={"help": "probability that a masked token is unmasked"},
+        default=0.1,
+        metadata={"help": "probability that a masked token is unmasked"},
     )
     random_token_prob: float = field(
         default=0.1,
@@ -76,10 +78,12 @@ class MaskedLMConfig(FairseqDataclass):
         metadata={"help": "mask whole words; you may also want to set --bpe"},
     )
     mask_multiple_length: int = field(
-        default=1, metadata={"help": "repeat the mask indices multiple times"},
+        default=1,
+        metadata={"help": "repeat the mask indices multiple times"},
     )
     mask_stdev: float = field(
-        default=0.0, metadata={"help": "stdev of the mask length"},
+        default=0.0,
+        metadata={"help": "stdev of the mask length"},
     )
     shorten_method: SHORTEN_METHOD_CHOICES = field(
         default="none",
@@ -133,7 +137,9 @@ class MaskedLMTask(FairseqTask):
         split_path = os.path.join(data_path, split)
 
         dataset = data_utils.load_indexed_dataset(
-            split_path, self.source_dictionary, combine=combine,
+            split_path,
+            self.source_dictionary,
+            combine=combine,
         )
         if dataset is None:
             raise FileNotFoundError(
@@ -197,12 +203,14 @@ class MaskedLMTask(FairseqTask):
             shuffle = np.random.permutation(len(src_dataset))
 
         target_dataset = RightPadDataset(
-            tgt_dataset, pad_idx=self.source_dictionary.pad(),
+            tgt_dataset,
+            pad_idx=self.source_dictionary.pad(),
         )
 
         input_dict = {
             "src_tokens": RightPadDataset(
-                src_dataset, pad_idx=self.source_dictionary.pad(),
+                src_dataset,
+                pad_idx=self.source_dictionary.pad(),
             ),
             "src_lengths": NumelDataset(src_dataset, reduce=False),
         }
@@ -220,7 +228,10 @@ class MaskedLMTask(FairseqTask):
                 },
                 sizes=[src_dataset.sizes],
             ),
-            sort_order=[shuffle, src_dataset.sizes,],
+            sort_order=[
+                shuffle,
+                src_dataset.sizes,
+            ],
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, sort=True):

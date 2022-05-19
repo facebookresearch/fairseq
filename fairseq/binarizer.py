@@ -68,7 +68,11 @@ class Binarizer(ABC):
     """
 
     @abstractmethod
-    def binarize_line(self, line: str, summary: BinarizeSummary,) -> torch.IntTensor:
+    def binarize_line(
+        self,
+        line: str,
+        summary: BinarizeSummary,
+    ) -> torch.IntTensor:
         ...
 
 
@@ -109,10 +113,17 @@ class FileBinarizer:
                         input_file,
                         start_offset,
                         end_offset,
-                        _worker_prefix(output_prefix, worker_id,),
+                        _worker_prefix(
+                            output_prefix,
+                            worker_id,
+                        ),
                         dataset_impl,
                     ),
-                    kwds={"vocab_size": vocab_size,} if vocab_size is not None else {},
+                    kwds={
+                        "vocab_size": vocab_size,
+                    }
+                    if vocab_size is not None
+                    else {},
                 )
                 for worker_id, (start_offset, end_offset) in enumerate(
                     more_chunks, start=1
@@ -140,7 +151,10 @@ class FileBinarizer:
         if num_workers > 1:
             for worker_id in range(1, num_workers):
                 # merge the worker outputs
-                worker_output_prefix = _worker_prefix(output_prefix, worker_id,)
+                worker_output_prefix = _worker_prefix(
+                    output_prefix,
+                    worker_id,
+                )
                 final_ds.merge_file_(worker_output_prefix)
                 try:
                     os.remove(indexed_dataset.data_file_path(worker_output_prefix))
@@ -172,7 +186,9 @@ class FileBinarizer:
         """
         bin_file = indexed_dataset.data_file_path(output_prefix)
         ds = indexed_dataset.make_builder(
-            bin_file, impl=dataset_impl, vocab_size=vocab_size,
+            bin_file,
+            impl=dataset_impl,
+            vocab_size=vocab_size,
         )
         summary = BinarizeSummary()
 
@@ -236,7 +252,9 @@ class VocabularyDatasetBinarizer(Binarizer):
         super().__init__()
 
     def binarize_line(
-        self, line: str, summary: BinarizeSummary,
+        self,
+        line: str,
+        summary: BinarizeSummary,
     ):
         if summary.replaced is None:
             summary.replaced = Counter()
@@ -274,12 +292,17 @@ class AlignmentDatasetBinarizer(Binarizer):
     them in a tensor (see utils.parse_alignment)
     """
 
-    def __init__(self, alignment_parser: tp.Callable[[str], torch.IntTensor],) -> None:
+    def __init__(
+        self,
+        alignment_parser: tp.Callable[[str], torch.IntTensor],
+    ) -> None:
         super().__init__()
         self.alignment_parser = alignment_parser
 
     def binarize_line(
-        self, line: str, summary: BinarizeSummary,
+        self,
+        line: str,
+        summary: BinarizeSummary,
     ):
         ids = self.alignment_parser(line)
         summary.num_seq += 1
@@ -309,7 +332,11 @@ class LegacyBinarizer:
             already_numberized=already_numberized,
         )
         return cls._consume_file(
-            filename, binarizer, consumer, offset_start=offset, offset_end=end,
+            filename,
+            binarizer,
+            consumer,
+            offset_start=offset,
+            offset_end=end,
         )
 
     @classmethod
@@ -323,7 +350,11 @@ class LegacyBinarizer:
     ) -> tp.Dict[str, int]:
         binarizer = AlignmentDatasetBinarizer(alignment_parser)
         return cls._consume_file(
-            filename, binarizer, consumer, offset_start=offset, offset_end=end,
+            filename,
+            binarizer,
+            consumer,
+            offset_start=offset,
+            offset_end=end,
         )
 
     @staticmethod

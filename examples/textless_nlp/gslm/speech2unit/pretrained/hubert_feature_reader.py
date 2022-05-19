@@ -16,7 +16,11 @@ class HubertFeatureReader:
     """
 
     def __init__(self, checkpoint_path, layer, max_chunk=1600000):
-        (model, cfg, task,) = fairseq.checkpoint_utils.load_model_ensemble_and_task(
+        (
+            model,
+            cfg,
+            task,
+        ) = fairseq.checkpoint_utils.load_model_ensemble_and_task(
             [checkpoint_path]
         )
         self.model = model[0].eval().cuda()
@@ -44,7 +48,7 @@ class HubertFeatureReader:
 
             feat = []
             for start in range(0, x.size(1), self.max_chunk):
-                x_chunk = x[:, start : start + self.max_chunk]
+                x_chunk = x[:, start: start + self.max_chunk]
                 feat_chunk, _ = self.model.extract_features(
                     source=x_chunk,
                     padding_mask=None,

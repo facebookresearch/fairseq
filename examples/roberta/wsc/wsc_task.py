@@ -88,7 +88,9 @@ class WSCTask(LegacyFairseqTask):
         if self.bpe is not None:
             s = self.bpe.encode(s)
         tokens = self.vocab.encode_line(
-            s, append_eos=append_eos, add_if_not_exist=False,
+            s,
+            append_eos=append_eos,
+            add_if_not_exist=False,
         ).long()
         if self.args.init_token is not None:
             tokens = torch.cat([tokens.new([self.args.init_token]), tokens])
@@ -96,7 +98,8 @@ class WSCTask(LegacyFairseqTask):
 
     def binarize_with_mask(self, txt, prefix, suffix, leading_space, trailing_space):
         toks = self.binarize(
-            prefix + leading_space + txt + trailing_space + suffix, append_eos=True,
+            prefix + leading_space + txt + trailing_space + suffix,
+            append_eos=True,
         )
         mask = torch.zeros_like(toks, dtype=torch.bool)
         mask_start = len(self.binarize(prefix))
@@ -159,7 +162,11 @@ class WSCTask(LegacyFairseqTask):
             cand_toks, cand_masks = [], []
             for cand_span in cand_spans:
                 toks, mask = self.binarize_with_mask(
-                    cand_span.text, prefix, suffix, leading_space, trailing_space,
+                    cand_span.text,
+                    prefix,
+                    suffix,
+                    leading_space,
+                    trailing_space,
                 )
                 cand_toks.append(toks)
                 cand_masks.append(mask)
@@ -196,7 +203,10 @@ class WSCTask(LegacyFairseqTask):
             "ntokens": NumelDataset(query_tokens, reduce=True),
         }
 
-        nested_dataset = NestedDictionaryDataset(dataset, sizes=[query_lengths],)
+        nested_dataset = NestedDictionaryDataset(
+            dataset,
+            sizes=[query_lengths],
+        )
 
         with data_utils.numpy_seed(self.args.seed):
             shuffle = np.random.permutation(len(query_tokens))
@@ -216,7 +226,9 @@ class WSCTask(LegacyFairseqTask):
         with tempfile.NamedTemporaryFile(buffering=0) as h:
             h.write((json.dumps(sample_json) + "\n").encode("utf-8"))
             dataset = self.load_dataset(
-                "disambiguate_pronoun", data_path=h.name, return_only=True,
+                "disambiguate_pronoun",
+                data_path=h.name,
+                return_only=True,
             )
         return dataset
 
@@ -241,7 +253,8 @@ class WSCTask(LegacyFairseqTask):
             return scores
 
         cand_lprobs = get_lprobs(
-            sample["candidate_tokens"][0], sample["candidate_masks"][0],
+            sample["candidate_tokens"][0],
+            sample["candidate_masks"][0],
         )
         if sample["query_tokens"][0] is not None:
             query_lprobs = get_lprobs(
@@ -314,7 +327,11 @@ class WinograndeTask(WSCTask):
 
             if query is not None:
                 query_toks, query_mask = self.binarize_with_mask(
-                    query, prefix, suffix, leading_space, trailing_space,
+                    query,
+                    prefix,
+                    suffix,
+                    leading_space,
+                    trailing_space,
                 )
                 query_len = len(query_toks)
             else:
@@ -325,7 +342,11 @@ class WinograndeTask(WSCTask):
             query_lengths.append(query_len)
 
             cand_toks, cand_mask = self.binarize_with_mask(
-                cand_text, prefix, suffix, leading_space, trailing_space,
+                cand_text,
+                prefix,
+                suffix,
+                leading_space,
+                trailing_space,
             )
 
             candidate_tokens.append(cand_toks)
@@ -336,7 +357,9 @@ class WinograndeTask(WSCTask):
 
         def get_pad_dataset_fn(tokens, length, pad_idx):
             return PadDataset(
-                ListDataset(tokens, length), pad_idx=pad_idx, left_pad=False,
+                ListDataset(tokens, length),
+                pad_idx=pad_idx,
+                left_pad=False,
             )
 
         query_tokens = get_pad_dataset_fn(query_tokens, query_lengths, self.vocab.pad())
@@ -358,7 +381,10 @@ class WinograndeTask(WSCTask):
             "ntokens": NumelDataset(query_tokens, reduce=True),
         }
 
-        nested_dataset = NestedDictionaryDataset(dataset, sizes=[query_lengths],)
+        nested_dataset = NestedDictionaryDataset(
+            dataset,
+            sizes=[query_lengths],
+        )
 
         with data_utils.numpy_seed(self.args.seed):
             shuffle = np.random.permutation(len(query_tokens))

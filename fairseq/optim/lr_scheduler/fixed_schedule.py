@@ -14,7 +14,8 @@ from fairseq.optim.lr_scheduler import FairseqLRScheduler, register_lr_scheduler
 @dataclass
 class FixedLRScheduleConfig(FairseqDataclass):
     force_anneal: Optional[int] = field(
-        default=None, metadata={"help": "force annealing at specified epoch"},
+        default=None,
+        metadata={"help": "force annealing at specified epoch"},
     )
     lr_shrink: float = field(
         default=0.1,

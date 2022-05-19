@@ -13,7 +13,11 @@ class MaskedLMDictionary(Dictionary):
     """
 
     def __init__(
-        self, pad="<pad>", eos="</s>", unk="<unk>", mask="<mask>",
+        self,
+        pad="<pad>",
+        eos="</s>",
+        unk="<unk>",
+        mask="<mask>",
     ):
         super().__init__(pad=pad, eos=eos, unk=unk)
         self.mask_word = mask

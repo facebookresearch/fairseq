@@ -155,8 +155,8 @@ class SampledMultiEpochDataset(SampledMultiDataset):
                     ).hexdigest(),
                     16,
                 )
-                % (2 ** 32),
-                self.seed % (2 ** 32),  # global seed
+                % (2**32),
+                self.seed % (2**32),  # global seed
                 epoch,  # epoch index,
             ]
         )
@@ -191,7 +191,9 @@ class SampledMultiEpochDataset(SampledMultiDataset):
 
         # reset cache sizes and ordered_indices for the epoch after moving to a new epoch
         self._clean_if_not_none(
-            [self._epoch_sizes,]
+            [
+                self._epoch_sizes,
+            ]
         )
         self._epoch_sizes = None
         self._current_epoch_start_index = index

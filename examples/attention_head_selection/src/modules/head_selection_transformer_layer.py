@@ -9,6 +9,7 @@ from ..modules.multihead_attention_selection import MultiheadAttentionSelection
 
 
 class HeadSelectionTransformerEncoderLayer(TransformerEncoderLayer):
+
     def __init__(self, args, layer_idx, attn_head_selector=None):
         super().__init__(args)
         self.layer_idx = layer_idx
@@ -26,11 +27,12 @@ class HeadSelectionTransformerEncoderLayer(TransformerEncoderLayer):
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
             layer_idx=self.layer_idx,
-            attn_head_selector=attn_head_selector,
+            attn_head_selector=attn_head_selector
         )
 
 
 class HeadSelectionTransformerDecoderLayer(TransformerDecoderLayer):
+
     def __init__(
         self,
         args,
@@ -45,24 +47,20 @@ class HeadSelectionTransformerDecoderLayer(TransformerDecoderLayer):
         super().__init__(args, no_encoder_attn, add_bias_kv, add_zero_attn)
         if self_attn_head_selector is not None:
             self.self_attn = self.build_self_attention_selection(
-                self.embed_dim,
-                args,
+                self.embed_dim, args,
                 self_attn_head_selector=self_attn_head_selector,
                 add_bias_kv=add_bias_kv,
-                add_zero_attn=add_zero_attn,
+                add_zero_attn=add_zero_attn
             )
         if enc_attn_head_selector is not None:
             self.encoder_attn = self.build_encoder_attention_selection(
-                self.embed_dim, args, enc_attn_head_selector=enc_attn_head_selector
+                self.embed_dim, args,
+                enc_attn_head_selector=enc_attn_head_selector
             )
 
     def build_self_attention_selection(
-        self,
-        embed_dim,
-        args,
-        self_attn_head_selector=None,
-        add_bias_kv=False,
-        add_zero_attn=False,
+        self, embed_dim, args, self_attn_head_selector=None,
+        add_bias_kv=False, add_zero_attn=False
     ):
         return MultiheadAttentionSelection(
             embed_dim,
@@ -78,9 +76,7 @@ class HeadSelectionTransformerDecoderLayer(TransformerDecoderLayer):
             attn_head_selector=self_attn_head_selector,
         )
 
-    def build_encoder_attention_selection(
-        self, embed_dim, args, enc_attn_head_selector=None
-    ):
+    def build_encoder_attention_selection(self, embed_dim, args, enc_attn_head_selector=None):
         return MultiheadAttentionSelection(
             embed_dim,
             args.total_decoder_attention_heads,

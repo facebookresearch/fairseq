@@ -82,7 +82,9 @@ class ExtractedFeaturesDataset(FairseqDataset):
         res = {"id": index, "features": feats}
         if len(self.labels) > 0:
             res["target"] = self.label_dict.encode_line(
-                self.labels[index], line_tokenizer=lambda x: x, append_eos=False,
+                self.labels[index],
+                line_tokenizer=lambda x: x,
+                append_eos=False,
             )
 
         return res

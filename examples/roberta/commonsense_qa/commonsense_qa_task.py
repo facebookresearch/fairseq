@@ -85,7 +85,9 @@ class CommonsenseQATask(LegacyFairseqTask):
             if self.bpe is not None:
                 s = self.bpe.encode(s)
             tokens = self.vocab.encode_line(
-                s, append_eos=True, add_if_not_exist=False,
+                s,
+                append_eos=True,
+                add_if_not_exist=False,
             ).long()
             if append_bos and self.args.init_token is not None:
                 tokens = torch.cat([tokens.new([self.args.init_token]), tokens])
@@ -139,7 +141,8 @@ class CommonsenseQATask(LegacyFairseqTask):
                 {
                     "net_input{}".format(i + 1): {
                         "src_tokens": RightPadDataset(
-                            src_tokens[i], pad_idx=self.source_dictionary.pad(),
+                            src_tokens[i],
+                            pad_idx=self.source_dictionary.pad(),
                         ),
                         "src_lengths": src_lengths[i],
                     }
@@ -172,7 +175,8 @@ class CommonsenseQATask(LegacyFairseqTask):
         model = models.build_model(args, self)
 
         model.register_classification_head(
-            "sentence_classification_head", num_classes=1,
+            "sentence_classification_head",
+            num_classes=1,
         )
 
         return model

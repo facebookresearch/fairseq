@@ -41,7 +41,11 @@ def get_features_from_npy_or_audio(path):
 
 
 def get_features_or_waveform_from_stored_zip(
-    path, byte_offset, byte_size, need_waveform=False, use_sample_rate=None,
+    path,
+    byte_offset,
+    byte_size,
+    need_waveform=False,
+    use_sample_rate=None,
 ):
     assert path.endswith(".zip")
     data = read_from_stored_zip(path, byte_offset, byte_size)
@@ -453,7 +457,7 @@ class SpeechToTextDatasetCreator(object):
 
         sz_sum = sum(v for v in lp_to_sz.values())
         lp_to_prob = {k: v / sz_sum for k, v in lp_to_sz.items()}
-        lp_to_tgt_prob = {k: v ** alpha for k, v in lp_to_prob.items()}
+        lp_to_tgt_prob = {k: v**alpha for k, v in lp_to_prob.items()}
         prob_sum = sum(v for v in lp_to_tgt_prob.values())
         lp_to_tgt_prob = {k: v / prob_sum for k, v in lp_to_tgt_prob.items()}
         lp_to_sz_ratio = {

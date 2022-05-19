@@ -49,7 +49,10 @@ class KaldiDecoderConfig(FairseqDataclass):
 
 class KaldiDecoder(object):
     def __init__(
-        self, cfg: KaldiDecoderConfig, beam: int, nbest: int = 1,
+        self,
+        cfg: KaldiDecoderConfig,
+        beam: int,
+        nbest: int = 1,
     ):
         try:
             from kaldi.asr import FasterRecognizer, LatticeFasterRecognizer

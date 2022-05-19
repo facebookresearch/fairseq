@@ -41,16 +41,20 @@ SHORTEN_METHOD_CHOICES = ChoiceEnum(["none", "truncate", "random_crop"])
 class SentencePredictionConfig(FairseqDataclass):
     data: str = field(default=MISSING, metadata={"help": "path to data directory"})
     num_classes: int = field(
-        default=-1, metadata={"help": "number of classes or regression targets"},
+        default=-1,
+        metadata={"help": "number of classes or regression targets"},
     )
     init_token: Optional[int] = field(
         default=None,
         metadata={"help": "add token at the beginning of each batch item"},
     )
     separator_token: Optional[int] = field(
-        default=None, metadata={"help": "add separator token between inputs"},
+        default=None,
+        metadata={"help": "add separator token between inputs"},
     )
-    no_shuffle: bool = field(default=False,)
+    no_shuffle: bool = field(
+        default=False,
+    )
     shorten_method: SHORTEN_METHOD_CHOICES = field(
         default="none",
         metadata={
@@ -71,7 +75,8 @@ class SentencePredictionConfig(FairseqDataclass):
         },
     )
     max_positions: int = field(
-        default=512, metadata={"help": "max tokens per example"},
+        default=512,
+        metadata={"help": "max tokens per example"},
     )
 
     regression_target: bool = II("criterion.regression_target")
@@ -109,7 +114,9 @@ class SentencePredictionTask(FairseqTask):
         assert cfg.num_classes > 0, "Must set task.num_classes"
 
         # load data dictionary
-        data_dict = cls.load_dictionary(os.path.join(cfg.data, "input0", "dict.txt"),)
+        data_dict = cls.load_dictionary(
+            os.path.join(cfg.data, "input0", "dict.txt"),
+        )
         logger.info("[input] dictionary: {} types".format(len(data_dict)))
 
         # load label dictionary
@@ -133,7 +140,9 @@ class SentencePredictionTask(FairseqTask):
 
             try:
                 dataset = data_utils.load_indexed_dataset(
-                    split_path, dictionary, combine=combine,
+                    split_path,
+                    dictionary,
+                    combine=combine,
                 )
             except Exception as e:
                 if "StorageException: [404] Path not found" in str(e):
@@ -176,7 +185,8 @@ class SentencePredictionTask(FairseqTask):
             "id": IdDataset(),
             "net_input": {
                 "src_tokens": RightPadDataset(
-                    src_tokens, pad_idx=self.source_dictionary.pad(),
+                    src_tokens,
+                    pad_idx=self.source_dictionary.pad(),
                 ),
                 "src_lengths": NumelDataset(src_tokens, reduce=False),
             },
@@ -186,9 +196,12 @@ class SentencePredictionTask(FairseqTask):
 
         if self.cfg.add_prev_output_tokens:
             prev_tokens_dataset = RightPadDataset(
-                RollDataset(src_tokens, 1), pad_idx=self.dictionary.pad(),
+                RollDataset(src_tokens, 1),
+                pad_idx=self.dictionary.pad(),
             )
-            dataset["net_input"].update(prev_output_tokens=prev_tokens_dataset,)
+            dataset["net_input"].update(
+                prev_output_tokens=prev_tokens_dataset,
+            )
 
         if not self.cfg.regression_target:
             label_dataset = make_dataset("label", self.label_dictionary)
@@ -196,7 +209,8 @@ class SentencePredictionTask(FairseqTask):
                 dataset.update(
                     target=OffsetTokensDataset(
                         StripTokenDataset(
-                            label_dataset, id_to_strip=self.label_dictionary.eos(),
+                            label_dataset,
+                            id_to_strip=self.label_dictionary.eos(),
                         ),
                         offset=-self.label_dictionary.nspecial,
                     )
@@ -222,7 +236,10 @@ class SentencePredictionTask(FairseqTask):
                         )
                     )
 
-        nested_dataset = NestedDictionaryDataset(dataset, sizes=[src_tokens.sizes],)
+        nested_dataset = NestedDictionaryDataset(
+            dataset,
+            sizes=[src_tokens.sizes],
+        )
 
         if self.cfg.no_shuffle:
             dataset = nested_dataset
@@ -247,7 +264,8 @@ class SentencePredictionTask(FairseqTask):
         model = models.build_model(cfg, self, from_checkpoint)
 
         model.register_classification_head(
-            self.cfg.classification_head_name, num_classes=self.cfg.num_classes,
+            self.cfg.classification_head_name,
+            num_classes=self.cfg.num_classes,
         )
 
         return model

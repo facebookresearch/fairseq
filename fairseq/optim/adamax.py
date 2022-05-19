@@ -149,7 +149,9 @@ class Adamax(torch.optim.Optimizer):
 
                 # Update the exponentially weighted infinity norm.
                 torch.max(
-                    exp_inf.mul_(beta2), grad.abs_(), out=exp_inf,
+                    exp_inf.mul_(beta2),
+                    grad.abs_(),
+                    out=exp_inf,
                 )
 
                 step_size = group["lr"]

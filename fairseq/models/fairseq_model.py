@@ -443,7 +443,11 @@ class FairseqMultiModel(BaseFairseqModel):
         return self.decoder(prev_output_tokens, **kwargs)
 
     def load_state_dict(
-        self, state_dict, strict=True, model_cfg=None, args: Optional[Namespace] = None,
+        self,
+        state_dict,
+        strict=True,
+        model_cfg=None,
+        args: Optional[Namespace] = None,
     ):
         """Copies parameters and buffers from *state_dict* into this module and
         its descendants.

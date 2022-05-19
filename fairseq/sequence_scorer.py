@@ -52,7 +52,10 @@ class SequenceScorer(object):
                     s = e
 
         def gather_target_probs(probs, target):
-            probs = probs.gather(dim=2, index=target.unsqueeze(-1),)
+            probs = probs.gather(
+                dim=2,
+                index=target.unsqueeze(-1),
+            )
             return probs
 
         orig_target = sample["target"]

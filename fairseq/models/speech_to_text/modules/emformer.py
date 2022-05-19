@@ -167,11 +167,15 @@ class SummarizationLayer(nn.Module):
         self.method = method
         if method == "mean":
             self.module = nn.AvgPool1d(
-                kernel_size=segment_size, stride=segment_size, ceil_mode=True,
+                kernel_size=segment_size,
+                stride=segment_size,
+                ceil_mode=True,
             )
         elif method == "max":
             self.module = nn.MaxPool1d(
-                kernel_size=segment_size, stride=segment_size, ceil_mode=True,
+                kernel_size=segment_size,
+                stride=segment_size,
+                ceil_mode=True,
             )
         elif method == "linear":
             self.module = nn.Linear(segment_size, 1)
@@ -186,7 +190,9 @@ class SummarizationLayer(nn.Module):
             else:
                 raise ValueError("Unsupported activation_fn = ({})".format(act_type))
             self.module = nn.Sequential(
-                nn.Linear(segment_size, hid_dim), act, nn.Linear(hid_dim, 1),
+                nn.Linear(segment_size, hid_dim),
+                act,
+                nn.Linear(hid_dim, 1),
             )
         else:
             raise ValueError("Unsupported summarization method = ({})".format(method))
@@ -313,10 +319,12 @@ class NoSegAugmentedMemoryMultiheadAttentionBmm(nn.Module):
         if max_relative_position > 0:
             self.use_rpe = True
             self.rpe_k = RelativePositionEmbedding(
-                head_dim=input_dim // num_heads, max_position=max_relative_position,
+                head_dim=input_dim // num_heads,
+                max_position=max_relative_position,
             )
             self.rpe_v = RelativePositionEmbedding(
-                head_dim=input_dim // num_heads, max_position=max_relative_position,
+                head_dim=input_dim // num_heads,
+                max_position=max_relative_position,
             )
         else:
             self.use_rpe = False
@@ -340,7 +348,7 @@ class NoSegAugmentedMemoryMultiheadAttentionBmm(nn.Module):
         self.dropout = dropout
 
         self.head_dim = embed_dim // num_heads
-        self.scaling = self.head_dim ** -0.5
+        self.scaling = self.head_dim**-0.5
 
         self.std_scale = std_scale
         self.use_mem = use_mem
@@ -576,7 +584,11 @@ class NoSegAugmentedMemoryMultiheadAttentionBmm(nn.Module):
             next_v = None
 
         attention_weights, attention_weights_float, v = self.prepare_attention_weights(
-            q=q, new_k=new_k, new_v=new_v, input_shape=input_shape, rpe=rpe,
+            q=q,
+            new_k=new_k,
+            new_v=new_v,
+            input_shape=input_shape,
+            rpe=rpe,
         )
 
         # mask attention
@@ -684,7 +696,11 @@ class NoSegAugmentedMemoryMultiheadAttentionBmm(nn.Module):
         next_v = new_v[mem_length + right_context_blocks_length :, :, :]
 
         attention_weights, attention_weights_float, v = self.prepare_attention_weights(
-            q=q, new_k=new_k, new_v=new_v, input_shape=input_shape, rpe=rpe,
+            q=q,
+            new_k=new_k,
+            new_v=new_v,
+            input_shape=input_shape,
+            rpe=rpe,
         )
         # In online decoding, we don't have attention mask. But we still need
         # to disable the attention from summary query to memory

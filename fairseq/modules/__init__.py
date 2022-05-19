@@ -47,7 +47,9 @@ from .espnet_multihead_attention import (
     RotaryPositionMultiHeadedAttention,
 )
 from .rotary_positional_embedding import RotaryPositionalEmbedding
-from .positional_encoding import RelPositionalEncoding
+from .positional_encoding import (
+    RelPositionalEncoding,
+)
 
 __all__ = [
     "AdaptiveInput",

@@ -20,7 +20,12 @@ class TransformEosConcatLangPairDataset(ConcatDataset):
     """
 
     def __init__(
-        self, datasets, src_eos, tgt_bos, new_src_eos=None, new_tgt_bos=None,
+        self,
+        datasets,
+        src_eos,
+        tgt_bos,
+        new_src_eos=None,
+        new_tgt_bos=None,
     ):
         super().__init__(datasets)
         if new_src_eos is not None:

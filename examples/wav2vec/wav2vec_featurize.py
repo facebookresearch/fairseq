@@ -35,9 +35,7 @@ class PretrainedWav2VecModel(nn.Module):
     def __init__(self, fname):
         super().__init__()
 
-        model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task(
-            [fname]
-        )
+        model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([fname])
         model = model[0]
         model.eval()
 

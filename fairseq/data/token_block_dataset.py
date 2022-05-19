@@ -130,7 +130,8 @@ class TokenBlockDataset(FairseqDataset):
             )
         else:
             block_to_dataset_index = _get_block_to_dataset_index_fast(
-                sizes, slice_indices,
+                sizes,
+                slice_indices,
             )
         size_dtype = np.uint16 if block_size < 65535 else np.uint32
         num_tokens = slice_indices[-1].max()

@@ -113,7 +113,10 @@ class TestFairseqSpeech(unittest.TestCase):
         return models, cfg, task, self.build_generator(task, models, cfg)
 
     def build_generator(
-        self, task, models, cfg,
+        self,
+        task,
+        models,
+        cfg,
     ):
         return task.build_generator(models, cfg)
 
@@ -183,7 +186,9 @@ class TestFairseqSpeech(unittest.TestCase):
             hypo = task.inference_step(generator, models, sample)
             for i, sample_id in enumerate(sample["id"].tolist()):
                 tgt_str, hypo_str = self.postprocess_tokens(
-                    task, sample["target"][i, :], hypo[i][0]["tokens"].int().cpu(),
+                    task,
+                    sample["target"][i, :],
+                    hypo[i][0]["tokens"].int().cpu(),
                 )
                 if batch_idx == 0 and i < 3:
                     print(f"T-{sample_id} {tgt_str}")

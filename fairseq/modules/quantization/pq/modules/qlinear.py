@@ -57,7 +57,11 @@ class PQLinear(nn.Module):
         )
 
     def forward(self, x):
-        return F.linear(x, self.weight, self.bias,)
+        return F.linear(
+            x,
+            self.weight,
+            self.bias,
+        )
 
     def extra_repr(self):
         return f"in_features={self.in_features},\

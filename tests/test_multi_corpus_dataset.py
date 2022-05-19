@@ -42,7 +42,8 @@ class TestMultiCorpusDataset(unittest.TestCase):
         )
 
     def _test_sample_helper(
-        self, distribution,
+        self,
+        distribution,
     ):
         m = MultiCorpusDataset(
             OrderedDict({0: self.dataset_1, 1: self.dataset_2}),
@@ -64,7 +65,8 @@ class TestMultiCorpusDataset(unittest.TestCase):
             1.0 * count_sample_from_first_dataset / len(indices)
         )
         self.assertLess(
-            abs(sample_from_first_ds_percentage - distribution[0]), 0.01,
+            abs(sample_from_first_ds_percentage - distribution[0]),
+            0.01,
         )
         self.assertEqual(
             len(items),

@@ -77,7 +77,11 @@ def dataset_dest_file(args, output_prefix, lang, extension):
 
 
 def _build_dictionary(
-    filenames, task, args, src=False, tgt=False,
+    filenames,
+    task,
+    args,
+    src=False,
+    tgt=False,
 ):
     assert src ^ tgt
     return task.build_dictionary(
@@ -104,7 +108,10 @@ def _make_binary_dataset(
 ):
     logger.info("[{}] Dictionary: {} types".format(lang, len(vocab)))
 
-    binarizer = VocabularyDatasetBinarizer(vocab, append_eos=True,)
+    binarizer = VocabularyDatasetBinarizer(
+        vocab,
+        append_eos=True,
+    )
 
     input_file = "{}{}".format(input_prefix, ("." + lang) if lang is not None else "")
     full_output_prefix = dataset_dest_prefix(args, output_prefix, lang)
@@ -274,7 +281,9 @@ def main(args):
     os.makedirs(args.destdir, exist_ok=True)
 
     logger.addHandler(
-        logging.FileHandler(filename=os.path.join(args.destdir, "preprocess.log"),)
+        logging.FileHandler(
+            filename=os.path.join(args.destdir, "preprocess.log"),
+        )
     )
     logger.info(args)
 
