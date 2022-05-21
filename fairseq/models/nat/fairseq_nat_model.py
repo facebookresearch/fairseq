@@ -108,6 +108,8 @@ class FairseqNATModel(TransformerModel):
 
         self.ensemble_models = None
 
+        self.update_num = 0
+
     @property
     def allow_length_beam(self):
         return False
@@ -115,6 +117,9 @@ class FairseqNATModel(TransformerModel):
     @property
     def allow_ensemble(self):
         return True
+
+    def set_num_updates(self, num_updates):
+        self.update_num = num_updates
 
     def enable_ensemble(self, models):
         self.encoder.ensemble_models = [m.encoder for m in models]

@@ -18,7 +18,7 @@ from fairseq.data import (
     TransformEosLangPairDataset,
 )
 from fairseq.models import FairseqMultiModel
-from fairseq.tasks.translation import load_langpair_dataset
+from fairseq.tasks.translation import load_langpair_dataset, valid_bleu
 
 from . import LegacyFairseqTask, register_task
 
@@ -380,6 +380,9 @@ class MultilingualTranslationTask(LegacyFairseqTask):
     def _per_lang_pair_valid_loss(self, lang_pair, model, criterion, sample):
         return criterion(model.models[lang_pair], sample[lang_pair])
 
+    def _per_lang_pair_valid_bleu(self, lang_pair, model, sample, logging_output):
+        valid_bleu(self, self.sequence_generator[lang_pair], sample[lang_pair], model.models[lang_pair], logging_output)
+
     def valid_step(self, sample, model, criterion):
         model.eval()
         with torch.no_grad():
@@ -396,6 +399,10 @@ class MultilingualTranslationTask(LegacyFairseqTask):
                 loss, sample_size, logging_output = self._per_lang_pair_valid_loss(
                     lang_pair, model, criterion, sample
                 )
+
+                if self.args.eval_bleu:
+                    self._per_lang_pair_valid_bleu(lang_pair, model, sample, logging_output)
+
                 agg_loss += loss.data.item()
                 # TODO make summing of the sample sizes configurable
                 agg_sample_size += sample_size
