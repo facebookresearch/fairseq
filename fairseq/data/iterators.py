@@ -57,7 +57,7 @@ class CountingIterator(object):
         except StopIteration:
             raise IndexError(
                 f"Iterator expected to have length {self.total}, "
-                "but exhausted at position {self.n}."
+                f"but exhausted at position {self.n}."
             )
         self.n += 1
         return x

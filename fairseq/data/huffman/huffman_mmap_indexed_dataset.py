@@ -70,7 +70,7 @@ class HuffmanMMapIndex:
             (version,) = struct.unpack("<Q", stream.read(8))
             assert (
                 self._VERSION == version
-            ), "Unexpected file version f{version} != code version f{self._VERSION}"
+            ), f"Unexpected file version{version} != code version {self._VERSION}"
 
             # read length of data file
             (self._data_len,) = struct.unpack("<Q", stream.read(8))
