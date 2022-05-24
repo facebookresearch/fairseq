@@ -371,10 +371,16 @@ class omegaconf_no_object_check:
             self.old_is_primitive = _utils.is_primitive_type_annotation
 
     def __enter__(self):
-        _utils.is_primitive_type_annotation = lambda _: True
+        if hasattr(_utils, "is_primitive_type"):
+            _utils.is_primitive_type = lambda _: True
+        else:
+            _utils.is_primitive_type_annotation = lambda _: True
 
     def __exit__(self, type, value, traceback):
-        _utils.is_primitive_type_annotation = self.old_is_primitive
+        if hasattr(_utils, "is_primitive_type"):
+            _utils.is_primitive_type = self.old_is_primitive
+        else:
+            _utils.is_primitive_type_annotation = self.old_is_primitive
 
 
 def convert_namespace_to_omegaconf(args: Namespace) -> DictConfig:
