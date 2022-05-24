@@ -364,7 +364,11 @@ def override_module_args(args: Namespace) -> Tuple[List[str], List[str]]:
 
 class omegaconf_no_object_check:
     def __init__(self):
-        self.old_is_primitive = _utils.is_primitive_type
+        # Changed in https://github.com/omry/omegaconf/pull/911 - both are kept for back compat. 
+        if hasattr(_utils, "is_primitive_type"):
+            self.old_is_primitive = _utils.is_primitive_type
+        else:
+            self.old_is_primitive = _utils.is_primitive_type_annotation
 
     def __enter__(self):
         _utils.is_primitive_type = lambda _: True
