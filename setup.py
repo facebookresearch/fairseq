@@ -173,7 +173,6 @@ else:
 if "clean" in sys.argv[1:]:
     # Source: https://bit.ly/2NLVsgE
     print("deleting Cython files...")
-    import subprocess
 
     subprocess.run(
         ["rm -f fairseq/*.so fairseq/**/*.so fairseq/*.pyd fairseq/**/*.pyd"],

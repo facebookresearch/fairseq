@@ -313,6 +313,11 @@ class TransformerEncoderBase(FairseqEncoder):
             "src_lengths": src_lengths,  # B x 1
         }
 
+    @torch.jit.export
+    def _reorder_encoder_out(self, encoder_out: Dict[str, List[Tensor]], new_order):
+        """Dummy re-order function for beamable enc-dec attention"""
+        return encoder_out
+
     def max_positions(self):
         """Maximum input length supported by the encoder."""
         if self.embed_positions is None:

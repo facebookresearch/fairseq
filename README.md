@@ -2,6 +2,7 @@
   <img src="docs/fairseq_logo.png" width="150">
   <br />
   <br />
+  <a href="https://opensource.fb.com/support-ukraine"><img alt="Support Ukraine" src="https://img.shields.io/badge/Support-Ukraine-FFD500?style=flat&labelColor=005BBB" /></a>
   <a href="https://github.com/pytorch/fairseq/blob/main/LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
   <a href="https://github.com/pytorch/fairseq/releases"><img alt="Latest Release" src="https://img.shields.io/github/release/pytorch/fairseq.svg" /></a>
   <a href="https://github.com/pytorch/fairseq/actions?query=workflow:build"><img alt="Build Status" src="https://github.com/pytorch/fairseq/workflows/build/badge.svg" /></a>
@@ -68,6 +69,7 @@ We provide reference implementations of various sequence modeling papers:
 </p></details>
 
 ### What's New:
+* May 2022 [Integration with xFormers](https://github.com/facebookresearch/xformers)
 * December 2021 [Released Direct speech-to-speech translation code](examples/speech_to_speech/README.md)
 * October 2021 [Released VideoCLIP and VLM models](examples/MMPT/README.md)
 * October 2021 [Released multilingual finetuned XLSR-53 model](examples/wav2vec/README.md)

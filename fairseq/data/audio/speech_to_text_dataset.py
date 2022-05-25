@@ -281,6 +281,13 @@ class SpeechToTextDataset(FairseqDataset):
                 )
                 target = torch.cat((torch.LongTensor([lang_tag_idx]), target), 0)
 
+        if self.cfg.prepend_bos_and_append_tgt_lang_tag:
+            bos = torch.LongTensor([self.tgt_dict.bos()])
+            lang_tag_idx = self.get_lang_tag_idx(self.tgt_langs[index], self.tgt_dict)
+            assert lang_tag_idx != self.tgt_dict.unk()
+            lang_tag_idx = torch.LongTensor([lang_tag_idx])
+            target = torch.cat((bos, target, lang_tag_idx), 0)
+
         speaker_id = None
         if self.speaker_to_id is not None:
             speaker_id = self.speaker_to_id[self.speakers[index]]
@@ -322,7 +329,7 @@ class SpeechToTextDataset(FairseqDataset):
             prev_output_tokens = fairseq_data_utils.collate_tokens(
                 [x.target for x in samples],
                 self.tgt_dict.pad(),
-                self.tgt_dict.eos(),
+                eos_idx=None,
                 left_pad=False,
                 move_eos_to_beginning=True,
             )

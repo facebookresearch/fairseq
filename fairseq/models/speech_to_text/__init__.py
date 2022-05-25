@@ -5,6 +5,8 @@
 
 from .berard import *  # noqa
 from .convtransformer import *  # noqa
+from .multi_modality_model import *  # noqa
 from .s2t_transformer import *  # noqa
+from .s2t_wav_transformer import *  # noqa
 from .xm_transformer import *  # noqa
 from .s2t_conformer import *  # noqa

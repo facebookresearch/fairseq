@@ -55,9 +55,9 @@ class HubertPretrainingConfig(FairseqDataclass):
             "help": "if set, looks for labels in this directory instead",
         },
     )
-    label_rate: int = field(
-        default=-1,
-        metadata={"help": "label frame rate. -1 for sequence label"},
+    label_rate: float = field(
+        default=-1.0,
+        metadata={"help": "label frame rate. -1.0 for sequence label"},
     )
     sample_rate: int = field(
         default=16_000,
