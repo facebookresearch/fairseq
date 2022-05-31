@@ -6,9 +6,9 @@ version: 2.1
 # -------------------------------------------------------------------------------------
 gpu: &gpu
   environment:
-    CUDA_VERSION: "11.1"
+    CUDA_VERSION: "11.2"
   machine:
-    image: ubuntu-1604-cuda-11.1:202012-01
+    image: ubuntu-2004-cuda-11.2:202103-01
   resource_class: gpu.nvidia.medium.multi
 
 
@@ -39,6 +39,7 @@ install_dep_fused_ops: &install_dep_fused_ops
         git clone https://github.com/NVIDIA/apex
         cd apex
         git checkout e2083df5eb96643c61613b9df48dd4eea6b07690
+        sed -i '101,107 s/^/#/' setup.py
         pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--deprecated_fused_adam" --global-option="--xentropy" --global-option="--fast_multihead_attn" ./
         cd ~/
         git clone --depth=1 --branch v2.4 https://github.com/NVIDIA/Megatron-LM.git
