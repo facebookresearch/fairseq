@@ -1,6 +1,13 @@
-name: build_wheels
+name: Fairseq Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: 'Release Type'
+        default: 'patch'
+        required: true
+
   push:
     branches:
       - v[0-9]+.[0-9]+.[x0-9]+
@@ -8,9 +15,40 @@ on:
       - v*
 
 jobs:
+
+  get_next_version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout-repo-content
+        uses: actions/checkout@v2
+
+      - name: setup-python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+
+      - name: get next version and tag
+        id: get-next-version-and-tag
+        run: |
+          # TODO: revert this change
+          release_type=$( if ${{ github.event_name == 'push' }}; then echo "patch"; else {{ github.event.inputs.name }}; fi)
+          output=$(python3 release_utils.py --release-type $release_type)
+          echo $output
+          new_version=$(echo $output | awk '{print $1}')
+          new_tag=$(echo $output | awk '{print $2}')
+          echo "new version is $new_version"
+          echo "new tag is $new_tag"
+          echo ::set-output name=version::$new_version
+          echo ::set-output name=tag::$new_tag
+    outputs:
+      new_version: ${{ steps.get-next-version-and-tag.outputs.version }}
+      new_tag: ${{ steps.get-next-version-and-tag.outputs.tag }}
+
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+# TODO: uncomment
+    needs: get_next_version
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -23,9 +61,24 @@ jobs:
         with:
           python-version: '3.8'
 
+      # update the version number in version.txt
+      - name: update version
+        id: update-version
+        run : |
+          echo "current folder = $PWD"
+          echo "current branch = $(git branch --show-current)"
+          release_type=$( if ${{ github.event_name == 'push' }}; then echo "patch"; else {{ github.event.inputs.name }}; fi)
+          echo "release type = $release_type"
+          output=$(python3 release_utils.py --release-type $release_type --update-version)
+
       - name: Upgrade pip
         run: |
           python3 -m pip install --upgrade pip
+
+      - name: Create Source Distribution
+        run: |
+          pip install setuptools wheel twine
+          python3 setup.py sdist
 
       - name: Install cibuildwheel
         run: |
@@ -43,7 +96,36 @@ jobs:
           CIBW_ENVIRONMENT: "PIP_ONLY_BINARY=numpy"
           CIBW_SKIP: "*musllinux*"
 
-      - uses: actions/upload-artifact@v2
+      # build the PyPI package and upload it
+      - name: upload 
+        env:
+          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        run: |
+# TODO: uncomment to test
+#          python3 -m twine upload --repository pypi dist/*
+
+      # add and commit the updated version.py to main
+      - name: add and commit
+        uses: EndBug/add-and-commit@v9
         with:
-          name: wheels
-          path: ./dist/*.whl
+          author_name: ${{ secrets.AUTHOR_NAME }}
+          author_email: ${{ secrets.AUTHOR_EMAIL }}
+
+          # TODO: change this to main once shipit is disabled.
+          # TODO: change to version
+          # branch: ${{ needs.get_next_version.outputs.new_version }}
+          new_branch: dianaml_testing
+          default_author: github_actor
+          message: '${{ needs.get_next_version.outputs.new_version }} release'
+          pathspec_error_handling: exitAtEnd
+
+          # Arguments for the git pull command. Use NO-PULL to avoid the action pulling at all.
+          # pull: 'NO-PULL'
+          tag: '${{ needs.get_next_version.outputs.new_tag }}'
+
+      # create the release on github
+      - name: create release on github
+        uses: ncipollo/release-action@v1
+        with:
+          tag: '${{ needs.get_next_version.outputs.new_tag }}'
