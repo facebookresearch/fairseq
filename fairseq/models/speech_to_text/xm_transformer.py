@@ -239,6 +239,12 @@ def add_wav2vec_asr_args(parser):
 
     parser.add_argument("--w2v-args", default=None)
 
+    parser.add_argument(
+        "--remove-weight-norm",
+        action="store_true",
+        help="if set, then the weight-norm (in one pos_conv layer) is removed from the model",
+    )
+
 
 def need_finetuning(ft_params, param_name):
     if ft_params == "all":
@@ -441,6 +447,23 @@ def add_decoder_args(parser):
     )
 
 
+def remove_weight_norm_from_model(model):
+    from functools import reduce
+
+    layers_with_wn = []
+    for param_name, _ in model.named_parameters():
+        if param_name.endswith("_g"):
+            # retrieve the module with this param_name
+            module_names = param_name.split(".")[
+                :-1
+            ]  # exclude the actual parameter name
+            wn_module = reduce(getattr, module_names, model)
+            layers_with_wn.append(wn_module)
+    for wn_module in layers_with_wn:
+        torch.nn.utils.remove_weight_norm(wn_module)
+        logger.warning(f"Weight norm removed from module with {wn_module}\n")
+
+
 @register_model("xm_transformer")
 class XMTransformerModel(FairseqEncoderDecoderModel):
     @classmethod
@@ -527,9 +550,36 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             del state
 
         encoder = Wav2VecEncoderWithAdaptor(_args)
-        return cls.maybe_load_pretrained(
+        encoder = cls.maybe_load_pretrained(
             encoder, getattr(args, "load_pretrained_encoder_from", None)
         )
+        if args.remove_weight_norm:
+            # remove the wn for EMA usage
+            logger.warning("Removing weight norm from wav2vec encoder")
+            remove_weight_norm_from_model(encoder)
+
+        return encoder
+
+    @classmethod
+    def get_decoder_args_from_checkpoint(cls, ckpt_args):
+        assert "model" in ckpt_args, "Model args not found in checkpoint cfg!"
+        decoder_args = {}
+        for k, v in ckpt_args["model"].__dict__.items():
+            if "decoder" in k:
+                decoder_args[k] = v
+
+        return decoder_args
+
+    @classmethod
+    def override_decoder_args(cls, cli_args, decoder_args_dict):
+        for k, v in decoder_args_dict.items():
+            if v != getattr(cli_args, k, None):
+                logger.warning(
+                    f"Overriding decoder arg {k}: from {getattr(cli_args, k, None)} to {v}"
+                )
+                setattr(cli_args, k, v)
+
+        return cli_args
 
     @classmethod
     def build_decoder(cls, args, task, embed_tokens):
@@ -555,6 +605,10 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
 
         # make sure all arguments are present in older models
         base_architecture(args)
+        if getattr(args, "load_pretrained_decoder_from", None):
+            ckpt = torch.load(getattr(args, "load_pretrained_decoder_from", None))
+            decoder_args_dict = cls.get_decoder_args_from_checkpoint(ckpt["cfg"])
+            args = cls.override_decoder_args(args, decoder_args_dict)
 
         def build_embedding(dictionary, embed_dim):
             num_embeddings = len(dictionary)
@@ -608,6 +662,7 @@ def set_default_w2v_encoder_args(args):
     args.attention_dropout = getattr(args, "attention_dropout", 0)
     args.activation_dropout = getattr(args, "activation_dropout", 0)
     args.encoder_proj = getattr(args, "encoder_proj", False)
+    args.remove_weight_norm = getattr(args, "remove_weight_norm", False)
 
     args.mask_length = getattr(args, "mask_length", 10)
     args.mask_prob = getattr(args, "mask_prob", 0.5)
