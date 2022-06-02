@@ -24,7 +24,7 @@ jobs:
           python-version: '3.8'
 
       - name: Upgrade pip
-        run: | 
+        run: |
           python3 -m pip install --upgrade pip
 
       - name: Install cibuildwheel
@@ -37,7 +37,7 @@ jobs:
         env:
           CIBW_BUILD: "cp36-*64 cp37-*64 cp38-*64"
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux1
-          CIBW_BEFORE_BUILD: git submodule update --init --recursive && pip install . --only-binary numpy
+          CIBW_BEFORE_BUILD: git submodule update --init --recursive && pip install .
           # Install system library
           CIBW_BEFORE_BUILD_LINUX: yum install -y libffi-devel || apt-get install -y libffi-devel || apk add --update --no-cache libffi-devel || true
           CIBW_ENVIRONMENT: "PIP_ONLY_BINARY=numpy"

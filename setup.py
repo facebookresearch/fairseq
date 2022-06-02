@@ -204,7 +204,7 @@ def do_setup(package_data):
         setup_requires=[
             "cython",
             'numpy<1.20.0; python_version<"3.7"',
-            'oldest-supported-numpy; python_version>="3.7"',
+            'numpy; python_version>="3.7"',
             "setuptools>=18.0",
         ],
         install_requires=[
