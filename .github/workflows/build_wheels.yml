@@ -57,6 +57,14 @@ jobs:
         with:
           python-version: '3.8'
 
+      # update the version number in version.txt
+      - name: update version
+        id: update-version
+        run : |
+          echo "current folder = $PWD"
+          echo "current branch = $(git branch --show-current)"
+          output=$(python3 release_utils.py --release-type ${{ github.event.inputs.name }} --update-version)
+
       - name: Upgrade pip
         run: |
           python3 -m pip install --upgrade pip
@@ -81,3 +89,19 @@ jobs:
         with:
           name: wheels
           path: ./dist/*.whl
+
+      # add and commit the updated version.py to main
+      - name: add and commit to main
+        uses: EndBug/add-and-commit@v7.5.0
+        with:
+          author_name: ${{ secrets.AUTHOR_NAME }}
+          author_email: ${{ secrets.AUTHOR_EMAIL }}
+
+          branch: main
+          default_author: github_actor
+          message: '${{ needs.get_next_version.outputs.new_version }} release'
+          pathspec_error_handling: exitAtEnd
+
+          # Arguments for the git pull command. Use NO-PULL to avoid the action pulling at all.
+          # pull: 'NO-PULL'
+          tag: '${{ needs.get_next_version.outputs.new_tag }}'
