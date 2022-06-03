@@ -69,6 +69,11 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
 
+      - name: Create Source Distribution
+        run: |
+          pip install setuptools wheel twine
+          python3 setup.py sdist
+
       - name: Install cibuildwheel
         run: |
           python3 -m pip install cibuildwheel
@@ -89,6 +94,10 @@ jobs:
         with:
           name: wheels
           path: ./dist/*.whl
+
+     - name: uplaod
+         run: |
+           python3 -m twine upload --repository pypi dist/*
 
       # add and commit the updated version.py to main
       - name: add and commit to main
