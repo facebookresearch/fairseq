@@ -21,19 +21,27 @@ jobs:
       - name: Install Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.7'
+          python-version: '3.8'
+
+      - name: Upgrade pip
+        run: |
+          python3 -m pip install --upgrade pip
 
       - name: Install cibuildwheel
         run: |
-          python -m pip install cibuildwheel
+          python3 -m pip install cibuildwheel
 
       - name: Build wheels for CPython
         run: |
-          python -m cibuildwheel --output-dir dist
+          python3 -m cibuildwheel --output-dir dist
         env:
           CIBW_BUILD: "cp36-*64 cp37-*64 cp38-*64"
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux1
           CIBW_BEFORE_BUILD: git submodule update --init --recursive && pip install .
+          # Install system library
+          CIBW_BEFORE_BUILD_LINUX: yum install -y libffi-devel || apt-get install -y libffi-devel || apk add --update --no-cache libffi-devel || true
+          CIBW_ENVIRONMENT: "PIP_ONLY_BINARY=numpy"
+          CIBW_SKIP: "*musllinux*"
 
       - uses: actions/upload-artifact@v2
         with:
