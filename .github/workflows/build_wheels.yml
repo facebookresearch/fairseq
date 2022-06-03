@@ -2,6 +2,12 @@ name: Fairseq Release
 
 on:
   workflow_dispatch:
+    inputs:
+      name:
+        description: 'Release Type'
+        default: 'patch'
+        required: true
+
   push:
     branches:
       - v[0-9]+.[0-9]+.[x0-9]+
@@ -9,6 +15,33 @@ on:
       - v*
 
 jobs:
+
+  get_next_version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout-repo-content
+        uses: actions/checkout@v2
+
+      - name: setup-python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+
+      - name: get next version and tag
+        id: get-next-version-and-tag
+        run: |
+          output=$(python3 release_utils.py --release-type ${{ github.event.inputs.name }})
+          echo $output
+          new_version=$(echo $output | awk '{print $1}')
+          new_tag=$(echo $output | awk '{print $2}')
+          echo "new version is $new_version"
+          echo "new tag is $new_tag"
+          echo ::set-output name=version::$new_version
+          echo ::set-output name=tag::$new_tag
+    outputs:
+      new_version: ${{ steps.get-next-version-and-tag.outputs.version }}
+      new_tag: ${{ steps.get-next-version-and-tag.outputs.tag }}
+
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}

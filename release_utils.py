@@ -52,7 +52,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Versioning utils")
     parser.add_argument("--release-type", type=str, required=True, help="type of release = major/minor/patch")
     parser.add_argument(
-        "--update-version", action="store_true", required=False, help="updates the version in fairscale/version.py"
+        "--update-version", action="store_true", required=False, help="updates the version in fairseq/version.txt"
     )
 
     args = parser.parse_args()
