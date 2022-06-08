@@ -8,12 +8,6 @@ on:
         default: 'patch'
         required: true
 
-  push:
-    branches:
-      - v[0-9]+.[0-9]+.[x0-9]+
-    tags:
-      - v*
-
 jobs:
 
   get_next_version:
@@ -30,9 +24,7 @@ jobs:
       - name: get next version and tag
         id: get-next-version-and-tag
         run: |
-          # TODO: revert this change
-          release_type=$( if ${{ github.event_name == 'push' }}; then echo "patch"; else {{ github.event.inputs.name }}; fi)
-          output=$(python3 release_utils.py --release-type $release_type)
+          output=$(python3 release_utils.py --release-type ${{ github.event.inputs.name }})
           echo $output
           new_version=$(echo $output | awk '{print $1}')
           new_tag=$(echo $output | awk '{print $2}')
@@ -47,7 +39,6 @@ jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-# TODO: uncomment
     needs: get_next_version
     strategy:
       matrix:
@@ -67,9 +58,7 @@ jobs:
         run : |
           echo "current folder = $PWD"
           echo "current branch = $(git branch --show-current)"
-          release_type=$( if ${{ github.event_name == 'push' }}; then echo "patch"; else {{ github.event.inputs.name }}; fi)
-          echo "release type = $release_type"
-          output=$(python3 release_utils.py --release-type $release_type --update-version)
+          output=$(python3 release_utils.py --release-type ${{ github.event.inputs.name }}--update-version)
 
       - name: Upgrade pip
         run: |
@@ -102,8 +91,7 @@ jobs:
           TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
           TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: |
-# TODO: uncomment to test
-#          python3 -m twine upload --repository pypi dist/*
+          python3 -m twine upload --repository pypi dist/*
 
       # add and commit the updated version.py to main
       - name: add and commit
@@ -113,9 +101,7 @@ jobs:
           author_email: ${{ secrets.AUTHOR_EMAIL }}
 
           # TODO: change this to main once shipit is disabled.
-          # TODO: change to version
-          # branch: ${{ needs.get_next_version.outputs.new_version }}
-          new_branch: dianaml_testing
+          new_branch: ${{ needs.get_next_version.outputs.new_version }}
           default_author: github_actor
           message: '${{ needs.get_next_version.outputs.new_version }} release'
           pathspec_error_handling: exitAtEnd
