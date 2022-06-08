@@ -95,6 +95,7 @@ jobs:
 
       # add and commit the updated version.py to main
       - name: add and commit
+        if: ${{ matrix.os=='ubuntu-latest' }}
         uses: EndBug/add-and-commit@v9
         with:
           author_name: ${{ secrets.AUTHOR_NAME }}
@@ -112,6 +113,7 @@ jobs:
 
       # create the release on github
       - name: create release on github
+        if: ${{ matrix.os=='ubuntu-latest' }}
         uses: ncipollo/release-action@v1
         with:
           tag: '${{ needs.get_next_version.outputs.new_tag }}'
