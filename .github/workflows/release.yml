@@ -86,7 +86,7 @@ jobs:
           CIBW_SKIP: "*musllinux*"
 
       # build the PyPI package and upload it
-      - name: upload 
+      - name: upload
         env:
           TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
           TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
