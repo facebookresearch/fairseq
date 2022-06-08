@@ -30,7 +30,7 @@ class StepLRScheduleConfig(FairseqDataclass):
         metadata={"help": "max learning rate, must be more than cfg.min_lr"},
     )
     min_lr: float = field(default=0.0, metadata={"help": "min learning rate"})
-    lr_deacy_period: int = field(default=25000, metadata={"help": "decay period"})
+    lr_decay_period: int = field(default=25000, metadata={"help": "decay period"})
     lr_decay: float = field(default=0.5, metadata={"help": "decay factor"})
 
 
