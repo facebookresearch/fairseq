@@ -1,0 +1,119 @@
+name: Fairseq Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: 'Release Type'
+        default: 'patch'
+        required: true
+
+jobs:
+
+  get_next_version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout-repo-content
+        uses: actions/checkout@v2
+
+      - name: setup-python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+
+      - name: get next version and tag
+        id: get-next-version-and-tag
+        run: |
+          output=$(python3 release_utils.py --release-type ${{ github.event.inputs.name }})
+          echo $output
+          new_version=$(echo $output | awk '{print $1}')
+          new_tag=$(echo $output | awk '{print $2}')
+          echo "new version is $new_version"
+          echo "new tag is $new_tag"
+          echo ::set-output name=version::$new_version
+          echo ::set-output name=tag::$new_tag
+    outputs:
+      new_version: ${{ steps.get-next-version-and-tag.outputs.version }}
+      new_tag: ${{ steps.get-next-version-and-tag.outputs.tag }}
+
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    needs: get_next_version
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      # update the version number in version.txt
+      - name: update version
+        id: update-version
+        run : |
+          echo "current folder = $PWD"
+          echo "current branch = $(git branch --show-current)"
+          output=$(python3 release_utils.py --release-type ${{ github.event.inputs.name }}--update-version)
+
+      - name: Upgrade pip
+        run: |
+          python3 -m pip install --upgrade pip
+
+      - name: Create Source Distribution
+        run: |
+          pip install setuptools wheel twine
+          python3 setup.py sdist
+
+      - name: Install cibuildwheel
+        run: |
+          python3 -m pip install cibuildwheel
+
+      - name: Build wheels for CPython
+        run: |
+          python3 -m cibuildwheel --output-dir dist
+        env:
+          CIBW_BUILD: "cp36-*64 cp37-*64 cp38-*64"
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux1
+          CIBW_BEFORE_BUILD: git submodule update --init --recursive && pip install .
+          # Install system library
+          CIBW_BEFORE_BUILD_LINUX: yum install -y libffi-devel || apt-get install -y libffi-devel || apk add --update --no-cache libffi-devel || true
+          CIBW_ENVIRONMENT: "PIP_ONLY_BINARY=numpy"
+          CIBW_SKIP: "*musllinux*"
+
+      # build the PyPI package and upload it
+      - name: upload
+        env:
+          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        run: |
+          python3 -m twine upload --repository pypi dist/*
+
+      # add and commit the updated version.py to main
+      - name: add and commit
+        if: ${{ matrix.os=='ubuntu-latest' }}
+        uses: EndBug/add-and-commit@v9
+        with:
+          author_name: ${{ secrets.AUTHOR_NAME }}
+          author_email: ${{ secrets.AUTHOR_EMAIL }}
+
+          # TODO: change this to main once shipit is disabled.
+          new_branch: ${{ needs.get_next_version.outputs.new_version }}
+          default_author: github_actor
+          message: '${{ needs.get_next_version.outputs.new_version }} release'
+          pathspec_error_handling: exitAtEnd
+
+          # Arguments for the git pull command. Use NO-PULL to avoid the action pulling at all.
+          # pull: 'NO-PULL'
+          tag: '${{ needs.get_next_version.outputs.new_tag }}'
+
+      # create the release on github
+      - name: create release on github
+        if: ${{ matrix.os=='ubuntu-latest' }}
+        uses: ncipollo/release-action@v1
+        with:
+          tag: '${{ needs.get_next_version.outputs.new_tag }}'
