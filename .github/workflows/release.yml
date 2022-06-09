@@ -58,7 +58,7 @@ jobs:
         run : |
           echo "current folder = $PWD"
           echo "current branch = $(git branch --show-current)"
-          output=$(python3 release_utils.py --release-type ${{ github.event.inputs.name }}--update-version)
+          output=$(python3 release_utils.py --release-type ${{ github.event.inputs.name }} --update-version)
 
       - name: Upgrade pip
         run: |
