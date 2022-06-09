@@ -18,17 +18,6 @@ def write_version_py():
     with open(os.path.join("fairseq", "version.txt")) as f:
         version = f.read().strip()
 
-    # append latest commit hash to version string
-    try:
-        sha = (
-            subprocess.check_output(["git", "rev-parse", "HEAD"])
-            .decode("ascii")
-            .strip()
-        )
-        version += "+" + sha[:7]
-    except Exception:
-        pass
-
     # write version info to fairseq/version.py
     with open(os.path.join("fairseq", "version.py"), "w") as f:
         f.write('__version__ = "{}"\n'.format(version))
