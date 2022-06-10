@@ -1,6 +1,12 @@
 name: Fairseq Release
 
-on: push
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: 'Release Type'
+        default: 'patch'
+        required: true
 
 jobs:
 
@@ -18,7 +24,7 @@ jobs:
       - name: get next version and tag
         id: get-next-version-and-tag
         run: |
-          output=$(python3 release_utils.py --release-type patch) 
+          output=$(python3 release_utils.py --release-type ${{ github.event.inputs.name }}) 
           echo $output
           new_version=$(echo $output | awk '{print $1}')
           new_tag=$(echo $output | awk '{print $2}')
@@ -37,7 +43,7 @@ jobs:
         run : |
           echo "current folder = $PWD"
           echo "current branch = $(git branch --show-current)"
-          output=$(python3 release_utils.py --release-type patch --update-version)
+          output=$(python3 release_utils.py --release-type ${{ github.event.inputs.name }} --update-version)
 
       - name: add and commit
         uses: EndBug/add-and-commit@v9
@@ -57,8 +63,7 @@ jobs:
 
     outputs:
       new_version: ${{ steps.get-next-version-and-tag.outputs.version }}
-      # TODO: remove prefix
-      new_tag: test-${{ steps.get-next-version-and-tag.outputs.tag }}
+      new_tag: ${{ steps.get-next-version-and-tag.outputs.tag }}
       branch_name: ${{ steps.get-next-version-and-tag.outputs.branch_name }}
 
   create_sdist:
@@ -146,8 +151,7 @@ jobs:
           TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
           TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: |
-        # TODO: uncomment
-                # python3 -m twine upload --repository pypi dist/*
+          python3 -m twine upload --repository pypi dist/*
 
       # create the release on github
       - name: create release on github
