@@ -32,9 +32,52 @@ jobs:
           echo "new tag is $new_tag"
           echo ::set-output name=version::$new_version
           echo ::set-output name=tag::$new_tag
+
+      - name: add and commit
+        uses: EndBug/add-and-commit@v9
+        with:
+          author_name: ${{ secrets.AUTHOR_NAME }}
+          author_email: ${{ secrets.AUTHOR_EMAIL }}
+
+          # TODO: change this to main once shipit is disabled.
+          new_branch: $new_version
+          default_author: github_actor
+          message: '$new_version release'
+          pathspec_error_handling: exitAtEnd
+
+          # Arguments for the git pull command. Use NO-PULL to avoid the action pulling at all.
+          # pull: 'NO-PULL'
+          # tag: '$new_version'
+
     outputs:
       new_version: ${{ steps.get-next-version-and-tag.outputs.version }}
       new_tag: ${{ steps.get-next-version-and-tag.outputs.tag }}
+
+  create_sdist:
+    name: Create Source Distribution
+    needs: get_next_version
+    steps:
+       - uses: actions/checkout@v3
+         with:
+           ref: ${{ needs.get_next_version.outputs.new_version }}
+
+      - name: Install Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      - name: Upgrade pip
+        run: |
+          python3 -m pip install --upgrade pip
+
+      - name: Create Source Distribution
+        run: |
+          pip install setuptools wheel twine
+          python3 setup.py sdist
+ 
+      - uses: actions/upload-artifact@v2
+        with:
+          path: dist/*.tar.gz
 
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
@@ -45,29 +88,18 @@ jobs:
         os: [ubuntu-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ needs.get_next_version.outputs.new_version }}
 
       - name: Install Python
         uses: actions/setup-python@v2
         with:
           python-version: '3.8'
 
-      # update the version number in version.txt
-      - name: update version
-        id: update-version
-        run : |
-          echo "current folder = $PWD"
-          echo "current branch = $(git branch --show-current)"
-          output=$(python3 release_utils.py --release-type ${{ github.event.inputs.name }} --update-version)
-
       - name: Upgrade pip
         run: |
           python3 -m pip install --upgrade pip
-
-      - name: Create Source Distribution
-        run: |
-          pip install setuptools wheel twine
-          python3 setup.py sdist
 
       - name: Install cibuildwheel
         run: |
@@ -85,6 +117,19 @@ jobs:
           CIBW_ENVIRONMENT: "PIP_ONLY_BINARY=numpy"
           CIBW_SKIP: "*musllinux*"
 
+      - uses: actions/upload-artifact@v2
+        with:
+          path: /dist/*.whl
+
+  upload:
+    name: Upload to PyPi and create release
+    needs: [build_wheels, create_sdist, get_next_version]
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: artifact
+          path: dist
+
       # build the PyPI package and upload it
       - name: upload
         env:
@@ -95,7 +140,6 @@ jobs:
 
       # add and commit the updated version.py to main
       - name: add and commit
-        if: ${{ matrix.os=='ubuntu-latest' }}
         uses: EndBug/add-and-commit@v9
         with:
           author_name: ${{ secrets.AUTHOR_NAME }}
@@ -113,7 +157,6 @@ jobs:
 
       # create the release on github
       - name: create release on github
-        if: ${{ matrix.os=='ubuntu-latest' }}
         uses: ncipollo/release-action@v1
         with:
           tag: '${{ needs.get_next_version.outputs.new_tag }}'
