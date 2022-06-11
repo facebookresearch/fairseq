@@ -6,7 +6,7 @@ In order to create a new release:
 
 2. Under _Run Workflow_ choose the branch `main` and for _Release Type_ enter either `major`, `minor`, or `patch`.  
 
-3. A branch with the same name as the new version will be created where the `version.txt` file is updated. Merge those changes into `main`.
+3. A branch named `$new_version-release` will be created where the `version.txt` file is updated. Merge those changes into `main`.
 
 4. Make sure that a [new PYPI package](https://pypi.org/project/fairseq/) has been uploaded.
 
