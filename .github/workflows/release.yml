@@ -151,6 +151,7 @@ jobs:
           TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
           TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: |
+          pip install setuptools wheel twine
           python3 -m twine upload --repository pypi dist/*
 
       # create the release on github
