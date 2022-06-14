@@ -22,6 +22,27 @@ from fairseq.tasks.fairseq_task import LegacyFairseqTask
 DEFAULT_TEST_VOCAB_SIZE = 100
 
 
+def version_check():
+    # check Nested Tensor available. Make sure version >= '1.13.0.dev20220613'
+    if 'fb' in torch.__version__:
+        return True
+    else:
+        if "+" in torch.__version__:
+            torch_version = torch.__version__.split('+')[0]
+        else:
+            torch_version = torch.__version__
+
+        torch_version = torch_version.split('.')
+        int_version = int(torch_version[0])*1000 + int(torch_version[1])*10 + int(torch_version[2])
+        if len(torch_version) == 3:
+            if int_version >= 1131:
+                return True
+        elif len(torch_version) == 4:
+            if int_version >= 1131 or (int_version == 1130 and torch_version[3][3:] >= "20220613"):
+                return True
+        return False
+
+
 class DummyTask(LegacyFairseqTask):
     def __init__(self, args):
         super().__init__(args)
@@ -113,7 +134,7 @@ class TestJitSequenceGeneratorBase(unittest.TestCase):
 JIT_MSG = "Targeting OSS scriptability for the 1.6 release"
 
 
-@unittest.skipIf(torch.__version__ < "1.6.0", JIT_MSG)
+@unittest.skipIf(version_check(), JIT_MSG)
 class TestJitSequenceGenerator(TestJitSequenceGeneratorBase):
     def test_export_transformer(self):
         model = self.transformer_model
