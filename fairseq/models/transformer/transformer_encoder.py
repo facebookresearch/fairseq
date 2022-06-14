@@ -8,23 +8,22 @@ from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
+from torch import Tensor
+
 from fairseq import utils
 from fairseq.distributed import fsdp_wrap
 from fairseq.models import FairseqEncoder
+from fairseq.models.transformer import TransformerConfig
 from fairseq.modules import (
     FairseqDropout,
     LayerDropModuleList,
     LayerNorm,
     PositionalEmbedding,
     SinusoidalPositionalEmbedding,
+    transformer_layer,
 )
-from fairseq.modules import transformer_layer
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
-from torch import Tensor
-from fairseq.models.transformer import (
-    TransformerConfig,
-)
 
 
 # rewrite name for backward compatibility in `make_generation_fast_`
@@ -229,17 +228,21 @@ class TransformerEncoderBase(FairseqEncoder):
         # external is '1.13.0.dev20220613' for nightly or "1.13.0"(cpu) or '1.11.0+cu102'(gpu) for stable
         BT_version = False
         NT_version = False
-        if 'fb' in torch.__version__:
+        if "fb" in torch.__version__:
             BT_version = True
             NT_version = True
         else:
             if "+" in torch.__version__:
-                torch_version = torch.__version__.split('+')[0]
+                torch_version = torch.__version__.split("+")[0]
             else:
                 torch_version = torch.__version__
 
-            torch_version = torch_version.split('.')
-            int_version = int(torch_version[0])*1000 + int(torch_version[1])*10 + int(torch_version[2])
+            torch_version = torch_version.split(".")
+            int_version = (
+                int(torch_version[0]) * 1000
+                + int(torch_version[1]) * 10
+                + int(torch_version[2])
+            )
             if len(torch_version) == 3:
                 if int_version >= 1120:
                     BT_version = True
@@ -249,17 +252,35 @@ class TransformerEncoderBase(FairseqEncoder):
                 if int_version >= 1130:
                     BT_version = True
                 # Consider _nested_tensor_from_mask_left_aligned is landed after "20220613"
-                if int_version >= 1131 or (int_version == 1130 and torch_version[3][3:] >= "20220613"):
+                if int_version >= 1131 or (
+                    int_version == 1130 and torch_version[3][3:] >= "20220613"
+                ):
                     NT_version = True
 
-        if BT_version and x.dim() == 3 and layer.load_to_BT and not layer.return_fc and layer.can_use_fastpath and not layer.training and not layer.ever_training and not layer.cfg_checkpoint_activations:
+        if (
+            BT_version
+            and x.dim() == 3
+            and layer.load_to_BT
+            and not layer.return_fc
+            and layer.can_use_fastpath
+            and not layer.training
+            and not layer.ever_training
+            and not layer.cfg_checkpoint_activations
+        ):
             # Batch first can not be justified but needs user to make sure
             x = x.transpose(0, 1)
             # Check mask conditions for nested tensor
             if NT_version:
-                if encoder_padding_mask is not None and torch._nested_tensor_from_mask_left_aligned(x, encoder_padding_mask.logical_not()):
+                if (
+                    encoder_padding_mask is not None
+                    and torch._nested_tensor_from_mask_left_aligned(
+                        x, encoder_padding_mask.logical_not()
+                    )
+                ):
                     if not torch.is_grad_enabled() or not x.requires_grad:
-                        x = torch._nested_tensor_from_mask(x, encoder_padding_mask.logical_not())
+                        x = torch._nested_tensor_from_mask(
+                            x, encoder_padding_mask.logical_not()
+                        )
                         NT_flag = True
             BT_flag = True
 
@@ -285,7 +306,7 @@ class TransformerEncoderBase(FairseqEncoder):
 
         # change back to non-nested and Batch second
         if NT_flag:
-            x = x.to_padded_tensor(0.)
+            x = x.to_padded_tensor(0.0)
 
         if NT_flag or BT_flag:
             x = x.transpose(0, 1)

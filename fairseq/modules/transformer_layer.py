@@ -7,14 +7,13 @@ from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
+from torch import Tensor
+
 from fairseq import utils
+from fairseq.models.transformer import TransformerConfig
 from fairseq.modules import LayerNorm, MultiheadAttention
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
-from torch import Tensor
-from fairseq.models.transformer import (
-    TransformerConfig,
-)
 
 
 class TransformerEncoderLayerBase(nn.Module):
@@ -72,32 +71,55 @@ class TransformerEncoderLayerBase(nn.Module):
         self.load_to_BT = False
         self.ever_training = False
         # For BT, we need continuous mem
-        self.in_proj_weight = torch.nn.Parameter(torch.zeros(self.self_attn.q_proj.weight.shape[0]*3, self.self_attn.q_proj.weight.shape[1]))
-        self.in_proj_bias = torch.nn.Parameter(torch.zeros(self.self_attn.q_proj.bias.shape[0]*3))
+        self.in_proj_weight = torch.nn.Parameter(
+            torch.zeros(
+                self.self_attn.q_proj.weight.shape[0] * 3,
+                self.self_attn.q_proj.weight.shape[1],
+            )
+        )
+        self.in_proj_bias = torch.nn.Parameter(
+            torch.zeros(self.self_attn.q_proj.bias.shape[0] * 3)
+        )
 
-        if self.activation_fn is torch.nn.functional.relu or isinstance(self.activation_fn, torch.nn.ReLU) or self.activation_fn == "relu":
+        if (
+            self.activation_fn is torch.nn.functional.relu
+            or isinstance(self.activation_fn, torch.nn.ReLU)
+            or self.activation_fn == "relu"
+        ):
             self.activation_relu_or_gelu = 1
-        elif self.activation_fn is torch.nn.functional.gelu or isinstance(self.activation_fn, torch.nn.GELU) or self.activation_fn == "gelu":
+        elif (
+            self.activation_fn is torch.nn.functional.gelu
+            or isinstance(self.activation_fn, torch.nn.GELU)
+            or self.activation_fn == "gelu"
+        ):
             self.activation_relu_or_gelu = 2
         else:
             self.activation_relu_or_gelu = 0
         # Batch first can not be justified but needs user to make sure
-        self.can_use_fastpath = not self.normalize_before and self.activation_relu_or_gelu and (self.self_attn_layer_norm.eps == self.final_layer_norm.eps)
+        self.can_use_fastpath = (
+            not self.normalize_before
+            and self.activation_relu_or_gelu
+            and (self.self_attn_layer_norm.eps == self.final_layer_norm.eps)
+        )
         self.cfg_checkpoint_activations = self.cfg.checkpoint_activations
         # torch version check
         # internal is ['1', '13', '0a0+fb']
         # external is ['1', '13', '0', 'dev20220613'] for nightly or ['1', '13', '0'] for stable
         self.BT_version = False
-        if 'fb' in torch.__version__:
+        if "fb" in torch.__version__:
             self.BT_version = True
         else:
             if "+" in torch.__version__:
-                self.torch_version = torch.__version__.split('+')[0]
+                self.torch_version = torch.__version__.split("+")[0]
             else:
                 self.torch_version = torch.__version__
 
-            self.torch_version = self.torch_version.split('.')
-            self.int_version = int(self.torch_version[0])*1000 + int(self.torch_version[1])*10 + int(self.torch_version[2])
+            self.torch_version = self.torch_version.split(".")
+            self.int_version = (
+                int(self.torch_version[0]) * 1000
+                + int(self.torch_version[1]) * 10
+                + int(self.torch_version[2])
+            )
             if len(self.torch_version) == 3:
                 if self.int_version >= 1120:
                     self.BT_version = True
@@ -105,7 +127,16 @@ class TransformerEncoderLayerBase(nn.Module):
                 if self.int_version >= 1130:
                     self.BT_version = True
 
-    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
         self.load_to_BT = True
 
         old_name = prefix + "self_attn."
@@ -117,10 +148,22 @@ class TransformerEncoderLayerBase(nn.Module):
         v_proj_bias = state_dict[old_name + "v_proj.bias"]
 
         new_name = prefix
-        state_dict[new_name + "in_proj_weight"] = torch.cat((q_proj_weight, k_proj_weight, v_proj_weight), dim=0)
-        state_dict[new_name + "in_proj_bias"] = torch.cat((q_proj_bias, k_proj_bias, v_proj_bias), dim=0)
+        state_dict[new_name + "in_proj_weight"] = torch.cat(
+            (q_proj_weight, k_proj_weight, v_proj_weight), dim=0
+        )
+        state_dict[new_name + "in_proj_bias"] = torch.cat(
+            (q_proj_bias, k_proj_bias, v_proj_bias), dim=0
+        )
 
-        super(TransformerEncoderLayerBase, self)._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
+        super(TransformerEncoderLayerBase, self)._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
         return quant_noise(
@@ -245,29 +288,38 @@ class TransformerEncoderLayerBase(nn.Module):
         if self.training:
             self.ever_training = True
 
-        if self.BT_version and x.dim() == 3 and self.load_to_BT and not self.return_fc and self.can_use_fastpath and not self.training and not self.ever_training and not self.cfg_checkpoint_activations:
+        if (
+            self.BT_version
+            and x.dim() == 3
+            and self.load_to_BT
+            and not self.return_fc
+            and self.can_use_fastpath
+            and not self.training
+            and not self.ever_training
+            and not self.cfg_checkpoint_activations
+        ):
             # assume is Batch first and nested tensor
             output = torch._transformer_encoder_layer_fwd(
-                    x,
-                    self.embed_dim,
-                    self.num_heads,
-                    self.in_proj_weight,
-                    self.in_proj_bias,
-                    self.self_attn.out_proj.weight,
-                    self.self_attn.out_proj.bias,
-                    self.activation_relu_or_gelu == 2,
-                    False,  # norm_first, currently not supported
-                    self.self_attn_layer_norm.eps,
-                    self.self_attn_layer_norm.weight,
-                    self.self_attn_layer_norm.bias,
-                    self.final_layer_norm.weight,
-                    self.final_layer_norm.bias,
-                    self.fc1.weight,
-                    self.fc1.bias,
-                    self.fc2.weight,
-                    self.fc2.bias,
-                    encoder_padding_mask if encoder_padding_mask is not None else attn_mask,
-                )
+                x,
+                self.embed_dim,
+                self.num_heads,
+                self.in_proj_weight,
+                self.in_proj_bias,
+                self.self_attn.out_proj.weight,
+                self.self_attn.out_proj.bias,
+                self.activation_relu_or_gelu == 2,
+                False,  # norm_first, currently not supported
+                self.self_attn_layer_norm.eps,
+                self.self_attn_layer_norm.weight,
+                self.self_attn_layer_norm.bias,
+                self.final_layer_norm.weight,
+                self.final_layer_norm.bias,
+                self.fc1.weight,
+                self.fc1.bias,
+                self.fc2.weight,
+                self.fc2.bias,
+                encoder_padding_mask if encoder_padding_mask is not None else attn_mask,
+            )
             return output
 
         else:

@@ -2,15 +2,16 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+import sys
+
 import click
 import numpy as np
-import sys
 import torch
-from fairseq.models.transformer import (
-    TransformerEncoder as FairseqTransformerEncoder,
-    TransformerConfig as FairseqTransformerConfig,
-)
 from fvcore.nn import FlopCountAnalysis
+
+from fairseq.models.transformer import TransformerConfig as FairseqTransformerConfig
+from fairseq.models.transformer import TransformerEncoder as FairseqTransformerEncoder
+
 seed = 0
 torch.manual_seed(seed)
 np.random.seed(seed)
@@ -216,17 +217,19 @@ def transformer(
         )
 
     def copy_weights(layers_fairseq, layers_bt):
-        for src_layer, dst_layer in zip(
-            layers_fairseq, layers_bt
-        ):
+        for src_layer, dst_layer in zip(layers_fairseq, layers_bt):
             w_q = src_layer.self_attn.q_proj.weight
             b_q = src_layer.self_attn.q_proj.bias
             w_k = src_layer.self_attn.k_proj.weight
             b_k = src_layer.self_attn.k_proj.bias
             w_v = src_layer.self_attn.v_proj.weight
             b_v = src_layer.self_attn.v_proj.bias
-            dst_layer.self_attn.in_proj_weight = torch.nn.Parameter(torch.cat((w_q, w_k, w_v), dim=0))
-            dst_layer.self_attn.in_proj_bias = torch.nn.Parameter(torch.cat((b_q, b_k, b_v), dim=0))
+            dst_layer.self_attn.in_proj_weight = torch.nn.Parameter(
+                torch.cat((w_q, w_k, w_v), dim=0)
+            )
+            dst_layer.self_attn.in_proj_bias = torch.nn.Parameter(
+                torch.cat((b_q, b_k, b_v), dim=0)
+            )
 
             dst_layer.self_attn.out_proj.weight = src_layer.self_attn.out_proj.weight
             dst_layer.self_attn.out_proj.bias = src_layer.self_attn.out_proj.bias
@@ -241,7 +244,9 @@ def transformer(
             dst_layer.norm2.weight = src_layer.final_layer_norm.weight
             dst_layer.norm2.bias = src_layer.final_layer_norm.bias
 
-    (L, D, H, FD, V) = get_layers_embedding_dim_num_heads_for_configuration(xlarge, large)
+    (L, D, H, FD, V) = get_layers_embedding_dim_num_heads_for_configuration(
+        xlarge, large
+    )
     embedding_layer = torch.nn.Embedding(V, D, DEFAULT_PADDING_IDX)
     # True means BT as source and fairseq is target, False means the other way
     # mode1 = False
@@ -338,14 +343,16 @@ def transformer(
         qkv = 3 * 2 * B * T * D * D
         attn = 2 * B * D * T * T + 2 * B * D * T * T + 2 * B * T * D * D
         return L * (mlp + qkv + attn)
+
     flops = bert_flops(batch_size, avg_sequence_length, D, L)
     flops_e = (
-        FlopCountAnalysis(transformer, (tokens[:, :avg_sequence_length])).total()
-        * 2
+        FlopCountAnalysis(transformer, (tokens[:, :avg_sequence_length])).total() * 2
     )
     with torch.inference_mode():
         bt = benchmark_torch_function(iters, transformer, tokens)
-        fst = benchmark_torch_function(iters, fairseq_transformer, tokens, lengths_tensor)
+        fst = benchmark_torch_function(
+            iters, fairseq_transformer, tokens, lengths_tensor
+        )
 
         def metrics(tt, baseline=None):
             if baseline:
