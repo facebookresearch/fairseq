@@ -38,6 +38,7 @@ class SequenceGenerator(nn.Module):
         symbols_to_strip_from_output=None,
         lm_model=None,
         lm_weight=1.0,
+        tokens_to_suppress=(),
     ):
         """Generates translations of a given source sentence.
 
@@ -77,6 +78,18 @@ class SequenceGenerator(nn.Module):
             if symbols_to_strip_from_output is not None
             else {self.eos}
         )
+
+        self.token_indices_to_suppress: Optional[Tensor] = None
+        token_indices_to_suppress = []
+        for token_string in tokens_to_suppress:
+            token_index = tgt_dict.index(token_string)
+            assert token_index != self.unk
+            token_indices_to_suppress.append(token_index)
+        if len(token_indices_to_suppress) > 0:
+            self.token_indices_to_suppress = torch.Tensor(
+                token_indices_to_suppress
+            ).long()
+
         self.vocab_size = len(tgt_dict)
         self.beam_size = beam_size
         # the max beam size is the dictionary size - 1, since we never select pad
@@ -372,9 +385,13 @@ class SequenceGenerator(nn.Module):
                 lprobs, tokens, scores = self._prefix_tokens(
                     step, lprobs, scores, tokens, prefix_tokens, beam_size
                 )
-            elif step < self.min_len:
-                # minimum length constraint (does not apply if using prefix_tokens)
-                lprobs[:, self.eos] = -math.inf
+            else:
+                if step < self.min_len:
+                    # minimum length constraint (does not apply if using prefix_tokens)
+                    lprobs[:, self.eos] = -math.inf
+
+                if self.token_indices_to_suppress is not None:
+                    lprobs[:, self.token_indices_to_suppress] = -math.inf
 
             # Record attention scores, only support avg_attn_scores is a Tensor
             if avg_attn_scores is not None:
