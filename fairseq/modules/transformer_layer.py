@@ -103,8 +103,7 @@ class TransformerEncoderLayerBase(nn.Module):
         )
         self.cfg_checkpoint_activations = self.cfg.checkpoint_activations
         # torch version check
-        # internal is ['1', '13', '0a0+fb']
-        # external is ['1', '13', '0', 'dev20220613'] for nightly or ['1', '13', '0'] for stable
+        # make sure BT version is >=1.12.0
         self.BT_version = False
         if "fb" in torch.__version__:
             self.BT_version = True

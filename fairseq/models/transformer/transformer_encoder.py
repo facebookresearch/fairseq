@@ -223,9 +223,9 @@ class TransformerEncoderBase(FairseqEncoder):
         layer = self.layers[0]
         BT_flag = False
         NT_flag = False
-        # torch version check
-        # internal is '1.13.0a0+fb'
-        # external is '1.13.0.dev20220613' for nightly or "1.13.0"(cpu) or '1.11.0+cu102'(gpu) for stable
+        # torch version check, BT>=1.12.0 and NT>=1.13.0.dev20220613
+        # internal format is '1.13.0a0+fb'
+        # external format is '1.13.0.dev20220613'(cpu&gpu) for nightly or "1.11.0"(cpu) or '1.11.0+cu102'(gpu) for stable
         BT_version = False
         NT_version = False
         if "fb" in torch.__version__:
