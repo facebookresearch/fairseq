@@ -14,6 +14,7 @@ jobs:
       max-parallel: 4
       matrix:
         platform: [ubuntu-latest, macos-latest]
+        torch-nightly: ['true', 'false']
         python-version: [3.8, 3.9]
 
     runs-on: ${{ matrix.platform }}
@@ -26,16 +27,17 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Conditionally install pytorch
-      if: matrix.platform == 'windows-latest'
-      run: pip3 install torch -f https://download.pytorch.org/whl/torch_stable.html
-
     - name: Install locally
       run: |
         python -m pip install --upgrade pip
+        python -m pip install cython
         git submodule update --init --recursive
         python setup.py build_ext --inplace
         python -m pip install --editable .
+
+    - name: Conditionally install pytorch
+      if: matrix.torch-nightly == 'true'
+      run: pip3 install --pre torch==1.13.0.dev20220613 -f https://download.pytorch.org/whl/nightly/torch_nightly.html
 
     - name: Install optional test requirements
       run: |
@@ -54,6 +56,7 @@ jobs:
 
     - name: Run tests
       run: |
+         python -c 'import torch; print("Torch version:", torch.__version__)'
          python setup.py test
 
     - name: Lint with black
