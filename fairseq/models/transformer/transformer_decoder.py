@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional
 
 import torch
 import torch.nn as nn
-from torch import Tensor
 
 from fairseq import utils
 from fairseq.distributed import fsdp_wrap
@@ -26,6 +25,7 @@ from fairseq.modules import (
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
+from torch import Tensor
 
 
 # rewrite name for backward compatibility in `make_generation_fast_`
@@ -302,6 +302,8 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             if positions is not None:
                 positions = positions[:, -1:]
 
+        # Prevent torchscript exporting issue for dynamic quant embedding
+        prev_output_tokens = prev_output_tokens.contiguous()
         # embed tokens and positions
         x = self.embed_scale * self.embed_tokens(prev_output_tokens)
 
