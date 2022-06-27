@@ -82,29 +82,15 @@ class TransformerEncoderLayerBase(nn.Module):
             torch.zeros(self.self_attn.q_proj.bias.shape[0] * 3)
         )
         self.out_proj_weight = torch.nn.Parameter(
-            torch.zeros(
-                self.self_attn.out_proj.weight.shape
-            )
+            torch.zeros(self.self_attn.out_proj.weight.shape)
         )
         self.out_proj_bias = torch.nn.Parameter(
             torch.zeros(self.self_attn.out_proj.bias.shape)
         )
-        self.fc1_weight = torch.nn.Parameter(
-            torch.zeros(
-                self.fc1.weight.shape
-            )
-        )
-        self.fc1_bias = torch.nn.Parameter(
-            torch.zeros(self.fc1.bias.shape)
-        )
-        self.fc2_weight = torch.nn.Parameter(
-            torch.zeros(
-                self.fc2.weight.shape
-            )
-        )
-        self.fc2_bias = torch.nn.Parameter(
-            torch.zeros(self.fc2.bias.shape)
-        )
+        self.fc1_weight = torch.nn.Parameter(torch.zeros(self.fc1.weight.shape))
+        self.fc1_bias = torch.nn.Parameter(torch.zeros(self.fc1.bias.shape))
+        self.fc2_weight = torch.nn.Parameter(torch.zeros(self.fc2.weight.shape))
+        self.fc2_bias = torch.nn.Parameter(torch.zeros(self.fc2.bias.shape))
 
         if (
             self.activation_fn is torch.nn.functional.relu
@@ -178,7 +164,9 @@ class TransformerEncoderLayerBase(nn.Module):
         state_dict[new_name + "in_proj_bias"] = torch.cat(
             (q_proj_bias, k_proj_bias, v_proj_bias), dim=0
         )
-        state_dict[new_name + "out_proj_weight"] = state_dict[old_name + "out_proj.weight"]
+        state_dict[new_name + "out_proj_weight"] = state_dict[
+            old_name + "out_proj.weight"
+        ]
         state_dict[new_name + "out_proj_bias"] = state_dict[old_name + "out_proj.bias"]
         state_dict[new_name + "fc1_weight"] = state_dict[prefix + "fc1.weight"]
         state_dict[new_name + "fc1_bias"] = state_dict[prefix + "fc1.bias"]
