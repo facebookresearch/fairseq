@@ -8,11 +8,11 @@ from pathlib import Path
 from argparse import Namespace
 
 from fairseq.data import Dictionary, encoders
+from fairseq.data.audio.audio_utils import get_features_or_waveform
 from fairseq.data.audio.speech_to_text_dataset import (
     S2TDataConfig,
     SpeechToTextDataset,
     SpeechToTextDatasetCreator,
-    get_features_or_waveform,
 )
 from fairseq.tasks import LegacyFairseqTask, register_task
 
