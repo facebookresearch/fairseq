@@ -851,9 +851,10 @@ def hotreload_function(name=None):
     -----------------------------------
     This will run the decorated function func:
         if func run successful:
-            It will pause, and prompt user to:
-                Press enter to continue before return output, and complete a cycle
-                Type "disable" to stop watching this function and let code continue without pause
+            It will pause, allow user to edit code, and prompt user to:
+                Press enter to re-run the function with updated code
+                Type "done" to finish the function, return output
+                Type "disable" to stop pausing this function and let code continue without pause
                 Ctril + C to terminal
         if func raise error:
             it will prompt user to 
@@ -861,7 +862,7 @@ def hotreload_function(name=None):
                 2. Ctrl + C to terminate
                 3. Type "raise" to raise that exception
     * Requirements:
-        0. Fairseq was install with `pip install --editable .`
+        0. Fairseq was installed with `pip install --editable .`
         1. pip install jurigged[develoop]
         2. set environment HOTRELOAD_PAUSE=1 CUDA_LAUNCH_BLOCKING=1
         3. Run on only 1 GPU (no distributed)
@@ -913,7 +914,13 @@ def hotreload_function(name=None):
             while not success:
                 try:
                     output = func(*args, **kwargs)
-                    success = True
+                    # success = True
+                    end_action = input(f'{prefix}: PAUSE, you may edit code now. Enter to re-run, ctrl+C to terminate, '
+                        f'type "done" to continue (function still being watched), or type "disable" to stop pausing this function :')
+                    if end_action.strip().lower() in ["disable", "done"]:
+                        success = True
+                    else:
+                        logger.warning(f'{prefix}: action={end_action} function will re-run now.')
                 except Exception as e:
                     action = input(
                         f'{prefix}:ERROR: \n{traceback.format_exc()}\n'
@@ -921,11 +928,14 @@ def hotreload_function(name=None):
                     )
                     if action.strip().lower() == "raise":
                         raise e
-            end_action = input(f'{prefix}: PAUSE, edit code and enter to continue, ctrl+C to terminate, '
-                f' "unset HOTRELOAD_PAUSE" before relaunch to disable hotreload, or type "disable" to stop watching this function :')
 
             if end_action.strip().lower() == "disable":
-                logger.warning(f'{prefix}: Stop watching {jname}')
+                logger.warning(
+                    f'{prefix}: Stop pausing {jname}. The function is still being watched and newly editted code will take effect '
+                    f'if the {jname} is called again later.'
+                    f' "unset HOTRELOAD_PAUSE" before relaunch to disable hotreload and'
+                    f' remove @hotreload_function decorator in the code.'
+                )
                 hot_reload_state['disable'] = True
             return output
         return func_wrapper
