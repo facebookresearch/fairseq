@@ -2,11 +2,13 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
-
 import logging
 import os
+from dataclasses import dataclass, field
+from typing import Optional
 
 import numpy as np
+from omegaconf import II
 
 from fairseq.data import (
     AppendTokenDataset,
@@ -22,43 +24,49 @@ from fairseq.data import (
 from fairseq.data.encoders.utils import get_whole_word_mask
 from fairseq.tasks import register_task
 
-from .denoising import DenoisingTask
+from .denoising import DenoisingConfig, DenoisingTask
 
 logger = logging.getLogger(__name__)
 
 
-@register_task("multilingual_denoising")
+@dataclass
+class MultilingualDenoisingConfig(DenoisingConfig):
+    multilang_sampling_alpha: float = field(
+        default=1.0,
+        metadata={"help": "smoothing alpha for sample ratios across multiple datasets"},
+    )
+    add_lang_token: bool = field(
+        default=False,
+        metadata={"help": ""},
+    )
+    langs: Optional[str] = field(
+        default=None,
+        metadata={"help": "language ids we are considering"},
+    )
+    no_whole_word_mask_langs: str = field(
+        default="",
+        metadata={
+            "help": "languages without spacing between words don't support whole word masking"
+        },
+    )
+    train_subset: str = II("common.train_subset")
+    valid_subset: str = II("common.valid_subset")
+
+
+@register_task("multilingual_denoising", dataclass=MultilingualDenoisingConfig)
 class MultilingualDenoisingTask(DenoisingTask):
-    @staticmethod
-    def add_args(parser):
-        DenoisingTask.add_args(parser)
-        parser.add_argument(
-            "--multilang-sampling-alpha",
-            type=float,
-            default=1.0,
-            help="smoothing alpha for sample ratios across multiple datasets",
-        )
-        parser.add_argument("--add-lang-token", default=False, action="store_true")
-        parser.add_argument(
-            "--langs", type=str, help="language ids we are considering", default=None
-        )
-        parser.add_argument(
-            "--no-whole-word-mask-langs",
-            type=str,
-            default="",
-            metavar="N",
-            help="languages without spacing between words dont support whole word masking",
-        )
+
+    cfg: MultilingualDenoisingConfig
 
     @classmethod
-    def setup_task(cls, args, **kwargs):
+    def setup_task(cls, cfg: MultilingualDenoisingConfig, **kwargs):
         """Setup the task."""
-        paths = args.data.split(":")
+        paths = cfg.data.split(":")
         assert len(paths) > 0
         dictionary = Dictionary.load(os.path.join(paths[0], "dict.txt"))
 
         data_path = paths[0]
-        if args.langs is None:
+        if cfg.langs is None:
             languages = sorted(
                 [
                     name
@@ -67,34 +75,32 @@ class MultilingualDenoisingTask(DenoisingTask):
                 ]
             )
         else:
-            languages = args.langs.split(",")
+            languages = cfg.langs.split(",")
 
-        if args.add_lang_token:
+        if cfg.add_lang_token:
             for lang in languages:
                 dictionary.add_symbol("[{}]".format(lang))
 
         logger.info("dictionary: {} types".format(len(dictionary)))
-        if not hasattr(args, "shuffle_instance"):
-            args.shuffle_instance = False
-        return cls(args, dictionary)
+        if not hasattr(cfg, "shuffle_instance"):
+            cfg.shuffle_instance = False
+        return cls(cfg, dictionary)
 
-    def __init__(self, args, dictionary):
-        super().__init__(args, dictionary)
+    def __init__(self, cfg: MultilingualDenoisingConfig, dictionary):
+        super().__init__(cfg, dictionary)
         self.dictionary = dictionary
-        self.seed = args.seed
 
         # add mask token
         self.mask_idx = self.dictionary.add_symbol("<mask>")
-        self.langs = args.langs
-        self.args = args
+        self.cfg = cfg
 
     def _get_sample_prob(self, dataset_lens):
         """
-        Get smoothed sampling porbability by languages. This helps low resource
+        Get smoothed sampling probability by languages. This helps low resource
         languages by upsampling them.
         """
         prob = dataset_lens / dataset_lens.sum()
-        smoothed_prob = prob**self.args.multilang_sampling_alpha
+        smoothed_prob = prob**self.cfg.multilang_sampling_alpha
         smoothed_prob = smoothed_prob / smoothed_prob.sum()
         return smoothed_prob
 
@@ -104,12 +110,12 @@ class MultilingualDenoisingTask(DenoisingTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        paths = self.args.data.split(":")
+        paths = self.cfg.data.split(":")
         assert len(paths) > 0
         data_path = paths[(epoch - 1) % len(paths)]
         split_path = os.path.join(data_path, split)
 
-        if self.langs is None:
+        if self.cfg.langs is None:
             languages = sorted(
                 [
                     name
@@ -118,7 +124,7 @@ class MultilingualDenoisingTask(DenoisingTask):
                 ]
             )
         else:
-            languages = self.langs.split(",")
+            languages = self.cfg.langs.split(",")
             for name in languages:
                 p = os.path.join(data_path, name)
                 assert os.path.exists(p), "data not found: {}".format(p)
@@ -128,8 +134,8 @@ class MultilingualDenoisingTask(DenoisingTask):
             "Language to id mapping: ", {lang: id for id, lang in enumerate(languages)}
         )
 
-        mask_whole_words = get_whole_word_mask(self.args, self.dictionary)
-        language_without_segmentations = self.args.no_whole_word_mask_langs.split(",")
+        mask_whole_words = get_whole_word_mask(self.cfg.bpe, self.dictionary)
+        language_without_segmentations = self.cfg.no_whole_word_mask_langs.split(",")
         lang_datasets = []
         for language in languages:
             split_path = os.path.join(data_path, language, split)
@@ -137,7 +143,7 @@ class MultilingualDenoisingTask(DenoisingTask):
             dataset = data_utils.load_indexed_dataset(
                 split_path,
                 self.source_dictionary,
-                self.args.dataset_impl,
+                self.cfg.dataset_impl,
                 combine=combine,
             )
             if dataset is None:
@@ -147,7 +153,7 @@ class MultilingualDenoisingTask(DenoisingTask):
 
             end_token = (
                 self.source_dictionary.index("[{}]".format(language))
-                if self.args.add_lang_token
+                if self.cfg.add_lang_token
                 else self.source_dictionary.eos()
             )
 
@@ -155,10 +161,10 @@ class MultilingualDenoisingTask(DenoisingTask):
             dataset = TokenBlockDataset(
                 dataset,
                 dataset.sizes,
-                self.args.tokens_per_sample - 2,  # one less for <s>
+                self.cfg.tokens_per_sample - 2,  # one less for <s>
                 pad=self.source_dictionary.pad(),
                 eos=end_token,
-                break_mode=self.args.sample_break_mode,
+                break_mode=self.cfg.sample_break_mode,
             )
             logger.info("loaded {} blocks from: {}".format(len(dataset), split_path))
 
@@ -177,11 +183,19 @@ class MultilingualDenoisingTask(DenoisingTask):
                 self.dictionary,
                 self.mask_idx,
                 lang_mask_whole_words,
-                shuffle=self.args.shuffle_instance,
-                seed=self.seed,
-                args=self.args,
+                shuffle=self.cfg.shuffle_instance,
+                seed=self.cfg.seed,
+                mask=self.cfg.mask,
+                mask_random=self.cfg.mask_random,
+                insert=self.cfg.insert,
+                rotate=self.cfg.rotate,
+                permute_sentences=self.cfg.permute_sentences,
+                bpe=self.cfg.bpe,
+                replace_length=self.cfg.replace_length,
+                mask_length=self.cfg.mask_length,
+                poisson_lambda=self.cfg.poisson_lambda,
                 eos=None
-                if not self.args.add_lang_token
+                if not self.cfg.add_lang_token
                 else self.source_dictionary.index("[{}]".format(language)),
             )
             lang_datasets.append(lang_dataset)
@@ -195,7 +209,7 @@ class MultilingualDenoisingTask(DenoisingTask):
                 int(dataset_lengths.sum()),
             )
         )
-        if split == self.args.train_subset:
+        if split == self.cfg.train_subset:
             # For train subset, additionally up or down sample languages.
             sample_probs = self._get_sample_prob(dataset_lengths)
             logger.info(
@@ -220,7 +234,7 @@ class MultilingualDenoisingTask(DenoisingTask):
                 ResamplingDataset(
                     lang_datasets[i],
                     size_ratio=size_ratio[i],
-                    seed=self.args.seed,
+                    seed=self.cfg.seed,
                     epoch=epoch,
                     replace=size_ratio[i] >= 1.0,
                 )
@@ -237,12 +251,12 @@ class MultilingualDenoisingTask(DenoisingTask):
                 lang_splits.append(split_name)
                 self.datasets[split_name] = lang_dataset
 
-            if split in self.args.valid_subset:
-                self.args.valid_subset = self.args.valid_subset.replace(
+            if split in self.cfg.valid_subset:
+                self.cfg.valid_subset = self.cfg.valid_subset.replace(
                     split, ",".join(lang_splits)
                 )
 
-        with data_utils.numpy_seed(self.args.seed + epoch):
+        with data_utils.numpy_seed(self.cfg.seed + epoch):
             shuffle = np.random.permutation(len(dataset))
 
         self.datasets[split] = SortDataset(
