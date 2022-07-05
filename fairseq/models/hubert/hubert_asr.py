@@ -6,6 +6,7 @@
 from typing import Any
 import contextlib
 import copy
+import logging
 import math
 from argparse import Namespace
 from dataclasses import dataclass, field
@@ -30,6 +31,7 @@ from fairseq.models.hubert.hubert import MASKING_DISTRIBUTION_CHOICES
 from fairseq.modules import LayerNorm, PositionalEmbedding, TransformerDecoderLayer
 from fairseq.tasks import FairseqTask
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class HubertAsrConfig(FairseqDataclass):
