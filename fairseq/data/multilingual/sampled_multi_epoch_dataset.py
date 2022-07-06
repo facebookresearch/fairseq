@@ -1,6 +1,7 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import hashlib
@@ -197,3 +198,40 @@ class SampledMultiEpochDataset(SampledMultiDataset):
         )
         self._epoch_sizes = None
         self._current_epoch_start_index = index
+
+    def ordered_indices_per_dataset(self):
+        """Return a list of ordered indices vectors for each underlying dataset
+        (with parent dataset indices)."""
+        assert self.cumulated_sizes is not None
+        ordered_indices_list = []
+
+        global_indices = self._random_global_indices[
+            self._current_epoch_start_index : self._current_epoch_start_index
+            + len(self)
+        ]
+
+        for i, cumulated_size in enumerate(self.cumulated_sizes):
+            start = 0 if i == 0 else self.cumulated_sizes[i - 1]
+            end = cumulated_size
+
+            indices = np.where((global_indices >= start) & (global_indices < end))[0]
+
+            if self.shuffle:
+                np.random.shuffle(indices)
+
+            sizes = self.sizes
+            tgt_sizes = (
+                sizes[:, 1] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else None
+            )
+            src_sizes = (
+                sizes[:, 0] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else sizes
+            )
+
+            # sort by target length, then source length
+            if tgt_sizes is not None:
+                indices = indices[np.argsort(tgt_sizes[indices], kind="mergesort")]
+            sort_indices = indices[np.argsort(src_sizes[indices], kind="mergesort")]
+
+            ordered_indices_list.append(sort_indices)
+
+        return ordered_indices_list

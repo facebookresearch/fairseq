@@ -1,15 +1,23 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import numpy as np
 import torch
 
-from . import FairseqDataset, data_utils
+from . import FairseqDataset, IdDataset, data_utils
 
 
-def collate(samples, pad_idx, eos_idx, fixed_pad_length=None, pad_to_bsz=None):
+def collate(
+    samples,
+    pad_idx,
+    eos_idx,
+    fixed_pad_length=None,
+    pad_to_bsz=None,
+    add_src_lang_id=False,
+):
     if len(samples) == 0:
         return {}
 
@@ -44,15 +52,18 @@ def collate(samples, pad_idx, eos_idx, fixed_pad_length=None, pad_to_bsz=None):
         target = merge("target", is_target_list)
     else:
         target = src_tokens
-
+    net_input = {
+        "src_tokens": src_tokens,
+        "src_lengths": torch.LongTensor([s["source"].numel() for s in samples]),
+    }
+    if add_src_lang_id:
+        assert all(isinstance(s["lang_id"], int) for s in samples)
+        net_input["src_lang_ids"] = torch.LongTensor([s["lang_id"] for s in samples])
     return {
         "id": torch.LongTensor([s["id"] for s in samples]),
         "nsentences": len(samples),
         "ntokens": sum(len(s["source"]) for s in samples),
-        "net_input": {
-            "src_tokens": src_tokens,
-            "src_lengths": torch.LongTensor([s["source"].numel() for s in samples]),
-        },
+        "net_input": net_input,
         "target": target,
     }
 
@@ -83,6 +94,8 @@ class MonolingualDataset(FairseqDataset):
         pad_to_bsz=None,
         src_lang_idx=None,
         tgt_lang_idx=None,
+        add_src_lang_id=False,
+        src_lang_id=None,
     ):
         self.dataset = dataset
         self.sizes = np.array(sizes)
@@ -95,6 +108,10 @@ class MonolingualDataset(FairseqDataset):
         self.pad_to_bsz = pad_to_bsz
         self.src_lang_idx = src_lang_idx
         self.tgt_lang_idx = tgt_lang_idx
+        self.add_src_lang_id = add_src_lang_id
+        if self.add_src_lang_id:
+            assert src_lang_id is not None
+        self.src_lang_id = src_lang_id
 
         assert targets is None or all(
             t in {"self", "future", "past"} for t in targets
@@ -121,7 +138,10 @@ class MonolingualDataset(FairseqDataset):
             source = self.dataset[index]
             target = None
         source, target = self._maybe_add_bos(source, target)
-        return {"id": index, "source": source, "target": target}
+        ret = {"id": index, "source": source, "target": target}
+        if self.add_src_lang_id:
+            ret["lang_id"] = self.src_lang_id
+        return ret
 
     def __len__(self):
         return len(self.dataset)
@@ -172,9 +192,13 @@ class MonolingualDataset(FairseqDataset):
 
     def _maybe_add_bos(self, source, target):
         if self.add_bos_token:
-            source = torch.cat([source.new([self.vocab.bos()]), source])
+            # src_lang_idx and tgt_lang_idx are passed in for multilingual LM, with the
+            # first token being an lang_id token.
+            bos = self.src_lang_idx or self.vocab.bos()
+            source = torch.cat([source.new([bos]), source])
             if target is not None:
-                target = torch.cat([target.new([self.tgt_vocab.bos()]), target])
+                tgt_bos = self.tgt_lang_idx or self.tgt_vocab.bos()
+                target = torch.cat([target.new([tgt_bos]), target])
         return source, target
 
     def num_tokens_vec(self, indices):
@@ -223,6 +247,7 @@ class MonolingualDataset(FairseqDataset):
             self.vocab.eos(),
             self.fixed_pad_length,
             self.pad_to_bsz,
+            self.add_src_lang_id,
         )
 
     def num_tokens(self, index):
@@ -251,3 +276,11 @@ class MonolingualDataset(FairseqDataset):
 
     def prefetch(self, indices):
         self.dataset.prefetch(indices)
+
+
+class LanguageIdDataset(IdDataset):
+    def __init__(self, language_id):
+        self.language_id = language_id
+
+    def __getitem__(self, index):
+        return self.language_id

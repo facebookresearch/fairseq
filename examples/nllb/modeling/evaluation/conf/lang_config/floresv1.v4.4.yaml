@@ -1,0 +1,14 @@
+bin_root: non_flores_v4.2/floresv1
+
+sampled:
+    - eng_Latn-khm_Khmr
+
+all:
+    - eng_Latn-khm_Khmr
+    - eng_Latn-npi_Deva
+    - eng_Latn-pbt_Arab
+    - eng_Latn-sin_Sinh
+    - khm_Khmr-eng_Latn
+    - npi_Deva-eng_Latn
+    - pbt_Arab-eng_Latn
+    - sin_Sinh-eng_Latn

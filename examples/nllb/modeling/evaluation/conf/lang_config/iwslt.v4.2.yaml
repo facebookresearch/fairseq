@@ -1,0 +1,41 @@
+bin_root: non_flores_v4.2/iwslt
+
+sampled:
+  - eng-fas
+all:
+  - eng-ara_Arab
+  - eng-ces
+  - eng-deu
+  - eng-fas
+  - eng-fra
+  - eng-ind
+  - eng-ita
+  - eng-jpn
+  - eng-kor
+  - eng-nld
+  - eng-pol
+  - eng-ron
+  - eng-rus
+  - eng-spa
+  - eng-tha
+  - eng-tur
+  - eng-vie
+  - eng-zho_Hans
+  - ara_Arab-eng
+  - ces-eng
+  - deu-eng
+  - fas-eng
+  - fra-eng
+  - ind-eng
+  - ita-eng
+  - jpn-eng
+  - kor-eng
+  - nld-eng
+  - pol-eng
+  - ron-eng
+  - rus-eng
+  - spa-eng
+  - tha-eng
+  - tur-eng
+  - vie-eng
+  - zho_Hans-eng

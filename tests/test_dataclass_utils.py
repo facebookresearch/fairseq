@@ -1,6 +1,7 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import unittest
@@ -59,13 +60,11 @@ class TestDataclassUtils(unittest.TestCase):
         gen_parser_from_dataclass(parser, C(), True, "")
         args = parser.parse_args(
             [
-                "--encoder-arch-data",
                 "ENCODER_ARCH_DATA",
                 "--encoder-arch-num-layers",
                 "10",
                 "--encoder-foo",
                 "10",
-                "--decoder-data",
                 "DECODER_DATA",
                 "--decoder-num-layers",
                 "10",
@@ -74,10 +73,8 @@ class TestDataclassUtils(unittest.TestCase):
                 "the/data/path",
             ]
         )
-        self.assertEqual(args.encoder_arch_data, "ENCODER_ARCH_DATA")
         self.assertEqual(args.encoder_arch_num_layers, 10)
         self.assertEqual(args.encoder_foo, 10)
-        self.assertEqual(args.decoder_data, "DECODER_DATA")
         self.assertEqual(args.decoder_num_layers, 10)
         self.assertEqual(args.lr, 10)
         self.assertEqual(args.data, "the/data/path")

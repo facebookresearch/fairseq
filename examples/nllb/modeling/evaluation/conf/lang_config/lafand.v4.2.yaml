@@ -1,0 +1,33 @@
+bin_root: non_flores_v4.2/lafand
+
+sampled:
+  - eng-hau
+all:
+    - eng-hau
+    - eng-ibo
+    - eng-lug
+    - eng-luo
+    - eng-swh
+    - eng-tsn
+    - eng-yor
+    - eng-zul
+    - hau-eng
+    - ibo-eng
+    - lug-eng
+    - luo-eng
+    - swh-eng
+    - tsn-eng
+    - yor-eng
+    - zul-eng
+    - fra-bam
+    - fra-bbj
+    - fra-ewe
+    - fra-fon
+    - fra-mos
+    - fra-wol
+    - bam-fra
+    - bbj-fra
+    - ewe-fra
+    - fon-fra
+    - mos-fra
+    - wol-fra

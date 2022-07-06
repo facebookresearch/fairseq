@@ -13,7 +13,7 @@ repos:
     -   id: no-commit-to-branch
         args: ['--branch=master']
     -   id: check-added-large-files
-        args: ['--maxkb=500']
+        args: ['--maxkb=2048']
     -   id: end-of-file-fixer
 
 -   repo: https://github.com/ambv/black
@@ -21,6 +21,7 @@ repos:
     hooks:
     - id: black
       language_version: python3.8
+      additional_dependencies: ['click==8.0.4']
 
 -   repo: https://gitlab.com/pycqa/flake8
     rev: 3.9.2

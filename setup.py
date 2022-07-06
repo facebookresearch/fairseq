@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import os
@@ -204,7 +205,7 @@ def do_setup(package_data):
         long_description_content_type="text/markdown",
         setup_requires=[
             "cython",
-            'numpy<1.20.0; python_version<"3.7"',
+            'numpy==1.21.1; python_version<"3.7"',
             'numpy; python_version>="3.7"',
             "setuptools>=18.0",
         ],
@@ -212,16 +213,22 @@ def do_setup(package_data):
             "cffi",
             "cython",
             'dataclasses; python_version<"3.7"',
-            "hydra-core>=1.0.7,<1.1",
-            "omegaconf<2.1",
-            'numpy<1.20.0; python_version<"3.7"',
+            "hydra-core==1.2.0",
+            "omegaconf==2.2.2",
+            'numpy==1.21.1; python_version<"3.7"',
             'numpy; python_version>="3.7"',
             "regex",
-            "sacrebleu>=1.4.12",
+            "sacrebleu @ git+https://github.com/mjpost/sacrebleu.git@master",
+            "sentencepiece",
             "torch",
             "tqdm",
+            "typing_extensions",
             "bitarray",
             "torchaudio>=0.8.0",
+            "boto3",
+            "scikit-learn==0.24.1",
+            "scipy==1.6.1",
+            "submitit",
         ],
         dependency_links=dependency_links,
         packages=find_packages(
@@ -235,6 +242,19 @@ def do_setup(package_data):
             ]
         )
         + extra_packages,
+        extras_require={
+            "dev": [
+                # NOTE: The version here should match the version in .pre-commit-config.yaml
+                "flake8==3.9.2",
+                "pre-commit",
+                # test deps
+                "iopath",
+                "transformers",
+                "pyarrow",
+                "fairscale",
+                "sklearn",
+            ]
+        },
         package_data=package_data,
         ext_modules=extensions,
         test_suite="tests",

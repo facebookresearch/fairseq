@@ -1,0 +1,23 @@
+defaults:
+  - default
+  - override cluster: example
+  - override dataset: bilingual
+  - override model_type: dense
+
+train_subset: "train,train_mining,train_mmt_bt,train_smt_bt"
+output_dir: ???
+arch: "transformer_6_6"
+train_prefix: "dense"
+encoder_langtok: src
+ddp_backend: "fully_sharded"
+validate_interval_updates: 50
+save_interval_updates: 50
+lr: 0.001
+warmup: 400
+max_tokens: 2048
+update_freq: 4
+num_nodes: 2
+num_gpus_per_node: 8
+temp: 1
+dropout: 0.3
+max_time_mins: 360

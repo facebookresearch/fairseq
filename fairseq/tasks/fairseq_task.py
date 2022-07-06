@@ -1,6 +1,7 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import logging
@@ -10,13 +11,13 @@ from argparse import Namespace
 from typing import Any, Callable, Dict, List
 
 import torch
+from omegaconf import DictConfig
+
 from fairseq import metrics, search, tokenizer, utils
 from fairseq.data import Dictionary, FairseqDataset, data_utils, encoders, iterators
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import gen_parser_from_dataclass
 from fairseq.optim.amp_optimizer import AMPOptimizer
-from omegaconf import DictConfig
-
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +207,7 @@ class FairseqTask(object):
 
     def get_batch_iterator(
         self,
-        dataset,
+        dataset: FairseqDataset,
         max_tokens=None,
         max_sentences=None,
         max_positions=None,
@@ -222,6 +223,7 @@ class FairseqTask(object):
         skip_remainder_batch=False,
         grouped_shuffling=False,
         update_epoch_batch_itr=False,
+        batch_by_size=True,
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
@@ -262,7 +264,9 @@ class FairseqTask(object):
                 between sequence lengths among workers for batches sorted by length.
             update_epoch_batch_itr (bool optional): if true then donot use the cached
                 batch iterator for the epoch
-
+            batch_by_size (bool, optional):
+                batch sequences of similar length together to reduce padding.
+                If false, each batch will be of size max_sentences.
         Returns:
             ~fairseq.iterators.EpochBatchIterator: a batched iterator over the
                 given dataset split
@@ -291,14 +295,20 @@ class FairseqTask(object):
                 indices, dataset, max_positions, ignore_invalid_inputs
             )
 
-        # create mini-batches with given size constraints
-        batch_sampler = dataset.batch_by_size(
-            indices,
-            max_tokens=max_tokens,
-            max_sentences=max_sentences,
-            required_batch_size_multiple=required_batch_size_multiple,
-        )
-
+        if batch_by_size:
+            # create mini-batches with given size constraints
+            batch_sampler = dataset.batch_by_size(
+                indices,
+                max_tokens=max_tokens,
+                max_sentences=max_sentences,
+                required_batch_size_multiple=required_batch_size_multiple,
+            )
+        else:
+            assert (
+                max_sentences is not None
+            ), "If batch_by_size=False, max_sentences must be passed. Got None"
+            starts = indices[::max_sentences]
+            batch_sampler = [indices[s : s + max_sentences] for s in starts]
         # return a reusable, sharded iterator
         epoch_iter = iterators.EpochBatchIterator(
             dataset=dataset,
@@ -389,6 +399,7 @@ class FairseqTask(object):
             return SequenceScorer(
                 self.target_dictionary,
                 compute_alignment=getattr(args, "print_alignment", False),
+                compute_vocab_dist=getattr(args, "compute_vocab_dist", False),
             )
 
         from fairseq.sequence_generator import (
@@ -514,6 +525,18 @@ class FairseqTask(object):
             loss *= 0
         with torch.autograd.profiler.record_function("backward"):
             optimizer.backward(loss)
+
+        def freeze_params(layer):
+            for param in layer.parameters():
+                param.grad = None
+
+        if getattr(self.cfg, "freeze_up_to_layer", None):
+            for module in model.modules():
+                if not isinstance(module, torch.nn.ModuleList):
+                    continue
+                for layer in module[: getattr(self.cfg, "freeze_up_to_layer", None)]:
+                    freeze_params(layer)
+
         return loss, sample_size, logging_output
 
     def valid_step(self, sample, model, criterion):

@@ -1,6 +1,7 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import bisect
@@ -122,3 +123,15 @@ class ConcatDataset(FairseqDataset):
         for ds in self.datasets:
             if hasattr(ds, "set_epoch"):
                 ds.set_epoch(epoch)
+
+    def ordered_indices_per_dataset(self):
+        """Return a list of ordered indices vectors for each underlying dataset
+        (with parent dataset indices)."""
+        ordered_indices_list = []
+        for i, dataset in enumerate(self.datasets):
+            start = 0 if i == 0 else self.cumulative_sizes[i - 1]
+            subdataset_indices_list = dataset.ordered_indices_per_dataset()
+            for indices in subdataset_indices_list:
+                ordered_indices_list.append(indices + start)
+
+        return ordered_indices_list

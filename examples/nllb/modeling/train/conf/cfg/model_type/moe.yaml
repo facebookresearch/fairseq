@@ -1,0 +1,3 @@
+prefix: "moe"
+moe_param: " --moe --moe-freq 2 "
+expert_count: 64

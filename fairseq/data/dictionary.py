@@ -1,6 +1,7 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import os
@@ -8,6 +9,7 @@ from collections import Counter
 from multiprocessing import Pool
 
 import torch
+
 from fairseq import utils
 from fairseq.data import data_utils
 from fairseq.file_chunker_utils import Chunker, find_offsets
@@ -313,20 +315,19 @@ class Dictionary:
         words = line_tokenizer(line)
         if reverse_order:
             words = list(reversed(words))
-        nwords = len(words)
-        ids = torch.IntTensor(nwords + 1 if append_eos else nwords)
+        ids = []
 
-        for i, word in enumerate(words):
+        for word in words:
             if add_if_not_exist:
                 idx = self.add_symbol(word)
             else:
                 idx = self.index(word)
             if consumer is not None:
                 consumer(word, idx)
-            ids[i] = idx
+            ids.append(idx)
         if append_eos:
-            ids[nwords] = self.eos_index
-        return ids
+            ids.append(self.eos_index)
+        return torch.tensor(ids, dtype=torch.int32)
 
     @staticmethod
     def _add_file_to_dictionary_single_worker(

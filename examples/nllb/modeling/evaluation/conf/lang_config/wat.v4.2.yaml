@@ -1,0 +1,13 @@
+bin_root: non_flores_v4.2/wat
+
+sampled:
+  - eng-tam
+all:
+  - eng-hin
+  - eng-khm
+  - eng-mya
+  - eng-tam
+  - hin-eng
+  - khm-eng
+  - mya-eng
+  - tam-eng

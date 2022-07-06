@@ -1,10 +1,12 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import torch
 import torch.nn.functional as F
+
 from fairseq import utils
 from fairseq.iterative_refinement_generator import DecoderOut
 from fairseq.models import register_model, register_model_architecture
@@ -301,7 +303,7 @@ class NATransformerDecoder(FairseqNATDecoder):
             if (early_exit is not None) and (i >= early_exit):
                 break
 
-            x, attn, _ = layer(
+            x, attn, _, _ = layer(
                 x,
                 encoder_out["encoder_out"][0]
                 if (encoder_out is not None and len(encoder_out["encoder_out"]) > 0)

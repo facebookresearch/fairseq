@@ -1,0 +1,36 @@
+defaults:
+  - default
+  - override cluster: example
+  - override dataset: fbseed_chat
+  - override model_type: moe
+
+train_prefix: moe128
+model_type.expert_count: 128
+arch: "transformer_24_24_big"
+train_subset: "train"
+
+# update/checkpoint
+validate_interval_updates: 10
+save_interval: 1000
+save_interval_updates: 50
+keep_interval_updates: 1
+best_checkpoint_metric: "nll_loss"
+synchronize_checkpoints_before_copy: true
+encoder_langtok: src
+ddp_backend: fully_sharded
+temp: 1
+max_time_mins: 200
+
+# batch size
+max_tokens: 250
+update_freq: 1
+num_nodes: 16
+num_gpus_per_node: 8
+lr: 0.00005
+lr_scheduler: "inverse_sqrt"
+max_updates: 50
+warmup: 10
+
+replication_count : 2
+symlink_best_and_last_checkpoints: true
+restore_file: null

@@ -1,0 +1,5 @@
+cluster_name: example
+data_dir: /data/nllb/
+partition: ???
+memory_multiplier: 50
+timeout_min: 1000

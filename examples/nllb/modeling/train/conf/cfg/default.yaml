@@ -1,0 +1,53 @@
+defaults:
+  - cluster: example
+  - dataset: flores200.full.v4.4
+  - model_type: dense
+  - _self_
+
+fairseq_root: ???
+output_dir: ???
+log_dir: null
+
+train_prefix: "dense"
+seed: 2
+arch: "transformer_24_24"
+max_updates: 100000
+max_update_str: null
+resume_finished: false
+synchronize_checkpoints_before_copy: false
+validate_interval_updates: 20000
+keep_interval_updates: 10
+symlink_best_and_last_checkpoints: false
+save_interval_updates: 20000
+save_interval: 1
+best_checkpoint_metric: "loss"
+encoder_langtok: "src"
+ddp_backend: "fully_sharded"
+fp16: true
+lr: 0.001
+warmup: 8000
+max_tokens: 4096
+update_freq: 2
+num_nodes: 16
+num_gpus_per_node: 8
+temp: 1
+dropout: 0
+module_name: "examples.nllb.modeling.sweep.sweep_mmt"
+num_trials: 1
+max_time_mins: 4320
+mem: 0
+moe_eval_cap: 1.0
+checkpoint_activations: false
+zero2: false
+ssl_task: null
+dae_mask: 0.5
+train_subset: train
+finetune_dict_specs: null
+finetune_from_model: null
+restore_file: null
+no_save: false
+log_interval: 100
+eval_lang_pairs: null
+reset_dataloader: false
+replication_count: 1
+reset_all: false

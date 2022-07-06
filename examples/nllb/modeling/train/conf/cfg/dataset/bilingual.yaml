@@ -1,0 +1,9 @@
+defaults:
+  - default
+
+dataset_name: "bilingual"
+num_shards: 1
+langs: npi,eng
+lang_pairs: npi-eng
+data_prefix:
+  example: /data/nllb/bidi.v4.4.1k/npi/data_bin

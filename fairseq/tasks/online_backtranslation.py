@@ -1,6 +1,7 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import contextlib
@@ -8,11 +9,10 @@ import json
 import logging
 import math
 import os
-from argparse import Namespace
+from argparse import ArgumentError, Namespace
 from collections import OrderedDict, defaultdict
 from pathlib import Path
 from typing import Dict, Sequence, Tuple
-from argparse import ArgumentError
 
 import numpy as np
 import torch
@@ -162,6 +162,8 @@ class OnlineBackTranslationTask(TranslationTask):
                                  'e.g., \'{"beam": 4, "lenpen": 0.6}\'')
         parser.add_argument('--eval-bleu-print-samples', action='store_true',
                             help='print sample generations during validation')
+        parser.add_argument('--pad-to-fixed-length', default=False, type=bool,
+                            help='pad batch to fixed sequence length')
         # fmt: on
 
     def __init__(self, args, common_dict, mono_langs, valid_lang_pairs):

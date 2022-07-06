@@ -1,11 +1,13 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from fairseq.iterative_refinement_generator import DecoderOut
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.nat import FairseqNATDecoder, FairseqNATModel, ensemble_decoder
@@ -356,7 +358,7 @@ class LevenshteinTransformerDecoder(FairseqNATDecoder):
         layers = self.layers if layers is None else layers
         early_exit = len(layers) if early_exit is None else early_exit
         for _, layer in enumerate(layers[:early_exit]):
-            x, attn, _ = layer(
+            x, attn, _, _ = layer(
                 x,
                 encoder_out["encoder_out"][0]
                 if (encoder_out is not None and len(encoder_out["encoder_out"]) > 0)

@@ -1,6 +1,7 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 """isort:skip_file"""
 
@@ -83,7 +84,6 @@ def build_model(cfg: FairseqDataclass, task, from_checkpoint=False):
     if model_type in MODEL_DATACLASS_REGISTRY:
         # set defaults from dataclass. note that arch name and model name can be the same
         dc = MODEL_DATACLASS_REGISTRY[model_type]
-
         if isinstance(cfg, argparse.Namespace):
             cfg = dc.from_namespace(cfg)
         else:
@@ -99,10 +99,11 @@ def build_model(cfg: FairseqDataclass, task, from_checkpoint=False):
 
     assert model is not None, (
         f"Could not infer model type from {cfg}. "
-        "Available models: {}".format(MODEL_DATACLASS_REGISTRY.keys())
-        + f" Requested model type: {model_type}"
+        f"Available models: "
+        + str(MODEL_DATACLASS_REGISTRY.keys())
+        + " Requested model type: "
+        + model_type
     )
-
     return model.build_model(cfg, task)
 
 

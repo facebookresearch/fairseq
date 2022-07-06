@@ -1,8 +1,10 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 from typing import Dict, List, Optional, Tuple
 
 import torch
@@ -18,6 +20,8 @@ from fairseq.models.transformer import (
     TransformerDecoderBase,
     TransformerEncoderBase,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class TransformerModelBase(FairseqEncoderDecoderModel):
@@ -67,6 +71,10 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
 
         src_dict, tgt_dict = task.source_dictionary, task.target_dictionary
 
+        if cfg.cmr_log_lang_gates:
+            cfg.lang_idx = getattr(task, "lang_idx", None)
+            assert cfg.lang_idx is not None
+
         if cfg.share_all_embeddings:
             if src_dict != tgt_dict:
                 raise ValueError("--share-all-embeddings requires a joined dictionary")
@@ -94,12 +102,27 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
             )
         if cfg.offload_activations:
             cfg.checkpoint_activations = True  # offloading implies checkpointing
+
+        if cfg.use_tutel_moe:
+            try:
+                # To enable Tutel MoE optimizations:
+                #   python3 -m pip install --user https://github.com/microsoft/tutel/releases/download/v0.1.0/tutel-0.1.0.tar.gz
+                from tutel import moe as tutel_moe
+
+                logger.info("Using micorosoft Tutel plugin for fused function in MoE")
+            except ModuleNotFoundError:
+                raise ImportError(
+                    "Please install https://github.com/microsoft/tutel/ for --use-tutel-moe"
+                )
+
         encoder = cls.build_encoder(cfg, src_dict, encoder_embed_tokens)
         decoder = cls.build_decoder(cfg, tgt_dict, decoder_embed_tokens)
         if not cfg.share_all_embeddings:
             # fsdp_wrap is a no-op when --ddp-backend != fully_sharded
-            encoder = fsdp_wrap(encoder, min_num_params=cfg.min_params_to_wrap)
-            decoder = fsdp_wrap(decoder, min_num_params=cfg.min_params_to_wrap)
+            min_params_to_wrap = cfg.min_params_to_wrap
+            # fsdp_wrap is a no-op when --ddp-backend != fully_sharded
+            encoder = fsdp_wrap(encoder, min_num_params=min_params_to_wrap)
+            decoder = fsdp_wrap(decoder, min_num_params=min_params_to_wrap)
         return cls(cfg, encoder, decoder)
 
     @classmethod
@@ -107,7 +130,21 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
 
-        emb = Embedding(num_embeddings, embed_dim, padding_idx)
+        if cfg.use_stable_embedding:
+            import bitsandbytes as bnb
+
+            if not cfg.no_scale_embedding:
+                logger.warning(
+                    "It is recommended to pass --no-scale-embedding with --use-stable-embedding"
+                )
+            emb = bnb.nn.StableEmbedding(num_embeddings, embed_dim, padding_idx)
+        else:
+            emb = Embedding(
+                num_embeddings,
+                embed_dim,
+                padding_idx,
+                init_model_on_gpu=cfg.init_model_on_gpu,
+            )
         # if provided, load from preloaded dictionaries
         if path:
             embed_dict = utils.parse_embedding(path)
@@ -173,8 +210,16 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
         return self.get_normalized_probs_scriptable(net_output, log_probs, sample)
 
 
-def Embedding(num_embeddings, embedding_dim, padding_idx):
-    m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
-    nn.init.normal_(m.weight, mean=0, std=embedding_dim**-0.5)
-    nn.init.constant_(m.weight[padding_idx], 0)
+def Embedding(
+    num_embeddings, embedding_dim, padding_idx, init_model_on_gpu=False
+) -> nn.Embedding:
+    random_state = torch.get_rng_state()
+    device = torch.cuda.current_device() if init_model_on_gpu else None
+    dtype = torch.half if init_model_on_gpu else torch.float
+    weight = torch.empty(num_embeddings, embedding_dim, device=device, dtype=dtype)
+    nn.init.normal_(weight, mean=0, std=embedding_dim**-0.5)
+    nn.init.constant_(weight[padding_idx], 0)
+    m = nn.Embedding(
+        num_embeddings, embedding_dim, padding_idx=padding_idx, _weight=weight
+    )
     return m

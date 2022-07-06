@@ -1,31 +1,30 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import logging
-
 from typing import Any, Dict, List, Optional
-from torch import Tensor
 
 import torch
 import torch.nn as nn
+from torch import Tensor
 
+from fairseq import utils
 from fairseq.models import (
     FairseqEncoderDecoderModel,
     register_model,
     register_model_architecture,
 )
 from fairseq.models.transformer import (
-    base_architecture,
     Embedding,
-    TransformerModel,
-    TransformerEncoder,
     TransformerDecoder,
+    TransformerEncoder,
+    TransformerModel,
+    base_architecture,
 )
-from fairseq.modules import (
-    TransformerDecoderLayer,
-)
+from fairseq.modules import LayerNorm, TransformerDecoderLayer
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +64,11 @@ class LaserTransformerModel(FairseqEncoderDecoderModel):
             metavar="N",
             help="decoder language embedding dimension",
         )
+        parser.add_argument(
+            "--sentemb-criterion",
+            choices=["maxpool", "cls"],
+            help="How to build sentence embeddings?",
+        )
 
     @classmethod
     def build_model(cls, args, task):
@@ -86,8 +90,11 @@ class LaserTransformerModel(FairseqEncoderDecoderModel):
         )
         num_langs = task.num_tasks if hasattr(task, "num_tasks") else 0
 
+        if args.sentemb_criterion == "cls":
+            assert args.prepend_bos, "With CLS sentemb criterion, use --prepend-bos"
+
         encoder = LaserTransformerEncoder(
-            args, task.source_dictionary, encoder_embed_tokens
+            args.sentemb_criterion, args, task.source_dictionary, encoder_embed_tokens
         )
 
         decoder = LaserTransformerDecoder(
@@ -102,40 +109,85 @@ class LaserTransformerModel(FairseqEncoderDecoderModel):
 
 
 class LaserTransformerEncoder(TransformerEncoder):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, sentemb_criterion, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.sentemb_criterion = sentemb_criterion
+        namespace = args[0]
+        dictionary = args[1]
+        tasks = [
+            task.split(":")[0] for task in namespace.student_teacher_config.split(",")
+        ]
+        # if we have a masking task, then add a linear layer projecting from embed_dim to vocab_size
+        if "mask" in tasks:
+            self.project_vocabulary = nn.Linear(
+                namespace.encoder_embed_dim, len(dictionary), bias=False
+            )
+            nn.init.normal_(
+                self.project_vocabulary.weight,
+                mean=0,
+                std=namespace.encoder_embed_dim**-0.5,
+            )
+            self.lm_head_transform_weight = nn.Linear(
+                namespace.encoder_embed_dim, namespace.encoder_embed_dim
+            )
+            self.activation_fn = utils.get_activation_fn("tanh")
+            self.layer_norm = LayerNorm(namespace.encoder_embed_dim)
 
-    def forward(self, src_tokens, *args, **kwargs):
-        encoder_out = super().forward(src_tokens, *args, **kwargs)
+    def get_targets(self, sample, net_output):
+        """Get targets from either the sample or the net's output."""
+        return sample["target"]
 
-        x = encoder_out["encoder_out"][0]  # T x B x C
-        padding_mask = src_tokens.eq(self.padding_idx).t().unsqueeze(-1)
+    def forward(
+        self,
+        src_tokens,
+        src_lengths,
+        masked_tokens=None,
+        prev_output_tokens=None,
+        target_language_id=-1,
+        dataset_name="",
+    ):
+        encoder_out = super().forward(src_tokens, src_lengths)
 
-        if padding_mask.any():
-            x = x.float().masked_fill_(padding_mask, float("-inf")).type_as(x)
+        x = encoder_out["encoder_out"][0]  # T x B x D
 
-        # Build the sentence embedding by max-pooling over the encoder outputs
-        sentemb = x.max(dim=0)[0]
+        # project masked tokens only if performing MLM task
+        if isinstance(masked_tokens, torch.Tensor):
+            x = x.transpose(0, 1)  # B x T x D
+            # only project the masked tokens to size of vocabulary (other tokens are not considered for loss)
+            x = x[masked_tokens, :]
+            # project back to size of vocabulary
+            x = self.layer_norm(self.activation_fn(self.lm_head_transform_weight(x)))
+            x = self.project_vocabulary(x)  # B x V
+            # return logits for mlm criterion
+            return [x]  # MLM criterion takes first element of list as logits
+        else:
+            # if not MLM task return sentence embedding
+            padding_mask = src_tokens.eq(self.padding_idx).t().unsqueeze(-1)
 
-        # The Pytorch Mobile lite interpreter does not supports returning NamedTuple in
-        # `foward` so we use a dictionary instead.
-        # TorchScript does not support mixed values so the values are all lists.
-        # The empty list is equivalent to None.
-        return {"sentemb": [sentemb]}  # B x C
+            if padding_mask.any() and self.sentemb_criterion == "maxpool":
+                x = x.float().masked_fill_(padding_mask, float("-inf")).type_as(x)
+
+            if self.sentemb_criterion == "cls":
+                # determine location of 'cls' e.g. due to left-padding 'cls' may be different each sent
+                cls_indices = src_tokens.eq(self.dictionary.bos()).t()  # T x B
+                sentemb = x[cls_indices, :]
+            # Build the sentence embedding by max-pooling over the encoder outputs
+            elif self.sentemb_criterion == "maxpool":
+                sentemb = x.max(dim=0)[0]
+            else:
+                raise Exception(
+                    "Please provide a sentence embedding option from [cls|maxpool]"
+                )
+
+            return {"sentemb": sentemb}  # B x D
 
     @torch.jit.export
-    def reorder_encoder_out(self, encoder_out: Dict[str, List[Tensor]], new_order):
-        """
-        Same as the one in transformer.py, with new_sentemb
-        """
-        if len(encoder_out["sentemb"]) == 0:
-            new_sentemb = []
-        else:
-            new_sentemb = [encoder_out["sentemb"][0].index_select(0, new_order)]
+    def reorder_encoder_out(self, encoder_out_dict, new_order):
+        encoder_out_dict["sentemb"] = encoder_out_dict["sentemb"].index_select(
+            0, new_order
+        )
 
-        return {
-            "sentemb": new_sentemb,  # B x C
-        }
+        return encoder_out_dict
 
 
 class LaserTransformerDecoder(TransformerDecoder):
@@ -163,10 +215,10 @@ class LaserTransformerDecoder(TransformerDecoder):
             nn.init.normal_(
                 self.output_projection.weight,
                 mean=0,
-                std=laser_output_embed_dim ** -0.5,
+                std=laser_output_embed_dim**-0.5,
             )
 
-    def build_decoder_layer(self, args, no_encoder_attn=False):
+    def build_decoder_layer(self, args, no_encoder_attn=False, is_moe_layer=False):
         decoder_embed_dim = args.decoder_embed_dim
         args.decoder_embed_dim = (
             decoder_embed_dim + self.lang_embed_dim + args.encoder_embed_dim
@@ -253,7 +305,7 @@ class LaserTransformerDecoder(TransformerDecoder):
             )
             x = torch.cat((x, langemb.expand(*repeat_vals)), dim=-1)
 
-        sentemb = encoder_out["sentemb"][0]
+        sentemb = encoder_out["sentemb"]
         sentemb = sentemb.unsqueeze(0)
 
         repeat_vals = [x.shape[0] // sentemb.shape[0]] + [-1] * (len(sentemb.shape) - 1)
@@ -268,11 +320,13 @@ class LaserTransformerDecoder(TransformerDecoder):
         inner_states: List[Optional[Tensor]] = [x]
         for idx, layer in enumerate(self.layers):
             if incremental_state is None and not full_context_alignment:
-                self_attn_mask = self.buffered_future_mask(x)
+                self_attn_mask = self.buffered_future_mask(
+                    x.transpose(0, 1)
+                )  # `buffered_future_mask` is expecting B x T x C
             else:
                 self_attn_mask = None
 
-            x, layer_attn, _ = layer(
+            x, layer_attn, _, l_aux = layer(
                 x,
                 None,
                 None,

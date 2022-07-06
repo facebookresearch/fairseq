@@ -1,0 +1,9 @@
+defaults:
+  - default
+
+dataset_name: "flores200.full.v4.4.primary"
+num_shards: 32
+langs_file: "examples/nllb/modeling/scripts/flores200/langs.txt"
+lang_pairs_file: "examples/nllb/modeling/scripts/flores200/lang_pairs_primary.txt"
+data_prefix:
+  example: /data/nllb/flores200.en_xx_en.v4.4.256k/data_bin

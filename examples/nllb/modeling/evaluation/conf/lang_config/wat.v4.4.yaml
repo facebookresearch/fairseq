@@ -1,0 +1,14 @@
+bin_root: non_flores_v4.2/wat
+
+sampled:
+  - eng_Latn-hin_Deva
+
+all:
+  - eng_Latn-hin_Deva
+  - eng_Latn-khm_Khmr
+  - eng_Latn-mya_Mymr
+  - eng_Latn-tam_Taml
+  - hin_Deva-eng_Latn
+  - khm_Khmr-eng_Latn
+  - mya_Mymr-eng_Latn
+  - tam_Taml-eng_Latn

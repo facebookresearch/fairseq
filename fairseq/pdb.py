@@ -1,15 +1,18 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import multiprocessing
 import os
 import pdb
 import sys
+from time import sleep
 
+from torch import distributed
 
-__all__ = ["set_trace"]
+__all__ = ["set_trace", "distributed_set_trace"]
 
 
 _stdin = [None]
@@ -45,3 +48,24 @@ class MultiprocessingPdb(pdb.Pdb):
 def set_trace():
     pdb = MultiprocessingPdb()
     pdb.set_trace(sys._getframe().f_back)
+
+
+def distributed_set_trace(rank=0, sleep_time=10000):
+    """
+    In distributed training, `set_trace()` allows user to interact
+    with the code but there will be `world_size`(multiple) printed output.
+
+    This methods make the debugging run only on *one* process
+    while other processes are sleeping. If we are not using
+    distributed training, the behavior is the same as `set_trace`.
+    Args:
+        rank (int):
+            rank of the current process. 0 <= rank <= `world_size`
+        sleep_time (int):
+            sleep time (in second) of all other processes.
+    """
+    if not distributed.is_initialized() or distributed.get_rank() == rank:
+        pdb = MultiprocessingPdb()
+        pdb.set_trace(sys._getframe().f_back)
+    else:
+        sleep(sleep_time)

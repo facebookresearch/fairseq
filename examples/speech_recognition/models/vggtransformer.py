@@ -9,6 +9,7 @@ from collections.abc import Iterable
 
 import torch
 import torch.nn as nn
+
 from examples.speech_recognition.data.data_utils import lengths_to_encoder_padding_mask
 from fairseq import utils
 from fairseq.models import (
@@ -362,7 +363,7 @@ class VGGTransformerEncoder(FairseqEncoder):
         for layer_idx in range(len(self.transformer_layers)):
 
             if isinstance(self.transformer_layers[layer_idx], TransformerEncoderLayer):
-                x = self.transformer_layers[layer_idx](
+                x, _ = self.transformer_layers[layer_idx](
                     x, encoder_padding_mask, attn_mask
                 )
 

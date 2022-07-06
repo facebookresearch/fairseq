@@ -1,6 +1,7 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import contextlib
@@ -10,8 +11,9 @@ from io import StringIO
 from unittest.mock import MagicMock, patch
 
 import torch
-from fairseq import checkpoint_utils, data
 from omegaconf import OmegaConf
+
+from fairseq import checkpoint_utils, data
 
 
 def mock_trainer(epoch, num_updates, iterations_in_epoch):
@@ -70,6 +72,7 @@ def get_mock_cfg(finetune_from_model):
                 "finetune_from_model": finetune_from_model,
                 "model_parallel_size": 1,
                 "restore_file": "checkpoint_last.pt",
+                "replication_count": 1,
             },
             "common": {
                 "model_parallel_size": 1,

@@ -1,6 +1,7 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import ast
@@ -13,11 +14,12 @@ from dataclasses import _MISSING_TYPE, MISSING, is_dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Type
 
-from fairseq.dataclass import FairseqDataclass
-from fairseq.dataclass.configs import FairseqConfig
 from hydra.core.global_hydra import GlobalHydra
 from hydra.experimental import compose, initialize
-from omegaconf import DictConfig, OmegaConf, open_dict, _utils
+from omegaconf import DictConfig, OmegaConf, _utils, open_dict
+
+from fairseq.dataclass import FairseqDataclass
+from fairseq.dataclass.configs import FairseqConfig
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +68,8 @@ def gen_parser_from_dataclass(
     def argparse_name(name: str):
         if name == "data" and (with_prefix is None or with_prefix == ""):
             # normally data is positional args, so we don't add the -- nor the prefix
+            return name
+        if name in dataclass_instance.positional_args():
             return name
         if name == "_name":
             # private member, skip
@@ -344,7 +348,7 @@ def override_module_args(args: Namespace) -> Tuple[List[str], List[str]]:
 
         no_dc = True
         if hasattr(args, "arch"):
-            from fairseq.models import ARCH_MODEL_REGISTRY, ARCH_MODEL_NAME_REGISTRY
+            from fairseq.models import ARCH_MODEL_NAME_REGISTRY, ARCH_MODEL_REGISTRY
 
             if args.arch in ARCH_MODEL_REGISTRY:
                 m_cls = ARCH_MODEL_REGISTRY[args.arch]
@@ -364,13 +368,13 @@ def override_module_args(args: Namespace) -> Tuple[List[str], List[str]]:
 
 class omegaconf_no_object_check:
     def __init__(self):
-        self.old_is_primitive = _utils.is_primitive_type
+        self.old_is_primitive = _utils.is_primitive_type_annotation
 
     def __enter__(self):
-        _utils.is_primitive_type = lambda _: True
+        _utils.is_primitive_type_annotation = lambda _: True
 
     def __exit__(self, type, value, traceback):
-        _utils.is_primitive_type = self.old_is_primitive
+        _utils.is_primitive_type_annotation = self.old_is_primitive
 
 
 def convert_namespace_to_omegaconf(args: Namespace) -> DictConfig:

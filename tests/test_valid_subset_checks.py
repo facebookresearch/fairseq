@@ -1,11 +1,18 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
 import os
 import shutil
 import tempfile
 import unittest
 
 from fairseq import options
-from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.data.data_utils import raise_if_valid_subsets_unintentionally_ignored
+from fairseq.dataclass.utils import convert_namespace_to_omegaconf
+
 from .utils import create_dummy_data, preprocess_lm_data, train_language_model
 
 
@@ -112,7 +119,7 @@ class TestCombineValidSubsets(unittest.TestCase):
     def _train(self, extra_flags):
         with self.assertLogs() as logs:
             with tempfile.TemporaryDirectory("test_transformer_lm") as data_dir:
-                create_dummy_data(data_dir, num_examples=20)
+                create_dummy_data(data_dir, num_examples=64)
                 preprocess_lm_data(data_dir)
 
                 shutil.copyfile(f"{data_dir}/valid.bin", f"{data_dir}/valid1.bin")

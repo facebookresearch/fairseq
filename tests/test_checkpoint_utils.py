@@ -1,6 +1,7 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import contextlib
@@ -11,6 +12,7 @@ import unittest
 from io import StringIO
 from unittest.mock import patch
 
+import torch
 from omegaconf import OmegaConf
 
 from fairseq import checkpoint_utils
@@ -19,7 +21,6 @@ from tests.utils import (
     preprocess_translation_data,
     train_translation_model,
 )
-import torch
 
 
 class TestCheckpointUtils(unittest.TestCase):
@@ -101,8 +102,17 @@ class TestCheckpointUtils(unittest.TestCase):
                 checkpoint_utils.torch_persistent_save(
                     state_dict, filename, async_write=True
                 )
-                mock_opena.assert_called_with(filename, "wb")
+                mock_opena.assert_called_with(
+                    filename, "wb", callback_after_file_close=None
+                )
                 mock_save.assert_called()
+
+    def test_torch_persistent_save(self):
+        state_dict = {}
+        with tempfile.TemporaryDirectory("save_dir") as save_dir:
+            filename = os.path.join(save_dir, "async_checkpoint.pt")
+            checkpoint_utils.torch_persistent_save(state_dict, filename)
+            assert os.path.exists(filename)
 
     def test_load_ema_from_checkpoint(self):
         dummy_state = {"a": torch.tensor([1]), "b": torch.tensor([0.1])}

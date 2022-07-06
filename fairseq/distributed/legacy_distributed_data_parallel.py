@@ -1,6 +1,7 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 """
@@ -133,6 +134,17 @@ class LegacyDistributedDataParallel(nn.Module):
                 buffered_params = []
                 for param in params:
                     if not param.requires_grad:
+                        continue
+
+                    if hasattr(param, "base_expert"):
+                        # Skip gradient sync for unshared parameters
+                        continue
+
+                    if hasattr(param, "expert"):
+                        if param.grad is None:
+                            param.grad = torch.zeros_like(param)
+                        else:
+                            param.grad.data.div_(self.world_size)
                         continue
                     if param.grad is None:
                         param.grad = torch.zeros_like(param)

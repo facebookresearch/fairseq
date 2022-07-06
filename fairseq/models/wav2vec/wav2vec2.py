@@ -917,7 +917,7 @@ def make_conv_pos(e, k, g):
 
 
 class TransformerEncoder(nn.Module):
-    def build_encoder_layer(self, args: Wav2Vec2Config):
+    def build_encoder_layer(self, args: Wav2Vec2Config, is_moe_laye: bool = False):
         if args.layer_type == "transformer":
             layer = TransformerSentenceEncoderLayer(
                 embedding_dim=self.embedding_dim,
@@ -1086,7 +1086,7 @@ class TransformerEncoder(nn.Module):
 
 
 class ConformerEncoder(TransformerEncoder):
-    def build_encoder_layer(self, args):
+    def build_encoder_layer(self, args, is_moe_layer=False):
         layer = ConformerWav2Vec2EncoderLayer(
             embed_dim=self.embedding_dim,
             ffn_embed_dim=args.encoder_ffn_embed_dim,

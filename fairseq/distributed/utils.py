@@ -1,8 +1,10 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+import contextlib
 import io
 import logging
 import os
@@ -19,8 +21,9 @@ from typing import Any, Dict, List, Mapping, Optional
 
 import torch
 import torch.distributed as dist
-from fairseq.dataclass.configs import DistributedTrainingConfig, FairseqConfig
 from omegaconf import open_dict
+
+from fairseq.dataclass.configs import DistributedTrainingConfig, FairseqConfig
 
 try:
     import torch_xla.core.xla_model as xm
@@ -51,15 +54,15 @@ def infer_init_method(cfg: DistributedTrainingConfig, force_distributed=False):
     if cfg.pipeline_model_parallel:
         num_pipeline_devices, num_pipelines_per_node = _pipeline_parallel_pre_init(cfg)
 
-    if all(
+    if cfg.distributed_port > 0:
+        # we can determine the init method automatically for Slurm
+        _infer_slurm_init(cfg, num_pipelines_per_node)
+    elif all(
         key in os.environ
         for key in ["MASTER_ADDR", "MASTER_PORT", "WORLD_SIZE", "RANK"]
     ):
         # support torch.distributed.launch
         _infer_torch_distributed_launch_init(cfg)
-    elif cfg.distributed_port > 0:
-        # we can determine the init method automatically for Slurm
-        _infer_slurm_init(cfg, num_pipelines_per_node)
     elif cfg.distributed_world_size > 1 or force_distributed:
         # fallback for single node with multiple GPUs
         _infer_single_node_init(cfg)
@@ -90,51 +93,55 @@ def _infer_slurm_init(cfg: DistributedTrainingConfig, num_pipelines_per_node):
             hostnames = subprocess.check_output(
                 ["scontrol", "show", "hostnames", node_list]
             )
-            cfg.distributed_init_method = "tcp://{host}:{port}".format(
-                host=hostnames.split()[0].decode("utf-8"),
-                port=cfg.distributed_port,
-            )
-            nnodes = int(os.environ.get("SLURM_NNODES"))
-            ntasks_per_node = os.environ.get("SLURM_NTASKS_PER_NODE")
-            if ntasks_per_node is not None:
-                ntasks_per_node = int(ntasks_per_node)
-            else:
-                ntasks = int(os.environ.get("SLURM_NTASKS"))
-                nnodes = int(os.environ.get("SLURM_NNODES"))
-                assert ntasks % nnodes == 0
-                ntasks_per_node = int(ntasks / nnodes)
-            if ntasks_per_node == 1:
-                gpus_per_node = torch.cuda.device_count()
-                node_id = int(os.environ.get("SLURM_NODEID"))
-                cfg.distributed_rank = node_id * gpus_per_node
-                cfg.distributed_world_size = nnodes * gpus_per_node
-            elif cfg.pipeline_model_parallel:
-                assert ntasks_per_node == num_pipelines_per_node, (
-                    "SLURM --ntasks-per-node must match number of pipelines per "
-                    "node (={})".format(num_pipelines_per_node)
-                )
-                cfg.distributed_no_spawn = True
-                # For 4-way MP on nodes with 8 GPUs, ranks will be [0, 1] on
-                # the first node, [1, 2] on the second node, etc. This
-                # matches torch.distributed.launch.
-                node_id = int(os.environ.get("SLURM_NODEID"))
-                local_id = int(os.environ.get("SLURM_LOCALID"))
-                cfg.distributed_rank = node_id * num_pipelines_per_node + local_id
-                # In the above example, device_id will always be in [0, 1],
-                # which also matches torch.distributed.launch.
-                cfg.device_id = local_id
-                # We also want to set distributed_world_size to be the total
-                # number of pipelines across all nodes.
-                cfg.distributed_world_size = nnodes * num_pipelines_per_node
-            else:
-                assert ntasks_per_node == cfg.distributed_world_size // nnodes
-                cfg.distributed_no_spawn = True
-                cfg.distributed_rank = int(os.environ.get("SLURM_PROCID"))
-                cfg.device_id = int(os.environ.get("SLURM_LOCALID"))
+            host = hostnames.split()[0].decode("utf-8")
         except subprocess.CalledProcessError as e:  # scontrol failed
             raise e
         except FileNotFoundError:  # Slurm is not installed
-            pass
+            # if we're in a container, then maybe MASTER_ADDR is set
+            host = os.environ.get("MASTER_ADDR", None)
+        if host is None:
+            return
+        cfg.distributed_init_method = "tcp://{host}:{port}".format(
+            host=host, port=cfg.distributed_port
+        )
+        nnodes = int(os.environ.get("SLURM_NNODES"))
+        ntasks_per_node = os.environ.get("SLURM_NTASKS_PER_NODE")
+        if ntasks_per_node is not None:
+            ntasks_per_node = int(ntasks_per_node)
+        else:
+            ntasks = int(os.environ.get("SLURM_NTASKS"))
+            nnodes = int(os.environ.get("SLURM_NNODES"))
+            assert ntasks % nnodes == 0
+            ntasks_per_node = int(ntasks / nnodes)
+        if ntasks_per_node == 1:
+            gpus_per_node = torch.cuda.device_count()
+            node_id = int(os.environ.get("SLURM_NODEID"))
+            cfg.distributed_rank = node_id * gpus_per_node
+            cfg.distributed_world_size = nnodes * gpus_per_node
+        elif cfg.pipeline_model_parallel:
+            assert ntasks_per_node == num_pipelines_per_node, (
+                "SLURM --ntasks-per-node must match number of pipelines per "
+                "node (={})".format(num_pipelines_per_node)
+            )
+            cfg.distributed_no_spawn = True
+            # For 4-way MP on nodes with 8 GPUs, ranks will be [0, 1] on
+            # the first node, [1, 2] on the second node, etc. This
+            # matches torch.distributed.launch.
+            node_id = int(os.environ.get("SLURM_NODEID"))
+            local_id = int(os.environ.get("SLURM_LOCALID"))
+            cfg.distributed_rank = node_id * num_pipelines_per_node + local_id
+            # In the above example, device_id will always be in [0, 1],
+            # which also matches torch.distributed.launch.
+            cfg.device_id = local_id
+            # We also want to set distributed_world_size to be the total
+            # number of pipelines across all nodes.
+            cfg.distributed_world_size = nnodes * num_pipelines_per_node
+        else:
+            assert ntasks_per_node == torch.cuda.device_count()
+            cfg.distributed_world_size = ntasks_per_node * nnodes
+            cfg.distributed_no_spawn = True
+            cfg.distributed_rank = int(os.environ.get("SLURM_PROCID"))
+            cfg.device_id = int(os.environ.get("SLURM_LOCALID"))
 
 
 def _infer_single_node_init(cfg: DistributedTrainingConfig):
@@ -304,7 +311,13 @@ def distributed_init(cfg: FairseqConfig):
         model_part_number = get_model_parallel_rank()
         cfg.checkpoint.checkpoint_suffix += "-model_part-{0}".format(model_part_number)
 
-    if hasattr(cfg, "model") and getattr(cfg.model, "base_layers", 0) > 0:
+    if hasattr(cfg, "model") and (
+        (
+            getattr(cfg.model, "moe_freq", 0) > 0
+            and getattr(cfg.model, "moe_expert_count", 0) > 0
+        )
+        or getattr(cfg.model, "base_layers", 0) > 0
+    ):
         cfg.checkpoint.checkpoint_suffix = (
             f"-rank-{cfg.distributed_training.distributed_rank}"
         )
@@ -316,6 +329,10 @@ def distributed_main(i, main, cfg: FairseqConfig, kwargs):
     cfg.distributed_training.device_id = i
     if torch.cuda.is_available() and not cfg.common.cpu and not cfg.common.tpu:
         torch.cuda.set_device(cfg.distributed_training.device_id)
+        # This is temporary way of making microsoft Tutel happy, as it reads the local rank from
+        # the env. To make it work in cleaner way, we might need to change their interfaces to be
+        # able to pass local rank.
+        os.environ["LOCAL_RANK"] = str(cfg.distributed_training.device_id)
     if cfg.distributed_training.distributed_rank is None:  # torch.multiprocessing.spawn
         cfg.distributed_training.distributed_rank = kwargs.pop("start_rank", 0) + i
 
@@ -429,6 +446,60 @@ def get_global_group():
         return None
 
 
+def get_moe_group(moe_expert_count):
+    if torch.distributed.is_initialized():
+        if not hasattr(get_moe_group, "_moe_groups"):
+            world_size = get_global_world_size()
+
+            # more experts than world size
+            if world_size <= moe_expert_count:
+                assert moe_expert_count % world_size == 0
+                moe_groups = [[i] for i in range(world_size)]
+
+            # larger world than num experts
+            else:
+                assert world_size % moe_expert_count == 0
+                ranks_per_group = world_size // moe_expert_count
+                moe_groups = [
+                    [i + j * moe_expert_count for j in range(ranks_per_group)]
+                    for i in range(moe_expert_count)
+                ]
+
+            get_moe_group._moe_group_idx = moe_groups
+            get_moe_group._moe_groups = [dist.new_group(g) for g in moe_groups]
+
+        my_group_idx = _find_my_group_index(get_moe_group._moe_group_idx)
+        return get_moe_group._moe_groups[my_group_idx]
+
+
+def get_all2all_group(moe_expert_count):
+    if torch.distributed.is_initialized():
+        if not hasattr(get_all2all_group, "_all2all_groups"):
+            world_size = get_global_world_size()
+
+            # more experts than world size
+            if world_size <= moe_expert_count:
+                assert moe_expert_count % world_size == 0
+                all2all_groups = [[i for i in range(world_size)]]
+
+            # larger world than num experts
+            else:
+                assert world_size % moe_expert_count == 0
+                ranks_per_group = world_size // moe_expert_count
+                all2all_groups = [
+                    [i * moe_expert_count + j for j in range(moe_expert_count)]
+                    for i in range(ranks_per_group)
+                ]
+
+            get_all2all_group._all2all_group_idx = all2all_groups
+            get_all2all_group._all2all_groups = [
+                dist.new_group(g) for g in all2all_groups
+            ]
+
+        my_group_idx = _find_my_group_index(get_all2all_group._all2all_group_idx)
+        return get_all2all_group._all2all_groups[my_group_idx]
+
+
 def get_global_rank():
     if use_xla():
         return xm.get_ordinal()
@@ -460,12 +531,20 @@ def get_data_parallel_group():
 
 def get_data_parallel_rank():
     """Return my rank for the data parallel group."""
-    return get_rank(get_data_parallel_group())
+    dp_group = get_data_parallel_group()
+    if dp_group is not None:
+        return get_rank(dp_group)
+    else:
+        return get_global_rank()
 
 
 def get_data_parallel_world_size():
     """Return world size for the data parallel group."""
-    return get_world_size(get_data_parallel_group())
+    dp_group = get_data_parallel_group()
+    if dp_group is not None:
+        return get_world_size(dp_group)
+    else:
+        return get_global_world_size()
 
 
 def get_model_parallel_group():

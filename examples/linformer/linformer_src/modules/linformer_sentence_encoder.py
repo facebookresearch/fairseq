@@ -6,6 +6,7 @@
 import math
 
 import torch.nn as nn
+
 from fairseq.models.transformer import TransformerEncoder
 
 from .linformer_sentence_encoder_layer import LinformerTransformerEncoderLayer
@@ -39,7 +40,7 @@ class LinformerTransformerEncoder(TransformerEncoder):
         self.compress_layer = None
         super().__init__(args, dictionary, embed_tokens)
 
-    def build_encoder_layer(self, args):
+    def build_encoder_layer(self, args, is_moe_layer=False):
         if self.args.shared_layer_kv_compressed == 1 and self.compress_layer is None:
             compress_layer = nn.Linear(
                 self.args.max_positions,

@@ -1,6 +1,7 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import math
@@ -406,6 +407,13 @@ class DenoisingDataset(FairseqDataset):
     def num_tokens(self, index):
         """Return the number of tokens in a sample. This value is used to
         enforce ``--max-tokens`` during batching."""
+        if len(self.sizes.shape) > 1:
+            if self.sizes.shape[1] > 1:
+                # tgt length
+                return self.sizes[index, 1]
+            else:
+                # src length
+                return self.sizes[index, 0]
         return self.sizes[index]
 
     def size(self, index):
@@ -420,7 +428,21 @@ class DenoisingDataset(FairseqDataset):
             indices = np.random.permutation(len(self))
         else:
             indices = np.arange(len(self))
-        return indices[np.argsort(self.sizes[indices], kind="mergesort")]
+        sizes = self.sizes
+        if len(self.sizes.shape) > 1:
+            # Special handling for lang_pair_datasets:
+            # we need sizes to be an array of integers and not an array of tuples
+            # for lang_pair_datasets, self.sizes has two dimensions
+            # For dim=1, element 0 is size of the src and element 1 is size of the tgt
+            sizes = self.sizes
+            tgt_sizes = (
+                sizes[:, 1] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else None
+            )
+            src_sizes = (
+                sizes[:, 0] if len(sizes.shape) > 0 and sizes.shape[1] > 1 else sizes
+            )
+            sizes = tgt_sizes if tgt_sizes is not None else src_sizes
+        return indices[np.argsort(sizes[indices], kind="mergesort")]
 
     def prefetch(self, indices):
         self.src.prefetch(indices)
@@ -434,3 +456,113 @@ class DenoisingDataset(FairseqDataset):
             and hasattr(self.tgt, "supports_prefetch")
             and self.tgt.supports_prefetch
         )
+
+
+class LMLangPairDataset(DenoisingDataset):
+    def __getitem__(self, index, item_transform_func=None):
+        with data_utils.numpy_seed(self.seed, self.epoch, index):
+            tokens = self.dataset[index]
+            assert tokens[-1] == self.eos
+            # source, target =  torch.cat((tokens[0:int(len(tokens) * 0.10)], tokens[-1:]), dim=0), tokens.clone()
+            source, target = tokens[-1:], tokens.clone()
+
+        item_transform_func = item_transform_func or self.item_transform_func
+        if item_transform_func is not None:
+            source, target = item_transform_func(source, target)
+
+        assert (source >= 0).all()
+        assert (source[1:-1] >= 1).all()
+        assert (source <= len(self.vocab)).all()
+        # assert source[0] == self.vocab.bos()
+        assert source[-1] == self.eos
+        return {
+            "id": index,
+            "source": source,
+            "target": target,
+        }
+
+
+class DenoisingLangPairDataset(DenoisingDataset):
+    # Same as DenoisingDataset, just remove the assert that first token of source is BOS
+    # since the first token can be language token
+    def __getitem__(self, index, item_transform_func=None):
+        with data_utils.numpy_seed(self.seed, self.epoch, index):
+            tokens = self.dataset[index]
+            assert tokens[-1] == self.eos
+            source, target = tokens, tokens.clone()
+
+            if self.permute_sentence_ratio > 0.0:
+                source = self.permute_sentences(source, self.permute_sentence_ratio)
+
+            if self.mask_ratio > 0:
+                source = self.add_whole_word_mask(source, self.mask_ratio)
+
+            if self.insert_ratio > 0:
+                source = self.add_insertion_noise(source, self.insert_ratio)
+
+            if self.rotate_ratio > 0.0 and np.random.random() < self.rotate_ratio:
+                source = self.add_rolling_noise(source)
+        # there can additional changes to make:
+        item_transform_func = item_transform_func or self.item_transform_func
+        if item_transform_func is not None:
+            source, target = item_transform_func(source, target)
+
+        assert (source >= 0).all()
+        assert (source[1:-1] >= 1).all()
+        assert (source <= len(self.vocab)).all()
+        # assert source[0] == self.vocab.bos()
+        assert source[-1] == self.eos
+        return {
+            "id": index,
+            "source": source,
+            "target": target,
+        }
+
+
+class MixedDenoisingLMLangPairDataset(DenoisingDataset):
+    """
+    DenoisingDataset with extra param multitask_denoising_prob. Dataset randomly
+    assigns examples to DAE with this probability p (and LM with prob (1-p))
+    """
+
+    def __init__(
+        self,
+        dataset,
+        sizes,
+        vocab,
+        mask_idx,
+        mask_whole_words,
+        shuffle,
+        seed,
+        args,
+        eos=None,
+        item_transform_func=None,
+        multitask_denoising_prob=0.5,
+        denoising_item_transform_func=None,
+        lm_item_transform_func=None,
+    ):
+        super().__init__(
+            dataset,
+            sizes,
+            vocab,
+            mask_idx,
+            mask_whole_words,
+            shuffle,
+            seed,
+            args,
+            eos,
+            item_transform_func,
+        )
+        self.multi_task_denoising_prob = multitask_denoising_prob
+        self.denoising_item_transform_func = denoising_item_transform_func
+        self.lm_item_transform_func = lm_item_transform_func
+
+    def __getitem__(self, index):
+        if np.random.random() < self.multi_task_denoising_prob:
+            return DenoisingLangPairDataset.__getitem__(
+                self, index, self.denoising_item_transform_func
+            )
+        else:
+            return LMLangPairDataset.__getitem__(
+                self, index, self.lm_item_transform_func
+            )

@@ -1,0 +1,36 @@
+defaults:
+  - cluster: example
+  - dataset: flores200.ablation.v4.2
+  - model_type: dense
+  - _self_
+
+fairseq_root: ???
+output_dir: ???
+
+train_prefix: "dense"
+seed: 2
+arch: "transformer_24_24"
+max_updates: 200000
+validate_interval_updates: 10000
+save_interval_updates: 10000
+best_checkpoint_metric: "loss"
+encoder_langtok: "src"
+ddp_backend: "fully_sharded"
+fp16: true
+lr: 0.004
+warmup: 8000
+max_tokens: 8192
+update_freq: 1
+num_nodes: 16
+num_gpus_per_node: 8
+temp: 1
+dropout: 0
+module_name: "examples.nllb.modeling.sweep.sweep_mmt"
+num_trials: 1
+max_time_mins: 4320
+mem: 0
+moe_eval_cap: 1.0
+checkpoint_activations: false
+zero2: false
+ssl_task: "mono_mixed_task"
+dae_mask: 0.5

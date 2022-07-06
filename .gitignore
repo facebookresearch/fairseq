@@ -34,6 +34,9 @@ wheels/
 # Checkpoints
 checkpoints
 
+# slurm snap shot
+slurm_snapshot_code/
+
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
@@ -128,6 +131,7 @@ data-bin/
 # VSCODE
 .vscode/ftp-sync.json
 .vscode/settings.json
+.vscode/launch.json
 
 # Experimental Folder
 experimental/*

@@ -1,0 +1,63 @@
+name: cpu_tests
+
+on: [push, pull_request]
+
+jobs:
+  unittest:
+
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        platform: [ubuntu-latest, macos-latest]
+        python-version: [3.8, 3.9]
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+    - name: Checkout branch 🛎️
+      uses: actions/checkout@v2
+
+    - name: Setup Conda Environment
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        activate-environment: fairseq
+        python-version: ${{ matrix.python-version }}
+        auto-update-conda: true
+        use-only-tar-bz2: true
+
+    - name: Cache Conda Environment
+      uses: actions/cache@v2
+      env:
+        # Increase this value to reset cache if nothing has changed but you still
+        # want to invalidate the cache
+        CACHE_NUMBER: 0
+      with:
+        path: |
+          /usr/share/miniconda/envs/
+          /usr/local/miniconda/envs/
+        key: fairseq-cpu-${{ matrix.platform }}-python${{ matrix.python-version }}-${{ env.CACHE_NUMBER }}-${{ hashFiles('**/.github/workflows/cpu_tests.yml') }}-${{ hashFiles('**/setup.py') }}
+
+
+    - name: Install Dependencies
+      shell: bash -l {0}
+      run: |
+        conda activate fairseq
+        git submodule update --init --recursive
+        pip install torch==1.10.1 torchvision==0.11.2 torchaudio==0.10.1 statsmodels==0.12.2 more_itertools submitit boto3 editdistance iopath ipdb ipython pyarrow pytest sacremoses sentencepiece subword-nmt transformers sklearn scipy fairscale Jinja2==2.11.3
+
+    - name: Install Repository
+      shell: bash -l {0}
+      run: |
+        conda activate fairseq
+        python setup.py clean --all
+        pip install --editable .
+        python setup.py build_ext --inplace
+
+
+    - name: Run CPU tests
+      shell: bash -l {0}
+      run: |
+        conda activate fairseq
+        cd tests
+        pytest --continue-on-collection-errors -v .

@@ -1,8 +1,10 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+import torch
 import torch.nn as nn
 
 from .learned_positional_embedding import LearnedPositionalEmbedding
@@ -14,6 +16,7 @@ def PositionalEmbedding(
     embedding_dim: int,
     padding_idx: int,
     learned: bool = False,
+    learned_sinusoidal: bool = False,
 ):
     if learned:
         # if padding_idx is specified then offset the embedding ids by
@@ -26,6 +29,18 @@ def PositionalEmbedding(
         nn.init.normal_(m.weight, mean=0, std=embedding_dim**-0.5)
         if padding_idx is not None:
             nn.init.constant_(m.weight[padding_idx], 0)
+    elif learned_sinusoidal:
+        if padding_idx is not None:
+            num_embeddings = num_embeddings + padding_idx + 1
+        m = LearnedPositionalEmbedding(num_embeddings, embedding_dim, padding_idx)
+        with torch.no_grad():
+            m.weight.copy_(
+                SinusoidalPositionalEmbedding.get_embedding(
+                    num_embeddings,
+                    embedding_dim,
+                    padding_idx,
+                )
+            )
     else:
         m = SinusoidalPositionalEmbedding(
             embedding_dim,

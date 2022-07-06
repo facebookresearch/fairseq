@@ -1,7 +1,8 @@
 #!/usr/bin/env python3 -u
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 """
 Train a new model on one or across multiple GPUs.
@@ -11,6 +12,7 @@ import argparse
 import logging
 import math
 import os
+import subprocess
 import sys
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -22,6 +24,8 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 logger = logging.getLogger("fairseq_cli.train")
+
+import functools
 
 import numpy as np
 import torch
@@ -67,8 +71,10 @@ def main(cfg: FairseqConfig) -> None:
     np.random.seed(cfg.common.seed)
     utils.set_torch_seed(cfg.common.seed)
 
-    if distributed_utils.is_master(cfg.distributed_training):
-        checkpoint_utils.verify_checkpoint_directory(cfg.checkpoint.save_dir)
+    checkpoint_utils.verify_checkpoint_directory(cfg.checkpoint.save_dir)
+
+    # Print nvidia smi stats
+    logger.info(metrics.get_nvidia_smi_gpu_memory_stats_str())
 
     # Print args
     logger.info(cfg)
@@ -87,14 +93,31 @@ def main(cfg: FairseqConfig) -> None:
     task = tasks.setup_task(cfg.task)
 
     assert cfg.criterion, "Please specify criterion to train a model"
+    if (
+        getattr(cfg.model, "moe_freq", 0) > 0
+        and getattr(cfg.model, "moe_expert_count", 0)
+        < distributed_utils.get_global_world_size()
+    ):
+        assert (
+            cfg.distributed_training.ddp_backend == "fully_sharded"
+        ), "num_experts < num_gpus only supported by FSDP"
 
     # Build model and criterion
     if cfg.distributed_training.ddp_backend == "fully_sharded":
-        with fsdp_enable_wrap(cfg.distributed_training):
+        # if cfg.distributed_training.use_sharded_state: assert cfg.checkpoint.no_save_optimizer_state, f'--use-sharded-state requires --no-save-optimizer-state'
+        extra = {
+            "is_moe": getattr(cfg.model, "moe_freq", 0) > 0,
+        }
+
+        with fsdp_enable_wrap(cfg.distributed_training, **extra):
             model = fsdp_wrap(task.build_model(cfg.model))
     else:
         model = task.build_model(cfg.model)
     criterion = task.build_criterion(cfg.criterion)
+
+    def is_expert_param(p):
+        return getattr(p, "expert", False) or getattr(p, "base_expert", False)
+
     logger.info(model)
     logger.info("task: {}".format(task.__class__.__name__))
     logger.info("model: {}".format(model.__class__.__name__))
@@ -107,7 +130,7 @@ def main(cfg: FairseqConfig) -> None:
             sum(
                 p.numel()
                 for p in model.parameters()
-                if not getattr(p, "expert", False) and p.requires_grad
+                if not is_expert_param(p) and p.requires_grad
             ),
         )
     )
@@ -118,10 +141,11 @@ def main(cfg: FairseqConfig) -> None:
             sum(
                 p.numel()
                 for p in model.parameters()
-                if getattr(p, "expert", False) and p.requires_grad
+                if is_expert_param(p) and p.requires_grad
             ),
         )
     )
+    logger.info(metrics.get_nvidia_smi_gpu_memory_stats_str())
 
     # Load valid dataset (we load training data below, based on the latest checkpoint)
     # We load the valid dataset AFTER building the model
@@ -158,6 +182,7 @@ def main(cfg: FairseqConfig) -> None:
             cfg.dataset.batch_size,
         )
     )
+    logger.info(metrics.get_nvidia_smi_gpu_memory_stats_str())
 
     # Load the latest checkpoint if one is available and restore the
     # corresponding train iterator
@@ -165,7 +190,7 @@ def main(cfg: FairseqConfig) -> None:
         cfg.checkpoint,
         trainer,
         # don't cache epoch iterators for sharded datasets
-        disable_iterator_cache=task.has_sharded_data("train"),
+        disable_iterator_cache=task.has_sharded_data(cfg.dataset.train_subset),
     )
     if cfg.common.tpu:
         import torch_xla.core.xla_model as xm
@@ -197,9 +222,9 @@ def main(cfg: FairseqConfig) -> None:
         epoch_itr = trainer.get_train_iterator(
             epoch_itr.next_epoch_idx,
             # sharded data: get train iterator for next epoch
-            load_dataset=task.has_sharded_data("train"),
+            load_dataset=task.has_sharded_data(cfg.dataset.train_subset),
             # don't cache epoch iterators for sharded datasets
-            disable_iterator_cache=task.has_sharded_data("train"),
+            disable_iterator_cache=task.has_sharded_data(cfg.dataset.train_subset),
         )
     train_meter.stop()
     logger.info("done training in {:.1f} seconds".format(train_meter.sum))
@@ -257,11 +282,12 @@ def train(
         if epoch_itr.epoch <= len(cfg.optimization.update_freq)
         else cfg.optimization.update_freq[-1]
     )
-    itr = iterators.GroupedIterator(
-        itr,
-        update_freq,
-        skip_remainder_batch=cfg.optimization.skip_remainder_batch,
-    )
+    if update_freq > 1:
+        itr = iterators.GroupedIterator(
+            itr,
+            update_freq,
+            skip_remainder_batch=not cfg.optimization.train_with_epoch_remainder_batch,
+        )
     if cfg.common.tpu:
         itr = utils.tpu_data_loader(itr)
     progress = progress_bar.progress_bar(
@@ -293,8 +319,13 @@ def train(
     progress.update_config(_flatten_config(cfg))
 
     trainer.begin_epoch(epoch_itr.epoch)
-
-    valid_subsets = cfg.dataset.valid_subset.split(",")
+    if cfg.task._name in [
+        "multilingual_language_modeling",
+        "translation_multi_simple_epoch",
+    ]:
+        valid_subsets = task.args.valid_subset.split(",")
+    else:
+        valid_subsets = cfg.dataset.valid_subset.split(",")
     should_stop = False
     num_updates = trainer.get_num_updates()
     logger.info("Start iterating over samples")
@@ -302,6 +333,8 @@ def train(
         with metrics.aggregate("train_inner"), torch.autograd.profiler.record_function(
             "train_step-%d" % i
         ):
+            if update_freq == 1:
+                samples = [samples]
             log_output = trainer.train_step(samples)
 
         if log_output is not None:  # not OOM, overflow, ...
@@ -407,17 +440,71 @@ def validate_and_save(
     # Validate
     valid_losses = [None]
     if do_validate:
-        valid_losses = validate(cfg, trainer, task, epoch_itr, valid_subsets)
+        # only validate the first subset before save_checkpoint
+        valid_losses = validate(cfg, trainer, task, epoch_itr, valid_subsets[:1])
 
     should_stop |= should_stop_early(cfg, valid_losses[0])
 
     # Save checkpoint
     if do_save or should_stop:
         checkpoint_utils.save_checkpoint(
-            cfg.checkpoint, trainer, epoch_itr, valid_losses[0]
+            cfg.checkpoint,
+            trainer,
+            epoch_itr,
+            valid_losses[0],
+            training_finished=should_stop,
+            async_callback_fn=functools.partial(post_checkpoint_callback, cfg)
+            if cfg.checkpoint.s3_upload_path
+            else None,
         )
 
+    if do_validate and len(valid_subsets) > 1:
+        # the rest of the validation subsets
+        valid_losses += validate(cfg, trainer, task, epoch_itr, valid_subsets[1:])
+
+    trainer.reset_dummy_batch(epoch_itr.first_batch)
     return valid_losses, should_stop
+
+
+def post_checkpoint_callback(cfg, filename):
+    if cfg.checkpoint.s3_upload_path is not None:
+        if "blob.core.windows.net" in cfg.checkpoint.s3_upload_path:
+            azcopy_logs = filename + "_azcopy_logs"
+            os.environ["AZCOPY_CONCURRENCY_VALUE"] = "10"
+            os.environ["AZCOPY_LOG_LOCATION"] = azcopy_logs
+            os.makedirs(azcopy_logs, exist_ok=True)
+            logger.info(
+                f"preparing to azcopy {filename} to {cfg.checkpoint.s3_upload_path}; logs in {azcopy_logs}"
+            )
+            cmd = [
+                "/shared/home/myleott/bin/azcopy",
+                "copy",
+                "--cap-mbps",
+                "96.0",
+                filename,
+                cfg.checkpoint.s3_upload_path,
+            ]
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if res.returncode != 0:
+                print("Error: {}, azcopy failed".format(res.returncode))
+                print("Azcopy stdout = {}".format(res.stdout))
+                sys.exit(1)
+            # Delete original checkpoint on local storage
+            # TODO make this configurable
+            os.remove(filename)
+        else:
+            try:
+                # PathManager only supports writing to S3, but this function call
+                # can be replaced with other APIs for copying checkpoints.
+                PathManager.copy_from_local(
+                    filename,
+                    os.path.join(
+                        cfg.checkpoint.s3_upload_path, os.path.basename(filename)
+                    ),
+                    overwrite=True,
+                )
+            except (FileNotFoundError, AssertionError) as e:
+                logger.info(f"could not upload {filename}: {e}")
 
 
 def get_training_stats(stats: Dict[str, Any]) -> Dict[str, Any]:
@@ -441,7 +528,11 @@ def validate(
     trainer.begin_valid_epoch(epoch_itr.epoch)
     valid_losses = []
     for subset in subsets:
-        logger.info('begin validation on "{}" subset'.format(subset))
+        logger.info(
+            'begin validation on "{}" subset on rank {}'.format(
+                subset, distributed_utils.get_global_rank()
+            )
+        )
 
         # Initialize data iterator
         itr = trainer.get_valid_iterator(subset).next_epoch_itr(
@@ -449,6 +540,13 @@ def validate(
         )
         if cfg.common.tpu:
             itr = utils.tpu_data_loader(itr)
+
+        logger.info(
+            'got valid iterator on "{}" subset on rank {}'.format(
+                subset, distributed_utils.get_global_rank()
+            )
+        )
+
         progress = progress_bar.progress_bar(
             itr,
             log_format=cfg.common.log_format,
@@ -469,6 +567,12 @@ def validate(
             wandb_run_name=os.environ.get(
                 "WANDB_NAME", os.path.basename(cfg.checkpoint.save_dir)
             ),
+        )
+
+        logger.info(
+            'Begin looping over validation "{}" subset with length "{}"'.format(
+                subset, len(progress)
+            )
         )
 
         # create a new root metrics aggregator so validation metrics

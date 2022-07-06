@@ -1,11 +1,13 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import sys
 
 import torch
+
 from fairseq import utils
 
 
@@ -19,6 +21,7 @@ class SequenceScorer(object):
         compute_alignment=False,
         eos=None,
         symbols_to_strip_from_output=None,
+        compute_vocab_dist=False,
     ):
         self.pad = tgt_dict.pad()
         self.eos = tgt_dict.eos() if eos is None else eos
@@ -30,6 +33,7 @@ class SequenceScorer(object):
             if symbols_to_strip_from_output is not None
             else {self.eos}
         )
+        self.compute_vocab_dist = compute_vocab_dist
 
     @torch.no_grad()
     def generate(self, models, sample, **kwargs):
@@ -63,6 +67,7 @@ class SequenceScorer(object):
         # compute scores for each model in the ensemble
         avg_probs = None
         avg_attn = None
+        avg_vocab_dist = None
         for model in models:
             model.eval()
             decoder_out = model(**net_input)
@@ -72,6 +77,7 @@ class SequenceScorer(object):
 
             batched = batch_for_softmax(decoder_out, orig_target)
             probs, idx = None, 0
+            vocab_dist = []
             for bd, tgt, is_single in batched:
                 sample["target"] = tgt
                 curr_prob = model.get_normalized_probs(
@@ -79,6 +85,8 @@ class SequenceScorer(object):
                 ).data
                 if is_single:
                     probs = gather_target_probs(curr_prob, orig_target)
+                    if self.compute_vocab_dist:
+                        vocab_dist = curr_prob
                 else:
                     if probs is None:
                         probs = curr_prob.new(orig_target.numel())
@@ -89,7 +97,15 @@ class SequenceScorer(object):
                     )
                     probs[idx:end] = tgt_probs.view(-1)
                     idx = end
+                    if self.compute_vocab_dist:
+                        vocab_dist.append(curr_prob.view(step, -1))
                 sample["target"] = orig_target
+
+            if self.compute_vocab_dist and type(vocab_dist) is list:
+                vocab_dist = torch.cat(vocab_dist, dim=0)  # (bsz x tsz, vocab_size)
+                vocab_dist = vocab_dist.contiguous().view(
+                    sample["target"].size(0), sample["target"].size(1), -1
+                )
 
             probs = probs.view(sample["target"].shape)
 
@@ -97,6 +113,11 @@ class SequenceScorer(object):
                 avg_probs = probs
             else:
                 avg_probs.add_(probs)
+            if self.compute_vocab_dist:
+                if avg_vocab_dist is None:
+                    avg_vocab_dist = vocab_dist
+                else:
+                    avg_vocab_dist.add_(vocab_dist)
             if attn is not None:
                 if torch.is_tensor(attn):
                     attn = attn.data
@@ -109,6 +130,9 @@ class SequenceScorer(object):
         if len(models) > 1:
             avg_probs.div_(len(models))
             avg_probs.log_()
+            if avg_vocab_dist is not None:
+                avg_vocab_dist.div_(len(models))
+                avg_vocab_dist.log_()
             if avg_attn is not None:
                 avg_attn.div_(len(models))
 
@@ -125,6 +149,13 @@ class SequenceScorer(object):
             tgt_len = ref.numel()
             avg_probs_i = avg_probs[i][start_idxs[i] : start_idxs[i] + tgt_len]
             score_i = avg_probs_i.sum() / tgt_len
+            if avg_vocab_dist is not None:
+                avg_vocab_dist_i = avg_vocab_dist[i][
+                    start_idxs[i] : start_idxs[i] + tgt_len, :
+                ].cpu()  # off load
+            else:
+                avg_vocab_dist_i = None
+            id_i = sample["id"][i] if "id" in sample else None
             if avg_attn is not None:
                 avg_attn_i = avg_attn[i]
                 if self.compute_alignment:
@@ -147,6 +178,8 @@ class SequenceScorer(object):
                         "attention": avg_attn_i,
                         "alignment": alignment,
                         "positional_scores": avg_probs_i,
+                        "id": id_i,
+                        "vocab_dist": avg_vocab_dist_i,
                     }
                 ]
             )

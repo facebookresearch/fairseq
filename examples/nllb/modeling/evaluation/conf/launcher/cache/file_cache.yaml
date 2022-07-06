@@ -1,0 +1,2 @@
+_target_: stopes.core.FileCache
+caching_dir: /tmp/evaluation_cache/

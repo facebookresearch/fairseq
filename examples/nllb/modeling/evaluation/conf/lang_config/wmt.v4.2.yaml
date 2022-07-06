@@ -1,0 +1,35 @@
+bin_root: non_flores_v4.2/wmt
+
+sampled:
+  - eng-hin
+all:
+  - eng-ces
+  - eng-deu
+  - eng-est
+  - eng-fin
+  - eng-fra
+  - eng-guj
+  - eng-hin
+  - eng-kaz
+  - eng-lav
+  - eng-lit
+  - eng-ron
+  - eng-rus
+  - eng-spa
+  - eng-tur
+  - eng-zho_Hans
+  - ces-eng
+  - deu-eng
+  - est-eng
+  - fin-eng
+  - fra-eng
+  - guj-eng
+  - hin-eng
+  - kaz-eng
+  - lav-eng
+  - lit-eng
+  - ron-eng
+  - rus-eng
+  - spa-eng
+  - tur-eng
+  - zho_Hans-eng

@@ -1,12 +1,13 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+
+# This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
 import bisect
 import time
 from collections import OrderedDict
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 try:
     import torch
@@ -246,6 +247,56 @@ class StopwatchMeter(Meter):
         if self.round is not None and val is not None:
             val = safe_round(val, self.round)
         return val
+
+
+class GroupedAverageMeter(Meter):
+    def __init__(self, labels: List[str], round: Optional[int] = None):
+        self.round = round
+        self.labels = labels
+        self.reset()
+
+    def reset(self):
+        self.val = None  # most recent update
+        self.sum = 0  # sum from all updates
+        self.count = 0  # total n from all updates
+
+    def update(self, val, n=1):
+        if val is not None:
+            self.val = val
+            if n > 0:
+                self.sum = type_as(self.sum, val) + (val * n)
+                self.count = type_as(self.count, n) + n
+
+    def state_dict(self):
+        return {
+            "val": self.val,
+            "sum": self.sum,
+            "count": self.count,
+            "round": self.round,
+            "labels": self.labels,
+        }
+
+    def load_state_dict(self, state_dict):
+        self.val = state_dict["val"]
+        self.sum = state_dict["sum"]
+        self.count = state_dict["count"]
+        self.round = state_dict.get("round", None)
+        self.labels = state_dict.get("labels", None)
+
+    @property
+    def avg(self):
+        return self.sum / self.count if self.count > 0 else self.val
+
+    @property
+    def smoothed_value(self) -> dict:
+        val = self.avg
+        if self.round is not None and val is not None:
+            val = torch.round(val * 10**self.round) / (10**self.round)
+        assert len(val) == len(self.labels), (val, self.labels)
+        out = {}
+        for label, val in zip(self.labels, val):
+            out[label] = val
+        return out
 
 
 class MetersDict(OrderedDict):
