@@ -305,7 +305,7 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
             "sup_speech_s2s",
             "unsup_speech",
             "sup_speech_ctc",
-        )
+        ), f"failed resolving {split} (it resulted into: {dtype} ; is_train={is_train})"
         return is_train, dtype
 
     def create_modalitydatasetitem(self, dtype, dataset):
