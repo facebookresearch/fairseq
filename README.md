@@ -58,7 +58,7 @@ We provide a download script for [public bitext data](examples/nllb/data/README.
 LASER3 teacher-student training code is open sourced [here](examples/nllb/laser_distillation/README.md). LASER3 encoders and mined bitext metadata are open sourced in [LASER](https://github.com/facebookresearch/LASER) repository.
 Global mining pipeline and monolingual data filtering pipelines are released and available in our [stopes](https://github.com/facebookresearch/stopes) repository.
 
-### Backtransled Bitext
+### Backtranslated Bitext
 Follow the instructions [here](examples/nllb/data/README.md) to generate backtranslated data from a pretrained model.
 
 ### Preparing Datasets for Training
