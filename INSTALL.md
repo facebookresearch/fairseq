@@ -27,6 +27,8 @@ pip install -e .
 ```bash
 git clone https://github.com/facebookresearch/fairscale.git
 cd fairscale
+# needed when loading MoE checkpoint w/num_experts < num_gpus
+git checkout origin/experts_lt_gpus_moe_reload_fix
 pip install -e .
 ```
 
