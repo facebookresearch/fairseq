@@ -20,7 +20,6 @@ from stopes.core import StopesModule
 @dataclass
 class ClusterConfig:
     cluster_name: str = MISSING
-    data_dir: str = MISSING
     partition: str = MISSING
     memory_multiplier: int = 0
     timeout_min: int = 1000
