@@ -44,6 +44,8 @@ LASER3 models are available at [LASER](https://github.com/facebookresearch/LASER
 ### HuggingFace Integrations
 [Coming Soon]
 
+### Lightning App example
+[Coming Soon]
 
 ## Installation
 Follow installation instructions in [INSTALL](INSTALL.md) guide for running training/generation. For general instructions about `fairseq` and working with the codebase refer to [`fairseq` README](https://github.com/facebookresearch/fairseq). For [stopes](https://github.com/facebookresearch/stopes) and [LASER](https://github.com/facebookresearch/LASER) follow their README files for installation.
