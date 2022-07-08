@@ -10,6 +10,7 @@ import math
 from typing import List, Optional, NamedTuple
 
 import numpy as np
+from fairseq.data.resampling_dataset import ResamplingDataset
 import torch
 from fairseq.data import (
     ConcatDataset,
@@ -28,6 +29,16 @@ class ModalityDatasetItem(NamedTuple):
     max_positions: List[int]
     max_tokens: Optional[int] = None
     max_sentences: Optional[int] = None
+
+
+def resampling_dataset_present(ds):
+    if isinstance(ds, ResamplingDataset):
+        return True
+    if isinstance(ds, ConcatDataset):
+        return any(resampling_dataset_present(d) for d in ds.datasets)
+    if hasattr(ds, "dataset"):
+        return resampling_dataset_present(ds.dataset)
+    return False
 
 
 # MultiModalityDataset: it concate multiple datasets with different modalities.
@@ -88,7 +99,7 @@ class MultiModalityDataset(ConcatDataset):
     def sizes(self):
         if len(self.datasets) == 1:
             return self.datasets[0].sizes
-        super().sizes
+        return super().sizes
 
     def ordered_indices(self):
         """
@@ -106,12 +117,14 @@ class MultiModalityDataset(ConcatDataset):
         return indices_group
 
     def get_raw_batch_samplers(self, required_batch_size_multiple, seed):
-        if len(self.raw_sub_batch_samplers) > 0:
-            logger.info(" raw_sub_batch_samplers exists. No action is taken")
-            return
         with data_utils.numpy_seed(seed):
             indices = self.ordered_indices()
         for i, ds in enumerate(self.datasets):
+            # If we have ResamplingDataset, the same id can correpond to a different
+            # sample in the next epoch, so we need to rebuild this at every epoch
+            if i < len(self.raw_sub_batch_samplers) and not resampling_dataset_present(ds):
+                logger.info(f"dataset {i} is valid and it is not re-sampled")
+                continue
             indices[i] = ds.filter_indices_by_size(
                 indices[i],
                 self.max_positions[i],
@@ -122,7 +135,10 @@ class MultiModalityDataset(ConcatDataset):
                 max_sentences=self.max_sentences[i],
                 required_batch_size_multiple=required_batch_size_multiple,
             )
-            self.raw_sub_batch_samplers.append(sub_batch_sampler)
+            if i < len(self.raw_sub_batch_samplers):
+                self.raw_sub_batch_samplers[i] = sub_batch_sampler
+            else:
+                self.raw_sub_batch_samplers.append(sub_batch_sampler)
 
     def get_batch_samplers(self, mult_ratios, required_batch_size_multiple, seed):
         self.get_raw_batch_samplers(required_batch_size_multiple, seed)
