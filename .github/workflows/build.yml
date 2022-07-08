@@ -43,6 +43,7 @@ jobs:
         python -m pip install git+https://github.com/facebookresearch/fairscale.git@main
         python -m pip install --progress-bar off git+https://github.com/facebookresearch/xformers.git@main
         python -m pip install pytest
+        python -c 'import torch; print("Torch version:", torch.__version__)'
 
     - name: Lint with flake8
       run: |
