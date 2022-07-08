@@ -74,7 +74,7 @@ We open source our dataset preparation pipeline for filtering/encoding/binarizin
 We open source all our model training and generation code in this repo. We also share code for finetuning our models on different domains like NLLB-MD. Additionally, we also share the code for online distillation that produced our 1.3B and 600M distilled models. For more details check the [Modeling section Readme](examples/nllb/modeling/README.md).
 
 ## Evaluation and Generation
-NLLB project includes release of evaluation datasets like Flores-200, NLLB-MD and Toxicity-200. For instructions to run evaluation see instructions [here](https://github.com/facebookresearch/flores/flores200) and for instructions to produce generations from the models follow instructions [here](examples/nllb/modeling#generationevaluation).
+NLLB project includes release of evaluation datasets like Flores-200, NLLB-MD and Toxicity-200. For instructions to run evaluation see instructions [here](https://github.com/facebookresearch/flores/tree/main/flores200) and for instructions to produce generations from the models follow instructions [here](examples/nllb/modeling#generationevaluation).
 
 [Flores200](https://github.com/facebookresearch/flores/tree/main/flores200) |
 [NLLB-MD](https://github.com/facebookresearch/flores/tree/main/nllb_md) |
