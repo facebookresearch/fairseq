@@ -9,7 +9,7 @@ import copy
 import math
 from argparse import Namespace
 from dataclasses import dataclass, field
-
+from typing import Any, Optional
 import numpy as np
 import torch
 import torch.nn as nn
@@ -61,6 +61,9 @@ class HubertAsrConfig(FairseqDataclass):
         metadata={
             "help": "dropout probability after activation in FFN " "inside hubert model"
         },
+    )
+    encoder_embed_dim: Optional[int] = field(
+        default=768, metadata={"help": "encoder embedding dimension"}
     )
 
     # masking
