@@ -70,10 +70,18 @@ def from_pretrained(
     if "user_dir" in kwargs:
         utils.import_user_module(argparse.Namespace(user_dir=kwargs["user_dir"]))
 
-    models, args, task = checkpoint_utils.load_model_ensemble_and_task(
-        [os.path.join(model_path, cpt) for cpt in checkpoint_file.split(os.pathsep)],
-        arg_overrides=kwargs,
-    )
+    model_paths = [
+        os.path.join(model_path, cpt) for cpt in checkpoint_file.split(os.pathsep)
+    ]
+    if "is_vocoder" in kwargs:
+        args = {"data": kwargs["data"], "model_path": model_paths}
+        task = None
+        models = None
+    else:
+        models, args, task = checkpoint_utils.load_model_ensemble_and_task(
+            model_paths,
+            arg_overrides=kwargs,
+        )
 
     return {
         "args": args,

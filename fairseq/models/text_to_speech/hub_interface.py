@@ -137,3 +137,55 @@ class TTSHubInterface(nn.Module):
     ) -> Tuple[torch.Tensor, int]:
         sample = self.get_model_input(self.task, text, speaker, verbose=verbose)
         return self.get_prediction(self.task, self.model, self.generator, sample)
+
+
+class VocoderHubInterface(nn.Module):
+    def __init__(self, cfg, model):
+        super().__init__()
+        self.vocoder = model
+        self.vocoder.eval()
+        self.sr = 16000
+        self.multispkr = self.vocoder.model.multispkr
+        if self.multispkr:
+            logger.info("multi-speaker vocoder")
+            self.num_speakers = cfg.get(
+                "num_speakers",
+                200,
+            )  # following the default in codehifigan to set to 200
+
+    def get_model_input(
+        self,
+        text: str,
+        speaker: Optional[int] = None,
+        has_lang_token=True
+    ):
+        words = text.strip().split()
+        # Remove tokens like <lang:en> from xm_transformer output
+        if has_lang_token:
+            words = words[:-1]
+
+        units = list(map(int, words))
+        x = {
+            "code": torch.LongTensor(units).view(1, -1),
+        }
+
+        if self.multispkr:
+            assert (
+                speaker < self.num_speakers
+            ), f"invalid --speaker-id ({speaker}) with total #speakers = {self.num_speakers}"
+            spk = random.randint(0, self.num_speakers - 1) if speaker == -1 else speaker
+            x["spkr"] = torch.LongTensor([spk]).view(1, 1)
+        return x
+
+    def get_prediction(self, sample, dur_prediction: Optional[bool] = True):
+        wav = self.vocoder(sample, dur_prediction)
+        return wav, self.sr
+
+    def predict(
+        self,
+        text: str,
+        speaker: Optional[int] = None,
+        dur_prediction: Optional[bool] = True,
+    ):
+        sample = self.get_model_input(text, speaker)
+        return self.get_prediction(sample, dur_prediction)
