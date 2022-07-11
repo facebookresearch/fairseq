@@ -3,14 +3,18 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from typing import Any
 import contextlib
+import copy
+import math
 from argparse import Namespace
 from dataclasses import dataclass, field
-from typing import Any
 
+import numpy as np
 import torch
 import torch.nn as nn
-from omegaconf import II, MISSING
+import torch.nn.functional as F
+from omegaconf import II, MISSING, open_dict
 
 from fairseq import checkpoint_utils, tasks, utils
 from fairseq.dataclass import FairseqDataclass
@@ -23,6 +27,7 @@ from fairseq.models import (
     register_model,
 )
 from fairseq.models.hubert.hubert import MASKING_DISTRIBUTION_CHOICES
+from fairseq.modules import LayerNorm, PositionalEmbedding, TransformerDecoderLayer
 from fairseq.tasks import FairseqTask
 
 
@@ -197,13 +202,12 @@ class HubertSeq2SeqConfig(HubertAsrConfig):
         metadata={"help": "use learned positional embeddings in the decoder"},
     )
     decoder_normalize_before: bool = field(
-        default=False,
-        metadata={"help": "apply layernorm before each decoder block"},
+        default=False, metadata={"help": "apply layernorm before each decoder block"}
     )
     no_token_positional_embeddings: bool = field(
         default=False,
         metadata={
-            "help": "if set, disables positional embeddings " "(outside self attention)"
+            "help": "if set, disables positional embeddings (outside self attention)"
         },
     )
     decoder_dropout: float = field(
@@ -212,21 +216,20 @@ class HubertSeq2SeqConfig(HubertAsrConfig):
     decoder_attention_dropout: float = field(
         default=0.0,
         metadata={
-            "help": "dropout probability for attention weights " "inside the decoder"
+            "help": "dropout probability for attention weights inside the decoder"
         },
     )
     decoder_activation_dropout: float = field(
         default=0.0,
         metadata={
-            "help": "dropout probability after activation in FFN " "inside the decoder"
+            "help": "dropout probability after activation in FFN inside the decoder"
         },
     )
     max_target_positions: int = field(
         default=2048, metadata={"help": "max target positions"}
     )
     share_decoder_input_output_embed: bool = field(
-        default=False,
-        metadata={"help": "share decoder input and output embeddings"},
+        default=False, metadata={"help": "share decoder input and output embeddings"}
     )
     autoregressive: bool = II("task.autoregressive")
     seq2seq_path: str = field(
@@ -261,7 +264,7 @@ class HubertSeq2SeqModel(FairseqEncoderDecoderModel):
 
         decoder_embed_tokens = build_embedding(tgt_dict, cfg.decoder_embed_dim)
 
-        encoder = cls.build_encoder(cfg)
+        encoder = cls.build_encoder(cfg, task)
         decoder = cls.build_decoder(cfg, tgt_dict, decoder_embed_tokens)
 
 
@@ -279,8 +282,8 @@ class HubertSeq2SeqModel(FairseqEncoderDecoderModel):
         return model
 
     @classmethod
-    def build_encoder(cls, cfg: HubertAsrConfig):
-        return HubertEncoder(cfg)
+    def build_encoder(cls, cfg: HubertAsrConfig, task):
+        return HubertEncoder(cfg, task)
 
     @classmethod
     def build_decoder(cls, cfg: HubertSeq2SeqConfig, tgt_dict, embed_tokens):
@@ -533,6 +536,12 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 - the decoder's output of shape `(batch, tgt_len, vocab)`
                 - a dictionary with any model-specific outputs
         """
+        if (type(prev_output_tokens) == list):
+            max_len = max((len(x) for x in prev_output_tokens))
+            tmp = torch.zeros([len(prev_output_tokens), max_len], device=prev_output_tokens[0].device)
+            for (i, p) in enumerate(prev_output_tokens):
+                tmp[i, :len(p)] = p
+            prev_output_tokens = tmp
         prev_output_tokens = prev_output_tokens.long()
         x, extra = self.extract_features(
             prev_output_tokens, encoder_out, incremental_state
