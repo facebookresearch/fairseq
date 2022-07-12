@@ -380,7 +380,7 @@ class HubertEncoder(FairseqEncoder):
         self.freeze_finetune_updates = cfg.freeze_finetune_updates
         self.num_updates = 0
 
-        if task.target_dictionary is not None:
+        if task.target_dictionary is not None and not cfg.autoregressive :
             self.proj = Linear(d, len(task.target_dictionary))
         elif getattr(cfg, "decoder_embed_dim", d) != d:
             self.proj = Linear(d, cfg.decoder_embed_dim)
@@ -515,7 +515,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             self.embed_out = nn.Parameter(
                 torch.Tensor(len(dictionary), self.output_embed_dim)
             )
-            nn.init.normal_(self.embed_out, mean=0, std=self.output_embed_dim ** -0.5)
+            nn.init.normal_(self.embed_out, mean=0, std=self.output_embed_dim**-0.5)
 
         if transformer_cfg.decoder_normalize_before:
             self.layer_norm = LayerNorm(embed_dim)
@@ -601,7 +601,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         for layer in self.layers:
             dropout_probability = np.random.random()
             if not self.training or (dropout_probability > self.layerdrop):
-                # import pdb; pdb.set_trace()
                 x, attn, _ = layer(
                     x,
                     encoder_out["encoder_out"] if encoder_out is not None else None,
