@@ -429,6 +429,10 @@ class HubertEncoder(FairseqEncoder):
             encoder_out["encoder_padding_mask"] = encoder_out[
                 "encoder_padding_mask"
             ].index_select(0, new_order)
+        if encoder_out["padding_mask"] is not None:
+            encoder_out["padding_mask"] = encoder_out[
+                "padding_mask"
+            ].index_select(0, new_order)
         return encoder_out
 
     def max_positions(self):

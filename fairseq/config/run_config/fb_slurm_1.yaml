@@ -30,5 +30,6 @@ hydra:
     exclude: learnfair1381,learnfair5192,learnfair2304,learnfair5301,learnfair5208
 
 distributed_training:
-  # ddp_backend: no_c10d
+  ddp_backend: legacy_ddp
+  distributed_world_size: 8
   distributed_port: -1
