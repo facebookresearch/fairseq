@@ -16,8 +16,8 @@ checkpoint:
 task:
   _name: nlu_finetuning
   data: ???
-  #normalize: true
-  labels: parse_decoupled
+  #normalize: tru
+  labels: parse
   eval_wer_parse: true
   autoregressive: true
 
@@ -25,8 +25,8 @@ dataset:
   num_workers: 6
   max_tokens: 1600000
   skip_invalid_size_inputs_valid_test: true
-  valid_subset: full/eval,full/test
-  train_subset: full/train
+  valid_subset: eval,test
+  train_subset: train
   validate_interval: 10
 
 criterion:

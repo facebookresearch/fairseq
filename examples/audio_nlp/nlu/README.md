@@ -44,18 +44,5 @@ Run `./examples/audio_nlp/nlu/create_dict_stop.sh` to generate the fairseq dicti
 ## Training an End-to-end NLU Model
 
 ```
-./examples/audio_nlp/nlu_run_finetuning_seq2seq_nlu.sh
+python fairseq_cli/hydra-train  --config-dir examples/audio_nlp/nlu/configs/  --config-name nlu_finetuning task.data=$FAIRSEQ_DATA_OUTPUT
 ```
-
-To modify training parameters, please look at `fb_sweep/sweep_seq2seq_finetuning_nlu.py`
-For example, to change the pretrained encoder, change the `--wav2-path` argument.
-
-## Training a CTC ASR Model on STOP
-
-```
-./examples/audio_nlp/nlu/run_finetune_ctc_asr.py
-```
-To modify training parameters, please look at `fb_sweep/sweep_ctc_asr.py`
-
-
-

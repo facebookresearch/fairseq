@@ -304,7 +304,7 @@ class HubertSeq2SeqModel(FairseqEncoderDecoderModel):
         self,
         state_dict,
         strict=True,
-        model_cfg: Optional[DictConfig] = None,
+        model_cfg=None,
         args: Optional[Namespace] = None,
     ):
         if(model_cfg.reset_dict):
