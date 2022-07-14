@@ -263,21 +263,6 @@ class NLUFinetuningTask(AudioPretrainingTask):
                     if(is_ont_token(w)):
                         o.append(' ')
             return o
-        # def post_process(l):
-            # print('old post process')
-            # o = []
-            # for w in l:
-                # if(w == self.target_dictionary.eos_word):
-                    # continue
-                # if(w == '|'):
-                    # o.append(' ')
-                # else:
-                    # o.append(w)
-                    # if(is_ont_token(w)):
-                        # o.append(' ')
-            # return o
-
-
 
         num_word_errors, num_char_errors = 0, 0
         num_chars, num_words = 0, 0

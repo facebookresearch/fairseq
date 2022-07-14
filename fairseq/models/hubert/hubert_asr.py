@@ -300,18 +300,19 @@ class HubertSeq2SeqModel(FairseqEncoderDecoderModel):
     def upgrade_state_dict_named(self, state_dict, name):
         return state_dict
 
-    # def load_state_dict(
-        # self,
-        # state_dict,
-        # strict=True,
-        # model_cfg: Optional[DictConfig] = None,
-        # args: Optional[Namespace] = None,
-    # ):
-        # if(model_cfg.reset_dict):
-            # logger.warn("Overriding loading strict state dict!")
-            # del state_dict['decoder.embed_out']
-            # del state_dict['decoder.embed_tokens.weight']
-        # return super().load_state_dict(state_dict, False, model_cfg, args)
+    def load_state_dict(
+        self,
+        state_dict,
+        strict=True,
+        model_cfg: Optional[DictConfig] = None,
+        args: Optional[Namespace] = None,
+    ):
+        if(model_cfg.reset_dict):
+            logger.warn("Overriding loading strict state dict!")
+            del state_dict['decoder.embed_out']
+            del state_dict['decoder.embed_tokens.weight']
+            return super().load_state_dict(state_dict, False, model_cfg, args)
+        return super().load_state_dict(state_dict, strict, model_cfg, args)
 
 
 class HubertEncoder(FairseqEncoder):
