@@ -6,6 +6,7 @@ import logging
 import math
 import pickle
 import sys
+from turtle import pd
 
 import torch
 from torch.nn import functional as F
@@ -41,58 +42,7 @@ def similarity_matrix(teacher_states, student_states, teacher_masking, student_m
     return sim_scores_xy
 
 
-# To avoid recomputing textual encoder outputs
-# for each speech sample
 TEXT_CACHE = {}
-
-
-def score(simmatrix, wstart, wend, audio_start, audio_len):
-    area = simmatrix[audio_start:audio_start+audio_len, wstart:wend]
-    return area.mean().item() * math.log(audio_len)
-
-
-def scores_for_words(simmatrix, remaining_word_boundatries, starting_idxs, score_by_start_idx):
-    if len(remaining_word_boundatries) <= 1:
-        return score_by_start_idx
-    wstart, wend = remaining_word_boundatries[0], remaining_word_boundatries[1]
-    curr_w_len = remaining_word_boundatries[1] - remaining_word_boundatries[0]
-    possible_lens = range(curr_w_len, curr_w_len * 3)
-    possible_scores = [
-        (score(simmatrix, wstart, wend, si, pl) + score_by_start_idx[si][0], (si, si + pl))
-        for si in starting_idxs for pl in possible_lens if si + pl < simmatrix.shape[0]]
-    if len(possible_scores) == 0:
-        return {}
-    next_scores_by_start_idx = {}
-    for ps in possible_scores:
-        next_start_idx = ps[1][1]
-        if next_start_idx in next_scores_by_start_idx and next_scores_by_start_idx[next_start_idx][0] > ps[0]:
-            continue
-        new_list = score_by_start_idx[ps[1][0]][1].copy()
-        new_list.append(ps[1])
-        next_scores_by_start_idx[next_start_idx] = (ps[0], new_list)
-    return scores_for_words(simmatrix, remaining_word_boundatries[1:], list(next_scores_by_start_idx.keys()), next_scores_by_start_idx)
-
-
-def score_from_simmatrix(sim_matrix, candidate_txt):
-    words_boundaries = []
-    phonemes = candidate_txt.split(" ")
-    for ph_idx in range(len(phonemes)):
-        if phonemes[ph_idx].startswith("▁"):
-            words_boundaries.append(ph_idx)
-
-    words_boundaries.append(len(phonemes))
-    start_idxs = list(range(sim_matrix.shape[0] - len(phonemes) - 1))
-    score_by_start_idx = {si: (0, []) for si in start_idxs}
-    scores = list(scores_for_words(sim_matrix, words_boundaries, start_idxs, score_by_start_idx).values())
-    max_score = 0
-    candidate = None
-    for s in scores:
-        if s[0] > max_score:
-            max_score = s[0]
-            candidate = s
-    if DEBUG:
-        print(candidate)
-    return max_score
 
 
 def generate_scores(model, sample, candidate_list, src_dict, use_cuda):
@@ -140,8 +90,10 @@ def generate_scores(model, sample, candidate_list, src_dict, use_cuda):
                 student_masking=text_encoder_outs["encoder_padding_mask"],
             ).squeeze(0)
             sim_matrix = sim_matrix[:, :-1]  # remove eos
-            # score = sim_matrix.mean(dim=1).max().item()
-            score = score_from_simmatrix(sim_matrix, candidate)
+            speech = speech_encoder_outs["encoder_states"].squeeze(1)
+            phonemes_no_eos = text_encoder_outs["encoder_states"].squeeze(1)[:-1, :]
+            phonemes_rebuilt = torch.mm(F.softmax(sim_matrix.transpose(0, 1), dim=-1), speech)
+            score = 1 / (phonemes_no_eos - phonemes_rebuilt).norm(dim=1).mean().item()
             scores.append(score)
     return scores
 
@@ -226,8 +178,8 @@ def _main(args):
 def cli_main():
     # This script computes the similarity scores for the provided
     # candidates with respect to the input speech segments.
-    # It follows the similarity method described as multi-word
-    # in the weekly updates.
+    # It follows the inverse of the MSE between the phoneme embeddings
+    # and their reconstruction from speech.
     parser = options.get_generation_parser()
     parser.add_argument("--list-candidates", type=str, required=True)
     args = options.parse_args_and_arch(parser)
