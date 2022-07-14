@@ -160,7 +160,7 @@ lang_code_map = {
     "rus": "rus_Cyrl",
     "sag": "sag_Latn",
     "san": "san_Deva",
-    "sat": "sat_Oclk",
+    "sat": "sat_Olck",
     "scn": "scn_Latn",
     "shn": "shn_Mymr",
     "sin": "sin_Sinh",
