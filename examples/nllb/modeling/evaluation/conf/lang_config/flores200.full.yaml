@@ -45,10 +45,10 @@ all:
   - bos_Latn-fra_Latn
   - azj_Latn-fao_Latn
   - ace_Latn-lij_Latn
-  - sat_Beng-sun_Latn
+  - sat_Oclk-sun_Latn
   - tpi_Latn-kab_Latn
   - hau_Latn-hat_Latn
-  - sat_Beng-awa_Deva
+  - sat_Oclk-awa_Deva
   - luo_Latn-lao_Laoo
   - ary_Arab-kik_Latn
   - tzm_Tfng-hun_Latn
@@ -84,7 +84,7 @@ all:
   - eus_Latn-fin_Latn
   - amh_Ethi-tat_Cyrl
   - slk_Latn-kik_Latn
-  - ace_Arab-sat_Beng
+  - ace_Arab-sat_Oclk
   - ltz_Latn-arz_Arab
   - nno_Latn-ilo_Latn
   - swe_Latn-bod_Tibt
@@ -201,7 +201,7 @@ all:
   - taq_Latn-ind_Latn
   - glg_Latn-som_Latn
   - azj_Latn-ilo_Latn
-  - azb_Arab-sat_Beng
+  - azb_Arab-sat_Oclk
   - zho_Hant-slk_Latn
   - tat_Cyrl-bod_Tibt
   - san_Deva-lim_Latn
@@ -295,7 +295,7 @@ all:
   - sna_Latn-fra_Latn
   - lit_Latn-isl_Latn
   - fuv_Latn-azb_Arab
-  - sat_Beng-uig_Arab
+  - sat_Oclk-uig_Arab
   - zul_Latn-arz_Arab
   - min_Latn-tso_Latn
   - sna_Latn-pbt_Arab
@@ -564,7 +564,7 @@ all:
   - als_Latn-ayr_Latn
   - mlt_Latn-cym_Latn
   - tpi_Latn-lin_Latn
-  - sat_Beng-plt_Latn
+  - sat_Oclk-plt_Latn
   - tsn_Latn-fin_Latn
   - plt_Latn-crh_Latn
   - wol_Latn-pap_Latn
@@ -759,7 +759,7 @@ all:
   - ayr_Latn-hrv_Latn
   - mya_Mymr-prs_Arab
   - taq_Tfng-vie_Latn
-  - ewe_Latn-sat_Beng
+  - ewe_Latn-sat_Oclk
   - nob_Latn-deu_Latn
   - war_Latn-tpi_Latn
   - bak_Cyrl-nno_Latn
@@ -842,7 +842,7 @@ all:
   - zsm_Latn-est_Latn
   - mai_Deva-pag_Latn
   - snd_Arab-dik_Latn
-  - afr_Latn-sat_Beng
+  - afr_Latn-sat_Oclk
   - kac_Latn-jpn_Jpan
   - acq_Arab-mag_Deva
   - est_Latn-eng_Latn
@@ -929,7 +929,7 @@ all:
   - sna_Latn-asm_Beng
   - mag_Deva-ary_Arab
   - kas_Arab-ars_Arab
-  - lug_Latn-sat_Beng
+  - lug_Latn-sat_Oclk
   - som_Latn-lit_Latn
   - zho_Hant-lua_Latn
   - ltg_Latn-slk_Latn
@@ -1188,7 +1188,7 @@ all:
   - nld_Latn-kas_Arab
   - cym_Latn-bod_Tibt
   - kon_Latn-ibo_Latn
-  - gla_Latn-sat_Beng
+  - gla_Latn-sat_Oclk
   - nld_Latn-lmo_Latn
   - lug_Latn-kor_Hang
   - bel_Cyrl-aka_Latn
@@ -1297,7 +1297,7 @@ all:
   - fra_Latn-arb_Arab
   - awa_Deva-ssw_Latn
   - taq_Tfng-kea_Latn
-  - sat_Beng-bel_Cyrl
+  - sat_Oclk-bel_Cyrl
   - azj_Latn-nso_Latn
   - mni_Beng-war_Latn
   - kam_Latn-ars_Arab
@@ -1370,7 +1370,7 @@ all:
   - pes_Arab-fra_Latn
   - cjk_Latn-kir_Cyrl
   - dzo_Tibt-lao_Laoo
-  - sat_Beng-ace_Latn
+  - sat_Oclk-ace_Latn
   - lao_Laoo-uzn_Latn
   - fao_Latn-guj_Gujr
   - deu_Latn-tzm_Tfng
@@ -1441,7 +1441,7 @@ all:
   - nob_Latn-tsn_Latn
   - kas_Arab-pes_Arab
   - mai_Deva-acm_Arab
-  - sat_Beng-azb_Arab
+  - sat_Oclk-azb_Arab
   - nya_Latn-grn_Latn
   - nya_Latn-ssw_Latn
   - acq_Arab-dyu_Latn
@@ -1599,7 +1599,7 @@ all:
   - nno_Latn-kmb_Latn
   - sot_Latn-hat_Latn
   - oci_Latn-lmo_Latn
-  - sat_Beng-dyu_Latn
+  - sat_Oclk-dyu_Latn
   - lit_Latn-hun_Latn
   - tir_Ethi-fra_Latn
   - rus_Cyrl-zul_Latn
@@ -1728,7 +1728,7 @@ all:
   - ace_Latn-lmo_Latn
   - srd_Latn-eus_Latn
   - fon_Latn-bod_Tibt
-  - sat_Beng-tur_Latn
+  - sat_Oclk-tur_Latn
   - tir_Ethi-knc_Arab
   - ewe_Latn-zho_Hans
   - bul_Cyrl-quy_Latn
@@ -2038,7 +2038,7 @@ all:
   - pag_Latn-ell_Grek
   - run_Latn-bug_Latn
   - rus_Cyrl-tur_Latn
-  - sat_Beng-afr_Latn
+  - sat_Oclk-afr_Latn
   - bho_Deva-mlt_Latn
   - aka_Latn-nld_Latn
   - als_Latn-som_Latn
@@ -2074,7 +2074,7 @@ all:
   - guj_Gujr-bak_Cyrl
   - lim_Latn-pol_Latn
   - hrv_Latn-san_Deva
-  - guj_Gujr-sat_Beng
+  - guj_Gujr-sat_Oclk
   - por_Latn-dan_Latn
   - aeb_Arab-vec_Latn
   - pbt_Arab-kas_Arab
@@ -2124,7 +2124,7 @@ all:
   - mos_Latn-fao_Latn
   - bem_Latn-gle_Latn
   - knc_Arab-swh_Latn
-  - taq_Tfng-sat_Beng
+  - taq_Tfng-sat_Oclk
   - war_Latn-fij_Latn
   - urd_Arab-bho_Deva
   - fuv_Latn-bel_Cyrl
@@ -2316,7 +2316,7 @@ all:
   - ltz_Latn-war_Latn
   - guj_Gujr-ind_Latn
   - fuv_Latn-bjn_Latn
-  - sat_Beng-zsm_Latn
+  - sat_Oclk-zsm_Latn
   - zho_Hans-ind_Latn
   - gla_Latn-tsn_Latn
   - som_Latn-aeb_Arab
@@ -2419,9 +2419,9 @@ all:
   - tum_Latn-awa_Deva
   - ltz_Latn-tur_Latn
   - acm_Arab-srd_Latn
-  - sat_Beng-arz_Arab
+  - sat_Oclk-arz_Arab
   - sna_Latn-bem_Latn
-  - sat_Beng-snd_Arab
+  - sat_Oclk-snd_Arab
   - dyu_Latn-tha_Thai
   - tso_Latn-est_Latn
   - hau_Latn-tel_Telu
@@ -2456,7 +2456,7 @@ all:
   - nya_Latn-mar_Deva
   - scn_Latn-lim_Latn
   - jav_Latn-ell_Grek
-  - nld_Latn-sat_Beng
+  - nld_Latn-sat_Oclk
   - vec_Latn-ayr_Latn
   - hau_Latn-mni_Beng
   - ita_Latn-nso_Latn
@@ -2489,7 +2489,7 @@ all:
   - dik_Latn-cym_Latn
   - quy_Latn-ban_Latn
   - sin_Sinh-kor_Hang
-  - ory_Orya-sat_Beng
+  - ory_Orya-sat_Oclk
   - run_Latn-dzo_Tibt
   - jav_Latn-tam_Taml
   - ary_Arab-ace_Latn
@@ -2654,7 +2654,7 @@ all:
   - srp_Cyrl-ces_Latn
   - awa_Deva-tel_Telu
   - som_Latn-kam_Latn
-  - sat_Beng-heb_Hebr
+  - sat_Oclk-heb_Hebr
   - azj_Latn-mar_Deva
   - ron_Latn-ind_Latn
   - apc_Arab-urd_Arab
@@ -2663,7 +2663,7 @@ all:
   - yor_Latn-ron_Latn
   - kir_Cyrl-war_Latn
   - ltz_Latn-aka_Latn
-  - sat_Beng-kas_Deva
+  - sat_Oclk-kas_Deva
   - kab_Latn-zul_Latn
   - amh_Ethi-zul_Latn
   - mai_Deva-tha_Thai
@@ -2673,7 +2673,7 @@ all:
   - eus_Latn-kea_Latn
   - tgk_Cyrl-cjk_Latn
   - quy_Latn-hye_Armn
-  - ayr_Latn-sat_Beng
+  - ayr_Latn-sat_Oclk
   - ars_Arab-kin_Latn
   - tat_Cyrl-ydd_Hebr
   - nob_Latn-ind_Latn
@@ -2708,7 +2708,7 @@ all:
   - lvs_Latn-als_Latn
   - khm_Khmr-tpi_Latn
   - kaz_Cyrl-kea_Latn
-  - sat_Beng-tzm_Tfng
+  - sat_Oclk-tzm_Tfng
   - ces_Latn-ars_Arab
   - fon_Latn-isl_Latn
   - sin_Sinh-taq_Latn
@@ -2919,14 +2919,14 @@ all:
   - kat_Geor-jav_Latn
   - mos_Latn-kam_Latn
   - swh_Latn-kik_Latn
-  - mya_Mymr-sat_Beng
+  - mya_Mymr-sat_Oclk
   - tir_Ethi-min_Latn
   - tso_Latn-szl_Latn
   - mos_Latn-bjn_Arab
   - kor_Hang-ary_Arab
   - ben_Beng-fra_Latn
   - ydd_Hebr-bug_Latn
-  - sat_Beng-dzo_Tibt
+  - sat_Oclk-dzo_Tibt
   - fur_Latn-aeb_Arab
   - nya_Latn-ltz_Latn
   - kmb_Latn-kik_Latn
@@ -3071,7 +3071,7 @@ all:
   - pbt_Arab-taq_Latn
   - kbp_Latn-ars_Arab
   - asm_Beng-lao_Laoo
-  - bug_Latn-sat_Beng
+  - bug_Latn-sat_Oclk
   - gaz_Latn-ita_Latn
   - kik_Latn-sot_Latn
   - azj_Latn-kbp_Latn
@@ -3164,7 +3164,7 @@ all:
   - ceb_Latn-tir_Ethi
   - tur_Latn-uzn_Latn
   - yor_Latn-cat_Latn
-  - lus_Latn-sat_Beng
+  - lus_Latn-sat_Oclk
   - wol_Latn-hye_Armn
   - fon_Latn-yue_Hant
   - glg_Latn-lin_Latn
@@ -3226,7 +3226,7 @@ all:
   - azb_Arab-gla_Latn
   - mkd_Cyrl-aeb_Arab
   - tat_Cyrl-kac_Latn
-  - sat_Beng-ell_Grek
+  - sat_Oclk-ell_Grek
   - tgk_Cyrl-aeb_Arab
   - tha_Thai-guj_Gujr
   - bak_Cyrl-hne_Deva
@@ -3344,7 +3344,7 @@ all:
   - swh_Latn-snd_Arab
   - grn_Latn-kas_Arab
   - zho_Hans-sin_Sinh
-  - sat_Beng-mos_Latn
+  - sat_Oclk-mos_Latn
   - tuk_Latn-tel_Telu
   - sot_Latn-vec_Latn
   - crh_Latn-oci_Latn
@@ -3429,7 +3429,7 @@ all:
   - lus_Latn-zho_Hans
   - yor_Latn-zsm_Latn
   - min_Latn-tel_Telu
-  - dzo_Tibt-sat_Beng
+  - dzo_Tibt-sat_Oclk
   - ceb_Latn-bjn_Arab
   - san_Deva-khk_Cyrl
   - plt_Latn-ltg_Latn
@@ -3624,7 +3624,7 @@ all:
   - tpi_Latn-run_Latn
   - fij_Latn-kas_Arab
   - fra_Latn-knc_Latn
-  - sat_Beng-mag_Deva
+  - sat_Oclk-mag_Deva
   - jpn_Jpan-pol_Latn
   - gla_Latn-pes_Arab
   - yue_Hant-slv_Latn
@@ -3660,7 +3660,7 @@ all:
   - san_Deva-jpn_Jpan
   - mai_Deva-kan_Knda
   - kat_Geor-hne_Deva
-  - quy_Latn-sat_Beng
+  - quy_Latn-sat_Oclk
   - mlt_Latn-xho_Latn
   - mai_Deva-epo_Latn
   - cat_Latn-nso_Latn
@@ -3725,7 +3725,7 @@ all:
   - tso_Latn-war_Latn
   - szl_Latn-bul_Cyrl
   - ell_Grek-bjn_Arab
-  - urd_Arab-sat_Beng
+  - urd_Arab-sat_Oclk
   - tur_Latn-bam_Latn
   - tpi_Latn-tam_Taml
   - yor_Latn-ltz_Latn
@@ -3869,7 +3869,7 @@ all:
   - hin_Deva-ilo_Latn
   - arz_Arab-guj_Gujr
   - taq_Latn-kab_Latn
-  - kor_Hang-sat_Beng
+  - kor_Hang-sat_Oclk
   - khm_Khmr-pol_Latn
   - luo_Latn-umb_Latn
   - tum_Latn-san_Deva
@@ -3969,7 +3969,7 @@ all:
   - eus_Latn-prs_Arab
   - tzm_Tfng-san_Deva
   - apc_Arab-ajp_Arab
-  - sat_Beng-taq_Tfng
+  - sat_Oclk-taq_Tfng
   - pap_Latn-zul_Latn
   - dik_Latn-uig_Arab
   - lao_Laoo-prs_Arab
@@ -4074,7 +4074,7 @@ all:
   - gaz_Latn-plt_Latn
   - tsn_Latn-uzn_Latn
   - snd_Arab-slv_Latn
-  - sat_Beng-wol_Latn
+  - sat_Oclk-wol_Latn
   - kin_Latn-kbp_Latn
   - hye_Armn-azb_Arab
   - lmo_Latn-vec_Latn
@@ -4118,7 +4118,7 @@ all:
   - kea_Latn-kas_Arab
   - kea_Latn-awa_Deva
   - ceb_Latn-tat_Cyrl
-  - sat_Beng-npi_Deva
+  - sat_Oclk-npi_Deva
   - pag_Latn-grn_Latn
   - gaz_Latn-swh_Latn
   - quy_Latn-dyu_Latn
@@ -4172,7 +4172,7 @@ all:
   - pol_Latn-bho_Deva
   - aka_Latn-dyu_Latn
   - glg_Latn-nso_Latn
-  - fra_Latn-sat_Beng
+  - fra_Latn-sat_Oclk
   - umb_Latn-tel_Telu
   - jav_Latn-ayr_Latn
   - gaz_Latn-nob_Latn
@@ -4228,7 +4228,7 @@ all:
   - min_Latn-som_Latn
   - mkd_Cyrl-asm_Beng
   - wol_Latn-npi_Deva
-  - sat_Beng-scn_Latn
+  - sat_Oclk-scn_Latn
   - vec_Latn-fin_Latn
   - pan_Guru-fur_Latn
   - sin_Sinh-bho_Deva
@@ -4608,7 +4608,7 @@ all:
   - hat_Latn-als_Latn
   - cat_Latn-umb_Latn
   - war_Latn-szl_Latn
-  - hne_Deva-sat_Beng
+  - hne_Deva-sat_Oclk
   - crh_Latn-swe_Latn
   - hat_Latn-hne_Deva
   - srp_Cyrl-xho_Latn
@@ -4693,7 +4693,7 @@ all:
   - pol_Latn-bam_Latn
   - gla_Latn-guj_Gujr
   - umb_Latn-pap_Latn
-  - sat_Beng-ukr_Cyrl
+  - sat_Oclk-ukr_Cyrl
   - gaz_Latn-zho_Hans
   - ben_Beng-apc_Arab
   - zsm_Latn-tsn_Latn
@@ -4736,7 +4736,7 @@ all:
   - bod_Tibt-vie_Latn
   - prs_Arab-ben_Beng
   - glg_Latn-bam_Latn
-  - sat_Beng-pes_Arab
+  - sat_Oclk-pes_Arab
   - est_Latn-tsn_Latn
   - ukr_Cyrl-lit_Latn
   - nld_Latn-tgk_Cyrl
@@ -4791,7 +4791,7 @@ all:
   - pbt_Arab-lao_Laoo
   - yor_Latn-taq_Tfng
   - ron_Latn-sna_Latn
-  - sat_Beng-ayr_Latn
+  - sat_Oclk-ayr_Latn
   - kan_Knda-bel_Cyrl
   - rus_Cyrl-awa_Deva
   - cym_Latn-arz_Arab
@@ -4852,7 +4852,7 @@ all:
   - arz_Arab-bem_Latn
   - srp_Cyrl-eus_Latn
   - jav_Latn-ben_Beng
-  - sat_Beng-ces_Latn
+  - sat_Oclk-ces_Latn
   - srd_Latn-knc_Arab
   - sna_Latn-grn_Latn
   - tuk_Latn-lus_Latn
@@ -5153,7 +5153,7 @@ all:
   - bul_Cyrl-jpn_Jpan
   - tir_Ethi-fur_Latn
   - dan_Latn-eus_Latn
-  - sag_Latn-sat_Beng
+  - sag_Latn-sat_Oclk
   - guj_Gujr-yor_Latn
   - wol_Latn-gla_Latn
   - fuv_Latn-ace_Arab
@@ -5187,7 +5187,7 @@ all:
   - kac_Latn-xho_Latn
   - bho_Deva-luo_Latn
   - acq_Arab-swe_Latn
-  - fij_Latn-sat_Beng
+  - fij_Latn-sat_Oclk
   - mai_Deva-gla_Latn
   - por_Latn-tel_Telu
   - kan_Knda-sag_Latn
@@ -5256,7 +5256,7 @@ all:
   - awa_Deva-cjk_Latn
   - ron_Latn-war_Latn
   - mlt_Latn-npi_Deva
-  - sat_Beng-run_Latn
+  - sat_Oclk-run_Latn
   - ast_Latn-ewe_Latn
   - kin_Latn-deu_Latn
   - cjk_Latn-sna_Latn
@@ -5275,7 +5275,7 @@ all:
   - prs_Arab-tpi_Latn
   - vec_Latn-kas_Deva
   - szl_Latn-zho_Hant
-  - sat_Beng-umb_Latn
+  - sat_Oclk-umb_Latn
   - uig_Arab-tzm_Tfng
   - acm_Arab-bak_Cyrl
   - ukr_Cyrl-fuv_Latn
@@ -5407,7 +5407,7 @@ all:
   - azj_Latn-dik_Latn
   - cjk_Latn-san_Deva
   - arb_Arab-aeb_Arab
-  - lij_Latn-sat_Beng
+  - lij_Latn-sat_Oclk
   - tha_Thai-gla_Latn
   - nso_Latn-ace_Arab
   - ydd_Hebr-taq_Latn
@@ -5531,7 +5531,7 @@ all:
   - run_Latn-ban_Latn
   - ast_Latn-mri_Latn
   - eus_Latn-pbt_Arab
-  - kbp_Latn-sat_Beng
+  - kbp_Latn-sat_Oclk
   - eus_Latn-ben_Beng
   - tgk_Cyrl-kon_Latn
   - prs_Arab-som_Latn
@@ -5566,7 +5566,7 @@ all:
   - ron_Latn-taq_Latn
   - acm_Arab-tgl_Latn
   - afr_Latn-aka_Latn
-  - wol_Latn-sat_Beng
+  - wol_Latn-sat_Oclk
   - hne_Deva-guj_Gujr
   - acq_Arab-lin_Latn
   - scn_Latn-kir_Cyrl
@@ -5728,7 +5728,7 @@ all:
   - tel_Telu-spa_Latn
   - kbp_Latn-ace_Arab
   - ace_Latn-sag_Latn
-  - sat_Beng-tha_Thai
+  - sat_Oclk-tha_Thai
   - grn_Latn-bod_Tibt
   - ydd_Hebr-awa_Deva
   - slk_Latn-deu_Latn
@@ -5782,7 +5782,7 @@ all:
   - gla_Latn-fur_Latn
   - deu_Latn-kmb_Latn
   - khk_Cyrl-apc_Arab
-  - sat_Beng-war_Latn
+  - sat_Oclk-war_Latn
   - fur_Latn-bul_Cyrl
   - ckb_Arab-ban_Latn
   - kas_Arab-ssw_Latn
@@ -5830,7 +5830,7 @@ all:
   - kbp_Latn-kab_Latn
   - pan_Guru-tha_Thai
   - cym_Latn-lug_Latn
-  - bul_Cyrl-sat_Beng
+  - bul_Cyrl-sat_Oclk
   - yue_Hant-asm_Beng
   - bho_Deva-zsm_Latn
   - smo_Latn-hun_Latn
@@ -5843,7 +5843,7 @@ all:
   - bjn_Latn-mos_Latn
   - twi_Latn-isl_Latn
   - tir_Ethi-gla_Latn
-  - azj_Latn-sat_Beng
+  - azj_Latn-sat_Oclk
   - bos_Latn-fij_Latn
   - uzn_Latn-jpn_Jpan
   - min_Latn-zsm_Latn
@@ -5938,7 +5938,7 @@ all:
   - lus_Latn-kik_Latn
   - knc_Arab-nno_Latn
   - scn_Latn-ben_Beng
-  - sat_Beng-fur_Latn
+  - sat_Oclk-fur_Latn
   - arb_Arab-sun_Latn
   - ssw_Latn-tso_Latn
   - tha_Thai-hrv_Latn
@@ -6014,7 +6014,7 @@ all:
   - kea_Latn-twi_Latn
   - ydd_Hebr-nob_Latn
   - mkd_Cyrl-mal_Mlym
-  - sat_Beng-est_Latn
+  - sat_Oclk-est_Latn
   - tat_Cyrl-khm_Khmr
   - kan_Knda-arb_Arab
   - srp_Cyrl-tur_Latn
@@ -6121,7 +6121,7 @@ all:
   - fon_Latn-war_Latn
   - xho_Latn-yor_Latn
   - mos_Latn-bak_Cyrl
-  - awa_Deva-sat_Beng
+  - awa_Deva-sat_Oclk
   - deu_Latn-urd_Arab
   - yue_Hant-azj_Latn
   - pap_Latn-nno_Latn
@@ -6236,7 +6236,7 @@ all:
   - run_Latn-tzm_Tfng
   - san_Deva-kan_Knda
   - mai_Deva-ayr_Latn
-  - lmo_Latn-sat_Beng
+  - lmo_Latn-sat_Oclk
   - ita_Latn-lim_Latn
   - kat_Geor-gaz_Latn
   - ory_Orya-ces_Latn
@@ -6257,7 +6257,7 @@ all:
   - mar_Deva-ell_Grek
   - fuv_Latn-mkd_Cyrl
   - deu_Latn-dik_Latn
-  - asm_Beng-sat_Beng
+  - asm_Beng-sat_Oclk
   - hye_Armn-kan_Knda
   - sun_Latn-luo_Latn
   - spa_Latn-cym_Latn
@@ -6315,7 +6315,7 @@ all:
   - kas_Arab-quy_Latn
   - por_Latn-ary_Arab
   - swh_Latn-glg_Latn
-  - sat_Beng-tir_Ethi
+  - sat_Oclk-tir_Ethi
   - fao_Latn-gle_Latn
   - ron_Latn-azb_Arab
   - kat_Geor-bho_Deva
@@ -6344,7 +6344,7 @@ all:
   - fra_Latn-ita_Latn
   - est_Latn-fuv_Latn
   - fao_Latn-khm_Khmr
-  - tpi_Latn-sat_Beng
+  - tpi_Latn-sat_Oclk
   - jpn_Jpan-fuv_Latn
   - kam_Latn-eng_Latn
   - mkd_Cyrl-ckb_Arab
@@ -6380,7 +6380,7 @@ all:
   - guj_Gujr-nob_Latn
   - ary_Arab-srp_Cyrl
   - afr_Latn-rus_Cyrl
-  - sat_Beng-ory_Orya
+  - sat_Oclk-ory_Orya
   - dan_Latn-ydd_Hebr
   - ory_Orya-kin_Latn
   - bak_Cyrl-ltz_Latn
@@ -6476,7 +6476,7 @@ all:
   - ewe_Latn-bjn_Arab
   - tsn_Latn-nob_Latn
   - aka_Latn-tuk_Latn
-  - sat_Beng-tel_Telu
+  - sat_Oclk-tel_Telu
   - nob_Latn-npi_Deva
   - twi_Latn-wol_Latn
   - apc_Arab-kmr_Latn
@@ -6579,7 +6579,7 @@ all:
   - srd_Latn-tat_Cyrl
   - mri_Latn-por_Latn
   - fij_Latn-urd_Arab
-  - sat_Beng-lij_Latn
+  - sat_Oclk-lij_Latn
   - war_Latn-dan_Latn
   - srd_Latn-ceb_Latn
   - ltz_Latn-uig_Arab
@@ -6620,7 +6620,7 @@ all:
   - amh_Ethi-plt_Latn
   - glg_Latn-fur_Latn
   - swh_Latn-arz_Arab
-  - sat_Beng-ssw_Latn
+  - sat_Oclk-ssw_Latn
   - kmb_Latn-som_Latn
   - dyu_Latn-fij_Latn
   - ary_Arab-kas_Deva
@@ -7320,7 +7320,7 @@ all:
   - guj_Gujr-cat_Latn
   - nus_Latn-dyu_Latn
   - hrv_Latn-kan_Knda
-  - hye_Armn-sat_Beng
+  - hye_Armn-sat_Oclk
   - war_Latn-bod_Tibt
   - mag_Deva-hau_Latn
   - taq_Tfng-xho_Latn
@@ -7361,7 +7361,7 @@ all:
   - urd_Arab-san_Deva
   - kas_Arab-ckb_Arab
   - ace_Arab-ben_Beng
-  - sat_Beng-pap_Latn
+  - sat_Oclk-pap_Latn
   - ces_Latn-jav_Latn
   - arz_Arab-som_Latn
   - aka_Latn-mai_Deva
@@ -7419,7 +7419,7 @@ all:
   - bjn_Latn-war_Latn
   - nno_Latn-hin_Deva
   - azb_Arab-mal_Mlym
-  - ckb_Arab-sat_Beng
+  - ckb_Arab-sat_Oclk
   - ast_Latn-bul_Cyrl
   - dzo_Tibt-pes_Arab
   - kat_Geor-afr_Latn
@@ -7738,7 +7738,7 @@ all:
   - nya_Latn-kon_Latn
   - tsn_Latn-lim_Latn
   - zho_Hans-ajp_Arab
-  - sat_Beng-ewe_Latn
+  - sat_Oclk-ewe_Latn
   - mag_Deva-eus_Latn
   - ron_Latn-kmb_Latn
   - zsm_Latn-uig_Arab
@@ -7827,7 +7827,7 @@ all:
   - mri_Latn-pol_Latn
   - hat_Latn-oci_Latn
   - pes_Arab-kon_Latn
-  - vie_Latn-sat_Beng
+  - vie_Latn-sat_Oclk
   - kbp_Latn-tur_Latn
   - ckb_Arab-kor_Hang
   - arz_Arab-kea_Latn
@@ -7954,7 +7954,7 @@ all:
   - gaz_Latn-tel_Telu
   - luo_Latn-gle_Latn
   - lit_Latn-umb_Latn
-  - cat_Latn-sat_Beng
+  - cat_Latn-sat_Oclk
   - ceb_Latn-tam_Taml
   - gla_Latn-ron_Latn
   - kmb_Latn-kan_Knda
@@ -8098,7 +8098,7 @@ all:
   - bam_Latn-kir_Cyrl
   - mlt_Latn-kaz_Cyrl
   - hin_Deva-mag_Deva
-  - lao_Laoo-sat_Beng
+  - lao_Laoo-sat_Oclk
   - ibo_Latn-zsm_Latn
   - arb_Arab-wol_Latn
   - ajp_Arab-nob_Latn
@@ -8174,7 +8174,7 @@ all:
   - lmo_Latn-lin_Latn
   - fij_Latn-nld_Latn
   - kas_Arab-fur_Latn
-  - ltg_Latn-sat_Beng
+  - ltg_Latn-sat_Oclk
   - kaz_Cyrl-azb_Arab
   - kaz_Cyrl-ewe_Latn
   - kea_Latn-min_Latn
@@ -8368,7 +8368,7 @@ all:
   - sun_Latn-plt_Latn
   - kat_Geor-deu_Latn
   - wol_Latn-mag_Deva
-  - tgk_Cyrl-sat_Beng
+  - tgk_Cyrl-sat_Oclk
   - slv_Latn-vec_Latn
   - mos_Latn-jav_Latn
   - nld_Latn-taq_Latn
@@ -8381,7 +8381,7 @@ all:
   - khk_Cyrl-khm_Khmr
   - sag_Latn-nya_Latn
   - nya_Latn-ban_Latn
-  - sat_Beng-tuk_Latn
+  - sat_Oclk-tuk_Latn
   - pes_Arab-azj_Latn
   - ssw_Latn-mkd_Cyrl
   - bod_Tibt-azb_Arab
@@ -8392,7 +8392,7 @@ all:
   - bul_Cyrl-fao_Latn
   - crh_Latn-urd_Arab
   - ars_Arab-bak_Cyrl
-  - sat_Beng-prs_Arab
+  - sat_Oclk-prs_Arab
   - ary_Arab-snd_Arab
   - tel_Telu-bho_Deva
   - arz_Arab-bho_Deva
@@ -8429,7 +8429,7 @@ all:
   - heb_Hebr-plt_Latn
   - ceb_Latn-fur_Latn
   - san_Deva-tir_Ethi
-  - kac_Latn-sat_Beng
+  - kac_Latn-sat_Oclk
   - ltz_Latn-tha_Thai
   - arz_Arab-swh_Latn
   - bod_Tibt-dan_Latn
@@ -8437,7 +8437,7 @@ all:
   - swe_Latn-kir_Cyrl
   - crh_Latn-lim_Latn
   - lao_Laoo-khk_Cyrl
-  - sat_Beng-mri_Latn
+  - sat_Oclk-mri_Latn
   - sna_Latn-szl_Latn
   - ast_Latn-ssw_Latn
   - hye_Armn-ukr_Cyrl
@@ -8692,7 +8692,7 @@ all:
   - acm_Arab-tel_Telu
   - tgk_Cyrl-ukr_Cyrl
   - kaz_Cyrl-kor_Hang
-  - yor_Latn-sat_Beng
+  - yor_Latn-sat_Oclk
   - mkd_Cyrl-bak_Cyrl
   - ltz_Latn-kas_Arab
   - kab_Latn-isl_Latn
@@ -8725,7 +8725,7 @@ all:
   - vec_Latn-bak_Cyrl
   - pbt_Arab-mni_Beng
   - som_Latn-grn_Latn
-  - kat_Geor-sat_Beng
+  - kat_Geor-sat_Oclk
   - fij_Latn-nno_Latn
   - kam_Latn-swe_Latn
   - uzn_Latn-hye_Armn
@@ -8781,10 +8781,10 @@ all:
   - bod_Tibt-azj_Latn
   - ydd_Hebr-arz_Arab
   - cym_Latn-acm_Arab
-  - sat_Beng-mni_Beng
+  - sat_Oclk-mni_Beng
   - kas_Deva-prs_Arab
   - srp_Cyrl-nob_Latn
-  - sat_Beng-ltg_Latn
+  - sat_Oclk-ltg_Latn
   - vie_Latn-kbp_Latn
   - tzm_Tfng-hrv_Latn
   - snd_Arab-hne_Deva
@@ -8920,7 +8920,7 @@ all:
   - taq_Tfng-scn_Latn
   - taq_Tfng-pol_Latn
   - pbt_Arab-tzm_Tfng
-  - sat_Beng-khk_Cyrl
+  - sat_Oclk-khk_Cyrl
   - mar_Deva-ces_Latn
   - hau_Latn-gle_Latn
   - lit_Latn-awa_Deva
@@ -9073,7 +9073,7 @@ all:
   - ace_Latn-sna_Latn
   - hat_Latn-kaz_Cyrl
   - gaz_Latn-prs_Arab
-  - swe_Latn-sat_Beng
+  - swe_Latn-sat_Oclk
   - hrv_Latn-mri_Latn
   - mri_Latn-azb_Arab
   - dzo_Tibt-ory_Orya
@@ -9144,7 +9144,7 @@ all:
   - ces_Latn-hun_Latn
   - sun_Latn-amh_Ethi
   - guj_Gujr-kab_Latn
-  - sat_Beng-ilo_Latn
+  - sat_Oclk-ilo_Latn
   - bod_Tibt-ckb_Arab
   - cat_Latn-ben_Beng
   - kon_Latn-bjn_Arab
@@ -9217,7 +9217,7 @@ all:
   - ell_Grek-rus_Cyrl
   - glg_Latn-jpn_Jpan
   - snd_Arab-ssw_Latn
-  - sat_Beng-ajp_Arab
+  - sat_Oclk-ajp_Arab
   - mkd_Cyrl-kac_Latn
   - nso_Latn-shn_Mymr
   - ewe_Latn-slv_Latn
@@ -9258,7 +9258,7 @@ all:
   - snd_Arab-gla_Latn
   - khm_Khmr-bod_Tibt
   - szl_Latn-tgk_Cyrl
-  - sat_Beng-cat_Latn
+  - sat_Oclk-cat_Latn
   - lao_Laoo-ajp_Arab
   - lit_Latn-nob_Latn
   - mal_Mlym-vie_Latn
@@ -9422,7 +9422,7 @@ all:
   - mya_Mymr-hye_Armn
   - jpn_Jpan-arz_Arab
   - afr_Latn-vie_Latn
-  - sat_Beng-azj_Latn
+  - sat_Oclk-azj_Latn
   - som_Latn-uzn_Latn
   - por_Latn-bod_Tibt
   - sna_Latn-knc_Latn
@@ -9457,7 +9457,7 @@ all:
   - bos_Latn-war_Latn
   - tgl_Latn-bjn_Arab
   - lmo_Latn-est_Latn
-  - sat_Beng-taq_Latn
+  - sat_Oclk-taq_Latn
   - ckb_Arab-lao_Laoo
   - spa_Latn-khm_Khmr
   - mlt_Latn-gla_Latn
@@ -9465,7 +9465,7 @@ all:
   - gla_Latn-ban_Latn
   - sun_Latn-mos_Latn
   - swh_Latn-gla_Latn
-  - taq_Latn-sat_Beng
+  - taq_Latn-sat_Oclk
   - kmr_Latn-kam_Latn
   - nya_Latn-ita_Latn
   - kin_Latn-yor_Latn
@@ -9507,7 +9507,7 @@ all:
   - fin_Latn-awa_Deva
   - vie_Latn-sin_Sinh
   - yor_Latn-kaz_Cyrl
-  - bam_Latn-sat_Beng
+  - bam_Latn-sat_Oclk
   - tgl_Latn-aeb_Arab
   - mos_Latn-ayr_Latn
   - ssw_Latn-azb_Arab
@@ -9527,7 +9527,7 @@ all:
   - bho_Deva-arz_Arab
   - umb_Latn-grn_Latn
   - hye_Armn-bug_Latn
-  - sat_Beng-bho_Deva
+  - sat_Oclk-bho_Deva
   - bug_Latn-azb_Arab
   - ajp_Arab-fao_Latn
   - ary_Arab-zho_Hant
@@ -9566,7 +9566,7 @@ all:
   - bos_Latn-slv_Latn
   - hrv_Latn-zho_Hans
   - lus_Latn-lmo_Latn
-  - pap_Latn-sat_Beng
+  - pap_Latn-sat_Oclk
   - mni_Beng-mal_Mlym
   - tzm_Tfng-lvs_Latn
   - crh_Latn-ceb_Latn
@@ -9785,7 +9785,7 @@ all:
   - hat_Latn-cat_Latn
   - ces_Latn-rus_Cyrl
   - pes_Arab-mri_Latn
-  - lua_Latn-sat_Beng
+  - lua_Latn-sat_Oclk
   - prs_Arab-mag_Deva
   - azj_Latn-epo_Latn
   - lao_Laoo-hrv_Latn
@@ -9803,7 +9803,7 @@ all:
   - eus_Latn-tsn_Latn
   - khk_Cyrl-cat_Latn
   - aka_Latn-ell_Grek
-  - sat_Beng-slk_Latn
+  - sat_Oclk-slk_Latn
   - sna_Latn-mri_Latn
   - lin_Latn-ssw_Latn
   - sna_Latn-ckb_Arab
@@ -9957,7 +9957,7 @@ all:
   - srd_Latn-swh_Latn
   - jav_Latn-kor_Hang
   - mya_Mymr-lmo_Latn
-  - knc_Arab-sat_Beng
+  - knc_Arab-sat_Oclk
   - taq_Tfng-kab_Latn
   - ary_Arab-ayr_Latn
   - ewe_Latn-ory_Orya
@@ -10124,7 +10124,7 @@ all:
   - knc_Latn-hun_Latn
   - snd_Arab-kan_Knda
   - ace_Arab-hne_Deva
-  - sat_Beng-bug_Latn
+  - sat_Oclk-bug_Latn
   - min_Latn-afr_Latn
   - mni_Beng-mos_Latn
   - ewe_Latn-tel_Telu
@@ -10175,7 +10175,7 @@ all:
   - tur_Latn-fin_Latn
   - snd_Arab-oci_Latn
   - yor_Latn-taq_Latn
-  - sat_Beng-bjn_Arab
+  - sat_Oclk-bjn_Arab
   - hau_Latn-pap_Latn
   - spa_Latn-ben_Beng
   - guj_Gujr-ace_Arab
@@ -10331,7 +10331,7 @@ all:
   - bho_Deva-kan_Knda
   - hne_Deva-lmo_Latn
   - khk_Cyrl-kab_Latn
-  - sat_Beng-kin_Latn
+  - sat_Oclk-kin_Latn
   - tgk_Cyrl-prs_Arab
   - yue_Hant-gla_Latn
   - war_Latn-wol_Latn
@@ -10475,7 +10475,7 @@ all:
   - bug_Latn-lvs_Latn
   - spa_Latn-lao_Laoo
   - kas_Deva-umb_Latn
-  - sat_Beng-por_Latn
+  - sat_Oclk-por_Latn
   - ltg_Latn-ydd_Hebr
   - grn_Latn-srd_Latn
   - knc_Arab-tel_Telu
@@ -10497,7 +10497,7 @@ all:
   - ars_Arab-mar_Deva
   - lit_Latn-tum_Latn
   - uig_Arab-bug_Latn
-  - eng_Latn-sat_Beng
+  - eng_Latn-sat_Oclk
   - uig_Arab-mya_Mymr
   - quy_Latn-tpi_Latn
   - lmo_Latn-pag_Latn
@@ -10621,7 +10621,7 @@ all:
   - grn_Latn-fij_Latn
   - kab_Latn-mos_Latn
   - tha_Thai-umb_Latn
-  - spa_Latn-sat_Beng
+  - spa_Latn-sat_Oclk
   - tzm_Tfng-som_Latn
   - grn_Latn-ces_Latn
   - oci_Latn-bos_Latn
@@ -10770,7 +10770,7 @@ all:
   - ace_Arab-afr_Latn
   - bod_Tibt-lim_Latn
   - asm_Beng-spa_Latn
-  - sat_Beng-dan_Latn
+  - sat_Oclk-dan_Latn
   - slv_Latn-amh_Ethi
   - plt_Latn-kik_Latn
   - guj_Gujr-hrv_Latn
@@ -10919,7 +10919,7 @@ all:
   - asm_Beng-tuk_Latn
   - kbp_Latn-pap_Latn
   - aka_Latn-ary_Arab
-  - sat_Beng-uzn_Latn
+  - sat_Oclk-uzn_Latn
   - dyu_Latn-oci_Latn
   - tel_Telu-nus_Latn
   - uzn_Latn-pag_Latn
@@ -11029,7 +11029,7 @@ all:
   - ltz_Latn-dzo_Tibt
   - knc_Arab-sna_Latn
   - epo_Latn-som_Latn
-  - zho_Hans-sat_Beng
+  - zho_Hans-sat_Oclk
   - crh_Latn-taq_Latn
   - ind_Latn-azb_Arab
   - hye_Armn-mni_Beng
@@ -11114,7 +11114,7 @@ all:
   - quy_Latn-fuv_Latn
   - bos_Latn-aka_Latn
   - acq_Arab-hne_Deva
-  - tam_Taml-sat_Beng
+  - tam_Taml-sat_Oclk
   - gla_Latn-knc_Arab
   - lin_Latn-fon_Latn
   - fuv_Latn-mal_Mlym
@@ -11147,7 +11147,7 @@ all:
   - aeb_Arab-kas_Arab
   - guj_Gujr-arz_Arab
   - pol_Latn-dzo_Tibt
-  - mri_Latn-sat_Beng
+  - mri_Latn-sat_Oclk
   - tha_Thai-mni_Beng
   - tat_Cyrl-isl_Latn
   - luo_Latn-kat_Geor
@@ -11171,7 +11171,7 @@ all:
   - nob_Latn-quy_Latn
   - luo_Latn-srp_Cyrl
   - mos_Latn-pap_Latn
-  - cjk_Latn-sat_Beng
+  - cjk_Latn-sat_Oclk
   - fij_Latn-awa_Deva
   - bem_Latn-glg_Latn
   - urd_Arab-mlt_Latn
@@ -11186,7 +11186,7 @@ all:
   - tur_Latn-bos_Latn
   - hau_Latn-bel_Cyrl
   - deu_Latn-kmr_Latn
-  - sat_Beng-knc_Latn
+  - sat_Oclk-knc_Latn
   - eng_Latn-cjk_Latn
   - isl_Latn-bul_Cyrl
   - slv_Latn-deu_Latn
@@ -11228,7 +11228,7 @@ all:
   - kab_Latn-tir_Ethi
   - jpn_Jpan-grn_Latn
   - azb_Arab-arz_Arab
-  - sat_Beng-pbt_Arab
+  - sat_Oclk-pbt_Arab
   - tso_Latn-pes_Arab
   - umb_Latn-tir_Ethi
   - lus_Latn-lit_Latn
@@ -11370,7 +11370,7 @@ all:
   - plt_Latn-aka_Latn
   - vec_Latn-sin_Sinh
   - twi_Latn-awa_Deva
-  - khk_Cyrl-sat_Beng
+  - khk_Cyrl-sat_Oclk
   - bug_Latn-sin_Sinh
   - ast_Latn-quy_Latn
   - kir_Cyrl-khm_Khmr
@@ -11472,11 +11472,11 @@ all:
   - ind_Latn-mri_Latn
   - szl_Latn-ary_Arab
   - pap_Latn-tha_Thai
-  - ace_Latn-sat_Beng
+  - ace_Latn-sat_Oclk
   - run_Latn-kas_Deva
   - ory_Orya-wol_Latn
   - acq_Arab-nya_Latn
-  - bjn_Latn-sat_Beng
+  - bjn_Latn-sat_Oclk
   - ceb_Latn-ewe_Latn
   - fuv_Latn-ell_Grek
   - cat_Latn-lvs_Latn
@@ -11583,12 +11583,12 @@ all:
   - fur_Latn-scn_Latn
   - spa_Latn-uzn_Latn
   - pap_Latn-ltg_Latn
-  - deu_Latn-sat_Beng
+  - deu_Latn-sat_Oclk
   - jav_Latn-kir_Cyrl
   - crh_Latn-mya_Mymr
   - azb_Arab-bjn_Arab
   - hun_Latn-azj_Latn
-  - srp_Cyrl-sat_Beng
+  - srp_Cyrl-sat_Oclk
   - eng_Latn-bak_Cyrl
   - nld_Latn-grn_Latn
   - eus_Latn-knc_Arab
@@ -11652,7 +11652,7 @@ all:
   - slk_Latn-sna_Latn
   - kea_Latn-kin_Latn
   - quy_Latn-nld_Latn
-  - fuv_Latn-sat_Beng
+  - fuv_Latn-sat_Oclk
   - nya_Latn-bem_Latn
   - tzm_Tfng-lug_Latn
   - slv_Latn-tam_Taml
@@ -11780,7 +11780,7 @@ all:
   - mkd_Cyrl-knc_Latn
   - pag_Latn-arb_Arab
   - vie_Latn-por_Latn
-  - sat_Beng-jav_Latn
+  - sat_Oclk-jav_Latn
   - umb_Latn-mag_Deva
   - ron_Latn-epo_Latn
   - yue_Hant-mag_Deva
@@ -11870,7 +11870,7 @@ all:
   - ayr_Latn-por_Latn
   - san_Deva-bos_Latn
   - ind_Latn-afr_Latn
-  - sat_Beng-kik_Latn
+  - sat_Oclk-kik_Latn
   - ltg_Latn-pol_Latn
   - afr_Latn-ydd_Hebr
   - hrv_Latn-fon_Latn
@@ -11978,7 +11978,7 @@ all:
   - gle_Latn-swh_Latn
   - lao_Laoo-som_Latn
   - swe_Latn-tgk_Cyrl
-  - szl_Latn-sat_Beng
+  - szl_Latn-sat_Oclk
   - lij_Latn-acq_Arab
   - mal_Mlym-yue_Hant
   - mal_Mlym-pag_Latn
@@ -12008,7 +12008,7 @@ all:
   - bak_Cyrl-ary_Arab
   - zsm_Latn-eng_Latn
   - bjn_Latn-smo_Latn
-  - kas_Deva-sat_Beng
+  - kas_Deva-sat_Oclk
   - ban_Latn-deu_Latn
   - kas_Arab-lus_Latn
   - kik_Latn-glg_Latn
@@ -12195,7 +12195,7 @@ all:
   - kan_Knda-guj_Gujr
   - bos_Latn-ars_Arab
   - eus_Latn-lao_Laoo
-  - ukr_Cyrl-sat_Beng
+  - ukr_Cyrl-sat_Oclk
   - hne_Deva-tgl_Latn
   - lua_Latn-srp_Cyrl
   - asm_Beng-mya_Mymr
@@ -12342,7 +12342,7 @@ all:
   - pan_Guru-crh_Latn
   - prs_Arab-lug_Latn
   - ary_Arab-bem_Latn
-  - sat_Beng-szl_Latn
+  - sat_Oclk-szl_Latn
   - bak_Cyrl-aka_Latn
   - tzm_Tfng-kir_Cyrl
   - aka_Latn-nya_Latn
@@ -12371,7 +12371,7 @@ all:
   - kas_Arab-mya_Mymr
   - tur_Latn-gle_Latn
   - lit_Latn-zho_Hant
-  - sat_Beng-luo_Latn
+  - sat_Oclk-luo_Latn
   - run_Latn-snd_Arab
   - mag_Deva-epo_Latn
   - kan_Knda-est_Latn
@@ -12468,7 +12468,7 @@ all:
   - dyu_Latn-ltz_Latn
   - ita_Latn-run_Latn
   - bjn_Latn-pap_Latn
-  - aeb_Arab-sat_Beng
+  - aeb_Arab-sat_Oclk
   - ace_Latn-jav_Latn
   - slk_Latn-fra_Latn
   - ukr_Cyrl-oci_Latn
@@ -12536,7 +12536,7 @@ all:
   - ayr_Latn-lij_Latn
   - ssw_Latn-bem_Latn
   - fur_Latn-amh_Ethi
-  - sat_Beng-zho_Hant
+  - sat_Oclk-zho_Hant
   - tir_Ethi-swh_Latn
   - bos_Latn-kea_Latn
   - ces_Latn-fin_Latn
@@ -13069,18 +13069,18 @@ all:
   - ukr_Cyrl-awa_Deva
   - ewe_Latn-lit_Latn
   - nob_Latn-tel_Telu
-  - kmr_Latn-sat_Beng
+  - kmr_Latn-sat_Oclk
   - tat_Cyrl-fin_Latn
   - xho_Latn-aeb_Arab
   - fij_Latn-est_Latn
   - san_Deva-swe_Latn
-  - tsn_Latn-sat_Beng
+  - tsn_Latn-sat_Oclk
   - knc_Latn-ory_Orya
   - taq_Latn-pag_Latn
   - uig_Arab-lus_Latn
   - kir_Cyrl-ilo_Latn
   - vie_Latn-tzm_Tfng
-  - sat_Beng-grn_Latn
+  - sat_Oclk-grn_Latn
   - fin_Latn-guj_Gujr
   - khm_Khmr-ast_Latn
   - heb_Hebr-fur_Latn
@@ -13214,7 +13214,7 @@ all:
   - ckb_Arab-lim_Latn
   - dzo_Tibt-kin_Latn
   - por_Latn-heb_Hebr
-  - uzn_Latn-sat_Beng
+  - uzn_Latn-sat_Oclk
   - lim_Latn-hne_Deva
   - uzn_Latn-isl_Latn
   - cjk_Latn-khm_Khmr
@@ -13230,7 +13230,7 @@ all:
   - umb_Latn-lua_Latn
   - ace_Latn-srp_Cyrl
   - prs_Arab-smo_Latn
-  - khm_Khmr-sat_Beng
+  - khm_Khmr-sat_Oclk
   - oci_Latn-mar_Deva
   - khk_Cyrl-kan_Knda
   - bjn_Arab-kat_Geor
@@ -13307,7 +13307,7 @@ all:
   - yue_Hant-zho_Hant
   - mal_Mlym-lug_Latn
   - khm_Khmr-vec_Latn
-  - sat_Beng-srd_Latn
+  - sat_Oclk-srd_Latn
   - ilo_Latn-pbt_Arab
   - khk_Cyrl-pbt_Arab
   - hin_Deva-npi_Deva
@@ -13374,13 +13374,13 @@ all:
   - quy_Latn-kon_Latn
   - tsn_Latn-zho_Hans
   - aka_Latn-dan_Latn
-  - sat_Beng-min_Latn
+  - sat_Oclk-min_Latn
   - bam_Latn-kor_Hang
   - ory_Orya-khk_Cyrl
   - npi_Deva-hne_Deva
   - spa_Latn-ind_Latn
   - cat_Latn-lim_Latn
-  - sat_Beng-xho_Latn
+  - sat_Oclk-xho_Latn
   - est_Latn-fin_Latn
   - bul_Cyrl-bam_Latn
   - urd_Arab-rus_Cyrl
@@ -13759,7 +13759,7 @@ all:
   - dik_Latn-fin_Latn
   - eus_Latn-slv_Latn
   - sot_Latn-kon_Latn
-  - twi_Latn-sat_Beng
+  - twi_Latn-sat_Oclk
   - dik_Latn-asm_Beng
   - lug_Latn-dzo_Tibt
   - tha_Thai-nus_Latn
@@ -13841,7 +13841,7 @@ all:
   - ltg_Latn-tzm_Tfng
   - fon_Latn-ast_Latn
   - kab_Latn-hye_Armn
-  - sat_Beng-ckb_Arab
+  - sat_Oclk-ckb_Arab
   - kon_Latn-aka_Latn
   - aeb_Arab-ibo_Latn
   - scn_Latn-eus_Latn
@@ -13873,10 +13873,10 @@ all:
   - mos_Latn-tgl_Latn
   - eus_Latn-ltz_Latn
   - jpn_Jpan-ilo_Latn
-  - uig_Arab-sat_Beng
+  - uig_Arab-sat_Oclk
   - nya_Latn-nso_Latn
   - bjn_Latn-jpn_Jpan
-  - sot_Latn-sat_Beng
+  - sot_Latn-sat_Oclk
   - ory_Orya-tum_Latn
   - lus_Latn-afr_Latn
   - tha_Thai-fon_Latn
@@ -13886,7 +13886,7 @@ all:
   - awa_Deva-swe_Latn
   - scn_Latn-bho_Deva
   - lus_Latn-kon_Latn
-  - sat_Beng-smo_Latn
+  - sat_Oclk-smo_Latn
   - ltg_Latn-nso_Latn
   - tum_Latn-bos_Latn
   - yor_Latn-srp_Cyrl
@@ -14002,9 +14002,9 @@ all:
   - epo_Latn-hat_Latn
   - kmr_Latn-ssw_Latn
   - fin_Latn-eng_Latn
-  - sat_Beng-mar_Deva
+  - sat_Oclk-mar_Deva
   - ltg_Latn-lug_Latn
-  - sat_Beng-twi_Latn
+  - sat_Oclk-twi_Latn
   - eng_Latn-ilo_Latn
   - dik_Latn-kam_Latn
   - nno_Latn-azj_Latn
@@ -14028,7 +14028,7 @@ all:
   - pbt_Arab-kat_Geor
   - scn_Latn-nus_Latn
   - kaz_Cyrl-snd_Arab
-  - ben_Beng-sat_Beng
+  - ben_Beng-sat_Oclk
   - ydd_Hebr-isl_Latn
   - tso_Latn-yor_Latn
   - swh_Latn-twi_Latn
@@ -14132,7 +14132,7 @@ all:
   - kbp_Latn-kas_Arab
   - mai_Deva-ydd_Hebr
   - lmo_Latn-pbt_Arab
-  - sat_Beng-ban_Latn
+  - sat_Oclk-ban_Latn
   - kac_Latn-oci_Latn
   - afr_Latn-luo_Latn
   - sna_Latn-tgk_Cyrl
@@ -14165,7 +14165,7 @@ all:
   - lit_Latn-snd_Arab
   - twi_Latn-tgl_Latn
   - heb_Hebr-szl_Latn
-  - zsm_Latn-sat_Beng
+  - zsm_Latn-sat_Oclk
   - scn_Latn-pbt_Arab
   - lvs_Latn-knc_Arab
   - war_Latn-ars_Arab
@@ -14205,7 +14205,7 @@ all:
   - ajp_Arab-slk_Latn
   - hat_Latn-mni_Beng
   - kam_Latn-bod_Tibt
-  - tel_Telu-sat_Beng
+  - tel_Telu-sat_Oclk
   - ary_Arab-ltg_Latn
   - yue_Hant-kas_Deva
   - mkd_Cyrl-ces_Latn
@@ -14366,7 +14366,7 @@ all:
   - hun_Latn-spa_Latn
   - sna_Latn-mni_Beng
   - ceb_Latn-nya_Latn
-  - als_Latn-sat_Beng
+  - als_Latn-sat_Oclk
   - bjn_Latn-lus_Latn
   - bem_Latn-lug_Latn
   - bem_Latn-swh_Latn
@@ -14441,12 +14441,12 @@ all:
   - sun_Latn-sag_Latn
   - ewe_Latn-scn_Latn
   - mai_Deva-hrv_Latn
-  - sat_Beng-hye_Armn
+  - sat_Oclk-hye_Armn
   - kas_Deva-arz_Arab
   - kat_Geor-snd_Arab
   - kas_Deva-ltg_Latn
   - dan_Latn-azb_Arab
-  - sat_Beng-urd_Arab
+  - sat_Oclk-urd_Arab
   - ckb_Arab-ayr_Latn
   - ilo_Latn-twi_Latn
   - gaz_Latn-cym_Latn
@@ -14494,7 +14494,7 @@ all:
   - jav_Latn-bos_Latn
   - nso_Latn-vec_Latn
   - kin_Latn-mos_Latn
-  - mkd_Cyrl-sat_Beng
+  - mkd_Cyrl-sat_Oclk
   - swh_Latn-jpn_Jpan
   - hne_Deva-yor_Latn
   - kor_Hang-est_Latn
@@ -14543,7 +14543,7 @@ all:
   - nso_Latn-twi_Latn
   - bod_Tibt-spa_Latn
   - zho_Hans-cjk_Latn
-  - pol_Latn-sat_Beng
+  - pol_Latn-sat_Oclk
   - nld_Latn-ron_Latn
   - hun_Latn-kas_Arab
   - eus_Latn-ars_Arab
@@ -14590,11 +14590,11 @@ all:
   - szl_Latn-hun_Latn
   - ban_Latn-ukr_Cyrl
   - sna_Latn-mos_Latn
-  - arz_Arab-sat_Beng
+  - arz_Arab-sat_Oclk
   - srd_Latn-dzo_Tibt
   - tgk_Cyrl-acq_Arab
   - aka_Latn-san_Deva
-  - sat_Beng-gaz_Latn
+  - sat_Oclk-gaz_Latn
   - cym_Latn-nso_Latn
   - azb_Arab-guj_Gujr
   - sin_Sinh-kas_Arab
@@ -14764,7 +14764,7 @@ all:
   - fij_Latn-szl_Latn
   - mal_Mlym-pan_Guru
   - kik_Latn-yue_Hant
-  - sat_Beng-bjn_Latn
+  - sat_Oclk-bjn_Latn
   - war_Latn-pap_Latn
   - ace_Arab-taq_Latn
   - tzm_Tfng-nus_Latn
@@ -14804,7 +14804,7 @@ all:
   - hye_Armn-isl_Latn
   - pes_Arab-jpn_Jpan
   - npi_Deva-fon_Latn
-  - sat_Beng-hat_Latn
+  - sat_Oclk-hat_Latn
   - srd_Latn-umb_Latn
   - lus_Latn-nld_Latn
   - knc_Arab-tsn_Latn
@@ -14878,7 +14878,7 @@ all:
   - mal_Mlym-war_Latn
   - aeb_Arab-ben_Beng
   - uig_Arab-ayr_Latn
-  - sat_Beng-cjk_Latn
+  - sat_Oclk-cjk_Latn
   - pes_Arab-nus_Latn
   - fur_Latn-luo_Latn
   - lug_Latn-bho_Deva
@@ -14931,7 +14931,7 @@ all:
   - vec_Latn-ell_Grek
   - grn_Latn-ayr_Latn
   - mar_Deva-scn_Latn
-  - sat_Beng-crh_Latn
+  - sat_Oclk-crh_Latn
   - quy_Latn-cym_Latn
   - ory_Orya-pag_Latn
   - acm_Arab-fon_Latn
@@ -14970,7 +14970,7 @@ all:
   - tuk_Latn-fra_Latn
   - fin_Latn-acq_Arab
   - scn_Latn-ltz_Latn
-  - pes_Arab-sat_Beng
+  - pes_Arab-sat_Oclk
   - ibo_Latn-gaz_Latn
   - ace_Latn-bam_Latn
   - hye_Armn-kir_Cyrl
@@ -15051,7 +15051,7 @@ all:
   - lvs_Latn-tur_Latn
   - wol_Latn-azb_Arab
   - knc_Arab-ace_Latn
-  - hat_Latn-sat_Beng
+  - hat_Latn-sat_Oclk
   - kmb_Latn-wol_Latn
   - smo_Latn-bul_Cyrl
   - fin_Latn-lij_Latn
@@ -15236,7 +15236,7 @@ all:
   - khk_Cyrl-hun_Latn
   - bem_Latn-nya_Latn
   - aeb_Arab-lim_Latn
-  - sat_Beng-amh_Ethi
+  - sat_Oclk-amh_Ethi
   - ell_Grek-kas_Deva
   - kbp_Latn-fra_Latn
   - fij_Latn-arb_Arab
@@ -15304,7 +15304,7 @@ all:
   - sna_Latn-lus_Latn
   - luo_Latn-ace_Arab
   - tsn_Latn-tir_Ethi
-  - sat_Beng-lao_Laoo
+  - sat_Oclk-lao_Laoo
   - swh_Latn-kam_Latn
   - scn_Latn-lug_Latn
   - fra_Latn-kaz_Cyrl
@@ -15367,7 +15367,7 @@ all:
   - oci_Latn-zul_Latn
   - hat_Latn-ast_Latn
   - epo_Latn-taq_Tfng
-  - sin_Sinh-sat_Beng
+  - sin_Sinh-sat_Oclk
   - als_Latn-tam_Taml
   - tzm_Tfng-fao_Latn
   - taq_Tfng-bho_Deva
@@ -15469,7 +15469,7 @@ all:
   - gaz_Latn-kmr_Latn
   - lij_Latn-shn_Mymr
   - deu_Latn-ssw_Latn
-  - heb_Hebr-sat_Beng
+  - heb_Hebr-sat_Oclk
   - ceb_Latn-hin_Deva
   - fon_Latn-gla_Latn
   - kor_Hang-shn_Mymr
@@ -15667,7 +15667,7 @@ all:
   - ibo_Latn-hne_Deva
   - awa_Deva-tat_Cyrl
   - isl_Latn-san_Deva
-  - sat_Beng-fin_Latn
+  - sat_Oclk-fin_Latn
   - asm_Beng-amh_Ethi
   - zsm_Latn-crh_Latn
   - nso_Latn-jpn_Jpan
@@ -15759,7 +15759,7 @@ all:
   - twi_Latn-spa_Latn
   - ltg_Latn-guj_Gujr
   - knc_Latn-ckb_Arab
-  - sat_Beng-ibo_Latn
+  - sat_Oclk-ibo_Latn
   - tam_Taml-als_Latn
   - dzo_Tibt-ron_Latn
   - bel_Cyrl-plt_Latn
@@ -15921,7 +15921,7 @@ all:
   - amh_Ethi-kor_Hang
   - pol_Latn-glg_Latn
   - ita_Latn-est_Latn
-  - kir_Cyrl-sat_Beng
+  - kir_Cyrl-sat_Oclk
   - tat_Cyrl-crh_Latn
   - dan_Latn-ibo_Latn
   - gle_Latn-yor_Latn
@@ -15956,7 +15956,7 @@ all:
   - kam_Latn-jav_Latn
   - tgk_Cyrl-gle_Latn
   - yue_Hant-acm_Arab
-  - hin_Deva-sat_Beng
+  - hin_Deva-sat_Oclk
   - tso_Latn-quy_Latn
   - tir_Ethi-lao_Laoo
   - glg_Latn-kas_Arab
@@ -16386,7 +16386,7 @@ all:
   - vie_Latn-pol_Latn
   - por_Latn-quy_Latn
   - swh_Latn-kmb_Latn
-  - sat_Beng-swe_Latn
+  - sat_Oclk-swe_Latn
   - eng_Latn-pap_Latn
   - kea_Latn-fao_Latn
   - tso_Latn-nso_Latn
@@ -16516,7 +16516,7 @@ all:
   - knc_Arab-xho_Latn
   - tzm_Tfng-ayr_Latn
   - jav_Latn-grn_Latn
-  - tso_Latn-sat_Beng
+  - tso_Latn-sat_Oclk
   - pap_Latn-fuv_Latn
   - hau_Latn-amh_Ethi
   - tuk_Latn-kbp_Latn
@@ -16542,7 +16542,7 @@ all:
   - fuv_Latn-lim_Latn
   - tum_Latn-azb_Arab
   - ory_Orya-gle_Latn
-  - sat_Beng-fon_Latn
+  - sat_Oclk-fon_Latn
   - epo_Latn-bod_Tibt
   - tel_Telu-als_Latn
   - knc_Arab-ben_Beng
@@ -16559,7 +16559,7 @@ all:
   - taq_Tfng-acm_Arab
   - nso_Latn-nld_Latn
   - spa_Latn-pes_Arab
-  - sat_Beng-sin_Sinh
+  - sat_Oclk-sin_Sinh
   - cat_Latn-oci_Latn
   - crh_Latn-hat_Latn
   - umb_Latn-lus_Latn
@@ -16612,7 +16612,7 @@ all:
   - ell_Grek-mos_Latn
   - tzm_Tfng-fin_Latn
   - ilo_Latn-ssw_Latn
-  - sat_Beng-nso_Latn
+  - sat_Oclk-nso_Latn
   - tat_Cyrl-quy_Latn
   - kaz_Cyrl-mlt_Latn
   - kan_Knda-lug_Latn
@@ -16652,7 +16652,7 @@ all:
   - sot_Latn-gla_Latn
   - nob_Latn-ydd_Hebr
   - gaz_Latn-luo_Latn
-  - sat_Beng-ary_Arab
+  - sat_Oclk-ary_Arab
   - taq_Latn-mri_Latn
   - hye_Armn-kin_Latn
   - sag_Latn-guj_Gujr
@@ -16673,7 +16673,7 @@ all:
   - nno_Latn-szl_Latn
   - quy_Latn-tsn_Latn
   - tgl_Latn-lua_Latn
-  - acm_Arab-sat_Beng
+  - acm_Arab-sat_Oclk
   - yor_Latn-tir_Ethi
   - sag_Latn-acm_Arab
   - swh_Latn-tat_Cyrl
@@ -16789,7 +16789,7 @@ all:
   - yue_Hant-tur_Latn
   - ind_Latn-sna_Latn
   - crh_Latn-tpi_Latn
-  - sat_Beng-quy_Latn
+  - sat_Oclk-quy_Latn
   - tso_Latn-ars_Arab
   - sin_Sinh-tuk_Latn
   - ltg_Latn-nob_Latn
@@ -16952,7 +16952,7 @@ all:
   - nus_Latn-ltg_Latn
   - lus_Latn-arz_Arab
   - zul_Latn-ibo_Latn
-  - gaz_Latn-sat_Beng
+  - gaz_Latn-sat_Oclk
   - taq_Latn-quy_Latn
   - mar_Deva-tso_Latn
   - deu_Latn-jav_Latn
@@ -17056,7 +17056,7 @@ all:
   - cjk_Latn-xho_Latn
   - rus_Cyrl-bos_Latn
   - tuk_Latn-ajp_Arab
-  - kon_Latn-sat_Beng
+  - kon_Latn-sat_Oclk
   - dik_Latn-zho_Hans
   - glg_Latn-gla_Latn
   - awa_Deva-war_Latn
@@ -17104,7 +17104,7 @@ all:
   - zho_Hans-tum_Latn
   - vec_Latn-ind_Latn
   - ckb_Arab-kmr_Latn
-  - glg_Latn-sat_Beng
+  - glg_Latn-sat_Oclk
   - srd_Latn-ita_Latn
   - ita_Latn-nob_Latn
   - pan_Guru-slv_Latn
@@ -17241,7 +17241,7 @@ all:
   - gaz_Latn-slv_Latn
   - smo_Latn-lug_Latn
   - ita_Latn-glg_Latn
-  - sat_Beng-tgl_Latn
+  - sat_Oclk-tgl_Latn
   - ssw_Latn-bjn_Latn
   - bak_Cyrl-sun_Latn
   - kbp_Latn-ukr_Cyrl
@@ -17706,7 +17706,7 @@ all:
   - pap_Latn-mos_Latn
   - kik_Latn-srd_Latn
   - oci_Latn-tur_Latn
-  - kas_Arab-sat_Beng
+  - kas_Arab-sat_Oclk
   - wol_Latn-sna_Latn
   - kmr_Latn-bem_Latn
   - lao_Laoo-pbt_Arab
@@ -17750,7 +17750,7 @@ all:
   - slk_Latn-dzo_Tibt
   - ita_Latn-lua_Latn
   - umb_Latn-sag_Latn
-  - zho_Hant-sat_Beng
+  - zho_Hant-sat_Oclk
   - fra_Latn-lij_Latn
   - pan_Guru-awa_Deva
   - grn_Latn-por_Latn
@@ -17782,7 +17782,7 @@ all:
   - vec_Latn-prs_Arab
   - kea_Latn-nno_Latn
   - khk_Cyrl-zho_Hant
-  - kan_Knda-sat_Beng
+  - kan_Knda-sat_Oclk
   - hat_Latn-yue_Hant
   - nno_Latn-epo_Latn
   - yor_Latn-zho_Hans
@@ -17816,7 +17816,7 @@ all:
   - acm_Arab-srp_Cyrl
   - guj_Gujr-fao_Latn
   - bem_Latn-als_Latn
-  - lvs_Latn-sat_Beng
+  - lvs_Latn-sat_Oclk
   - cjk_Latn-knc_Latn
   - snd_Arab-mni_Beng
   - azj_Latn-ban_Latn
@@ -17899,7 +17899,7 @@ all:
   - lug_Latn-ary_Arab
   - scn_Latn-pag_Latn
   - bug_Latn-sot_Latn
-  - sat_Beng-san_Deva
+  - sat_Oclk-san_Deva
   - bul_Cyrl-ory_Orya
   - kmr_Latn-eus_Latn
   - sag_Latn-knc_Arab
@@ -18097,7 +18097,7 @@ all:
   - swh_Latn-tgl_Latn
   - slv_Latn-ajp_Arab
   - kmb_Latn-kam_Latn
-  - sat_Beng-zul_Latn
+  - sat_Oclk-zul_Latn
   - yue_Hant-ary_Arab
   - bam_Latn-kin_Latn
   - shn_Mymr-gla_Latn
@@ -18186,7 +18186,7 @@ all:
   - gle_Latn-tur_Latn
   - nld_Latn-uig_Arab
   - dzo_Tibt-epo_Latn
-  - hrv_Latn-sat_Beng
+  - hrv_Latn-sat_Oclk
   - sot_Latn-oci_Latn
   - mag_Deva-kin_Latn
   - por_Latn-mal_Mlym
@@ -18279,7 +18279,7 @@ all:
   - twi_Latn-jpn_Jpan
   - ajp_Arab-ace_Latn
   - nob_Latn-kin_Latn
-  - crh_Latn-sat_Beng
+  - crh_Latn-sat_Oclk
   - arb_Arab-pan_Guru
   - fra_Latn-pap_Latn
   - acq_Arab-dzo_Tibt
@@ -18360,7 +18360,7 @@ all:
   - urd_Arab-fin_Latn
   - kbp_Latn-gla_Latn
   - ind_Latn-arz_Arab
-  - som_Latn-sat_Beng
+  - som_Latn-sat_Oclk
   - ydd_Hebr-ces_Latn
   - guj_Gujr-hye_Armn
   - heb_Hebr-zho_Hans
@@ -18411,7 +18411,7 @@ all:
   - war_Latn-isl_Latn
   - tsn_Latn-vec_Latn
   - hun_Latn-nus_Latn
-  - pbt_Arab-sat_Beng
+  - pbt_Arab-sat_Oclk
   - als_Latn-tir_Ethi
   - lvs_Latn-eus_Latn
   - tsn_Latn-kam_Latn
@@ -18564,7 +18564,7 @@ all:
   - ydd_Hebr-aeb_Arab
   - lit_Latn-hau_Latn
   - kat_Geor-vie_Latn
-  - slk_Latn-sat_Beng
+  - slk_Latn-sat_Oclk
   - kbp_Latn-ltg_Latn
   - xho_Latn-hun_Latn
   - ltz_Latn-tat_Cyrl
@@ -18592,7 +18592,7 @@ all:
   - tha_Thai-aeb_Arab
   - yor_Latn-kmb_Latn
   - azb_Arab-yor_Latn
-  - shn_Mymr-sat_Beng
+  - shn_Mymr-sat_Oclk
   - lim_Latn-wol_Latn
   - kat_Geor-swh_Latn
   - mkd_Cyrl-ajp_Arab
@@ -18753,7 +18753,7 @@ all:
   - fra_Latn-ilo_Latn
   - kac_Latn-snd_Arab
   - snd_Arab-lmo_Latn
-  - sat_Beng-ltz_Latn
+  - sat_Oclk-ltz_Latn
   - ban_Latn-gle_Latn
   - lug_Latn-ckb_Arab
   - bjn_Arab-arz_Arab
@@ -18781,7 +18781,7 @@ all:
   - fra_Latn-hat_Latn
   - bel_Cyrl-kea_Latn
   - mri_Latn-ind_Latn
-  - sat_Beng-bem_Latn
+  - sat_Oclk-bem_Latn
   - pag_Latn-nob_Latn
   - xho_Latn-jpn_Jpan
   - dan_Latn-kac_Latn
@@ -18801,7 +18801,7 @@ all:
   - sot_Latn-ory_Orya
   - san_Deva-ace_Latn
   - quy_Latn-ces_Latn
-  - nob_Latn-sat_Beng
+  - nob_Latn-sat_Oclk
   - pag_Latn-kik_Latn
   - kik_Latn-tum_Latn
   - tir_Ethi-hau_Latn
@@ -18860,7 +18860,7 @@ all:
   - tsn_Latn-deu_Latn
   - ace_Arab-deu_Latn
   - mal_Mlym-ydd_Hebr
-  - sat_Beng-ben_Beng
+  - sat_Oclk-ben_Beng
   - hat_Latn-nno_Latn
   - ary_Arab-ars_Arab
   - shn_Mymr-arz_Arab
@@ -18975,7 +18975,7 @@ all:
   - tsn_Latn-kab_Latn
   - lin_Latn-ukr_Cyrl
   - kam_Latn-sag_Latn
-  - aka_Latn-sat_Beng
+  - aka_Latn-sat_Oclk
   - mya_Mymr-lus_Latn
   - kam_Latn-ltz_Latn
   - slv_Latn-kac_Latn
@@ -19179,7 +19179,7 @@ all:
   - tuk_Latn-ibo_Latn
   - ltz_Latn-mkd_Cyrl
   - lij_Latn-grn_Latn
-  - sat_Beng-jpn_Jpan
+  - sat_Oclk-jpn_Jpan
   - wol_Latn-ace_Arab
   - slk_Latn-npi_Deva
   - deu_Latn-tgk_Cyrl
@@ -19260,7 +19260,7 @@ all:
   - aeb_Arab-fij_Latn
   - tgk_Cyrl-srd_Latn
   - mya_Mymr-grn_Latn
-  - vec_Latn-sat_Beng
+  - vec_Latn-sat_Oclk
   - xho_Latn-dzo_Tibt
   - sag_Latn-kea_Latn
   - mag_Deva-mlt_Latn
@@ -19322,7 +19322,7 @@ all:
   - war_Latn-azj_Latn
   - arz_Arab-kor_Hang
   - zul_Latn-pap_Latn
-  - sat_Beng-ind_Latn
+  - sat_Oclk-ind_Latn
   - mos_Latn-kmr_Latn
   - san_Deva-bak_Cyrl
   - szl_Latn-nya_Latn
@@ -19421,7 +19421,7 @@ all:
   - mya_Mymr-lit_Latn
   - tzm_Tfng-bel_Cyrl
   - asm_Beng-tso_Latn
-  - sat_Beng-srp_Cyrl
+  - sat_Oclk-srp_Cyrl
   - isl_Latn-zul_Latn
   - ydd_Hebr-ban_Latn
   - acq_Arab-ace_Arab
@@ -19430,7 +19430,7 @@ all:
   - zho_Hant-vec_Latn
   - asm_Beng-pol_Latn
   - hau_Latn-min_Latn
-  - hau_Latn-sat_Beng
+  - hau_Latn-sat_Oclk
   - ita_Latn-taq_Latn
   - tzm_Tfng-afr_Latn
   - vie_Latn-npi_Deva
@@ -19486,7 +19486,7 @@ all:
   - tum_Latn-ace_Arab
   - tam_Taml-lit_Latn
   - ben_Beng-por_Latn
-  - tir_Ethi-sat_Beng
+  - tir_Ethi-sat_Oclk
   - snd_Arab-run_Latn
   - umb_Latn-awa_Deva
   - dan_Latn-jpn_Jpan
@@ -19578,7 +19578,7 @@ all:
   - tpi_Latn-knc_Latn
   - hye_Armn-ajp_Arab
   - bho_Deva-jav_Latn
-  - ary_Arab-sat_Beng
+  - ary_Arab-sat_Oclk
   - lin_Latn-azb_Arab
   - pap_Latn-som_Latn
   - gaz_Latn-est_Latn
@@ -19981,7 +19981,7 @@ all:
   - ilo_Latn-quy_Latn
   - tat_Cyrl-ckb_Arab
   - taq_Tfng-ajp_Arab
-  - knc_Latn-sat_Beng
+  - knc_Latn-sat_Oclk
   - bul_Cyrl-ace_Arab
   - lit_Latn-est_Latn
   - jpn_Jpan-epo_Latn
@@ -20055,7 +20055,7 @@ all:
   - prs_Arab-crh_Latn
   - khk_Cyrl-tel_Telu
   - tsn_Latn-mya_Mymr
-  - sat_Beng-lus_Latn
+  - sat_Oclk-lus_Latn
   - sot_Latn-acq_Arab
   - fra_Latn-bho_Deva
   - ace_Arab-ron_Latn
@@ -20201,7 +20201,7 @@ all:
   - bem_Latn-isl_Latn
   - kbp_Latn-bod_Tibt
   - grn_Latn-nno_Latn
-  - sat_Beng-vie_Latn
+  - sat_Oclk-vie_Latn
   - ssw_Latn-apc_Arab
   - bho_Deva-sag_Latn
   - crh_Latn-war_Latn
@@ -20360,7 +20360,7 @@ all:
   - tum_Latn-cat_Latn
   - shn_Mymr-est_Latn
   - sag_Latn-bos_Latn
-  - sat_Beng-bam_Latn
+  - sat_Oclk-bam_Latn
   - ary_Arab-ory_Orya
   - bug_Latn-dik_Latn
   - sag_Latn-azj_Latn
@@ -20372,7 +20372,7 @@ all:
   - ilo_Latn-tuk_Latn
   - min_Latn-awa_Deva
   - mai_Deva-glg_Latn
-  - mai_Deva-sat_Beng
+  - mai_Deva-sat_Oclk
   - sun_Latn-cym_Latn
   - aeb_Arab-tsn_Latn
   - run_Latn-rus_Cyrl
@@ -20448,7 +20448,7 @@ all:
   - kaz_Cyrl-zho_Hant
   - swh_Latn-plt_Latn
   - hne_Deva-mai_Deva
-  - ceb_Latn-sat_Beng
+  - ceb_Latn-sat_Oclk
   - smo_Latn-scn_Latn
   - aka_Latn-lim_Latn
   - kir_Cyrl-srd_Latn
@@ -20492,7 +20492,7 @@ all:
   - kik_Latn-kea_Latn
   - guj_Gujr-pan_Guru
   - cym_Latn-azj_Latn
-  - ars_Arab-sat_Beng
+  - ars_Arab-sat_Oclk
   - pbt_Arab-dzo_Tibt
   - hrv_Latn-ukr_Cyrl
   - nso_Latn-est_Latn
@@ -20549,7 +20549,7 @@ all:
   - mai_Deva-nus_Latn
   - cjk_Latn-lua_Latn
   - hun_Latn-apc_Arab
-  - slv_Latn-sat_Beng
+  - slv_Latn-sat_Oclk
   - ilo_Latn-dik_Latn
   - ibo_Latn-uzn_Latn
   - taq_Latn-fra_Latn
@@ -20610,7 +20610,7 @@ all:
   - yue_Hant-ltz_Latn
   - guj_Gujr-tuk_Latn
   - taq_Tfng-prs_Arab
-  - sat_Beng-lug_Latn
+  - sat_Oclk-lug_Latn
   - kam_Latn-mar_Deva
   - arb_Arab-nya_Latn
   - grn_Latn-hun_Latn
@@ -20657,7 +20657,7 @@ all:
   - nno_Latn-uzn_Latn
   - mag_Deva-run_Latn
   - dzo_Tibt-sag_Latn
-  - sat_Beng-fra_Latn
+  - sat_Oclk-fra_Latn
   - crh_Latn-snd_Arab
   - lim_Latn-mos_Latn
   - tat_Cyrl-knc_Latn
@@ -20708,7 +20708,7 @@ all:
   - lvs_Latn-npi_Deva
   - est_Latn-zho_Hans
   - gaz_Latn-ast_Latn
-  - ind_Latn-sat_Beng
+  - ind_Latn-sat_Oclk
   - zho_Hant-gle_Latn
   - fuv_Latn-pol_Latn
   - ibo_Latn-epo_Latn
@@ -20789,7 +20789,7 @@ all:
   - epo_Latn-tuk_Latn
   - tel_Telu-bjn_Latn
   - war_Latn-nya_Latn
-  - bem_Latn-sat_Beng
+  - bem_Latn-sat_Oclk
   - ind_Latn-nob_Latn
   - zsm_Latn-fon_Latn
   - ben_Beng-kmb_Latn
@@ -20890,7 +20890,7 @@ all:
   - zho_Hant-bel_Cyrl
   - mai_Deva-est_Latn
   - gla_Latn-luo_Latn
-  - isl_Latn-sat_Beng
+  - isl_Latn-sat_Oclk
   - afr_Latn-lvs_Latn
   - bjn_Latn-san_Deva
   - yor_Latn-kbp_Latn
@@ -20911,7 +20911,7 @@ all:
   - cjk_Latn-gla_Latn
   - kam_Latn-hau_Latn
   - tur_Latn-est_Latn
-  - xho_Latn-sat_Beng
+  - xho_Latn-sat_Oclk
   - hun_Latn-dik_Latn
   - kea_Latn-aka_Latn
   - mni_Beng-lus_Latn
@@ -20928,7 +20928,7 @@ all:
   - snd_Arab-ajp_Arab
   - lin_Latn-swh_Latn
   - vie_Latn-pag_Latn
-  - sat_Beng-sot_Latn
+  - sat_Oclk-sot_Latn
   - taq_Tfng-epo_Latn
   - awa_Deva-ace_Latn
   - ell_Grek-tel_Telu
@@ -20983,7 +20983,7 @@ all:
   - wol_Latn-ben_Beng
   - kaz_Cyrl-dik_Latn
   - ell_Grek-azj_Latn
-  - dik_Latn-sat_Beng
+  - dik_Latn-sat_Oclk
   - uzn_Latn-als_Latn
   - heb_Hebr-swe_Latn
   - fin_Latn-kik_Latn
@@ -21036,7 +21036,7 @@ all:
   - hau_Latn-tum_Latn
   - yor_Latn-nya_Latn
   - ayr_Latn-min_Latn
-  - sat_Beng-hun_Latn
+  - sat_Oclk-hun_Latn
   - crh_Latn-sun_Latn
   - glg_Latn-dzo_Tibt
   - ars_Arab-war_Latn
@@ -21119,7 +21119,7 @@ all:
   - yor_Latn-fao_Latn
   - knc_Latn-mri_Latn
   - mar_Deva-mya_Mymr
-  - bod_Tibt-sat_Beng
+  - bod_Tibt-sat_Oclk
   - taq_Latn-fij_Latn
   - lus_Latn-guj_Gujr
   - kmr_Latn-lug_Latn
@@ -21287,7 +21287,7 @@ all:
   - azj_Latn-ckb_Arab
   - srp_Cyrl-sag_Latn
   - kam_Latn-oci_Latn
-  - sat_Beng-hne_Deva
+  - sat_Oclk-hne_Deva
   - est_Latn-acq_Arab
   - slv_Latn-fao_Latn
   - kea_Latn-lit_Latn
@@ -21550,7 +21550,7 @@ all:
   - fon_Latn-bel_Cyrl
   - oci_Latn-luo_Latn
   - swh_Latn-lij_Latn
-  - sat_Beng-gle_Latn
+  - sat_Oclk-gle_Latn
   - fao_Latn-mag_Deva
   - afr_Latn-eng_Latn
   - uig_Arab-kea_Latn
@@ -21706,7 +21706,7 @@ all:
   - kmb_Latn-smo_Latn
   - spa_Latn-ban_Latn
   - dzo_Tibt-srd_Latn
-  - acq_Arab-sat_Beng
+  - acq_Arab-sat_Oclk
   - heb_Hebr-slk_Latn
   - mos_Latn-pol_Latn
   - slk_Latn-pol_Latn
@@ -21821,7 +21821,7 @@ all:
   - vec_Latn-pol_Latn
   - kir_Cyrl-kmr_Latn
   - fon_Latn-ayr_Latn
-  - epo_Latn-sat_Beng
+  - epo_Latn-sat_Oclk
   - tso_Latn-kbp_Latn
   - ben_Beng-lug_Latn
   - swe_Latn-tgl_Latn
@@ -22070,7 +22070,7 @@ all:
   - ceb_Latn-mlt_Latn
   - dik_Latn-ltg_Latn
   - bem_Latn-ltg_Latn
-  - pag_Latn-sat_Beng
+  - pag_Latn-sat_Oclk
   - deu_Latn-umb_Latn
   - vec_Latn-sot_Latn
   - bjn_Arab-tel_Telu
@@ -22280,7 +22280,7 @@ all:
   - scn_Latn-sot_Latn
   - kan_Knda-lao_Laoo
   - tzm_Tfng-mag_Deva
-  - sat_Beng-sna_Latn
+  - sat_Oclk-sna_Latn
   - guj_Gujr-mkd_Cyrl
   - sag_Latn-asm_Beng
   - cat_Latn-ast_Latn
@@ -22351,7 +22351,7 @@ all:
   - bul_Cyrl-xho_Latn
   - tgk_Cyrl-mal_Mlym
   - ltg_Latn-mai_Deva
-  - mag_Deva-sat_Beng
+  - mag_Deva-sat_Oclk
   - zho_Hans-heb_Hebr
   - amh_Ethi-zsm_Latn
   - kin_Latn-prs_Arab
@@ -22885,7 +22885,7 @@ all:
   - fin_Latn-kbp_Latn
   - mkd_Cyrl-guj_Gujr
   - rus_Cyrl-nob_Latn
-  - sat_Beng-kaz_Cyrl
+  - sat_Oclk-kaz_Cyrl
   - tam_Taml-yor_Latn
   - por_Latn-tpi_Latn
   - tur_Latn-taq_Latn
@@ -22923,7 +22923,7 @@ all:
   - ckb_Arab-pbt_Arab
   - tel_Telu-war_Latn
   - epo_Latn-kan_Knda
-  - ban_Latn-sat_Beng
+  - ban_Latn-sat_Oclk
   - tgl_Latn-som_Latn
   - mkd_Cyrl-aka_Latn
   - isl_Latn-ssw_Latn
@@ -22951,7 +22951,7 @@ all:
   - hne_Deva-plt_Latn
   - wol_Latn-kor_Hang
   - umb_Latn-pol_Latn
-  - sat_Beng-kmb_Latn
+  - sat_Oclk-kmb_Latn
   - fur_Latn-nso_Latn
   - kir_Cyrl-kmb_Latn
   - ory_Orya-ita_Latn
@@ -22998,7 +22998,7 @@ all:
   - szl_Latn-por_Latn
   - heb_Hebr-tgk_Cyrl
   - run_Latn-lin_Latn
-  - sat_Beng-apc_Arab
+  - sat_Oclk-apc_Arab
   - mag_Deva-san_Deva
   - gaz_Latn-apc_Arab
   - nso_Latn-sot_Latn
@@ -23037,7 +23037,7 @@ all:
   - por_Latn-lij_Latn
   - gla_Latn-eus_Latn
   - jpn_Jpan-kor_Hang
-  - tat_Cyrl-sat_Beng
+  - tat_Cyrl-sat_Oclk
   - zsm_Latn-kaz_Cyrl
   - lus_Latn-knc_Latn
   - knc_Arab-lij_Latn
@@ -23172,7 +23172,7 @@ all:
   - scn_Latn-fon_Latn
   - khm_Khmr-lug_Latn
   - kmb_Latn-fao_Latn
-  - sat_Beng-bos_Latn
+  - sat_Oclk-bos_Latn
   - tso_Latn-smo_Latn
   - cjk_Latn-kam_Latn
   - eus_Latn-lij_Latn
@@ -23235,7 +23235,7 @@ all:
   - nus_Latn-tsn_Latn
   - lvs_Latn-ydd_Hebr
   - ben_Beng-mar_Deva
-  - sat_Beng-mlt_Latn
+  - sat_Oclk-mlt_Latn
   - mal_Mlym-jav_Latn
   - kin_Latn-shn_Mymr
   - ckb_Arab-glg_Latn
@@ -23248,7 +23248,7 @@ all:
   - swh_Latn-oci_Latn
   - hye_Armn-mos_Latn
   - als_Latn-bjn_Latn
-  - eus_Latn-sat_Beng
+  - eus_Latn-sat_Oclk
   - tum_Latn-dzo_Tibt
   - lug_Latn-lua_Latn
   - lim_Latn-hrv_Latn
@@ -23270,7 +23270,7 @@ all:
   - tir_Ethi-guj_Gujr
   - ast_Latn-kin_Latn
   - azb_Arab-xho_Latn
-  - ilo_Latn-sat_Beng
+  - ilo_Latn-sat_Oclk
   - dzo_Tibt-ben_Beng
   - kas_Arab-isl_Latn
   - ind_Latn-som_Latn
@@ -23283,7 +23283,7 @@ all:
   - afr_Latn-zsm_Latn
   - rus_Cyrl-mai_Deva
   - pes_Arab-plt_Latn
-  - sat_Beng-aka_Latn
+  - sat_Oclk-aka_Latn
   - slv_Latn-acq_Arab
   - arb_Arab-bul_Cyrl
   - zho_Hans-spa_Latn
@@ -23425,7 +23425,7 @@ all:
   - gla_Latn-kmr_Latn
   - uig_Arab-bul_Cyrl
   - bjn_Latn-tpi_Latn
-  - war_Latn-sat_Beng
+  - war_Latn-sat_Oclk
   - pes_Arab-ajp_Arab
   - mar_Deva-srd_Latn
   - arb_Arab-ast_Latn
@@ -23606,7 +23606,7 @@ all:
   - min_Latn-eng_Latn
   - kat_Geor-ars_Arab
   - hne_Deva-est_Latn
-  - tur_Latn-sat_Beng
+  - tur_Latn-sat_Oclk
   - oci_Latn-ron_Latn
   - scn_Latn-min_Latn
   - kan_Knda-tir_Ethi
@@ -23722,7 +23722,7 @@ all:
   - hye_Armn-hau_Latn
   - san_Deva-ssw_Latn
   - som_Latn-prs_Arab
-  - bos_Latn-sat_Beng
+  - bos_Latn-sat_Oclk
   - kmb_Latn-kbp_Latn
   - afr_Latn-uig_Arab
   - mai_Deva-fin_Latn
@@ -23756,7 +23756,7 @@ all:
   - plt_Latn-pap_Latn
   - tzm_Tfng-xho_Latn
   - mkd_Cyrl-mar_Deva
-  - prs_Arab-sat_Beng
+  - prs_Arab-sat_Oclk
   - kmr_Latn-bos_Latn
   - nso_Latn-scn_Latn
   - spa_Latn-vec_Latn
@@ -23914,7 +23914,7 @@ all:
   - slv_Latn-snd_Arab
   - kaz_Cyrl-scn_Latn
   - azj_Latn-aka_Latn
-  - sat_Beng-tpi_Latn
+  - sat_Oclk-tpi_Latn
   - swh_Latn-kan_Knda
   - bug_Latn-slv_Latn
   - acm_Arab-lua_Latn
@@ -24151,7 +24151,7 @@ all:
   - tsn_Latn-ces_Latn
   - shn_Mymr-nus_Latn
   - eus_Latn-mal_Mlym
-  - rus_Cyrl-sat_Beng
+  - rus_Cyrl-sat_Oclk
   - srd_Latn-uig_Arab
   - bug_Latn-ace_Latn
   - fur_Latn-cat_Latn
@@ -24419,7 +24419,7 @@ all:
   - mkd_Cyrl-fur_Latn
   - tir_Ethi-scn_Latn
   - tir_Ethi-amh_Ethi
-  - ita_Latn-sat_Beng
+  - ita_Latn-sat_Oclk
   - fij_Latn-ell_Grek
   - azj_Latn-xho_Latn
   - cym_Latn-kin_Latn
@@ -24729,7 +24729,7 @@ all:
   - kin_Latn-kmb_Latn
   - dyu_Latn-nus_Latn
   - acm_Arab-lim_Latn
-  - sat_Beng-kas_Arab
+  - sat_Oclk-kas_Arab
   - sot_Latn-kac_Latn
   - bem_Latn-ory_Orya
   - khm_Khmr-kas_Deva
@@ -25369,7 +25369,7 @@ all:
   - cym_Latn-smo_Latn
   - fuv_Latn-sot_Latn
   - nno_Latn-ind_Latn
-  - sat_Beng-lua_Latn
+  - sat_Oclk-lua_Latn
   - ban_Latn-pes_Arab
   - mri_Latn-gla_Latn
   - ita_Latn-umb_Latn
@@ -25461,7 +25461,7 @@ all:
   - scn_Latn-kat_Geor
   - mni_Beng-cjk_Latn
   - kmb_Latn-als_Latn
-  - kmb_Latn-sat_Beng
+  - kmb_Latn-sat_Oclk
   - ssw_Latn-gle_Latn
   - gle_Latn-knc_Latn
   - pap_Latn-tam_Taml
@@ -25644,7 +25644,7 @@ all:
   - mkd_Cyrl-apc_Arab
   - tgl_Latn-mri_Latn
   - ces_Latn-kas_Deva
-  - sat_Beng-gla_Latn
+  - sat_Oclk-gla_Latn
   - fur_Latn-lmo_Latn
   - tsn_Latn-ltz_Latn
   - afr_Latn-mar_Deva
@@ -25747,7 +25747,7 @@ all:
   - ssw_Latn-pag_Latn
   - ceb_Latn-ron_Latn
   - dyu_Latn-asm_Beng
-  - sat_Beng-hrv_Latn
+  - sat_Oclk-hrv_Latn
   - umb_Latn-uig_Arab
   - ces_Latn-tat_Cyrl
   - bak_Cyrl-zho_Hant
@@ -25879,7 +25879,7 @@ all:
   - lin_Latn-fuv_Latn
   - kin_Latn-smo_Latn
   - gle_Latn-uig_Arab
-  - apc_Arab-sat_Beng
+  - apc_Arab-sat_Oclk
   - aeb_Arab-quy_Latn
   - sot_Latn-zsm_Latn
   - pap_Latn-kmr_Latn
@@ -26030,7 +26030,7 @@ all:
   - asm_Beng-cjk_Latn
   - ayr_Latn-war_Latn
   - kam_Latn-epo_Latn
-  - sat_Beng-tum_Latn
+  - sat_Oclk-tum_Latn
   - ayr_Latn-bul_Cyrl
   - hye_Armn-xho_Latn
   - est_Latn-ckb_Arab
@@ -26107,7 +26107,7 @@ all:
   - mri_Latn-sna_Latn
   - ydd_Hebr-asm_Beng
   - nso_Latn-sna_Latn
-  - fon_Latn-sat_Beng
+  - fon_Latn-sat_Oclk
   - srd_Latn-kas_Deva
   - kac_Latn-mri_Latn
   - gle_Latn-aka_Latn
@@ -26132,7 +26132,7 @@ all:
   - sna_Latn-kam_Latn
   - kea_Latn-glg_Latn
   - ban_Latn-zul_Latn
-  - gle_Latn-sat_Beng
+  - gle_Latn-sat_Oclk
   - pbt_Arab-afr_Latn
   - kaz_Cyrl-kmr_Latn
   - aeb_Arab-kmb_Latn
@@ -26314,7 +26314,7 @@ all:
   - lug_Latn-fuv_Latn
   - est_Latn-cat_Latn
   - kea_Latn-kor_Hang
-  - amh_Ethi-sat_Beng
+  - amh_Ethi-sat_Oclk
   - fuv_Latn-nld_Latn
   - hye_Armn-lij_Latn
   - uzn_Latn-npi_Deva
@@ -26388,7 +26388,7 @@ all:
   - sag_Latn-urd_Arab
   - fao_Latn-ajp_Arab
   - eus_Latn-cym_Latn
-  - ast_Latn-sat_Beng
+  - ast_Latn-sat_Oclk
   - mal_Mlym-lmo_Latn
   - nld_Latn-bam_Latn
   - jpn_Jpan-bjn_Latn
@@ -26407,7 +26407,7 @@ all:
   - arb_Arab-tur_Latn
   - kon_Latn-kab_Latn
   - kmb_Latn-sot_Latn
-  - sat_Beng-mal_Mlym
+  - sat_Oclk-mal_Mlym
   - scn_Latn-mlt_Latn
   - lit_Latn-ell_Grek
   - kon_Latn-mlt_Latn
@@ -26652,7 +26652,7 @@ all:
   - tpi_Latn-hye_Armn
   - xho_Latn-acq_Arab
   - zho_Hans-lim_Latn
-  - grn_Latn-sat_Beng
+  - grn_Latn-sat_Oclk
   - jpn_Jpan-kea_Latn
   - tuk_Latn-mag_Deva
   - est_Latn-ceb_Latn
@@ -26722,7 +26722,7 @@ all:
   - mlt_Latn-zho_Hant
   - mag_Deva-sna_Latn
   - kac_Latn-isl_Latn
-  - sna_Latn-sat_Beng
+  - sna_Latn-sat_Oclk
   - san_Deva-arz_Arab
   - pbt_Arab-epo_Latn
   - fuv_Latn-kac_Latn
@@ -26772,7 +26772,7 @@ all:
   - nld_Latn-swe_Latn
   - khm_Khmr-hne_Deva
   - ewe_Latn-eus_Latn
-  - srd_Latn-sat_Beng
+  - srd_Latn-sat_Oclk
   - tgl_Latn-kmb_Latn
   - fao_Latn-bak_Cyrl
   - ydd_Hebr-ltg_Latn
@@ -26798,7 +26798,7 @@ all:
   - ceb_Latn-aka_Latn
   - srd_Latn-nno_Latn
   - sag_Latn-ibo_Latn
-  - sat_Beng-hau_Latn
+  - sat_Oclk-hau_Latn
   - ace_Latn-min_Latn
   - knc_Arab-tgk_Cyrl
   - srp_Cyrl-kam_Latn
@@ -26838,7 +26838,7 @@ all:
   - kat_Geor-gla_Latn
   - nob_Latn-urd_Arab
   - luo_Latn-kaz_Cyrl
-  - lit_Latn-sat_Beng
+  - lit_Latn-sat_Oclk
   - twi_Latn-quy_Latn
   - sag_Latn-eng_Latn
   - lij_Latn-scn_Latn
@@ -26993,7 +26993,7 @@ all:
   - mlt_Latn-zsm_Latn
   - fur_Latn-ory_Orya
   - hau_Latn-lim_Latn
-  - sat_Beng-ars_Arab
+  - sat_Oclk-ars_Arab
   - ind_Latn-kas_Arab
   - wol_Latn-gle_Latn
   - gaz_Latn-ban_Latn
@@ -27151,7 +27151,7 @@ all:
   - knc_Arab-kor_Hang
   - yor_Latn-ell_Grek
   - lus_Latn-twi_Latn
-  - oci_Latn-sat_Beng
+  - oci_Latn-sat_Oclk
   - dan_Latn-crh_Latn
   - wol_Latn-ukr_Cyrl
   - kat_Geor-kan_Knda
@@ -27209,12 +27209,12 @@ all:
   - bak_Cyrl-ita_Latn
   - acm_Arab-oci_Latn
   - jav_Latn-kon_Latn
-  - cym_Latn-sat_Beng
+  - cym_Latn-sat_Oclk
   - tir_Ethi-taq_Tfng
-  - tzm_Tfng-sat_Beng
+  - tzm_Tfng-sat_Oclk
   - twi_Latn-kaz_Cyrl
   - bak_Cyrl-snd_Arab
-  - sat_Beng-arb_Arab
+  - sat_Oclk-arb_Arab
   - tso_Latn-ben_Beng
   - ary_Arab-amh_Ethi
   - eus_Latn-glg_Latn
@@ -27250,7 +27250,7 @@ all:
   - fij_Latn-fra_Latn
   - umb_Latn-mai_Deva
   - ceb_Latn-kam_Latn
-  - sat_Beng-mkd_Cyrl
+  - sat_Oclk-mkd_Cyrl
   - dyu_Latn-gaz_Latn
   - hne_Deva-sot_Latn
   - run_Latn-spa_Latn
@@ -27409,7 +27409,7 @@ all:
   - ewe_Latn-mkd_Cyrl
   - bjn_Arab-ces_Latn
   - jav_Latn-mya_Mymr
-  - sat_Beng-bak_Cyrl
+  - sat_Oclk-bak_Cyrl
   - umb_Latn-som_Latn
   - lin_Latn-kmb_Latn
   - pag_Latn-rus_Cyrl
@@ -27422,7 +27422,7 @@ all:
   - bod_Tibt-ilo_Latn
   - kon_Latn-dan_Latn
   - nld_Latn-sot_Latn
-  - nus_Latn-sat_Beng
+  - nus_Latn-sat_Oclk
   - hin_Deva-ssw_Latn
   - als_Latn-mri_Latn
   - ssw_Latn-heb_Hebr
@@ -27638,7 +27638,7 @@ all:
   - ssw_Latn-lug_Latn
   - pag_Latn-scn_Latn
   - mag_Deva-nob_Latn
-  - sat_Beng-pol_Latn
+  - sat_Oclk-pol_Latn
   - ben_Beng-lin_Latn
   - smo_Latn-kam_Latn
   - est_Latn-lim_Latn
@@ -27658,7 +27658,7 @@ all:
   - scn_Latn-zho_Hant
   - twi_Latn-oci_Latn
   - ibo_Latn-ace_Arab
-  - sat_Beng-shn_Mymr
+  - sat_Oclk-shn_Mymr
   - grn_Latn-tha_Thai
   - zho_Hans-slv_Latn
   - eng_Latn-vie_Latn
@@ -27718,7 +27718,7 @@ all:
   - kik_Latn-bak_Cyrl
   - pap_Latn-tat_Cyrl
   - bug_Latn-mkd_Cyrl
-  - sat_Beng-lim_Latn
+  - sat_Oclk-lim_Latn
   - bjn_Arab-ydd_Hebr
   - sot_Latn-ltg_Latn
   - kac_Latn-kas_Arab
@@ -27746,7 +27746,7 @@ all:
   - ron_Latn-lao_Laoo
   - mni_Beng-kmb_Latn
   - ron_Latn-mkd_Cyrl
-  - sat_Beng-vec_Latn
+  - sat_Oclk-vec_Latn
   - kon_Latn-nno_Latn
   - rus_Cyrl-sun_Latn
   - mkd_Cyrl-ell_Grek
@@ -27777,7 +27777,7 @@ all:
   - kea_Latn-hin_Deva
   - bam_Latn-ben_Beng
   - sin_Sinh-heb_Hebr
-  - sat_Beng-yor_Latn
+  - sat_Oclk-yor_Latn
   - bem_Latn-ayr_Latn
   - sin_Sinh-sot_Latn
   - bam_Latn-pap_Latn
@@ -27994,7 +27994,7 @@ all:
   - pbt_Arab-ace_Latn
   - srp_Cyrl-tpi_Latn
   - npi_Deva-dzo_Tibt
-  - min_Latn-sat_Beng
+  - min_Latn-sat_Oclk
   - lit_Latn-bod_Tibt
   - mni_Beng-bjn_Arab
   - tam_Taml-pag_Latn
@@ -28018,7 +28018,7 @@ all:
   - ukr_Cyrl-kam_Latn
   - lug_Latn-aka_Latn
   - bug_Latn-bam_Latn
-  - bak_Cyrl-sat_Beng
+  - bak_Cyrl-sat_Oclk
   - hau_Latn-kik_Latn
   - tam_Taml-ory_Orya
   - bem_Latn-ewe_Latn
@@ -28038,7 +28038,7 @@ all:
   - pes_Arab-tgl_Latn
   - pes_Arab-srd_Latn
   - hrv_Latn-lug_Latn
-  - sat_Beng-som_Latn
+  - sat_Oclk-som_Latn
   - nso_Latn-mya_Mymr
   - sot_Latn-lao_Laoo
   - guj_Gujr-plt_Latn
@@ -28340,7 +28340,7 @@ all:
   - taq_Tfng-kir_Cyrl
   - prs_Arab-ilo_Latn
   - tir_Ethi-ilo_Latn
-  - dan_Latn-sat_Beng
+  - dan_Latn-sat_Oclk
   - bod_Tibt-bos_Latn
   - kik_Latn-min_Latn
   - tsn_Latn-mlt_Latn
@@ -28395,7 +28395,7 @@ all:
   - bjn_Latn-scn_Latn
   - mai_Deva-ces_Latn
   - luo_Latn-kor_Hang
-  - mar_Deva-sat_Beng
+  - mar_Deva-sat_Oclk
   - dzo_Tibt-kbp_Latn
   - slk_Latn-tgk_Cyrl
   - mlt_Latn-gaz_Latn
@@ -28703,7 +28703,7 @@ all:
   - ukr_Cyrl-ilo_Latn
   - quy_Latn-pol_Latn
   - lug_Latn-hat_Latn
-  - ajp_Arab-sat_Beng
+  - ajp_Arab-sat_Oclk
   - cym_Latn-nob_Latn
   - ckb_Arab-dyu_Latn
   - mag_Deva-kir_Cyrl
@@ -28869,7 +28869,7 @@ all:
   - fij_Latn-ces_Latn
   - kac_Latn-ind_Latn
   - kat_Geor-hat_Latn
-  - sat_Beng-pan_Guru
+  - sat_Oclk-pan_Guru
   - bul_Cyrl-yue_Hant
   - bho_Deva-quy_Latn
   - rus_Cyrl-twi_Latn
@@ -28908,9 +28908,9 @@ all:
   - kir_Cyrl-tgl_Latn
   - bel_Cyrl-snd_Arab
   - ukr_Cyrl-tpi_Latn
-  - sat_Beng-acm_Arab
+  - sat_Oclk-acm_Arab
   - jav_Latn-glg_Latn
-  - sat_Beng-kab_Latn
+  - sat_Oclk-kab_Latn
   - slk_Latn-umb_Latn
   - run_Latn-kir_Cyrl
   - yor_Latn-tat_Cyrl
@@ -28923,7 +28923,7 @@ all:
   - lua_Latn-shn_Mymr
   - ars_Arab-mkd_Cyrl
   - kik_Latn-wol_Latn
-  - swh_Latn-sat_Beng
+  - swh_Latn-sat_Oclk
   - ajp_Arab-ita_Latn
   - bjn_Arab-ajp_Arab
   - ron_Latn-hau_Latn
@@ -28964,7 +28964,7 @@ all:
   - ckb_Arab-scn_Latn
   - kac_Latn-smo_Latn
   - tur_Latn-bod_Tibt
-  - sat_Beng-isl_Latn
+  - sat_Oclk-isl_Latn
   - taq_Latn-kas_Deva
   - xho_Latn-glg_Latn
   - kbp_Latn-zho_Hans
@@ -28982,7 +28982,7 @@ all:
   - tso_Latn-azj_Latn
   - dan_Latn-afr_Latn
   - ssw_Latn-kin_Latn
-  - sat_Beng-mai_Deva
+  - sat_Oclk-mai_Deva
   - jpn_Jpan-tir_Ethi
   - khm_Khmr-ron_Latn
   - kab_Latn-tel_Telu
@@ -29115,7 +29115,7 @@ all:
   - arb_Arab-kan_Knda
   - ory_Orya-knc_Latn
   - lin_Latn-ltz_Latn
-  - sat_Beng-eng_Latn
+  - sat_Oclk-eng_Latn
   - ace_Latn-aeb_Arab
   - ast_Latn-san_Deva
   - epo_Latn-ron_Latn
@@ -29136,7 +29136,7 @@ all:
   - luo_Latn-hin_Deva
   - lmo_Latn-slk_Latn
   - ilo_Latn-fuv_Latn
-  - sat_Beng-tsn_Latn
+  - sat_Oclk-tsn_Latn
   - ind_Latn-por_Latn
   - lit_Latn-vie_Latn
   - ilo_Latn-xho_Latn
@@ -29218,7 +29218,7 @@ all:
   - kaz_Cyrl-ces_Latn
   - srd_Latn-bem_Latn
   - luo_Latn-sot_Latn
-  - sat_Beng-nld_Latn
+  - sat_Oclk-nld_Latn
   - kon_Latn-ron_Latn
   - som_Latn-gla_Latn
   - npi_Deva-spa_Latn
@@ -29628,7 +29628,7 @@ all:
   - khm_Khmr-bho_Deva
   - tat_Cyrl-nob_Latn
   - bod_Tibt-sot_Latn
-  - sat_Beng-asm_Beng
+  - sat_Oclk-asm_Beng
   - dzo_Tibt-smo_Latn
   - kea_Latn-khm_Khmr
   - ajp_Arab-lvs_Latn
@@ -29721,7 +29721,7 @@ all:
   - bul_Cyrl-swh_Latn
   - lug_Latn-prs_Arab
   - taq_Latn-srd_Latn
-  - kea_Latn-sat_Beng
+  - kea_Latn-sat_Oclk
   - kas_Arab-acq_Arab
   - khk_Cyrl-dik_Latn
   - bod_Tibt-hrv_Latn
@@ -29915,7 +29915,7 @@ all:
   - smo_Latn-azj_Latn
   - srp_Cyrl-tgk_Cyrl
   - plt_Latn-yue_Hant
-  - npi_Deva-sat_Beng
+  - npi_Deva-sat_Oclk
   - ibo_Latn-srp_Cyrl
   - tgk_Cyrl-dan_Latn
   - mlt_Latn-uzn_Latn
@@ -29970,7 +29970,7 @@ all:
   - ind_Latn-hin_Deva
   - eng_Latn-hun_Latn
   - urd_Arab-gla_Latn
-  - sat_Beng-khm_Khmr
+  - sat_Oclk-khm_Khmr
   - gla_Latn-nso_Latn
   - ell_Grek-afr_Latn
   - prs_Arab-awa_Deva
@@ -30212,7 +30212,7 @@ all:
   - lus_Latn-ars_Arab
   - zul_Latn-est_Latn
   - fij_Latn-sun_Latn
-  - sat_Beng-bod_Tibt
+  - sat_Oclk-bod_Tibt
   - zul_Latn-sun_Latn
   - bel_Cyrl-ast_Latn
   - sag_Latn-awa_Deva
@@ -30414,7 +30414,7 @@ all:
   - ckb_Arab-ibo_Latn
   - tat_Cyrl-san_Deva
   - mos_Latn-bel_Cyrl
-  - kin_Latn-sat_Beng
+  - kin_Latn-sat_Oclk
   - sun_Latn-zsm_Latn
   - mai_Deva-war_Latn
   - fin_Latn-ssw_Latn
@@ -30453,7 +30453,7 @@ all:
   - ind_Latn-pes_Arab
   - ars_Arab-kmb_Latn
   - cym_Latn-ibo_Latn
-  - san_Deva-sat_Beng
+  - san_Deva-sat_Oclk
   - ary_Arab-kat_Geor
   - nya_Latn-vie_Latn
   - sot_Latn-nso_Latn
@@ -30483,7 +30483,7 @@ all:
   - sot_Latn-lim_Latn
   - kea_Latn-ita_Latn
   - lao_Laoo-tpi_Latn
-  - sat_Beng-glg_Latn
+  - sat_Oclk-glg_Latn
   - tam_Taml-taq_Tfng
   - smo_Latn-fur_Latn
   - vec_Latn-tel_Telu
@@ -30886,7 +30886,7 @@ all:
   - eng_Latn-ces_Latn
   - hne_Deva-wol_Latn
   - som_Latn-ukr_Cyrl
-  - tuk_Latn-sat_Beng
+  - tuk_Latn-sat_Oclk
   - fao_Latn-kac_Latn
   - tuk_Latn-kmr_Latn
   - bod_Tibt-bak_Cyrl
@@ -30960,7 +30960,7 @@ all:
   - dan_Latn-bak_Cyrl
   - ace_Latn-zul_Latn
   - plt_Latn-knc_Latn
-  - sat_Beng-kac_Latn
+  - sat_Oclk-kac_Latn
   - ssw_Latn-nus_Latn
   - ibo_Latn-kam_Latn
   - bug_Latn-lao_Laoo
@@ -31007,7 +31007,7 @@ all:
   - hat_Latn-aeb_Arab
   - gla_Latn-kas_Deva
   - srp_Cyrl-nya_Latn
-  - jav_Latn-sat_Beng
+  - jav_Latn-sat_Oclk
   - dik_Latn-fao_Latn
   - guj_Gujr-bod_Tibt
   - asm_Beng-crh_Latn
@@ -31167,7 +31167,7 @@ all:
   - snd_Arab-xho_Latn
   - tam_Taml-glg_Latn
   - eus_Latn-ary_Arab
-  - zul_Latn-sat_Beng
+  - zul_Latn-sat_Oclk
   - yor_Latn-asm_Beng
   - kik_Latn-bul_Cyrl
   - tur_Latn-gla_Latn
@@ -31461,7 +31461,7 @@ all:
   - tir_Ethi-arb_Arab
   - tur_Latn-ind_Latn
   - dan_Latn-hun_Latn
-  - sat_Beng-fij_Latn
+  - sat_Oclk-fij_Latn
   - tir_Ethi-crh_Latn
   - slv_Latn-taq_Tfng
   - hun_Latn-bel_Cyrl
@@ -31478,7 +31478,7 @@ all:
   - bod_Tibt-asm_Beng
   - tur_Latn-lug_Latn
   - bam_Latn-arb_Arab
-  - sat_Beng-epo_Latn
+  - sat_Oclk-epo_Latn
   - ayr_Latn-swe_Latn
   - bem_Latn-ydd_Hebr
   - amh_Ethi-eng_Latn
@@ -31486,7 +31486,7 @@ all:
   - bod_Tibt-fuv_Latn
   - min_Latn-hau_Latn
   - pap_Latn-deu_Latn
-  - sat_Beng-nob_Latn
+  - sat_Oclk-nob_Latn
   - est_Latn-bak_Cyrl
   - ydd_Hebr-tuk_Latn
   - tzm_Tfng-fuv_Latn
@@ -31512,7 +31512,7 @@ all:
   - hye_Armn-ace_Arab
   - mkd_Cyrl-crh_Latn
   - sna_Latn-acm_Arab
-  - sat_Beng-ast_Latn
+  - sat_Oclk-ast_Latn
   - mlt_Latn-nso_Latn
   - srd_Latn-slk_Latn
   - eus_Latn-fon_Latn
@@ -31602,7 +31602,7 @@ all:
   - gla_Latn-tam_Taml
   - asm_Beng-taq_Tfng
   - bjn_Arab-slv_Latn
-  - ces_Latn-sat_Beng
+  - ces_Latn-sat_Oclk
   - tzm_Tfng-aka_Latn
   - lug_Latn-srd_Latn
   - fur_Latn-vie_Latn
@@ -31751,7 +31751,7 @@ all:
   - ace_Latn-tam_Taml
   - plt_Latn-por_Latn
   - aeb_Arab-uzn_Latn
-  - ssw_Latn-sat_Beng
+  - ssw_Latn-sat_Oclk
   - mag_Deva-hin_Deva
   - swe_Latn-mai_Deva
   - tzm_Tfng-fij_Latn
@@ -31803,7 +31803,7 @@ all:
   - ron_Latn-fra_Latn
   - ace_Latn-hrv_Latn
   - fin_Latn-oci_Latn
-  - sat_Beng-lit_Latn
+  - sat_Oclk-lit_Latn
   - tha_Thai-cat_Latn
   - pan_Guru-tsn_Latn
   - ita_Latn-shn_Mymr
@@ -31864,7 +31864,7 @@ all:
   - pag_Latn-ast_Latn
   - war_Latn-uzn_Latn
   - ces_Latn-taq_Latn
-  - sun_Latn-sat_Beng
+  - sun_Latn-sat_Oclk
   - luo_Latn-hau_Latn
   - bam_Latn-tzm_Tfng
   - rus_Cyrl-kan_Knda
@@ -31895,7 +31895,7 @@ all:
   - kas_Deva-bem_Latn
   - hye_Armn-mag_Deva
   - bjn_Latn-fin_Latn
-  - ell_Grek-sat_Beng
+  - ell_Grek-sat_Oclk
   - cjk_Latn-sag_Latn
   - kbp_Latn-gle_Latn
   - pan_Guru-grn_Latn
@@ -31904,7 +31904,7 @@ all:
   - srp_Cyrl-epo_Latn
   - vie_Latn-tel_Telu
   - ckb_Arab-tum_Latn
-  - sat_Beng-kam_Latn
+  - sat_Oclk-kam_Latn
   - war_Latn-mag_Deva
   - cjk_Latn-snd_Arab
   - scn_Latn-kmb_Latn
@@ -31953,7 +31953,7 @@ all:
   - ces_Latn-nso_Latn
   - lao_Laoo-ayr_Latn
   - tha_Thai-mai_Deva
-  - tgl_Latn-sat_Beng
+  - tgl_Latn-sat_Oclk
   - apc_Arab-swh_Latn
   - spa_Latn-kin_Latn
   - lit_Latn-swe_Latn
@@ -32220,7 +32220,7 @@ all:
   - hne_Deva-bak_Cyrl
   - isl_Latn-lug_Latn
   - mos_Latn-gla_Latn
-  - nso_Latn-sat_Beng
+  - nso_Latn-sat_Oclk
   - ita_Latn-sna_Latn
   - fao_Latn-ltz_Latn
   - nob_Latn-dan_Latn
@@ -32258,7 +32258,7 @@ all:
   - grn_Latn-smo_Latn
   - hun_Latn-tum_Latn
   - mag_Deva-lit_Latn
-  - sat_Beng-nno_Latn
+  - sat_Oclk-nno_Latn
   - glg_Latn-mal_Mlym
   - cat_Latn-twi_Latn
   - plt_Latn-hat_Latn
@@ -32369,7 +32369,7 @@ all:
   - bem_Latn-mal_Mlym
   - azb_Arab-ajp_Arab
   - kon_Latn-fuv_Latn
-  - bjn_Arab-sat_Beng
+  - bjn_Arab-sat_Oclk
   - khk_Cyrl-bam_Latn
   - heb_Hebr-rus_Cyrl
   - cat_Latn-awa_Deva
@@ -32409,7 +32409,7 @@ all:
   - hat_Latn-knc_Arab
   - kmr_Latn-mai_Deva
   - kik_Latn-ajp_Arab
-  - plt_Latn-sat_Beng
+  - plt_Latn-sat_Oclk
   - kir_Cyrl-sot_Latn
   - ckb_Arab-tha_Thai
   - kan_Knda-ukr_Cyrl
@@ -32450,7 +32450,7 @@ all:
   - nso_Latn-plt_Latn
   - snd_Arab-lao_Laoo
   - tur_Latn-spa_Latn
-  - sat_Beng-rus_Cyrl
+  - sat_Oclk-rus_Cyrl
   - tso_Latn-luo_Latn
   - quy_Latn-aeb_Arab
   - awa_Deva-nus_Latn
@@ -32631,7 +32631,7 @@ all:
   - ita_Latn-som_Latn
   - ssw_Latn-tpi_Latn
   - lmo_Latn-quy_Latn
-  - sat_Beng-hin_Deva
+  - sat_Oclk-hin_Deva
   - san_Deva-rus_Cyrl
   - ibo_Latn-aka_Latn
   - ceb_Latn-tzm_Tfng
@@ -32737,7 +32737,7 @@ all:
   - ayr_Latn-bjn_Arab
   - tso_Latn-por_Latn
   - mag_Deva-bos_Latn
-  - sat_Beng-knc_Arab
+  - sat_Oclk-knc_Arab
   - bod_Tibt-kam_Latn
   - urd_Arab-tir_Ethi
   - bem_Latn-swe_Latn
@@ -32748,7 +32748,7 @@ all:
   - kaz_Cyrl-luo_Latn
   - run_Latn-ukr_Cyrl
   - sin_Sinh-apc_Arab
-  - sat_Beng-kmr_Latn
+  - sat_Oclk-kmr_Latn
   - ace_Arab-hrv_Latn
   - bos_Latn-dik_Latn
   - ary_Arab-ita_Latn
@@ -32865,7 +32865,7 @@ all:
   - ind_Latn-sot_Latn
   - ast_Latn-kat_Geor
   - taq_Tfng-glg_Latn
-  - snd_Arab-sat_Beng
+  - snd_Arab-sat_Oclk
   - glg_Latn-tur_Latn
   - zul_Latn-awa_Deva
   - swe_Latn-kmb_Latn
@@ -32931,7 +32931,7 @@ all:
   - ind_Latn-kbp_Latn
   - tel_Telu-plt_Latn
   - lao_Laoo-lvs_Latn
-  - kam_Latn-sat_Beng
+  - kam_Latn-sat_Oclk
   - bel_Cyrl-ace_Latn
   - dan_Latn-glg_Latn
   - war_Latn-lmo_Latn
@@ -33259,7 +33259,7 @@ all:
   - isl_Latn-mlt_Latn
   - lug_Latn-ast_Latn
   - zul_Latn-ace_Latn
-  - pan_Guru-sat_Beng
+  - pan_Guru-sat_Oclk
   - acm_Arab-lvs_Latn
   - guj_Gujr-crh_Latn
   - sun_Latn-quy_Latn
@@ -33344,7 +33344,7 @@ all:
   - pol_Latn-dik_Latn
   - lmo_Latn-ceb_Latn
   - mar_Deva-tir_Ethi
-  - hun_Latn-sat_Beng
+  - hun_Latn-sat_Oclk
   - kik_Latn-dzo_Tibt
   - hne_Deva-kmr_Latn
   - ukr_Cyrl-hye_Armn
@@ -33356,7 +33356,7 @@ all:
   - srd_Latn-kea_Latn
   - hau_Latn-wol_Latn
   - nno_Latn-tel_Telu
-  - bel_Cyrl-sat_Beng
+  - bel_Cyrl-sat_Oclk
   - ben_Beng-als_Latn
   - grn_Latn-lug_Latn
   - tum_Latn-oci_Latn
@@ -33582,14 +33582,14 @@ all:
   - ars_Arab-kas_Arab
   - bak_Cyrl-grn_Latn
   - uig_Arab-dyu_Latn
-  - sat_Beng-pag_Latn
+  - sat_Oclk-pag_Latn
   - bam_Latn-umb_Latn
   - pap_Latn-kaz_Cyrl
   - bak_Cyrl-arz_Arab
   - ajp_Arab-zul_Latn
   - apc_Arab-lin_Latn
   - kas_Deva-lij_Latn
-  - umb_Latn-sat_Beng
+  - umb_Latn-sat_Oclk
   - hrv_Latn-fao_Latn
   - twi_Latn-szl_Latn
   - heb_Hebr-ace_Arab
@@ -33677,7 +33677,7 @@ all:
   - som_Latn-ajp_Arab
   - shn_Mymr-kaz_Cyrl
   - min_Latn-fra_Latn
-  - sat_Beng-kan_Knda
+  - sat_Oclk-kan_Knda
   - knc_Arab-ltz_Latn
   - eus_Latn-isl_Latn
   - ckb_Arab-ast_Latn
@@ -33710,12 +33710,12 @@ all:
   - kmr_Latn-fur_Latn
   - ltz_Latn-npi_Deva
   - ban_Latn-srp_Cyrl
-  - ydd_Hebr-sat_Beng
+  - ydd_Hebr-sat_Oclk
   - asm_Beng-kas_Deva
   - run_Latn-yor_Latn
-  - smo_Latn-sat_Beng
+  - smo_Latn-sat_Oclk
   - pes_Arab-twi_Latn
-  - sat_Beng-kor_Hang
+  - sat_Oclk-kor_Hang
   - smo_Latn-ltz_Latn
   - tel_Telu-vie_Latn
   - ewe_Latn-ars_Arab
@@ -33732,7 +33732,7 @@ all:
   - tel_Telu-ckb_Arab
   - ewe_Latn-hau_Latn
   - zho_Hant-kin_Latn
-  - sat_Beng-nus_Latn
+  - sat_Oclk-nus_Latn
   - pag_Latn-mlt_Latn
   - bam_Latn-urd_Arab
   - mal_Mlym-lus_Latn
@@ -33831,7 +33831,7 @@ all:
   - mlt_Latn-umb_Latn
   - scn_Latn-taq_Tfng
   - mal_Mlym-som_Latn
-  - bho_Deva-sat_Beng
+  - bho_Deva-sat_Oclk
   - pag_Latn-swh_Latn
   - bak_Cyrl-mar_Deva
   - min_Latn-twi_Latn
@@ -34136,7 +34136,7 @@ all:
   - war_Latn-est_Latn
   - lin_Latn-nld_Latn
   - crh_Latn-cjk_Latn
-  - sat_Beng-zho_Hans
+  - sat_Oclk-zho_Hans
   - tgk_Cyrl-eng_Latn
   - eus_Latn-hun_Latn
   - ast_Latn-ory_Orya
@@ -34144,7 +34144,7 @@ all:
   - ace_Arab-apc_Arab
   - urd_Arab-sun_Latn
   - knc_Arab-ydd_Hebr
-  - sat_Beng-bul_Cyrl
+  - sat_Oclk-bul_Cyrl
   - hat_Latn-deu_Latn
   - xho_Latn-uzn_Latn
   - quy_Latn-gla_Latn
@@ -34198,7 +34198,7 @@ all:
   - san_Deva-zho_Hant
   - mag_Deva-azb_Arab
   - mlt_Latn-bul_Cyrl
-  - sat_Beng-oci_Latn
+  - sat_Oclk-oci_Latn
   - azb_Arab-hun_Latn
   - crh_Latn-kbp_Latn
   - fin_Latn-tam_Taml
@@ -34724,7 +34724,7 @@ all:
   - swh_Latn-ben_Beng
   - azb_Arab-hin_Deva
   - amh_Ethi-aka_Latn
-  - sat_Beng-mya_Mymr
+  - sat_Oclk-mya_Mymr
   - zsm_Latn-aeb_Arab
   - kab_Latn-lao_Laoo
   - tgl_Latn-ibo_Latn
@@ -34781,7 +34781,7 @@ all:
   - hin_Deva-grn_Latn
   - srd_Latn-npi_Deva
   - luo_Latn-kmb_Latn
-  - por_Latn-sat_Beng
+  - por_Latn-sat_Oclk
   - wol_Latn-kir_Cyrl
   - gaz_Latn-arb_Arab
   - nya_Latn-bho_Deva
@@ -35011,7 +35011,7 @@ all:
   - gle_Latn-kaz_Cyrl
   - ukr_Cyrl-umb_Latn
   - kea_Latn-szl_Latn
-  - dyu_Latn-sat_Beng
+  - dyu_Latn-sat_Oclk
   - mlt_Latn-sin_Sinh
   - pes_Arab-kbp_Latn
   - mya_Mymr-yue_Hant
@@ -35096,7 +35096,7 @@ all:
   - grn_Latn-mos_Latn
   - grn_Latn-spa_Latn
   - kea_Latn-hrv_Latn
-  - kaz_Cyrl-sat_Beng
+  - kaz_Cyrl-sat_Oclk
   - mag_Deva-tum_Latn
   - som_Latn-spa_Latn
   - khk_Cyrl-ace_Latn
@@ -35105,9 +35105,9 @@ all:
   - lij_Latn-ajp_Arab
   - sag_Latn-mkd_Cyrl
   - amh_Ethi-sun_Latn
-  - tha_Thai-sat_Beng
+  - tha_Thai-sat_Oclk
   - kor_Hang-ayr_Latn
-  - sat_Beng-nya_Latn
+  - sat_Oclk-nya_Latn
   - tam_Taml-lua_Latn
   - tpi_Latn-mal_Mlym
   - swe_Latn-knc_Arab
@@ -35126,7 +35126,7 @@ all:
   - hne_Deva-kas_Arab
   - aka_Latn-srp_Cyrl
   - mni_Beng-sot_Latn
-  - lin_Latn-sat_Beng
+  - lin_Latn-sat_Oclk
   - bel_Cyrl-zho_Hant
   - mkd_Cyrl-kmr_Latn
   - kas_Arab-xho_Latn
@@ -35139,7 +35139,7 @@ all:
   - lug_Latn-bjn_Arab
   - fuv_Latn-guj_Gujr
   - nno_Latn-fij_Latn
-  - sat_Beng-kon_Latn
+  - sat_Oclk-kon_Latn
   - xho_Latn-fij_Latn
   - dzo_Tibt-kon_Latn
   - ukr_Cyrl-ory_Orya
@@ -35194,10 +35194,10 @@ all:
   - yor_Latn-lua_Latn
   - khk_Cyrl-xho_Latn
   - aka_Latn-hne_Deva
-  - sat_Beng-guj_Gujr
+  - sat_Oclk-guj_Gujr
   - slk_Latn-tzm_Tfng
   - lug_Latn-heb_Hebr
-  - ron_Latn-sat_Beng
+  - ron_Latn-sat_Oclk
   - ssw_Latn-hau_Latn
   - heb_Hebr-pol_Latn
   - ltz_Latn-tzm_Tfng
@@ -35312,7 +35312,7 @@ all:
   - ltz_Latn-hye_Armn
   - ron_Latn-pbt_Arab
   - cat_Latn-lus_Latn
-  - mos_Latn-sat_Beng
+  - mos_Latn-sat_Oclk
   - luo_Latn-srd_Latn
   - heb_Hebr-fon_Latn
   - nya_Latn-acq_Arab
@@ -35840,7 +35840,7 @@ all:
   - crh_Latn-bjn_Arab
   - srp_Cyrl-knc_Latn
   - mar_Deva-bjn_Latn
-  - kab_Latn-sat_Beng
+  - kab_Latn-sat_Oclk
   - nno_Latn-shn_Mymr
   - guj_Gujr-gla_Latn
   - slk_Latn-zul_Latn
@@ -36083,7 +36083,7 @@ all:
   - tur_Latn-zul_Latn
   - prs_Arab-cat_Latn
   - afr_Latn-grn_Latn
-  - sat_Beng-kir_Cyrl
+  - sat_Oclk-kir_Cyrl
   - gaz_Latn-khm_Khmr
   - bel_Cyrl-zul_Latn
   - hrv_Latn-zul_Latn
@@ -36424,7 +36424,7 @@ all:
   - aka_Latn-bak_Cyrl
   - snd_Arab-tpi_Latn
   - als_Latn-zsm_Latn
-  - sat_Beng-eus_Latn
+  - sat_Oclk-eus_Latn
   - fra_Latn-azb_Arab
   - fra_Latn-gle_Latn
   - kik_Latn-nob_Latn
@@ -36432,7 +36432,7 @@ all:
   - kan_Knda-san_Deva
   - pes_Arab-prs_Arab
   - hye_Armn-san_Deva
-  - sat_Beng-kat_Geor
+  - sat_Oclk-kat_Geor
   - kas_Deva-por_Latn
   - ssw_Latn-fra_Latn
   - ars_Arab-tuk_Latn
@@ -36480,7 +36480,7 @@ all:
   - wol_Latn-som_Latn
   - umb_Latn-lin_Latn
   - ltz_Latn-ces_Latn
-  - lim_Latn-sat_Beng
+  - lim_Latn-sat_Oclk
   - yue_Hant-tir_Ethi
   - san_Deva-acm_Arab
   - ell_Grek-mal_Mlym
@@ -36559,7 +36559,7 @@ all:
   - kam_Latn-srd_Latn
   - nus_Latn-mya_Mymr
   - crh_Latn-shn_Mymr
-  - luo_Latn-sat_Beng
+  - luo_Latn-sat_Oclk
   - kas_Deva-fuv_Latn
   - ace_Latn-afr_Latn
   - kik_Latn-run_Latn
@@ -36619,9 +36619,9 @@ all:
   - smo_Latn-slv_Latn
   - kik_Latn-ban_Latn
   - lug_Latn-knc_Arab
-  - sat_Beng-yue_Hant
+  - sat_Oclk-yue_Hant
   - pap_Latn-xho_Latn
-  - tum_Latn-sat_Beng
+  - tum_Latn-sat_Oclk
   - sag_Latn-hat_Latn
   - bho_Deva-kea_Latn
   - fij_Latn-umb_Latn
@@ -37106,14 +37106,14 @@ all:
   - kas_Arab-mkd_Cyrl
   - fao_Latn-szl_Latn
   - dzo_Tibt-ace_Latn
-  - sat_Beng-lvs_Latn
+  - sat_Oclk-lvs_Latn
   - fur_Latn-mni_Beng
   - grn_Latn-run_Latn
   - srp_Cyrl-lij_Latn
   - mal_Mlym-bel_Cyrl
   - bho_Deva-mos_Latn
   - rus_Cyrl-mni_Beng
-  - fao_Latn-sat_Beng
+  - fao_Latn-sat_Oclk
   - apc_Arab-ban_Latn
   - ces_Latn-ace_Arab
   - bjn_Arab-smo_Latn
@@ -37211,7 +37211,7 @@ all:
   - aka_Latn-quy_Latn
   - oci_Latn-tzm_Tfng
   - knc_Latn-fin_Latn
-  - sat_Beng-swh_Latn
+  - sat_Oclk-swh_Latn
   - twi_Latn-dyu_Latn
   - acm_Arab-dik_Latn
   - bel_Cyrl-fij_Latn
@@ -37249,7 +37249,7 @@ all:
   - wol_Latn-nus_Latn
   - als_Latn-knc_Arab
   - hat_Latn-kas_Arab
-  - sat_Beng-deu_Latn
+  - sat_Oclk-deu_Latn
   - fuv_Latn-mni_Beng
   - isl_Latn-bod_Tibt
   - taq_Latn-zul_Latn
@@ -37321,7 +37321,7 @@ all:
   - cym_Latn-vie_Latn
   - nob_Latn-kea_Latn
   - bel_Cyrl-ita_Latn
-  - sat_Beng-tso_Latn
+  - sat_Oclk-tso_Latn
   - bug_Latn-heb_Hebr
   - zsm_Latn-heb_Hebr
   - knc_Latn-bho_Deva
@@ -37426,7 +37426,7 @@ all:
   - taq_Tfng-bug_Latn
   - prs_Arab-pap_Latn
   - urd_Arab-bem_Latn
-  - sat_Beng-lmo_Latn
+  - sat_Oclk-lmo_Latn
   - khm_Khmr-kac_Latn
   - bod_Tibt-cjk_Latn
   - ibo_Latn-taq_Latn
@@ -37454,7 +37454,7 @@ all:
   - bak_Cyrl-knc_Latn
   - ces_Latn-hau_Latn
   - bem_Latn-som_Latn
-  - sat_Beng-ita_Latn
+  - sat_Oclk-ita_Latn
   - bak_Cyrl-slk_Latn
   - srd_Latn-fur_Latn
   - ell_Grek-uig_Arab
@@ -37487,7 +37487,7 @@ all:
   - fur_Latn-lit_Latn
   - bug_Latn-tur_Latn
   - knc_Latn-als_Latn
-  - sat_Beng-ydd_Hebr
+  - sat_Oclk-ydd_Hebr
   - isl_Latn-mar_Deva
   - ban_Latn-lua_Latn
   - ben_Beng-fao_Latn
@@ -37708,7 +37708,7 @@ all:
   - ydd_Hebr-szl_Latn
   - ckb_Arab-ewe_Latn
   - ory_Orya-yor_Latn
-  - run_Latn-sat_Beng
+  - run_Latn-sat_Oclk
   - quy_Latn-tgk_Cyrl
   - cjk_Latn-nob_Latn
   - kab_Latn-kas_Deva
@@ -37734,7 +37734,7 @@ all:
   - aeb_Arab-pol_Latn
   - nob_Latn-hne_Deva
   - acq_Arab-nld_Latn
-  - sat_Beng-tam_Taml
+  - sat_Oclk-tam_Taml
   - kac_Latn-nso_Latn
   - bem_Latn-sun_Latn
   - lus_Latn-cat_Latn
@@ -37812,7 +37812,7 @@ all:
   - ssw_Latn-sag_Latn
   - acq_Arab-fra_Latn
   - kea_Latn-urd_Arab
-  - ibo_Latn-sat_Beng
+  - ibo_Latn-sat_Oclk
   - isl_Latn-lao_Laoo
   - nus_Latn-nya_Latn
   - srd_Latn-pbt_Arab
@@ -37862,7 +37862,7 @@ all:
   - nus_Latn-tuk_Latn
   - yue_Hant-acq_Arab
   - ory_Orya-twi_Latn
-  - mlt_Latn-sat_Beng
+  - mlt_Latn-sat_Oclk
   - fon_Latn-cjk_Latn
   - cym_Latn-grn_Latn
   - kir_Cyrl-uig_Arab
@@ -37950,12 +37950,12 @@ all:
   - bug_Latn-ory_Orya
   - fon_Latn-gle_Latn
   - scn_Latn-swe_Latn
-  - arb_Arab-sat_Beng
+  - arb_Arab-sat_Oclk
   - ars_Arab-vec_Latn
   - bod_Tibt-fij_Latn
   - fra_Latn-ell_Grek
   - rus_Cyrl-mlt_Latn
-  - mal_Mlym-sat_Beng
+  - mal_Mlym-sat_Oclk
   - tgl_Latn-snd_Arab
   - tur_Latn-yue_Hant
   - apc_Arab-smo_Latn
@@ -37976,7 +37976,7 @@ all:
   - eus_Latn-vie_Latn
   - kin_Latn-tgk_Cyrl
   - glg_Latn-tsn_Latn
-  - fin_Latn-sat_Beng
+  - fin_Latn-sat_Oclk
   - isl_Latn-khk_Cyrl
   - por_Latn-zsm_Latn
   - mai_Deva-bel_Cyrl
@@ -38008,7 +38008,7 @@ all:
   - ydd_Hebr-tso_Latn
   - ace_Latn-kea_Latn
   - pbt_Arab-sot_Latn
-  - sat_Beng-tgk_Cyrl
+  - sat_Oclk-tgk_Cyrl
   - crh_Latn-uig_Arab
   - hun_Latn-hat_Latn
   - gaz_Latn-kbp_Latn
@@ -38119,7 +38119,7 @@ all:
   - bod_Tibt-kan_Knda
   - ary_Arab-acm_Arab
   - por_Latn-kan_Knda
-  - sat_Beng-fuv_Latn
+  - sat_Oclk-fuv_Latn
   - ben_Beng-ckb_Arab
   - cat_Latn-bho_Deva
   - ita_Latn-kat_Geor
@@ -38222,7 +38222,7 @@ all:
   - lij_Latn-apc_Arab
   - urd_Arab-yor_Latn
   - ayr_Latn-epo_Latn
-  - sat_Beng-fao_Latn
+  - sat_Oclk-fao_Latn
   - cym_Latn-acq_Arab
   - ibo_Latn-ban_Latn
   - pap_Latn-tgk_Cyrl
@@ -38256,7 +38256,7 @@ all:
   - fur_Latn-tir_Ethi
   - taq_Latn-fin_Latn
   - run_Latn-sag_Latn
-  - scn_Latn-sat_Beng
+  - scn_Latn-sat_Oclk
   - isl_Latn-jpn_Jpan
   - urd_Arab-plt_Latn
   - aeb_Arab-bem_Latn
@@ -38321,7 +38321,7 @@ all:
   - srd_Latn-kaz_Cyrl
   - kan_Knda-bho_Deva
   - sun_Latn-dan_Latn
-  - sat_Beng-slv_Latn
+  - sat_Oclk-slv_Latn
   - est_Latn-kas_Deva
   - ast_Latn-mai_Deva
   - tel_Telu-guj_Gujr
@@ -38335,7 +38335,7 @@ all:
   - kat_Geor-est_Latn
   - tam_Taml-pes_Arab
   - kat_Geor-ydd_Hebr
-  - mni_Beng-sat_Beng
+  - mni_Beng-sat_Oclk
   - yue_Hant-tha_Thai
   - hun_Latn-fon_Latn
   - amh_Ethi-dzo_Tibt
@@ -38429,7 +38429,7 @@ all:
   - san_Deva-ydd_Hebr
   - azj_Latn-sag_Latn
   - lmo_Latn-tso_Latn
-  - yue_Hant-sat_Beng
+  - yue_Hant-sat_Oclk
   - acq_Arab-spa_Latn
   - twi_Latn-zsm_Latn
   - hin_Deva-mri_Latn
@@ -38454,7 +38454,7 @@ all:
   - aeb_Arab-san_Deva
   - ces_Latn-hye_Armn
   - kor_Hang-grn_Latn
-  - sat_Beng-spa_Latn
+  - sat_Oclk-spa_Latn
   - sag_Latn-uzn_Latn
   - grn_Latn-fao_Latn
   - ory_Orya-bos_Latn
@@ -38627,7 +38627,7 @@ all:
   - kan_Knda-ajp_Arab
   - mag_Deva-zho_Hant
   - cjk_Latn-hun_Latn
-  - sat_Beng-aeb_Arab
+  - sat_Oclk-aeb_Arab
   - bos_Latn-hin_Deva
   - fur_Latn-som_Latn
   - kbp_Latn-mlt_Latn
@@ -38653,7 +38653,7 @@ all:
   - tso_Latn-fra_Latn
   - hin_Deva-mya_Mymr
   - kin_Latn-cjk_Latn
-  - kik_Latn-sat_Beng
+  - kik_Latn-sat_Oclk
   - srd_Latn-jav_Latn
   - urd_Arab-cat_Latn
   - npi_Deva-als_Latn
@@ -38850,7 +38850,7 @@ all:
   - pol_Latn-hau_Latn
   - war_Latn-epo_Latn
   - yor_Latn-khk_Cyrl
-  - sat_Beng-cym_Latn
+  - sat_Oclk-cym_Latn
   - som_Latn-dik_Latn
   - azb_Arab-pag_Latn
   - glg_Latn-khk_Cyrl
@@ -39183,7 +39183,7 @@ all:
   - pan_Guru-ltg_Latn
   - ltg_Latn-lit_Latn
   - bjn_Latn-mar_Deva
-  - sat_Beng-ron_Latn
+  - sat_Oclk-ron_Latn
   - jpn_Jpan-rus_Cyrl
   - pan_Guru-sag_Latn
   - ewe_Latn-kmr_Latn
@@ -39193,7 +39193,7 @@ all:
   - ajp_Arab-sin_Sinh
   - apc_Arab-taq_Latn
   - tpi_Latn-ibo_Latn
-  - jpn_Jpan-sat_Beng
+  - jpn_Jpan-sat_Oclk
   - ces_Latn-snd_Arab
   - deu_Latn-fin_Latn
   - urd_Arab-pap_Latn
@@ -39227,7 +39227,7 @@ all:
   - bho_Deva-tir_Ethi
   - uzn_Latn-mya_Mymr
   - dik_Latn-kab_Latn
-  - sat_Beng-kbp_Latn
+  - sat_Oclk-kbp_Latn
   - bug_Latn-uig_Arab
   - npi_Deva-mal_Mlym
   - mri_Latn-ben_Beng
@@ -39256,7 +39256,7 @@ all:
   - tat_Cyrl-tgk_Cyrl
   - yue_Hant-xho_Latn
   - kaz_Cyrl-lvs_Latn
-  - nno_Latn-sat_Beng
+  - nno_Latn-sat_Oclk
   - mar_Deva-fij_Latn
   - yue_Hant-gle_Latn
   - tha_Thai-fao_Latn
@@ -39295,7 +39295,7 @@ all:
   - xho_Latn-smo_Latn
   - fin_Latn-swe_Latn
   - ars_Arab-bjn_Arab
-  - sat_Beng-dik_Latn
+  - sat_Oclk-dik_Latn
   - fin_Latn-xho_Latn
   - rus_Cyrl-slk_Latn
   - guj_Gujr-tha_Thai
@@ -39618,7 +39618,7 @@ all:
   - min_Latn-azb_Arab
   - bel_Cyrl-azj_Latn
   - eus_Latn-eng_Latn
-  - fur_Latn-sat_Beng
+  - fur_Latn-sat_Oclk
   - vie_Latn-kin_Latn
   - kea_Latn-sun_Latn
   - khk_Cyrl-fuv_Latn
@@ -39661,7 +39661,7 @@ all:
   - tuk_Latn-ltz_Latn
   - pes_Arab-ltg_Latn
   - hrv_Latn-mai_Deva
-  - sat_Beng-lin_Latn
+  - sat_Oclk-lin_Latn
   - kab_Latn-arb_Arab
   - amh_Ethi-fon_Latn
   - mal_Mlym-grn_Latn
@@ -39713,7 +39713,7 @@ all:
   - slk_Latn-nya_Latn
   - dyu_Latn-ckb_Arab
   - ilo_Latn-lua_Latn
-  - sat_Beng-tat_Cyrl
+  - sat_Oclk-tat_Cyrl
   - swh_Latn-ayr_Latn
   - arb_Arab-bos_Latn
   - gla_Latn-prs_Arab
@@ -39831,7 +39831,7 @@ all:
   - uzn_Latn-dik_Latn
   - fao_Latn-acq_Arab
   - swe_Latn-xho_Latn
-  - sat_Beng-acq_Arab
+  - sat_Oclk-acq_Arab
   - ban_Latn-snd_Arab
   - swe_Latn-aka_Latn
   - lmo_Latn-ltg_Latn
@@ -39907,7 +39907,7 @@ all:
   - som_Latn-arb_Arab
   - arz_Arab-nso_Latn
   - xho_Latn-lim_Latn
-  - ltz_Latn-sat_Beng
+  - ltz_Latn-sat_Oclk
   - bjn_Arab-gaz_Latn
   - awa_Deva-grn_Latn
   - kea_Latn-bos_Latn
@@ -39921,7 +39921,7 @@ all:
   - afr_Latn-tuk_Latn
   - mni_Beng-yor_Latn
   - deu_Latn-ory_Orya
-  - sat_Beng-als_Latn
+  - sat_Oclk-als_Latn
   - som_Latn-lao_Laoo
   - tgk_Cyrl-sun_Latn
   - ilo_Latn-ltg_Latn
@@ -40005,7 +40005,7 @@ all:
   - ceb_Latn-ita_Latn
   - bak_Cyrl-hau_Latn
   - swh_Latn-pag_Latn
-  - est_Latn-sat_Beng
+  - est_Latn-sat_Oclk
   - tsn_Latn-ace_Arab
   - est_Latn-ita_Latn
   - swh_Latn-kon_Latn
@@ -40073,7 +40073,7 @@ all:
   - est_Latn-hat_Latn
   - pbt_Arab-hat_Latn
   - ory_Orya-tgk_Cyrl
-  - sat_Beng-ceb_Latn
+  - sat_Oclk-ceb_Latn
   - isl_Latn-afr_Latn
   - uzn_Latn-hat_Latn
   - hye_Armn-jav_Latn
@@ -40093,7 +40093,7 @@ all:
   - acm_Arab-tir_Ethi
   - lij_Latn-sin_Sinh
   - kea_Latn-luo_Latn
-  - sat_Beng-kea_Latn
+  - sat_Oclk-kea_Latn
   - bak_Cyrl-pbt_Arab
   - bel_Cyrl-mar_Deva
   - awa_Deva-shn_Mymr
@@ -40194,7 +40194,7 @@ all:
   - tpi_Latn-kea_Latn
   - bem_Latn-dik_Latn
   - bul_Cyrl-zsm_Latn
-  - nya_Latn-sat_Beng
+  - nya_Latn-sat_Oclk
   - ary_Arab-als_Latn
   - kin_Latn-lim_Latn
   - kmb_Latn-ind_Latn
@@ -40394,7 +40394,7 @@ all:
   - cat_Latn-ita_Latn
   - dik_Latn-rus_Cyrl
   - srp_Cyrl-mkd_Cyrl
-  - sat_Beng-ace_Arab
+  - sat_Oclk-ace_Arab
   - ace_Latn-tur_Latn
   - shn_Mymr-hat_Latn
   - sun_Latn-kab_Latn
@@ -40476,7 +40476,7 @@ all:
   - hau_Latn-hin_Deva
   - bel_Cyrl-nya_Latn
   - kmr_Latn-plt_Latn
-  - sat_Beng-sag_Latn
+  - sat_Oclk-sag_Latn
   - tat_Cyrl-nld_Latn
   - bos_Latn-snd_Arab
   - arb_Arab-pap_Latn
@@ -40759,7 +40759,7 @@ model_langs:
   - rus_Cyrl
   - sag_Latn
   - san_Deva
-  - sat_Beng
+  - sat_Oclk
   - scn_Latn
   - shn_Mymr
   - sin_Sinh

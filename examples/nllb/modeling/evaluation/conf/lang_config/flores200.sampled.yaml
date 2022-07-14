@@ -199,7 +199,7 @@ all:
   - eng_Latn-rus_Cyrl
   - eng_Latn-sag_Latn
   - eng_Latn-san_Deva
-  - eng_Latn-sat_Beng
+  - eng_Latn-sat_Oclk
   - eng_Latn-scn_Latn
   - eng_Latn-shn_Mymr
   - eng_Latn-sin_Sinh
@@ -354,7 +354,7 @@ all:
   - rus_Cyrl-eng_Latn
   - sag_Latn-eng_Latn
   - san_Deva-eng_Latn
-  - sat_Beng-eng_Latn
+  - sat_Oclk-eng_Latn
   - scn_Latn-eng_Latn
   - shn_Mymr-eng_Latn
   - sin_Sinh-eng_Latn
@@ -760,7 +760,7 @@ model_langs:
   - rus_Cyrl
   - sag_Latn
   - san_Deva
-  - sat_Beng
+  - sat_Oclk
   - scn_Latn
   - shn_Mymr
   - sin_Sinh
