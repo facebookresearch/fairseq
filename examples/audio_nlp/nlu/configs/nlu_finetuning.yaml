@@ -4,8 +4,6 @@ common:
   fp16: true
   log_format: json
   log_interval: 10
-  #validate_interval: 10
-  #save_inferval: 10
   tensorboard_logdir: tb
 
 checkpoint:
@@ -16,7 +14,6 @@ checkpoint:
 task:
   _name: nlu_finetuning
   data: ???
-  #normalize: tru
   labels: parse
   eval_wer_parse: true
   autoregressive: true
@@ -49,8 +46,6 @@ lr_scheduler:
   final_lr_scale: 0.05
 
 model:
-  #_name: hubert_seq2seq
-  #w2v_path: /private/home/padentomasello/models/hubert/hubert_base_ls960.pt
   _name: wav2vec_seq2seq
   w2v_path: /private/home/padentomasello/models/wav2vec2/wav2vec_small.pt
   autoregressive: true
@@ -62,4 +57,3 @@ model:
   activation_dropout: 0.1
   feature_grad_mult: 0.0
   freeze_finetune_updates: 0
-
