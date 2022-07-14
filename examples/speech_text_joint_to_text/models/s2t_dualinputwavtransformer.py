@@ -149,13 +149,6 @@ class DualInputWavTransformerModel(DualInputS2TTransformerModel):
             metavar="EXPR",
             help=""" path to the pretrained speech text encoder from SpeechTextPreTrainModel """,
         )
-        parser.add_argument(
-            "--load-pretrained-wav2vec-encoder",
-            type=str,
-            default="",
-            metavar="EXPR",
-            help=""" path to the pretrained speech text encoder from wav2vec """,
-        )
 
         parser.add_argument(
             "--load-pretrained-speech-text-decoder",
@@ -265,18 +258,7 @@ class DualInputWavTransformerModel(DualInputS2TTransformerModel):
         text_encoder = cls.build_text_encoder(args, task.src_dict)
         speech_encoder = cls.build_speech_encoder(args)
         if args.load_pretrained_wav2vec_encoder:
-            component_pairs = (
-                ("feature_extractor", speech_encoder.subsample),
-                ("post_extract_proj", speech_encoder.feat_proj),
-                ("layer_norm", speech_encoder.feat_layer_norm),
-                ("encoder.pos_conv", speech_encoder.embed_positions),
-                ("encoder.layers", speech_encoder.layers),
-                ("encoder.layer_norm", speech_encoder.layer_norm),
-                ("mask_emb", speech_encoder.mask_emb),
-            )
-            state = cls.load_pretrained_speech_text_components(
-                args.load_pretrained_wav2vec_encoder, component_pairs
-            )
+            state = speech_encoder.laod_pretrained_wav2vec(args.load_pretrained_wav2vec_encoder)
             cls.check_args(
                 args.encoder_normalize_before
                 == state["cfg"]["model"]["layer_norm_first"],
