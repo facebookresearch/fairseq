@@ -47,7 +47,7 @@ lr_scheduler:
 
 model:
   _name: wav2vec_seq2seq
-  w2v_path: /private/home/padentomasello/models/wav2vec2/wav2vec_small.pt
+  w2v_path: ???
   autoregressive: true
   apply_mask: true
   mask_prob: 0.5

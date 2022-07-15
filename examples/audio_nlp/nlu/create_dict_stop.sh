@@ -4,9 +4,9 @@
 ### for model training within fairseq
 
 
-fairseq_root="/private/home/padentomasello/code/fairseq-py"
+fairseq_root="."
 
-data_root="/private/home/padentomasello/data/stop/fairseq_test/stop/"
+data_root=$1
 train_prefix="${data_root}/train"
 valid_prefix="${data_root}/eval"
 test_prefix="${data_root}/test"

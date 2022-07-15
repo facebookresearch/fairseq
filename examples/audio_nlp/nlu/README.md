@@ -36,13 +36,16 @@ First, create the audio file manifests and label files:
 python examples/audio_nlp/nlu/generate_manifests.py --stop_root $STOP_DOWNLOAD_DIR/stop --output $FAIRSEQ_DATASET_OUTPUT/
 ```
 
-Modify `examples/audio_nlp/nlu/create_dict_stop.sh` so that `fairseq_root` points to your installation of fairseq and `data_root` points to `$FAIRSEQ_DATASET_OUTPUT`
 
-Run `./examples/audio_nlp/nlu/create_dict_stop.sh` to generate the fairseq dictionaries.
+Run `./examples/audio_nlp/nlu/create_dict_stop.sh $FAIRSEQ_DATASET_OUTPUT` to generate the fairseq dictionaries.
 
 
 ## Training an End-to-end NLU Model
 
+
+Download a wav2vec or hubert model from [link](https://github.com/facebookresearch/fairseq/tree/main/examples/hubert) or [link](https://github.com/facebookresearch/fairseq/tree/main/examples/wav2vec)
+
+
 ```
-python fairseq_cli/hydra-train  --config-dir examples/audio_nlp/nlu/configs/  --config-name nlu_finetuning task.data=$FAIRSEQ_DATA_OUTPUT
+python fairseq_cli/hydra-train  --config-dir examples/audio_nlp/nlu/configs/  --config-name nlu_finetuning task.data=$FAIRSEQ_DATA_OUTPUT model.w2v_path=$PRETRAINED_MODEL_PATH
 ```
