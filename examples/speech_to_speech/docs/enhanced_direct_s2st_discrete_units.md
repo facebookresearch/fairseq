@@ -38,7 +38,7 @@ sed -i "1s/.*/$var/" ${SPLIT}.tsv
 
 **Speech-to-unit translation (S2UT)**
 
-Here's an example for finetuning S2UT models with 1000 discrete units as target. You can download the [config](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/config.yaml) file and [vocabulary](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/dict.txt) from here:
+Here's an example for finetuning S2UT models with 1000 discrete units as target. You can download the sample [config](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/config.yaml) file and [vocabulary](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/dict.txt) for Es-En from here:
 
 ```
 fairseq-train $DATA_ROOT \
@@ -106,3 +106,20 @@ To evaluate speech translation output, we first apply ASR on the speech output a
 * En ASR: We use the "[Wav2Vec 2.0 Large (LV-60) + Self Training / 960 hours / Libri-Light + Librispeech](https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox_960h_pl.pt)" En ASR model open-sourced by the [wav2vec](https://github.com/pytorch/fairseq/tree/main/examples/wav2vec) project. The model is also available on [Hugging Face](https://huggingface.co/facebook/wav2vec2-large-960h-lv60-self).
 * Es ASR: We use the [Wav2Vec2-Large-XLSR-53-Spanish](https://huggingface.co/facebook/wav2vec2-large-xlsr-53) finetuned on spanish Common Voice Es ASR model open-sourced by Jonatasgrosman(<https://huggingface.co/jonatasgrosman/wav2vec2-large-xlsr-53-spanish>) on [Hugging Face](https://huggingface.co/jonatasgrosman/wav2vec2-large-xlsr-53-spanish).
 * See [instructions](https://github.com/pytorch/fairseq/tree/main/examples/wav2vec#evaluating-a-ctc-model) on how to run inference with a wav2vec-based ASR model.
+
+
+## Finetuned Model Checkpoints
+
+ID | En - Es | Es - En |
+| --- | --- | --- |
+**S2UT systems without pre-training**
+S2UT with multitask | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/en_es//S2UT_w_multitask.pt) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/es_en//S2UT_w_multitask.pt) | 
+**S2UT systems with model pre-training**
+w2v2-L | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/en_es//w2v2_only.pt ) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/es_en//w2v2_only.pt) | 
+w2v2-L + mBART (LNA-E) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/en_es//w2v2_mbart_LNE.pt) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/es_en//w2v2_mbart_LNE.pt) | 
+w2v2-L + mBART (LNA-D) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/en_es//w2v2_mbart_LND.pt) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/es_en//w2v2_mbart_LND.pt) | 
+w2v2-L + mBART (LNA-E,D) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/en_es//w2v2_mbart_LNED.pt) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/es_en//w2v2_mbart_LNED.pt) | 
+**S2UT systems with model pre-training and data augmentation**
+w2v2-L + mBART (LNA-D) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/en_es//w2v2_mbart_LND_w_ASR.pt) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/es_en//w2v2_mbart_LND_w_ASR.pt) |
+
+Note: Some of the tasks use speech_to_text_sharded task which is yet to be open sourced. So make sure to override the task to speech_to_text to use those models.
