@@ -1,0 +1,59 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: json
+  log_interval: 10
+  tensorboard_logdir: tb
+
+checkpoint:
+  no_epoch_checkpoints: true
+  best_checkpoint_metric: em_error
+  save_interval: 10
+
+task:
+  _name: nlu_finetuning
+  data: ???
+  labels: parse
+  eval_wer_parse: true
+  autoregressive: true
+
+dataset:
+  num_workers: 6
+  max_tokens: 1600000
+  skip_invalid_size_inputs_valid_test: true
+  valid_subset: eval,test
+  train_subset: train
+  validate_interval: 10
+
+criterion:
+  _name: label_smoothed_cross_entropy
+
+optimization:
+  max_update: 320000
+  lr: [0.0001]
+  sentence_avg: true
+  update_freq: [1]
+
+optimizer:
+  _name: adam
+  adam_betas: (0.9,0.98)
+  adam_eps: 1e-08
+
+lr_scheduler:
+  _name: tri_stage
+  phase_ratio: [0.1, 0.4, 0.5]
+  final_lr_scale: 0.05
+
+model:
+  _name: wav2vec_seq2seq
+  w2v_path: ???
+  autoregressive: true
+  apply_mask: true
+  mask_prob: 0.5
+  mask_channel_prob: 0.5
+  mask_channel_length: 64
+  layerdrop: 0.1
+  activation_dropout: 0.1
+  feature_grad_mult: 0.0
+  freeze_finetune_updates: 0
