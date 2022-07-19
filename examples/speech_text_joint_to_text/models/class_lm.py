@@ -34,7 +34,7 @@ class ClassBasedLanguageModel(FairseqLanguageModel):
                 if token in self.end_tags_idxs:
                     break
             if inside_class_tag:
-                out_scores.append(self.decoder(sample[idx:].unsqueeze(0))[:, -1:, :])
+                out_scores.append(self.decoder(sample[idx:].unsqueeze(0))[0][:, -1:, :])
             else:
                 out_scores.append(torch.zeros((1, 1, len(self.dictionary))).to(src_tokens.device))
         return (torch.cat(out_scores), )

@@ -169,9 +169,9 @@ class SpeechToTextTask(LegacyFairseqTask):
         eos_id = self.tgt_dict.index(eos_token) if eos_token else None
         extra_gen_cls_kwargs["eos"] = eos_id
 
-        if getattr(args, "lm_is_class_based"):
-            from examples.speech_text_joint_to_text.models.class_lm import ClassBasedLanguageModel
-            extra_gen_cls_kwargs["lm_model"] = ClassBasedLanguageModel(extra_gen_cls_kwargs["lm_model"])
+        if getattr(self.args, "lm_is_class_based", False):
+            from examples.speech_text_joint_to_text.models.class_lm import ClassBasedLanguageModel, TAGS
+            extra_gen_cls_kwargs["lm_model"] = ClassBasedLanguageModel(extra_gen_cls_kwargs["lm_model"], self.target_dictionary, TAGS)
 
         return super().build_generator(
             models, args, seq_gen_cls=None, extra_gen_cls_kwargs=extra_gen_cls_kwargs

@@ -20,7 +20,7 @@ class TestLMDecoder(FairseqDecoder):
     def forward(self, prev_output_tokens, encoder_out=None, incremental_state=None):
         tmp = torch.ones((prev_output_tokens.shape[0], prev_output_tokens.shape[1], self.tgt_len))
         tmp[:, :, 0] *= 10.
-        return tmp
+        return tmp, {}
 
 
 class TestRawDataset(IndexedRawTextDataset):
