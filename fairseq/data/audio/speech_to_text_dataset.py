@@ -10,8 +10,9 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
+import random
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -46,6 +47,12 @@ def _collate_frames(
     return out
 
 
+def _is_int_or_np_int(n):
+    return isinstance(n, int) or (
+        isinstance(n, np.generic) and isinstance(n.item(), int)
+    )
+
+
 @dataclass
 class SpeechToTextDatasetItem(object):
     index: int
@@ -76,6 +83,9 @@ class SpeechToTextDataset(FairseqDataset):
         n_frames_per_step=1,
         speaker_to_id=None,
         append_eos=True,
+        concataug_rate=0.0,
+        concataug_max_tokens=0,
+        concataug_attempts=5,
     ):
         self.split, self.is_train_split = split, is_train_split
         self.cfg = cfg
@@ -99,6 +109,9 @@ class SpeechToTextDataset(FairseqDataset):
         self.ids = ids
         self.shuffle = cfg.shuffle if is_train_split else False
 
+        self.concataug_rate = concataug_rate
+        self.concataug_max_tokens = concataug_max_tokens
+        self.concataug_attempts = concataug_attempts
         self.feature_transforms = CompositeAudioFeatureTransform.from_config_dict(
             self.cfg.get_feature_transforms(split, is_train_split)
         )
@@ -137,7 +150,10 @@ class SpeechToTextDataset(FairseqDataset):
             + f'(split="{self.split}", n_samples={self.n_samples:_}, '
             f"prepend_tgt_lang_tag={self.cfg.prepend_tgt_lang_tag}, "
             f"shuffle={self.shuffle}, transforms={self.feature_transforms}, "
-            f"n_frames_per_step={self.n_frames_per_step}"
+            f"n_frames_per_step={self.n_frames_per_step}, "
+            f"concataug_rate={self.concataug_rate if self.concataug_rate else 'off'}, "
+            f"concataug_max_tokens={self.concataug_max_tokens})"
+            f"concataug_attempts={self.concataug_attempts}"
         )
 
     @classmethod
@@ -157,8 +173,13 @@ class SpeechToTextDataset(FairseqDataset):
     def tokenize(cls, tokenizer, text: str):
         return text if tokenizer is None else tokenizer.encode(text)
 
-    def get_tokenized_tgt_text(self, index: int):
-        text = self.tokenize(self.pre_tokenizer, self.tgt_texts[index])
+    def get_tokenized_tgt_text(self, index: Union[int, List[int]]):
+        if _is_int_or_np_int(index):
+            text = self.tgt_texts[index]
+        else:
+            text = " ".join([self.tgt_texts[i] for i in index])
+
+        text = self.tokenize(self.pre_tokenizer, text)
         text = self.tokenize(self.bpe_tokenizer, text)
         return text
 
@@ -175,12 +196,57 @@ class SpeechToTextDataset(FairseqDataset):
         assert lang_tag_idx != dictionary.unk()
         return lang_tag_idx
 
-    def _get_source_audio(self, index: int) -> torch.Tensor:
-        source = get_features_or_waveform(
-            self.audio_paths[index],
-            need_waveform=self.cfg.use_audio_input,
-            use_sample_rate=self.cfg.use_sample_rate,
-        )
+    def _apply_concataug(
+        self,
+        index: int,
+        concat_no: int = 2,
+    ) -> List[int]:
+        indices = [index]
+        if (  # skip condition
+            random.random() > self.concataug_rate
+            or self.n_frames[index] > self.concataug_max_tokens
+        ):
+            return indices
+        attempts = 0
+        while len(indices) < concat_no and attempts < self.concataug_attempts:
+            j = random.randint(0, self.n_samples - 1)
+            if j != index and (
+                not self.concataug_max_tokens
+                or self.n_frames[index] + self.n_frames[j] < self.concataug_max_tokens
+            ):
+                indices.append(j)
+            attempts += 1
+        return indices
+
+    def _get_source_audio(self, index: Union[int, List[int]]) -> torch.Tensor:
+        """
+        Gives source audio for given index with any relevant transforms
+        applied. For ConcatAug, source audios for given indices are
+        concatenated in given order.
+        Args:
+            index (int or List[int]): index—or in the case of ConcatAug,
+            indices—to pull the source audio for
+        Returns:
+            source audios concatenated for given indices with
+            relevant transforms appplied
+        """
+        if _is_int_or_np_int(index):
+            source = get_features_or_waveform(
+                self.audio_paths[index],
+                need_waveform=self.cfg.use_audio_input,
+                use_sample_rate=self.cfg.use_sample_rate,
+            )
+        else:
+            source = np.concatenate(
+                [
+                    get_features_or_waveform(
+                        self.audio_paths[i],
+                        need_waveform=self.cfg.use_audio_input,
+                        use_sample_rate=self.cfg.use_sample_rate,
+                    )
+                    for i in index
+                ]
+            )
         if self.cfg.use_audio_input:
             source = torch.from_numpy(source).float()
             if self.cfg.standardize_audio:
@@ -193,12 +259,16 @@ class SpeechToTextDataset(FairseqDataset):
         return source
 
     def __getitem__(self, index: int) -> SpeechToTextDatasetItem:
-        source = self._get_source_audio(index)
+        if self.concataug_rate:
+            indices = self._apply_concataug(index)
+        source = self._get_source_audio(indices if self.concataug_rate else index)
         source = self.pack_frames(source)
 
         target = None
         if self.tgt_texts is not None:
-            tokenized = self.get_tokenized_tgt_text(index)
+            tokenized = self.get_tokenized_tgt_text(
+                indices if self.concataug_rate else index
+            )
             target = self.tgt_dict.encode_line(
                 tokenized, add_if_not_exist=False, append_eos=self.append_eos
             ).long()
@@ -338,6 +408,9 @@ class SpeechToTextDatasetCreator(object):
         bpe_tokenizer,
         n_frames_per_step,
         speaker_to_id,
+        concataug_rate=0.0,
+        concataug_max_tokens=0,
+        concataug_attempts=5,
     ) -> SpeechToTextDataset:
         audio_root = Path(cfg.audio_root)
         ids = [s[cls.KEY_ID] for s in samples]
@@ -365,6 +438,9 @@ class SpeechToTextDatasetCreator(object):
             bpe_tokenizer=bpe_tokenizer,
             n_frames_per_step=n_frames_per_step,
             speaker_to_id=speaker_to_id,
+            concataug_rate=concataug_rate,
+            concataug_max_tokens=concataug_max_tokens,
+            concataug_attempts=concataug_attempts,
         )
 
     @classmethod
@@ -431,6 +507,9 @@ class SpeechToTextDatasetCreator(object):
         bpe_tokenizer,
         n_frames_per_step,
         speaker_to_id,
+        concataug_rate,
+        concataug_max_tokens,
+        concataug_attempts,
     ) -> SpeechToTextDataset:
         samples = cls._load_samples_from_tsv(root, split)
         return cls._from_list(
@@ -443,6 +522,9 @@ class SpeechToTextDatasetCreator(object):
             bpe_tokenizer,
             n_frames_per_step,
             speaker_to_id,
+            concataug_rate,
+            concataug_max_tokens,
+            concataug_attempts,
         )
 
     @classmethod
@@ -459,6 +541,9 @@ class SpeechToTextDatasetCreator(object):
         seed: int,
         n_frames_per_step: int = 1,
         speaker_to_id=None,
+        concataug_rate=0.0,
+        concataug_max_tokens=0,
+        concataug_attempts=5,
     ) -> SpeechToTextDataset:
         datasets = [
             cls._from_tsv(
@@ -471,6 +556,9 @@ class SpeechToTextDatasetCreator(object):
                 bpe_tokenizer,
                 n_frames_per_step,
                 speaker_to_id,
+                concataug_rate,
+                concataug_max_tokens,
+                concataug_attempts,
             )
             for split in splits.split(",")
         ]
