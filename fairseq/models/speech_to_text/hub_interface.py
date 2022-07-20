@@ -105,8 +105,11 @@ class S2THubInterface(nn.Module):
             if tts_model_id is None:
                 logger.warning("TTS model configuration not found")
             else:
+                print(_repo)
+                import pdb
+                pdb.set_trace()
                 _repo, _id = tts_model_id.split(":")
-                _repo = "sravyaopuri388/fairseq"
+                _repo = "sravyapopuri388/fairseq"
                 tts_model = torch.hub.load(_repo, _id, verbose=False)
                 pred = (pred, tts_model.predict(pred))
         return pred
