@@ -122,7 +122,9 @@ class MultiModalityDataset(ConcatDataset):
         for i, ds in enumerate(self.datasets):
             # If we have ResamplingDataset, the same id can correpond to a different
             # sample in the next epoch, so we need to rebuild this at every epoch
-            if i < len(self.raw_sub_batch_samplers) and not resampling_dataset_present(ds):
+            if i < len(self.raw_sub_batch_samplers) and not resampling_dataset_present(
+                ds
+            ):
                 logger.info(f"dataset {i} is valid and it is not re-sampled")
                 continue
             indices[i] = ds.filter_indices_by_size(
