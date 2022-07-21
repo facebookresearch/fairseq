@@ -140,6 +140,7 @@ class TTSHubInterface(nn.Module):
 
 
 class VocoderHubInterface(nn.Module):
+    """Vocoder interface to run vocoder models through hub. Currently we only support unit vocoder"""
     def __init__(self, cfg, model):
         super().__init__()
         self.vocoder = model
@@ -156,7 +157,7 @@ class VocoderHubInterface(nn.Module):
     def get_model_inout(
         self,
         text: str,
-        speaker: Optional[int] = None,
+        speaker: Optional[int] = -1,
     ):
         units = list(map(int, text.strip().split()))
         x = {
