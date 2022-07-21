@@ -41,8 +41,19 @@ jobs:
       run: |
         python -m pip install iopath transformers pyarrow
         python -m pip install git+https://github.com/facebookresearch/fairscale.git@main
-        python -m pip install --progress-bar off git+https://github.com/facebookresearch/xformers.git@main
         python -m pip install pytest
+        python -m pip install pygit2 pgzip
+        
+    - name: Install xformers for Macos
+      if: matrix.platform == 'macos-latest'
+      run: |
+        brew install llvm libomp
+        CC=/usr/local/opt/llvm/bin/clang CXX=clang++ pip install git+https://github.com/facebookresearch/xformers.git@main
+
+    - name: Install xformers for non-MacOS
+      if: matrix.platform != 'macos-latest'
+      run: |
+        python -m pip install --progress-bar off git+https://github.com/facebookresearch/xformers.git@main
 
     - name: Lint with flake8
       run: |
