@@ -11,7 +11,8 @@ import numpy as np
 import torch
 from torch import nn
 import torch.nn.functional as F
-
+from fairseq.models import BaseFairseqModel, register_model
+from fairseq.models.text_to_speech.hub_interface import VocoderHubInterface
 from fairseq.data.audio.audio_utils import (
     get_window,
     get_fourier_basis,
@@ -83,7 +84,7 @@ class GriffinLim(torch.nn.Module):
         x = torch.zeros(n, dtype=torch.float32)
         for i in range(n_frames):
             ofst = i * hop_length
-            x[ofst : min(n, ofst + n_fft)] += w_sq[: max(0, min(n_fft, n - ofst))]
+            x[ofst: min(n, ofst + n_fft)] += w_sq[: max(0, min(n_fft, n - ofst))]
         return x
 
     def inverse(self, magnitude: torch.Tensor, phase) -> torch.Tensor:
@@ -101,8 +102,8 @@ class GriffinLim(torch.nn.Module):
         approx_nonzero_indices = win_sum_sq > self.tiny
         x[:, :, approx_nonzero_indices] /= win_sum_sq[approx_nonzero_indices]
         x *= self.n_fft / self.hop_length
-        x = x[:, :, self.n_fft // 2 :]
-        x = x[:, :, : -self.n_fft // 2 :]
+        x = x[:, :, self.n_fft // 2:]
+        x = x[:, :, : -self.n_fft // 2:]
         return x
 
     def forward(self, specgram: torch.Tensor) -> torch.Tensor:
@@ -211,7 +212,8 @@ class HiFiGANVocoder(nn.Module):
         return cls(vocoder_cfg["checkpoint"], model_cfg, fp16=args.fp16)
 
 
-class CodeHiFiGANVocoder(nn.Module):
+@register_model("CodeHiFiGANVocoder")
+class CodeHiFiGANVocoder(BaseFairseqModel):
     def __init__(
         self, checkpoint_path: str, model_cfg: Dict[str, str], fp16: bool = False
     ) -> None:
@@ -246,6 +248,43 @@ class CodeHiFiGANVocoder(nn.Module):
         with open(vocoder_cfg["config"]) as f:
             model_cfg = json.load(f)
         return cls(vocoder_cfg["checkpoint"], model_cfg, fp16=args.fp16)
+
+    @classmethod
+    def hub_models(cls):
+        base_url = "http://dl.fbaipublicfiles.com/fairseq/vocoder"
+        model_ids = ["unit_hifigan_mhubert_vp_en_es_fr_it3_400k_layer11_km1000_lj_dur",
+                     "unit_hifigan_mhubert_vp_en_es_fr_it3_400k_layer11_km1000_es_css10_dur"]
+        return {i: f"{base_url}/{i}.tar.gz" for i in model_ids}
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        model_name_or_path,
+        checkpoint_file="model.pt",
+        data_name_or_path=".",
+        config="config.json",
+        fp16: bool = False,
+        **kwargs,
+    ):
+        from fairseq import hub_utils
+
+        x = hub_utils.from_pretrained(
+            model_name_or_path,
+            checkpoint_file,
+            data_name_or_path,
+            archive_map=cls.hub_models(),
+            config_yaml=config,
+            fp16=fp16,
+            is_vocoder=True,
+            **kwargs,
+        )
+
+        with open(f"{x['args']['data']}/{config}") as f:
+            vocoder_cfg = json.load(f)
+        assert len(x["args"]["model_path"]) == 1, "Too many vocoder models in the input"
+
+        vocoder = CodeHiFiGANVocoder(x["args"]["model_path"][0], vocoder_cfg)
+        return VocoderHubInterface(vocoder_cfg, vocoder)
 
 
 def get_vocoder(args, data_cfg: S2TDataConfig):
