@@ -487,6 +487,9 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             "xm_transformer-21_en-xls_r_2b",
             "xm_transformer-en_15-xls_r_2b",
             "xm_transformer-22_16-xls_r_2b",
+            "xm_transformer_s2ut_800m-es-en-st-asr-bt_h1_2022",
+            "xm_transformer_s2ut_800m-en-es-st_plus_asr",
+            "xm_transformer_s2ut_es_en_st_asr_test"
         ]
         return {i: f"{base_url}/{i}.tar.gz" for i in model_ids}
 
@@ -497,6 +500,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         checkpoint_file="model.pt",
         data_name_or_path=".",
         config_yaml="config.yaml",
+        task="speech_to_text",
         **kwargs,
     ):
         from fairseq import hub_utils
@@ -507,6 +511,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             data_name_or_path,
             archive_map=cls.hub_models(),
             config_yaml=config_yaml,
+            task=task,
             **kwargs,
         )
         return S2THubInterface(x["args"], x["task"], x["models"][0])

@@ -95,6 +95,9 @@ class S2THubInterface(nn.Module):
         prefix = cls.get_prefix_token(task, _tgt_lang)
         pred_tokens = generator.generate([model], sample, prefix_tokens=prefix)
         pred = cls.detokenize(task, pred_tokens[0][0]["tokens"])
+        eos_token = task.data_cfg.config.get("eos_token", None)
+        if eos_token:
+            pred = ' '.join(pred.split(' ')[:-1])
 
         if synthesize_speech:
             pfx = f"{_tgt_lang}_" if task.data_cfg.prepend_tgt_lang_tag else ""
