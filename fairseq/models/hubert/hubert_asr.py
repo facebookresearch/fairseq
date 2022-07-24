@@ -6,6 +6,7 @@
 from typing import Any
 import contextlib
 import copy
+import logging
 import math
 from argparse import Namespace
 from dataclasses import dataclass, field
@@ -29,6 +30,8 @@ from fairseq.models import (
 from fairseq.models.hubert.hubert import MASKING_DISTRIBUTION_CHOICES
 from fairseq.modules import LayerNorm, PositionalEmbedding, TransformerDecoderLayer
 from fairseq.tasks import FairseqTask
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -236,13 +239,14 @@ class HubertSeq2SeqConfig(HubertAsrConfig):
     )
     autoregressive: bool = II("task.autoregressive")
     seq2seq_path: str = field(
-        default='',
+        default="",
         metadata={"help": "reset_dict"},
     )
     reset_dict: bool = field(
         default=False,
         metadata={"help": "reset_dict"},
     )
+
 
 @register_model("hubert_seq2seq", dataclass=HubertSeq2SeqConfig)
 class HubertSeq2SeqModel(FairseqEncoderDecoderModel):
@@ -270,17 +274,14 @@ class HubertSeq2SeqModel(FairseqEncoderDecoderModel):
         encoder = cls.build_encoder(cfg, task)
         decoder = cls.build_decoder(cfg, tgt_dict, decoder_embed_tokens)
 
-
         model = HubertSeq2SeqModel(encoder, decoder)
 
-        if cfg['seq2seq_path']:
-            state = checkpoint_utils.load_checkpoint_to_cpu(
-                cfg.seq2seq_path
-            )
-            state = state['model']
-            if cfg['reset_dict']:
-                del state['decoder.embed_out']
-                del state['decoder.embed_tokens.weight']
+        if cfg["seq2seq_path"]:
+            state = checkpoint_utils.load_checkpoint_to_cpu(cfg.seq2seq_path)
+            state = state["model"]
+            if cfg["reset_dict"]:
+                del state["decoder.embed_out"]
+                del state["decoder.embed_tokens.weight"]
             model.load_state_dict(state, strict=False)
         return model
 
@@ -307,10 +308,10 @@ class HubertSeq2SeqModel(FairseqEncoderDecoderModel):
         model_cfg=None,
         args: Optional[Namespace] = None,
     ):
-        if(model_cfg.reset_dict):
+        if model_cfg.reset_dict:
             logger.warn("Overriding loading strict state dict!")
-            del state_dict['decoder.embed_out']
-            del state_dict['decoder.embed_tokens.weight']
+            del state_dict["decoder.embed_out"]
+            del state_dict["decoder.embed_tokens.weight"]
             return super().load_state_dict(state_dict, False, model_cfg, args)
         return super().load_state_dict(state_dict, strict, model_cfg, args)
 
@@ -381,7 +382,7 @@ class HubertEncoder(FairseqEncoder):
         self.freeze_finetune_updates = cfg.freeze_finetune_updates
         self.num_updates = 0
 
-        if task.target_dictionary is not None and not cfg.autoregressive :
+        if task.target_dictionary is not None and not cfg.autoregressive:
             self.proj = Linear(d, len(task.target_dictionary))
         elif getattr(cfg, "decoder_embed_dim", d) != d:
             self.proj = Linear(d, cfg.decoder_embed_dim)
@@ -431,9 +432,9 @@ class HubertEncoder(FairseqEncoder):
                 "encoder_padding_mask"
             ].index_select(0, new_order)
         if encoder_out["padding_mask"] is not None:
-            encoder_out["padding_mask"] = encoder_out[
-                "padding_mask"
-            ].index_select(0, new_order)
+            encoder_out["padding_mask"] = encoder_out["padding_mask"].index_select(
+                0, new_order
+            )
         return encoder_out
 
     def max_positions(self):
@@ -442,6 +443,7 @@ class HubertEncoder(FairseqEncoder):
 
     def upgrade_state_dict_named(self, state_dict, name):
         return state_dict
+
 
 class TransformerDecoder(FairseqIncrementalDecoder):
     """
@@ -544,11 +546,13 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 - the decoder's output of shape `(batch, tgt_len, vocab)`
                 - a dictionary with any model-specific outputs
         """
-        if (type(prev_output_tokens) == list):
+        if type(prev_output_tokens) == list:
             max_len = max((len(x) for x in prev_output_tokens))
-            tmp = torch.zeros([len(prev_output_tokens), max_len], device=prev_output_tokens[0].device)
+            tmp = torch.zeros(
+                [len(prev_output_tokens), max_len], device=prev_output_tokens[0].device
+            )
             for (i, p) in enumerate(prev_output_tokens):
-                tmp[i, :len(p)] = p
+                tmp[i, : len(p)] = p
             prev_output_tokens = tmp
         prev_output_tokens = prev_output_tokens.long()
         x, extra = self.extract_features(
@@ -614,7 +618,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                     self_attn_mask=self.buffered_future_mask(x)
                     if incremental_state is None
                     else None,
-                    self_attn_padding_mask=self_attn_padding_mask
+                    self_attn_padding_mask=self_attn_padding_mask,
                 )
                 inner_states.append(x)
 

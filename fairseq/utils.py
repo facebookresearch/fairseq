@@ -844,8 +844,8 @@ def safe_hasattr(obj, k):
 
 def hotreload_function(name=None):
     """
-    Decorator to function to enable hot-reload for debugging. 
-    It allows you to debug a function without having reloading all heavy models, dataset loading and 
+    Decorator to function to enable hot-reload for debugging.
+    It allows you to debug a function without having reloading all heavy models, dataset loading and
         preprocessing, allow faster debugging.
     If you want to change model or dataset loading, consider relaunching your code
     -----------------------------------
@@ -857,8 +857,8 @@ def hotreload_function(name=None):
                 Type "disable" to stop pausing this function and let code continue without pause
                 Ctril + C to terminal
         if func raise error:
-            it will prompt user to 
-                1. Edit code, and press enter to retry 
+            it will prompt user to
+                1. Edit code, and press enter to retry
                 2. Ctrl + C to terminate
                 3. Type "raise" to raise that exception
     * Requirements:
@@ -892,38 +892,45 @@ def hotreload_function(name=None):
     try:
         import jurigged
     except ImportError as e:
-        logger.warning(f'Please install jurigged: pip install jurigged[develoop]')
+        logger.warning(f"Please install jurigged: pip install jurigged[develoop]")
         raise e
     from fairseq.distributed import utils as distributed_utils
     import traceback
-    
+
     def hotreload_decorator(func):
-        assert callable(func), f'not callable: {func}'
+        assert callable(func), f"not callable: {func}"
         jname = name or func.__name__
-        logger.info(f'jurigged-hotreload:Apply jurigged on {jname}:{func.__name__}')
+        logger.info(f"jurigged-hotreload:Apply jurigged on {jname}:{func.__name__}")
         HOTRELOAD_PAUSE = bool(os.environ.get("HOTRELOAD_PAUSE", 0))
         cublk = bool(os.environ.get("CUDA_LAUNCH_BLOCKING", 0))
         prefix = f"HOTRELOAD:{jname}:[cublk={cublk}]"
         hot_reload_state = {"disable": False}
+
         def func_wrapper(*args, **kwargs):
-            if not HOTRELOAD_PAUSE or hot_reload_state['disable']:
+            if not HOTRELOAD_PAUSE or hot_reload_state["disable"]:
                 return func(*args, **kwargs)
             world_size = distributed_utils.get_global_world_size()
-            assert world_size <= 1, f'HOTRELOAD_PAUSE:{jname} currently cannot do distributed training'
+            assert (
+                world_size <= 1
+            ), f"HOTRELOAD_PAUSE:{jname} currently cannot do distributed training"
             success = False
             while not success:
                 try:
                     output = func(*args, **kwargs)
                     # success = True
-                    end_action = input(f'{prefix}: PAUSE, you may edit code now. Enter to re-run, ctrl+C to terminate, '
-                        f'type "done" to continue (function still being watched), or type "disable" to stop pausing this function :')
+                    end_action = input(
+                        f"{prefix}: PAUSE, you may edit code now. Enter to re-run, ctrl+C to terminate, "
+                        f'type "done" to continue (function still being watched), or type "disable" to stop pausing this function :'
+                    )
                     if end_action.strip().lower() in ["disable", "done"]:
                         success = True
                     else:
-                        logger.warning(f'{prefix}: action={end_action} function will re-run now.')
+                        logger.warning(
+                            f"{prefix}: action={end_action} function will re-run now."
+                        )
                 except Exception as e:
                     action = input(
-                        f'{prefix}:ERROR: \n{traceback.format_exc()}\n'
+                        f"{prefix}:ERROR: \n{traceback.format_exc()}\n"
                         f'Edit code to try again: enter to continue, ctrl+C to terminate, or type "raise" to raise the exception: '
                     )
                     if action.strip().lower() == "raise":
@@ -931,13 +938,14 @@ def hotreload_function(name=None):
 
             if end_action.strip().lower() == "disable":
                 logger.warning(
-                    f'{prefix}: Stop pausing {jname}. The function is still being watched and newly editted code will take effect '
-                    f'if the {jname} is called again later.'
+                    f"{prefix}: Stop pausing {jname}. The function is still being watched and newly editted code will take effect "
+                    f"if the {jname} is called again later."
                     f' "unset HOTRELOAD_PAUSE" before relaunch to disable hotreload and'
-                    f' remove @hotreload_function decorator in the code.'
+                    f" remove @hotreload_function decorator in the code."
                 )
-                hot_reload_state['disable'] = True
+                hot_reload_state["disable"] = True
             return output
-        return func_wrapper
-    return hotreload_decorator
 
+        return func_wrapper
+
+    return hotreload_decorator
