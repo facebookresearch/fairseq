@@ -81,7 +81,7 @@ We provide reference implementations of various sequence modeling papers:
 * June 2021 [Released XLMR-XL and XLMR-XXL models](examples/xlmr/README.md)
 * May 2021 [Released Unsupervised Speech Recognition code](examples/wav2vec/unsupervised/README.md)
 * March 2021 [Added full parameter and optimizer state sharding + CPU offloading](examples/fully_sharded_data_parallel/README.md)
-* February 2021 [Added LASER training code](examples/laser/README.md)
+* February 2021: [Added LASER training code](examples/laser/README.md)
 * December 2020: [Added Adaptive Attention Span code](examples/adaptive_span/README.md)
 * December 2020: [GottBERT model and code released](examples/gottbert/README.md)
 * November 2020: Adopted the [Hydra](https://github.com/facebookresearch/hydra) configuration framework
