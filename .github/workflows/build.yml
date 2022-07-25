@@ -43,11 +43,13 @@ jobs:
         python -m pip install git+https://github.com/facebookresearch/fairscale.git@main
         python -m pip install pytest
         python -m pip install pygit2 pgzip
+        # TODO: comment why
+        python -m pip install --no-binary numpy
         
     - name: Install xformers for Macos
       if: matrix.platform == 'macos-latest'
       run: |
-        brew install llvm libomp
+        brew install llvm
         CC=/usr/local/opt/llvm/bin/clang CXX=clang++ pip install git+https://github.com/facebookresearch/xformers.git@main
 
     - name: Install xformers for non-MacOS
