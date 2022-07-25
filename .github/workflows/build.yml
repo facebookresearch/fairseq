@@ -35,7 +35,7 @@ jobs:
         python -m pip install --upgrade pip
         git submodule update --init --recursive
         python setup.py build_ext --inplace
-        python -m pip install --editable .
+        python -m pip install --editable . --no-binary numpy
 
     - name: Install optional test requirements
       run: |
@@ -43,8 +43,6 @@ jobs:
         python -m pip install git+https://github.com/facebookresearch/fairscale.git@main
         python -m pip install pytest
         python -m pip install pygit2 pgzip
-        # TODO: comment why
-        python -m pip install --no-binary numpy
         
     - name: Install xformers for Macos
       if: matrix.platform == 'macos-latest'
