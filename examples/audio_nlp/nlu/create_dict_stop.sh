@@ -20,19 +20,19 @@ dest_dir="$data_root/"
 PYTHONPATH=$fairseq_root \
   python $fairseq_root/fairseq_cli/preprocess.py \
     --source-lang "parse" \
-    --trainpref $train_prefix \
-    --validpref $valid_prefix \
-    --destdir $dest_dir \
+    --trainpref "$train_prefix" \
+    --validpref "$valid_prefix" \
+    --destdir "$dest_dir" \
     --only-source \
     --dict-only \
     --workers 60;
 
 PYTHONPATH=$fairseq_root \
   python $fairseq_root/fairseq_cli/preprocess.py \
-		--source-lang "ltr" \
-    --trainpref $train_prefix \
-    --validpref $valid_prefix \
-    --destdir $dest_dir \
+    --source-lang "ltr" \
+    --trainpref "$train_prefix" \
+    --validpref "$valid_prefix" \
+    --destdir "$dest_dir" \
     --only-source \
     --dict-only \
     --workers 60;
