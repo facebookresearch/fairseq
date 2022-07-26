@@ -42,8 +42,29 @@ LASER3 models are available at [LASER](https://github.com/facebookresearch/LASER
 
 
 ### HuggingFace Integrations
-[Coming Soon]
 
+Support for the dense models is available through the Hugging Face Hub under the [`NLLB`](https://huggingface.co/models?other=nllb) tag. It is supported in the `transformers` library and the documentation for this model is available [here](https://huggingface.co/docs/transformers/main/en/model_doc/nllb#nllb).
+
+Input and output languages are entirely customizable with BCP-47 codes used by the FLORES-200 dataset, here's an example usage with a translation from Romanian to German:
+
+```python
+>>> from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+
+>>> tokenizer = AutoTokenizer.from_pretrained("facebook/nllb-200-distilled-600M", use_auth_token=True, src_lang="ron_Latn")
+>>> model = AutoModelForSeq2SeqLM.from_pretrained("facebook/nllb-200-distilled-600M", use_auth_token=True)
+
+>>> article = "Şeful ONU spune că nu există o soluţie militară în Siria"
+>>> inputs = tokenizer(article, return_tensors="pt")
+
+>>> translated_tokens = model.generate(
+...     **inputs, forced_bos_token_id=tokenizer.lang_code_to_id["deu_Latn"], max_length=30
+... )
+>>> tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)[0]
+```
+Result:
+```
+UN-Chef sagt, es gibt keine militärische Lösung in Syrien
+``
 
 ## Installation
 Follow installation instructions in [INSTALL](INSTALL.md) guide for running training/generation. For general instructions about `fairseq` and working with the codebase refer to [`fairseq` README](https://github.com/facebookresearch/fairseq). For [stopes](https://github.com/facebookresearch/stopes) and [LASER](https://github.com/facebookresearch/LASER) follow their README files for installation.
