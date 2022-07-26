@@ -9,6 +9,8 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
+import logging
+
 from fairseq import utils
 from fairseq.dataclass.utils import gen_parser_from_dataclass
 from fairseq.distributed import fsdp_wrap
@@ -18,6 +20,9 @@ from fairseq.models.transformer import (
     TransformerDecoderBase,
     TransformerEncoderBase,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class TransformerModelBase(FairseqEncoderDecoderModel):
@@ -82,6 +87,18 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
                 )
             encoder_embed_tokens = cls.build_embedding(
                 cfg, src_dict, cfg.encoder.embed_dim, cfg.encoder.embed_path
+            )
+            decoder_embed_tokens = encoder_embed_tokens
+            cfg.share_decoder_input_output_embed = True
+        elif cfg.merge_src_tgt_embed:
+            logger.info(f"source dict size: {len(src_dict)}")
+            logger.info(f"target dict size: {len(tgt_dict)}")
+            src_dict.update(tgt_dict)
+            task.src_dict = src_dict
+            task.tgt_dict = src_dict
+            logger.info(f"merged dict size: {len(src_dict)}")
+            encoder_embed_tokens = cls.build_embedding(
+                cfg, src_dict, cfg.encoder.embed_dim
             )
             decoder_embed_tokens = encoder_embed_tokens
             cfg.share_decoder_input_output_embed = True
