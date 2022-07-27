@@ -222,7 +222,8 @@ if [ ! -d "${FASTBPE}" ] ; then
 fi
 
 ${FASTBPE}/fast applybpe data_dir/bpe.$test.$s-$t.$s data_dir/$test.$s-$t.$s ${src_bpe_code}
-${FASTBPE}/fast applybpe data_dir/bpe.$test.$s-$t.$s data_dir/$test.$s-$t.$s ${tgt_bpe_code}
+${FASTBPE}/fast applybpe data_dir/bpe.$test.$s-$t.$t $DATA_DIR/$test.$s-$t.$t ${tgt_bpe_code}
+
 
 fairseq-preprocess -s $s -t $t \
     --testpref data_dir/bpe.$test.$s-$t \
