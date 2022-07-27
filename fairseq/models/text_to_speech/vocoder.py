@@ -253,7 +253,7 @@ class CodeHiFiGANVocoder(BaseFairseqModel):
     def hub_models(cls):
         base_url = "http://dl.fbaipublicfiles.com/fairseq/vocoder"
         model_ids = ["unit_hifigan_mhubert_vp_en_es_fr_it3_400k_layer11_km1000_lj_dur",
-                     "unit_hifigan_mhubert_vp_en_es_fr_it3_400k_layer11_km1000_es_css10_dur"]
+                     "unit_hifigan_mhubert_vp_en_es_fr_it3_400k_layer11_km1000_es_css10_dur", "unit_hifigan_HK_layer12.km2500_frame_TAT-TTS"]
         return {i: f"{base_url}/{i}.tar.gz" for i in model_ids}
 
     @classmethod
