@@ -244,6 +244,9 @@ def add_wav2vec_asr_args(parser):
         action="store_true",
         help="if set, then the weight-norm (in one pos_conv layer) is removed from the model",
     )
+    parser.add_argument(
+        "--encoder-embed-dim", type=int, metavar="N", help="encoder embedding dimension to be used when w2v_path is None and no encoder_proj is set"
+    )
 
 
 def need_finetuning(ft_params, param_name):
@@ -546,15 +549,18 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
     def build_encoder(cls, args):
         _args = copy.deepcopy(args)
         if not args.adaptor_proj and not args.encoder_proj:  # V0 arch
-            state = checkpoint_utils.load_checkpoint_to_cpu(args.w2v_path)
-            if state.get("cfg") is not None:
-                encoder_embed_dim = state["cfg"]._content["model"]["encoder_embed_dim"]
-            elif state.get("args") is not None:
-                encoder_embed_dim = state["args"].encoder_embed_dim
+            if args.w2v_path:
+                state = checkpoint_utils.load_checkpoint_to_cpu(args.w2v_path)
+                if state.get("cfg") is not None:
+                    encoder_embed_dim = state["cfg"]._content["model"]["encoder_embed_dim"]
+                elif state.get("args") is not None:
+                    encoder_embed_dim = state["args"].encoder_embed_dim
+                else:
+                    raise ValueError(f"Invalid config in {args.w2v_path}")
+                _args.decoder_embed_dim = encoder_embed_dim
+                del state
             else:
-                raise ValueError(f"Invalid config in {args.w2v_path}")
-            _args.decoder_embed_dim = encoder_embed_dim
-            del state
+                _args.decoder_embed_dim = args.encoder_embed_dim
 
         encoder = Wav2VecEncoderWithAdaptor(_args)
         encoder = cls.maybe_load_pretrained(
@@ -690,6 +696,7 @@ def set_default_w2v_encoder_args(args):
     args.normalize = getattr(args, "normalize", False)
     args.finetune_w2v_params = getattr(args, "finetune_w2v_params", "all")
     args.w2v_freezing_updates = getattr(args, "w2v_freezing_updates", None)
+    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 1024)
 
 
 def set_default_adaptor_args(args):
