@@ -501,7 +501,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         model_name_or_path,
         checkpoint_file="model.pt",
         data_name_or_path=".",
-        config_yaml="config.yaml",
+        config_yaml="config_test.yaml",
         task="speech_to_text",
         **kwargs,
     ):
