@@ -184,7 +184,5 @@ class VocoderHubInterface(nn.Module):
         speaker: Optional[int] = None,
         dur_prediction: Optional[bool] = True,
     ):
-        print(speaker, "speaker")
-        print("---------------------------------------")
         sample = self.get_model_input(text, speaker)
         return self.get_prediction(sample, dur_prediction)
