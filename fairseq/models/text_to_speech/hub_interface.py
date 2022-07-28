@@ -141,6 +141,7 @@ class TTSHubInterface(nn.Module):
 
 class VocoderHubInterface(nn.Module):
     """Vocoder interface to run vocoder models through hub. Currently we only support unit vocoder"""
+
     def __init__(self, cfg, model):
         super().__init__()
         self.vocoder = model
@@ -154,7 +155,7 @@ class VocoderHubInterface(nn.Module):
                 200,
             )  # following the default in codehifigan to set to 200
 
-    def get_model_inout(
+    def get_model_input(
         self,
         text: str,
         speaker: Optional[int] = -1,
@@ -163,7 +164,8 @@ class VocoderHubInterface(nn.Module):
         x = {
             "code": torch.LongTensor(units).view(1, -1),
         }
-
+        if not speaker:
+            speaker = -1
         if self.multispkr:
             assert (
                 speaker < self.num_speakers
@@ -182,5 +184,5 @@ class VocoderHubInterface(nn.Module):
         speaker: Optional[int] = None,
         dur_prediction: Optional[bool] = True,
     ):
-        sample = self.get_model_inout(text, speaker)
+        sample = self.get_model_input(text, speaker)
         return self.get_prediction(sample, dur_prediction)
