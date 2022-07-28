@@ -113,12 +113,12 @@ To evaluate speech translation output, we first apply ASR on the speech output a
 ID | En - Es | Es - En |
 | --- | --- | --- |
 **S2UT systems without pre-training**
-S2UT with multitask | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/en_es//S2UT_w_multitask.pt) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/es_en//S2UT_w_multitask.pt) | 
+S2UT with multitask | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/en_es//S2UT_w_multitask.pt) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/es_en//S2UT_w_multitask.pt) |
 **S2UT systems with model pre-training**
-w2v2-L | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/en_es//w2v2_only.pt ) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/es_en//w2v2_only.pt) | 
-w2v2-L + mBART (LNA-E) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/en_es//w2v2_mbart_LNE.pt) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/es_en//w2v2_mbart_LNE.pt) | 
-w2v2-L + mBART (LNA-D) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/en_es//w2v2_mbart_LND.pt) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/es_en//w2v2_mbart_LND.pt) | 
-w2v2-L + mBART (LNA-E,D) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/en_es//w2v2_mbart_LNED.pt) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/es_en//w2v2_mbart_LNED.pt) | 
+w2v2-L | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/en_es//w2v2_only.pt ) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/es_en//w2v2_only.pt) |
+w2v2-L + mBART (LNA-E) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/en_es//w2v2_mbart_LNE.pt) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/es_en//w2v2_mbart_LNE.pt) |
+w2v2-L + mBART (LNA-D) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/en_es//w2v2_mbart_LND.pt) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/es_en//w2v2_mbart_LND.pt) |
+w2v2-L + mBART (LNA-E,D) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/en_es//w2v2_mbart_LNED.pt) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/es_en//w2v2_mbart_LNED.pt) |
 **S2UT systems with model pre-training and data augmentation**
 w2v2-L + mBART (LNA-D) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/en_es//w2v2_mbart_LND_w_ASR.pt) | [checkpoint](https://dl.fbaipublicfiles.com/fairseq/speech_to_speech/s2st_finetuning/es_en//w2v2_mbart_LND_w_ASR.pt) |
 

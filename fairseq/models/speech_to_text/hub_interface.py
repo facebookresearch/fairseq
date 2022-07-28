@@ -102,12 +102,13 @@ class S2THubInterface(nn.Module):
         if synthesize_speech:
             pfx = f"{_tgt_lang}_" if task.data_cfg.prepend_tgt_lang_tag else ""
             tts_model_id = task.data_cfg.hub.get(f"{pfx}tts_model_id", None)
+            speaker = task.data_cfg.hub.get(f"{pfx}speaker", None)
             if tts_model_id is None:
                 logger.warning("TTS model configuration not found")
             else:
                 _repo, _id = tts_model_id.split(":")
                 tts_model = torch.hub.load(_repo, _id, verbose=False)
-                pred = (pred, tts_model.predict(pred))
+                pred = (pred, tts_model.predict(pred, speaker=speaker))
         return pred
 
     def predict(

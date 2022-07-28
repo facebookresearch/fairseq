@@ -892,7 +892,7 @@ def hotreload_function(name=None):
     try:
         import jurigged
     except ImportError as e:
-        logger.warning(f"Please install jurigged: pip install jurigged[develoop]")
+        logger.warning("Please install jurigged: pip install jurigged[develoop]")
         raise e
     from fairseq.distributed import utils as distributed_utils
     import traceback
