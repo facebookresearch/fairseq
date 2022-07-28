@@ -471,7 +471,7 @@ def remove_weight_norm_from_model(model):
 class XMTransformerModel(FairseqEncoderDecoderModel):
     @classmethod
     def hub_models(cls):
-        base_url = "http://dl.fbaipublicfiles.com/fairseq/s2t"
+        base_url = "http://dl.fbaipublicfiles.com/fairseq/s2t/xm_transformer_s2ut_800m-en-hk-h1_2022.tar.gz"
         model_ids = [
             "xm_transformer_600m-es_en-multi_domain",
             "xm_transformer_600m-ru_en-multi_domain",
@@ -504,7 +504,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         model_name_or_path,
         checkpoint_file="model.pt",
         data_name_or_path=".",
-        config_yaml="config_test.yaml",
+        config_yaml="config.yaml",
         task="speech_to_text",
         **kwargs,
     ):

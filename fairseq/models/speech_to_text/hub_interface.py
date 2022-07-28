@@ -102,7 +102,7 @@ class S2THubInterface(nn.Module):
         if synthesize_speech:
             pfx = f"{_tgt_lang}_" if task.data_cfg.prepend_tgt_lang_tag else ""
             tts_model_id = task.data_cfg.hub.get(f"{pfx}tts_model_id", None)
-            speaker = task.data_cfg.hub.get(f"{pfx}speaker_id", None)
+            speaker = task.data_cfg.hub.get(f"{pfx}speaker", None)
             if tts_model_id is None:
                 logger.warning("TTS model configuration not found")
             else:
