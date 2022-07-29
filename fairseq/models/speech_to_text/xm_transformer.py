@@ -86,6 +86,9 @@ class Conv1dAdaptor(nn.Module):
             x = x + 0.5 * self.proj(x)
             x = self.proj_ln(x)
 
+        if padding_mask is not None:
+            x = utils.index_put(x, padding_mask.T, 0)
+
         # T x B x C -> B x C x T
         x = x.transpose(0, 1).transpose(1, 2)
         out_lens = None
@@ -108,6 +111,7 @@ class Conv1dAdaptor(nn.Module):
         out_padding_mask = None
         if padding_mask is not None:
             out_padding_mask = lengths_to_padding_mask(out_lens.long())
+            x = utils.index_put(x, out_padding_mask.T, 0)
         return x, out_padding_mask
 
 
