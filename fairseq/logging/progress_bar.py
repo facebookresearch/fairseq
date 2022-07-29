@@ -481,14 +481,6 @@ except ImportError:
     wandb = None
 
 
-def _wandb_finish():
-    if wandb is not None:
-        wandb.finish()
-
-
-atexit.register(_wandb_finish)
-
-
 class WandBProgressBarWrapper(BaseProgressBar):
     """Log to Weights & Biases."""
 
