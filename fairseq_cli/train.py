@@ -204,6 +204,13 @@ def main(cfg: FairseqConfig) -> None:
     train_meter.stop()
     logger.info("done training in {:.1f} seconds".format(train_meter.sum))
 
+    try:
+        import wandb
+
+        wandb.finish()
+    except ImportError:
+        pass
+
     # ioPath implementation to wait for all asynchronous file writes to complete.
     if cfg.checkpoint.write_checkpoints_asynchronously:
         logger.info(
