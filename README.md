@@ -64,7 +64,7 @@ Input and output languages are entirely customizable with BCP-47 codes used by t
 Result:
 ```
 UN-Chef sagt, es gibt keine militärische Lösung in Syrien
-``
+```
 
 ## Installation
 Follow installation instructions in [INSTALL](INSTALL.md) guide for running training/generation. For general instructions about `fairseq` and working with the codebase refer to [`fairseq` README](https://github.com/facebookresearch/fairseq). For [stopes](https://github.com/facebookresearch/stopes) and [LASER](https://github.com/facebookresearch/LASER) follow their README files for installation.
