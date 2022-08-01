@@ -114,7 +114,7 @@ def fsdp_enable_wrap(cfg: DistributedTrainingConfig, **kwargs):
         "reshard_after_forward": not cfg.no_reshard_after_forward,
         "mixed_precision": cfg.fp16 and not cfg.memory_efficient_fp16,
         "fp32_reduce_scatter": cfg.fp32_reduce_scatter,
-        "flatten_parameters": not cfg.not_fsdp_flatten_parameters,
+        "flatten_parameters": True,
         "cpu_offload": cfg.cpu_offload and not cfg.memory_efficient_fp16,
         "compute_dtype": torch.float16 if cfg.fp16 else torch.float32,
         "bucket_cap_mb": cfg.bucket_cap_mb,
@@ -152,6 +152,7 @@ def fsdp_wrap(module, min_num_params: Optional[int] = None, **kwargs):
 
             return fairscale_fsdp_wrap(module, **kwargs)
         except ImportError:
+            
             return module
 
     if min_num_params is not None:
