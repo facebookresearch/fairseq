@@ -22,6 +22,8 @@ from fairseq.data import data_utils as fairseq_data_utils
 from fairseq.data.audio.audio_utils import get_features_or_waveform
 from fairseq.data.audio.data_cfg import S2TDataConfig
 from fairseq.data.audio.feature_transforms import CompositeAudioFeatureTransform
+from fairseq.data.audio.waveform_transforms import CompositeAudioWaveformTransform
+
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +117,16 @@ class SpeechToTextDataset(FairseqDataset):
         self.feature_transforms = CompositeAudioFeatureTransform.from_config_dict(
             self.cfg.get_feature_transforms(split, is_train_split)
         )
+        self.waveform_transforms = CompositeAudioWaveformTransform.from_config_dict(
+            self.cfg.get_waveform_transforms(split, is_train_split)
+        )
+
+        # check proper usage of transforms
+        if self.feature_transforms and self.cfg.use_audio_input:
+            logger.warning(
+                "Feature transforms will not be applied. To use feature transforms, "
+                "set use_audio_input as False in config."
+            )
 
         self.pre_tokenizer = pre_tokenizer
         self.bpe_tokenizer = bpe_tokenizer
@@ -149,11 +161,11 @@ class SpeechToTextDataset(FairseqDataset):
             self.__class__.__name__
             + f'(split="{self.split}", n_samples={self.n_samples:_}, '
             f"prepend_tgt_lang_tag={self.cfg.prepend_tgt_lang_tag}, "
-            f"shuffle={self.shuffle}, transforms={self.feature_transforms}, "
-            f"n_frames_per_step={self.n_frames_per_step}, "
+            f"shuffle={self.shuffle}, feature_transforms={self.feature_transforms}, "
+            f"waveform_transforms={self.waveform_transforms}, n_frames_per_step={self.n_frames_per_step}, "
             f"concataug_rate={self.concataug_rate if self.concataug_rate else 'off'}, "
-            f"concataug_max_tokens={self.concataug_max_tokens})"
-            f"concataug_attempts={self.concataug_attempts}"
+            f"concataug_max_tokens={self.concataug_max_tokens}, "
+            f"concataug_attempts={self.concataug_attempts})"
         )
 
     @classmethod
@@ -202,11 +214,13 @@ class SpeechToTextDataset(FairseqDataset):
         concat_no: int = 2,
     ) -> List[int]:
         indices = [index]
-        if (  # skip condition
-            random.random() > self.concataug_rate
-            or self.n_frames[index] > self.concataug_max_tokens
+        # skip condition
+        if random.random() > self.concataug_rate or (
+            self.concataug_max_tokens
+            and self.n_frames[index] > self.concataug_max_tokens
         ):
             return indices
+
         attempts = 0
         while len(indices) < concat_no and attempts < self.concataug_attempts:
             j = random.randint(0, self.n_samples - 1)
@@ -235,6 +249,7 @@ class SpeechToTextDataset(FairseqDataset):
                 self.audio_paths[index],
                 need_waveform=self.cfg.use_audio_input,
                 use_sample_rate=self.cfg.use_sample_rate,
+                waveform_transforms=self.waveform_transforms,
             )
         else:
             source = np.concatenate(
@@ -243,6 +258,7 @@ class SpeechToTextDataset(FairseqDataset):
                         self.audio_paths[i],
                         need_waveform=self.cfg.use_audio_input,
                         use_sample_rate=self.cfg.use_sample_rate,
+                        waveform_transforms=self.waveform_transforms,
                     )
                     for i in index
                 ]

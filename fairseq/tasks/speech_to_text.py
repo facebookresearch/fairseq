@@ -64,7 +64,7 @@ class SpeechToTextTask(LegacyFairseqTask):
             default=5,
             type=int,
             metavar="N",
-            help="number of invalid attempts before skipping concatenation"
+            help="number of invalid attempts before skipping concatenation",
         )
 
     def __init__(self, args, tgt_dict):
@@ -132,7 +132,7 @@ class SpeechToTextTask(LegacyFairseqTask):
             speaker_to_id=self.speaker_to_id,
             concataug_rate=self.args.concataug_rate,
             concataug_max_tokens=self.args.concataug_max_tokens,
-            concataug_attempts=self.args.concataug_attempts
+            concataug_attempts=self.args.concataug_attempts,
         )
 
     @property
