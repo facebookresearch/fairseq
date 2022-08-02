@@ -152,7 +152,7 @@ def fsdp_wrap(module, min_num_params: Optional[int] = None, **kwargs):
 
             return fairscale_fsdp_wrap(module, **kwargs)
         except ImportError:
-            
+            print("failed to import fairscale_fsdp_wrap")
             return module
 
     if min_num_params is not None:
