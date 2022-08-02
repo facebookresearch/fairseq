@@ -139,7 +139,6 @@ def fsdp_wrap(module, min_num_params: Optional[int] = None, **kwargs):
         min_num_params (int, Optional): minimum number of layer params to wrap
     """
     if not has_FSDP or isinstance(module, FSDP):
-        print("does not have FSDP")
         return module
 
     def wrap(module, **kwargs):
@@ -153,7 +152,6 @@ def fsdp_wrap(module, min_num_params: Optional[int] = None, **kwargs):
 
             return fairscale_fsdp_wrap(module, **kwargs)
         except ImportError:
-            print("failed to import fairscale_fsdp_wrap")
             return module
 
     if min_num_params is not None:
@@ -161,7 +159,6 @@ def fsdp_wrap(module, min_num_params: Optional[int] = None, **kwargs):
         if num_params >= min_num_params:
             return wrap(module, **kwargs)
         else:
-            print("returning module")
             return module
     else:
         return wrap(module, **kwargs)
