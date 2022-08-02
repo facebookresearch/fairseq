@@ -154,7 +154,7 @@ train_counts = {
     "rus_Cyrl": 49520694,
     "sag_Latn": 233800,
     "san_Deva": 9962,
-    "sat_Beng": 5092,
+    "sat_Olck": 5092,
     "scn_Latn": 6200,
     "shn_Mymr": 11453,
     "sin_Sinh": 770898,
