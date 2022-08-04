@@ -178,15 +178,15 @@ class SpeechWavTransformerEncoder(FairseqEncoder):
             mode=args.speech_extractor_mode,  # default, layer_norm
             conv_bias=args.speech_conv_bias,
         )
-        feature_enc_layers = eval(args.conv_feature_layers)
+        self.feature_enc_layers = eval(args.conv_feature_layers)
         self.subsample = subsample
         self.feat_proj = (
-            nn.Linear(feature_enc_layers[-1][0], self.embedding_dim)
-            if feature_enc_layers[-1][0] != self.embedding_dim
+            nn.Linear(self.feature_enc_layers[-1][0], self.embedding_dim)
+            if self.feature_enc_layers[-1][0] != self.embedding_dim
             else None
         )
 
-        self.feat_layer_norm = LayerNorm(feature_enc_layers[-1][0])
+        self.feat_layer_norm = LayerNorm(self.feature_enc_layers[-1][0])
 
         self.embed_positions = nn.Conv1d(
             self.embedding_dim,
@@ -235,6 +235,21 @@ class SpeechWavTransformerEncoder(FairseqEncoder):
         self.layer_norm = LayerNorm(args.encoder_embed_dim)
         self.normalize_before = args.encoder_normalize_before
         self.alway_mask = alway_mask
+
+    def _get_feat_extract_output_lengths(self, input_lengths: torch.LongTensor):
+        """
+        Computes the output length of the convolutional layers
+        """
+
+        def _conv_out_length(input_length, kernel_size, stride):
+            return torch.floor((input_length - kernel_size) / stride + 1)
+
+        for i in range(len(self.feature_enc_layers)):
+            input_lengths = _conv_out_length(
+                input_lengths, self.feature_enc_layers[i][1], self.feature_enc_layers[i][2]
+            )
+
+        return input_lengths.to(torch.long)
 
     def apply_mask(self, x, padding_mask):
         B, T, C = x.shape
@@ -299,22 +314,24 @@ class SpeechWavTransformerEncoder(FairseqEncoder):
 
         if padding_mask is not None:
             input_lengths = (1 - padding_mask.long()).sum(-1)
-            # apply conv formula to get real output_lengths
-            output_lengths = self._get_feat_extract_output_lengths(input_lengths)
+        else:
+            input_lengths = src_lengths
+        # apply conv formula to get real output_lengths
+        output_lengths = self._get_feat_extract_output_lengths(input_lengths)
 
-            padding_mask = torch.zeros(
-                features.shape[:2], dtype=features.dtype, device=features.device
+        padding_mask = torch.zeros(
+            features.shape[:2], dtype=features.dtype, device=features.device
+        )
+
+        # these two operations makes sure that all values
+        # before the output lengths indices are attended to
+        padding_mask[
+            (
+                torch.arange(padding_mask.shape[0], device=padding_mask.device),
+                output_lengths - 1,
             )
-
-            # these two operations makes sure that all values
-            # before the output lengths indices are attended to
-            padding_mask[
-                (
-                    torch.arange(padding_mask.shape[0], device=padding_mask.device),
-                    output_lengths - 1,
-                )
-            ] = 1
-            padding_mask = (1 - padding_mask.flip([-1]).cumsum(-1).flip([-1])).bool()
+        ] = 1
+        padding_mask = (1 - padding_mask.flip([-1]).cumsum(-1).flip([-1])).bool()
 
         features = self.feat_scale * features if self.feat_scale != 1.0 else features
         unmasked_features = features.clone()
