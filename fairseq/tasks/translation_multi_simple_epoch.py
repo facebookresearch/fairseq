@@ -162,6 +162,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
+        shard_epoch = epoch
         if split in self.datasets:
             dataset = self.datasets[split]
             if self.has_sharded_data(split):
