@@ -171,6 +171,7 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
                     else:
                         # no need to load next shard so skip loading
                         # also this avoid always loading from beginning of the data
+                        shard_epoch = 0
                         return
                 else:
                     shard_epoch = epoch
