@@ -645,7 +645,7 @@ class MlflowProgressBar(BaseProgressBar):
         if self.mlflow is not None:
             if self._save_dir is not None:
                 self.mlflow.log_artifacts(self._save_dir)
-            best_model_path = os.path.join([self._save_dir, "checkpoint_best.pt"])
+            best_model_path = os.path.join(self._save_dir, "checkpoint_best.pt")
             if best_model_path.exists():
                 logger.info(
                     "Mlflow: Logging artifacts and model, this might take some time"
