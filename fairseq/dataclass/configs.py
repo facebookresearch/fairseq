@@ -140,6 +140,10 @@ class CommonConfig(FairseqDataclass):
         default=False,
         metadata={"help": "Log scalars to AzureML context"},
     )
+    mlflow_logging: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Log scalars and artifacts to an mlflow run"},
+    )
     seed: int = field(
         default=1, metadata={"help": "pseudo random number generator seed"}
     )
