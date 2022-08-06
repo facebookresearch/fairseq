@@ -652,7 +652,7 @@ class MlflowProgressBar(BaseProgressBar):
                         "Mlflow: Logging artifacts and model, this might take some time"
                     )
                     self.mlflow.pyfunc.log_model(
-                        best_model_path,
+                        "fairseq_checkpoint_best",
                         artifacts={"model_path": best_model_path},
                         python_model=self.mlflow.pyfunc.PythonModel(),
                     )
