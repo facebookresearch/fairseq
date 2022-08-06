@@ -643,18 +643,21 @@ class MlflowProgressBar(BaseProgressBar):
     def __del__(self):
         """Class destructor, logs artifacts if found."""
         if self.mlflow is not None:
-            if self._save_dir is not None:
-                self.mlflow.log_artifacts(self._save_dir)
-            best_model_path = os.path.join(self._save_dir, "checkpoint_best.pt")
-            if best_model_path.exists():
-                logger.info(
-                    "Mlflow: Logging artifacts and model, this might take some time"
-                )
-                self.mlflow.log_model(
-                    best_model_path,
-                    artifacts={"model_path": best_model_path},
-                    python_model=self.mlflow.pyfunc.PythonModel(),
-                )
+            try:
+                if self._save_dir is not None:
+                    self.mlflow.log_artifacts(self._save_dir)
+                best_model_path = os.path.join(self._save_dir, "checkpoint_best.pt")
+                if best_model_path.exists():
+                    logger.info(
+                        "Mlflow: Logging artifacts and model, this might take some time"
+                    )
+                    self.mlflow.log_model(
+                        best_model_path,
+                        artifacts={"model_path": best_model_path},
+                        python_model=self.mlflow.pyfunc.PythonModel(),
+                    )
+            except Exception:
+                logger.exception(msg="Mlflow: not logging artifacts")
             self.mlflow.end_run()
 
     @staticmethod
