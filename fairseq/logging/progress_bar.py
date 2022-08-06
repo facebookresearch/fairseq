@@ -651,7 +651,7 @@ class MlflowProgressBar(BaseProgressBar):
                     logger.info(
                         "Mlflow: Logging artifacts and model, this might take some time"
                     )
-                    self.mlflow.log_model(
+                    self.mlflow.pyfunc.log_model(
                         best_model_path,
                         artifacts={"model_path": best_model_path},
                         python_model=self.mlflow.pyfunc.PythonModel(),
