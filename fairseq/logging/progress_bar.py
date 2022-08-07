@@ -635,7 +635,7 @@ class MlflowProgressBar(BaseProgressBar):
     def update_config(self, config):
         """Log latest configuration."""
         self._save_dir = config.get("checkpoint", {}).get("save_dir")
-        self._log_to_mlflow(stats=config, tag="mlflow_config", step=self.n)
+        self._log_mlflow_params(params=config)
         self.wrapped_bar.update_config(config)
 
     def __del__(self):
@@ -693,9 +693,6 @@ class MlflowProgressBar(BaseProgressBar):
             return
         if step is None:
             step = stats.get("num_updates")
-
-        if tag == "mlflow_config":
-            self._log_mlflow_params(params=stats)
 
         prefix = "" if tag is None else f"{tag}/"
 
