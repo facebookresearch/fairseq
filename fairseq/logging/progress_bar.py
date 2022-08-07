@@ -604,7 +604,6 @@ class MlflowProgressBar(BaseProgressBar):
 
     def __init__(self, wrapped_bar):
         self.wrapped_bar = wrapped_bar
-        self._iter = 0
         self._save_dir = None
         if mlflow is None:
             logger.warning(
@@ -621,7 +620,6 @@ class MlflowProgressBar(BaseProgressBar):
             logger.info(f"Mlflow: Logging params and metrics with run_id {self.run_id}")
 
     def __iter__(self):
-        self._iter += 1
         return iter(self.wrapped_bar)
 
     def log(self, stats, tag=None, step=None):
@@ -637,7 +635,7 @@ class MlflowProgressBar(BaseProgressBar):
     def update_config(self, config):
         """Log latest configuration."""
         self._save_dir = config.get("checkpoint", {}).get("save_dir")
-        self._log_to_mlflow(stats=config, tag="config", step=self._iter)
+        self._log_to_mlflow(stats=config, tag="mlflow_config", step=self.n)
         self.wrapped_bar.update_config(config)
 
     def __del__(self):
@@ -662,6 +660,7 @@ class MlflowProgressBar(BaseProgressBar):
 
     @staticmethod
     def _flatten_params(params_dict, parent_key="", sep="/"):
+        """Static method to flatten configs for logging to mlflow"""
         items = []
         for key, value in params_dict.items():
             new_key = parent_key + sep + key if parent_key else key
@@ -674,6 +673,7 @@ class MlflowProgressBar(BaseProgressBar):
         return dict(items)
 
     def _log_mlflow_params(self, params: dict):
+        """Method to log params to mlflow. In mlflow params are just initial state."""
         flattened_params = MlflowProgressBar._flatten_params(params_dict=params)
         try:
             self.client = mlflow.tracking.MlflowClient()
@@ -688,12 +688,13 @@ class MlflowProgressBar(BaseProgressBar):
             logger.warning(f"Mlflow: not logging params because - {err}")
 
     def _log_to_mlflow(self, stats, tag=None, step=None):
+        """Log values to mlflow"""
         if self.mlflow is None:
             return
         if step is None:
-            step = stats["num_updates"]
+            step = stats.get("num_updates")
 
-        if tag == "config":
+        if tag == "mlflow_config":
             self._log_mlflow_params(params=stats)
 
         prefix = "" if tag is None else f"{tag}/"
