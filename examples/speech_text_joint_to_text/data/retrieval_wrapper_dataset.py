@@ -15,11 +15,6 @@ from fairseq.data import data_utils as fairseq_data_utils
 
 logger = logging.getLogger(__name__)
 
-CONFIGS = {
-    "num_negative": 5,
-    "max_words": 5
-}
-
 
 def split_into_words(samples, src_dict):
     words = []
@@ -37,10 +32,12 @@ def split_into_words(samples, src_dict):
 
 
 class SpeechTextRetrievalDataset(BaseWrapperDataset):
-    def __init__(self, dataset, dictionary):
+    def __init__(self, dataset, dictionary, num_negatives=1, max_words=5):
         super().__init__(dataset)
         self.dictionary = dictionary
         self.__indexes_to_ignore = set()
+        self.num_negatives = num_negatives
+        self.max_words = max_words
 
     def filter_short_utterances(self, indices, min_len, ignore_invalid_inputs=False):
         ignored = indices[self.sizes[indices] < min_len]
@@ -61,10 +58,9 @@ class SpeechTextRetrievalDataset(BaseWrapperDataset):
             return False
         return (a == b.unfold(0, a.shape[0], 1)).all(dim=-1).any()
 
-    @staticmethod
-    def take_random_sample(words: List[Tuple[int, int]], target: torch.Tensor) -> torch.Tensor:
+    def take_random_sample(self, words: List[Tuple[int, int]], target: torch.Tensor) -> torch.Tensor:
         start = randint(0, len(words)-1)
-        ln = randint(0, min(CONFIGS['max_words'], len(words) - start) - 1)
+        ln = randint(0, min(self.max_words, len(words) - start) - 1)
         return target[words[start][0]:words[start+ln][1]]
 
     def in_batch_negative_sample(self, batch_size, sample_id):
@@ -133,7 +129,7 @@ class SpeechTextRetrievalDataset(BaseWrapperDataset):
         for sample_id in range(len(words_samples)):
             positive_sample = self.take_random_sample(words_samples[sample_id], samples[sample_id].src_txt_tokens)
             negative_samples = []
-            for _ in range(CONFIGS['num_negative']):
+            for _ in range(self.num_negatives):
                 negative_samples.append(self.pick_negative(sample_id, words_samples, samples))
             positive_and_negatives.append((positive_sample, negative_samples))
         return positive_and_negatives
@@ -161,7 +157,7 @@ class SpeechTextRetrievalDataset(BaseWrapperDataset):
                 [negs[i] for _, negs in positive_and_negatives_retr],
                 self.dictionary.pad(),
                 self.dictionary.eos(),
-            ).index_select(0, collated_samples['order']) for i in range(CONFIGS['num_negative'])]
+            ).index_select(0, collated_samples['order']) for i in range(self.num_negatives)]
         collated_samples['net_input']['positive_retr_tokens'] = positive_retrs
         collated_samples['net_input']['negative_retr_tokens'] = negative_retrs
         if not return_order:

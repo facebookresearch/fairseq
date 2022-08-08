@@ -66,7 +66,7 @@ class EntityRetrievalLayer(nn.Module):
         x = text_x
         if self.normalize_before:
             x = self.attn_layer_norm(x)
-
+        x.masked_fill_(text_padding_mask.transpose(0, 1).unsqueeze(-1), 0.0)
         x, attn = self.attn(
             query=x,
             key=speech_x,
@@ -74,7 +74,7 @@ class EntityRetrievalLayer(nn.Module):
             key_padding_mask=speech_padding_mask,
             static_kv=True,
         )
-        x.masked_fill(text_padding_mask.transpose(0, 1).unsqueeze(-1), 0.0)
+        x.masked_fill_(text_padding_mask.transpose(0, 1).unsqueeze(-1), 0.0)
         x = self.dropout_module(x)
         if not self.normalize_before:
             x = self.attn_layer_norm(x)
@@ -112,11 +112,20 @@ class EntityRetrievalNetwork(nn.Module):
             EntityRetrievalLayer(args) for _ in range(args.er_encoder_layers)])
         self.output_proj = nn.Linear(args.er_encoder_embed_dim, 1, bias=False)
 
-    def forward(self, speech_encoded, text_encoded, speech_padding_mask, text_padding_mask):
+    @staticmethod
+    def padding_aware_mean(x, padding_mask, batch_dim=1, time_dim=0, channel_dim=2):
+        lengths = (1 - padding_mask.long()).sum(dim=-1)
+        weight_matrix = torch.zeros(x.shape[batch_dim], x.shape[time_dim])
+        for b in range(x.shape[batch_dim]):
+            weight_matrix[b, :lengths[b]] = 1.0 / lengths[b].float()
+        return x.permute(batch_dim, channel_dim, time_dim).bmm(weight_matrix.to(x.device).unsqueeze(-1)).squeeze()
+
+    def forward(self, text_encoded, speech_encoded, text_padding_mask, speech_padding_mask):
         x = text_encoded
         for layer in self.layers:
             x, _ = layer(x, speech_encoded, text_padding_mask, speech_padding_mask)
-        return self.output_proj(x.mean(dim=0))  # average over time dim, and then project from (B, C) to (B, 1)
+        # average over time dim, and then project from (B, C) to (B, 1)
+        return self.output_proj(self.padding_aware_mean(x, text_padding_mask))
 
 
 @register_model("dual_input_er_transformer")

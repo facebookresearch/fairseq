@@ -64,11 +64,7 @@ class EntityRetrievalCriterion(FairseqCriterion):
                 n_correct += (probs > 0.5).sum().item()
         for nr_out in net_output['negative_retrieval_out']:
             probs = torch.sigmoid(nr_out)
-            _loss = F.binary_cross_entropy(probs, torch.zeros_like(nr_out) + self.eps, reduction="sum" if reduce else "none")
-            if loss is None:
-                loss = _loss
-            else:
-                loss += _loss
+            loss += F.binary_cross_entropy(probs, torch.zeros_like(nr_out) + self.eps, reduction="sum" if reduce else "none")
             nretrievals += nr_out.shape[0]
             if self.report_accuracy:
                 n_correct += (probs < 0.5).sum().item()

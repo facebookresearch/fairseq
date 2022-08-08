@@ -30,6 +30,20 @@ class SpeechTextRetrievalTask(SpeechTextJointToTextTask):
             default=15000,
             help="minimun length for encoder speech input ",
         )
+        parser.add_argument(
+            "--num-negatives",
+            type=int,
+            metavar="N",
+            default=1,
+            help="number of negative words per sample",
+        )
+        parser.add_argument(
+            "--max-words",
+            type=int,
+            metavar="N",
+            default=1,
+            help="max number of words per sample",
+        )
 
     def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         is_train_split = split.startswith("train")
@@ -50,7 +64,7 @@ class SpeechTextRetrievalTask(SpeechTextJointToTextTask):
             is_train_split=is_train_split,
             epoch=epoch,
             seed=self.args.seed,
-        ), self.src_dict)
+        ), self.src_dict, num_negatives=self.args.num_negatives, max_words=self.args.max_words)
 
     def filter_indices_by_size(self, indices, dataset, max_positions=None, ignore_invalid_inputs=False):
         indices = super().filter_indices_by_size(indices, dataset, max_positions, ignore_invalid_inputs)
