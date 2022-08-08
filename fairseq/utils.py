@@ -262,8 +262,63 @@ def make_positions(tensor, padding_idx: int, onnx_trace: bool = False):
     # balanced to both work with ONNX export and XLA. In particular XLA
     # prefers ints, cumsum defaults to output longs, and ONNX doesn't know
     # how to handle the dtype kwarg in cumsum.
+
+    # padでない数値（tokenを表す）に対応する箇所が1になったテンソル。type()は、torch.IntTensor
     mask = tensor.ne(padding_idx).int()
+    # cumsumを使うことで、maskの1が何番目の1なのか表す数値で埋められたtensorが得られる
+    # 型は最終的にlongにしているのに途中でmaskに合わせて変換しているのは、ONNXやXLAの都合らしい
+    # 最後にpadding_idxを足すと、padding_idxが1なら、padが1、残りが2以上の整数で表される
     return (torch.cumsum(mask, dim=1).type_as(mask) * mask).long() + padding_idx
+
+
+def make_segments(
+    tensor,
+    padding_idx: int,
+    sep1_idx: Optional[int],
+    sep2_idx: Optional[int],
+    onnx_trace: bool = False,
+):
+    """Replace non-padding symbols with their segment numbers.
+
+    The segment numbers are padding_idx+1 for the preceding context and sep1,
+    padding_idx+2 for the focused sentence, padding_idx+3 for the following context and sep2.
+    """
+    assert tensor.dim() == 2
+    res = torch.zeros_like(tensor) + (padding_idx + 2)
+
+    for i in range(tensor.shape[0]):
+        if sep1_idx:
+            sep1_pos = (tensor[i] == sep1_idx).nonzero()
+            has_sep1 = sep1_pos.shape[0]
+        else:
+            has_sep1 = 0
+        if sep2_idx:
+            sep2_pos = (tensor[i] == sep2_idx).nonzero()
+            has_sep2 = sep2_pos.shape[0]
+        else:
+            has_sep2 = 0
+
+        j = 0
+        while j < tensor.shape[1]:
+            if tensor[i, j].item() == padding_idx:
+                res[i, j] = padding_idx
+                j += 1
+                continue
+            # if the token is or is before sep1
+            if has_sep1 == 1 and j <= sep1_pos.item():
+                res[i, j] = padding_idx + 1
+                j += 1
+                continue
+            # if the token is or is after sep2
+            if has_sep2 == 1 and j >= sep2_pos.item():
+                res[i, j] = padding_idx + 3
+                j += 1
+                continue
+            # if the token is in the focused sentence
+            res[i, j] = padding_idx + 2
+            j += 1
+
+    return res
 
 
 def strip_pad(tensor, pad):

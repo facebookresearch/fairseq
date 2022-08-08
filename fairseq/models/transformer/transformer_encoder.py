@@ -19,6 +19,7 @@ from fairseq.modules import (
     LayerDropModuleList,
     LayerNorm,
     PositionalEmbedding,
+    SegmentEmbedding,
     SinusoidalPositionalEmbedding,
     transformer_layer,
 )
@@ -74,6 +75,16 @@ class TransformerEncoderBase(FairseqEncoder):
             if not cfg.no_token_positional_embeddings
             else None
         )
+
+        self.embed_segments = (
+            SegmentEmbedding(
+                cfg.max_source_positions,
+                embed_dim,
+                self.padding_idx,
+                dictionary,
+            )
+        )
+
         if cfg.layernorm_embedding:
             self.layernorm_embedding = LayerNorm(embed_dim, export=cfg.export)
         else:
@@ -125,6 +136,8 @@ class TransformerEncoderBase(FairseqEncoder):
         x = embed = self.embed_scale * token_embedding
         if self.embed_positions is not None:
             x = embed + self.embed_positions(src_tokens)
+        if self.embed_segments is not None:
+            x = embed + self.embed_segments(src_tokens)
         if self.layernorm_embedding is not None:
             x = self.layernorm_embedding(x)
         x = self.dropout_module(x)
