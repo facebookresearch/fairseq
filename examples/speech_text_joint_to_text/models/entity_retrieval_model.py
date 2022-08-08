@@ -12,6 +12,7 @@ from fairseq.models.fairseq_model import FairseqEncoderModel
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.layer_norm import LayerNorm
 from fairseq.modules.multihead_attention import MultiheadAttention
+from fairseq.modules.transformer_layer import TransformerEncoderLayer
 
 from .s2t_dualinputwavtransformer import DualInputWavTransformerModel, dualinputs2twavtransformer_base
 
@@ -128,6 +129,40 @@ class EntityRetrievalNetwork(nn.Module):
         return self.output_proj(self.padding_aware_mean(x, text_padding_mask))
 
 
+class ERBertBased(nn.Module):
+    def __init__(self, args) -> None:
+        super().__init__()
+        self.cls_vector = nn.Parameter(torch.zeros(args.encoder_embed_dim))
+        self.sep_vector = nn.Parameter(torch.zeros(args.encoder_embed_dim))
+        self.layers = nn.ModuleList([
+            TransformerEncoderLayer(args) for _ in range(args.er_encoder_layers)])
+        self.output_proj = nn.Linear(args.er_encoder_embed_dim, 1, bias=False)
+
+    def forward(self, text_encoded, speech_encoded, text_padding_mask, speech_padding_mask):
+        speech_lengths = (1 - speech_padding_mask.long()).sum(dim=-1)
+        text_lengths = (1 - text_padding_mask.long()).sum(dim=-1)
+        concat_elements = []
+        new_lens = []
+        for b in range(text_encoded.shape[1]):
+            concat_elem = torch.cat([
+                self.cls_vector.unsqueeze(0), text_encoded[:text_lengths[b], b, :],
+                self.sep_vector.unsqueeze(0), speech_encoded[:speech_lengths[b], b, :]])
+            new_lens.append(concat_elem.shape[0])
+            concat_elements.append(concat_elem)
+        max_len = max(new_lens)
+        for i, elem in enumerate(concat_elements):
+            if elem.shape[0] < max_len:
+                concat_elements[i] = torch.cat([
+                    elem, torch.zeros(max_len - elem.shape[0], elem.shape[1]).to(elem.device)
+                ])
+        x = torch.stack(concat_elements).transpose(0, 1)
+        padding_mask = lengths_to_padding_mask(torch.tensor(new_lens)).to(x.device)
+        for layer in self.layers:
+            x = layer(x, padding_mask)
+        # take CLS token over time, and then project from (B, C) to (B, 1)
+        return self.output_proj(x[0, :, :])
+
+
 @register_model("dual_input_er_transformer")
 class EntityRetrievalModel(FairseqEncoderModel):
     def __init__(self, encoder, retrieval_network):
@@ -184,12 +219,24 @@ class EntityRetrievalModel(FairseqEncoderModel):
             metavar="PATH",
             help="path where to retrieve pretrained encoders",
         )
+        parser.add_argument(
+            "--retrieval-network",
+            type=str,
+            metavar="NET",
+            choices=['bert_like', 'speech2slot'],
+            help="type of retrieval network to use",
+        )
 
     @classmethod
     def build_model(cls, args, task):
         """Build a new model instance."""
         encoder = cls.build_encoder(args, task)
-        retrieval_network = EntityRetrievalNetwork(args)
+        if args.retrieval_network == "bert_like":
+            retrieval_network = ERBertBased(args)
+        elif args.retrieval_network == "speech2slot":
+            retrieval_network = EntityRetrievalNetwork(args)
+        else:
+            raise Exception(f"Entity retrieval network {args.retrieval_network} not supported")
         return cls(encoder, retrieval_network)
 
     @classmethod
@@ -211,9 +258,7 @@ class EntityRetrievalModel(FairseqEncoderModel):
         **kwargs
     ):
         with torch.no_grad():
-            speech_encoder_out = self.encoder.spch_encoder(
-                src_tokens, src_lengths, return_all_hiddens=False, padding_mask=lengths_to_padding_mask(src_lengths)
-            )
+            speech_encoder_out = self.encoder.spch_encoder(src_tokens, src_lengths, return_all_hiddens=False)
             positive_encoder_outs = [
                 self.encoder.text_encoder(
                     pr_tokens, pr_tokens.ne(self.encoder.dictionary.pad()).sum(dim=1).long()
@@ -262,6 +307,15 @@ def dual_input_er_transformer_base(args):
     args.er_dropout = getattr(args, "er_dropout", args.dropout)
     args.er_attention_dropout = getattr(args, "er_attention_dropout", args.attention_dropout)
     args.er_activation_dropout = getattr(args, "er_activation_dropout", args.er_dropout)
+    args.retrieval_network = getattr(args, "retrieval_network", "bert_like")
+
+
+@register_model_architecture(
+    "dual_input_er_transformer", "dual_input_er_transformer_base_speech2slot"
+)
+def dual_input_er_transformer_base_speech2slot(args):
+    args.retrieval_network = getattr(args, "retrieval_network", "speech2slot")
+    dualinputs2twavtransformer_base(args)
 
 
 @register_model_architecture(
