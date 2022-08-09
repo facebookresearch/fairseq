@@ -159,6 +159,10 @@ class ERBertBased(nn.Module):
         super().__init__()
         self.cls_vector = nn.Parameter(torch.zeros(args.encoder_embed_dim))
         self.sep_vector = nn.Parameter(torch.zeros(args.encoder_embed_dim))
+        self.add_modality_embedding = getattr(args, 'er_modality_embedding', False)
+        if self.add_modality_embedding:
+            self.text_vector = nn.Parameter(torch.zeros(args.encoder_embed_dim))
+            self.speech_vector = nn.Parameter(torch.zeros(args.encoder_embed_dim))
         self.layers = nn.ModuleList([
             ERTransformerEncoderLayer(args) for _ in range(args.er_encoder_layers)])
         self.output_proj = nn.Linear(args.er_encoder_embed_dim, 1, bias=False)
@@ -169,9 +173,14 @@ class ERBertBased(nn.Module):
         concat_elements = []
         new_lens = []
         for b in range(text_encoded.shape[1]):
+            text_tensor = text_encoded[:text_lengths[b], b, :]
+            speech_tensor = speech_encoded[:speech_lengths[b], b, :]
+            if self.add_modality_embedding:
+                text_tensor = text_tensor + self.text_vector
+                speech_tensor = speech_tensor + self.speech_vector
             concat_elem = torch.cat([
-                self.cls_vector.unsqueeze(0), text_encoded[:text_lengths[b], b, :],
-                self.sep_vector.unsqueeze(0), speech_encoded[:speech_lengths[b], b, :]])
+                self.cls_vector.unsqueeze(0), text_tensor,
+                self.sep_vector.unsqueeze(0), speech_tensor])
             new_lens.append(concat_elem.shape[0])
             concat_elements.append(concat_elem)
         max_len = max(new_lens)
@@ -257,6 +266,11 @@ class EntityRetrievalModel(FairseqEncoderModel):
             metavar="FN",
             choices=['softmax', 'entmax15', 'sparsemax'],
             help="type of retrieval network to use",
+        )
+        parser.add_argument(
+            "--er-modality-embedding",
+            action="store_true",
+            help="add modality embedding in the ER network",
         )
 
     @classmethod
