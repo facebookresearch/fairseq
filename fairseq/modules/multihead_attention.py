@@ -90,6 +90,7 @@ class MultiheadAttention(nn.Module):
         xformers_blocksparse_blocksize: Optional[
             int
         ] = 16,  # This should be part of the config
+        attn_activation_fn=None,
     ):
         super().__init__()
 
@@ -160,6 +161,7 @@ class MultiheadAttention(nn.Module):
 
         self.onnx_trace = False
         self.skip_embed_dim_check = False
+        self.attn_activation_fn = attn_activation_fn
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
@@ -526,6 +528,7 @@ class MultiheadAttention(nn.Module):
             # Since pruning will break the dimension check and it is not easy to modify the pytorch API,
             # it is preferred to bypass the pytorch MHA when we need to skip embed_dim_check
             and not self.skip_embed_dim_check
+            and self.attn_activation_fn is None
         ):
             assert key is not None and value is not None
 
@@ -731,10 +734,12 @@ class MultiheadAttention(nn.Module):
 
         if before_softmax:
             return attn_weights, v
-
-        attn_weights_float = utils.softmax(
-            attn_weights, dim=-1, onnx_trace=self.onnx_trace
-        )
+        if self.attn_activation_fn is None:
+            attn_weights_float = utils.softmax(
+                attn_weights, dim=-1, onnx_trace=self.onnx_trace
+            )
+        else:
+            attn_weights_float = self.attn_activation_fn(attn_weights)
         attn_weights = attn_weights_float.type_as(attn_weights)
         attn_probs = self.dropout_module(attn_weights)
 

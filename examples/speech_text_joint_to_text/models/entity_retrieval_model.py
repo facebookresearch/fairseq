@@ -12,6 +12,7 @@ from fairseq.models.fairseq_model import FairseqEncoderModel
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.layer_norm import LayerNorm
 from fairseq.modules.multihead_attention import MultiheadAttention
+from fairseq.models.transformer.transformer_config import TransformerConfig
 from fairseq.modules.transformer_layer import TransformerEncoderLayer
 
 from .s2t_dualinputwavtransformer import DualInputWavTransformerModel, dualinputs2twavtransformer_base
@@ -129,13 +130,37 @@ class EntityRetrievalNetwork(nn.Module):
         return self.output_proj(self.padding_aware_mean(x, text_padding_mask))
 
 
+class ERTransformerEncoderLayer(TransformerEncoderLayer):
+    def build_self_attention(self, embed_dim, args):
+        cfg = TransformerConfig.from_namespace(args)
+        attn_activation_fn = getattr(args, 'er_activation_fn', 'softmax')
+        if attn_activation_fn == 'softmax':
+            attn_activation_fn = None  # this is the default in multihead attention
+        elif attn_activation_fn in {'entmax15', 'sparsemax'}:
+            import entmax
+            attn_activation_fn = getattr(entmax, attn_activation_fn)
+        else:
+            raise Exception(
+                f"Unexpected argument {attn_activation_fn} for self-attention activation funciton")
+        return MultiheadAttention(
+            embed_dim,
+            cfg.encoder.attention_heads,
+            dropout=cfg.attention_dropout,
+            self_attention=True,
+            q_noise=self.quant_noise,
+            qn_block_size=self.quant_noise_block_size,
+            xformers_att_config=cfg.encoder.xformers_att_config,
+            attn_activation_fn=attn_activation_fn,
+        )
+
+
 class ERBertBased(nn.Module):
     def __init__(self, args) -> None:
         super().__init__()
         self.cls_vector = nn.Parameter(torch.zeros(args.encoder_embed_dim))
         self.sep_vector = nn.Parameter(torch.zeros(args.encoder_embed_dim))
         self.layers = nn.ModuleList([
-            TransformerEncoderLayer(args) for _ in range(args.er_encoder_layers)])
+            ERTransformerEncoderLayer(args) for _ in range(args.er_encoder_layers)])
         self.output_proj = nn.Linear(args.er_encoder_embed_dim, 1, bias=False)
 
     def forward(self, text_encoded, speech_encoded, text_padding_mask, speech_padding_mask):
@@ -224,6 +249,13 @@ class EntityRetrievalModel(FairseqEncoderModel):
             type=str,
             metavar="NET",
             choices=['bert_like', 'speech2slot'],
+            help="type of retrieval network to use",
+        )
+        parser.add_argument(
+            "--er-activation-fn",
+            type=str,
+            metavar="FN",
+            choices=['softmax', 'entmax15', 'sparsemax'],
             help="type of retrieval network to use",
         )
 
