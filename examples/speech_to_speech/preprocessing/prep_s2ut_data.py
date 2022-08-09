@@ -12,30 +12,16 @@ import soundfile as sf
 from tqdm import tqdm
 import pandas as pd
 
-from examples.speech_to_speech.preprocessing.data_utils import gen_config_yaml
+from examples.speech_to_speech.preprocessing.data_utils import (
+    gen_config_yaml,
+    load_units,
+    process_units,
+)
 from examples.speech_to_text.data_utils import save_df_to_tsv
 
 logger = logging.getLogger(__name__)
 
 MANIFEST_COLUMNS = ["id", "src_audio", "src_n_frames", "tgt_audio", "tgt_n_frames"]
-
-
-def load_units(in_file):
-    out = {}
-    with open(in_file) as f:
-        for line in f:
-            sample_id, units = line.strip().split("|", 1)
-            out[sample_id] = units.split()
-
-    return out
-
-
-def process_units(units, reduce=False):
-    if not reduce:
-        return units
-
-    out = [u for i, u in enumerate(units) if i == 0 or u != units[i - 1]]
-    return out
 
 
 def process(args):

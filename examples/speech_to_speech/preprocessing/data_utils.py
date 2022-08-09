@@ -68,3 +68,21 @@ def gen_config_yaml(
     if extra is not None:
         writer.set_extra(extra)
     writer.flush()
+
+
+def load_units(in_file):
+    out = {}
+    with open(in_file) as f:
+        for line in f:
+            sample_id, units = line.strip().split("|", 1)
+            out[sample_id] = units.split()
+
+    return out
+
+
+def process_units(units, reduce=False):
+    if not reduce:
+        return units
+
+    out = [u for i, u in enumerate(units) if i == 0 or u != units[i - 1]]
+    return out

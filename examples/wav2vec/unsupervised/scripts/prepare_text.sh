@@ -10,6 +10,7 @@ target_dir=$3
 min_phones=$4
 phonemizer=$5
 lid_path=$6
+sil_prob=$7
 
 if [ -z "$lid_path" ]; then
   lid_path="lid.187.bin"
@@ -63,7 +64,7 @@ paste $target_dir/words.txt $target_dir/phones.txt >! $target_dir/lexicon.lst
 python $FAIRSEQ_ROOT/fairseq_cli/preprocess.py --dataset-impl mmap --trainpref $target_dir/phones.txt --only-source --destdir $target_dir/phones --thresholdsrc $min_phones --padding-factor 1 --dict-only
 
 python $FAIRSEQ_ROOT/examples/wav2vec/unsupervised/scripts/filter_lexicon.py -d $target_dir/phones/dict.txt < $target_dir/lexicon.lst >! $target_dir/lexicon_filtered.lst
-python $FAIRSEQ_ROOT/examples/wav2vec/unsupervised/scripts/phonemize_with_sil.py -s 0.25 --surround --lexicon $target_dir/lexicon_filtered.lst < $target_dir/lm.upper.lid.txt >! $target_dir/phones/lm.phones.filtered.txt
+python $FAIRSEQ_ROOT/examples/wav2vec/unsupervised/scripts/phonemize_with_sil.py -s $sil_prob --surround --lexicon $target_dir/lexicon_filtered.lst < $target_dir/lm.upper.lid.txt >! $target_dir/phones/lm.phones.filtered.txt
 cp $target_dir/phones/dict.txt $target_dir/phones/dict.phn.txt
 echo "<SIL> 0" >> $target_dir/phones/dict.phn.txt
 python $FAIRSEQ_ROOT/fairseq_cli/preprocess.py --dataset-impl mmap --trainpref $target_dir/phones/lm.phones.filtered.txt --workers 70 --only-source --destdir $target_dir/phones --srcdict $target_dir/phones/dict.phn.txt

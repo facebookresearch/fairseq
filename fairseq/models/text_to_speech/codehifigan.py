@@ -24,6 +24,12 @@ class CodeGenerator(Generator):
                 Namespace(**cfg["dur_predictor_params"])
             )
 
+        self.f0 = cfg.get("f0", None)
+        n_f0_bin = cfg.get("f0_quant_num_bin", 0)
+        self.f0_quant_embed = (
+            None if n_f0_bin <= 0 else nn.Embedding(n_f0_bin, cfg["embedding_dim"])
+        )
+
     @staticmethod
     def _upsample(signal, max_frames):
         if signal.dim() == 3:
@@ -59,6 +65,18 @@ class CodeGenerator(Generator):
             # B x C x T
             x = torch.repeat_interleave(x, dur_out.view(-1), dim=2)
 
+        if self.f0:
+            if self.f0_quant_embed:
+                kwargs["f0"] = self.f0_quant_embed(kwargs["f0"].long()).transpose(1, 2)
+            else:
+                kwargs["f0"] = kwargs["f0"].unsqueeze(1)
+
+            if x.shape[-1] < kwargs["f0"].shape[-1]:
+                x = self._upsample(x, kwargs["f0"].shape[-1])
+            elif x.shape[-1] > kwargs["f0"].shape[-1]:
+                kwargs["f0"] = self._upsample(kwargs["f0"], x.shape[-1])
+            x = torch.cat([x, kwargs["f0"]], dim=1)
+
         if self.multispkr:
             assert (
                 "spkr" in kwargs
@@ -68,7 +86,7 @@ class CodeGenerator(Generator):
             x = torch.cat([x, spkr], dim=1)
 
         for k, feat in kwargs.items():
-            if k in ["spkr", "code", "dur_prediction"]:
+            if k in ["spkr", "code", "f0", "dur_prediction"]:
                 continue
 
             feat = self._upsample(feat, x.shape[-1])

@@ -86,6 +86,9 @@ class Conv1dAdaptor(nn.Module):
             x = x + 0.5 * self.proj(x)
             x = self.proj_ln(x)
 
+        if padding_mask is not None:
+            x = utils.index_put(x, padding_mask.T, 0)
+
         # T x B x C -> B x C x T
         x = x.transpose(0, 1).transpose(1, 2)
         out_lens = None
@@ -108,6 +111,7 @@ class Conv1dAdaptor(nn.Module):
         out_padding_mask = None
         if padding_mask is not None:
             out_padding_mask = lengths_to_padding_mask(out_lens.long())
+            x = utils.index_put(x, out_padding_mask.T, 0)
         return x, out_padding_mask
 
 
@@ -229,7 +233,24 @@ def add_wav2vec_asr_args(parser):
         type=float,
         help="probability of dropping a layer in wav2vec 2.0",
     )
+    parser.add_argument(
+        "--max-positions",
+        type=int,
+        help="Max input positions to be used in the conformer encoder in wav2vec 2.0",
+    )
+
+    parser.add_argument("--encoder-proj", action="store_true")
+
     parser.add_argument("--w2v-args", default=None)
+
+    parser.add_argument(
+        "--remove-weight-norm",
+        action="store_true",
+        help="if set, then the weight-norm (in one pos_conv layer) is removed from the model",
+    )
+    parser.add_argument(
+        "--encoder-embed-dim", type=int, metavar="N", help="encoder embedding dimension to be used when w2v_path is None and no encoder_proj is set"
+    )
 
 
 def need_finetuning(ft_params, param_name):
@@ -433,6 +454,23 @@ def add_decoder_args(parser):
     )
 
 
+def remove_weight_norm_from_model(model):
+    from functools import reduce
+
+    layers_with_wn = []
+    for param_name, _ in model.named_parameters():
+        if param_name.endswith("_g"):
+            # retrieve the module with this param_name
+            module_names = param_name.split(".")[
+                :-1
+            ]  # exclude the actual parameter name
+            wn_module = reduce(getattr, module_names, model)
+            layers_with_wn.append(wn_module)
+    for wn_module in layers_with_wn:
+        torch.nn.utils.remove_weight_norm(wn_module)
+        logger.warning(f"Weight norm removed from module with {wn_module}\n")
+
+
 @register_model("xm_transformer")
 class XMTransformerModel(FairseqEncoderDecoderModel):
     @classmethod
@@ -456,6 +494,11 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             "xm_transformer-21_en-xls_r_2b",
             "xm_transformer-en_15-xls_r_2b",
             "xm_transformer-22_16-xls_r_2b",
+            "xm_transformer_s2ut_800m-es-en-st-asr-bt_h1_2022",
+            "xm_transformer_s2ut_800m-en-es-st_plus_asr",
+            "xm_transformer_s2ut_800m-hk-en-h1_2022",
+            "xm_transformer_s2ut_800m-en-hk-h1_2022"
+
         ]
         return {i: f"{base_url}/{i}.tar.gz" for i in model_ids}
 
@@ -466,6 +509,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         checkpoint_file="model.pt",
         data_name_or_path=".",
         config_yaml="config.yaml",
+        task="speech_to_text",
         **kwargs,
     ):
         from fairseq import hub_utils
@@ -476,6 +520,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             data_name_or_path,
             archive_map=cls.hub_models(),
             config_yaml=config_yaml,
+            task=task,
             **kwargs,
         )
         return S2THubInterface(x["args"], x["task"], x["models"][0])
@@ -507,31 +552,60 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
     @classmethod
     def build_encoder(cls, args):
         _args = copy.deepcopy(args)
-        if not args.adaptor_proj:  # V0 arch
-            state = checkpoint_utils.load_checkpoint_to_cpu(args.w2v_path)
-            if state.get("cfg") is not None:
-                encoder_embed_dim = state["cfg"]._content["model"]["encoder_embed_dim"]
-            elif state.get("args") is not None:
-                encoder_embed_dim = state["args"].encoder_embed_dim
+        if not args.adaptor_proj and not args.encoder_proj:  # V0 arch
+            if args.w2v_path:
+                state = checkpoint_utils.load_checkpoint_to_cpu(args.w2v_path)
+                if state.get("cfg") is not None:
+                    encoder_embed_dim = state["cfg"]._content["model"]["encoder_embed_dim"]
+                elif state.get("args") is not None:
+                    encoder_embed_dim = state["args"].encoder_embed_dim
+                else:
+                    raise ValueError(f"Invalid config in {args.w2v_path}")
+                _args.decoder_embed_dim = encoder_embed_dim
+                del state
             else:
-                raise ValueError(f"Invalid config in {args.w2v_path}")
-            _args.decoder_embed_dim = encoder_embed_dim
-            del state
+                _args.decoder_embed_dim = args.encoder_embed_dim
 
         encoder = Wav2VecEncoderWithAdaptor(_args)
-        return cls.maybe_load_pretrained(
+        encoder = cls.maybe_load_pretrained(
             encoder, getattr(args, "load_pretrained_encoder_from", None)
         )
+        if args.remove_weight_norm:
+            # remove the wn for EMA usage
+            logger.warning("Removing weight norm from wav2vec encoder")
+            remove_weight_norm_from_model(encoder)
+
+        return encoder
+
+    @classmethod
+    def get_decoder_args_from_checkpoint(cls, ckpt_args):
+        assert "model" in ckpt_args, "Model args not found in checkpoint cfg!"
+        decoder_args = {}
+        for k, v in ckpt_args["model"].__dict__.items():
+            if "decoder" in k:
+                decoder_args[k] = v
+
+        return decoder_args
+
+    @classmethod
+    def override_decoder_args(cls, cli_args, decoder_args_dict):
+        for k, v in decoder_args_dict.items():
+            if v != getattr(cli_args, k, None):
+                logger.warning(
+                    f"Overriding decoder arg {k}: from {getattr(cli_args, k, None)} to {v}"
+                )
+                setattr(cli_args, k, v)
+
+        return cli_args
 
     @classmethod
     def build_decoder(cls, args, task, embed_tokens):
         _args = copy.deepcopy(args)
-        if args.adaptor_proj:  # not V0 arch
+        if args.adaptor_proj or args.encoder_proj:  # not V0 arch
             _args.encoder_embed_dim = _args.decoder_embed_dim
         _args.dropout = args.decoder_dropout
         _args.attention_dropout = args.decoder_attention_dropout
         _args.activation_dropout = args.decoder_activation_dropout
-        _args.max_target_positions = 1024
 
         decoder = TransformerDecoder(_args, task.target_dictionary, embed_tokens)
         decoder = cls.maybe_load_pretrained(
@@ -548,6 +622,10 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
 
         # make sure all arguments are present in older models
         base_architecture(args)
+        if getattr(args, "load_pretrained_decoder_from", None):
+            ckpt = torch.load(getattr(args, "load_pretrained_decoder_from", None))
+            decoder_args_dict = cls.get_decoder_args_from_checkpoint(ckpt["cfg"])
+            args = cls.override_decoder_args(args, decoder_args_dict)
 
         def build_embedding(dictionary, embed_dim):
             num_embeddings = len(dictionary)
@@ -587,7 +665,6 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
     def upgrade_state_dict(self, state_dict):
         for k, _ in state_dict.items():
             if "adaptor.layers" in state_dict:
-                print(k)
                 new = k.replace("adaptor.layers", "adaptor_layers")
                 state_dict[new] = state_dict[k]
                 del state_dict[k]
@@ -601,6 +678,8 @@ def set_default_w2v_encoder_args(args):
     args.dropout = getattr(args, "dropout", 0)
     args.attention_dropout = getattr(args, "attention_dropout", 0)
     args.activation_dropout = getattr(args, "activation_dropout", 0)
+    args.encoder_proj = getattr(args, "encoder_proj", False)
+    args.remove_weight_norm = getattr(args, "remove_weight_norm", False)
 
     args.mask_length = getattr(args, "mask_length", 10)
     args.mask_prob = getattr(args, "mask_prob", 0.5)
@@ -621,6 +700,7 @@ def set_default_w2v_encoder_args(args):
     args.normalize = getattr(args, "normalize", False)
     args.finetune_w2v_params = getattr(args, "finetune_w2v_params", "all")
     args.w2v_freezing_updates = getattr(args, "w2v_freezing_updates", None)
+    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 1024)
 
 
 def set_default_adaptor_args(args):
@@ -674,6 +754,7 @@ def set_default_general_args(args):
     args.checkpoint_activations = getattr(args, "checkpoint_activations", False)
     args.offload_activations = getattr(args, "offload_activations", False)
     args.min_params_to_wrap = getattr(args, "min_params_to_wrap", int(1e8))
+    args.max_positions = getattr(args, "max_positions", 3000)
 
 
 @register_model_architecture(model_name="xm_transformer", arch_name="xm_transformer")

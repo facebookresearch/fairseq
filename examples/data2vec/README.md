@@ -8,7 +8,7 @@ data2vec is a framework for self-supervised representation learning for images, 
 
 ### Vision
 
-Coming soon!
+Code and pre-trained models for data2vec visions can be found [here](https://github.com/facebookresearch/data2vec_vision/tree/main/beit).
 
 ### Speech
 
@@ -18,6 +18,11 @@ data2vec Base | No fine-tuning | [Librispeech](http://www.openslr.org/12) | [dow
 data2vec Base | 10 minutes | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/audio_base_ls_10m.pt)
 data2vec Base | 100 hours | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/audio_base_ls_100h.pt)
 data2vec Base | 960 hours | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/audio_base_ls_960h.pt)
+data2vec Large | No fine-tuning | [Libri-light](https://github.com/facebookresearch/libri-light) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/vox_pretrained.pt)
+data2vec Large | 10 minutes | [Libri-light](https://github.com/facebookresearch/libri-light) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/vox_10m.pt)
+data2vec Large | 100 hours | [Libri-light](https://github.com/facebookresearch/libri-light) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/vox_100h.pt)
+data2vec Large | 960 hours | [Libri-light](https://github.com/facebookresearch/libri-light) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/vox_960h.pt)
+---
 
 ### NLP
 
