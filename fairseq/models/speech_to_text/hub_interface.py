@@ -95,16 +95,20 @@ class S2THubInterface(nn.Module):
         prefix = cls.get_prefix_token(task, _tgt_lang)
         pred_tokens = generator.generate([model], sample, prefix_tokens=prefix)
         pred = cls.detokenize(task, pred_tokens[0][0]["tokens"])
+        eos_token = task.data_cfg.config.get("eos_token", None)
+        if eos_token:
+            pred = ' '.join(pred.split(' ')[:-1])
 
         if synthesize_speech:
             pfx = f"{_tgt_lang}_" if task.data_cfg.prepend_tgt_lang_tag else ""
             tts_model_id = task.data_cfg.hub.get(f"{pfx}tts_model_id", None)
+            speaker = task.data_cfg.hub.get(f"{pfx}speaker", None)
             if tts_model_id is None:
                 logger.warning("TTS model configuration not found")
             else:
                 _repo, _id = tts_model_id.split(":")
                 tts_model = torch.hub.load(_repo, _id, verbose=False)
-                pred = (pred, tts_model.predict(pred))
+                pred = (pred, tts_model.predict(pred, speaker=speaker))
         return pred
 
     def predict(

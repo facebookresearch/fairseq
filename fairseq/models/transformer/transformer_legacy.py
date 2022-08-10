@@ -174,6 +174,7 @@ def base_architecture(args):
     args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 8)
     args.encoder_normalize_before = getattr(args, "encoder_normalize_before", False)
     args.encoder_learned_pos = getattr(args, "encoder_learned_pos", False)
+
     args.decoder_embed_path = getattr(args, "decoder_embed_path", None)
     args.decoder_embed_dim = getattr(args, "decoder_embed_dim", args.encoder_embed_dim)
     args.decoder_ffn_embed_dim = getattr(
@@ -193,6 +194,7 @@ def base_architecture(args):
         args, "share_decoder_input_output_embed", False
     )
     args.share_all_embeddings = getattr(args, "share_all_embeddings", False)
+    args.merge_src_tgt_embed = getattr(args, "merge_src_tgt_embed", False)
     args.no_token_positional_embeddings = getattr(
         args, "no_token_positional_embeddings", False
     )

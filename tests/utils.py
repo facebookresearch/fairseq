@@ -786,3 +786,12 @@ def make_data(length=1000, out_file=None) -> tp.List[tp.List[str]]:
                 print(" ".join(s), file=out)
 
     return data
+
+
+def build_vocab(data: tp.List[tp.List[str]]) -> Dictionary:
+    d = Dictionary()
+    for s in data:
+        for token in s:
+            d.add_symbol(token)
+    d.finalize()
+    return d

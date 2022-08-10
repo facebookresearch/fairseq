@@ -49,6 +49,13 @@ class EncDecBaseConfig(FairseqDataclass):
         default=None, metadata={"help": "which layers to *keep* when pruning"}
     )
 
+    xformers_att_config: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "config for xFormers attention, defined in xformers.components.attention.AttentionConfig"
+        },
+    )
+
 
 @dataclass
 class DecoderConfig(EncDecBaseConfig):
@@ -124,6 +131,14 @@ class TransformerConfig(FairseqDataclass):
         metadata={
             "help": "share encoder, decoder and output embeddings (requires shared dictionary and embed dim)"
         },
+    )
+    merge_src_tgt_embed: bool = field(
+        default=False,
+        metadata={
+            "help": "if true then the source and target embedding table is "
+            "merged into one table. This is going to make the model smaller but "
+            "it might hurt performance."
+        }
     )
     no_token_positional_embeddings: bool = field(
         default=False,

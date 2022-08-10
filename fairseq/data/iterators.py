@@ -11,6 +11,7 @@ import os
 import queue
 import time
 from threading import Thread
+from typing import Iterator, List
 
 import numpy as np
 import torch
@@ -57,7 +58,7 @@ class CountingIterator(object):
         except StopIteration:
             raise IndexError(
                 f"Iterator expected to have length {self.total}, "
-                "but exhausted at position {self.n}."
+                f"but exhausted at position {self.n}."
             )
         self.n += 1
         return x
@@ -155,6 +156,7 @@ class StreamingEpochBatchIterator(EpochBatchIterating):
         num_workers=0,
         buffer_size=0,
         timeout=0,
+        persistent_workers=False,
     ):
         assert isinstance(dataset, torch.utils.data.IterableDataset)
         self.dataset = dataset
@@ -166,6 +168,7 @@ class StreamingEpochBatchIterator(EpochBatchIterating):
         # in a shared computing environment.
         self.buffer_size = min(buffer_size, 20)
         self.timeout = timeout
+        self.persistent_workers = persistent_workers
 
         self._current_epoch_iterator = None
 
@@ -217,6 +220,7 @@ class StreamingEpochBatchIterator(EpochBatchIterating):
             timeout=self.timeout,
             worker_init_fn=worker_init_fn,
             pin_memory=True,
+            persistent_workers=self.persistent_workers,
         )
 
         # Wrap with a BufferedIterator if needed
@@ -227,6 +231,34 @@ class StreamingEpochBatchIterator(EpochBatchIterating):
         itr = CountingIterator(itr, start=offset)
 
         return itr
+
+
+class FrozenBatchSampler:
+    def __init__(
+        self,
+        ordered_batches,
+        epoch,
+        fix_batches_to_gpus,
+        shuffle,
+        initial_offset,
+    ):
+        self.ordered_batches = ordered_batches
+        self.fix_batches_to_gpus = fix_batches_to_gpus
+        self.shuffle = shuffle
+        self.make_batches_for_epoch(epoch, initial_offset)
+
+    def make_batches_for_epoch(self, epoch, offset=0):
+        self.batches = self.ordered_batches(
+            epoch, self.fix_batches_to_gpus, self.shuffle
+        )
+        if offset > 0:
+            self.batches = self.batches[offset:]
+
+    def __iter__(self) -> Iterator[List[int]]:
+        return iter(self.batches)
+
+    def __len__(self) -> int:
+        return len(self.batches)
 
 
 class EpochBatchIterator(EpochBatchIterating):
@@ -288,6 +320,8 @@ class EpochBatchIterator(EpochBatchIterating):
         disable_shuffling=False,
         skip_remainder_batch=False,
         grouped_shuffling=False,
+        reuse_dataloader=False,
+        persistent_workers=False,
     ):
         assert isinstance(dataset, torch.utils.data.Dataset)
         self.dataset = dataset
@@ -313,6 +347,10 @@ class EpochBatchIterator(EpochBatchIterating):
         self._cur_epoch_itr = None
         self._next_epoch_itr = None
         self._supports_prefetch = getattr(dataset, "supports_prefetch", False)
+
+        self.dataloader = None
+        self.reuse_dataloader = reuse_dataloader
+        self.persistent_workers = persistent_workers
 
     @property
     def frozen_batches(self):
@@ -443,6 +481,56 @@ class EpochBatchIterator(EpochBatchIterating):
     def _get_iterator_for_epoch(
         self, epoch, shuffle, fix_batches_to_gpus=False, offset=0
     ):
+        if self.reuse_dataloader and self.dataloader is not None:
+            self.epoch_batch_sampler.make_batches_for_epoch(epoch, offset)
+            itr = self.dataloader
+        else:
+            self.epoch_batch_sampler = FrozenBatchSampler(
+                self.ordered_batches,
+                epoch,
+                fix_batches_to_gpus,
+                shuffle,
+                initial_offset=offset,
+            )
+
+            if offset > 0 and len(self.epoch_batch_sampler) == 0:
+                return None
+
+            if self.num_workers > 0:
+                os.environ["PYTHONWARNINGS"] = "ignore:semaphore_tracker:UserWarning"
+
+            # Create data loader
+            itr = torch.utils.data.DataLoader(
+                self.dataset,
+                collate_fn=self.collate_fn,
+                batch_sampler=self.epoch_batch_sampler,
+                num_workers=self.num_workers,
+                timeout=self.timeout,
+                pin_memory=True,
+                persistent_workers=self.persistent_workers,
+            )
+
+            if self.reuse_dataloader:
+                self.dataloader = itr
+
+        # Wrap with a BufferedIterator if needed
+        if self.buffer_size > 0:
+            itr = BufferedIterator(self.buffer_size, itr)
+
+        # Wrap with CountingIterator
+        itr = CountingIterator(itr, start=offset)
+
+        if self.skip_remainder_batch:
+            # TODO: Below is a lazy implementation which discard the final batch regardless
+            # of whether it is a full batch or not.
+
+            total_num_itrs = len(self.epoch_batch_sampler) - 1
+            itr.take(total_num_itrs)
+            logger.info(f"skip final residual batch, total_num_itrs = {total_num_itrs}")
+
+        return itr
+
+    def ordered_batches(self, epoch, fix_batches_to_gpus, shuffle):
         def shuffle_batches(batches, seed):
             with data_utils.numpy_seed(seed):
 
@@ -479,38 +567,7 @@ class EpochBatchIterator(EpochBatchIterating):
             batches = list(
                 ShardedIterator(batches, self.num_shards, self.shard_id, fill_value=[])
             )
-
-        if offset > 0 and offset >= len(batches):
-            return None
-
-        if self.num_workers > 0:
-            os.environ["PYTHONWARNINGS"] = "ignore:semaphore_tracker:UserWarning"
-
-        # Create data loader
-        itr = torch.utils.data.DataLoader(
-            self.dataset,
-            collate_fn=self.collate_fn,
-            batch_sampler=batches[offset:],
-            num_workers=self.num_workers,
-            timeout=self.timeout,
-            pin_memory=True,
-        )
-
-        # Wrap with a BufferedIterator if needed
-        if self.buffer_size > 0:
-            itr = BufferedIterator(self.buffer_size, itr)
-
-        # Wrap with CountingIterator
-        itr = CountingIterator(itr, start=offset)
-
-        if self.skip_remainder_batch:
-            # TODO: Below is a lazy implementation which discard the final batch regardless
-            # of whether it is a full batch or not.
-            total_num_itrs = len(batches) - 1
-            itr.take(total_num_itrs)
-            logger.info(f"skip final residual batch, total_num_itrs = {total_num_itrs}")
-
-        return itr
+        return batches
 
 
 class GroupedIterator(CountingIterator):
@@ -720,6 +777,8 @@ class GroupedEpochBatchIterator(EpochBatchIterator):
         mult_rate=1,
         buffer_size=0,
         skip_remainder_batch=False,
+        reuse_dataloader=False,
+        persistent_workers=False,
     ):
         super().__init__(
             dataset,
@@ -732,6 +791,8 @@ class GroupedEpochBatchIterator(EpochBatchIterator):
             epoch,
             buffer_size,
             skip_remainder_batch=skip_remainder_batch,
+            reuse_dataloader=reuse_dataloader,
+            persistent_workers=persistent_workers,
         )
         # level 0: sub-samplers 1: batch_idx 2: batches
         self._frozen_batches = tuple([tuple(sub_batch) for sub_batch in batch_samplers])
@@ -814,6 +875,7 @@ class GroupedEpochBatchIterator(EpochBatchIterator):
             collate_fn=self.collate_fn,
             batch_sampler=batches[offset:],
             num_workers=self.num_workers,
+            persistent_workers=self.persistent_workers,
         )
         if self.buffer_size > 0:
             itr = BufferedIterator(self.buffer_size, itr)

@@ -12,6 +12,7 @@ import torch
 import torchaudio
 
 from feature_utils import get_path_iterator, dump_feature
+from fairseq.data.audio.audio_utils import get_features_or_waveform
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -27,17 +28,13 @@ class MfccFeatureReader(object):
         self.sample_rate = sample_rate
 
     def read_audio(self, path, ref_len=None):
-        wav, sr = sf.read(path)
-        assert sr == self.sample_rate, sr
-        if wav.ndim == 2:
-            wav = wav.mean(-1)
-        assert wav.ndim == 1, wav.ndim
+        wav = get_features_or_waveform(path, need_waveform=True, use_sample_rate=self.sample_rate)
         if ref_len is not None and abs(ref_len - len(wav)) > 160:
             logging.warning(f"ref {ref_len} != read {len(wav)} ({path})")
         return wav
 
     def get_feats(self, path, ref_len=None):
-        x = self.read_audio(path, ref_len)
+        x = self.read_audio(path, ref_len=ref_len)
         with torch.no_grad():
             x = torch.from_numpy(x).float()
             x = x.view(1, -1)
@@ -59,7 +56,6 @@ def main(tsv_dir, split, nshard, rank, feat_dir, sample_rate):
     reader = MfccFeatureReader(sample_rate)
     generator, num = get_path_iterator(f"{tsv_dir}/{split}.tsv", nshard, rank)
     dump_feature(reader, generator, num, split, nshard, rank, feat_dir)
-
 
 
 if __name__ == "__main__":

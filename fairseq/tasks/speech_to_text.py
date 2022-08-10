@@ -9,11 +9,11 @@ from argparse import Namespace
 
 from fairseq import utils, metrics, scoring
 from fairseq.data import Dictionary, encoders
+from fairseq.data.audio.audio_utils import get_features_or_waveform
 from fairseq.data.audio.speech_to_text_dataset import (
     S2TDataConfig,
     SpeechToTextDataset,
     SpeechToTextDatasetCreator,
-    get_features_or_waveform,
 )
 from fairseq.tasks import LegacyFairseqTask, register_task
 
@@ -55,6 +55,13 @@ class SpeechToTextTask(LegacyFairseqTask):
         self.pre_tokenizer = self.build_tokenizer(args)
         self.bpe_tokenizer = self.build_bpe(args)
         self.scorer = scoring.build_scorer(args, self.tgt_dict)
+        if (
+            self.data_cfg.prepend_tgt_lang_tag
+            and self.data_cfg.prepend_bos_and_append_tgt_lang_tag
+        ):
+            raise ValueError(
+                "Please set only one of the two options to avoid adding target token multiple times"
+            )
 
     def _get_speaker_to_id(self):
         speaker_to_id = None
@@ -197,6 +204,21 @@ class SpeechToTextTask(LegacyFairseqTask):
         if extra_gen_cls_kwargs is None:
             extra_gen_cls_kwargs = {}
         extra_gen_cls_kwargs["symbols_to_strip_from_output"] = lang_token_ids
+
+        eos_token = (
+            args.eos_token
+            if "eos_token" in args and args.eos_token is not None
+            else self.data_cfg.config.get("eos_token", None)
+        )
+
+        if self.data_cfg.prepend_bos_and_append_tgt_lang_tag and not eos_token:
+            raise Warning(
+                "Please provide --eos_token to replace eos in sequence generator"
+            )
+
+        eos_id = self.tgt_dict.index(eos_token) if eos_token else None
+        extra_gen_cls_kwargs["eos"] = eos_id
+
         return super().build_generator(
             models, args, seq_gen_cls=None, extra_gen_cls_kwargs=extra_gen_cls_kwargs
         )
