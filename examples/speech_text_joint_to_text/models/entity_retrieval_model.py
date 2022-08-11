@@ -199,9 +199,14 @@ class ERBertBased(nn.Module):
 
 @register_model("dual_input_er_transformer")
 class EntityRetrievalModel(FairseqEncoderModel):
-    def __init__(self, encoder, retrieval_network):
+    def __init__(self, encoder, retrieval_network, args):
         super().__init__(encoder)
+        encoder.eval()
         self.retrieval_network = retrieval_network
+        self.er_skip_encoder_layers = getattr(args, 'er_skip_encoder_layers', None)
+        if self.er_skip_encoder_layers is not None:
+            assert self.er_skip_encoder_layers > 0 and self.er_skip_encoder_layers < args.speech_encoder_layers, \
+                f"{self.er_skip_encoder_layers} is not between 0 and {args.speech_encoder_layers}"
 
     @staticmethod
     def add_args(parser):
@@ -272,6 +277,12 @@ class EntityRetrievalModel(FairseqEncoderModel):
             action="store_true",
             help="add modality embedding in the ER network",
         )
+        parser.add_argument(
+            "--er-skip-encoder-layers",
+            type=int,
+            metavar="N",
+            help="num encoder layers to skip for the pretrained shared encoder",
+        )
 
     @classmethod
     def build_model(cls, args, task):
@@ -283,7 +294,7 @@ class EntityRetrievalModel(FairseqEncoderModel):
             retrieval_network = EntityRetrievalNetwork(args)
         else:
             raise Exception(f"Entity retrieval network {args.retrieval_network} not supported")
-        return cls(encoder, retrieval_network)
+        return cls(encoder, retrieval_network, args)
 
     @classmethod
     def build_encoder(cls, args, task):
@@ -295,6 +306,12 @@ class EntityRetrievalModel(FairseqEncoderModel):
             p.requires_grad = False
         return encoder
 
+    def get_selected_layer_out(self, encoder_out):
+        if self.er_skip_encoder_layers is not None:
+            return encoder_out['encoder_states'][- self.er_skip_encoder_layers - 1]
+        else:
+            return encoder_out['encoder_out'][0]
+
     def forward(
         self,
         src_tokens,
@@ -304,31 +321,35 @@ class EntityRetrievalModel(FairseqEncoderModel):
         **kwargs
     ):
         with torch.no_grad():
-            speech_encoder_out = self.encoder.spch_encoder(src_tokens, src_lengths, return_all_hiddens=False)
+            self.encoder.eval()  # avoid layerdrop is applied
+            return_all_hiddens = self.er_skip_encoder_layers is not None
+            speech_encoder_out = self.encoder.spch_encoder(src_tokens, src_lengths, return_all_hiddens=return_all_hiddens)
+            speech_padding_mask = speech_encoder_out['encoder_padding_mask'][0]
+            speech_encoded = self.get_selected_layer_out(speech_encoder_out)
             positive_encoder_outs = [
                 self.encoder.text_encoder(
-                    pr_tokens, pr_tokens.ne(self.encoder.dictionary.pad()).sum(dim=1).long()
+                    pr_tokens, pr_tokens.ne(self.encoder.dictionary.pad()).sum(dim=1).long(), return_all_hiddens=return_all_hiddens
                 ) for pr_tokens in positive_retr_tokens
             ]
             negative_encoder_outs = [
                 self.encoder.text_encoder(
-                    nr_tokens, nr_tokens.ne(self.encoder.dictionary.pad()).sum(dim=1).long()
+                    nr_tokens, nr_tokens.ne(self.encoder.dictionary.pad()).sum(dim=1).long(), return_all_hiddens=return_all_hiddens
                 ) for nr_tokens in negative_retr_tokens
             ]
         positive_retrieval_encoder_out = [
             self.retrieval_network(
-                p_encoded['encoder_out'][0],
-                speech_encoder_out['encoder_out'][0],
+                self.get_selected_layer_out(p_encoded),
+                speech_encoded,
                 p_encoded['encoder_padding_mask'][0],
-                speech_encoder_out['encoder_padding_mask'][0])
+                speech_padding_mask)
             for p_encoded in positive_encoder_outs
         ]
         negative_retrieval_encoder_out = [
             self.retrieval_network(
-                n_encoded['encoder_out'][0],
-                speech_encoder_out['encoder_out'][0],
+                self.get_selected_layer_out(n_encoded),
+                speech_encoded,
                 n_encoded['encoder_padding_mask'][0],
-                speech_encoder_out['encoder_padding_mask'][0])
+                speech_padding_mask)
             for n_encoded in negative_encoder_outs
         ]
         return {
