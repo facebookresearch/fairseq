@@ -196,6 +196,11 @@ GPUs, but a port number must be provided:
     > salloc --gpus=16 --nodes 2 (...)
     > srun fairseq-train --distributed-port 12345 (...).
 
+When launching with OpenMPI, fairseq will automatically detect the number of
+nodes and GPUs, as well as set the local rank, but a `MASTER_ADDR` and `MASTER_PORT`
+environment variable must be set with `mpirun -x MASTER_ADDR=... -x MASTER_PORT=...`
+to ensure that training launches correctly.
+
 Sharding very large datasets
 ----------------------------
 
