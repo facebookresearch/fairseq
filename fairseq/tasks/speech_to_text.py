@@ -290,9 +290,10 @@ class SpeechToTextTask(LegacyFairseqTask):
         seq_gen_cls=None,
         extra_gen_cls_kwargs=None,
     ):
+        args = Namespace(**vars(args), prefix_size=args.ignore_prefix_size)
         if self.data_cfg.prepend_tgt_lang_tag and args.prefix_size != 1:
             raise ValueError(
-                'Please set "--prefix-size 1" since '
+                'Please set "--ignore-prefix-size 1" since '
                 "target language ID token is prepended as BOS."
             )
         lang_token_ids = {
