@@ -1,8 +1,8 @@
 from pathlib import Path
-from random import randint, uniform
 import numpy as np
 from math import ceil
 
+from fairseq.data.audio import rand_uniform
 from fairseq.data.audio.waveform_transforms import (
     AudioWaveformTransform,
     register_audio_waveform_transform,
@@ -64,10 +64,10 @@ class NoiseAugmentTransform(AudioWaveformTransform):
             + ")"
         )
 
-    def _pick_sample(self, goal_shape, always_2d=False, use_sample_rate=None):
+    def pick_sample(self, goal_shape, always_2d=False, use_sample_rate=None):
         from fairseq.data.audio.audio_utils import get_waveform
 
-        path = self.paths[randint(0, self.n_samples - 1)]
+        path = self.paths[np.random.randint(0, self.n_samples)]
         sample = get_waveform(
             path, always_2d=always_2d, output_sample_rate=use_sample_rate
         )[0]
@@ -84,7 +84,7 @@ class NoiseAugmentTransform(AudioWaveformTransform):
         len_dim = len(goal_shape) - 1
         n_repeat = ceil(goal_shape[len_dim] / sample.shape[len_dim])
         repeated = np.tile(sample, [1, n_repeat] if is_2d else n_repeat)
-        start = randint(0, repeated.shape[len_dim] - goal_shape[len_dim])
+        start = np.random.randint(0, repeated.shape[len_dim] - goal_shape[len_dim] + 1)
         return (
             repeated[:, start : start + goal_shape[len_dim]]
             if is_2d
@@ -95,40 +95,40 @@ class NoiseAugmentTransform(AudioWaveformTransform):
         get_power = lambda x: np.mean(x**2)
         if get_power(noise):
             scl = np.sqrt(
-                get_power(source) / (np.power(10, snr/10) * get_power(noise))
+                get_power(source) / (np.power(10, snr / 10) * get_power(noise))
             )
-        else: 
+        else:
             scl = 0
         return 1 * source + scl * noise
 
     def _get_noise(self, goal_shape, always_2d=False, use_sample_rate=None):
-        return self._pick_sample(goal_shape, always_2d, use_sample_rate)
+        return self.pick_sample(goal_shape, always_2d, use_sample_rate)
 
     def __call__(self, source, always_2d=False, use_sample_rate=None):
-        if uniform(0, 1) > self.rate:
+        if np.random.random() > self.rate:
             return source
 
         noise = self._get_noise(
             source.shape, always_2d=always_2d, use_sample_rate=use_sample_rate
         )
-
-        sample = self._mix(source, noise, uniform(self.snr_min, self.snr_max))
-        return sample
+        return self._mix(source, noise, rand_uniform(self.snr_min, self.snr_max))
 
 
 @register_audio_waveform_transform("musicaugment")
 class MusicAugmentTransform(NoiseAugmentTransform):
     pass
 
+
 @register_audio_waveform_transform("backgroundnoiseaugment")
 class BackgroundNoiseAugmentTransform(NoiseAugmentTransform):
     pass
 
+
 @register_audio_waveform_transform("babbleaugment")
 class BabbleAugmentTransform(NoiseAugmentTransform):
     def _get_noise(self, goal_shape, always_2d=False, use_sample_rate=None):
-        for i in range(randint(3, 7)):
-            speech = self._pick_sample(goal_shape, always_2d, use_sample_rate)
+        for i in range(np.random.randint(3, 8)):
+            speech = self.pick_sample(goal_shape, always_2d, use_sample_rate)
             if i == 0:
                 agg_noise = speech
             else:  # SNR scaled by i (how many noise signals already in agg_noise)
@@ -173,7 +173,7 @@ class SporadicNoiseAugmentTransform(NoiseAugmentTransform):
 
         n_noises = round(self.noise_rate * goal_shape[len_dim] / use_sample_rate)
         start_pointers = [
-            round(uniform(0, goal_shape[len_dim])) for _ in range(n_noises)
+            round(rand_uniform(0, goal_shape[len_dim])) for _ in range(n_noises)
         ]
 
         for start_pointer in start_pointers:
@@ -184,7 +184,7 @@ class SporadicNoiseAugmentTransform(NoiseAugmentTransform):
             if end_pointer >= goal_shape[len_dim]:
                 continue
 
-            noise = self._pick_sample(noise_shape, always_2d, use_sample_rate)
+            noise = self.pick_sample(noise_shape, always_2d, use_sample_rate)
             if is_2d:
                 agg_noise[:, start_pointer:end_pointer] = (
                     agg_noise[:, start_pointer:end_pointer] + noise

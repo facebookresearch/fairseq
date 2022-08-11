@@ -151,7 +151,7 @@ class S2TDataConfig(object):
         cfg = deepcopy(self.config)
         # TODO: deprecate transforms
         cur = self.get_transforms("", split, is_train)
-        if cur is not None: 
+        if cur is not None:
             logger.warning(
                 "Auto converting transforms into feature_transforms, "
                 "but transforms will be deprecated in the future. Please "
@@ -160,14 +160,20 @@ class S2TDataConfig(object):
             ft_transforms = self.get_transforms("feature_", split, is_train)
             if ft_transforms:
                 cur.extend(ft_transforms)
-        else: cur = self.get_transforms("feature_", split, is_train)
+        else:
+            cur = self.get_transforms("feature_", split, is_train)
         cfg["feature_transforms"] = cur
-        return cfg 
+        return cfg
 
     def get_waveform_transforms(self, split, is_train):
         cfg = deepcopy(self.config)
         cfg["waveform_transforms"] = self.get_transforms("waveform_", split, is_train)
-        return cfg 
+        return cfg
+
+    def get_dataset_transforms(self, split, is_train):
+        cfg = deepcopy(self.config)
+        cfg["dataset_transforms"] = self.get_transforms("dataset_", split, is_train)
+        return cfg
 
     @property
     def global_cmvn_stats_npz(self) -> Optional[str]:
@@ -209,7 +215,8 @@ class S2SDataConfig(S2TDataConfig):
         ft_transforms = self.config.get("feature_transforms", {})
         if _cur and ft_transforms:
             _cur.update(ft_transforms)
-        else: _cur = self.config.get("feature_transforms", {})
+        else:
+            _cur = self.config.get("feature_transforms", {})
         cur = _cur.get("_train", [])
 
         _channels = self.input_channels
