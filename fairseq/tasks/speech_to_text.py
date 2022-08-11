@@ -45,27 +45,6 @@ class SpeechToTextTask(LegacyFairseqTask):
             metavar="N",
             help="max number of tokens in the target sequence",
         )
-        parser.add_argument(
-            "--concataug-rate",
-            default=0.0,
-            type=float,
-            metavar="r",
-            help="rate (0 to 1) that gives rate of frequency concatentation",
-        )
-        parser.add_argument(
-            "--concataug-max-tokens",
-            default=0,
-            type=int,
-            metavar="N",
-            help="max number of tokens in concatenated source sequences",
-        )
-        parser.add_argument(
-            "--concataug-attempts",
-            default=5,
-            type=int,
-            metavar="N",
-            help="number of invalid attempts before skipping concatenation",
-        )
 
     def __init__(self, args, tgt_dict):
         super().__init__(args)
@@ -130,9 +109,6 @@ class SpeechToTextTask(LegacyFairseqTask):
             epoch=epoch,
             seed=self.args.seed,
             speaker_to_id=self.speaker_to_id,
-            concataug_rate=self.args.concataug_rate,
-            concataug_max_tokens=self.args.concataug_max_tokens,
-            concataug_attempts=self.args.concataug_attempts,
         )
 
     @property

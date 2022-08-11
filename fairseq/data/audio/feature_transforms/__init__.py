@@ -1,6 +1,10 @@
-import importlib
 import os
-from fairseq.data.audio import AudioTransform, CompositeAudioTransform, register_audio_transform
+from fairseq.data.audio import (
+    AudioTransform,
+    CompositeAudioTransform,
+    import_transforms,
+    register_audio_transform,
+)
 
 
 class AudioFeatureTransform(AudioTransform):
@@ -24,16 +28,7 @@ def register_audio_feature_transform(name):
     )
 
 
-transforms_dir = os.path.dirname(__file__)
-for file in os.listdir(transforms_dir):
-    path = os.path.join(transforms_dir, file)
-    if (
-        not file.startswith("_")
-        and not file.startswith(".")
-        and (file.endswith(".py") or os.path.isdir(path))
-    ):
-        name = file[: file.find(".py")] if file.endswith(".py") else file
-        importlib.import_module("fairseq.data.audio.feature_transforms." + name)
+import_transforms(os.path.dirname(__file__), "feature")
 
 
 class CompositeAudioFeatureTransform(CompositeAudioTransform):
