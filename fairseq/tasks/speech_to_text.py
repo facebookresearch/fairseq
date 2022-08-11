@@ -7,7 +7,10 @@ import logging
 from pathlib import Path
 from argparse import Namespace
 
+import numpy as np
+
 from fairseq import utils, metrics, scoring
+from fairseq.utils import safe_hasattr
 from fairseq.data import Dictionary, encoders
 from fairseq.data.audio.audio_utils import get_features_or_waveform
 from fairseq.data.audio.speech_to_text_dataset import (
@@ -17,6 +20,7 @@ from fairseq.data.audio.speech_to_text_dataset import (
 )
 from fairseq.tasks import LegacyFairseqTask, register_task
 
+EVAL_BLEU_ORDER=4
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +49,12 @@ class SpeechToTextTask(LegacyFairseqTask):
             type=int,
             metavar="N",
             help="max number of tokens in the target sequence",
+        )
+        parser.add_argument(
+            "--eval-print-samples",
+            default=False,
+            action="store_true",
+            help="print sample generations during validation",
         )
 
     def __init__(self, args, tgt_dict):
@@ -147,41 +157,134 @@ class SpeechToTextTask(LegacyFairseqTask):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
 
         def decode(toks):
-            s = self.tgt_dict.string(toks)
+            if hasattr(self.sequence_generator, "symbols_to_strip_from_output"):
+                to_ignore = self.sequence_generator.symbols_to_strip_from_output
+            else:
+                to_ignore = {self.sequence_generator.eos}
+
+            s = self.tgt_dict.string(
+                toks.int().cpu(),
+                escape_unk=True,
+                extra_symbols_to_ignore=to_ignore
+            )
             if self.bpe_tokenizer:
                 s = self.bpe_tokenizer.decode(s)
             if self.pre_tokenizer:
                 s = self.pre_tokenizer.decode(s)
             return s
 
-        prefix_tokens = sample['target'][:, 0].unsqueeze(1) if self.data_cfg.prepend_tgt_lang_tag else None
-        gen_out = self.inference_step(self.sequence_generator, [model], sample, prefix_tokens=prefix_tokens)
-        for i in range(len(gen_out)):
-            ref_tok = utils.strip_pad(sample["target"][i], self.tgt_dict.pad()).int().cpu()
-            pred_tok = gen_out[i][0]["tokens"].int().cpu()
-            if self.data_cfg.prepend_tgt_lang_tag:
-                ref_tok = ref_tok[1:]
-                pred_tok = pred_tok[1:]
-            ref = decode(ref_tok)
-            pred = decode(pred_tok)
-
-            if hasattr(self.scorer, "add_string"):
+        if self.scorer:
+            prefix_tokens = sample['target'][:, 0].unsqueeze(1) if self.data_cfg.prepend_tgt_lang_tag else None
+            gen_out = self.inference_step(self.sequence_generator, [model], sample, prefix_tokens=prefix_tokens)
+            for i in range(len(gen_out)):
+                ref_tok = utils.strip_pad(sample["target"][i], self.tgt_dict.pad()).int().cpu()
+                pred_tok = gen_out[i][0]["tokens"].int().cpu()
+                if self.data_cfg.prepend_tgt_lang_tag:
+                    ref_tok = ref_tok[1:]
+                    pred_tok = pred_tok[1:]
+                ref = decode(ref_tok)
+                pred = decode(pred_tok)
                 self.scorer.add_string(ref, pred)
-            else:
-                self.scorer.add(ref_tok, pred_tok)
+
+            if self.args.eval_print_samples:
+                logger.info("Validation example:")
+                logger.info("H-{} {}".format(sample["id"][-1], pred))
+                logger.info("T-{} {}".format(sample["id"][-1], ref))
+
+        if self.args.scoring == "wer":
+            logging_output["_wer_distance"] = self.scorer.distance
+            logging_output["_wer_ref_len"] = self.scorer.ref_length
+        elif self.args.scoring == "sacrebleu":
+            sacrebleu_out = self.scorer._score()
+            logging_output["_bleu_sys_len"] = sacrebleu_out.sys_len
+            logging_output["_bleu_ref_len"] = sacrebleu_out.ref_len
+            # we split counts into separate entries so that they can be
+            # summed efficiently across workers using fast-stat-sync
+            assert len(sacrebleu_out.counts) == EVAL_BLEU_ORDER
+            for i in range(EVAL_BLEU_ORDER):
+                logging_output["_bleu_counts_" + str(i)] = sacrebleu_out.counts[i]
+                logging_output["_bleu_totals_" + str(i)] = sacrebleu_out.totals[i]
+        else:
+            raise NotImplemented()
+
+        if safe_hasattr(self.scorer, "reset"):
+            self.scorer.reset()
+        else:
+            self.scorer.ref = []
+            self.scorer.pred = []
 
         return loss, sample_size, logging_output
 
     def reduce_metrics(self, logging_outputs, criterion):
         super().reduce_metrics(logging_outputs, criterion)
 
-        if not hasattr(self.scorer, "stat") or self.scorer.stat.predlen > 0:
-            metrics.log_scalar(self.args.scoring, round(self.scorer.score(), 2))
-        if hasattr(self.scorer, "reset"):
-            self.scorer.reset()
+        def sum_logs(key):
+            import torch
+            result = sum(log.get(key, 0) for log in logging_outputs)
+            if torch.is_tensor(result):
+                result = result.cpu()
+            return result
+
+        if self.args.scoring == "wer":
+            if  sum_logs("_wer_ref_len") > 0:
+                metrics.log_scalar("_wer_distance", sum_logs("_wer_distance"))
+                metrics.log_scalar("_wer_ref_len", sum_logs("_wer_ref_len"))
+
+                def compute_wer(meters):
+                    import torch
+                    ref_len = meters["_wer_ref_len"].sum
+                    wer = meters["_wer_distance"].sum / ref_len
+                    if torch.is_tensor(wer):
+                        wer = wer.cpu().item()
+                    return round(100 * wer, 2)
+
+                metrics.log_derived("wer", compute_wer)
+
+        elif self.args.scoring == "sacrebleu":
+            counts, totals = [], []
+            for i in range(EVAL_BLEU_ORDER):
+                counts.append(sum_logs("_bleu_counts_" + str(i)))
+                totals.append(sum_logs("_bleu_totals_" + str(i)))
+
+            if max(totals) > 0:
+                # log counts as numpy arrays -- log_scalar will sum them correctly
+                metrics.log_scalar("_bleu_counts", np.array(counts))
+                metrics.log_scalar("_bleu_totals", np.array(totals))
+                metrics.log_scalar("_bleu_sys_len", sum_logs("_bleu_sys_len"))
+                metrics.log_scalar("_bleu_ref_len", sum_logs("_bleu_ref_len"))
+
+                def compute_bleu(meters):
+                    import inspect
+                    import torch
+
+                    try:
+                        from sacrebleu.metrics import BLEU
+
+                        comp_bleu = BLEU.compute_bleu
+                    except ImportError:
+                        # compatibility API for sacrebleu 1.x
+                        import sacrebleu
+
+                        comp_bleu = sacrebleu.compute_bleu
+
+                    fn_sig = inspect.getfullargspec(comp_bleu)[0]
+                    if "smooth_method" in fn_sig:
+                        smooth = {"smooth_method": "exp"}
+                    else:
+                        smooth = {"smooth": "exp"}
+                    bleu = comp_bleu(
+                        correct=meters["_bleu_counts"].sum,
+                        total=meters["_bleu_totals"].sum,
+                        sys_len=meters["_bleu_sys_len"].sum if torch.is_tensor(meters["_bleu_sys_len"].sum) == False else meters["_bleu_sys_len"].sum.long().item(),
+                        ref_len=meters["_bleu_ref_len"].sum if torch.is_tensor(meters["_bleu_ref_len"].sum) == False else meters["_bleu_ref_len"].sum.long().item(),
+                        **smooth,
+                    )
+                    return round(bleu.score, 2)
+
+                metrics.log_derived("sacrebleu", compute_bleu)
+
         else:
-            self.scorer.ref = []
-            self.scorer.pred = []
+            raise NotImplemented()
 
     def build_generator(
         self,
