@@ -159,13 +159,29 @@ class ERBertBased(nn.Module):
         super().__init__()
         self.cls_vector = nn.Parameter(torch.zeros(args.encoder_embed_dim))
         self.sep_vector = nn.Parameter(torch.zeros(args.encoder_embed_dim))
+        self.window_attention_mask = getattr(args, 'er_window_attention_mask', False)
         self.add_modality_embedding = getattr(args, 'er_modality_embedding', False)
         if self.add_modality_embedding:
             self.text_vector = nn.Parameter(torch.zeros(args.encoder_embed_dim))
             self.speech_vector = nn.Parameter(torch.zeros(args.encoder_embed_dim))
         self.layers = nn.ModuleList([
             ERTransformerEncoderLayer(args) for _ in range(args.er_encoder_layers)])
+        self.num_heads = self.layers[0].self_attn.num_heads
         self.output_proj = nn.Linear(args.er_encoder_embed_dim, 1, bias=False)
+
+    def attn_bias_mask(self, batch_size, time_size, text_lengths, device):
+        attn_bias_mask = torch.zeros(batch_size, time_size, time_size)
+        for b in range(batch_size):
+            speech_area_start = text_lengths[b] + 2
+            speech_area_size = time_size - speech_area_start
+            not_to_mask = torch.tril(
+                torch.triu(
+                    torch.ones(speech_area_size, speech_area_size),
+                    diagonal=-text_lengths[b] * 2),
+                diagonal=text_lengths[b] * 2)
+            to_mask = torch.where(not_to_mask == 0, 1, 0)
+            attn_bias_mask[b, text_lengths[b] + 2:, text_lengths[b] + 2:] = to_mask
+        return attn_bias_mask.repeat_interleave(self.num_heads, dim=0).to(device)
 
     def forward(self, text_encoded, speech_encoded, text_padding_mask, speech_padding_mask):
         speech_lengths = (1 - speech_padding_mask.long()).sum(dim=-1)
@@ -191,8 +207,12 @@ class ERBertBased(nn.Module):
                 ])
         x = torch.stack(concat_elements).transpose(0, 1)
         padding_mask = lengths_to_padding_mask(torch.tensor(new_lens)).to(x.device)
+        if self.window_attention_mask:
+            attn_mask = self.attn_bias_mask(x.shape[1], x.shape[0], text_lengths, x.device)
+        else:
+            attn_mask = None
         for layer in self.layers:
-            x = layer(x, padding_mask)
+            x = layer(x, padding_mask, attn_mask=attn_mask)
         # take CLS token over time, and then project from (B, C) to (B, 1)
         return self.output_proj(x[0, :, :])
 
@@ -282,6 +302,11 @@ class EntityRetrievalModel(FairseqEncoderModel):
             type=int,
             metavar="N",
             help="num encoder layers to skip for the pretrained shared encoder",
+        )
+        parser.add_argument(
+            "--er-window-attention-mask",
+            action="store_true",
+            help="if set, attention masks avoids looking too far in the audio from current frame",
         )
 
     @classmethod
