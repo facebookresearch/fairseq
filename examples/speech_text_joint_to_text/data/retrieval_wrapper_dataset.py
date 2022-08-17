@@ -3,14 +3,14 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 import logging
-from random import randint
+from random import randint, random
 from typing import Dict, List, Tuple
 
 import torch
 
-from fairseq.data.audio.speech_to_text_joint_dataset import SpeechToTextJointDatasetItem
 from fairseq.data.base_wrapper_dataset import BaseWrapperDataset
 from fairseq.data import data_utils as fairseq_data_utils
+from examples.speech_text_joint_to_text.data.speech_to_text_joint_dataset_with_entities import SpeechToTextJointDatasetWithEntitiesItem
 
 
 logger = logging.getLogger(__name__)
@@ -93,6 +93,8 @@ class SpeechTextRetrievalDataset(BaseWrapperDataset):
                 raise Exception(
                     f"unable to find negatives for {sample_ds_id} in the whole dataset.")
         negative_sample = self.dataset[negative_sample_idx]
+        if len(negative_sample.entities) > 0 and random() < 0.9:
+            return negative_sample.entities[randint(0, len(negative_sample.entities) - 1)]
         words = split_into_words([negative_sample], self.dictionary)[0]
         return self.take_random_sample(words, negative_sample.src_txt_tokens)
 
@@ -106,6 +108,9 @@ class SpeechTextRetrievalDataset(BaseWrapperDataset):
             # samples in the dataset
             if negative_sample_idx < 0:
                 tentative_neg = self.out_of_batch_negative_sample(samples[sample_id].index)
+            elif len(samples[negative_sample_idx].entities) > 0 and random() < 0.9:
+                tentative_neg = samples[negative_sample_idx].entities[
+                    randint(0, len(samples[negative_sample_idx].entities) - 1)]
             else:
                 tentative_neg = self.take_random_sample(
                     words_samples[negative_sample_idx], samples[negative_sample_idx].src_txt_tokens)
@@ -120,14 +125,17 @@ class SpeechTextRetrievalDataset(BaseWrapperDataset):
         return tentative_neg
 
     def sample_positive_and_negative_retrieval_items(
-        self, samples: List[SpeechToTextJointDatasetItem]
+        self, samples: List[SpeechToTextJointDatasetWithEntitiesItem]
     ) -> List[Tuple[torch.Tensor, List[torch.Tensor]]]:
         # We are assuming sentencepiece-like segmentation
         # of source text (phonemes in our case)
         words_samples = split_into_words(samples, self.dictionary)
         positive_and_negatives = []
         for sample_id in range(len(words_samples)):
-            positive_sample = self.take_random_sample(words_samples[sample_id], samples[sample_id].src_txt_tokens)
+            if len(samples[sample_id].entities) > 0 and random() < 0.9:
+                positive_sample = samples[sample_id].entities[randint(0, len(samples[sample_id].entities) - 1)]
+            else:
+                positive_sample = self.take_random_sample(words_samples[sample_id], samples[sample_id].src_txt_tokens)
             negative_samples = []
             for _ in range(self.num_negatives):
                 negative_samples.append(self.pick_negative(sample_id, words_samples, samples))
@@ -135,7 +143,7 @@ class SpeechTextRetrievalDataset(BaseWrapperDataset):
         return positive_and_negatives
 
     def collater(
-        self, samples: List[SpeechToTextJointDatasetItem], return_order: bool = False
+        self, samples: List[SpeechToTextJointDatasetWithEntitiesItem], return_order: bool = False
     ) -> Dict:
         collated_samples = self.dataset.collater(samples, return_order=True)
         if collated_samples == {}:

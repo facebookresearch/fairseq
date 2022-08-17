@@ -4,10 +4,10 @@
 # LICENSE file in the root directory of this source tree.
 import logging
 
-from fairseq.data.audio.speech_to_text_joint_dataset import SpeechToTextJointDatasetCreator
 from fairseq.tasks import register_task
 
 from examples.speech_text_joint_to_text.data.retrieval_wrapper_dataset import SpeechTextRetrievalDataset
+from examples.speech_text_joint_to_text.data.speech_to_text_joint_dataset_with_entities import SpeechToTextJointWithEntitiesDatasetCreator
 from .speech_text_joint import SpeechTextJointToTextTask
 
 
@@ -51,7 +51,7 @@ class SpeechTextRetrievalTask(SpeechTextJointToTextTask):
         bpe_tokenizer = self.build_bpe(self.args)
         src_pre_tokenizer = self.build_src_tokenizer(self.args)
         src_bpe_tokenizer = self.build_src_bpe(self.args)
-        self.datasets[split] = SpeechTextRetrievalDataset(SpeechToTextJointDatasetCreator.from_tsv(
+        self.datasets[split] = SpeechTextRetrievalDataset(SpeechToTextJointWithEntitiesDatasetCreator.from_tsv(
             self.args.data,
             self.data_cfg,
             split,
