@@ -170,18 +170,18 @@ class ERBertBased(nn.Module):
         self.output_proj = nn.Linear(args.er_encoder_embed_dim, 1, bias=False)
 
     def attn_bias_mask(self, batch_size, time_size, text_lengths, device):
-        attn_bias_mask = torch.zeros(batch_size, time_size, time_size)
+        attn_bias_mask = torch.zeros(batch_size, time_size, time_size).to(device)
         for b in range(batch_size):
             speech_area_start = text_lengths[b] + 2
             speech_area_size = time_size - speech_area_start
             not_to_mask = torch.tril(
                 torch.triu(
-                    torch.ones(speech_area_size, speech_area_size),
+                    torch.ones(speech_area_size, speech_area_size).to(device),
                     diagonal=-text_lengths[b] * 2),
                 diagonal=text_lengths[b] * 2)
             to_mask = torch.where(not_to_mask == 0, 1, 0)
             attn_bias_mask[b, text_lengths[b] + 2:, text_lengths[b] + 2:] = to_mask
-        return attn_bias_mask.repeat_interleave(self.num_heads, dim=0).to(device)
+        return attn_bias_mask.repeat_interleave(self.num_heads, dim=0)
 
     def forward(self, text_encoded, speech_encoded, text_padding_mask, speech_padding_mask):
         speech_lengths = (1 - speech_padding_mask.long()).sum(dim=-1)
