@@ -224,6 +224,8 @@ class EntityRetrievalModel(FairseqEncoderModel):
         encoder.eval()
         self.retrieval_network = retrieval_network
         self.er_skip_encoder_layers = getattr(args, 'er_skip_encoder_layers', None)
+        self.er_do_layerdrop = getattr(args, 'er_do_layerdrop', False)
+        assert not self.er_do_layerdrop or self.er_skip_encoder_layers is None
         if self.er_skip_encoder_layers is not None:
             assert self.er_skip_encoder_layers > 0 and self.er_skip_encoder_layers < args.speech_encoder_layers, \
                 f"{self.er_skip_encoder_layers} is not between 0 and {args.speech_encoder_layers}"
@@ -308,6 +310,16 @@ class EntityRetrievalModel(FairseqEncoderModel):
             action="store_true",
             help="if set, attention masks avoids looking too far in the audio from current frame",
         )
+        parser.add_argument(
+            "--er-do-speech-mask",
+            action="store_true",
+            help="if set, speech is masked by the speech encoder",
+        )
+        parser.add_argument(
+            "--er-do-layerdrop",
+            action="store_true",
+            help="if set, layerdrop is applied for the pretrained dual input encoder",
+        )
 
     @classmethod
     def build_model(cls, args, task):
@@ -329,6 +341,8 @@ class EntityRetrievalModel(FairseqEncoderModel):
         # Freeze encoder parameters
         for p in encoder.parameters():
             p.requires_grad = False
+        if getattr(args, 'er_do_speech_mask', False):
+            encoder.spch_encoder.speech_encoder.alway_mask = True
         return encoder
 
     def get_selected_layer_out(self, encoder_out):
@@ -346,7 +360,10 @@ class EntityRetrievalModel(FairseqEncoderModel):
         **kwargs
     ):
         with torch.no_grad():
-            self.encoder.eval()  # avoid layerdrop is applied
+            if self.er_do_layerdrop:
+                self.encoder.spch_encoder.speech_encoder.eval()  # avoid masking (unless we set alywas_mask)
+            else:
+                self.encoder.eval()  # avoid layerdrop is applied and masking (unless we set alywas_mask)
             return_all_hiddens = self.er_skip_encoder_layers is not None
             speech_encoder_out = self.encoder.spch_encoder(src_tokens, src_lengths, return_all_hiddens=return_all_hiddens)
             speech_padding_mask = speech_encoder_out['encoder_padding_mask'][0]
