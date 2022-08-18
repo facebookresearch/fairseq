@@ -160,6 +160,7 @@ class ERBertBased(nn.Module):
         self.cls_vector = nn.Parameter(torch.zeros(args.encoder_embed_dim))
         self.sep_vector = nn.Parameter(torch.zeros(args.encoder_embed_dim))
         self.window_attention_mask = getattr(args, 'er_window_attention_mask', False)
+        self.er_window_attention_mask_factor = getattr(args, 'er_window_attention_mask_factor', 2)
         self.add_modality_embedding = getattr(args, 'er_modality_embedding', False)
         if self.add_modality_embedding:
             self.text_vector = nn.Parameter(torch.zeros(args.encoder_embed_dim))
@@ -177,8 +178,8 @@ class ERBertBased(nn.Module):
             not_to_mask = torch.tril(
                 torch.triu(
                     torch.ones(speech_area_size, speech_area_size).to(device),
-                    diagonal=-text_lengths[b] * 2),
-                diagonal=text_lengths[b] * 2)
+                    diagonal=-text_lengths[b] * self.er_window_attention_mask_factor),
+                diagonal=text_lengths[b] * self.er_window_attention_mask_factor)
             to_mask = torch.where(not_to_mask == 0, 1, 0)
             attn_bias_mask[b, text_lengths[b] + 2:, text_lengths[b] + 2:] = to_mask
         return attn_bias_mask.repeat_interleave(self.num_heads, dim=0)
@@ -310,6 +311,13 @@ class EntityRetrievalModel(FairseqEncoderModel):
             "--er-window-attention-mask",
             action="store_true",
             help="if set, attention masks avoids looking too far in the audio from current frame",
+        )
+        parser.add_argument(
+            "--er-window-attention-mask-factor",
+            type=int,
+            metavar="N",
+            default=2,
+            help="how many times the phoneme length to look around the current frame",
         )
         parser.add_argument(
             "--er-do-speech-mask",
