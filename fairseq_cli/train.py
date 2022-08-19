@@ -496,6 +496,11 @@ def validate(
             wandb_run_name=os.environ.get(
                 "WANDB_NAME", os.path.basename(cfg.checkpoint.save_dir)
             ),
+            mlflow_logging=(
+                cfg.common.mlflow_logging
+                if distributed_utils.is_master(cfg.distributed_training)
+                else False
+            ),
         )
 
         # create a new root metrics aggregator so validation metrics

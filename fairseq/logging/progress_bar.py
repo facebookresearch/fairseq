@@ -604,6 +604,8 @@ class MlflowProgressBar(BaseProgressBar):
 
     def __init__(self, wrapped_bar):
         self.wrapped_bar = wrapped_bar
+        self._is_valid = False
+
         self._save_dir = None
         if mlflow is None:
             logger.warning(
@@ -613,9 +615,15 @@ class MlflowProgressBar(BaseProgressBar):
 
         self.mlflow = mlflow
         if self.mlflow is not None:
+            self.client = mlflow.tracking.MlflowClient()
             if self.mlflow.active_run() is not None:
-                self.mlflow.end_run()
-            self.active_run = self.mlflow.start_run()
+                self.active_run = self.mlflow.active_run()
+                logger.warning(
+                    f"Continuining run, assuming validation mode. If new run, please end previous run."
+                )
+                self._is_valid = True
+            else:
+                self.active_run = self.mlflow.start_run()
             self.run_id = self.active_run.info.run_id
             logger.info(f"Mlflow: Logging params and metrics with run_id {self.run_id}")
 
@@ -640,8 +648,11 @@ class MlflowProgressBar(BaseProgressBar):
 
     def __del__(self):
         """Class destructor, logs artifacts if found."""
-        if self.mlflow is not None:
+        if self.mlflow is not None and not self._is_valid:
             try:
+                if self._save_dir is None:
+                    run = self.client.get_run(run_id=self.run_id)
+                    self._save_dir = run.data.params.get("checkpoint/save_dir", None)
                 if self._save_dir is not None:
                     self.mlflow.log_artifacts(self._save_dir)
                 best_model_path = os.path.join(self._save_dir, "checkpoint_best.pt")
@@ -676,7 +687,6 @@ class MlflowProgressBar(BaseProgressBar):
         """Method to log params to mlflow. In mlflow params are just initial state."""
         flattened_params = MlflowProgressBar._flatten_params(params_dict=params)
         try:
-            self.client = mlflow.tracking.MlflowClient()
             run = self.client.get_run(run_id=self.run_id)
             logged_params = run.data.params
             [
