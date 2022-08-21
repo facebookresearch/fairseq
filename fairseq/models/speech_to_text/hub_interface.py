@@ -30,8 +30,6 @@ class S2THubInterface(nn.Module):
         self.task = task
         self.model = model
         self.model.eval()
-        import pdb
-        pdb.set_trace()
         self.generator = self.task.build_generator([self.model], self.cfg)
 
     @classmethod
@@ -94,8 +92,6 @@ class S2THubInterface(nn.Module):
         cls, task, model, generator, sample, tgt_lang=None, synthesize_speech=False
     ) -> Union[str, Tuple[str, Tuple[torch.Tensor, int]]]:
         _tgt_lang = tgt_lang or task.data_cfg.hub.get("tgt_lang", None)
-        import pdb
-        pdb.set_trace()
         prefix = cls.get_prefix_token(task, _tgt_lang)
 
         pred_tokens = generator.generate([model], sample, prefix_tokens=prefix)
