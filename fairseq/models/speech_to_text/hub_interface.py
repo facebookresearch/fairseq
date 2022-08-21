@@ -92,7 +92,11 @@ class S2THubInterface(nn.Module):
         cls, task, model, generator, sample, tgt_lang=None, synthesize_speech=False
     ) -> Union[str, Tuple[str, Tuple[torch.Tensor, int]]]:
         _tgt_lang = tgt_lang or task.data_cfg.hub.get("tgt_lang", None)
+        import pdb
+        pdb.set_trace()
         prefix = cls.get_prefix_token(task, _tgt_lang)
+        import pdb
+        pdb.set_trace()
         pred_tokens = generator.generate([model], sample, prefix_tokens=prefix)
         pred = cls.detokenize(task, pred_tokens[0][0]["tokens"])
         eos_token = task.data_cfg.config.get("eos_token", None)
