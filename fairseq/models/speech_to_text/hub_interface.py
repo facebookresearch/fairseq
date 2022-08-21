@@ -30,6 +30,8 @@ class S2THubInterface(nn.Module):
         self.task = task
         self.model = model
         self.model.eval()
+        import pdb
+        pdb.set_trace()
         self.generator = self.task.build_generator([self.model], self.cfg)
 
     @classmethod
@@ -95,8 +97,7 @@ class S2THubInterface(nn.Module):
         import pdb
         pdb.set_trace()
         prefix = cls.get_prefix_token(task, _tgt_lang)
-        import pdb
-        pdb.set_trace()
+
         pred_tokens = generator.generate([model], sample, prefix_tokens=prefix)
         pred = cls.detokenize(task, pred_tokens[0][0]["tokens"])
         eos_token = task.data_cfg.config.get("eos_token", None)

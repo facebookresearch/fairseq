@@ -135,6 +135,8 @@ class SpeechToTextTask(LegacyFairseqTask):
         seq_gen_cls=None,
         extra_gen_cls_kwargs=None,
     ):
+        import pdb
+        pdb.set_trace()
         if self.data_cfg.prepend_tgt_lang_tag and args.prefix_size != 1:
             raise ValueError(
                 'Please set "--prefix-size 1" since '
