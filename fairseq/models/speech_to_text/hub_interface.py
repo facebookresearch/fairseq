@@ -30,7 +30,7 @@ class S2THubInterface(nn.Module):
         self.task = task
         self.model = model
         self.model.eval()
-        self.generator = self.task.build_generator([self.model], self.cfg)
+        self.generator = self.task.build_generator([self.model], self.cfg.generation)
 
     @classmethod
     def get_model_input(cls, task, audio: Union[str, torch.Tensor]):
@@ -93,7 +93,6 @@ class S2THubInterface(nn.Module):
     ) -> Union[str, Tuple[str, Tuple[torch.Tensor, int]]]:
         _tgt_lang = tgt_lang or task.data_cfg.hub.get("tgt_lang", None)
         prefix = cls.get_prefix_token(task, _tgt_lang)
-
         pred_tokens = generator.generate([model], sample, prefix_tokens=prefix)
         pred = cls.detokenize(task, pred_tokens[0][0]["tokens"])
         eos_token = task.data_cfg.config.get("eos_token", None)
@@ -109,6 +108,7 @@ class S2THubInterface(nn.Module):
             else:
                 _repo, _id = tts_model_id.split(":")
                 tts_model = torch.hub.load(_repo, _id, verbose=False)
+                print(len(pred.split(' ')))
                 pred = (pred, tts_model.predict(pred, speaker=speaker))
         return pred
 

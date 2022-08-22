@@ -85,7 +85,7 @@ def from_pretrained(
         )
     if "generation_args" in kwargs:
         for key in kwargs["generation_args"]:
-            args["generation"][key] = kwargs["generation_args"][key]
+            setattr(args["generation"], key, kwargs["generation_args"][key])
 
     return {
         "args": args,

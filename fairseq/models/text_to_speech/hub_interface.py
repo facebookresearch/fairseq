@@ -161,7 +161,6 @@ class VocoderHubInterface(nn.Module):
         speaker: Optional[int] = -1,
     ):
         units = list(map(int, text.strip().split()))
-        print(len(units))
         x = {
             "code": torch.LongTensor(units).view(1, -1),
         }
