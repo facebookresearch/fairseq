@@ -108,7 +108,6 @@ class S2THubInterface(nn.Module):
             else:
                 _repo, _id = tts_model_id.split(":")
                 tts_model = torch.hub.load(_repo, _id, verbose=False)
-                print(len(pred.split(' ')))
                 pred = (pred, tts_model.predict(pred, speaker=speaker))
         return pred
 
