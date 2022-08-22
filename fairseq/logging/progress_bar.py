@@ -92,7 +92,7 @@ def progress_bar(
         bar = AzureMLProgressBarWrapper(bar)
 
     if mlflow_logging:
-        bar = MlflowProgressBar(bar)
+        bar = MlflowProgressBar(bar, epoch=epoch, prefix=prefix)
 
     return bar
 
@@ -602,11 +602,18 @@ except (ImportError, AssertionError):
 class MlflowProgressBar(BaseProgressBar):
     """Logs parameters, metrics, checkpoints, and model to Mlflow"""
 
-    def __init__(self, wrapped_bar):
+    def __init__(
+        self, wrapped_bar, epoch: Optional[int] = None, prefix: Optional[str] = None
+    ):
         self.wrapped_bar = wrapped_bar
-        self._is_valid = False
-
+        self.epoch = epoch
+        self.prefix = prefix
         self._save_dir = None
+        self._is_valid = False
+        self._arch_name = None
+        if self.prefix is not None and isinstance(self.prefix, str):
+            self._is_valid = True if "valid" in self.prefix else self._is_valid
+
         if mlflow is None:
             logger.warning(
                 "mlflow not found, pip install mlflow to start logging to mlflow"
@@ -618,10 +625,6 @@ class MlflowProgressBar(BaseProgressBar):
             self.client = mlflow.tracking.MlflowClient()
             if self.mlflow.active_run() is not None:
                 self.active_run = self.mlflow.active_run()
-                logger.warning(
-                    f"Continuining run, assuming validation mode. If new run, please end previous run."
-                )
-                self._is_valid = True
             else:
                 self.active_run = self.mlflow.start_run()
             self.run_id = self.active_run.info.run_id
@@ -643,6 +646,7 @@ class MlflowProgressBar(BaseProgressBar):
     def update_config(self, config):
         """Log latest configuration."""
         self._save_dir = config.get("checkpoint", {}).get("save_dir")
+        self._arch_name = config.get("args", {}).get("arch")
         self._log_mlflow_params(params=config)
         self.wrapped_bar.update_config(config)
 
@@ -653,21 +657,28 @@ class MlflowProgressBar(BaseProgressBar):
                 if self._save_dir is None:
                     run = self.client.get_run(run_id=self.run_id)
                     self._save_dir = run.data.params.get("checkpoint/save_dir", None)
-                if self._save_dir is not None:
-                    self.mlflow.log_artifacts(self._save_dir)
-                best_model_path = os.path.join(self._save_dir, "checkpoint_best.pt")
-                if os.path.exists(best_model_path):
+                    self._arch_name = run.data.params.get("args/arch", self._arch_name)
+
+                if os.path.exists(self._save_dir):
                     logger.info(
                         "Mlflow: Logging artifacts and model, this might take some time"
                     )
+                    name = (
+                        self._arch_name
+                        if (
+                            self._arch_name is not None
+                            or str(self._arch_name).strip != ""
+                        )
+                        else "fairseq"
+                    )
+                    mode = "valid" if self._is_valid else "train"
                     self.mlflow.pyfunc.log_model(
-                        "fairseq_checkpoint_best",
-                        artifacts={"model_path": best_model_path},
+                        f"{name}/{self.epoch}/{mode}",
+                        artifacts={"artifacts": str(self._save_dir)},
                         python_model=self.mlflow.pyfunc.PythonModel(),
                     )
             except Exception:
                 logger.exception(msg="Mlflow: not logging artifacts")
-            self.mlflow.end_run()
 
     @staticmethod
     def _flatten_params(params_dict, parent_key="", sep="/"):
