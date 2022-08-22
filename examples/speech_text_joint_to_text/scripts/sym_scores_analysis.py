@@ -3,7 +3,6 @@
 #
 #
 import argparse
-import math
 import os
 import pickle
 import logging
@@ -46,23 +45,6 @@ def load_entities(tsv_reference, num_lines):
     return entities_list
 
 
-def normalize_sym_scores(syms):
-    sums = [0.0] * len(syms[0])
-    square_sums = [0.0] * len(syms[0])
-    cnt = 0
-    for k in syms.keys():
-        cnt += 1
-        for i in range(len(syms[k])):
-            sums[i] += syms[k][i]
-            square_sums[i] += syms[k][i] * syms[k][i]
-    mean = [s / cnt for s in sums]
-    stddev = [math.sqrt(square_sums[i] / cnt - mean[i] * mean[i]) for i in range(len(square_sums))]
-    normalized_syms = {}
-    for k in syms.keys():
-        normalized_syms[k] = [(syms[k][i] - mean[i]) / stddev[i] for i in range(len(syms[k]))]
-    return normalized_syms
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--tsv-ref', required=True, type=str, metavar='REFERENCE',
@@ -89,22 +71,20 @@ if __name__ == '__main__':
         candidate_list = [" ".join(str(tok) for tok in nlp(l.strip().replace(".", " ."))) for l in f]
     logger.info('loading sym_scores from {}'.format(args.sym_scores))
     with open(args.sym_scores, 'rb') as ps_f:
-        symilarities = pickle.load(ps_f)  # normalize_sym_scores(pickle.load(ps_f))
+        symilarities = pickle.load(ps_f)
     num_lines = len(symilarities)
     logger.info('loading entities')
     entities = load_entities(args.tsv_ref, num_lines)
     thresholds = []
     avg_retrieved = []
     recalls = {et: [] for et in ET}
-    #for threshold in [1.55 - 0.01 * x for x in range(40)]:
-    for threshold in [1.45]:
+    for threshold in [0.9 - 0.02 * x for x in range(20)]:
         logger.info(f'computing threshold {threshold}')
         all_reference = {et: 0 for et in ET}
         correctly_retrieved = {et: 0 for et in ET}
         total_found = 0.
         for row_idx in range(num_lines):
             found = set(candidate_list[i] for i in range(len(candidate_list)) if symilarities[row_idx][i] > threshold)
-            import pdb ; pdb.set_trace()
             total_found += len(found)
             for et in ET:
                 to_find = set(entities[et][row_idx])
@@ -124,6 +104,9 @@ if __name__ == '__main__':
             recalls[et].append(float(correctly_retrieved[et]) / float(all_reference[et]))
         avg_retrieved.append(total_found / num_lines)
         thresholds.append(threshold)
+    for i, th in enumerate(thresholds):
+        recs = {et: recalls[et][i] for et in sorted(ET)}
+        logger.info(f"Recalls at {th} retrieving {avg_retrieved[i]} NEs: {recs}")
     import matplotlib.pyplot as plt
     for et in sorted(ET):
         plt.plot(thresholds, recalls[et], label=et)
