@@ -86,6 +86,9 @@ class Conv1dAdaptor(nn.Module):
             x = x + 0.5 * self.proj(x)
             x = self.proj_ln(x)
 
+        if padding_mask is not None:
+            x = utils.index_put(x, padding_mask.T, 0)
+
         # T x B x C -> B x C x T
         x = x.transpose(0, 1).transpose(1, 2)
         out_lens = None
@@ -108,6 +111,7 @@ class Conv1dAdaptor(nn.Module):
         out_padding_mask = None
         if padding_mask is not None:
             out_padding_mask = lengths_to_padding_mask(out_lens.long())
+            x = utils.index_put(x, out_padding_mask.T, 0)
         return x, out_padding_mask
 
 
@@ -243,6 +247,9 @@ def add_wav2vec_asr_args(parser):
         "--remove-weight-norm",
         action="store_true",
         help="if set, then the weight-norm (in one pos_conv layer) is removed from the model",
+    )
+    parser.add_argument(
+        "--encoder-embed-dim", type=int, metavar="N", help="encoder embedding dimension to be used when w2v_path is None and no encoder_proj is set"
     )
 
 
@@ -489,7 +496,9 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             "xm_transformer-22_16-xls_r_2b",
             "xm_transformer_s2ut_800m-es-en-st-asr-bt_h1_2022",
             "xm_transformer_s2ut_800m-en-es-st_plus_asr",
-            "xm_transformer_s2ut_es_en_st_asr_test"
+            "xm_transformer_s2ut_800m-hk-en-h1_2022",
+            "xm_transformer_s2ut_800m-en-hk-h1_2022"
+
         ]
         return {i: f"{base_url}/{i}.tar.gz" for i in model_ids}
 
@@ -544,15 +553,18 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
     def build_encoder(cls, args):
         _args = copy.deepcopy(args)
         if not args.adaptor_proj and not args.encoder_proj:  # V0 arch
-            state = checkpoint_utils.load_checkpoint_to_cpu(args.w2v_path)
-            if state.get("cfg") is not None:
-                encoder_embed_dim = state["cfg"]._content["model"]["encoder_embed_dim"]
-            elif state.get("args") is not None:
-                encoder_embed_dim = state["args"].encoder_embed_dim
+            if args.w2v_path:
+                state = checkpoint_utils.load_checkpoint_to_cpu(args.w2v_path)
+                if state.get("cfg") is not None:
+                    encoder_embed_dim = state["cfg"]._content["model"]["encoder_embed_dim"]
+                elif state.get("args") is not None:
+                    encoder_embed_dim = state["args"].encoder_embed_dim
+                else:
+                    raise ValueError(f"Invalid config in {args.w2v_path}")
+                _args.decoder_embed_dim = encoder_embed_dim
+                del state
             else:
-                raise ValueError(f"Invalid config in {args.w2v_path}")
-            _args.decoder_embed_dim = encoder_embed_dim
-            del state
+                _args.decoder_embed_dim = args.encoder_embed_dim
 
         encoder = Wav2VecEncoderWithAdaptor(_args)
         encoder = cls.maybe_load_pretrained(
@@ -688,6 +700,7 @@ def set_default_w2v_encoder_args(args):
     args.normalize = getattr(args, "normalize", False)
     args.finetune_w2v_params = getattr(args, "finetune_w2v_params", "all")
     args.w2v_freezing_updates = getattr(args, "w2v_freezing_updates", None)
+    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 1024)
 
 
 def set_default_adaptor_args(args):

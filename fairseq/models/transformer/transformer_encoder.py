@@ -219,79 +219,11 @@ class TransformerEncoderBase(FairseqEncoder):
         if return_all_hiddens:
             encoder_states.append(x)
 
-        # nested tensor and BT enable
-        layer = self.layers[0]
-        BT_flag = False
-        NT_flag = False
-        # torch version check, BT>=1.12.0 and NT>=1.13.0.dev20220613
-        # internal format is '1.13.0a0+fb'
-        # external format is '1.13.0.dev20220613'(cpu&gpu) for nightly or "1.11.0"(cpu) or '1.11.0+cu102'(gpu) for stable
-        BT_version = False
-        NT_version = False
-        if "fb" in torch.__version__:
-            BT_version = True
-            NT_version = True
-        else:
-            if "+" in torch.__version__:
-                torch_version = torch.__version__.split("+")[0]
-            else:
-                torch_version = torch.__version__
-
-            torch_version = torch_version.split(".")
-            int_version = (
-                int(torch_version[0]) * 1000
-                + int(torch_version[1]) * 10
-                + int(torch_version[2])
-            )
-            if len(torch_version) == 3:
-                if int_version >= 1120:
-                    BT_version = True
-                if int_version >= 1131:
-                    NT_version = True
-            elif len(torch_version) == 4:
-                if int_version >= 1130:
-                    BT_version = True
-                # Consider _nested_tensor_from_mask_left_aligned is landed after "20220613"
-                if int_version >= 1131 or (
-                    int_version == 1130 and torch_version[3][3:] >= "20220613"
-                ):
-                    NT_version = True
-
-        if (
-            BT_version
-            and x.dim() == 3
-            and layer.load_to_BT
-            and not layer.return_fc
-            and layer.can_use_fastpath
-            and not layer.training
-            and not layer.ever_training
-            and not layer.cfg_checkpoint_activations
-        ):
-            # Batch first can not be justified but needs user to make sure
-            x = x.transpose(0, 1)
-            # Check mask conditions for nested tensor
-            if NT_version:
-                if (
-                    encoder_padding_mask is not None
-                    and torch._nested_tensor_from_mask_left_aligned(
-                        x, encoder_padding_mask.logical_not()
-                    )
-                ):
-                    if not torch.is_grad_enabled() or not x.requires_grad:
-                        x = torch._nested_tensor_from_mask(
-                            x, encoder_padding_mask.logical_not()
-                        )
-                        NT_flag = True
-            BT_flag = True
-
         # encoder layers
-        if NT_flag:
-            processing_mask = None
-        else:
-            processing_mask = encoder_padding_mask
-        encoder_padding_mask_out = processing_mask if has_pads else None
         for layer in self.layers:
-            lr = layer(x, encoder_padding_mask=encoder_padding_mask_out)
+            lr = layer(
+                x, encoder_padding_mask=encoder_padding_mask if has_pads else None
+            )
 
             if isinstance(lr, tuple) and len(lr) == 2:
                 x, fc_result = lr
@@ -303,13 +235,6 @@ class TransformerEncoderBase(FairseqEncoder):
                 assert encoder_states is not None
                 encoder_states.append(x)
                 fc_results.append(fc_result)
-
-        # change back to non-nested and Batch second
-        if NT_flag:
-            x = x.to_padded_tensor(0.0)
-
-        if NT_flag or BT_flag:
-            x = x.transpose(0, 1)
 
         if self.layer_norm is not None:
             x = self.layer_norm(x)
