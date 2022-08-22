@@ -13,14 +13,10 @@ import logging
 import os
 import sys
 from collections import OrderedDict
+from collections.abc import MutableMapping
 from contextlib import contextmanager
 from numbers import Number
 from typing import Optional
-
-if sys.version_info.major == 3 and sys.version_info.minor >= 10:
-    from collections.abc import MutableMapping
-else:
-    from collections import MutableMapping
 
 import torch
 
