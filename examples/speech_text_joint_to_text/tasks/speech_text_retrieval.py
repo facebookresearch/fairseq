@@ -41,7 +41,7 @@ class SpeechTextRetrievalTask(SpeechTextJointToTextTask):
             "--max-words",
             type=int,
             metavar="N",
-            default=1,
+            default=5,
             help="max number of words per sample",
         )
 
