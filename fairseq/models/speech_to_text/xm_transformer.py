@@ -249,7 +249,10 @@ def add_wav2vec_asr_args(parser):
         help="if set, then the weight-norm (in one pos_conv layer) is removed from the model",
     )
     parser.add_argument(
-        "--encoder-embed-dim", type=int, metavar="N", help="encoder embedding dimension to be used when w2v_path is None and no encoder_proj is set"
+        "--encoder-embed-dim",
+        type=int,
+        metavar="N",
+        help="encoder embedding dimension to be used when w2v_path is None and no encoder_proj is set",
     )
 
 
@@ -497,8 +500,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             "xm_transformer_s2ut_800m-es-en-st-asr-bt_h1_2022",
             "xm_transformer_s2ut_800m-en-es-st_plus_asr",
             "xm_transformer_s2ut_800m-hk-en-h1_2022",
-            "xm_transformer_s2ut_800m-en-hk-h1_2022"
-
+            "xm_transformer_s2ut_800m-en-hk-h1_2022",
         ]
         return {i: f"{base_url}/{i}.tar.gz" for i in model_ids}
 
@@ -514,6 +516,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         **kwargs,
     ):
         from fairseq import hub_utils
+
         x = hub_utils.from_pretrained(
             model_name_or_path,
             checkpoint_file,
@@ -557,7 +560,9 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             if args.w2v_path:
                 state = checkpoint_utils.load_checkpoint_to_cpu(args.w2v_path)
                 if state.get("cfg") is not None:
-                    encoder_embed_dim = state["cfg"]._content["model"]["encoder_embed_dim"]
+                    encoder_embed_dim = state["cfg"]._content["model"][
+                        "encoder_embed_dim"
+                    ]
                 elif state.get("args") is not None:
                     encoder_embed_dim = state["args"].encoder_embed_dim
                 else:

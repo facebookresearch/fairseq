@@ -246,7 +246,9 @@ class SpeechWavTransformerEncoder(FairseqEncoder):
 
         for i in range(len(self.feature_enc_layers)):
             input_lengths = _conv_out_length(
-                input_lengths, self.feature_enc_layers[i][1], self.feature_enc_layers[i][2]
+                input_lengths,
+                self.feature_enc_layers[i][1],
+                self.feature_enc_layers[i][2],
             )
 
         return input_lengths.to(torch.long)
