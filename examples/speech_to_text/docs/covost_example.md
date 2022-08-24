@@ -42,7 +42,8 @@ fairseq-train ${COVOST_ROOT}/en \
   --config-yaml config_asr_en.yaml --train-subset train_asr_en --valid-subset dev_asr_en \
   --save-dir ${ASR_SAVE_DIR} --num-workers 4 --max-tokens 50000 --max-update 60000 \
   --task speech_to_text --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
-  --report-accuracy --arch s2t_transformer_s --dropout 0.15 --optimizer adam --lr 2e-3 \
+  --report-accuracy --scoring wer --wer-tokenizer 13a --wer-remove-punct --wer-lowercase \
+  --arch s2t_transformer_s --dropout 0.15 --optimizer adam --lr 2e-3 \
   --lr-scheduler inverse_sqrt --warmup-updates 10000 --clip-norm 10.0 --seed 1 --update-freq 8 \
   --attn-type None --pos-enc-type ${POS_ENC_TYPE}
 ```
@@ -84,7 +85,8 @@ Fr-En as example:
 fairseq-train ${COVOST_ROOT}/fr \
   --config-yaml config_st_fr_en.yaml --train-subset train_st_fr_en --valid-subset dev_st_fr_en \
   --save-dir ${ST_SAVE_DIR} --num-workers 4 --max-update 30000 --max-tokens 40000 \  # --max-tokens 50000 for en-*
-  --task speech_to_text --criterion label_smoothed_cross_entropy --label-smoothing 0.1 --report-accuracy \
+  --task speech_to_text --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
+  --report-accuracy --scoring sacrebleu \
   --arch s2t_transformer_s --encoder-freezing-updates 1000 --optimizer adam --lr 2e-3 \
   --lr-scheduler inverse_sqrt --warmup-updates 10000 --clip-norm 10.0 --seed 1 --update-freq 8 \
   --attn-type None --pos-enc-type ${POS_ENC_TYPE} \
