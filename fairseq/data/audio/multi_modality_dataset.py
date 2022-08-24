@@ -48,7 +48,7 @@ def resampling_dataset_present(ds):
 # from the same type of dataset
 # If only one dataset is used, it will perform like the original dataset with mode added
 class MultiModalityDataset(ConcatDataset):
-    def __init__(self, datasets: List[ModalityDatasetItem]):
+    def __init__(self, datasets: List[ModalityDatasetItem], min_source_len=0):
         id_to_mode = []
         dsets = []
         max_tokens = []
@@ -68,6 +68,7 @@ class MultiModalityDataset(ConcatDataset):
         self.id_to_mode = id_to_mode
         self.raw_sub_batch_samplers = []
         self._cur_epoch = 0
+        self.min_source_len = min_source_len
 
     def set_epoch(self, epoch):
         super().set_epoch(epoch)
@@ -131,6 +132,8 @@ class MultiModalityDataset(ConcatDataset):
                 indices[i],
                 self.max_positions[i],
             )[0]
+            if hasattr(ds, 'filter_short_utterances'):
+                indices[i] = ds.filter_short_utterances(indices[i], self.min_source_len, ignore_invalid_inputs=True)
             sub_batch_sampler = ds.batch_by_size(
                 indices[i],
                 max_tokens=self.max_tokens[i],
