@@ -83,6 +83,9 @@ def from_pretrained(
             model_path,
             arg_overrides=kwargs,
         )
+    if "generation_args" in kwargs and kwargs["generation_args"]:
+        for key in kwargs["generation_args"]:
+            setattr(args["generation"], key, kwargs["generation_args"][key])
 
     return {
         "args": args,

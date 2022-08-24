@@ -510,10 +510,10 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         data_name_or_path=".",
         config_yaml="config.yaml",
         task="speech_to_text",
+        generation_args=None,
         **kwargs,
     ):
         from fairseq import hub_utils
-
         x = hub_utils.from_pretrained(
             model_name_or_path,
             checkpoint_file,
@@ -521,6 +521,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             archive_map=cls.hub_models(),
             config_yaml=config_yaml,
             task=task,
+            generation_args=generation_args,
             **kwargs,
         )
         return S2THubInterface(x["args"], x["task"], x["models"][0])

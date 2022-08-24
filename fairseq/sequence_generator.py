@@ -374,7 +374,7 @@ class SequenceGenerator(nn.Module):
             # handle max length constraint
             if step >= max_len:
                 lprobs[:, : self.eos] = -math.inf
-                lprobs[:, self.eos + 1 :] = -math.inf
+                lprobs[:, self.eos + 1:] = -math.inf
 
             # handle prefix tokens (possibly with different lengths)
             if (
@@ -604,7 +604,7 @@ class SequenceGenerator(nn.Module):
         if eos_mask.any():
             # validate that the first beam matches the prefix
             first_beam = tokens[eos_mask].view(-1, beam_size, tokens.size(-1))[
-                :, 0, 1 : step + 1
+                :, 0, 1: step + 1
             ]
             eos_mask_batch_dim = eos_mask.view(-1, beam_size)[:, 0]
             target_prefix = prefix_tokens[eos_mask_batch_dim][:, :step]
@@ -649,12 +649,12 @@ class SequenceGenerator(nn.Module):
         # tokens is (batch * beam, max_len). So the index_select
         # gets the newly EOS rows, then selects cols 1..{step + 2}
         tokens_clone = tokens.index_select(0, bbsz_idx)[
-            :, 1 : step + 2
+            :, 1: step + 2
         ]  # skip the first index, which is EOS
 
         tokens_clone[:, step] = self.eos
         attn_clone = (
-            attn.index_select(0, bbsz_idx)[:, :, 1 : step + 2]
+            attn.index_select(0, bbsz_idx)[:, :, 1: step + 2]
             if attn is not None
             else None
         )
