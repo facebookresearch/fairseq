@@ -30,7 +30,7 @@ class S2THubInterface(nn.Module):
         self.task = task
         self.model = model
         self.model.eval()
-        self.generator = self.task.build_generator([self.model], self.cfg)
+        self.generator = self.task.build_generator([self.model], self.cfg.generation)
 
     @classmethod
     def get_model_input(cls, task, audio: Union[str, torch.Tensor]):
