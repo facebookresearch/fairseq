@@ -20,12 +20,23 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
+from fairseq.models.speech_to_speech.modules import CTCDecoder
 from fairseq.models.speech_to_text.hub_interface import S2THubInterface
-from fairseq.models.transformer import Embedding, TransformerDecoder
+from fairseq.models.transformer import (
+    Embedding,
+    TransformerDecoder,
+    TransformerModelBase,
+)
 from fairseq.models.wav2vec import Wav2VecEncoder
 from fairseq.modules.layer_norm import LayerNorm
 
 logger = logging.getLogger(__name__)
+
+
+def build_embedding(dictionary, embed_dim):
+    num_embeddings = len(dictionary)
+    padding_idx = dictionary.pad()
+    return Embedding(num_embeddings, embed_dim, padding_idx)
 
 
 class Conv1dAdaptor(nn.Module):
@@ -249,7 +260,10 @@ def add_wav2vec_asr_args(parser):
         help="if set, then the weight-norm (in one pos_conv layer) is removed from the model",
     )
     parser.add_argument(
-        "--encoder-embed-dim", type=int, metavar="N", help="encoder embedding dimension to be used when w2v_path is None and no encoder_proj is set"
+        "--encoder-embed-dim",
+        type=int,
+        metavar="N",
+        help="encoder embedding dimension to be used when w2v_path is None and no encoder_proj is set",
     )
 
 
@@ -497,8 +511,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             "xm_transformer_s2ut_800m-es-en-st-asr-bt_h1_2022",
             "xm_transformer_s2ut_800m-en-es-st_plus_asr",
             "xm_transformer_s2ut_800m-hk-en-h1_2022",
-            "xm_transformer_s2ut_800m-en-hk-h1_2022"
-
+            "xm_transformer_s2ut_800m-en-hk-h1_2022",
         ]
         return {i: f"{base_url}/{i}.tar.gz" for i in model_ids}
 
@@ -514,6 +527,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         **kwargs,
     ):
         from fairseq import hub_utils
+
         x = hub_utils.from_pretrained(
             model_name_or_path,
             checkpoint_file,
@@ -557,7 +571,9 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             if args.w2v_path:
                 state = checkpoint_utils.load_checkpoint_to_cpu(args.w2v_path)
                 if state.get("cfg") is not None:
-                    encoder_embed_dim = state["cfg"]._content["model"]["encoder_embed_dim"]
+                    encoder_embed_dim = state["cfg"]._content["model"][
+                        "encoder_embed_dim"
+                    ]
                 elif state.get("args") is not None:
                     encoder_embed_dim = state["args"].encoder_embed_dim
                 else:
@@ -607,6 +623,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         _args.dropout = args.decoder_dropout
         _args.attention_dropout = args.decoder_attention_dropout
         _args.activation_dropout = args.decoder_activation_dropout
+        _args.layerdrop = _args.decoder_layerdrop
 
         decoder = TransformerDecoder(_args, task.target_dictionary, embed_tokens)
         decoder = cls.maybe_load_pretrained(
@@ -623,15 +640,10 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
 
         # make sure all arguments are present in older models
         base_architecture(args)
-        if getattr(args, "load_pretrained_decoder_from", None):
-            ckpt = torch.load(getattr(args, "load_pretrained_decoder_from", None))
-            decoder_args_dict = cls.get_decoder_args_from_checkpoint(ckpt["cfg"])
-            args = cls.override_decoder_args(args, decoder_args_dict)
-
-        def build_embedding(dictionary, embed_dim):
-            num_embeddings = len(dictionary)
-            padding_idx = dictionary.pad()
-            return Embedding(num_embeddings, embed_dim, padding_idx)
+        # if getattr(args, "load_pretrained_decoder_from", None) is not None:
+        #     ckpt = torch.load(getattr(args, "load_pretrained_decoder_from", None))
+        #     decoder_args_dict = cls.get_decoder_args_from_checkpoint(ckpt["cfg"])
+        #     args = cls.override_decoder_args(args, decoder_args_dict)
 
         decoder_embed_tokens = build_embedding(
             task.target_dictionary, args.decoder_embed_dim
@@ -640,6 +652,37 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         encoder = cls.build_encoder(args)
         decoder = cls.build_decoder(args, task, decoder_embed_tokens)
         return cls(encoder, decoder)
+
+    @classmethod
+    def build_multitask_decoder(cls, args, tgt_dict, in_dim):
+        decoder_args = args.decoder_args
+        decoder_args.encoder_embed_dim = in_dim
+        if args.decoder_type == "transformer":
+            from fairseq.models.speech_to_speech import (
+                base_multitask_text_transformer_decoder_arch,
+            )
+
+            base_multitask_text_transformer_decoder_arch(decoder_args)  # 2L
+            task_decoder = TransformerDecoder(
+                decoder_args,
+                tgt_dict,
+                embed_tokens=TransformerModelBase.build_embedding(
+                    decoder_args,
+                    tgt_dict,
+                    decoder_args.decoder_embed_dim,
+                ),
+            )
+        elif args.decoder_type == "ctc":
+            task_decoder = CTCDecoder(
+                dictionary=tgt_dict,
+                in_dim=in_dim,
+            )
+        else:
+            raise NotImplementedError(
+                "currently only support multitask decoder_type 'transformer', 'ctc'"
+            )
+
+        return task_decoder
 
     def get_normalized_probs(
         self,

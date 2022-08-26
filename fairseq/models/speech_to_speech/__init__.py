@@ -4,5 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 from .modules import *  # noqa
-from .s2s_transformer import *  # noqa
 from .s2s_conformer import *  # noqa
+from .s2s_conformer_t2 import *  # noqa
+from .s2s_transformer import *  # noqa

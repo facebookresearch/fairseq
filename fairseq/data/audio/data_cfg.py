@@ -297,3 +297,17 @@ class SingleTaskConfig(object):
                 loss_weight_min,
             )
         return weight
+
+    @property
+    def prepend_bos_and_append_tgt_lang_tag(self) -> bool:
+        """Prepend BOS and append target lang ID token to the target (e.g. mBART with language token pretraining)."""
+        return self.config.get("prepend_bos_and_append_tgt_lang_tag", False)
+
+    @property
+    def eos_token(self):
+        """EOS token during generation"""
+        return self.config.get("eos_token", "<eos>")
+
+    @property
+    def rdrop_alpha(self):
+        return self.config.get("rdrop_alpha", 0.0)

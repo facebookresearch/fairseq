@@ -91,7 +91,6 @@ class SequenceGenerator(nn.Module):
             ).long()
 
         self.vocab_size = len(tgt_dict)
-        self.beam_size = beam_size
         # the max beam size is the dictionary size - 1, since we never select pad
         self.beam_size = min(beam_size, self.vocab_size - 1)
         self.model.set_decoder_beam_size(self.beam_size)
@@ -210,13 +209,6 @@ class SequenceGenerator(nn.Module):
         constraints: Optional[Tensor] = None,
         bos_token: Optional[int] = None,
     ):
-        incremental_states = torch.jit.annotate(
-            List[Dict[str, Dict[str, Optional[Tensor]]]],
-            [
-                torch.jit.annotate(Dict[str, Dict[str, Optional[Tensor]]], {})
-                for i in range(self.model.models_size)
-            ],
-        )
         net_input = sample["net_input"]
 
         if "src_tokens" in net_input:
@@ -245,18 +237,55 @@ class SequenceGenerator(nn.Module):
                 + str(net_input.keys())
             )
 
-        # bsz: total number of sentences in beam
-        # Note that src_tokens may have more than 2 dimensions (i.e. audio features)
-        bsz, src_len = src_tokens.size()[:2]
-        beam_size = self.beam_size
-
         if constraints is not None and not self.search.supports_constraints:
             raise NotImplementedError(
                 "Target-side constraints were provided, but search method doesn't support them"
             )
 
         # Initialize constraints, when active
-        self.search.init_constraints(constraints, beam_size)
+        self.search.init_constraints(constraints, self.beam_size)
+
+        # compute the encoder output for each beam
+        with torch.autograd.profiler.record_function("EnsembleModel: forward_encoder"):
+            encoder_outs = self.model.forward_encoder(net_input)
+
+        finalized = self.generate_decoder(
+            encoder_outs,
+            src_tokens,
+            src_lengths,
+            sample,
+            prefix_tokens,
+            constraints,
+            bos_token,
+        )
+        return finalized
+
+    def generate_decoder(
+        self,
+        encoder_outs,
+        src_tokens,
+        src_lengths,
+        sample: Dict[str, Dict[str, Tensor]],
+        prefix_tokens: Optional[Tensor] = None,
+        constraints: Optional[Tensor] = None,
+        bos_token: Optional[int] = None,
+        aux_task_name="",
+        encoder_outs2: Optional[Tensor] = None,
+    ):
+        incremental_states = torch.jit.annotate(
+            List[Dict[str, Dict[str, Optional[Tensor]]]],
+            [
+                torch.jit.annotate(Dict[str, Dict[str, Optional[Tensor]]], {})
+                for i in range(self.model.models_size)
+            ],
+        )
+
+        # bsz: total number of sentences in beam
+        # Note that src_tokens may have more than 2 dimensions (i.e. audio features)
+        bsz, src_len = src_tokens.size()[:2]
+        beam_size = self.beam_size
+
+        decoder_name = f"{aux_task_name}_decoder" if aux_task_name else "decoder"
 
         max_len: int = -1
         if self.match_source_len:
@@ -269,9 +298,6 @@ class SequenceGenerator(nn.Module):
         assert (
             self.min_len <= max_len
         ), "min_len cannot be larger than max_len, please adjust these!"
-        # compute the encoder output for each beam
-        with torch.autograd.profiler.record_function("EnsembleModel: forward_encoder"):
-            encoder_outs = self.model.forward_encoder(net_input)
 
         # placeholder of indices for bsz * beam_size to hold tokens and accumulative scores
         new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)
@@ -279,6 +305,8 @@ class SequenceGenerator(nn.Module):
         encoder_outs = self.model.reorder_encoder_out(encoder_outs, new_order)
         # ensure encoder_outs is a List.
         assert encoder_outs is not None
+        if encoder_outs2 is not None:
+            encoder_outs2 = self.model.reorder_encoder_out(encoder_outs2, new_order)
 
         # initialize buffers
         scores = (
@@ -344,10 +372,16 @@ class SequenceGenerator(nn.Module):
                         corr.unsqueeze(-1) * beam_size
                     )
                     original_batch_idxs = original_batch_idxs[batch_idxs]
-                self.model.reorder_incremental_state(incremental_states, reorder_state)
+                self.model.reorder_incremental_state(
+                    incremental_states, reorder_state, decoder_name
+                )
                 encoder_outs = self.model.reorder_encoder_out(
                     encoder_outs, reorder_state
                 )
+                if encoder_outs2 is not None:
+                    encoder_outs2 = self.model.reorder_encoder_out(
+                        encoder_outs2, reorder_state
+                    )
             with torch.autograd.profiler.record_function(
                 "EnsembleModel: forward_decoder"
             ):
@@ -356,9 +390,11 @@ class SequenceGenerator(nn.Module):
                     encoder_outs,
                     incremental_states,
                     self.temperature,
+                    decoder_name=decoder_name,
+                    encoder_outs2=encoder_outs2,
                 )
 
-            if self.lm_model is not None:
+            if self.lm_model is not None and not aux_task_name:
                 lm_out = self.lm_model(tokens[:, : step + 1])
                 probs = self.lm_model.get_normalized_probs(
                     lm_out, log_probs=True, sample=None
@@ -374,7 +410,7 @@ class SequenceGenerator(nn.Module):
             # handle max length constraint
             if step >= max_len:
                 lprobs[:, : self.eos] = -math.inf
-                lprobs[:, self.eos + 1:] = -math.inf
+                lprobs[:, self.eos + 1 :] = -math.inf
 
             # handle prefix tokens (possibly with different lengths)
             if (
@@ -604,7 +640,7 @@ class SequenceGenerator(nn.Module):
         if eos_mask.any():
             # validate that the first beam matches the prefix
             first_beam = tokens[eos_mask].view(-1, beam_size, tokens.size(-1))[
-                :, 0, 1: step + 1
+                :, 0, 1 : step + 1
             ]
             eos_mask_batch_dim = eos_mask.view(-1, beam_size)[:, 0]
             target_prefix = prefix_tokens[eos_mask_batch_dim][:, :step]
@@ -649,12 +685,12 @@ class SequenceGenerator(nn.Module):
         # tokens is (batch * beam, max_len). So the index_select
         # gets the newly EOS rows, then selects cols 1..{step + 2}
         tokens_clone = tokens.index_select(0, bbsz_idx)[
-            :, 1: step + 2
+            :, 1 : step + 2
         ]  # skip the first index, which is EOS
 
         tokens_clone[:, step] = self.eos
         attn_clone = (
-            attn.index_select(0, bbsz_idx)[:, :, 1: step + 2]
+            attn.index_select(0, bbsz_idx)[:, :, 1 : step + 2]
             if attn is not None
             else None
         )
@@ -807,23 +843,38 @@ class EnsembleModel(nn.Module):
         encoder_outs: List[Dict[str, List[Tensor]]],
         incremental_states: List[Dict[str, Dict[str, Optional[Tensor]]]],
         temperature: float = 1.0,
+        decoder_name="decoder",
+        encoder_outs2: List[Dict[str, List[Tensor]]] = None,
     ):
         log_probs = []
         avg_attn: Optional[Tensor] = None
         encoder_out: Optional[Dict[str, List[Tensor]]] = None
+        encoder_out2: Optional[Dict[str, List[Tensor]]] = None
         for i, model in enumerate(self.models):
             if self.has_encoder():
                 encoder_out = encoder_outs[i]
+                if encoder_outs2 is not None:
+                    encoder_out2 = encoder_outs2[i]
             # decode each model
             if self.has_incremental_states():
-                decoder_out = model.decoder.forward(
-                    tokens,
-                    encoder_out=encoder_out,
-                    incremental_state=incremental_states[i],
-                )
+                if encoder_out2 is not None:
+                    decoder_out = getattr(model, decoder_name).forward(
+                        tokens,
+                        encoder_out=encoder_out,
+                        encoder_out2=encoder_out2,
+                        incremental_state=incremental_states[i],
+                    )
+                else:
+                    decoder_out = getattr(model, decoder_name).forward(
+                        tokens,
+                        encoder_out=encoder_out,
+                        incremental_state=incremental_states[i],
+                    )
             else:
-                if hasattr(model, "decoder"):
-                    decoder_out = model.decoder.forward(tokens, encoder_out=encoder_out)
+                if hasattr(model, decoder_name):
+                    decoder_out = getattr(model, decoder_name).forward(
+                        tokens, encoder_out=encoder_out
+                    )
                 else:
                     decoder_out = model.forward(tokens)
 
@@ -845,7 +896,7 @@ class EnsembleModel(nn.Module):
                 decoder_out[0][:, -1:, :].div_(temperature),
                 None if decoder_len <= 1 else decoder_out[1],
             )
-            probs = model.get_normalized_probs(
+            probs = getattr(model, decoder_name).get_normalized_probs(
                 decoder_out_tuple, log_probs=True, sample=None
             )
             probs = probs[:, -1, :]
@@ -896,11 +947,12 @@ class EnsembleModel(nn.Module):
         self,
         incremental_states: List[Dict[str, Dict[str, Optional[Tensor]]]],
         new_order,
+        decoder_name="decoder",
     ):
         if not self.has_incremental_states():
             return
         for i, model in enumerate(self.models):
-            model.decoder.reorder_incremental_state_scripting(
+            getattr(model, decoder_name).reorder_incremental_state_scripting(
                 incremental_states[i], new_order
             )
 
