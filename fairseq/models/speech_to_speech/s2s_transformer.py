@@ -416,8 +416,8 @@ class S2UTTransformerModel(S2STransformerMultitaskModelBase):
         return decoder_out
 
 
-@register_model("s2spect_transformer")
-class S2SpecTTransformerModel(S2STransformerMultitaskModelBase):
+@register_model("translatotron_transformer")
+class TranslatotronTransformerModel(S2STransformerMultitaskModelBase):
     """
     Speech-to-spectrogram model with S2T Transformer encoder + TTS Transformer decoder
     """
@@ -675,9 +675,9 @@ def s2ut_architecture_fisher(args):
 
 
 @register_model_architecture(
-    model_name="s2spect_transformer", arch_name="s2spect_transformer"
+    model_name="translatotron_transformer", arch_name="translatotron_transformer"
 )
-def s2spect_architecture_base(args):
+def translatotron_architecture_base(args):
     base_s2st_transformer_encoder_architecture(args)
 
     # decoder
@@ -701,8 +701,10 @@ def s2spect_architecture_base(args):
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 4)
 
 
-@register_model_architecture("s2spect_transformer", "s2spect_transformer_fisher")
-def s2spect_architecture_fisher(args):
+@register_model_architecture(
+    "translatotron_transformer", "translatotron_transformer_fisher"
+)
+def translatotron_architecture_fisher(args):
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 256)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 256 * 8)
     args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 4)
@@ -711,4 +713,16 @@ def s2spect_architecture_fisher(args):
     # decoder
     args.prenet_dim = getattr(args, "prenet_dim", 32)
 
-    s2spect_architecture_base(args)
+    translatotron_architecture_base(args)
+
+
+# for old models
+@register_model_architecture("translatotron_transformer", "s2spect_transformer")
+def translatotron_architecture_base_legacy(args):
+    translatotron_architecture_base(args)
+
+
+# for old models
+@register_model_architecture("translatotron_transformer", "s2spect_transformer_fisher")
+def translatotron_architecture_fisher_legacy(args):
+    translatotron_architecture_fisher(args)

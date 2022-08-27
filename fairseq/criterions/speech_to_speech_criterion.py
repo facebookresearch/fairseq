@@ -252,7 +252,7 @@ class SpeechToUnitMultitaskTaskCriterion(
 
 
 @register_criterion(
-    "speech_to_unit_translatotron2", dataclass=LabelSmoothedCrossEntropyCriterionConfig
+    "speech_to_unit_2pass", dataclass=LabelSmoothedCrossEntropyCriterionConfig
 )
 class SpeechToUnitTranslatotron2MultitaskTaskCriterion(
     SpeechToUnitMultitaskTaskCriterion
@@ -429,9 +429,7 @@ class SpeechToSpectrogramMultitaskTaskCriterion(Tacotron2Criterion, MultitaskCri
         MultitaskCriterion.reduce_metrics(logging_outputs)
 
 
-@register_criterion(
-    "speech_to_spectrogram_translatotron2", dataclass=Tacotron2CriterionConfig
-)
+@register_criterion("speech_to_spectrogram_2pass", dataclass=Tacotron2CriterionConfig)
 class SpeechToSpectrogramTranslatotron2MultitaskTaskCriterion(
     Tacotron2Criterion, MultitaskCriterion
 ):

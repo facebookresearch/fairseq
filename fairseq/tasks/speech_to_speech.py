@@ -396,7 +396,7 @@ class SpeechToSpeechTask(LegacyFairseqTask):
             )
 
         from fairseq.models.speech_to_speech import (
-            SpecT2ConformerModel,
+            Translatotron2ConformerModel,
             UnitYConformerModel,
         )
 
@@ -424,7 +424,7 @@ class SpeechToSpeechTask(LegacyFairseqTask):
                     self.args.target_code_size,
                 )
         else:
-            if isinstance(models[0], SpecT2ConformerModel):
+            if isinstance(models[0], Translatotron2ConformerModel):
                 if getattr(args, "teacher_forcing", False):
                     raise NotImplementedError
                 else:

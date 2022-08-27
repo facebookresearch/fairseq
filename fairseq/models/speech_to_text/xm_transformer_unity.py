@@ -305,8 +305,9 @@ def base_architecture_unity(args):
     args.decoder_learned_pos = False
 
 
+# for old models
 @register_model_architecture(
     model_name="unity_xm_transformer", arch_name="xm_transformer_t2"
 )
-def base_architecture_legacy(args):
+def base_architecture_unity_legacy(args):
     base_architecture_unity(args)

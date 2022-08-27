@@ -162,7 +162,7 @@ class SpeechToTextTask(LegacyFairseqTask):
         args.speaker_to_id = self.speaker_to_id
         return super(SpeechToTextTask, self).build_model(args, from_checkpoint)
 
-    def build_generator_translatotron2(
+    def build_generator_unity(
         self,
         models,
         args,
@@ -246,7 +246,7 @@ class SpeechToTextTask(LegacyFairseqTask):
         from fairseq.models.speech_to_text import UnitYXMTransformerModel
 
         if isinstance(models[0], UnitYXMTransformerModel):
-            return self.build_generator_translatotron2(
+            return self.build_generator_unity(
                 models,
                 args,
                 extra_gen_cls_kwargs=extra_gen_cls_kwargs,
