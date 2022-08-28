@@ -748,6 +748,7 @@ class TransformerDecoderLayerBase(nn.Module):
         need_attn: bool = False,
         need_head_weights: bool = False,
         tokens: Optional[Tensor] = None,
+        encoder_embeddings: Optional[torch.Tensor] = None,
     ) -> Tuple[
         Tensor, Tensor, Optional[List[Optional[Tensor]]], Optional[Dict[str, Tensor]]
     ]:
@@ -888,9 +889,10 @@ class TransformerDecoderLayerBase(nn.Module):
                     x,
                     input_padding_mask=self_attn_padding_mask,
                     prefix_tokens=prefix_tokens,
+                    encoder_embeddings=encoder_embeddings
                 )
             else:
-                x, l_aux = moe_module(x, prefix_tokens=prefix_tokens)
+                x, l_aux = moe_module(x, prefix_tokens=prefix_tokens, encoder_embeddings=encoder_embeddings)
 
             if self.moe_fom:
                 if self.training:
@@ -933,6 +935,7 @@ class TransformerDecoderLayer(TransformerDecoderLayerBase):
         add_bias_kv=False,
         add_zero_attn=False,
         is_moe_layer=False,
+        encoder_embeddings: Optional[torch.Tensor] = None
     ):
         from fairseq.models.transformer import TransformerConfig
 
