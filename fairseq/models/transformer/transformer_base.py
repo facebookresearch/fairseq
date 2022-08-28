@@ -157,11 +157,13 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
 
     @classmethod
     def build_decoder(cls, cfg, tgt_dict, embed_tokens):
+        pass_encoder_embeddings =  cfg.task_level_decoder_routing
         return TransformerDecoderBase(
             cfg,
             tgt_dict,
             embed_tokens,
             no_encoder_attn=cfg.no_cross_attention,
+            pass_encoder_embeddings=pass_encoder_embeddings
         )
 
     # TorchScript doesn't support optional arguments with variable length (**kwargs).

@@ -311,6 +311,7 @@ class Top2Gate(torch.nn.Module):
         batch_prioritized_routing=False,
         use_tutel=False,
         init_model_on_gpu=False,
+        task_level_routing = False
     ) -> None:
         super().__init__()
         self.wg = Linear(
@@ -322,9 +323,15 @@ class Top2Gate(torch.nn.Module):
         self.moe_eval_capacity_token_fraction = moe_eval_capacity_token_fraction
         self.batch_prioritized_routing = batch_prioritized_routing
         self.use_tutel = use_tutel
+        self.task_level_routing = task_level_routing
 
-    def forward(self, input: torch.Tensor, mask: Optional[torch.Tensor] = None, moe_eval_capacity_length: Optional[int] = None, prefix_tokens: Optional[torch.Tensor] = None) -> Tuple[Tensor, Tensor, Tensor]:  # type: ignore
-        logits = self.wg(input)
+    def forward(self, input: torch.Tensor, mask: Optional[torch.Tensor] = None, moe_eval_capacity_length: Optional[int] = None, prefix_tokens: Optional[torch.Tensor] = None,task_embeddings: Optional[torch.Tensor] = None) -> Tuple[Tensor, Tensor, Tensor]:  # type: ignore
+        if task_embeddings is None:
+            logits = self.wg(input)
+        else:
+            ## get logits from task embeddings
+            logits = self.wg(task_embeddings)
+            
         return top2gating(
             logits,
             mask,

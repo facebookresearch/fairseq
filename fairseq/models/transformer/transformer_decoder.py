@@ -60,6 +60,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         embed_tokens,
         no_encoder_attn=False,
         output_projection=None,
+        pass_encoder_embeddings=False
     ):
         self.cfg = cfg
         super().__init__(dictionary)
@@ -74,6 +75,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
 
         self.decoder_layerdrop = cfg.decoder.layerdrop
         self.share_input_output_embed = cfg.share_decoder_input_output_embed
+        self.pass_encoder_embeddings = pass_encoder_embeddings
 
         input_embed_dim = embed_tokens.embedding_dim
         embed_dim = cfg.decoder.embed_dim
@@ -430,6 +432,10 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         x, _ = self.forward_embedding(
             prev_output_tokens, token_embeddings, incremental_state
         )
+        if self.pass_encoder_embeddings:
+            encoder_embeddings = encoder_out["encoder_embedding"][0]
+        else:
+            encoder_embeddings = None
 
         if incremental_state is None and not full_context_alignment:
             self_attn_mask = self.buffered_future_mask(x)
@@ -468,6 +474,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
                 need_attn=bool((idx == alignment_layer)),
                 need_head_weights=bool((idx == alignment_layer)),
                 tokens=prev_output_tokens,
+                encoder_embeddings=encoder_embeddings,
             )
             for key in loss_keys:
                 results[key].append((l_aux_i or {}).get(key, None))

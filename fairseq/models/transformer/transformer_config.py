@@ -399,6 +399,9 @@ class TransformerConfig(FairseqDataclass):
         default=False,
         metadata={"help": "use tutel moe"},
     )
+    task_level_decoder_routing: bool = field(
+        default=False
+    )
 
     # We need to make this hierarchical dataclass like the flat namespace
     # __getattr__ and __setattr__ here allow backward compatibility

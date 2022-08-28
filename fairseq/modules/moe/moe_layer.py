@@ -131,7 +131,8 @@ class MOELayer(Base):
         self.moe_local_drop = moe_local_drop
 
     def forward(
-        self, *input: Tensor, input_padding_mask=None, prefix_tokens=None, **kwargs: Any
+        self, *input: Tensor, input_padding_mask=None, prefix_tokens=None, 
+        encoder_embeddings: Optional[Tensor]=None, **kwargs: Any
     ) -> Tensor:
         assert len(input) == 1, "only single input Tensor supported"
         input = input[0]
@@ -158,6 +159,14 @@ class MOELayer(Base):
         # This indicates that --batch-size or --max-sentences is not specified
         if expected_bsz is None:
             expected_bsz = 0
+
+        ## add in task level decoder routing
+        if encoder_embeddings is not None:
+            encoder_embeddings = encoder_embeddings[:, 0].unsqueeze(1).repeat(1,n_tok,1) ## repeat first tokens embedding across 
+            reshaped_encoder_embedding = encoder_embeddings.reshape(-1, d_model)
+        else:
+            reshaped_encoder_embedding = None
+
         # Note: Padding is not necessary at generation time at present
         # because all DDP workers process the same batch. Also, batch size at generation time
         # can be different from that present in the checkpoint state
@@ -202,6 +211,17 @@ class MOELayer(Base):
                 padded_prefix_tokens[: input_shape[0], :] = prefix_tokens
                 prefix_tokens = padded_prefix_tokens
 
+            if encoder_embeddings is not None:
+                padded_encoder_embeddings = torch.zeros(
+                    (expected_bsz, input.shape[1], input.shape[2]),
+                    dtype=input.dtype, layout=input.layout, device=input.device)
+                
+                
+                padded_encoder_embeddings[:input_shape[0], :, :] = encoder_embeddings
+                encoder_embeddings = padded_encoder_embeddings
+            else:
+                reshaped_encoder_embedding = None
+
         # Reshape into S tokens by dropping sequence dimension.
         reshaped_input = input.reshape(-1, d_model)
         reshaped_input_shape = reshaped_input.shape
@@ -236,6 +256,13 @@ class MOELayer(Base):
             padded_input[: reshaped_input_shape[0], :] = reshaped_input
             reshaped_input = padded_input
 
+            if encoder_embeddings is not None:
+                padded_embeddings = torch.zeros(
+                    (expected_dim, reshaped_input_shape[1]),
+                    dtype=input.dtype, layout=input.layout, device=input.device)
+                padded_embeddings[:reshaped_input_shape[0], :] = reshaped_encoder_embedding
+                reshaped_encoder_embedding = padded_embeddings
+
             padded_input_padding_mask = torch.ones(
                 (expected_dim,), dtype=torch.bool, device=padded_input.device
             )
@@ -266,6 +293,7 @@ class MOELayer(Base):
                 reshaped_input_padding_mask,
                 eval_capacity_length,
                 prefix_tokens=reshaped_prefix_tokens,
+                task_embeddings = reshaped_encoder_embedding
             )
             S, M = reshaped_input.size(0), reshaped_input.size(1)
 
@@ -281,6 +309,7 @@ class MOELayer(Base):
                 reshaped_input_padding_mask,
                 eval_capacity_length,
                 prefix_tokens=reshaped_prefix_tokens,
+                task_embeddings = reshaped_encoder_embedding
             )
             dispatch_mask = dispatch_mask.to(input.dtype).permute(
                 1, 2, 0
