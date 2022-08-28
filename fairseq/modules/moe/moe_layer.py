@@ -136,6 +136,7 @@ class MOELayer(Base):
     ) -> Tensor:
         assert len(input) == 1, "only single input Tensor supported"
         input = input[0]
+        n_tok = input.shape[1]
         assert (
             len(input.shape) == 3
         ), "input Tensor must have dimensions: (s)equence, (t)oken, (m)odel"
