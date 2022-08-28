@@ -603,6 +603,7 @@ class TransformerDecoder(TransformerDecoderBase):
         embed_tokens,
         no_encoder_attn=False,
         output_projection=None,
+        pass_encoder_embeddings=False
     ):
         self.args = args
         super().__init__(
@@ -611,6 +612,7 @@ class TransformerDecoder(TransformerDecoderBase):
             embed_tokens,
             no_encoder_attn=no_encoder_attn,
             output_projection=output_projection,
+            pass_encoder_embeddings=pass_encoder_embeddings
         )
 
     def build_output_projection(self, args, dictionary, embed_tokens):
