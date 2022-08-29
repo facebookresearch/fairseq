@@ -1,4 +1,7 @@
-
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 import torch
 
 from fairseq.models.fairseq_model import FairseqLanguageModel
@@ -8,8 +11,9 @@ TAGS = {'CARDINAL', 'DATE', 'EVENT', 'FAC', 'GPE', 'LANGUAGE', 'LAW', 'LOC', 'MO
 
 
 class ClassBasedLanguageModel(FairseqLanguageModel):
-    def __init__(self, lm, dictionary, tags):
+    def __init__(self, lm, lm_generic, dictionary, tags):
         super().__init__(lm.decoder)
+        self.generic_decoder = lm_generic.decoder
         self.dictionary = dictionary
         self.initial_tags_idxs = set()
         self.end_tags_idxs = set()
@@ -36,5 +40,5 @@ class ClassBasedLanguageModel(FairseqLanguageModel):
             if inside_class_tag:
                 out_scores.append(self.decoder(sample[idx:].unsqueeze(0))[0][:, -1:, :])
             else:
-                out_scores.append(torch.zeros((1, 1, len(self.dictionary))).to(src_tokens.device))
+                out_scores.append(self.generic_decoder(sample.unsqueeze(0))[0][:, -1:, :])
         return (torch.cat(out_scores), )

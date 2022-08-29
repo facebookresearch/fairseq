@@ -171,7 +171,9 @@ class SpeechToTextTask(LegacyFairseqTask):
 
         if getattr(self.args, "lm_is_class_based", False):
             from examples.speech_text_joint_to_text.models.class_lm import ClassBasedLanguageModel, TAGS
-            extra_gen_cls_kwargs["lm_model"] = ClassBasedLanguageModel(extra_gen_cls_kwargs["lm_model"], self.target_dictionary, TAGS)
+            extra_gen_cls_kwargs["lm_model"] = ClassBasedLanguageModel(
+                extra_gen_cls_kwargs["lm_model"], extra_gen_cls_kwargs["lm_model_aux"], self.target_dictionary, TAGS)
+            del extra_gen_cls_kwargs["lm_model_aux"]
 
         return super().build_generator(
             models, args, seq_gen_cls=None, extra_gen_cls_kwargs=extra_gen_cls_kwargs
