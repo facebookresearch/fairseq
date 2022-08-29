@@ -106,7 +106,7 @@ class SpeechTextRetrievalDataset(BaseWrapperDataset):
             negative_sample_idx = self.in_batch_negative_sample(batch_size, sample_id)
             # if no negative was found in batch, take it from other
             # samples in the dataset
-            if negative_sample_idx < 0:
+            if negative_sample_idx < 0 or n_tentative > 50:
                 tentative_neg = self.out_of_batch_negative_sample(samples[sample_id].index)
             elif len(samples[negative_sample_idx].entities) > 0 and random() < 0.9:
                 tentative_neg = samples[negative_sample_idx].entities[
