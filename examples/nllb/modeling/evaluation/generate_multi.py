@@ -336,16 +336,16 @@ def get_type(pair):
     # High resource +1M, low resource 0-1M; Very low resource <0.1M
     low_limits = {"high": 1000000, "low": 0, "v_low": 0}
     high_limits = {"high": 10000000000, "low": 1000000, "v_low": 100000}
-    lang = pair.split("-")[1]
-    if lang == "eng_Latn" or lang == "eng":
-        lang = pair.split("-")[0]
-    if lang not in train_counts2:
-        if lang in lang_code_map:
-            lang = lang_code_map[lang]
-        if lang not in train_counts2:
-            print(f"{lang} is not in train_counts")
+    src, tgt = pair.split("-")
+    if src not in train_counts2 or tgt not in train_counts2:
+        if src in lang_code_map:
+            src = lang_code_map[src]
+        if tgt in lang_code_map:
+            tgt = lang_code_map[tgt]
+        if src not in train_counts2 or tgt not in train_counts2:
+            print(f"{src} or {tgt} is not in train_counts")
             return None
-    count = train_counts2[lang]
+    count = min(train_counts2[src], train_counts2[tgt])
     resource = None
     for t in low_limits.keys():
         if count >= low_limits[t] and count <= high_limits[t]:
