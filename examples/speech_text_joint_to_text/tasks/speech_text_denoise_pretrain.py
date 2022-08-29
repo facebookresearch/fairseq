@@ -654,7 +654,7 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
 
                 dset = datasets[0] if len(datasets) == 1 else ConcatDataset(datasets)
                 dsitem = self.create_modalitydatasetitem("sup_speech_entities", dset)
-                self.datasets[split] = MultiModalityDataset([dsitem])
+                self.datasets[split] = MultiModalityDataset([dsitem], min_source_len=self.args.min_source_len)
 
             elif dtype == "unsup_speech":
                 assert self.args.unsup_speech_valid_data != ""
@@ -726,26 +726,25 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
         assert isinstance(dataset, MultiModalityDataset)
         if len(dataset.id_to_mode) == 1:
             if dataset.id_to_mode[0] == 'sup_speech_entities':
-                ds = dataset[0]
                 max_positions = dataset.max_positions[0]
                 max_tokens = dataset.max_tokens[0]
                 max_sentences = dataset.max_sentences[0]
 
-                ds.set_epoch(epoch)
+                dataset.set_epoch(epoch)
 
                 # get indices ordered by example size
                 with data_utils.numpy_seed(seed):
-                    indices = ds.ordered_indices()
+                    indices = dataset.ordered_indices()
 
                 # filter examples that are too large
                 if max_positions is not None:
                     indices = self.filter_indices_by_size(
                         indices, dataset, max_positions, ignore_invalid_inputs
                     )
-                ds.filter_short_utterances(indices, ds.min_source_len, ignore_invalid_inputs)
+                indices = dataset.datasets[0].filter_short_utterances(indices, dataset.min_source_len, ignore_invalid_inputs)
 
                 # create mini-batches with given size constraints
-                batch_sampler = ds.batch_by_size(
+                batch_sampler = dataset.batch_by_size(
                     indices,
                     max_tokens=max_tokens,
                     max_sentences=max_sentences,
@@ -754,8 +753,8 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
 
                 # return a reusable, sharded iterator
                 return iterators.EpochBatchIterator(
-                    dataset=ds,
-                    collate_fn=ds.collater,
+                    dataset=dataset,
+                    collate_fn=dataset.collater,
                     batch_sampler=batch_sampler,
                     seed=seed,
                     num_shards=num_shards,
