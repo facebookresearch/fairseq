@@ -23,13 +23,16 @@ In addition to supporting more than 200x200 translation directions, we also prov
 ### Multilingual Translation Models
 | Model Name | Model Type | #params | checkpoint | metrics |
 | - | - | - | - | - |
-| NLLB-200 | MoE | 54.5B |[model](https://tinyurl.com/nllb200moe54bmodel) | [metrics](https://tinyurl.com/nllb200moe54bmetrics) |
+| NLLB-200 | MoE | 54.5B |[model](https://tinyurl.com/nllb200moe54bmodel) | [metrics](https://tinyurl.com/nllb200moe54bmetrics), [translations](https://tinyurl.com/nllbflorestranslations) |
 | NLLB-200 | Dense | 3.3B |[model](https://tinyurl.com/nllb200dense3bcheckpoint) | [metrics](https://tinyurl.com/nllb200dense3bmetrics) |
 | NLLB-200 | Dense | 1.3B |[model](https://tinyurl.com/nllb200dense1bcheckpoint) | [metrics](https://tinyurl.com/nllb200dense1bmetrics) |
 | NLLB-200-Distilled | Dense | 1.3B | [model](https://tinyurl.com/nllb200densedst1bcheckpoint) | [metrics](https://tinyurl.com/nllb200densedst1bmetrics) |
 | NLLB-200-Distilled | Dense | 600M | [model](https://tinyurl.com/nllb200densedst600mcheckpoint) | [metrics](https://tinyurl.com/nllb200densedst600mmetrics) |
 
 All models are licensed under CC-BY-NC 4.0 available in [Model LICENSE](LICENSE.model.md) file. We provide FLORES-200 evaluation results for all the models. For more details see the [Modeling section README](examples/nllb/modeling/README.md).
+
+:star: NEW :star: : We are releasing all the translations of NLLB-200 MoE model. Check [Evaluation section README](examples/nllb/evaluation/README.md) for more details.
+
 
 > Please use `wget --trust-server-names <url>` to download the provided links in proper file format.
 
