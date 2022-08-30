@@ -42,7 +42,7 @@ class CompositeAudioWaveformTransform(CompositeAudioTransform):
             config,
         )
 
-    def __call__(self, x, always_2d=False, use_sample_rate=None):
+    def __call__(self, x, sample_rate):
         for t in self.transforms:
-            x = t(x, always_2d, use_sample_rate)
-        return x
+            x, sample_rate = t(x, sample_rate)
+        return x, sample_rate

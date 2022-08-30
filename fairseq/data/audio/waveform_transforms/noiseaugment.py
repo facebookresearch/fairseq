@@ -104,14 +104,18 @@ class NoiseAugmentTransform(AudioWaveformTransform):
     def _get_noise(self, goal_shape, always_2d=False, use_sample_rate=None):
         return self.pick_sample(goal_shape, always_2d, use_sample_rate)
 
-    def __call__(self, source, always_2d=False, use_sample_rate=None):
+    def __call__(self, source, sample_rate):
         if np.random.random() > self.rate:
-            return source
+            return source, sample_rate
 
         noise = self._get_noise(
-            source.shape, always_2d=always_2d, use_sample_rate=use_sample_rate
+            source.shape, always_2d=True, use_sample_rate=sample_rate
         )
-        return self._mix(source, noise, rand_uniform(self.snr_min, self.snr_max))
+
+        return (
+            self._mix(source, noise, rand_uniform(self.snr_min, self.snr_max)),
+            sample_rate,
+        )
 
 
 @register_audio_waveform_transform("musicaugment")

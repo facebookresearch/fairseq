@@ -116,13 +116,12 @@ def get_waveform(
 
     if not normalization:
         waveform *= 2**15  # denormalized to 16-bit signed integers
-    if not always_2d:
-        waveform = waveform.squeeze(axis=0)
 
     if waveform_transforms is not None:
-        waveform = waveform_transforms(
-            waveform, always_2d=always_2d, use_sample_rate=sample_rate
-        )
+        waveform, sample_rate = waveform_transforms(waveform, sample_rate)
+
+    if not always_2d:
+        waveform = waveform.squeeze(axis=0)
 
     return waveform, sample_rate
 
