@@ -1553,10 +1553,8 @@ class MultilingualDatasetManager(object):
     @classmethod
     def _get_shard_num_dict(cls, split, paths):
         shards = defaultdict(int)
-        logger.info(f"paths : {paths}")
         for path in paths:
             files = PathManager.ls(path)
-            logger.info(f"files: {files}")
             directions = set()
             split_subs = split.split(",")
             for f in files:
