@@ -1572,7 +1572,7 @@ class MultilingualDatasetManager(object):
             return self._num_shards_dict[split]
         num_shards_dict = {}
         data_paths, lang_pairs = self.get_data_paths_and_lang_pairs(split)
-        logger.info(data_paths)
+        logger.info(f"datapath1: {data_paths}")
         for data_category, paths in data_paths.items():
             if data_category not in lang_pairs:
                 continue
@@ -1642,6 +1642,7 @@ class MultilingualDatasetManager(object):
         logger.info(f"data paths: {data_paths}")
         logger.info(f"langtoks settings: {self.args.langtoks}")
         split_num_shards_dict = self.get_split_num_data_shards(split)
+        logger.info(f"split shards dict :{split_num_shards_dict}")
         for data_category, paths in data_paths.items():
             if data_category not in lang_pairs:
                 continue
