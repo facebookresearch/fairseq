@@ -752,6 +752,7 @@ class MultilingualDatasetManager(object):
 
     @classmethod
     def load_data(cls, path, vdict, impl):
+        logger.info(path)
         dataset = data_utils.load_indexed_dataset(path, vdict, impl)
         return dataset
 
