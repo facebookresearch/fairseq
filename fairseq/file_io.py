@@ -20,6 +20,7 @@ logger = logging.getLogger(__file__)
 
 try:
     use_s3 = os.environ.get("USE_S3_DATALOADER", "0")
+    logger.info("use s3")
     if use_s3:
         from iopath.common.s3 import S3PathHandler
         IOPathManager = S3PathHandler
