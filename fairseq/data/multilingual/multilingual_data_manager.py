@@ -61,6 +61,13 @@ TGT_DICT_NAME = "tgt"
 
 MONOLINGUAL_DATA_CATEGORIES = ("mono_dae", "mono_lm")
 
+try:
+    use_s3 = os.environ.get("USE_S3_DATALOADER", "0")
+    if use_s3 == "1":
+        from smart_open import open 
+except ImportError:
+    use_s3 = "0" 
+
 
 def _lang_id(dic: Dictionary, lang: str):
     """Return language ID index."""

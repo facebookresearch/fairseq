@@ -6,6 +6,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+import boto3
 import errno
 import json
 import logging
@@ -17,25 +18,19 @@ import torch
 
 logger = logging.getLogger(__file__)
 
-
 try:
-    from iopath.common.file_io import g_pathmgr as IOPathManager
-
-    try:
-        # [FB only - for now] AWS PathHandler for PathManager
-        from .fb_pathhandlers import S3PathHandler
-
-        IOPathManager.register_handler(S3PathHandler())
-    except KeyError:
-        logging.warning("S3PathHandler already registered.")
-    except ImportError:
-        logging.debug(
-            "S3PathHandler couldn't be imported. Either missing fb-only files, or boto3 module."
-        )
-
+    use_s3 = os.environ.get("USE_S3_DATALOADER", "0")
+    if use_s3:
+        from iopath.common.s3 import S3PathHandler
+        IOPathManager = S3PathHandler
+        logging.warning("Setting Path manager as S3")
+    else:
+        use_s3 = "0" 
+        IOPathManager = None 
 except ImportError:
+    use_s3 = "0" 
     IOPathManager = None
-
+    
 
 class PathManager:
     """
@@ -116,7 +111,8 @@ class PathManager:
     def ls(path: str) -> List[str]:
         if IOPathManager:
             return IOPathManager.ls(path)
-        return os.listdir(path)
+        else:
+            return os.listdir(path)
 
     @staticmethod
     def mkdirs(path: str) -> None:
