@@ -247,7 +247,7 @@ class Dictionary:
             else:
                 path = PathManager.get_local_path(f)
             try:
-                with open(f, "r", encoding="utf-8") as fd:
+                with open(path, "r", encoding="utf-8") as fd:
                     self.add_from_file(fd)
             except FileNotFoundError as fnfe:
                 raise fnfe
