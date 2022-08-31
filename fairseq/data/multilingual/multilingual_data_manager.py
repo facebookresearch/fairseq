@@ -1558,11 +1558,12 @@ class MultilingualDatasetManager(object):
             directions = set()
             split_subs = split.split(",")
             for f in files:
+                logger.info(f)
                 for split_sub in split_subs:
-                    logger.info(split_subs)
                     if f.startswith(f"{split_sub}.") and f.endswith(".idx"):
                         # idx files of the form "{split}.{src}-{tgt}.{lang}.idx"
                         direction = f.split(".")[-3]
+                        logger.info(f"adding {f}")
                         directions.add(direction)
             for direction in directions:
                 shards[direction] += 1
