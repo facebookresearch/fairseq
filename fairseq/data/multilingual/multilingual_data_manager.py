@@ -1553,8 +1553,10 @@ class MultilingualDatasetManager(object):
     @classmethod
     def _get_shard_num_dict(cls, split, paths):
         shards = defaultdict(int)
+        logger.info(f"paths : {paths}")
         for path in paths:
             files = PathManager.ls(path)
+            logger.info(f"files: {files}")
             directions = set()
             split_subs = split.split(",")
             for f in files:
@@ -1574,10 +1576,12 @@ class MultilingualDatasetManager(object):
         data_paths, lang_pairs = self.get_data_paths_and_lang_pairs(split)
         logger.info(f"datapath1: {data_paths}")
         for data_category, paths in data_paths.items():
+            logger.info(data_category)
             if data_category not in lang_pairs:
                 continue
             paths = utils.split_paths(paths)
             shards_dict = self._get_shard_num_dict(split, paths)
+            logger.info(shards_dict)
             lang_dirs = [
                 lang_pair.split("-") for lang_pair in lang_pairs[data_category]
             ]
