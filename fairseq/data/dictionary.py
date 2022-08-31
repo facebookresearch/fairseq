@@ -16,6 +16,14 @@ from fairseq.file_chunker_utils import Chunker, find_offsets
 from fairseq.file_io import PathManager
 from fairseq.tokenizer import tokenize_line
 
+try:
+    use_s3 = os.environ.get("USE_S3_DATALOADER", "0")
+    if use_s3 == "1":
+        from smart_open import open 
+except ImportError:
+    use_s3 = "0" 
+
+
 
 class Dictionary:
     """A mapping from symbols to consecutive integers"""
@@ -234,8 +242,12 @@ class Dictionary:
         to this instance.
         """
         if isinstance(f, str):
+            if use_s3 == "1":
+                path = f"s3://{f}"
+            else:
+                path = PathManager.get_local_path(f)
             try:
-                with open(PathManager.get_local_path(f), "r", encoding="utf-8") as fd:
+                with open(f, "r", encoding="utf-8") as fd:
                     self.add_from_file(fd)
             except FileNotFoundError as fnfe:
                 raise fnfe

@@ -164,6 +164,8 @@ class IndexedDataset(FairseqDataset):
         self.read_index(path)
 
     def read_index(self, path):
+        if use_s3 == "1":
+            path = f"s3://{path}"
         with open(index_file_path(path), "rb") as f:
             magic = f.read(8)
             assert magic == self._HDR_MAGIC, (
