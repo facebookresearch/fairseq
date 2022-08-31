@@ -1558,6 +1558,7 @@ class MultilingualDatasetManager(object):
             directions = set()
             split_subs = split.split(",")
             for f in files:
+                f = f.split('/')[-1]
                 logger.info(f)
                 for split_sub in split_subs:
                     if f.startswith(f"{split_sub}.") and f.endswith(".idx"):
