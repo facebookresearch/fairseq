@@ -1554,7 +1554,7 @@ class MultilingualDatasetManager(object):
     def _get_shard_num_dict(cls, split, paths):
         shards = defaultdict(int)
         for path in paths:
-            files = PathManager.ls(path)
+            files = PathManager._ls(path)
             directions = set()
             split_subs = split.split(",")
             for f in files:
@@ -1572,7 +1572,7 @@ class MultilingualDatasetManager(object):
             return self._num_shards_dict[split]
         num_shards_dict = {}
         data_paths, lang_pairs = self.get_data_paths_and_lang_pairs(split)
-
+        logger.info(data_paths)
         for data_category, paths in data_paths.items():
             if data_category not in lang_pairs:
                 continue
@@ -1639,6 +1639,7 @@ class MultilingualDatasetManager(object):
         # TODO: to extend with extra datasets and keys and loop over different shard data paths
         param_list = []
         data_paths, lang_pairs = self.get_data_paths_and_lang_pairs(split)
+        logger.info(f"data paths: {data_paths}")
         logger.info(f"langtoks settings: {self.args.langtoks}")
         split_num_shards_dict = self.get_split_num_data_shards(split)
         for data_category, paths in data_paths.items():
@@ -1669,6 +1670,8 @@ class MultilingualDatasetManager(object):
                 ), (f"error: src={src}, " "tgt={tgt} for data_category={data_category}")
                 # logger.info(f"preparing param for {data_category}: {src} - {tgt}")
                 key = self.get_dataset_key(data_category, src, tgt)
+                logger.info(key)
+                logger.info(split_num_shards_dict)
                 if key in split_num_shards_dict:
                     data_path = self.get_split_data_path(
                         paths, epoch, shard_epoch, split_num_shards_dict[key]
