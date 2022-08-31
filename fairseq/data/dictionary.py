@@ -241,9 +241,10 @@ class Dictionary:
         Loads a pre-existing dictionary from a text file and adds its symbols
         to this instance.
         """
+
         if isinstance(f, str):
             path = PathManager.get_local_path(f)
-            try:
+            try: 
                 with open(path, "r", encoding="utf-8") as fd:
                     self.add_from_file(fd)
             except FileNotFoundError as fnfe:
