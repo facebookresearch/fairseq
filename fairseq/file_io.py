@@ -93,6 +93,7 @@ class PathManager:
     @staticmethod
     def exists(path: str) -> bool:
         if IOPathManager:
+            logger.info(path)
             return IOPathManager._exists(path)
         return os.path.exists(path)
 
