@@ -23,7 +23,7 @@ try:
     logger.info("use s3")
     if use_s3:
         from iopath.common.s3 import S3PathHandler
-        IOPathManager = S3PathHandler
+        IOPathManager = S3PathHandler()
         logging.warning("Setting Path manager as S3")
     else:
         use_s3 = "0" 
@@ -86,8 +86,9 @@ class PathManager:
 
     @staticmethod
     def get_local_path(path: str, **kwargs) -> str:
+        print(IOPathManager)
         if IOPathManager:
-            return IOPathManager.get_local_path(path, **kwargs)
+            return IOPathManager._get_local_path(path,  **kwargs)
         return path
 
     @staticmethod
@@ -98,8 +99,8 @@ class PathManager:
 
     @staticmethod
     def isfile(path: str) -> bool:
-        if IOPathManager:
-            return IOPathManager.isfile(path)
+        #if IOPathManager:
+        #    return IOPathManager.isfile(path)
         return os.path.isfile(path)
 
     @staticmethod
@@ -187,9 +188,9 @@ class PathManager:
         if not IOPathManager:
             logging.info("ioPath is initializing PathManager.")
             try:
-                from iopath.common.file_io import PathManager
+                from iopath.common.s3 import S3PathManager
 
-                IOPathManager = PathManager()
+                IOPathManager = S3PathManager()
             except Exception:
                 logging.exception("Failed to initialize ioPath PathManager object.")
         return IOPathManager.opena(
