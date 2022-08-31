@@ -86,7 +86,6 @@ class PathManager:
 
     @staticmethod
     def get_local_path(path: str, **kwargs) -> str:
-        print(IOPathManager)
         if IOPathManager:
             return IOPathManager._get_local_path(path,  **kwargs)
         return path
@@ -112,7 +111,7 @@ class PathManager:
     @staticmethod
     def ls(path: str) -> List[str]:
         if IOPathManager:
-            return IOPathManager.ls(path)
+            return IOPathManager._ls(path)
         else:
             return os.listdir(path)
 
