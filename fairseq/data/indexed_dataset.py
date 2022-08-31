@@ -2,7 +2,7 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
-
+import os
 import shutil
 import struct
 from functools import lru_cache
@@ -20,9 +20,9 @@ from . import FairseqDataset
 from typing import Union
 
 try:
-    import boto3
-    import smart_open
-    use_s3 = os.environ.get("USE_S3_DATALOADER", "0") 
+    use_s3 = os.environ.get("USE_S3_DATALOADER", "0")
+    if use_s3 == "1":
+        from smart_open import open 
 except ImportError:
     use_s3 = "0" 
 
@@ -164,43 +164,23 @@ class IndexedDataset(FairseqDataset):
         self.read_index(path)
 
     def read_index(self, path):
-        if use_s3 == "1":
-            with smart_open.open(index_file_path(path), "rb") as f:
-                magic = f.read(8)
-                assert magic == self._HDR_MAGIC, (
-                    "Index file doesn't match expected format. "
-                    "Make sure that --dataset-impl is configured properly."
-                )
-                version = f.read(8)
-                assert struct.unpack("<Q", version) == (1,)
-                code, self.element_size = struct.unpack("<QQ", f.read(16))
-                self.dtype = _code_to_dtype[code]
-                self._len, self.s = struct.unpack("<QQ", f.read(16))
-                self.dim_offsets = read_longs(f, self._len + 1)
-                self.data_offsets = read_longs(f, self._len + 1)
-                self.sizes = read_longs(f, self.s)
-
-        else:
-            with open(index_file_path(path), "rb") as f:
-                magic = f.read(8)
-                assert magic == self._HDR_MAGIC, (
-                    "Index file doesn't match expected format. "
-                    "Make sure that --dataset-impl is configured properly."
-                )
-                version = f.read(8)
-                assert struct.unpack("<Q", version) == (1,)
-                code, self.element_size = struct.unpack("<QQ", f.read(16))
-                self.dtype = _code_to_dtype[code]
-                self._len, self.s = struct.unpack("<QQ", f.read(16))
-                self.dim_offsets = read_longs(f, self._len + 1)
-                self.data_offsets = read_longs(f, self._len + 1)
-                self.sizes = read_longs(f, self.s)
+        with open(index_file_path(path), "rb") as f:
+            magic = f.read(8)
+            assert magic == self._HDR_MAGIC, (
+                "Index file doesn't match expected format. "
+                "Make sure that --dataset-impl is configured properly."
+            )
+            version = f.read(8)
+            assert struct.unpack("<Q", version) == (1,)
+            code, self.element_size = struct.unpack("<QQ", f.read(16))
+            self.dtype = _code_to_dtype[code]
+            self._len, self.s = struct.unpack("<QQ", f.read(16))
+            self.dim_offsets = read_longs(f, self._len + 1)
+            self.data_offsets = read_longs(f, self._len + 1)
+            self.sizes = read_longs(f, self.s)
 
     def read_data(self, path):
-        if use_s3 == "1":
-            self.data_file = smart_open.open(data_file_path(path), "rb", buffering=0)
-        else:
-            self.data_file = open(data_file_path(path), "rb", buffering=0)
+        self.data_file = open(data_file_path(path), "rb", buffering=0)
 
     def check_index(self, i):
         if i < 0 or i >= self._len:
