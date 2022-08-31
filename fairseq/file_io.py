@@ -70,7 +70,7 @@ class PathManager:
     @staticmethod
     def copy(src_path: str, dst_path: str, overwrite: bool = False) -> bool:
         if IOPathManager:
-            return IOPathManager.copy(
+            return IOPathManager._copy(
                 src_path=src_path, dst_path=dst_path, overwrite=overwrite
             )
         return shutil.copyfile(src_path, dst_path)
@@ -93,7 +93,7 @@ class PathManager:
     @staticmethod
     def exists(path: str) -> bool:
         if IOPathManager:
-            return IOPathManager.exists(path)
+            return IOPathManager._exists(path)
         return os.path.exists(path)
 
     @staticmethod
@@ -118,13 +118,13 @@ class PathManager:
     @staticmethod
     def mkdirs(path: str) -> None:
         if IOPathManager:
-            return IOPathManager.mkdirs(path)
+            return IOPathManager._mkdirs(path)
         os.makedirs(path, exist_ok=True)
 
     @staticmethod
     def rm(path: str) -> None:
         if IOPathManager:
-            return IOPathManager.rm(path)
+            return IOPathManager._rm(path)
         os.remove(path)
         assert not os.path.exists(path)
 
@@ -143,7 +143,7 @@ class PathManager:
         local_path: str, dst_path: str, overwrite: bool = False, **kwargs
     ) -> None:
         if IOPathManager:
-            return IOPathManager.copy_from_local(
+            return IOPathManager._copy_from_local(
                 local_path=local_path, dst_path=dst_path, overwrite=overwrite, **kwargs
             )
         return shutil.copyfile(local_path, dst_path)
