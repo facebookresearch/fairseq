@@ -50,7 +50,7 @@ class PathManager:
         newline: Optional[str] = None,
     ):
         if IOPathManager:
-            return IOPathManager.open(
+            return IOPathManager._open(
                 path=path,
                 mode=mode,
                 buffering=buffering,
