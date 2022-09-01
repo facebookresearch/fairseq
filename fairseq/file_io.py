@@ -153,7 +153,7 @@ class PathManager:
     @staticmethod
     def path_requires_pathmanager(path: str) -> bool:
         """Do we require PathManager to access given path?"""
-        if IOPathManager:
+        if IOPathManager and not isinstance(IOPathManager, S3PathHandler) :
             for p in IOPathManager._path_handlers.keys():
                 if path.startswith(p):
                     return True
