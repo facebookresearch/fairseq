@@ -22,6 +22,22 @@ from fairseq.models.transformer import Linear
 logger = logging.getLogger(__name__)
 
 
+def build_s2s_conformer_encoder(args):
+    encoder = S2SConformerEncoder(args)
+    pretraining_path = getattr(args, "load_pretrained_encoder_from", None)
+    if pretraining_path is not None:
+        if not Path(pretraining_path).exists():
+            logger.warning(
+                f"skipped pretraining because {pretraining_path} does not exist"
+            )
+        else:
+            encoder = checkpoint_utils.load_pretrained_component_from_model(
+                component=encoder, checkpoint=pretraining_path
+            )
+            logger.info(f"loaded pretrained encoder from: {pretraining_path}")
+    return encoder
+
+
 class S2SConformerEncoder(S2TConformerEncoder):
     """Based on S2T transformer encoder, with support
     to incorporate target speaker embedding."""
@@ -75,19 +91,7 @@ class S2UTConformerModel(S2UTTransformerModel):
 
     @classmethod
     def build_encoder(cls, args):
-        encoder = S2SConformerEncoder(args)
-        pretraining_path = getattr(args, "load_pretrained_encoder_from", None)
-        if pretraining_path is not None:
-            if not Path(pretraining_path).exists():
-                logger.warning(
-                    f"skipped pretraining because {pretraining_path} does not exist"
-                )
-            else:
-                encoder = checkpoint_utils.load_pretrained_component_from_model(
-                    component=encoder, checkpoint=pretraining_path
-                )
-                logger.info(f"loaded pretrained encoder from: {pretraining_path}")
-        return encoder
+        return build_s2s_conformer_encoder(args)
 
 
 @register_model("translatotron_conformer")
@@ -115,19 +119,7 @@ class TranslatotronConformerModel(TranslatotronTransformerModel):
 
     @classmethod
     def build_encoder(cls, args):
-        encoder = S2SConformerEncoder(args)
-        pretraining_path = getattr(args, "load_pretrained_encoder_from", None)
-        if pretraining_path is not None:
-            if not Path(pretraining_path).exists():
-                logger.warning(
-                    f"skipped pretraining because {pretraining_path} does not exist"
-                )
-            else:
-                encoder = checkpoint_utils.load_pretrained_component_from_model(
-                    component=encoder, checkpoint=pretraining_path
-                )
-                logger.info(f"loaded pretrained encoder from: {pretraining_path}")
-        return encoder
+        return build_s2s_conformer_encoder(args)
 
 
 @register_model_architecture("s2ut_conformer", "s2ut_conformer")
