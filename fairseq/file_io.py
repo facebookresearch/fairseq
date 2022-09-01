@@ -94,8 +94,9 @@ class PathManager:
     def exists(path: str) -> bool:
         if "iopath" in path: ## check if exists in cache
             return os.path.exists(path)
-        if IOPathManager:
-            return IOPathManager._exists(path)
+        if not path.startswith("/data"): ## check if its local saving
+            if IOPathManager:
+                return IOPathManager._exists(path)
         return os.path.exists(path)
 
     @staticmethod
