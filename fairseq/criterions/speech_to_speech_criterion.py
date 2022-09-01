@@ -163,17 +163,17 @@ class SpeechToUnitMultitaskTaskCriterion(
         task,
         sentence_avg,
         label_smoothing,
-        rdrop_alpha,
         ignore_prefix_size=0,
         report_accuracy=False,
+        rdrop_alpha=0.0,
     ):
         super().__init__(
             task,
             sentence_avg,
             label_smoothing,
-            rdrop_alpha,
             ignore_prefix_size,
             report_accuracy,
+            rdrop_alpha,
         )
         MultitaskCriterion.__init__(self, task.multitask_tasks, rdrop_alpha)
 
@@ -262,17 +262,17 @@ class SpeechToUnitTranslatotron2MultitaskTaskCriterion(
         task,
         sentence_avg,
         label_smoothing,
-        rdrop_alpha,
         ignore_prefix_size=0,
         report_accuracy=False,
+        rdrop_alpha=0.0,
     ):
         super().__init__(
             task,
             sentence_avg,
             label_smoothing,
-            rdrop_alpha,
             ignore_prefix_size,
             report_accuracy,
+            rdrop_alpha,
         )
 
     def forward(self, model, sample, reduce=True):
