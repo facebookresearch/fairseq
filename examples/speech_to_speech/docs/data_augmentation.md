@@ -83,18 +83,30 @@ This augmentation technique is based on Algorithm 1 in [WavLM: Large-Scale Self-
 - `utterance_snr_min`: lower endpoint of the range from which a signal-to-noise ratio is uniformly randomly chosen with which to add **another audio from the batch** to the original source. Defaults to -5.
 - `utterance_snr_max`: higher endpoint of the range from which a signal-to-noise ratio is uniformly randomly chosen with which to add **another audio from the batch** to the original source. Defaults to 5.
 
-## Benchmark studies [TODO] 
-### Clean data
-| Augmentation | Hyperparameters | Loss | BLEU (covost) | BLEU (epst) | BLEU (mtedx) | Model | 
+## Benchmark studies
+### Evaluation on clean data
+| Augmentation in training data | Hyperparameters | Loss | BLEU (covost) | BLEU (epst) | BLEU (mtedx) | Model |
 | --- | --- | --- | --- | --- | --- | --- |
-| None | | | | | | |
-| ConcatAugment | rate = 0.25, max_tokens = 3000, attempts = 5 | | | | | |
-| MusicAugment | | | | | | |
-| BabbleAugment | | | | | | |
-| BackgroundNoiseAugment | | | | | | |
-| SporadicNoiseAugment | | | | | | |
-| MusicAugment + BabbleAugment + BackgroundNoiseAugment + SporadicNoiseAugment | | | | | | |
-| NoisyOverlapAugment | | | | | | |
+| None | | 3.955 | 24.604 | 23.293 | 22.339 | * not finalized |
+| ConcatAugment | rate = 0.25, max_tokens = 3000, attempts = 5 | 3.940 | 25.322 | 26.124 | 26.190 | |
+| BabbleAugment | rate = 0.25, MUSAN speech, snr_min = (-5), snr_max = 5 | 3.957 | 24.226 | 23.186 | 22.368 | |
+| BackgroundNoiseAugment | rate = 0.1, MUSAN noises, snr_min = (-10), snr_max = 10 | 3.955 | 24.745 | 23.513 | 23.819 | |
+| MusicAugment | rate = 0.25, MUSAN music, snr_min = 0, snr_max = 20 | 3.954 | 25.096 | 24.301 | 23.341 | |
+| SporadicNoiseAugment | rate = 0.1, noise_rate = 0.25, MUSAN noises, snr_min = 10, snr_max = 35 | 3.954 | 24.924 | 23.951 | 23.484 | |
+| MusicAugment + BabbleAugment + BackgroundNoiseAugment + SporadicNoiseAugment | | 3.956 | 24.638 | 23.491 | 23.969 | * not finalized |
+| NoisyOverlapAugment | | 3.954 | 24.949 | 24.015 | 23.768 | |
+
+### Evaluation on data with music noise added at SNR = (-5) - 5 [TODO]
+
+### Evaluation on data with babble noise added at SNR = (-5) - 5 [TODO]
+
+### Evaluation on data with sporadic noise added at SNR = (-5) - 5 [TODO]
+
+### Evaluation on data with background noise added at SNR = (-5) - 5 [TODO]
+
+### Evaluation on data with all four types of noises added at SNR = (-5) - 5, each applied with prob 0.5 [TODO]
+
+### Evaluation on data with noisy overlap augment [TODO]
 
 ## Using transforms 
 Transforms are configurable. 
