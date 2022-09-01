@@ -20,13 +20,8 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
-from fairseq.models.speech_to_speech.modules import CTCDecoder
 from fairseq.models.speech_to_text.hub_interface import S2THubInterface
-from fairseq.models.transformer import (
-    Embedding,
-    TransformerDecoder,
-    TransformerModelBase,
-)
+from fairseq.models.transformer import Embedding, TransformerDecoder
 from fairseq.models.wav2vec import Wav2VecEncoder
 from fairseq.modules.layer_norm import LayerNorm
 
@@ -652,37 +647,6 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         encoder = cls.build_encoder(args)
         decoder = cls.build_decoder(args, task, decoder_embed_tokens)
         return cls(encoder, decoder)
-
-    @classmethod
-    def build_multitask_decoder(cls, args, tgt_dict, in_dim):
-        decoder_args = args.decoder_args
-        decoder_args.encoder_embed_dim = in_dim
-        if args.decoder_type == "transformer":
-            from fairseq.models.speech_to_speech import (
-                base_multitask_text_transformer_decoder_arch,
-            )
-
-            base_multitask_text_transformer_decoder_arch(decoder_args)  # 2L
-            task_decoder = TransformerDecoder(
-                decoder_args,
-                tgt_dict,
-                embed_tokens=TransformerModelBase.build_embedding(
-                    decoder_args,
-                    tgt_dict,
-                    decoder_args.decoder_embed_dim,
-                ),
-            )
-        elif args.decoder_type == "ctc":
-            task_decoder = CTCDecoder(
-                dictionary=tgt_dict,
-                in_dim=in_dim,
-            )
-        else:
-            raise NotImplementedError(
-                "currently only support multitask decoder_type 'transformer', 'ctc'"
-            )
-
-        return task_decoder
 
     def get_normalized_probs(
         self,

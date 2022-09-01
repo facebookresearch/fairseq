@@ -12,6 +12,7 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
+from fairseq.models.speech_to_speech.modules import CTCDecoder
 from fairseq.models.speech_to_text.xm_transformer import XMTransformerModel
 from fairseq.models.speech_to_text.xm_transformer import (
     base_architecture as xm_t_base_architecture,
@@ -24,7 +25,7 @@ from fairseq.models.speech_to_text.xm_transformer import (
     set_default_transformer_decoder_args,
     set_default_w2v_encoder_args,
 )
-from fairseq.models.transformer import Linear, TransformerDecoder
+from fairseq.models.transformer import Linear, TransformerDecoder, TransformerModelBase
 from fairseq.models.transformer.transformer_decoder_aug import AugTransformerDecoder
 
 logger = logging.getLogger(__name__)
@@ -209,6 +210,37 @@ class UnitYXMTransformerModel(XMTransformerModel):
             base_model.synthesizer_encoder = None
 
         return base_model
+
+    @classmethod
+    def build_multitask_decoder(cls, args, tgt_dict, in_dim):
+        decoder_args = args.decoder_args
+        decoder_args.encoder_embed_dim = in_dim
+        if args.decoder_type == "transformer":
+            from fairseq.models.speech_to_speech import (
+                base_multitask_text_transformer_decoder_arch,
+            )
+
+            base_multitask_text_transformer_decoder_arch(decoder_args)  # 2L
+            task_decoder = TransformerDecoder(
+                decoder_args,
+                tgt_dict,
+                embed_tokens=TransformerModelBase.build_embedding(
+                    decoder_args,
+                    tgt_dict,
+                    decoder_args.decoder_embed_dim,
+                ),
+            )
+        elif args.decoder_type == "ctc":
+            task_decoder = CTCDecoder(
+                dictionary=tgt_dict,
+                in_dim=in_dim,
+            )
+        else:
+            raise NotImplementedError(
+                "currently only support multitask decoder_type 'transformer', 'ctc'"
+            )
+
+        return task_decoder
 
     @classmethod
     def build_t2u_encoder(cls, args):
