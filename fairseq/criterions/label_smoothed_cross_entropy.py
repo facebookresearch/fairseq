@@ -131,6 +131,17 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             ignore_index=self.padding_idx,
             reduce=reduce,
         )
+        return loss, nll_loss
+
+    def compute_loss_with_rdrop(self, model, net_output, sample, reduce=True):
+        lprobs, target = self.get_lprobs_and_target(model, net_output, sample)
+        loss, nll_loss = label_smoothed_nll_loss(
+            lprobs,
+            target,
+            self.eps,
+            ignore_index=self.padding_idx,
+            reduce=reduce,
+        )
 
         if self.rdrop_alpha > 0:
             pad_mask = target[: target.size(0) // 2].unsqueeze(-1).eq(self.padding_idx)
@@ -138,7 +149,6 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             loss += self.rdrop_alpha * rdrop_kl_loss
         else:
             rdrop_kl_loss = loss.new_zeros(1)
-
         return loss, nll_loss, rdrop_kl_loss
 
     def compute_accuracy(self, model, net_output, sample):

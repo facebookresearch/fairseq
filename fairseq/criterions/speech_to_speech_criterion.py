@@ -190,7 +190,7 @@ class SpeechToUnitMultitaskTaskCriterion(
             net_input_concat = duplicate_input(net_input_concat)
 
         net_output, extra = model(**net_input_concat)
-        loss, nll_loss, rdrop_kl_loss = self.compute_loss(
+        loss, nll_loss, rdrop_kl_loss = self.compute_loss_with_rdrop(
             model, [net_output], sample, reduce=reduce
         )
         sample_size = (
@@ -295,7 +295,7 @@ class SpeechToUnitTranslatotron2MultitaskTaskCriterion(
             net_input_concat = duplicate_input(net_input_concat)
 
         net_output, extra = model(**net_input_concat)
-        loss, nll_loss, rdrop_kl_loss = self.compute_loss(
+        loss, nll_loss, rdrop_kl_loss = self.compute_loss_with_rdrop(
             model, [net_output], sample, reduce=reduce
         )
 
