@@ -92,7 +92,7 @@ class PathManager:
 
     @staticmethod
     def exists(path: str) -> bool:
-        if path.startswith("/home/jovyan"):
+        if "iopath" in path: ## check if exists in cache
             return os.path.exists(path)
         if IOPathManager:
             return IOPathManager._exists(path)
