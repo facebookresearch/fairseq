@@ -494,4 +494,6 @@ class TranslationTask(FairseqTask):
         if self.cfg.eval_tokenized_bleu:
             return sacrebleu.metrics.BLEU().corpus_score(hyps, [refs])
         else:
-            return sacrebleu.metrics.BLEU(trg_lang=self.cfg.target_lang).corpus_score(hyps, [refs])
+            return sacrebleu.metrics.BLEU(trg_lang=self.cfg.target_lang).corpus_score(
+                hyps, [refs]
+            )
