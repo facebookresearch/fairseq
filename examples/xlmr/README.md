@@ -71,7 +71,7 @@ Model | average | en | es | de | ar | hi | vi | zh
 ##### Load XLM-R from torch.hub (PyTorch >= 1.1):
 ```python
 import torch
-xlmr = torch.hub.load('pytorch/fairseq', 'xlmr.large')
+xlmr = torch.hub.load('pytorch/fairseq:main', 'xlmr.large')
 xlmr.eval()  # disable dropout (or leave in train mode to finetune)
 ```
 

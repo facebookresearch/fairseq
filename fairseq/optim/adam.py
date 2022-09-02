@@ -67,13 +67,13 @@ class FairseqAdam(FairseqOptimizer):
         elif use_fused_adam:
             logger.info("using FusedAdam")
             self._optimizer = fused_adam_cls(
-                params,
-                use_fp16_stats=self.cfg.fp16_adam_stats,
-                **self.optimizer_config
+                params, use_fp16_stats=self.cfg.fp16_adam_stats, **self.optimizer_config
             )
         else:
             if self.cfg.fp16_adam_stats:
-                raise NotImplementedError("--fp16-adam-stats is only supported with FusedAdamV1")
+                raise NotImplementedError(
+                    "--fp16-adam-stats is only supported with FusedAdamV1"
+                )
             self._optimizer = Adam(params, **self.optimizer_config)
 
     @property

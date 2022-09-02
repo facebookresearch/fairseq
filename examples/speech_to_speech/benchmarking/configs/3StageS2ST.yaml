@@ -1,0 +1,28 @@
+general:
+  dataset_path: $npy_dataset
+  cpu: True
+  model_type: 3StageS2ST
+  max_len_a: 2
+  max_len_b: 500
+  dataset_size: 1
+
+stage1:
+  data: $data_bin_stage1
+  task: speech_to_text
+  path: $checkpoint_stage1
+  config_yaml: config.yaml
+  max_len_a: 2
+  max_len_b: 500
+
+stage2:
+  data: $data_bin_stage2
+  task: translation
+  path: $checkpoint_stage2
+  config_yaml: config.yaml
+
+
+stage2:
+  data: $data_bin_stage3
+  task: text_to_speech
+  path: $checkpoint_stage3
+  config_yaml: config.yaml

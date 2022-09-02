@@ -100,6 +100,10 @@ class TransformerMonotonicDecoder(TransformerDecoder):
             ]
         )
         self.policy_criterion = getattr(args, "policy_criterion", "any")
+        self.num_updates = None
+
+    def set_num_updates(self, num_updates):
+        self.num_updates = num_updates
 
     def pre_attention(
         self,

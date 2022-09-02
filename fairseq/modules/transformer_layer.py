@@ -7,14 +7,13 @@ from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
+from torch import Tensor
+
 from fairseq import utils
+from fairseq.models.transformer import TransformerConfig
 from fairseq.modules import LayerNorm, MultiheadAttention
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
-from torch import Tensor
-from fairseq.models.transformer import (
-    TransformerConfig,
-)
 
 
 class TransformerEncoderLayerBase(nn.Module):
@@ -32,9 +31,10 @@ class TransformerEncoderLayerBase(nn.Module):
         args (argparse.Namespace): parsed command-line arguments
     """
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, return_fc=False):
         super().__init__()
         self.cfg = cfg
+        self.return_fc = return_fc
         self.embed_dim = cfg.encoder.embed_dim
         self.quant_noise = cfg.quant_noise.pq
         self.quant_noise_block_size = cfg.quant_noise.pq_block_size
@@ -77,6 +77,61 @@ class TransformerEncoderLayerBase(nn.Module):
             nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size
         )
 
+    def _get_fc_rank(self, remove_num: int) -> List[int]:
+        f1_filter_param = []
+        for i in range(self.fc1.out_features):
+            f1_filter_param.append(
+                torch.sum(torch.abs(self.fc1.weight[i]))
+                + torch.sum(torch.abs(self.fc2.weight[:, i]))
+                + torch.abs(self.fc1.bias[i])
+            )
+        return sorted(
+            range(len(f1_filter_param)), key=lambda k: f1_filter_param[k], reverse=False
+        )[0:remove_num]
+
+    def _prune_fc_layer(self, remove_index: List[int]):
+        new_fc1_weight = []
+        new_fc1_bias = []
+        for i in range(self.fc1.out_features):
+            if i not in remove_index:
+                new_fc1_weight.append(self.fc1.weight[i])
+                new_fc1_bias.append(self.fc1.bias[i])
+
+        new_fc1_weight = torch.stack(new_fc1_weight).detach()
+        new_fc1_weight.requires_grad = True
+
+        new_fc1_bias = torch.stack(new_fc1_bias).detach()
+        new_fc1_bias.requires_grad = True
+
+        self.fc1 = quant_noise(
+            nn.Linear(self.fc1.in_features, self.fc1.out_features - len(remove_index)),
+            p=self.quant_noise,
+            block_size=self.quant_noise_block_size,
+        )
+        self.fc1.weight = torch.nn.Parameter(new_fc1_weight)
+        self.fc1.bias = torch.nn.Parameter(new_fc1_bias)
+
+        new_fc2_weight = []
+        new_fc2_bias = []
+        for i in range(self.fc2.in_features):
+            if i not in remove_index:
+                new_fc2_weight.append(self.fc2.weight[:, i])
+        new_fc2_bias = self.fc2.bias.detach()
+
+        new_fc2_weight = torch.stack(new_fc2_weight, dim=-1).detach()
+        new_fc2_weight.requires_grad = True
+
+        new_fc2_bias = self.fc2.bias.detach()
+        new_fc2_bias.requires_grad = True
+
+        self.fc2 = quant_noise(
+            nn.Linear(self.fc2.in_features - len(remove_index), self.fc2.out_features),
+            p=self.quant_noise,
+            block_size=self.quant_noise_block_size,
+        )
+        self.fc2.weight = torch.nn.Parameter(new_fc2_weight)
+        self.fc2.bias = torch.nn.Parameter(new_fc2_bias)
+
     def build_self_attention(self, embed_dim, cfg):
         return MultiheadAttention(
             embed_dim,
@@ -85,6 +140,7 @@ class TransformerEncoderLayerBase(nn.Module):
             self_attention=True,
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
+            xformers_att_config=cfg.encoder.xformers_att_config,
         )
 
     def residual_connection(self, x, residual):
@@ -131,7 +187,9 @@ class TransformerEncoderLayerBase(nn.Module):
         # the attention weight (before softmax) for some padded element in query
         # will become -inf, which results in NaN in model parameters
         if attn_mask is not None:
-            attn_mask = attn_mask.masked_fill(attn_mask.to(torch.bool), -1e8)
+            attn_mask = attn_mask.masked_fill(
+                attn_mask.to(torch.bool), -1e8 if x.dtype == torch.float32 else -1e4
+            )
 
         residual = x
         if self.normalize_before:
@@ -155,10 +213,16 @@ class TransformerEncoderLayerBase(nn.Module):
         x = self.activation_fn(self.fc1(x))
         x = self.activation_dropout_module(x)
         x = self.fc2(x)
+
+        fc_result = x
+
         x = self.dropout_module(x)
         x = self.residual_connection(x, residual)
         if not self.normalize_before:
             x = self.final_layer_norm(x)
+
+        if self.return_fc and not torch.jit.is_scripting():
+            return x, fc_result
         return x
 
 
@@ -210,6 +274,19 @@ class TransformerDecoderLayerBase(nn.Module):
             add_bias_kv=add_bias_kv,
             add_zero_attn=add_zero_attn,
         )
+        self.attn_ln = (
+            LayerNorm(self.embed_dim)
+            if utils.safe_getattr(cfg, "scale_attn", False)
+            else None
+        )
+        self.nh = self.self_attn.num_heads
+        self.head_dim = self.self_attn.head_dim
+        scale_heads = utils.safe_getattr(cfg, "scale_heads", False)
+        self.c_attn = (
+            nn.Parameter(torch.ones((self.nh,)), requires_grad=True)
+            if scale_heads
+            else None
+        )
 
         self.activation_fn = utils.get_activation_fn(activation=cfg.activation_fn)
         activation_dropout_p = cfg.activation_dropout
@@ -229,6 +306,22 @@ class TransformerDecoderLayerBase(nn.Module):
         else:
             self.encoder_attn = self.build_encoder_attention(self.embed_dim, cfg)
             self.encoder_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
+
+        self.ffn_layernorm = (
+            LayerNorm(cfg.decoder.ffn_embed_dim)
+            if utils.safe_getattr(cfg, "scale_fc", False)
+            else None
+        )
+        self.w_resid = (
+            nn.Parameter(
+                torch.ones(
+                    self.embed_dim,
+                ),
+                requires_grad=True,
+            )
+            if utils.safe_getattr(cfg, "scale_resids", False)
+            else None
+        )
 
         self.fc1 = self.build_fc1(
             self.embed_dim,
@@ -266,6 +359,7 @@ class TransformerDecoderLayerBase(nn.Module):
             self_attention=not cfg.cross_self_attention,
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
+            xformers_att_config=cfg.decoder.xformers_att_config,
         )
 
     def build_encoder_attention(self, embed_dim, cfg):
@@ -278,6 +372,7 @@ class TransformerDecoderLayerBase(nn.Module):
             encoder_decoder_attention=True,
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
+            xformers_att_config=cfg.encoder.xformers_att_config,
         )
 
     def prepare_for_onnx_export_(self):
@@ -362,6 +457,13 @@ class TransformerDecoderLayerBase(nn.Module):
             need_weights=False,
             attn_mask=self_attn_mask,
         )
+        if self.c_attn is not None:
+            tgt_len, bsz = x.size(0), x.size(1)
+            x = x.view(tgt_len, bsz, self.nh, self.head_dim)
+            x = torch.einsum("tbhd,h->tbhd", x, self.c_attn)
+            x = x.reshape(tgt_len, bsz, self.embed_dim)
+        if self.attn_ln is not None:
+            x = self.attn_ln(x)
         x = self.dropout_module(x)
         x = self.residual_connection(x, residual)
         if not self.normalize_before:
@@ -403,8 +505,12 @@ class TransformerDecoderLayerBase(nn.Module):
 
         x = self.activation_fn(self.fc1(x))
         x = self.activation_dropout_module(x)
+        if self.ffn_layernorm is not None:
+            x = self.ffn_layernorm(x)
         x = self.fc2(x)
         x = self.dropout_module(x)
+        if self.w_resid is not None:
+            residual = torch.mul(self.w_resid, residual)
         x = self.residual_connection(x, residual)
         if not self.normalize_before:
             x = self.final_layer_norm(x)

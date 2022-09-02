@@ -8,11 +8,11 @@ from pathlib import Path
 from argparse import Namespace
 
 from fairseq.data import Dictionary, encoders
+from fairseq.data.audio.audio_utils import get_features_or_waveform
 from fairseq.data.audio.speech_to_text_dataset import (
     S2TDataConfig,
     SpeechToTextDataset,
     SpeechToTextDatasetCreator,
-    get_features_or_waveform
 )
 from fairseq.tasks import LegacyFairseqTask, register_task
 
@@ -50,6 +50,23 @@ class SpeechToTextTask(LegacyFairseqTask):
         super().__init__(args)
         self.tgt_dict = tgt_dict
         self.data_cfg = S2TDataConfig(Path(args.data) / args.config_yaml)
+        self.speaker_to_id = self._get_speaker_to_id()
+        if (
+            self.data_cfg.prepend_tgt_lang_tag
+            and self.data_cfg.prepend_bos_and_append_tgt_lang_tag
+        ):
+            raise ValueError(
+                "Please set only one of the two options to avoid adding target token multiple times"
+            )
+
+    def _get_speaker_to_id(self):
+        speaker_to_id = None
+        speaker_set_filename = self.data_cfg.config.get("speaker_set_filename")
+        if speaker_set_filename is not None:
+            speaker_set_path = Path(self.args.data) / speaker_set_filename
+            with open(speaker_set_path) as f:
+                speaker_to_id = {r.strip(): i for i, r in enumerate(f)}
+        return speaker_to_id
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -91,6 +108,7 @@ class SpeechToTextTask(LegacyFairseqTask):
             is_train_split=is_train_split,
             epoch=epoch,
             seed=self.args.seed,
+            speaker_to_id=self.speaker_to_id,
         )
 
     @property
@@ -104,10 +122,11 @@ class SpeechToTextTask(LegacyFairseqTask):
     def max_positions(self):
         return self.args.max_source_positions, self.args.max_target_positions
 
-    def build_model(self, args):
+    def build_model(self, args, from_checkpoint=False):
         args.input_feat_per_channel = self.data_cfg.input_feat_per_channel
         args.input_channels = self.data_cfg.input_channels
-        return super(SpeechToTextTask, self).build_model(args)
+        args.speaker_to_id = self.speaker_to_id
+        return super(SpeechToTextTask, self).build_model(args, from_checkpoint)
 
     def build_generator(
         self,
@@ -126,10 +145,25 @@ class SpeechToTextTask(LegacyFairseqTask):
             for s, i in self.tgt_dict.indices.items()
             if SpeechToTextDataset.is_lang_tag(s)
         }
+
         if extra_gen_cls_kwargs is None:
-            extra_gen_cls_kwargs = {"symbols_to_strip_from_output": lang_token_ids}
-        else:
-            extra_gen_cls_kwargs["symbols_to_strip_from_output"] = lang_token_ids
+            extra_gen_cls_kwargs = {}
+        extra_gen_cls_kwargs["symbols_to_strip_from_output"] = lang_token_ids
+
+        eos_token = (
+            args.eos_token
+            if "eos_token" in args and args.eos_token is not None
+            else self.data_cfg.config.get("eos_token", None)
+        )
+
+        if self.data_cfg.prepend_bos_and_append_tgt_lang_tag and not eos_token:
+            raise Warning(
+                "Please provide --eos_token to replace eos in sequence generator"
+            )
+
+        eos_id = self.tgt_dict.index(eos_token) if eos_token else None
+        extra_gen_cls_kwargs["eos"] = eos_id
+
         return super().build_generator(
             models, args, seq_gen_cls=None, extra_gen_cls_kwargs=extra_gen_cls_kwargs
         )

@@ -209,7 +209,7 @@ def process(args):
     print("ZIPing features...")
     create_zip(feature_root, zip_path)
     print("Fetching ZIP manifest...")
-    zip_manifest = get_zip_manifest(zip_path)
+    audio_paths, audio_lengths = get_zip_manifest(zip_path)
     # Generate TSV manifest
     print("Generating manifest...")
     train_text = []
@@ -219,11 +219,10 @@ def process(args):
     for split in CoVoST.SPLITS:
         manifest = {c: [] for c in MANIFEST_COLUMNS}
         dataset = CoVoST(root, split, args.src_lang, args.tgt_lang)
-        for wav, sr, src_utt, tgt_utt, speaker_id, utt_id in tqdm(dataset):
+        for _, _, src_utt, tgt_utt, speaker_id, utt_id in tqdm(dataset):
             manifest["id"].append(utt_id)
-            manifest["audio"].append(zip_manifest[utt_id])
-            duration_ms = int(wav.size(1) / sr * 1000)
-            manifest["n_frames"].append(int(1 + (duration_ms - 25) / 10))
+            manifest["audio"].append(audio_paths[utt_id])
+            manifest["n_frames"].append(audio_lengths[utt_id])
             manifest["tgt_text"].append(src_utt if args.tgt_lang is None else tgt_utt)
             manifest["speaker"].append(speaker_id)
         is_train_split = split.startswith("train")
@@ -247,7 +246,7 @@ def process(args):
     # Generate config YAML
     gen_config_yaml(
         root,
-        spm_filename_prefix + ".model",
+        spm_filename=spm_filename_prefix + ".model",
         yaml_filename=f"config_{task}.yaml",
         specaugment_policy="lb",
     )

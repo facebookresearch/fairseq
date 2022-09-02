@@ -195,10 +195,10 @@ class SentenceRankingTask(LegacyFairseqTask):
         self.datasets[split] = dataset
         return self.datasets[split]
 
-    def build_model(self, args):
+    def build_model(self, args, from_checkpoint=False):
         from fairseq import models
 
-        model = models.build_model(args, self)
+        model = models.build_model(args, self, from_checkpoint)
 
         model.register_classification_head(
             getattr(args, "ranking_head_name", "sentence_classification_head"),

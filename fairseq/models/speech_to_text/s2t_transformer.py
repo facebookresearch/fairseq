@@ -2,11 +2,13 @@
 
 import logging
 import math
-from typing import Dict, List, Optional, Tuple
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+from torch import Tensor
+
 from fairseq import checkpoint_utils, utils
 from fairseq.data.data_utils import lengths_to_padding_mask
 from fairseq.models import (
@@ -15,6 +17,7 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
+from fairseq.models.speech_to_text.hub_interface import S2THubInterface
 from fairseq.models.transformer import Embedding, TransformerDecoder
 from fairseq.modules import (
     FairseqDropout,
@@ -22,8 +25,6 @@ from fairseq.modules import (
     PositionalEmbedding,
     TransformerEncoderLayer,
 )
-from torch import Tensor
-
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,37 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
     A trainable input subsampler is prepended to the Transformer encoder to
     project inputs into the encoder dimension as well as downsample input
     sequence for computational efficiency."""
+
+    @classmethod
+    def hub_models(cls):
+        base_url = "http://dl.fbaipublicfiles.com/fairseq/s2t"
+        model_ids = [
+            "s2t_transformer_s-en-asr-librispeech",
+            "s2t_transformer_m-en-asr-librispeech",
+            "s2t_transformer_l-en-asr-librispeech",
+        ]
+        return {i: f"{base_url}/{i}.tar.gz" for i in model_ids}
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        model_name_or_path,
+        checkpoint_file="model.pt",
+        data_name_or_path=".",
+        config_yaml="config.yaml",
+        **kwargs,
+    ):
+        from fairseq import hub_utils
+
+        x = hub_utils.from_pretrained(
+            model_name_or_path,
+            checkpoint_file,
+            data_name_or_path,
+            archive_map=cls.hub_models(),
+            config_yaml=config_yaml,
+            **kwargs,
+        )
+        return S2THubInterface(x["args"], x["task"], x["models"][0])
 
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
@@ -202,10 +234,10 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
             help="model to take encoder weights from (for initialization)",
         )
         parser.add_argument(
-            '--encoder-freezing-updates',
+            "--encoder-freezing-updates",
             type=int,
-            metavar='N',
-            help='freeze encoder for first N updates'
+            metavar="N",
+            help="freeze encoder for first N updates",
         )
 
     @classmethod
@@ -243,6 +275,7 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
         decoder_embed_tokens = build_embedding(
             task.target_dictionary, args.decoder_embed_dim
         )
+        args.tgt_dict_size = len(task.target_dictionary)
         encoder = cls.build_encoder(args)
         decoder = cls.build_decoder(args, task, decoder_embed_tokens)
         return cls(encoder, decoder)
@@ -257,6 +290,23 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
         lprobs = self.get_normalized_probs_scriptable(net_output, log_probs, sample)
         lprobs.batch_first = True
         return lprobs
+
+    def get_ctc_target(self, sample: Optional[Dict[str, Tensor]]):
+        return sample["target"], sample["target_lengths"]
+
+    def get_ctc_output(
+        self,
+        net_output: Tuple[Tensor, Optional[Dict[str, List[Optional[Tensor]]]]],
+        sample: Optional[Dict[str, Tensor]],
+    ):
+        encoder_out = net_output[1]["encoder_out"]["encoder_out"][0]
+        logits = self.encoder.ctc_proj(encoder_out)  # T x B x C
+        out = utils.log_softmax(logits.float(), dim=-1)
+        padding_mask = net_output[1]["encoder_out"]["encoder_padding_mask"]
+        lens = out.new_full((out.shape[1],), out.shape[0]).long()
+        if len(padding_mask) > 0:
+            lens -= padding_mask[0].sum(dim=-1)
+        return out, lens
 
     def forward(self, src_tokens, src_lengths, prev_output_tokens):
         """
@@ -308,6 +358,10 @@ class S2TTransformerEncoder(FairseqEncoder):
         else:
             self.layer_norm = None
 
+        self.ctc_proj = None
+        if getattr(args, "ctc_weight", 0.0) > 0.0:
+            self.ctc_proj = nn.Linear(args.encoder_embed_dim, args.tgt_dict_size)
+
     def _forward(self, src_tokens, src_lengths, return_all_hiddens=False):
         x, input_lengths = self.subsample(src_tokens, src_lengths)
         x = self.embed_scale * x
@@ -329,7 +383,9 @@ class S2TTransformerEncoder(FairseqEncoder):
 
         return {
             "encoder_out": [x],  # T x B x C
-            "encoder_padding_mask": [encoder_padding_mask] if encoder_padding_mask.any() else [],  # B x T
+            "encoder_padding_mask": [encoder_padding_mask]
+            if encoder_padding_mask.any()
+            else [],  # B x T
             "encoder_embedding": [],  # B x T x C
             "encoder_states": encoder_states,  # List[T x B x C]
             "src_tokens": [],
@@ -339,27 +395,37 @@ class S2TTransformerEncoder(FairseqEncoder):
     def forward(self, src_tokens, src_lengths, return_all_hiddens=False):
         if self.num_updates < self.encoder_freezing_updates:
             with torch.no_grad():
-                x = self._forward(src_tokens, src_lengths,
-                                  return_all_hiddens=return_all_hiddens)
+                x = self._forward(
+                    src_tokens, src_lengths, return_all_hiddens=return_all_hiddens
+                )
         else:
-            x = self._forward(src_tokens, src_lengths,
-                              return_all_hiddens=return_all_hiddens)
+            x = self._forward(
+                src_tokens, src_lengths, return_all_hiddens=return_all_hiddens
+            )
         return x
 
     def reorder_encoder_out(self, encoder_out, new_order):
         new_encoder_out = (
-            [] if len(encoder_out["encoder_out"]) == 0
+            []
+            if len(encoder_out["encoder_out"]) == 0
             else [x.index_select(1, new_order) for x in encoder_out["encoder_out"]]
         )
 
         new_encoder_padding_mask = (
-            [] if len(encoder_out["encoder_padding_mask"]) == 0
-            else [x.index_select(0, new_order) for x in encoder_out["encoder_padding_mask"]]
+            []
+            if len(encoder_out["encoder_padding_mask"]) == 0
+            else [
+                x.index_select(0, new_order)
+                for x in encoder_out["encoder_padding_mask"]
+            ]
         )
 
         new_encoder_embedding = (
-            [] if len(encoder_out["encoder_embedding"]) == 0
-            else [x.index_select(0, new_order) for x in encoder_out["encoder_embedding"]]
+            []
+            if len(encoder_out["encoder_embedding"]) == 0
+            else [
+                x.index_select(0, new_order) for x in encoder_out["encoder_embedding"]
+            ]
         )
 
         encoder_states = encoder_out["encoder_states"]
@@ -400,7 +466,8 @@ class TransformerDecoderScriptable(TransformerDecoder):
             alignment_layer,
             alignment_heads,
         )
-        return x, None
+        extra = {"encoder_out": encoder_out} if incremental_state is None else None
+        return x, extra
 
 
 @register_model_architecture(model_name="s2t_transformer", arch_name="s2t_transformer")

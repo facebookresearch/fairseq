@@ -19,15 +19,17 @@ from fairseq.distributed import (
     TPUDistributedDataParallel,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
-_GOSSIP_DISABLED = False
+_SLOWMO_DDP_DISABLED = False
 try:
-    import gossip
+    from fairscale.experimental.nn.data_parallel import (
+        SlowMoBaseAlgorithm,
+        SlowMoDistributedDataParallel,
+    )
 except ImportError:
-    _GOSSIP_DISABLED = True
+    _SLOWMO_DDP_DISABLED = True
 
 
 def DistributedFairseqModel(args, model, process_group, device):
@@ -63,13 +65,14 @@ def DistributedFairseqModel(args, model, process_group, device):
             bucket_cap_mb=args.bucket_cap_mb,
             process_group=process_group,
             find_unused_parameters=args.find_unused_parameters,
+            gradient_as_bucket_view=args.gradient_as_bucket_view,
         )
         if args.ddp_comm_hook == "fp16":
             logger.info("enable fp16 communication hook in DDP")
             try:
                 from torch.distributed.algorithms.ddp_comm_hooks import (
-                    register_ddp_comm_hook,
                     DDPCommHookType,
+                    register_ddp_comm_hook,
                 )
             except:
                 logger.error(
@@ -83,16 +86,16 @@ def DistributedFairseqModel(args, model, process_group, device):
     elif args.ddp_backend in {"no_c10d", "legacy_ddp"}:
         wrapped_model = LegacyDistributedDataParallel(
             module=model.to(device),
-            buffer_size=2 ** 28,
+            buffer_size=2**28,
             process_group=process_group,
         )
         # forward missing getattr and state_dict/load_state_dict to orig model
         wrapped_model = ModuleProxyWrapper(wrapped_model)
-    elif args.ddp_backend == "slow_mo":
-        if _GOSSIP_DISABLED:
+    elif args.ddp_backend == "slowmo":
+        if _SLOWMO_DDP_DISABLED:
             raise ImportError(
-                "Cannot find gossip library. Please install from: "
-                "github.com/facebookresearch/stochastic_gradient_push"
+                "Cannot find SlowMoDistributedDataParallel. "
+                "Please install fairscale with: pip install fairscale"
             )
 
         # The values of slowmo_momentum below were obtained by tuning on the
@@ -106,15 +109,14 @@ def DistributedFairseqModel(args, model, process_group, device):
                 args.slowmo_momentum = 0.5
             else:
                 args.slowmo_momentum = 0.6
+        slowmo_base_algorithm = SlowMoBaseAlgorithm[args.slowmo_base_algorithm.upper()]
 
-        wrapped_model = gossip.GossipDataParallel(
+        wrapped_model = SlowMoDistributedDataParallel(
             module=model.to(device),
-            device_ids=[args.device_id],
-            output_device=args.device_id,
             broadcast_buffers=args.broadcast_buffers,
             nprocs_per_node=args.nprocs_per_node,
             slowmo_momentum=args.slowmo_momentum,
-            localsgd=(args.slowmo_algorithm == "LocalSGD"),
+            slowmo_base_algorithm=slowmo_base_algorithm,
             localsgd_frequency=args.localsgd_frequency,
         )
         # forward missing getattr and state_dict/load_state_dict to orig model

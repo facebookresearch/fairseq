@@ -20,6 +20,7 @@ from fairseq.dataclass.configs import (
     GenerationConfig,
     InteractiveConfig,
     OptimizationConfig,
+    EMAConfig,
 )
 from fairseq.dataclass.utils import gen_parser_from_dataclass
 
@@ -40,6 +41,7 @@ def get_training_parser(default_task="translation"):
     add_model_args(parser)
     add_optimization_args(parser)
     add_checkpoint_args(parser)
+    add_ema_args(parser)
     return parser
 
 
@@ -51,6 +53,14 @@ def get_generation_parser(interactive=False, default_task="translation"):
     add_checkpoint_args(parser)
     if interactive:
         add_interactive_args(parser)
+    return parser
+
+
+def get_speech_generation_parser(default_task="text_to_speech"):
+    parser = get_parser("Speech Generation", default_task)
+    add_dataset_args(parser, gen=True)
+    add_distributed_training_args(parser, default_world_size=1)
+    add_speech_generation_args(parser)
     return parser
 
 
@@ -198,6 +208,13 @@ def parse_args_and_arch(
     else:
         args.no_seed_provided = False
 
+    if getattr(args, "update_epoch_batch_itr", None) is None:
+        if hasattr(args, "grouped_shuffling"):
+            args.update_epoch_batch_itr = args.grouped_shuffling
+        else:
+            args.grouped_shuffling = False
+            args.update_epoch_batch_itr = False
+
     # Apply architecture configuration.
     if hasattr(args, "arch") and args.arch in ARCH_CONFIG_REGISTRY:
         ARCH_CONFIG_REGISTRY[args.arch](args)
@@ -342,6 +359,16 @@ def add_generation_args(parser):
     return group
 
 
+def add_speech_generation_args(parser):
+    group = parser.add_argument_group("Speech Generation")
+    add_common_eval_args(group)  # NOTE: remove_bpe is not needed
+    # fmt: off
+    group.add_argument('--eos_prob_threshold', default=0.5, type=float,
+                       help='terminate when eos probability exceeds this')
+    # fmt: on
+    return group
+
+
 def add_interactive_args(parser):
     group = parser.add_argument_group("Interactive")
     gen_parser_from_dataclass(group, InteractiveConfig())
@@ -379,3 +406,8 @@ def get_args(
         setattr(args, k, v)
 
     return args
+
+
+def add_ema_args(parser):
+    group = parser.add_argument_group("EMA configuration")
+    gen_parser_from_dataclass(group, EMAConfig())

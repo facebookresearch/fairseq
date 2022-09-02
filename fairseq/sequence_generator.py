@@ -4,15 +4,16 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-from typing import Dict, List, Optional
 import sys
+from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
+from torch import Tensor
+
 from fairseq import search, utils
 from fairseq.data import data_utils
 from fairseq.models import FairseqIncrementalDecoder
-from torch import Tensor
 from fairseq.ngram_repeat_block import NGramRepeatBlock
 
 
@@ -37,6 +38,7 @@ class SequenceGenerator(nn.Module):
         symbols_to_strip_from_output=None,
         lm_model=None,
         lm_weight=1.0,
+        tokens_to_suppress=(),
     ):
         """Generates translations of a given source sentence.
 
@@ -76,10 +78,23 @@ class SequenceGenerator(nn.Module):
             if symbols_to_strip_from_output is not None
             else {self.eos}
         )
+
+        self.token_indices_to_suppress: Optional[Tensor] = None
+        token_indices_to_suppress = []
+        for token_string in tokens_to_suppress:
+            token_index = tgt_dict.index(token_string)
+            assert token_index != self.unk
+            token_indices_to_suppress.append(token_index)
+        if len(token_indices_to_suppress) > 0:
+            self.token_indices_to_suppress = torch.Tensor(
+                token_indices_to_suppress
+            ).long()
+
         self.vocab_size = len(tgt_dict)
         self.beam_size = beam_size
         # the max beam size is the dictionary size - 1, since we never select pad
         self.beam_size = min(beam_size, self.vocab_size - 1)
+        self.model.set_decoder_beam_size(self.beam_size)
         self.max_len_a = max_len_a
         self.max_len_b = max_len_b
         self.min_len = min_len
@@ -171,7 +186,9 @@ class SequenceGenerator(nn.Module):
                 yield id, src, ref, hypos[i]
 
     @torch.no_grad()
-    def generate(self, models, sample: Dict[str, Dict[str, Tensor]], **kwargs) -> List[List[Dict[str, Tensor]]]:
+    def generate(
+        self, models, sample: Dict[str, Dict[str, Tensor]], **kwargs
+    ) -> List[List[Dict[str, Tensor]]]:
         """Generate translations. Match the api of other fairseq generators.
 
         Args:
@@ -223,7 +240,10 @@ class SequenceGenerator(nn.Module):
                 else torch.tensor(src_tokens.size(-1)).to(src_tokens)
             )
         else:
-            raise Exception("expected src_tokens or source in net input. input keys: " + str(net_input.keys()))
+            raise Exception(
+                "expected src_tokens or source in net input. input keys: "
+                + str(net_input.keys())
+            )
 
         # bsz: total number of sentences in beam
         # Note that src_tokens may have more than 2 dimensions (i.e. audio features)
@@ -328,7 +348,9 @@ class SequenceGenerator(nn.Module):
                 encoder_outs = self.model.reorder_encoder_out(
                     encoder_outs, reorder_state
                 )
-            with torch.autograd.profiler.record_function("EnsembleModel: forward_decoder"):
+            with torch.autograd.profiler.record_function(
+                "EnsembleModel: forward_decoder"
+            ):
                 lprobs, avg_attn_scores = self.model.forward_decoder(
                     tokens[:, : step + 1],
                     encoder_outs,
@@ -363,9 +385,13 @@ class SequenceGenerator(nn.Module):
                 lprobs, tokens, scores = self._prefix_tokens(
                     step, lprobs, scores, tokens, prefix_tokens, beam_size
                 )
-            elif step < self.min_len:
-                # minimum length constraint (does not apply if using prefix_tokens)
-                lprobs[:, self.eos] = -math.inf
+            else:
+                if step < self.min_len:
+                    # minimum length constraint (does not apply if using prefix_tokens)
+                    lprobs[:, self.eos] = -math.inf
+
+                if self.token_indices_to_suppress is not None:
+                    lprobs[:, self.token_indices_to_suppress] = -math.inf
 
             # Record attention scores, only support avg_attn_scores is a Tensor
             if avg_attn_scores is not None:
@@ -656,7 +682,7 @@ class SequenceGenerator(nn.Module):
                 cum_unfin.append(prev)
         cum_fin_tensor = torch.tensor(cum_unfin, dtype=torch.int).to(bbsz_idx)
 
-        unfin_idx = bbsz_idx // beam_size
+        unfin_idx = torch.div(bbsz_idx, beam_size, rounding_mode="trunc")
         sent = unfin_idx + torch.index_select(cum_fin_tensor, 0, unfin_idx)
 
         # Create a set of "{sent}{unfin_idx}", where
@@ -752,7 +778,21 @@ class EnsembleModel(nn.Module):
         return self.has_incremental
 
     def max_decoder_positions(self):
-        return min([m.max_decoder_positions() for m in self.models if hasattr(m, "max_decoder_positions")] + [sys.maxsize])
+        return min(
+            [
+                m.max_decoder_positions()
+                for m in self.models
+                if hasattr(m, "max_decoder_positions")
+            ]
+            + [sys.maxsize]
+        )
+
+    def set_decoder_beam_size(self, beam_size):
+        """Set beam size for efficient beamable enc-dec attention."""
+        if beam_size > 1:
+            for model in self.models:
+                if hasattr(model, "set_beam_size"):
+                    model.set_beam_size(beam_size)
 
     @torch.jit.export
     def forward_encoder(self, net_input: Dict[str, Tensor]):

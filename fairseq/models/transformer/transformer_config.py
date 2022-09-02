@@ -8,9 +8,11 @@ import re
 from dataclasses import dataclass, field, fields
 from typing import List, Optional
 
-from fairseq import utils
-from fairseq.dataclass import FairseqDataclass, ChoiceEnum
 from omegaconf import II
+
+from fairseq import utils
+from fairseq.dataclass import ChoiceEnum, FairseqDataclass
+from fairseq.utils import safe_getattr, safe_hasattr
 
 DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
@@ -45,6 +47,13 @@ class EncDecBaseConfig(FairseqDataclass):
     layerdrop: float = field(default=0, metadata={"help": "LayerDrop probability"})
     layers_to_keep: Optional[List[int]] = field(
         default=None, metadata={"help": "which layers to *keep* when pruning"}
+    )
+
+    xformers_att_config: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "config for xFormers attention, defined in xformers.components.attention.AttentionConfig"
+        },
     )
 
 
@@ -121,6 +130,14 @@ class TransformerConfig(FairseqDataclass):
         default=False,
         metadata={
             "help": "share encoder, decoder and output embeddings (requires shared dictionary and embed dim)"
+        },
+    )
+    merge_src_tgt_embed: bool = field(
+        default=False,
+        metadata={
+            "help": "if true then the source and target embedding table is "
+            "merged into one table. This is going to make the model smaller but "
+            "it might hurt performance."
         },
     )
     no_token_positional_embeddings: bool = field(
@@ -228,14 +245,14 @@ class TransformerConfig(FairseqDataclass):
     def __getattr__(self, name):
         match = re.match(_NAME_PARSER, name)
         if match:
-            sub = getattr(self, match[1])
-            return getattr(sub, match[2])
+            sub = safe_getattr(self, match[1])
+            return safe_getattr(sub, match[2])
         raise AttributeError(f"invalid argument {name}.")
 
     def __setattr__(self, name, value):
         match = re.match(_NAME_PARSER, name)
         if match:
-            sub = getattr(self, match[1])
+            sub = safe_getattr(self, match[1])
             setattr(sub, match[2], value)
         else:
             super().__setattr__(name, value)
@@ -243,7 +260,7 @@ class TransformerConfig(FairseqDataclass):
     @staticmethod
     def _copy_keys(args, cls, prefix, seen):
         """
-            copy the prefixed keys (decoder_embed_dim) to the DC fields: decoder.embed_dim
+        copy the prefixed keys (decoder_embed_dim) to the DC fields: decoder.embed_dim
         """
         cfg = cls()
         for fld in fields(cls):
@@ -251,12 +268,12 @@ class TransformerConfig(FairseqDataclass):
             # in the namespace with the prefix (e.g. decoder)
             # and set it on the dc.
             args_key = f"{prefix}_{fld.name}"
-            if hasattr(args, args_key):
+            if safe_hasattr(args, args_key):
                 seen.add(args_key)
-                setattr(cfg, fld.name, getattr(args, args_key))
-            if hasattr(args, fld.name):
+                setattr(cfg, fld.name, safe_getattr(args, args_key))
+            if safe_hasattr(args, fld.name):
                 seen.add(fld.name)
-                setattr(cfg, fld.name, getattr(args, fld.name))
+                setattr(cfg, fld.name, safe_getattr(args, fld.name))
         return cfg
 
     @classmethod
@@ -275,7 +292,7 @@ class TransformerConfig(FairseqDataclass):
                 # concretelly, the transformer_config know what sub-dc it has, so we go through all the dc fields
                 # and if it's one that has a sub-dc, we build that sub-dc with `copy_keys()`
                 if fld.name == "decoder":
-                    if hasattr(args, "decoder"):
+                    if safe_hasattr(args, "decoder"):
                         #  in some cases, the args we receive is already structured (as DictConfigs), so let's just build the correct DC
                         seen.add("decoder")
                         config.decoder = DecoderConfig(**args.decoder)
@@ -285,7 +302,7 @@ class TransformerConfig(FairseqDataclass):
                         )
                 elif fld.name == "encoder":
                     # same but for encoder
-                    if hasattr(args, "encoder"):
+                    if safe_hasattr(args, "encoder"):
                         seen.add("encoder")
                         config.encoder = EncDecBaseConfig(**args.encoder)
                     else:
@@ -294,22 +311,28 @@ class TransformerConfig(FairseqDataclass):
                         )
                 elif fld.name == "quant_noise":
                     # same but for quant_noise
-                    if hasattr(args, "quant_noise"):
+                    if safe_hasattr(args, "quant_noise"):
                         seen.add("quant_noise")
                         config.quant_noise = QuantNoiseConfig(**args.quant_noise)
                     else:
                         config.quant_noise = cls._copy_keys(
                             args, QuantNoiseConfig, "quant_noise", seen
                         )
-                elif hasattr(args, fld.name):
+                elif safe_hasattr(args, fld.name):
                     # if it's not a structure field, it's just a normal field, copy it over
                     seen.add(fld.name)
-                    setattr(config, fld.name, getattr(args, fld.name))
+                    setattr(config, fld.name, safe_getattr(args, fld.name))
             # we got all the fields defined in the dataclass, but
             # the argparse namespace might have extra args for two reasons:
             #   - we are in a legacy class so all the args are not declared in the dataclass. Ideally once everyone has defined a dataclass for their model, we won't need this
             #   - some places expect args to be there but never define them
-            args_dict = args._asdict() if hasattr(args, '_asdict') else vars(args) if hasattr(args, '__dict__') else {}  # namedtupled doesn't have __dict__ :-/
+            args_dict = (
+                args._asdict()
+                if safe_hasattr(args, "_asdict")
+                else vars(args)
+                if safe_hasattr(args, "__dict__")
+                else {}
+            )  # namedtupled doesn't have __dict__ :-/
             for key, value in args_dict.items():
                 if key not in seen:
                     setattr(config, key, value)

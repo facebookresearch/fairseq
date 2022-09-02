@@ -60,7 +60,9 @@ def quantize_model_(
           to layers_to_quantize[step]
     """
 
-    quantized_layers = get_layers(model, layers_to_quantize[step], remove_weights=remove_weights)
+    quantized_layers = get_layers(
+        model, layers_to_quantize[step], remove_weights=remove_weights
+    )
 
     for layer in quantized_layers:
 
@@ -108,8 +110,8 @@ def quantize_model_(
             centroids = torch.rand(centroids.size())
             centroids.cuda()
             # Get counts and assignment keys from layer in loaded checkpoint.
-            counts_key = layer+"."+"counts"
-            assignment_key = layer+"."+"assignments"
+            counts_key = layer + "." + "counts"
+            assignment_key = layer + "." + "assignments"
             # Get number of different bins to include.
             counts = list(state_dict[counts_key].shape)[0]
             print(layer)
@@ -122,7 +124,7 @@ def quantize_model_(
             print(num_assignments)
             print(num_extra)
             assignments_bins = torch.arange(counts)
-            assignments_rand = torch.randint(0, counts-1, (num_extra, ))
+            assignments_rand = torch.randint(0, counts - 1, (num_extra,))
             assignments = torch.cat((assignments_bins, assignments_rand), 0)
             # assignments = assignments.type(torch.IntTensor)
             assignments.cuda()

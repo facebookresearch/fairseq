@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
+import collections
 import contextlib
 import copy
 import importlib
@@ -12,7 +13,7 @@ import os
 import sys
 import warnings
 from itertools import accumulate
-from typing import Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
 import torch
 import torch.nn.functional as F
@@ -82,6 +83,13 @@ def apply_to_sample(f, sample):
     def _apply(x):
         if torch.is_tensor(x):
             return f(x)
+        elif isinstance(x, collections.OrderedDict):
+            # OrderedDict has attributes that needs to be preserved
+            od = collections.OrderedDict(
+                (key, _apply(value)) for key, value in x.items()
+            )
+            od.__dict__ = x.__dict__
+            return od
         elif isinstance(x, dict):
             return {key: _apply(value) for key, value in x.items()}
         elif isinstance(x, list):
@@ -493,6 +501,8 @@ def import_user_module(args):
                     from fairseq.models import import_models
 
                     import_models(models_path, f"{module_name}.models")
+            elif module_path in sys.modules[module_name].__path__:
+                logger.info(f"--user-dir={module_path} has already been imported.")
             else:
                 raise ImportError(
                     "Failed to import --user-dir={} because the corresponding module name "
@@ -521,7 +531,7 @@ def get_perplexity(loss, round=2, base=2):
     if loss is None:
         return 0.0
     try:
-        return safe_round(base ** loss, round)
+        return safe_round(base**loss, round)
     except OverflowError:
         return float("inf")
 
@@ -531,12 +541,18 @@ def deprecation_warning(message, stacklevel=3):
     warnings.warn(message, stacklevel=stacklevel)
 
 
+def relu_squared(x: torch.Tensor):
+    return F.relu(x).pow(2)
+
+
 def get_activation_fn(activation: str) -> Callable:
     """Returns the activation function corresponding to `activation`"""
     from fairseq.modules import gelu, gelu_accurate
 
     if activation == "relu":
         return F.relu
+    elif activation == "relu_squared":
+        return relu_squared
     elif activation == "gelu":
         return gelu
     elif activation == "gelu_fast":
@@ -550,6 +566,8 @@ def get_activation_fn(activation: str) -> Callable:
         return torch.tanh
     elif activation == "linear":
         return lambda x: x
+    elif activation == "swish":
+        return torch.nn.SiLU
     else:
         raise RuntimeError("--activation-fn {} not supported".format(activation))
 
@@ -698,6 +716,7 @@ def get_tpu_device():
 def tpu_data_loader(itr):
     import torch_xla.core.xla_model as xm
     import torch_xla.distributed.parallel_loader as pl
+
     from fairseq.data import iterators
 
     xm.rendezvous("tpu_data_loader")  # wait for all workers
@@ -806,3 +825,127 @@ def reset_logging():
         )
     )
     root.addHandler(handler)
+
+
+def safe_getattr(obj, k, default=None):
+    """Returns obj[k] if it exists and is not None, otherwise returns default."""
+    from omegaconf import OmegaConf
+
+    if OmegaConf.is_config(obj):
+        return obj[k] if k in obj and obj[k] is not None else default
+
+    return getattr(obj, k, default)
+
+
+def safe_hasattr(obj, k):
+    """Returns True if the given key exists and is not None."""
+    return getattr(obj, k, None) is not None
+
+
+def hotreload_function(name=None):
+    """
+    Decorator to function to enable hot-reload for debugging.
+    It allows you to debug a function without having reloading all heavy models, dataset loading and
+        preprocessing, allow faster debugging.
+    If you want to change model or dataset loading, consider relaunching your code
+    -----------------------------------
+    This will run the decorated function func:
+        if func run successful:
+            It will pause, allow user to edit code, and prompt user to:
+                Press enter to re-run the function with updated code
+                Type "done" to finish the function, return output
+                Type "disable" to stop pausing this function and let code continue without pause
+                Ctril + C to terminal
+        if func raise error:
+            it will prompt user to
+                1. Edit code, and press enter to retry
+                2. Ctrl + C to terminate
+                3. Type "raise" to raise that exception
+    * Requirements:
+        0. Fairseq was installed with `pip install --editable .`
+        1. pip install jurigged[develoop]
+        2. set environment HOTRELOAD_PAUSE=1 CUDA_LAUNCH_BLOCKING=1
+        3. Run on only 1 GPU (no distributed)
+    * How to use:
+        1. in python, import and decorate the top-level function to be re-run after code edits:
+            ```python
+            from fairseq.utils import hotreload_function
+            ....
+            @hotreload_function("train_step")
+            def train_step(self, sample ....):
+                ....
+            ....
+            ```
+        2. in bash run scripts:
+            ```bash
+            watch_dir=<home>/fairseq-py/fairseq/tasks # directory to watch for file changes
+            export CUDA_VISIBLE_DEVICES=0 # single-gpu
+            HOTRELOAD_PAUSE=1 CUDA_LAUNCH_BLOCKING=1 python -m jurigged -w ${watch_dir} --poll 2 -v train.py ......
+            ```
+    * NOTE:
+        1. -w ${watch_dir} specify all the files to be watched for changes
+            once functions, class, ... code are changed, all instances in the process will get updated (hot-reload)
+    * Limitation:
+        * Currently distributed debugging not working
+        * Need to launch train.py locally (cannot submit jobs)
+    """
+    try:
+        import jurigged
+    except ImportError as e:
+        logger.warning("Please install jurigged: pip install jurigged[develoop]")
+        raise e
+    from fairseq.distributed import utils as distributed_utils
+    import traceback
+
+    def hotreload_decorator(func):
+        assert callable(func), f"not callable: {func}"
+        jname = name or func.__name__
+        logger.info(f"jurigged-hotreload:Apply jurigged on {jname}:{func.__name__}")
+        HOTRELOAD_PAUSE = bool(os.environ.get("HOTRELOAD_PAUSE", 0))
+        cublk = bool(os.environ.get("CUDA_LAUNCH_BLOCKING", 0))
+        prefix = f"HOTRELOAD:{jname}:[cublk={cublk}]"
+        hot_reload_state = {"disable": False}
+
+        def func_wrapper(*args, **kwargs):
+            if not HOTRELOAD_PAUSE or hot_reload_state["disable"]:
+                return func(*args, **kwargs)
+            world_size = distributed_utils.get_global_world_size()
+            assert (
+                world_size <= 1
+            ), f"HOTRELOAD_PAUSE:{jname} currently cannot do distributed training"
+            success = False
+            while not success:
+                try:
+                    output = func(*args, **kwargs)
+                    # success = True
+                    end_action = input(
+                        f"{prefix}: PAUSE, you may edit code now. Enter to re-run, ctrl+C to terminate, "
+                        f'type "done" to continue (function still being watched), or type "disable" to stop pausing this function :'
+                    )
+                    if end_action.strip().lower() in ["disable", "done"]:
+                        success = True
+                    else:
+                        logger.warning(
+                            f"{prefix}: action={end_action} function will re-run now."
+                        )
+                except Exception as e:
+                    action = input(
+                        f"{prefix}:ERROR: \n{traceback.format_exc()}\n"
+                        f'Edit code to try again: enter to continue, ctrl+C to terminate, or type "raise" to raise the exception: '
+                    )
+                    if action.strip().lower() == "raise":
+                        raise e
+
+            if end_action.strip().lower() == "disable":
+                logger.warning(
+                    f"{prefix}: Stop pausing {jname}. The function is still being watched and newly editted code will take effect "
+                    f"if the {jname} is called again later."
+                    f' "unset HOTRELOAD_PAUSE" before relaunch to disable hotreload and'
+                    f" remove @hotreload_function decorator in the code."
+                )
+                hot_reload_state["disable"] = True
+            return output
+
+        return func_wrapper
+
+    return hotreload_decorator

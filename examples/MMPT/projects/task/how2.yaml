@@ -1,0 +1,22 @@
+includes: projects/task/default.yaml
+task_type: sweep_big
+slurm_config: big
+dataset:
+  meta_processor: ShardedHow2MetaProcessor
+  train_path: data/how2/how2_s3d_train.lst
+  val_path: data/how2/how2_s3d_val.lst
+  video_processor: ShardedVideoProcessor
+  vfeat_dir: data/feat/feat_how2_s3d_shard_small
+  text_processor: ShardedTextProcessor
+  tfeat_dir: data/feat/feat_how2_s3d_shard_small/raw_caption_dedup.bert-base-uncased.
+  aligner: FixedLenAligner
+# disable direct running of this yaml
+eval:
+  save_path: runs/task
+fairseq:
+  checkpoint:
+    save_dir: runs/task
+    save_interval_updates: 1024
+    keep_interval_updates: 2
+    keep_last_epochs: 30
+

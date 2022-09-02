@@ -14,8 +14,11 @@ from .cross_entropy import cross_entropy
 from .downsampled_multihead_attention import DownsampledMultiHeadAttention
 from .dynamic_convolution import DynamicConv, DynamicConv1dTBC
 from .dynamic_crf_layer import DynamicCRF
+from .ema_module import EMAModuleConfig, EMAModule
 from .fairseq_dropout import FairseqDropout
+from .fp32_batch_norm import Fp32BatchNorm
 from .fp32_group_norm import Fp32GroupNorm
+from .fp32_instance_norm import Fp32InstanceNorm
 from .gelu import gelu, gelu_accurate
 from .grad_multiply import GradMultiply
 from .gumbel_vector_quantizer import GumbelVectorQuantizer
@@ -25,6 +28,8 @@ from .layer_norm import Fp32LayerNorm, LayerNorm
 from .learned_positional_embedding import LearnedPositionalEmbedding
 from .lightweight_convolution import LightweightConv, LightweightConv1dTBC
 from .linearized_convolution import LinearizedConvolution
+from .location_attention import LocationAttention
+from .lstm_cell_with_zoneout import LSTMCellWithZoneOut
 from .multihead_attention import MultiheadAttention
 from .positional_embedding import PositionalEmbedding
 from .same_pad import SamePad
@@ -36,6 +41,15 @@ from .transpose_last import TransposeLast
 from .unfold import unfold1d
 from .transformer_layer import TransformerDecoderLayer, TransformerEncoderLayer
 from .vggblock import VGGBlock
+from .espnet_multihead_attention import (
+    ESPNETMultiHeadedAttention,
+    RelPositionMultiHeadedAttention,
+    RotaryPositionMultiHeadedAttention,
+)
+from .rotary_positional_embedding import RotaryPositionalEmbedding
+from .positional_encoding import (
+    RelPositionalEncoding,
+)
 
 __all__ = [
     "AdaptiveInput",
@@ -49,9 +63,13 @@ __all__ = [
     "DynamicConv1dTBC",
     "DynamicConv",
     "DynamicCRF",
+    "EMAModule",
+    "EMAModuleConfig",
     "FairseqDropout",
+    "Fp32BatchNorm",
     "Fp32GroupNorm",
     "Fp32LayerNorm",
+    "Fp32InstanceNorm",
     "gelu",
     "gelu_accurate",
     "GradMultiply",
@@ -63,6 +81,8 @@ __all__ = [
     "LightweightConv1dTBC",
     "LightweightConv",
     "LinearizedConvolution",
+    "LocationAttention",
+    "LSTMCellWithZoneOut",
     "MultiheadAttention",
     "PositionalEmbedding",
     "SamePad",
@@ -75,4 +95,10 @@ __all__ = [
     "TransposeLast",
     "VGGBlock",
     "unfold1d",
+    "ESPNETMultiheadedAttention",
+    "PositionalEmbedding",
+    "RelPositionMultiHeadedAttention",
+    "RelPositionalEncoding",
+    "RotaryPositionalEmbedding",
+    "RotaryPositionMultiHeadedAttention",
 ]

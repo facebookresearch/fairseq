@@ -17,9 +17,9 @@ This work is for training multilingual translation models with multiple bitext d
   - --finetune-from-model to specify the path from which to load the pretrained model
 
 ## Preprocessing data
-Multilingual training requires a joint BPE vocab. Please follow [mBART's preprocessing steps](https://github.com/pytorch/fairseq/tree/master/examples/mbart#bpe-data) to reuse our pretrained sentence-piece model.
+Multilingual training requires a joint BPE vocab. Please follow [mBART's preprocessing steps](https://github.com/pytorch/fairseq/tree/main/examples/mbart#bpe-data) to reuse our pretrained sentence-piece model.
 
-You can also train a joint BPE model on your own dataset and then follow the steps in [[link]](https://github.com/pytorch/fairseq/tree/master/examples/translation#multilingual-translation).
+You can also train a joint BPE model on your own dataset and then follow the steps in [[link]](https://github.com/pytorch/fairseq/tree/main/examples/translation#multilingual-translation).
 
 ## Training
 
@@ -49,7 +49,7 @@ fairseq-train $path_2_data \
 ```
 
 ## Finetuning
-We can also finetune multilingual models from a monolingual pretrained models, e.g. [mMBART](https://github.com/pytorch/fairseq/tree/master/examples/mbart).
+We can also finetune multilingual models from a monolingual pretrained models, e.g. [mMBART](https://github.com/pytorch/fairseq/tree/main/examples/mbart).
 ```bash
 lang_pairs=<language pairs to be trained, e.g. "en-cs,cs-en">
 path_2_data=<set to data path>
