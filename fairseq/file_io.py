@@ -20,7 +20,6 @@ logger = logging.getLogger(__file__)
 
 try:
     use_s3 = os.environ.get("USE_S3_DATALOADER", "0")
-    logger.info("use s3")
     if use_s3:
         from iopath.common.s3 import S3PathHandler
         IOPathManager = S3PathHandler()
@@ -49,7 +48,7 @@ class PathManager:
         errors: Optional[str] = None,
         newline: Optional[str] = None,
     ):
-        if not path.startswith("/data") and IOPathManager:
+        if path.startswith("roblox.analytics.users") and IOPathManager:
             return IOPathManager._open(
                 path=path,
                 mode=mode,
@@ -69,7 +68,7 @@ class PathManager:
 
     @staticmethod
     def copy(src_path: str, dst_path: str, overwrite: bool = False) -> bool:
-        if not src_path.startswith("/data") and IOPathManager:
+        if not src_path.startswith("roblox.analytics.users") and IOPathManager:
             return IOPathManager._copy(
                 src_path=src_path, dst_path=dst_path, overwrite=overwrite
             )
@@ -86,7 +85,7 @@ class PathManager:
 
     @staticmethod
     def get_local_path(path: str, **kwargs) -> str:
-        if not path.startswith("/data") and IOPathManager:
+        if path.startswith("roblox.analytics.users") and IOPathManager:
             return IOPathManager._get_local_path(path,  **kwargs)
         return path
 
@@ -94,9 +93,15 @@ class PathManager:
     def exists(path: str) -> bool:
         if "iopath" in path: ## check if exists in cache
             return os.path.exists(path)
-        if not path.startswith("/data"): ## check if its local saving
+        if path.startswith("roblox.analytics.users"): ## check if its local saving
             if IOPathManager:
-                return IOPathManager._exists(path)
+                try:
+                    result = IOPathManager._exists(path)
+                except Exception as e:
+                    logger.info(e)
+                    logger.info(path)
+                    raise ValueError
+                return result
         return os.path.exists(path)
 
     @staticmethod
@@ -113,20 +118,20 @@ class PathManager:
 
     @staticmethod
     def ls(path: str) -> List[str]:
-        if not path.startswith("/data") and IOPathManager:
+        if path.startswith("roblox.analytics.users") and IOPathManager:
             return IOPathManager._ls(path)
         else:
             return os.listdir(path)
 
     @staticmethod
     def mkdirs(path: str) -> None:
-        if not path.startswith("/data") and IOPathManager:
+        if path.startswith("roblox.analytics.users")  and IOPathManager:
             return IOPathManager._mkdirs(path)
         os.makedirs(path, exist_ok=True)
 
     @staticmethod
     def rm(path: str) -> None:
-        if not path.startswith("/data") and IOPathManager:
+        if path.startswith("roblox.analytics.users")  and IOPathManager:
             return IOPathManager._rm(path)
         os.remove(path)
         assert not os.path.exists(path)
@@ -145,7 +150,7 @@ class PathManager:
     def copy_from_local(
         local_path: str, dst_path: str, overwrite: bool = False, **kwargs
     ) -> None:
-        if not path.startswith("/data")  and IOPathManager:
+        if local_path.startswith("roblox.analytics.users")   and IOPathManager:
             return IOPathManager._copy_from_local(
                 local_path=local_path, dst_path=dst_path, overwrite=overwrite, **kwargs
             )
