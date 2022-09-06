@@ -75,17 +75,27 @@ class SpeechToTextJointWithEntitiesDataset(SpeechToTextJointDataset):
             use_src_lang_id=use_src_lang_id,
         )
         self.entities = entities
+        self.source_entities = True
 
     def __getitem__(self, index: int) -> SpeechToTextJointDatasetWithEntitiesItem:
         st2t_dataset_item = super().__getitem__(index)
         tokenized_entities = None
-        if self.entities is not None and self.src_dict is not None:
-            tokenized_entities = [
-                self.src_dict.encode_line(
-                    self.tokenize(self.src_bpe_tokenizer, self.tokenize(self.src_pre_tokenizer, e)),
-                    add_if_not_exist=False,
-                    append_eos=False)
-                for e in self.entities[index]]
+        if self.source_entities:
+            if self.entities is not None:
+                tokenized_entities = [
+                    self.src_dict.encode_line(
+                        self.tokenize(self.src_bpe_tokenizer, self.tokenize(self.src_pre_tokenizer, e.strip())),
+                        add_if_not_exist=False,
+                        append_eos=False).long()
+                    for e in self.entities[index]]
+        else:
+            if self.entities is not None:
+                tokenized_entities = [
+                    self.tgt_dict.encode_line(
+                        self.tokenize(self.bpe_tokenizer, self.tokenize(self.pre_tokenizer, e.strip())).strip('▁ '),
+                        add_if_not_exist=False,
+                        append_eos=False).long()
+                    for e in self.entities[index]]
         return SpeechToTextJointDatasetWithEntitiesItem(
             index=st2t_dataset_item.index,
             source=st2t_dataset_item.source,

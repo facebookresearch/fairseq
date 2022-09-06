@@ -211,6 +211,11 @@ class DualInputWavTransformerModel(DualInputS2TTransformerModel):
             action="store_true",
             help="stack speech and text encoders",
         )
+        parser.add_argument(
+            "--freeze-encoder",
+            action="store_true",
+            help="freeze encoder params",
+        )
 
     @classmethod
     def update_transformer_encoder_cfg(cls, args, update_dict):
@@ -306,6 +311,9 @@ class DualInputWavTransformerModel(DualInputS2TTransformerModel):
             checkpoint_utils.load_pretrained_component_from_model(
                 encoder, args.load_init_encoder
             )
+        if getattr(args, 'freeze_encoder', False):
+            for _, p_val in encoder.named_parameters():
+                p_val.requires_grad = False
         return encoder
 
     @classmethod
