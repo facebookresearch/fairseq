@@ -492,8 +492,6 @@ class TranslationTask(FairseqTask):
             logger.info("example hypothesis: " + hyps[0])
             logger.info("example reference: " + refs[0])
         if self.cfg.eval_tokenized_bleu:
-            return sacrebleu.metrics.BLEU().corpus_score(hyps, [refs])
+            return sacrebleu.corpus_bleu(hyps, [refs], tokenize="none")
         else:
-            return sacrebleu.metrics.BLEU(trg_lang=self.cfg.target_lang).corpus_score(
-                hyps, [refs]
-            )
+            return sacrebleu.corpus_bleu(hyps, [refs])
