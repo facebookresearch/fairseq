@@ -124,7 +124,7 @@ class CLASDualInputWavTransformerModel(DualInputWavTransformerModel):
                     logger.error("Loaded checkpoint misses the parameter: {}.".format(missing_key))
             if getattr(args, 'freeze_pretrained_decoder', False):
                 for p_name, p_val in decoder.named_parameters():
-                    if p_name in component_state_dict:
+                    if p_name in component_state_dict and "output_projection." not in p_name:
                         p_val.requires_grad = False
         return decoder
 
