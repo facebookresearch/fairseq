@@ -10,7 +10,7 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import torch
@@ -21,6 +21,12 @@ from fairseq.data import data_utils as fairseq_data_utils
 from fairseq.data.audio.audio_utils import get_features_or_waveform
 from fairseq.data.audio.data_cfg import S2TDataConfig
 from fairseq.data.audio.feature_transforms import CompositeAudioFeatureTransform
+from fairseq.data.audio.waveform_transforms import CompositeAudioWaveformTransform
+from fairseq.data.audio.dataset_transforms import CompositeAudioDatasetTransform
+from fairseq.data.audio.dataset_transforms.concataugment import ConcatAugment
+from fairseq.data.audio.dataset_transforms.noisyoverlapaugment import (
+    NoisyOverlapAugment,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +50,12 @@ def _collate_frames(
     for i, v in enumerate(frames):
         out[i, : v.size(0)] = v
     return out
+
+
+def _is_int_or_np_int(n):
+    return isinstance(n, int) or (
+        isinstance(n, np.generic) and isinstance(n.item(), int)
+    )
 
 
 @dataclass
@@ -102,6 +114,20 @@ class SpeechToTextDataset(FairseqDataset):
         self.feature_transforms = CompositeAudioFeatureTransform.from_config_dict(
             self.cfg.get_feature_transforms(split, is_train_split)
         )
+        self.waveform_transforms = CompositeAudioWaveformTransform.from_config_dict(
+            self.cfg.get_waveform_transforms(split, is_train_split)
+        )
+        # TODO: add these to data_cfg.py
+        self.dataset_transforms = CompositeAudioDatasetTransform.from_config_dict(
+            self.cfg.get_dataset_transforms(split, is_train_split)
+        )
+
+        # check proper usage of transforms
+        if self.feature_transforms and self.cfg.use_audio_input:
+            logger.warning(
+                "Feature transforms will not be applied. To use feature transforms, "
+                "set use_audio_input as False in config."
+            )
 
         self.pre_tokenizer = pre_tokenizer
         self.bpe_tokenizer = bpe_tokenizer
@@ -136,8 +162,11 @@ class SpeechToTextDataset(FairseqDataset):
             self.__class__.__name__
             + f'(split="{self.split}", n_samples={self.n_samples:_}, '
             f"prepend_tgt_lang_tag={self.cfg.prepend_tgt_lang_tag}, "
-            f"shuffle={self.shuffle}, transforms={self.feature_transforms}, "
-            f"n_frames_per_step={self.n_frames_per_step}"
+            f"n_frames_per_step={self.n_frames_per_step}, "
+            f"shuffle={self.shuffle}, "
+            f"feature_transforms={self.feature_transforms}, "
+            f"waveform_transforms={self.waveform_transforms}, "
+            f"dataset_transforms={self.dataset_transforms})"
         )
 
     @classmethod
@@ -157,8 +186,13 @@ class SpeechToTextDataset(FairseqDataset):
     def tokenize(cls, tokenizer, text: str):
         return text if tokenizer is None else tokenizer.encode(text)
 
-    def get_tokenized_tgt_text(self, index: int):
-        text = self.tokenize(self.pre_tokenizer, self.tgt_texts[index])
+    def get_tokenized_tgt_text(self, index: Union[int, List[int]]):
+        if _is_int_or_np_int(index):
+            text = self.tgt_texts[index]
+        else:
+            text = " ".join([self.tgt_texts[i] for i in index])
+
+        text = self.tokenize(self.pre_tokenizer, text)
         text = self.tokenize(self.bpe_tokenizer, text)
         return text
 
@@ -175,12 +209,37 @@ class SpeechToTextDataset(FairseqDataset):
         assert lang_tag_idx != dictionary.unk()
         return lang_tag_idx
 
-    def _get_source_audio(self, index: int) -> torch.Tensor:
-        source = get_features_or_waveform(
-            self.audio_paths[index],
-            need_waveform=self.cfg.use_audio_input,
-            use_sample_rate=self.cfg.use_sample_rate,
-        )
+    def _get_source_audio(self, index: Union[int, List[int]]) -> torch.Tensor:
+        """
+        Gives source audio for given index with any relevant transforms
+        applied. For ConcatAug, source audios for given indices are
+        concatenated in given order.
+        Args:
+            index (int or List[int]): index—or in the case of ConcatAug,
+            indices—to pull the source audio for
+        Returns:
+            source audios concatenated for given indices with
+            relevant transforms appplied
+        """
+        if _is_int_or_np_int(index):
+            source = get_features_or_waveform(
+                self.audio_paths[index],
+                need_waveform=self.cfg.use_audio_input,
+                use_sample_rate=self.cfg.use_sample_rate,
+                waveform_transforms=self.waveform_transforms,
+            )
+        else:
+            source = np.concatenate(
+                [
+                    get_features_or_waveform(
+                        self.audio_paths[i],
+                        need_waveform=self.cfg.use_audio_input,
+                        use_sample_rate=self.cfg.use_sample_rate,
+                        waveform_transforms=self.waveform_transforms,
+                    )
+                    for i in index
+                ]
+            )
         if self.cfg.use_audio_input:
             source = torch.from_numpy(source).float()
             if self.cfg.standardize_audio:
@@ -193,12 +252,17 @@ class SpeechToTextDataset(FairseqDataset):
         return source
 
     def __getitem__(self, index: int) -> SpeechToTextDatasetItem:
-        source = self._get_source_audio(index)
+        has_concat = self.dataset_transforms.has_transform(ConcatAugment)
+        if has_concat:
+            concat = self.dataset_transforms.get_transform(ConcatAugment)
+            indices = concat.find_indices(index, self.n_frames, self.n_samples)
+
+        source = self._get_source_audio(indices if has_concat else index)
         source = self.pack_frames(source)
 
         target = None
         if self.tgt_texts is not None:
-            tokenized = self.get_tokenized_tgt_text(index)
+            tokenized = self.get_tokenized_tgt_text(indices if has_concat else index)
             target = self.tgt_dict.encode_line(
                 tokenized, add_if_not_exist=False, append_eos=self.append_eos
             ).long()
@@ -231,9 +295,16 @@ class SpeechToTextDataset(FairseqDataset):
         if len(samples) == 0:
             return {}
         indices = torch.tensor([x.index for x in samples], dtype=torch.long)
-        frames = _collate_frames([x.source for x in samples], self.cfg.use_audio_input)
+
+        sources = [x.source for x in samples]
+        has_NOAug = self.dataset_transforms.has_transform(NoisyOverlapAugment)
+        if has_NOAug and self.cfg.use_audio_input:
+            NOAug = self.dataset_transforms.get_transform(NoisyOverlapAugment)
+            sources = NOAug(sources)
+
+        frames = _collate_frames(sources, self.cfg.use_audio_input)
         # sort samples by descending number of frames
-        n_frames = torch.tensor([x.source.size(0) for x in samples], dtype=torch.long)
+        n_frames = torch.tensor([x.size(0) for x in sources], dtype=torch.long)
         n_frames, order = n_frames.sort(descending=True)
         indices = indices.index_select(0, order)
         frames = frames.index_select(0, order)

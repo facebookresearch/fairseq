@@ -3,10 +3,15 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 from argparse import Namespace
+from copy import deepcopy
 from pathlib import Path
+import logging
 from typing import Dict, Optional
 
 from fairseq.data import Dictionary
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_config_from_yaml(yaml_path: Path):
@@ -128,19 +133,46 @@ class S2TDataConfig(object):
         the root path. Set this to empty string when using absolute paths."""
         return self.config.get("audio_root", "")
 
-    def get_feature_transforms(self, split, is_train):
+    def get_transforms(self, transform_type, split, is_train):
         """Split-specific feature transforms. Allowing train set
         wildcard `_train`, evaluation set wildcard `_eval` and general
         wildcard `*` for matching."""
         from copy import deepcopy
 
         cfg = deepcopy(self.config)
-        _cur = cfg.get("transforms", {})
+        _cur = cfg.get(f"{transform_type}transforms", {})
         cur = _cur.get(split)
         cur = _cur.get("_train") if cur is None and is_train else cur
         cur = _cur.get("_eval") if cur is None and not is_train else cur
         cur = _cur.get("*") if cur is None else cur
-        cfg["transforms"] = cur
+        return cur
+
+    def get_feature_transforms(self, split, is_train):
+        cfg = deepcopy(self.config)
+        # TODO: deprecate transforms
+        cur = self.get_transforms("", split, is_train)
+        if cur is not None:
+            logger.warning(
+                "Auto converting transforms into feature_transforms, "
+                "but transforms will be deprecated in the future. Please "
+                "update this in the config."
+            )
+            ft_transforms = self.get_transforms("feature_", split, is_train)
+            if ft_transforms:
+                cur.extend(ft_transforms)
+        else:
+            cur = self.get_transforms("feature_", split, is_train)
+        cfg["feature_transforms"] = cur
+        return cfg
+
+    def get_waveform_transforms(self, split, is_train):
+        cfg = deepcopy(self.config)
+        cfg["waveform_transforms"] = self.get_transforms("waveform_", split, is_train)
+        return cfg
+
+    def get_dataset_transforms(self, split, is_train):
+        cfg = deepcopy(self.config)
+        cfg["dataset_transforms"] = self.get_transforms("dataset_", split, is_train)
         return cfg
 
     @property
@@ -178,7 +210,13 @@ class S2SDataConfig(S2TDataConfig):
     def input_transformed_channels(self):
         """The number of channels in the audio after feature transforms"""
         # TODO: move this into individual transforms
+        # TODO: deprecate transforms
         _cur = self.config.get("transforms", {})
+        ft_transforms = self.config.get("feature_transforms", {})
+        if _cur and ft_transforms:
+            _cur.update(ft_transforms)
+        else:
+            _cur = self.config.get("feature_transforms", {})
         cur = _cur.get("_train", [])
 
         _channels = self.input_channels
