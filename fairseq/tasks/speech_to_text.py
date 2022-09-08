@@ -176,7 +176,7 @@ class SpeechToTextTask(LegacyFairseqTask):
             del extra_gen_cls_kwargs["lm_model_aux"]
 
         return super().build_generator(
-            models, args, seq_gen_cls=None, extra_gen_cls_kwargs=extra_gen_cls_kwargs
+            models, args, seq_gen_cls=seq_gen_cls, extra_gen_cls_kwargs=extra_gen_cls_kwargs
         )
 
     def build_tokenizer(self, args):

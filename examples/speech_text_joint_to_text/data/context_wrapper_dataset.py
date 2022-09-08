@@ -5,6 +5,8 @@
 import logging
 from random import randint, random, sample, shuffle
 from typing import Dict, List, NamedTuple, Optional, Tuple
+from examples.speech_text_joint_to_text.data.speech_to_text_joint_dataset_with_entities import SpeechToTextJointDatasetWithEntitiesItem
+from fairseq.data.base_wrapper_dataset import BaseWrapperDataset
 
 import torch
 
@@ -129,6 +131,45 @@ class SpeechTextContextDataset(SpeechTextRetrievalDataset):
                 extra_lens = 1
             contexts.append(collated_tokens)
             context_lengths.append(torch.LongTensor([len(c) + extra_lens for c in all_context]))
+
+        collated_samples['net_input']['context_list'] = contexts
+        collated_samples['net_input']['context_lengths_list'] = context_lengths
+        if not return_order:
+            del collated_samples["order"]
+        return collated_samples
+
+
+class SpeechTextFixedContextDataset(BaseWrapperDataset):
+    def __init__(self, dataset, dictionary):
+        super().__init__(dataset)
+        self.dictionary = dictionary
+
+    def collater(
+        self, samples: List[SpeechToTextJointDatasetWithEntitiesItem], return_order: bool = False
+    ) -> Dict:
+        collated_samples = self.dataset.collater(samples, return_order=True)
+        if collated_samples == {}:
+            return collated_samples
+
+        contexts = []
+        context_lengths = []
+        for idx in collated_samples['order']:
+            if len(samples[idx].entities) > 0:
+                collated_tokens = fairseq_data_utils.collate_tokens(
+                    samples[idx].entities,
+                    self.dictionary.pad(),
+                    self.dictionary.eos(),
+                )
+                extra_lens = 0
+                if samples[idx].tgt_lang_tag is not None:
+                    tags = torch.LongTensor([samples[idx].tgt_lang_tag] * collated_tokens.shape[0]).unsqueeze(1)
+                    collated_tokens = torch.cat((tags, collated_tokens), dim=1)
+                    extra_lens = 1
+                contexts.append(collated_tokens)
+                context_lengths.append(torch.LongTensor([len(c) + extra_lens for c in samples[idx].entities]))
+            else:
+                contexts.append(None)
+                context_lengths.append(None)
 
         collated_samples['net_input']['context_list'] = contexts
         collated_samples['net_input']['context_lengths_list'] = context_lengths

@@ -5,7 +5,7 @@
 from collections import OrderedDict
 import copy
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from fairseq.models.transformer.transformer_encoder import TransformerEncoder
 import torch
 from torch import nn, Tensor
@@ -42,6 +42,7 @@ class CLASDualInputWavTransformerModel(DualInputWavTransformerModel):
         decoder = cls.build_decoder(args, task)
         _args = copy.deepcopy(args)
         _args.encoder_layers = args.context_encoder_layers
+        _args.max_source_positions = getattr(args, 'context_max_source_positions', args.max_source_positions)
         context_encoder = TransformerEncoder(_args, decoder.dictionary, decoder.embed_tokens)
         return cls(encoder, decoder, context_encoder)
 
@@ -77,6 +78,12 @@ class CLASDualInputWavTransformerModel(DualInputWavTransformerModel):
             type=int,
             metavar="NL",
             help="num of layers for the context encoder",
+        )
+        parser.add_argument(
+            "--context-max-source-positions",
+            type=int,
+            metavar="NL",
+            help="max length of context input",
         )
 
     @classmethod
@@ -146,6 +153,27 @@ class CLASDualInputWavTransformerModel(DualInputWavTransformerModel):
             sizes.append(v.size(0))
         return res, sizes
 
+    def forward_context(self, context_list, context_lengths_list):
+        context_vectors = []
+        for context_phrases, context_phrases_lengths in zip(context_list, context_lengths_list):
+            if context_phrases is not None:
+                ctx_encoder_out = self.context_encoder(
+                    context_phrases, context_phrases_lengths, return_all_hiddens=False)
+                ctx_phrases_embeddings = self.padding_aware_mean(
+                    ctx_encoder_out['encoder_out'][0], ctx_encoder_out['encoder_padding_mask'][0]).detach()
+                context_vectors.append(torch.cat((self.nocontext_vector.unsqueeze(0), ctx_phrases_embeddings), dim=0))
+            else:
+                context_vectors.append(self.nocontext_vector.unsqueeze(0))
+        context_embeddings, context_lengths = self._collate_features(context_vectors)  # B x NC x C
+        context_embeddings = context_embeddings.transpose(0, 1)
+        context_padding_mask = lengths_to_padding_mask(torch.LongTensor(context_lengths).to(context_embeddings.device))
+        return context_embeddings, context_padding_mask
+
+    def reorder_context(self, context: Tuple[Tensor, Tensor], new_order):
+        new_embs = context[0].index_select(1, new_order)
+        new_lens = context[1].index_select(0, new_order)
+        return new_embs, new_lens
+
     def forward(
         self,
         src_tokens,
@@ -190,19 +218,7 @@ class CLASDualInputWavTransformerModel(DualInputWavTransformerModel):
             **kwargs
         )
         assert len(context_list) == src_tokens.shape[0]
-        context_vectors = []
-        for context_phrases, context_phrases_lengths in zip(context_list, context_lengths_list):
-            if context_phrases is not None:
-                ctx_encoder_out = self.context_encoder(
-                    context_phrases, context_phrases_lengths, return_all_hiddens=False)
-                ctx_phrases_embeddings = self.padding_aware_mean(
-                    ctx_encoder_out['encoder_out'][0], ctx_encoder_out['encoder_padding_mask'][0]).detach()
-                context_vectors.append(torch.cat((self.nocontext_vector.unsqueeze(0), ctx_phrases_embeddings), dim=0))
-            else:
-                context_vectors.append(self.nocontext_vector.unsqueeze(0))
-        context_embeddings, context_lengths = self._collate_features(context_vectors)  # B x NC x C
-        context_embeddings = context_embeddings.transpose(0, 1)
-        context_padding_mask = lengths_to_padding_mask(torch.LongTensor(context_lengths).to(context_embeddings.device))
+        context_embeddings, context_padding_mask = self.forward_context(context_list, context_lengths_list)
         # has_txt_input = True if src_txt_tokens is not None else False
         decoder_out = self.decoder(
             prev_output_tokens,
