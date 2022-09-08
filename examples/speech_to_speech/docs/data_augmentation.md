@@ -2,16 +2,16 @@
 
 The noise and data augmentation techniques were written in an effort to understand how augmenatation can affect model robustness and performance in both clean and noisy settings. 
 
-All transforms discussed in this section are subclasses of `AudioFeatureTransform`, `AudioWaveformTransform`, or `AudioDatasetTransform`. Each `Audio*Transform` has unique interaction with the data. If interested in implemented one's own transforms, it is highly advisable to review the differences [TODO: add link to section]. If only applying the in-built transforms, then one only needs to be mindful that the correct kind of transform is listed in the config (see [Using these transforms](https://github.com/fairinternal/fairseq-py/new/adishree_internship/examples#using-these-transforms) ). These transforms can be applied to instances of `SpeechToTextDataset`.
+All transforms discussed in this section are subclasses of `AudioFeatureTransform`, `AudioWaveformTransform`, or `AudioDatasetTransform`. Each `Audio*Transform` has unique interaction with the data. If interested in implemented one's own transforms, it is highly advisable to review the differences (see [Adding your own transforms](https://github.com/facebookresearch/fairseq/blob/main/examples/speech_to_speech/docs/data_augmentation.md#adding-your-own-transforms)). If only applying the in-built transforms, then one only needs to be mindful that the correct kind of transform is listed in the config (see [Using transforms](https://github.com/facebookresearch/fairseq/blob/main/examples/speech_to_speech/docs/data_augmentation.md#using-transforms)). These transforms can be applied to instances of `SpeechToTextDataset`.
 
-### Contents [TODO: add links]
-[In-built transforms]()
+### Contents
+[In-built transforms](https://github.com/facebookresearch/fairseq/blob/main/examples/speech_to_speech/docs/data_augmentation.md#in-built-transforms)
 
-[Benchmark studies]()
+[Benchmark studies](https://github.com/facebookresearch/fairseq/blob/main/examples/speech_to_speech/docs/data_augmentation.md#benchmark-studies)
 
-[Using transforms]()
+[Using transforms](https://github.com/facebookresearch/fairseq/blob/main/examples/speech_to_speech/docs/data_augmentation.md#using-transforms)
 
-[Adding your own transforms]()
+[Adding your own transforms](https://github.com/facebookresearch/fairseq/blob/main/examples/speech_to_speech/docs/data_augmentation.md#adding-your-own-transforms)
 
 
 ## In-built transforms 
@@ -85,28 +85,88 @@ This augmentation technique is based on Algorithm 1 in [WavLM: Large-Scale Self-
 
 ## Benchmark studies
 ### Evaluation on clean data
-| Augmentation in training data | Hyperparameters | Loss | BLEU (covost) | BLEU (epst) | BLEU (mtedx) | Model |
-| --- | --- | --- | --- | --- | --- | --- |
-| None | | 3.955 | 24.604 | 23.293 | 22.339 | * not finalized |
-| ConcatAugment | rate = 0.25, max_tokens = 3000, attempts = 5 | 3.940 | 25.322 | 26.124 | 26.190 | |
-| BabbleAugment | rate = 0.25, MUSAN speech, snr_min = (-5), snr_max = 5 | 3.957 | 24.226 | 23.186 | 22.368 | |
-| BackgroundNoiseAugment | rate = 0.1, MUSAN noises, snr_min = (-10), snr_max = 10 | 3.955 | 24.745 | 23.513 | 23.819 | |
-| MusicAugment | rate = 0.25, MUSAN music, snr_min = 0, snr_max = 20 | 3.954 | 25.096 | 24.301 | 23.341 | |
-| SporadicNoiseAugment | rate = 0.1, noise_rate = 0.25, MUSAN noises, snr_min = 10, snr_max = 35 | 3.954 | 24.924 | 23.951 | 23.484 | |
-| MusicAugment + BabbleAugment + BackgroundNoiseAugment + SporadicNoiseAugment | | 3.956 | 24.638 | 23.491 | 23.969 | * not finalized |
-| NoisyOverlapAugment | | 3.954 | 24.949 | 24.015 | 23.768 | |
+Augmentation in training data|Hyperparameters|Training loss|BLEU (covost)|BLEU (epst)|BLEU (mtedx)
+---|---|---|---|---|---
+None||3.954|24.984|23.962|24.448
+ConcatAugment|rate = 0.25, max_tokens = 3000, attempts = 5|3.940|25.322|26.124|26.19
+BabbleAugment|rate = 0.25, MUSAN speech, snr_min = (-5), snr_max = 5|3.957|24.226|23.186|22.368|
+BackgroundNoiseAugment|rate = 0.1, MUSAN noises, snr_min = (-10), snr_max = 10|3.955|24.745|23.513|23.819
+MusicAugment|rate = 0.25, MUSAN music, snr_min = 0, snr_max = 20|3.954|25.096|24.301|23.341|
+SporadicNoiseAugment|rate = 0.1, noise_rate = 0.25, MUSAN noises, snr_min = 10, snr_max = 35|3.954|24.924|23.951|23.484|
+MusicAugment + BabbleAugment + BackgroundNoiseAugment + SporadicNoiseAugment|as above, except limited rates to sum to 0.25: music (0.074), background (0.029), babble (0.074), sporadic (0.029)|3.953|24.874|23.675|24.249|
+NoisyOverlapAugment|rate = 0.25, mixing_noise_rate = 0.5, MUSAN noises, utterance_snr_min = (-10), utterance_snr_max = 0, noise_snr_min = (-5), noise_snr_max = 20|3.954|24.949|24.015|23.768|
 
-### Evaluation on data with music noise added at SNR = (-5) - 5 [TODO]
+### Evaluation on data with music noise added at SNR = (-5) - 5
+Augmentation in training data|Training loss|BLEU (covost)|BLEU (epst)|BLEU (mtedx)
+---|---|---|---|---
+None|3.954|15.785|21.105|16.944
+ConcatAugment|3.940|17.186|23.255|18.24
+BabbleAugment|3.957|19.158|22.064|17.116
+BackgroundNoiseAugment|3.955|17.777|22.0|17.535|
+MusicAugment|3.954|20.345|23.126|19.433|
+SporadicNoiseAugment|3.954|15.927|21.382|14.736|
+MusicAugment + BabbleAugment + BackgroundNoiseAugment + SporadicNoiseAugment|3.953|19.724|22.659|17.852|
+NoisyOverlapAugment|3.954|17.49|22.142|17.207|
 
-### Evaluation on data with babble noise added at SNR = (-5) - 5 [TODO]
+### Evaluation on data with babble noise added at SNR = (-5) - 5 
+Augmentation in training data|Training loss|BLEU (covost)|BLEU (epst)|BLEU (mtedx)
+---|---|---|---|---
+None|3.954|4.092|13.514|5.13
+ConcatAugment|3.940|5.493|15.835|6.893
+BabbleAugment|3.957|16.12|21.097|13.996
+BackgroundNoiseAugment|3.955|4.691|15.784|5.982
+MusicAugment|3.954|8.06|17.764|9.008
+SporadicNoiseAugment|3.954|4.009|13.935|4.814
+MusicAugment + BabbleAugment + BackgroundNoiseAugment + SporadicNoiseAugment|3.953|14.692|20.882|14.45
+NoisyOverlapAugment|3.954|4.032|16.434|7.284
 
-### Evaluation on data with sporadic noise added at SNR = (-5) - 5 [TODO]
+### Evaluation on data with sporadic noise added at SNR = (-5) - 5 
+Augmentation in training data|Training loss|BLEU (covost)|BLEU (epst)|BLEU (mtedx)
+---|---|---|---|---
+None|3.954|23.778|23.745|22.748
+ConcatAugment|3.940|24.239|25.907|25.723
+BabbleAugment|3.957|23.42|23.048|21.076
+BackgroundNoiseAugment|3.955|23.998|23.467|22.494
+MusicAugment|3.954|24.142|24.181|19.143
+SporadicNoiseAugment|3.954|23.97|23.894|22.61
+MusicAugment + BabbleAugment + BackgroundNoiseAugment + SporadicNoiseAugment|3.953|24.118|23.59|23.717
+NoisyOverlapAugment|3.954|24.265|24.103|23.167
 
-### Evaluation on data with background noise added at SNR = (-5) - 5 [TODO]
+### Evaluation on data with background noise added at SNR = (-5) - 5 
+Augmentation in training data|Training loss|BLEU (covost)|BLEU (epst)|BLEU (mtedx)
+---|---|---|---|---
+None|3.954|20.201|22.525|19.66
+ConcatAugment|3.940|20.904|24.706|21.353
+BabbleAugment|3.957|20.687|22.374|18.907
+BackgroundNoiseAugment|3.955|21.574|22.998|20.043
+MusicAugment|3.954|21.65|23.529|19.87
+SporadicNoiseAugment|3.954|20.578|22.577|19.096
+MusicAugment + BabbleAugment + BackgroundNoiseAugment + SporadicNoiseAugment|3.953|21.811|23.144|20.986
+NoisyOverlapAugment|3.954|21.312|23.153|20.302
 
-### Evaluation on data with all four types of noises added at SNR = (-5) - 5, each applied with prob 0.5 [TODO]
+### Evaluation on data with all four types of noises added at SNR = (-5) - 5, each applied with prob 0.5
+Augmentation in training data|Training loss|BLEU (covost)|BLEU (epst)|BLEU (mtedx)
+---|---|---|---|---
+None|3.954|10.895|19.319|12.748
+ConcatAugment|3.940|13.517|21.658|15.428
+BabbleAugment|3.957|18.09|21.384|16.018
+BackgroundNoiseAugment|3.955|12.837|20.719|13.933
+MusicAugment|3.954|16.589|21.823|15.927
+SporadicNoiseAugment|3.954|11.238|19.91|13.31
+MusicAugment + BabbleAugment + BackgroundNoiseAugment + SporadicNoiseAugment|3.953|18.636|21.935|17.845
+NoisyOverlapAugment|3.954|12.829|20.856|15.048
 
-### Evaluation on data with noisy overlap augment [TODO]
+### Evaluation on data with noisy overlap augment 
+Augmentation in training data|Training loss|BLEU (covost)|BLEU (epst)|BLEU (mtedx)
+---|---|---|---|---
+None|3.954|21.245|22.24|20.994
+ConcatAugment|3.940|21.611|24.247|23.068
+BabbleAugment|3.957|21.867|21.987|20.099|
+BackgroundNoiseAugment|3.955|21.533|21.806|19.717|
+MusicAugment|3.954|21.823|22.643|20.847|
+SporadicNoiseAugment|3.954|21.373|22.381|20.672|
+MusicAugment + BabbleAugment + BackgroundNoiseAugment + SporadicNoiseAugment|3.953|22.206|22.414|21.375|
+NoisyOverlapAugment|3.954|23.371|23.396|22.627|
 
 ## Using transforms 
 Transforms are configurable. 
