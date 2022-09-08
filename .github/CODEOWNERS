@@ -16,3 +16,6 @@ fairseq/modules/conformer_layer.py @sravyapopuri388 @jmp84
 fairseq/modules/espnet_multihead_attention.py @sravyapopuri388 @jmp84
 fairseq/modules/rotary_positional_embedding.py @sravyapopuri388 @jmp84
 fairseq/modules/positional_encoding.py @sravyapopuri388 @jmp84
+
+# Machine Translation/NLLB
+fairseq/tasks/translation.py @gwenzek
