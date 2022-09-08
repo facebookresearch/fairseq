@@ -23,7 +23,7 @@ def generate_scores(model, samples, candidate_list, src_dict, use_cuda, scores_a
     encoder = model.encoder
     with torch.no_grad():
         speech_encoder_outs = encoder.spch_encoder(
-            samples['net_input']['src_tokens'], samples['net_input']['src_lengths'], return_all_hiddens=True)
+            samples['net_input']['src_tokens'], samples['net_input']['src_lengths'], return_all_hiddens=False)
         scores = {}
         for candidate in candidate_list:
             if candidate in TEXT_CACHE:
@@ -43,7 +43,7 @@ def generate_scores(model, samples, candidate_list, src_dict, use_cuda, scores_a
                     src_txt_lengths = utils.move_to_cuda(src_txt_lengths)
                     src_txt_tokens = utils.move_to_cuda(src_txt_tokens)
                 text_encoder_outs = encoder.text_encoder(
-                    src_txt_tokens, src_txt_lengths, return_all_hiddens=True)
+                    src_txt_tokens, src_txt_lengths, return_all_hiddens=False)
                 TEXT_CACHE[candidate] = text_encoder_outs
 
             batch_scores = model.retrieval_network(
