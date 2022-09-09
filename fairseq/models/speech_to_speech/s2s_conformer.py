@@ -5,23 +5,18 @@
 
 import logging
 from pathlib import Path
+
 import torch
 
 from fairseq import checkpoint_utils
-from fairseq.models import (
-    register_model,
-    register_model_architecture,
-)
 from fairseq.data.audio.data_cfg import S2SDataConfig
-from fairseq.models.speech_to_text import S2TConformerEncoder
+from fairseq.models import register_model, register_model_architecture
+from fairseq.models.speech_to_speech import S2UTTransformerModel
 from fairseq.models.speech_to_speech import (
-    S2UTTransformerModel,
     s2ut_architecture_base as s2ut_transformer_architecture_base,
 )
-from fairseq.models.transformer import (
-    Linear,
-)
-
+from fairseq.models.speech_to_text import S2TConformerEncoder
+from fairseq.models.transformer import Linear
 
 logger = logging.getLogger(__name__)
 

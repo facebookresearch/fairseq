@@ -1,16 +1,20 @@
 import logging
+import math
+
 import torch
+
+from fairseq.data.data_utils import lengths_to_padding_mask
+from fairseq.models import FairseqEncoder, register_model, register_model_architecture
 from fairseq.models.speech_to_text.s2t_transformer import (
+    Conv1dSubsampler,
     S2TTransformerEncoder,
     S2TTransformerModel,
-    Conv1dSubsampler,
+)
+from fairseq.models.speech_to_text.s2t_transformer import (
     base_architecture as transformer_base_architecture,
 )
-from fairseq.data.data_utils import lengths_to_padding_mask
-from fairseq.modules.conformer_layer import ConformerEncoderLayer
-from fairseq.models import FairseqEncoder, register_model_architecture, register_model
 from fairseq.modules import PositionalEmbedding, RelPositionalEncoding
-import math
+from fairseq.modules.conformer_layer import ConformerEncoderLayer
 
 logger = logging.getLogger(__name__)
 

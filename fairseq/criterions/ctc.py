@@ -7,17 +7,18 @@
 import math
 from argparse import Namespace
 from dataclasses import dataclass, field
-from omegaconf import II
 from typing import Optional
 
 import torch
 import torch.nn.functional as F
+from omegaconf import II
+
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
-from fairseq.dataclass import FairseqDataclass
 from fairseq.data.data_utils import post_process
-from fairseq.tasks import FairseqTask
+from fairseq.dataclass import FairseqDataclass
 from fairseq.logging.meters import safe_round
+from fairseq.tasks import FairseqTask
 
 
 @dataclass

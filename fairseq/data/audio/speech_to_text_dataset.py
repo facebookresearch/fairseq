@@ -20,13 +20,13 @@ from fairseq.data import ConcatDataset, Dictionary, FairseqDataset, ResamplingDa
 from fairseq.data import data_utils as fairseq_data_utils
 from fairseq.data.audio.audio_utils import get_features_or_waveform
 from fairseq.data.audio.data_cfg import S2TDataConfig
-from fairseq.data.audio.feature_transforms import CompositeAudioFeatureTransform
-from fairseq.data.audio.waveform_transforms import CompositeAudioWaveformTransform
 from fairseq.data.audio.dataset_transforms import CompositeAudioDatasetTransform
 from fairseq.data.audio.dataset_transforms.concataugment import ConcatAugment
 from fairseq.data.audio.dataset_transforms.noisyoverlapaugment import (
     NoisyOverlapAugment,
 )
+from fairseq.data.audio.feature_transforms import CompositeAudioFeatureTransform
+from fairseq.data.audio.waveform_transforms import CompositeAudioWaveformTransform
 
 logger = logging.getLogger(__name__)
 
