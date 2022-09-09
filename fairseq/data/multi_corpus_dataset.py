@@ -10,6 +10,7 @@ from collections import OrderedDict
 from typing import Dict, List, Optional
 
 import numpy as np
+
 from fairseq.data import data_utils
 
 from . import FairseqDataset
@@ -282,4 +283,3 @@ class MultiCorpusDataset(FairseqDataset):
             with data_utils.numpy_seed(self.seed, self.epoch, self.distributed_rank):
                 np.random.shuffle(batches)
         return batches
-
