@@ -28,6 +28,12 @@ from fairseq.modules.layer_norm import LayerNorm
 logger = logging.getLogger(__name__)
 
 
+def build_embedding(dictionary, embed_dim):
+    num_embeddings = len(dictionary)
+    padding_idx = dictionary.pad()
+    return Embedding(num_embeddings, embed_dim, padding_idx)
+
+
 class Conv1dAdaptor(nn.Module):
     def __init__(
         self,
@@ -156,93 +162,78 @@ def add_wav2vec_asr_args(parser):
         metavar="D",
         help="dropout probability after activation in FFN inside wav2vec 2.0 model",
     )
-
     parser.add_argument(
         "--mask-length", type=int, help="repeat the mask indices multiple times"
     )
-
     parser.add_argument(
         "--mask-prob", type=float, help="probability of replacing a token with mask"
     )
-
     parser.add_argument(
         "--mask-selection",
         type=str,
         choices=["static", "uniform", "normal", "poisson"],
         help="how to choose masks",
     )
-
     parser.add_argument(
         "--mask-other",
         type=float,
         help="stdev of the mask length in case of 'normal' selection strategy",
     )
-
     parser.add_argument(
         "--no-mask-overlap",
         action="store_true",
         help="whether to allow masks to overlap",
     )
-
     parser.add_argument(
         "--mask-channel-length", type=int, help="repeat the mask indices multiple times"
     )
-
     parser.add_argument(
         "--mask-channel-prob",
         type=float,
         help="probability of replacing a token with mask",
     )
-
     parser.add_argument(
         "--mask-channel-selection",
         type=str,
         choices=["static", "uniform", "normal", "poisson"],
         help="how to choose masks",
     )
-
     parser.add_argument(
         "--mask-channel-other",
         type=float,
         help="stdev of the mask length in case of 'normal' selection strategy",
     )
-
     parser.add_argument(
         "--no-mask-channel-overlap",
         action="store_true",
         help="whether to allow masks to overlap",
     )
-
     parser.add_argument(
         "--freeze-finetune-updates",
-        default=0,
         type=int,
+        metavar="N",
         help="dont finetune wav2vec for this many updates",
     )
-
     parser.add_argument(
         "--feature-grad-mult",
-        default=None,
         type=float,
+        metavar="D",
         help="reset feature grad mult in wav2vec 2.0 to this",
     )
-
     parser.add_argument(
         "--layerdrop",
-        default=0.0,
         type=float,
+        metavar="D",
         help="probability of dropping a layer in wav2vec 2.0",
     )
     parser.add_argument(
         "--max-positions",
         type=int,
+        metavar="N",
         help="Max input positions to be used in the conformer encoder in wav2vec 2.0",
     )
-
     parser.add_argument("--encoder-proj", action="store_true")
-
     parser.add_argument("--w2v-args", default=None)
-
     parser.add_argument(
         "--remove-weight-norm",
         action="store_true",
@@ -435,9 +426,22 @@ def add_decoder_args(parser):
     parser.add_argument(
         "--layernorm-embedding", action="store_true", help="add layernorm to embedding"
     )
-    parser.add_argument("--decoder-layerdrop", type=float, metavar="D")
-    parser.add_argument("--decoder-learned-pos", action="store_true")
-    parser.add_argument("--share-decoder-input-output-embed", action="store_true")
+    parser.add_argument(
+        "--decoder-layerdrop",
+        type=float,
+        metavar="D",
+        help="layerdrop probability for decoder",
+    )
+    parser.add_argument(
+        "--decoder-learned-pos",
+        action="store_true",
+        help="learn positional embedding in decoder",
+    )
+    parser.add_argument(
+        "--share-decoder-input-output-embed",
+        action="store_true",
+        help="share decoder input and output embeddings",
+    )
     parser.add_argument(
         "--no-scale-embedding",
         action="store_true",
@@ -539,7 +543,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         add_decoder_args(parser)
         parser.add_argument("--checkpoint-activations", action="store_true")
         parser.add_argument("--offload-activations", action="store_true")
-        parser.add_argument("--min-params-to-wrap", type=int)
+        parser.add_argument("--min-params-to-wrap", type=int, metavar="N")
 
     @classmethod
     def maybe_load_pretrained(cls, component, checkpoint: Optional[str] = None):
@@ -632,11 +636,6 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             ckpt = torch.load(getattr(args, "load_pretrained_decoder_from", None))
             decoder_args_dict = cls.get_decoder_args_from_checkpoint(ckpt["cfg"])
             args = cls.override_decoder_args(args, decoder_args_dict)
-
-        def build_embedding(dictionary, embed_dim):
-            num_embeddings = len(dictionary)
-            padding_idx = dictionary.pad()
-            return Embedding(num_embeddings, embed_dim, padding_idx)
 
         decoder_embed_tokens = build_embedding(
             task.target_dictionary, args.decoder_embed_dim
