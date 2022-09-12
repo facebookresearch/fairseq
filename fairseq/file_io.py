@@ -69,7 +69,7 @@ class PathManager:
 
     @staticmethod
     def copy(src_path: str, dst_path: str, overwrite: bool = False) -> bool:
-        if not (src_path.startswith("ml-platform-generic") or
+        if (src_path.startswith("ml-platform-generic") or
                  src_path.startswith("roblox.analytics.users")) and IOPathManager:
             return IOPathManager._copy(
                 src_path=src_path, dst_path=dst_path, overwrite=overwrite
