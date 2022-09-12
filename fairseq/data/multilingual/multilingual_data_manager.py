@@ -752,7 +752,6 @@ class MultilingualDatasetManager(object):
 
     @classmethod
     def load_data(cls, path, vdict, impl):
-        logger.info(path)
         dataset = data_utils.load_indexed_dataset(path, vdict, impl)
         return dataset
 
@@ -1560,12 +1559,10 @@ class MultilingualDatasetManager(object):
             split_subs = split.split(",")
             for f in files:
                 f = f.split('/')[-1]
-                logger.info(f)
                 for split_sub in split_subs:
                     if f.startswith(f"{split_sub}.") and f.endswith(".idx"):
                         # idx files of the form "{split}.{src}-{tgt}.{lang}.idx"
                         direction = f.split(".")[-3]
-                        logger.info(f"adding {f}")
                         directions.add(direction)
             for direction in directions:
                 shards[direction] += 1
