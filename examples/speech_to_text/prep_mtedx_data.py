@@ -133,6 +133,7 @@ def process(args):
                         waveform, sample_rate, to_mono=True,
                         to_sample_rate=tgt_sample_rate
                     )
+                    _wavform = _wavform.T  # C x T -> T x C
                     sf.write(
                         (audio_root / f"{utt_id}.flac").as_posix(),
                         _wavform.numpy(), tgt_sample_rate
