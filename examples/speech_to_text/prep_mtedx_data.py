@@ -149,7 +149,7 @@ def process(args):
         print("ZIPing audios/features...")
         create_zip(audio_root, zip_path)
         print("Fetching ZIP manifest...")
-        audio_paths, audio_lengths = get_zip_manifest(zip_path)
+        audio_paths, audio_lengths = get_zip_manifest(zip_path, is_audio=args.use_audio_input)
         # Generate TSV manifest
         print("Generating manifest...")
         train_text = []
