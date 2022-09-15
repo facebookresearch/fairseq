@@ -10,8 +10,8 @@ import torch
 
 from fairseq import checkpoint_utils
 from fairseq.models import register_model, register_model_architecture
-from fairseq.models.speech_to_speech import S2UTTransformerModel
-from fairseq.models.speech_to_speech import (
+from fairseq.models.speech_to_speech.s2s_transformer import S2UTTransformerModel
+from fairseq.models.speech_to_speech.s2s_transformer import (
     s2ut_architecture_base as s2ut_transformer_architecture_base,
 )
 from fairseq.models.speech_to_text import S2TConformerEncoder
