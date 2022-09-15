@@ -255,6 +255,13 @@ class S2UTTransformerModel(S2STransformerMultitaskModelBase):
             metavar="N",
             help="# of channels in Conv1d subsampling layers",
         )
+        parser.add_argument(
+            "--conv-version",
+            type=str,
+            default="s2t_transformer",
+            choices=["s2t_transformer", "convtransformer"],
+            help="version of frontend convolutional layers",
+        )
         # Transformer
         parser.add_argument(
             "--activation-fn",
@@ -430,6 +437,13 @@ class S2SpecTTransformerModel(S2STransformerMultitaskModelBase):
             metavar="N",
             help="# of channels in Conv1d subsampling layers",
         )
+        parser.add_argument(
+            "--conv-version",
+            type=str,
+            default="s2t_transformer",
+            choices=["s2t_transformer", "convtransformer"],
+            help="version of frontend convolutional layers",
+        )
         # Transformer
         parser.add_argument(
             "--activation-fn",
@@ -599,8 +613,10 @@ def base_s2st_transformer_encoder_architecture(args):
     args.encoder_freezing_updates = getattr(args, "encoder_freezing_updates", 0)
 
     # Convolutional subsampler
+    args.input_channels = getattr(args, "input_channels", 1)
     args.conv_kernel_sizes = getattr(args, "conv_kernel_sizes", "5,5")
     args.conv_channels = getattr(args, "conv_channels", 1024)
+    args.conv_version = getattr(args, "conv_version", "s2t_transformer")
     # Transformer
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 2048)
