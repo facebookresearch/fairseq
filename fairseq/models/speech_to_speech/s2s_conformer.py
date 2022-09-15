@@ -5,23 +5,17 @@
 
 import logging
 from pathlib import Path
+
 import torch
 
 from fairseq import checkpoint_utils
-from fairseq.models import (
-    register_model,
-    register_model_architecture,
-)
-from fairseq.data.audio.data_cfg import S2SDataConfig
-from fairseq.models.speech_to_text import S2TConformerEncoder
-from fairseq.models.speech_to_speech import (
-    S2UTTransformerModel,
+from fairseq.models import register_model, register_model_architecture
+from fairseq.models.speech_to_speech.s2s_transformer import S2UTTransformerModel
+from fairseq.models.speech_to_speech.s2s_transformer import (
     s2ut_architecture_base as s2ut_transformer_architecture_base,
 )
-from fairseq.models.transformer import (
-    Linear,
-)
-
+from fairseq.models.speech_to_text import S2TConformerEncoder
+from fairseq.models.transformer import Linear
 
 logger = logging.getLogger(__name__)
 
@@ -63,25 +57,27 @@ class S2UTConformerModel(S2UTTransformerModel):
     @staticmethod
     def add_args(parser):
         S2UTTransformerModel.add_args(parser)
-        parser.add_argument("--depthwise-conv-kernel-size", default=31)
+        parser.add_argument(
+            "--depthwise-conv-kernel-size",
+            type=int,
+            metavar="N",
+            help="kernel size of depthwise convolution layers",
+        )
         parser.add_argument(
             "--attn-type",
-            default=None,
+            type=str,
+            metavar="STR",
             help="If not specified uses fairseq MHA. Other valid option is espnet for using conformer",
         )
         parser.add_argument(
             "--pos-enc-type",
-            default="abs",
+            type=str,
+            metavar="STR",
             help="Must be specified in addition to attn-type=espnet for rel_pos and rope",
         )
 
     @classmethod
     def build_encoder(cls, args):
-        print(args)
-        data_cfg = S2SDataConfig(Path(args.data) / args.config_yaml)
-        args.input_feat_per_channel = data_cfg.input_feat_per_channel
-        args.input_channels = data_cfg.input_transformed_channels
-
         encoder = S2SConformerEncoder(args)
         pretraining_path = getattr(args, "load_pretrained_encoder_from", None)
         if pretraining_path is not None:

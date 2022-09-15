@@ -1,16 +1,20 @@
 import logging
+import math
+
 import torch
+
+from fairseq.data.data_utils import lengths_to_padding_mask
+from fairseq.models import FairseqEncoder, register_model, register_model_architecture
 from fairseq.models.speech_to_text.s2t_transformer import (
+    Conv1dSubsampler,
     S2TTransformerEncoder,
     S2TTransformerModel,
-    Conv1dSubsampler,
+)
+from fairseq.models.speech_to_text.s2t_transformer import (
     base_architecture as transformer_base_architecture,
 )
-from fairseq.data.data_utils import lengths_to_padding_mask
-from fairseq.modules.conformer_layer import ConformerEncoderLayer
-from fairseq.models import FairseqEncoder, register_model_architecture, register_model
 from fairseq.modules import PositionalEmbedding, RelPositionalEncoding
-import math
+from fairseq.modules.conformer_layer import ConformerEncoderLayer
 
 logger = logging.getLogger(__name__)
 
@@ -123,17 +127,34 @@ class S2TConformerModel(S2TTransformerModel):
     @staticmethod
     def add_args(parser):
         S2TTransformerModel.add_args(parser)
-        parser.add_argument("--input-feat-per-channel", default=80)
-        parser.add_argument("--depthwise-conv-kernel-size", default=31)
-        parser.add_argument("--input-channels", default=1)
+        parser.add_argument(
+            "--input-feat-per-channel",
+            type=int,
+            metavar="N",
+            help="dimension of input features per channel",
+        )
+        parser.add_argument(
+            "--input-channels",
+            type=int,
+            metavar="N",
+            help="number of chennels of input features",
+        )
+        parser.add_argument(
+            "--depthwise-conv-kernel-size",
+            type=int,
+            metavar="N",
+            help="kernel size of depthwise convolution layers",
+        )
         parser.add_argument(
             "--attn-type",
-            default=None,
+            type=str,
+            metavar="STR",
             help="If not specified uses fairseq MHA. Other valid option is espnet",
         )
         parser.add_argument(
             "--pos-enc-type",
-            default="abs",
+            type=str,
+            metavar="STR",
             help="Must be specified in addition to attn-type=espnet for rel_pos and rope",
         )
 

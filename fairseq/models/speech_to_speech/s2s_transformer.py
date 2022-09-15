@@ -12,21 +12,16 @@ from torch import Tensor
 
 from fairseq import checkpoint_utils, utils
 from fairseq.models import (
-    FairseqEncoderModel,
     FairseqEncoderDecoderModel,
+    FairseqEncoderModel,
     FairseqLanguageModel,
     register_model,
     register_model_architecture,
 )
-from fairseq.models.speech_to_text import S2TTransformerEncoder
 from fairseq.models.speech_to_speech.modules import CTCDecoder, StackedEmbedding
+from fairseq.models.speech_to_text import S2TTransformerEncoder
 from fairseq.models.text_to_speech import TTSTransformerDecoder
-from fairseq.models.transformer import (
-    Linear,
-    TransformerDecoder,
-    TransformerModelBase,
-)
-
+from fairseq.models.transformer import Linear, TransformerDecoder, TransformerModelBase
 
 logger = logging.getLogger(__name__)
 

@@ -4,8 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
-from pathlib import Path
 from argparse import Namespace
+from pathlib import Path
 
 from fairseq.data import Dictionary, encoders
 from fairseq.data.audio.audio_utils import get_features_or_waveform
@@ -15,7 +15,6 @@ from fairseq.data.audio.speech_to_text_dataset import (
     SpeechToTextDatasetCreator,
 )
 from fairseq.tasks import LegacyFairseqTask, register_task
-
 
 logger = logging.getLogger(__name__)
 
