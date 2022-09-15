@@ -13,30 +13,30 @@ from fairseq.models import (
     register_model_architecture,
 )
 from fairseq.models.speech_to_speech.modules import CTCDecoder
-from fairseq.models.speech_to_speech.s2s_conformer import TranslatotronConformerModel
+from fairseq.models.speech_to_speech.s2s_conformer import S2SpecTConformerModel
 from fairseq.models.speech_to_speech.s2s_conformer_unity import (
     TransformerEncoderNoEmb,
     multitask_text_transformer_decoder_arch,
 )
 from fairseq.models.speech_to_speech.s2s_transformer import (
     base_multitask_text_transformer_decoder_arch,
-    translatotron_architecture_base,
+    s2spect_architecture_base,
 )
 from fairseq.models.text_to_speech import TTSTransformerDecoder
-from fairseq.models.transformer import Linear, TransformerDecoder, TransformerModelBase
+from fairseq.models.transformer import TransformerDecoder, TransformerModelBase
 
 logger = logging.getLogger(__name__)
 
 
-@register_model("translatotron2_conformer")
-class Translatotron2ConformerModel(TranslatotronConformerModel):
+@register_model("s2spect2_conformer")
+class S2SpecT2ConformerModel(S2SpecTConformerModel):
     """
-    Direct speech-to-speech translation model with Conformer encoder + MT Transformer decoder + TTS Transformer decoder (Translatotron2)
+    Direct speech-to-speech translation model with Conformer encoder + MT Transformer decoder + TTS Transformer decoder
     """
 
     @staticmethod
     def add_args(parser):
-        TranslatotronConformerModel.add_args(parser)
+        S2SpecTConformerModel.add_args(parser)
         parser.add_argument(
             "--translation-decoder-layers",
             type=int,
@@ -238,9 +238,9 @@ class Translatotron2ConformerModel(TranslatotronConformerModel):
 
 
 @register_model_architecture(
-    model_name="translatotron2_conformer", arch_name="translatotron2_conformer"
+    model_name="s2spect2_conformer", arch_name="s2spect2_conformer"
 )
-def translatotron2_conformer_architecture_base(args):
+def s2spect2_conformer_architecture_base(args):
     args.attn_type = getattr(args, "attn_type", None)
     args.pos_enc_type = getattr(args, "pos_enc_type", "abs")
     args.max_source_positions = getattr(args, "max_source_positions", 6000)
@@ -250,12 +250,12 @@ def translatotron2_conformer_architecture_base(args):
     args.dropout = getattr(args, "dropout", 0.1)
     args.encoder_layers = getattr(args, "encoder_layers", 16)
     args.depthwise_conv_kernel_size = getattr(args, "depthwise_conv_kernel_size", 31)
-    translatotron_architecture_base(args)
+    s2spect_architecture_base(args)
 
 
-# for old models
+# for old naming
 @register_model_architecture(
-    model_name="translatotron2_conformer", arch_name="s2spect_conformer_translatotron2"
+    model_name="s2spect2_conformer", arch_name="s2spect_conformer_translatotron2"
 )
-def translatotron2_conformer_architecture_base_legacy(args):
-    translatotron2_conformer_architecture_base(args)
+def s2spect2_conformer_architecture_base_legacy(args):
+    s2spect2_conformer_architecture_base(args)

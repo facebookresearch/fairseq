@@ -41,9 +41,9 @@ def multitask_text_transformer_decoder_arch(
 
 
 @register_model("unity_conformer")
-class UnitYConformerModel(S2UTConformerModel):
+class UnityConformerModel(S2UTConformerModel):
     """
-    Direct speech-to-speech translation model with Conformer encoder + MT Transformer decoder + Transformer discrete unit decoder (UnitY)
+    Direct speech-to-speech translation model with Conformer encoder + MT Transformer decoder + Transformer discrete unit decoder
     """
 
     @staticmethod
@@ -467,7 +467,7 @@ def unity_conformer_architecture_base(args):
     s2ut_architecture_base(args)
 
 
-# for old models
+# for old naming
 @register_model_architecture(
     model_name="unity_conformer", arch_name="s2ut_conformer_translatotron2"
 )

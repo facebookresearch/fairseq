@@ -254,9 +254,7 @@ class SpeechToUnitMultitaskTaskCriterion(
 @register_criterion(
     "speech_to_unit_2pass", dataclass=RdropLabelSmoothedCrossEntropyCriterionConfig
 )
-class SpeechToUnitTranslatotron2MultitaskTaskCriterion(
-    SpeechToUnitMultitaskTaskCriterion
-):
+class SpeechToUnit2passMultitaskTaskCriterion(SpeechToUnitMultitaskTaskCriterion):
     def __init__(
         self,
         task,
@@ -430,7 +428,7 @@ class SpeechToSpectrogramMultitaskTaskCriterion(Tacotron2Criterion, MultitaskCri
 
 
 @register_criterion("speech_to_spectrogram_2pass", dataclass=Tacotron2CriterionConfig)
-class SpeechToSpectrogramTranslatotron2MultitaskTaskCriterion(
+class SpeechToSpectrogram2passMultitaskTaskCriterion(
     Tacotron2Criterion, MultitaskCriterion
 ):
     def __init__(
