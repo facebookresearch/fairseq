@@ -75,17 +75,22 @@ class S2UTConformerModel(S2UTTransformerModel):
     @staticmethod
     def add_args(parser):
         S2UTTransformerModel.add_args(parser)
-        parser.add_argument("--depthwise-conv-kernel-size", type=int, default=31)
+        parser.add_argument(
+            "--depthwise-conv-kernel-size",
+            type=int,
+            metavar="N",
+            help="kernel size of depthwise convolution layers",
+        )
         parser.add_argument(
             "--attn-type",
             type=str,
-            default=None,
+            metavar="STR",
             help="If not specified uses fairseq MHA. Other valid option is espnet for using conformer",
         )
         parser.add_argument(
             "--pos-enc-type",
             type=str,
-            default="abs",
+            metavar="STR",
             help="Must be specified in addition to attn-type=espnet for rel_pos and rope",
         )
 

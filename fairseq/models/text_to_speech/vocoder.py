@@ -84,7 +84,7 @@ class GriffinLim(torch.nn.Module):
         x = torch.zeros(n, dtype=torch.float32)
         for i in range(n_frames):
             ofst = i * hop_length
-            x[ofst: min(n, ofst + n_fft)] += w_sq[: max(0, min(n_fft, n - ofst))]
+            x[ofst : min(n, ofst + n_fft)] += w_sq[: max(0, min(n_fft, n - ofst))]
         return x
 
     def inverse(self, magnitude: torch.Tensor, phase) -> torch.Tensor:
@@ -102,8 +102,8 @@ class GriffinLim(torch.nn.Module):
         approx_nonzero_indices = win_sum_sq > self.tiny
         x[:, :, approx_nonzero_indices] /= win_sum_sq[approx_nonzero_indices]
         x *= self.n_fft / self.hop_length
-        x = x[:, :, self.n_fft // 2:]
-        x = x[:, :, : -self.n_fft // 2:]
+        x = x[:, :, self.n_fft // 2 :]
+        x = x[:, :, : -self.n_fft // 2 :]
         return x
 
     def forward(self, specgram: torch.Tensor) -> torch.Tensor:
@@ -252,8 +252,11 @@ class CodeHiFiGANVocoder(BaseFairseqModel):
     @classmethod
     def hub_models(cls):
         base_url = "http://dl.fbaipublicfiles.com/fairseq/vocoder"
-        model_ids = ["unit_hifigan_mhubert_vp_en_es_fr_it3_400k_layer11_km1000_lj_dur",
-                     "unit_hifigan_mhubert_vp_en_es_fr_it3_400k_layer11_km1000_es_css10_dur", "unit_hifigan_HK_layer12.km2500_frame_TAT-TTS"]
+        model_ids = [
+            "unit_hifigan_mhubert_vp_en_es_fr_it3_400k_layer11_km1000_lj_dur",
+            "unit_hifigan_mhubert_vp_en_es_fr_it3_400k_layer11_km1000_es_css10_dur",
+            "unit_hifigan_HK_layer12.km2500_frame_TAT-TTS",
+        ]
         return {i: f"{base_url}/{i}.tar.gz" for i in model_ids}
 
     @classmethod

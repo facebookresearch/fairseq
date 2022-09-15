@@ -168,19 +168,34 @@ class S2TConformerModel(S2TTransformerModel):
     @staticmethod
     def add_args(parser):
         S2TTransformerModel.add_args(parser)
-        parser.add_argument("--input-feat-per-channel", type=int, default=80)
-        parser.add_argument("--depthwise-conv-kernel-size", type=int, default=31)
-        parser.add_argument("--input-channels", type=int, default=1)
+        parser.add_argument(
+            "--input-feat-per-channel",
+            type=int,
+            metavar="N",
+            help="dimension of input features per channel",
+        )
+        parser.add_argument(
+            "--input-channels",
+            type=int,
+            metavar="N",
+            help="number of chennels of input features",
+        )
+        parser.add_argument(
+            "--depthwise-conv-kernel-size",
+            type=int,
+            metavar="N",
+            help="kernel size of depthwise convolution layers",
+        )
         parser.add_argument(
             "--attn-type",
             type=str,
-            default=None,
+            metavar="STR",
             help="If not specified uses fairseq MHA. Other valid option is espnet",
         )
         parser.add_argument(
             "--pos-enc-type",
             type=str,
-            default="abs",
+            metavar="STR",
             help="Must be specified in addition to attn-type=espnet for rel_pos and rope",
         )
 
