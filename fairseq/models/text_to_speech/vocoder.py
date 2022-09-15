@@ -219,7 +219,10 @@ class CodeHiFiGANVocoder(BaseFairseqModel):
     ) -> None:
         super().__init__()
         self.model = CodeHiFiGANModel(model_cfg)
-        state_dict = torch.load(checkpoint_path)
+        if torch.cuda.is_available():
+            state_dict = torch.load(checkpoint_path)
+        else:
+            state_dict = torch.load(checkpoint_path, map_location=torch.device('cpu'))
         self.model.load_state_dict(state_dict["generator"])
         self.model.eval()
         if fp16:
