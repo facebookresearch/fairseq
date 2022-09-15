@@ -347,7 +347,7 @@ class SpeechToSpeechTask(LegacyFairseqTask):
 
         return model
 
-    def build_generator_translatotron2(
+    def build_generator_dual_decoder(
         self,
         models,
         args,
@@ -395,15 +395,12 @@ class SpeechToSpeechTask(LegacyFairseqTask):
                 else self.vocoder.cpu()
             )
 
-        from fairseq.models.speech_to_speech import (
-            Translatotron2ConformerModel,
-            UnitYConformerModel,
-        )
+        has_dual_decoder = getattr(models[0], "mt_task_name", None) is not None
 
         if self.args.target_is_code:
             if self.args.n_frames_per_step == 1:
-                if isinstance(models[0], UnitYConformerModel):
-                    seq_generator = self.build_generator_translatotron2(
+                if has_dual_decoder:
+                    seq_generator = self.build_generator_dual_decoder(
                         models,
                         args,
                         extra_gen_cls_kwargs=extra_gen_cls_kwargs,
@@ -424,7 +421,7 @@ class SpeechToSpeechTask(LegacyFairseqTask):
                     self.args.target_code_size,
                 )
         else:
-            if isinstance(models[0], Translatotron2ConformerModel):
+            if has_dual_decoder:
                 if getattr(args, "teacher_forcing", False):
                     raise NotImplementedError
                 else:

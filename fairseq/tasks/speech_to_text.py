@@ -162,7 +162,7 @@ class SpeechToTextTask(LegacyFairseqTask):
         args.speaker_to_id = self.speaker_to_id
         return super(SpeechToTextTask, self).build_model(args, from_checkpoint)
 
-    def build_generator_unity(
+    def build_generator_dual_decoder(
         self,
         models,
         args,
@@ -243,10 +243,10 @@ class SpeechToTextTask(LegacyFairseqTask):
         eos_id = self.tgt_dict.index(eos_token) if eos_token else None
         extra_gen_cls_kwargs["eos"] = eos_id
 
-        from fairseq.models.speech_to_text import UnitYXMTransformerModel
+        has_dual_decoder = getattr(models[0], "mt_task_name", None) is not None
 
-        if isinstance(models[0], UnitYXMTransformerModel):
-            return self.build_generator_unity(
+        if has_dual_decoder:
+            return self.build_generator_dual_decoder(
                 models,
                 args,
                 extra_gen_cls_kwargs=extra_gen_cls_kwargs,
