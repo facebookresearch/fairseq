@@ -5,10 +5,6 @@
 
 import copy
 import logging
-from typing import Any, Dict, List, Optional
-
-import torch.nn as nn
-from torch import Tensor
 
 from fairseq.models import (
     FairseqEncoder,
@@ -17,16 +13,21 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
-from fairseq.models.speech_to_speech.modules import CTCDecoder
+from fairseq.models.speech_to_speech.modules.ctc_decoder import CTCDecoder
+from fairseq.models.speech_to_speech.modules.stacked_embedding import StackedEmbedding
+from fairseq.models.speech_to_speech.modules.transformer_decoder_aug import (
+    AugTransformerUnitDecoder,
+)
+from fairseq.models.speech_to_speech.modules.transformer_encoder import (
+    TransformerEncoderNoEmb,
+)
 from fairseq.models.speech_to_speech.s2s_conformer import S2UTConformerModel
 from fairseq.models.speech_to_speech.s2s_transformer import (
     TransformerUnitDecoder,
     base_multitask_text_transformer_decoder_arch,
     s2ut_architecture_base,
 )
-from fairseq.models.transformer import Linear, TransformerDecoder, TransformerModelBase
-from fairseq.models.transformer.transformer_decoder_aug import AugTransformerDecoder
-from fairseq.modules import LayerNorm, TransformerEncoderLayer
+from fairseq.models.transformer import TransformerDecoder, TransformerModelBase
 
 logger = logging.getLogger(__name__)
 
@@ -122,8 +123,6 @@ class UnityConformerModel(S2UTConformerModel):
 
     @classmethod
     def build_decoder(cls, args, tgt_dict, aug_attn=False):
-        from fairseq.models.speech_to_speech.modules import StackedEmbedding
-
         num_embeddings = len(tgt_dict)
         padding_idx = tgt_dict.pad()
         embed_tokens = StackedEmbedding(
@@ -278,179 +277,6 @@ class UnityConformerModel(S2UTConformerModel):
             ]
         decoder_out[-1]["mt_decoder_out"] = mt_decoder_out
         return decoder_out
-
-
-class TransformerEncoderNoEmb(FairseqEncoder):
-    """Transformer encoder without token embeddings."""
-
-    def __init__(self, args):
-        super().__init__(None)
-
-        self.layers = nn.ModuleList(
-            [TransformerEncoderLayer(args) for _ in range(args.encoder_layers)]
-        )
-        if args.encoder_normalize_before:
-            self.layer_norm = LayerNorm(args.encoder_embed_dim)
-        else:
-            self.layer_norm = None
-
-    def forward(self, x, encoder_padding_mask, return_all_hiddens=False):
-
-        encoder_states = []
-
-        for layer in self.layers:
-            x = layer(x, encoder_padding_mask)
-            if return_all_hiddens:
-                encoder_states.append(x)
-
-        if self.layer_norm is not None:
-            x = self.layer_norm(x)
-
-        return {
-            "encoder_out": [x],  # T x B x C
-            "encoder_padding_mask": [encoder_padding_mask]
-            if encoder_padding_mask is not None and encoder_padding_mask.any()
-            else [],  # B x T
-            "encoder_embedding": [],  # B x T x C
-            "encoder_states": encoder_states,  # List[T x B x C]
-            "src_tokens": [],
-            "src_lengths": [],
-        }
-
-    def reorder_encoder_out(self, encoder_out, new_order):
-        new_encoder_out = (
-            []
-            if len(encoder_out["encoder_out"]) == 0
-            else [x.index_select(1, new_order) for x in encoder_out["encoder_out"]]
-        )
-
-        new_encoder_padding_mask = (
-            []
-            if len(encoder_out["encoder_padding_mask"]) == 0
-            else [
-                x.index_select(0, new_order)
-                for x in encoder_out["encoder_padding_mask"]
-            ]
-        )
-
-        new_encoder_embedding = (
-            []
-            if len(encoder_out["encoder_embedding"]) == 0
-            else [
-                x.index_select(0, new_order) for x in encoder_out["encoder_embedding"]
-            ]
-        )
-
-        encoder_states = encoder_out["encoder_states"]
-        if len(encoder_states) > 0:
-            for idx, state in enumerate(encoder_states):
-                encoder_states[idx] = state.index_select(1, new_order)
-
-        return {
-            "encoder_out": new_encoder_out,  # T x B x C
-            "encoder_padding_mask": new_encoder_padding_mask,  # B x T
-            "encoder_embedding": new_encoder_embedding,  # B x T x C
-            "encoder_states": encoder_states,  # List[T x B x C]
-            "src_tokens": [],  # B x T
-            "src_lengths": [],  # B x 1
-        }
-
-
-class AugTransformerUnitDecoder(AugTransformerDecoder):
-    """Based on Transformer decoder, with support to decoding stacked units"""
-
-    def __init__(
-        self,
-        args,
-        dictionary,
-        embed_tokens,
-        no_encoder_attn=False,
-        output_projection=None,
-    ):
-        super().__init__(
-            args, dictionary, embed_tokens, no_encoder_attn, output_projection
-        )
-        self.n_frames_per_step = args.n_frames_per_step
-
-        self.out_proj_n_frames = (
-            Linear(
-                self.output_embed_dim,
-                self.output_embed_dim * self.n_frames_per_step,
-                bias=False,
-            )
-            if self.n_frames_per_step > 1
-            else None
-        )
-
-    def forward(
-        self,
-        prev_output_tokens,
-        encoder_out: Optional[Dict[str, List[Tensor]]] = None,
-        encoder_out2: Optional[Dict[str, List[Tensor]]] = None,
-        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
-        features_only: bool = False,
-        full_context_alignment: bool = False,
-        alignment_layer: Optional[int] = None,
-        alignment_heads: Optional[int] = None,
-        src_lengths: Optional[Any] = None,
-        return_all_hiddens: bool = False,
-    ):
-        """
-        Args:
-            prev_output_tokens (LongTensor): previous decoder outputs of shape
-                `(batch, tgt_len)`, for teacher forcing
-            encoder_out (optional): output from the encoder, used for
-                encoder-side attention, should be of size T x B x C
-            incremental_state (dict): dictionary used for storing state during
-                :ref:`Incremental decoding`
-            features_only (bool, optional): only return features without
-                applying output layer (default: False).
-            full_context_alignment (bool, optional): don't apply
-                auto-regressive mask to self-attention (default: False).
-
-        Returns:
-            tuple:
-                - the decoder's output of shape `(batch, tgt_len, vocab)`
-                - a dictionary with any model-specific outputs
-        """
-
-        x, extra = self.extract_features(
-            prev_output_tokens,
-            encoder_out=encoder_out,
-            encoder_out2=encoder_out2,
-            incremental_state=incremental_state,
-            full_context_alignment=full_context_alignment,
-            alignment_layer=alignment_layer,
-            alignment_heads=alignment_heads,
-        )
-
-        if not features_only:
-            bsz, seq_len, d = x.size()
-            if self.out_proj_n_frames:
-                x = self.out_proj_n_frames(x)
-            x = self.output_layer(x.view(bsz, seq_len, self.n_frames_per_step, d))
-            x = x.view(bsz, seq_len * self.n_frames_per_step, -1)
-            if (
-                incremental_state is None and self.n_frames_per_step > 1
-            ):  # teacher-forcing mode in training
-                x = x[
-                    :, : -(self.n_frames_per_step - 1), :
-                ]  # remove extra frames after <eos>
-
-        return x, extra
-
-    def upgrade_state_dict_named(self, state_dict, name):
-        if self.n_frames_per_step > 1:
-            move_keys = [
-                (
-                    f"{name}.project_in_dim.weight",
-                    f"{name}.embed_tokens.project_in_dim.weight",
-                )
-            ]
-            for from_k, to_k in move_keys:
-                if from_k in state_dict and to_k not in state_dict:
-                    state_dict[to_k] = state_dict[from_k]
-                    del state_dict[from_k]
 
 
 @register_model_architecture(model_name="unity_conformer", arch_name="unity_conformer")
