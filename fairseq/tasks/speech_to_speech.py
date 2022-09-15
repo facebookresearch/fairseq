@@ -388,7 +388,7 @@ class SpeechToSpeechTask(LegacyFairseqTask):
             criterion.set_multitask_loss_weight(
                 task_name, task_obj.args.get_loss_weight(update_num)
             )
-            if task_name in getattr(model, "multitask_decoders", {}):
+            if task_name in model.multitask_decoders:
                 model.multitask_decoders[task_name].train()
 
         loss, sample_size, logging_output = super().train_step(
@@ -398,7 +398,7 @@ class SpeechToSpeechTask(LegacyFairseqTask):
 
     def valid_step(self, sample, model, criterion):
         for task_name in self.multitask_tasks.keys():
-            if task_name in getattr(model, "multitask_decoders", {}):
+            if task_name in model.multitask_decoders:
                 model.multitask_decoders[task_name].eval()
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
 
