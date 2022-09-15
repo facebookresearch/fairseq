@@ -1,8 +1,15 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
 import logging
 import math
+from pathlib import Path
 
 import torch
 
+from fairseq import checkpoint_utils
 from fairseq.data.data_utils import lengths_to_padding_mask
 from fairseq.models import FairseqEncoder, register_model, register_model_architecture
 from fairseq.models.speech_to_text.s2t_transformer import (
@@ -24,6 +31,10 @@ class S2TConformerEncoder(FairseqEncoder):
 
     def __init__(self, args):
         super().__init__(None)
+
+        self.encoder_freezing_updates = args.encoder_freezing_updates
+        self.num_updates = 0
+
         self.embed_scale = math.sqrt(args.encoder_embed_dim)
         if args.no_scale_embedding:
             self.embed_scale = 1.0
@@ -65,7 +76,7 @@ class S2TConformerEncoder(FairseqEncoder):
             ]
         )
 
-    def forward(self, src_tokens, src_lengths, return_all_hiddens=False):
+    def _forward(self, src_tokens, src_lengths, return_all_hiddens=False):
         """
         Args:
             src_tokens: Input source tokens Tensor of shape B X T X C
@@ -114,9 +125,29 @@ class S2TConformerEncoder(FairseqEncoder):
             "src_lengths": [],
         }
 
+    def forward(self, src_tokens, src_lengths, return_all_hiddens=False):
+        if self.num_updates < self.encoder_freezing_updates:
+            with torch.no_grad():
+                x = self._forward(
+                    src_tokens,
+                    src_lengths,
+                    return_all_hiddens=return_all_hiddens,
+                )
+        else:
+            x = self._forward(
+                src_tokens,
+                src_lengths,
+                return_all_hiddens=return_all_hiddens,
+            )
+        return x
+
     def reorder_encoder_out(self, encoder_out, new_order):
         """Required method for a FairseqEncoder. Calls the method from the parent class"""
         return S2TTransformerEncoder.reorder_encoder_out(self, encoder_out, new_order)
+
+    def set_num_updates(self, num_updates):
+        super().set_num_updates(num_updates)
+        self.num_updates = num_updates
 
 
 @register_model("s2t_conformer")
@@ -161,11 +192,22 @@ class S2TConformerModel(S2TTransformerModel):
     @classmethod
     def build_encoder(cls, args):
         encoder = S2TConformerEncoder(args)
+        pretraining_path = getattr(args, "load_pretrained_encoder_from", None)
+        if pretraining_path is not None:
+            if not Path(pretraining_path).exists():
+                logger.warning(
+                    f"skipped pretraining because {pretraining_path} does not exist"
+                )
+            else:
+                encoder = checkpoint_utils.load_pretrained_component_from_model(
+                    component=encoder, checkpoint=pretraining_path
+                )
+                logger.info(f"loaded pretrained encoder from: {pretraining_path}")
         return encoder
 
 
 @register_model_architecture("s2t_conformer", "s2t_conformer")
-def base_architecture(args):
+def conformer_base_architecture(args):
     args.attn_type = getattr(args, "attn_type", None)
     args.pos_enc_type = getattr(args, "pos_enc_type", "abs")
     args.input_feat_per_channel = getattr(args, "input_feat_per_channel", 80)
