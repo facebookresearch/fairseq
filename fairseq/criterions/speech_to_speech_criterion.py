@@ -12,9 +12,9 @@ import torch
 from fairseq import metrics, utils
 from fairseq.criterions import register_criterion
 from fairseq.criterions.ctc import CtcCriterion
-from fairseq.criterions.label_smoothed_cross_entropy import (
-    LabelSmoothedCrossEntropyCriterion,
-    LabelSmoothedCrossEntropyCriterionConfig,
+from fairseq.criterions.label_smoothed_cross_entropy_with_rdrop import (
+    RdropLabelSmoothedCrossEntropyCriterion,
+    RdropLabelSmoothedCrossEntropyCriterionConfig,
     duplicate_input,
 )
 from fairseq.criterions.tacotron2_loss import (
@@ -48,7 +48,7 @@ class MultitaskCriterion:
             else:
                 self.multitask_criterion[
                     task_name
-                ] = LabelSmoothedCrossEntropyCriterion(
+                ] = RdropLabelSmoothedCrossEntropyCriterion(
                     task_obj,
                     task_obj.args.criterion_cfg.sentence_avg,
                     label_smoothing=task_obj.args.criterion_cfg.label_smoothing,
@@ -153,10 +153,10 @@ class MultitaskCriterion:
 
 
 @register_criterion(
-    "speech_to_unit", dataclass=LabelSmoothedCrossEntropyCriterionConfig
+    "speech_to_unit", dataclass=RdropLabelSmoothedCrossEntropyCriterionConfig
 )
 class SpeechToUnitMultitaskTaskCriterion(
-    LabelSmoothedCrossEntropyCriterion, MultitaskCriterion
+    RdropLabelSmoothedCrossEntropyCriterion, MultitaskCriterion
 ):
     def __init__(
         self,
@@ -252,7 +252,7 @@ class SpeechToUnitMultitaskTaskCriterion(
 
 
 @register_criterion(
-    "speech_to_unit_2pass", dataclass=LabelSmoothedCrossEntropyCriterionConfig
+    "speech_to_unit_2pass", dataclass=RdropLabelSmoothedCrossEntropyCriterionConfig
 )
 class SpeechToUnitTranslatotron2MultitaskTaskCriterion(
     SpeechToUnitMultitaskTaskCriterion

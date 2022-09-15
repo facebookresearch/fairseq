@@ -348,4 +348,4 @@ class SingleTaskConfig(object):
 
     @property
     def rdrop_alpha(self):
-        return self.config.get("rdrop_alpha", 0.0)
+        return self.config.get("rdrop_alpha", None)
