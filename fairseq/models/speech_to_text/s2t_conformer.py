@@ -19,7 +19,9 @@ from fairseq.models.speech_to_text.modules.convolution import (
 from fairseq.models.speech_to_text.s2t_transformer import (
     S2TTransformerEncoder,
     S2TTransformerModel,
-    base_architecture,
+)
+from fairseq.models.speech_to_text.s2t_transformer import (
+    base_architecture as transformer_base_architecture,
 )
 from fairseq.modules import PositionalEmbedding, RelPositionalEncoding
 from fairseq.modules.conformer_layer import ConformerEncoderLayer
@@ -229,4 +231,4 @@ def conformer_base_architecture(args):
     args.dropout = getattr(args, "dropout", 0.1)
     args.encoder_layers = getattr(args, "encoder_layers", 16)
     args.depthwise_conv_kernel_size = getattr(args, "depthwise_conv_kernel_size", 31)
-    base_architecture(args)
+    transformer_base_architecture(args)
