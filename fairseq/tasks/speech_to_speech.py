@@ -284,11 +284,11 @@ class SpeechToSpeechTask(LegacyFairseqTask):
         from fairseq import criterions
 
         if len(self.multitask_tasks) > 0:
-            if self.args.target_is_code and args._name.startswith("speech_to_unit"):
+            if self.args.target_is_code and not args._name.startswith("speech_to_unit"):
                 raise ValueError(
                     "set --criterion speech_to_unit for speech-to-unit loss with multitask"
                 )
-            elif not self.args.target_is_code and args._name.startswith(
+            elif not self.args.target_is_code and not args._name.startswith(
                 "speech_to_spectrogram"
             ):
                 raise ValueError(
