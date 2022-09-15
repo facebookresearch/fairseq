@@ -9,7 +9,6 @@ from pathlib import Path
 import torch
 
 from fairseq import checkpoint_utils
-from fairseq.data.audio.data_cfg import S2SDataConfig
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.speech_to_speech import S2UTTransformerModel
 from fairseq.models.speech_to_speech import (
@@ -79,11 +78,6 @@ class S2UTConformerModel(S2UTTransformerModel):
 
     @classmethod
     def build_encoder(cls, args):
-        print(args)
-        data_cfg = S2SDataConfig(Path(args.data) / args.config_yaml)
-        args.input_feat_per_channel = data_cfg.input_feat_per_channel
-        args.input_channels = data_cfg.input_transformed_channels
-
         encoder = S2SConformerEncoder(args)
         pretraining_path = getattr(args, "load_pretrained_encoder_from", None)
         if pretraining_path is not None:
