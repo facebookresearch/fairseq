@@ -283,15 +283,17 @@ class SpeechToSpeechTask(LegacyFairseqTask):
     def build_criterion(self, args):
         from fairseq import criterions
 
-        # if len(self.multitask_tasks) > 0:
-        #     if self.args.target_is_code and args._name != "speech_to_unit":
-        #         raise ValueError(
-        #             "set --criterion speech_to_unit for speech-to-unit loss with multitask"
-        #         )
-        #     elif not self.args.target_is_code and args._name != "speech_to_spectrogram":
-        #         raise ValueError(
-        #             "set --criterion speech_to_spectrogram for speech-to-spectrogram loss with multitask"
-        #         )
+        if len(self.multitask_tasks) > 0:
+            if self.args.target_is_code and args._name.startswith("speech_to_unit"):
+                raise ValueError(
+                    "set --criterion speech_to_unit for speech-to-unit loss with multitask"
+                )
+            elif not self.args.target_is_code and args._name.startswith(
+                "speech_to_spectrogram"
+            ):
+                raise ValueError(
+                    "set --criterion speech_to_spectrogram for speech-to-spectrogram loss with multitask"
+                )
 
         return criterions.build_criterion(args, self)
 
