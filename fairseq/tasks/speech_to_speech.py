@@ -500,7 +500,7 @@ class SpeechToSpeechTask(LegacyFairseqTask):
         return loss, sample_size, logging_output
 
     def valid_step(self, sample, model, criterion):
-        for task_name, task_obj in self.multitask_tasks.items():
+        for task_name in self.multitask_tasks.keys():
             if task_name in model.multitask_decoders:
                 model.multitask_decoders[task_name].eval()
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
