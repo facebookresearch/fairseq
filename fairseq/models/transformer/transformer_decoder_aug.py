@@ -23,15 +23,19 @@ from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 
 class AugTransformerDecoderBase(TransformerDecoderBase):
     """
-    Transformer decoder consisting of *cfg.decoder.layers* layers. Each layer
-    is a :class:`TransformerDecoderLayer`.
+    Transformer decoder augmented with an additional cross-attention. Each layer
+    is a :class:`AugTransformerDecoderLayerBase`.
 
     Args:
-        args (argparse.Namespace): parsed command-line arguments
+        cfg (argparse.Namespace): parsed command-line arguments
         dictionary (~fairseq.data.Dictionary): decoding dictionary
         embed_tokens (torch.nn.Embedding): output embedding
-        no_encoder_attn (bool, optional): whether to attend to encoder outputs
-            (default: False).
+        encoder_attn_merge_type (str, optional): the way to combine outputs from
+            two cross-attention modules. If "sequential" is set, two cross-attention
+            modules are stacked sequentially. If "parallel" is set, they are processed
+            in parallel and combined before feeding it to FFN (default: sequential).
+        dropnet_ratio (float, optional): a probability to drop each cross-attention
+            module during training (default: 0.0).
     """
 
     def __init__(
@@ -39,16 +43,15 @@ class AugTransformerDecoderBase(TransformerDecoderBase):
         cfg,
         dictionary,
         embed_tokens,
-        no_encoder_attn=False,
         output_projection=None,
         encoder_attn_merge_type="sequential",
-        dropnet_ratio=0,
+        dropnet_ratio=0.0,
     ):
         super().__init__(
             cfg,
             dictionary,
             embed_tokens,
-            no_encoder_attn=no_encoder_attn,
+            no_encoder_attn=False,
             output_projection=output_projection,
         )
         # assert cfg.cross_self_attention
@@ -60,9 +63,7 @@ class AugTransformerDecoderBase(TransformerDecoderBase):
             self.layers = nn.ModuleList([])
         self.layers.extend(
             [
-                self.build_decoder_layer(
-                    cfg, no_encoder_attn, encoder_attn_merge_type, dropnet_ratio
-                )
+                self.build_decoder_layer(cfg, encoder_attn_merge_type, dropnet_ratio)
                 for _ in range(cfg.decoder.layers)
             ]
         )
@@ -70,13 +71,12 @@ class AugTransformerDecoderBase(TransformerDecoderBase):
     def build_decoder_layer(
         self,
         cfg,
-        no_encoder_attn=False,
         encoder_attn_merge_type="sequential",
         dropnet_ratio=0,
     ):
         layer = transformer_layer_aug.AugTransformerDecoderLayerBase(
             cfg,
-            no_encoder_attn,
+            no_encoder_attn=False,
             encoder_attn_merge_type=encoder_attn_merge_type,
             dropnet_ratio=dropnet_ratio,
         )
@@ -355,7 +355,6 @@ class AugTransformerDecoder(AugTransformerDecoderBase):
         args,
         dictionary,
         embed_tokens,
-        no_encoder_attn=False,
         output_projection=None,
     ):
         self.args = args
@@ -363,7 +362,7 @@ class AugTransformerDecoder(AugTransformerDecoderBase):
             TransformerConfig.from_namespace(args),
             dictionary,
             embed_tokens,
-            no_encoder_attn=no_encoder_attn,
+            no_encoder_attn=False,
             output_projection=output_projection,
             encoder_attn_merge_type=getattr(
                 args, "synthesizer_augmented_cross_attention_merge_type", "sequential"
@@ -379,13 +378,12 @@ class AugTransformerDecoder(AugTransformerDecoderBase):
     def build_decoder_layer(
         self,
         args,
-        no_encoder_attn=False,
         encoder_attn_merge_type="sequential",
         dropnet_ratio=0,
     ):
         return super().build_decoder_layer(
             TransformerConfig.from_namespace(args),
-            no_encoder_attn=no_encoder_attn,
+            no_encoder_attn=False,
             encoder_attn_merge_type=encoder_attn_merge_type,
             dropnet_ratio=dropnet_ratio,
         )

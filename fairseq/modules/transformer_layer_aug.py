@@ -14,39 +14,35 @@ from fairseq.modules.transformer_layer import TransformerDecoderLayerBase
 
 
 class AugTransformerDecoderLayerBase(TransformerDecoderLayerBase):
-    """Decoder layer block.
+    """Decoder layer block augmented with an additional cross-attention.
 
-    In the original paper each operation (multi-head attention, encoder
-    attention or FFN) is postprocessed with: `dropout -> add residual ->
-    layernorm`. In the tensor2tensor code they suggest that learning is more
-    robust when preprocessing each layer with layernorm and postprocessing with:
-    `dropout -> add residual`. We default to the approach in the paper, but the
-    tensor2tensor approach can be enabled by setting
-    *cfg.decoder.normalize_before* to ``True``.
+    This decoder block is processed with the sequence of the following sub-modules.
+        self-attention -> cross-attention (first) -> cross-attention (second) -> FFN
 
     Args:
-        args (argparse.Namespace): parsed command-line arguments
-        no_encoder_attn (bool, optional): whether to attend to encoder outputs
-            (default: False).
+        cfg (argparse.Namespace): parsed command-line arguments
+        encoder_attn_merge_type (str, optional): the way to combine outputs from
+            two cross-attention modules. If "sequential" is set, two cross-attention
+            modules are stacked sequentially. If "parallel" is set, they are processed
+            in parallel and combined before feeding it to FFN (default: sequential).
+        dropnet_ratio (float, optional): a probability to drop each cross-attention
+            module during training (default: 0.0).
     """
 
     def __init__(
         self,
         cfg,
-        no_encoder_attn=False,
         add_bias_kv=False,
         add_zero_attn=False,
         encoder_attn_merge_type="sequential",
-        dropnet_ratio=0,
+        dropnet_ratio=0.0,
     ):
         super().__init__(
             cfg,
-            no_encoder_attn=no_encoder_attn,
+            no_encoder_attn=False,
             add_bias_kv=add_bias_kv,
             add_zero_attn=False,
         )
-        assert not no_encoder_attn
-
         self.encoder_attn = self.build_encoder_attention(self.embed_dim, cfg)
         self.encoder_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
         self.encoder_attn2 = self.build_encoder_attention(self.embed_dim, cfg)
