@@ -17,8 +17,8 @@ from fairseq.data.audio.data_cfg import S2SDataConfig
 from fairseq.data.audio.speech_to_text_dataset import (
     SpeechToTextDataset,
     SpeechToTextDatasetCreator,
-    _collate_frames,
     TextTargetMultitaskData,
+    _collate_frames,
 )
 
 logger = logging.getLogger(__name__)
@@ -233,8 +233,8 @@ class SpeechToSpeechDataset(SpeechToTextDataset):
 
 
 class SpeechToSpeechMultitaskDataset(SpeechToSpeechDataset):
-    def __init__(self, *argv):
-        super().__init__(*argv)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.multitask_data = {}
 
     def add_multitask_dataset(self, task_name, task_data):
@@ -324,19 +324,19 @@ class SpeechToSpeechDatasetCreator(object):
         )
 
         ds = dataset_cls(
-            split_name,
-            is_train_split,
-            data_cfg,
-            src_audio_paths,
-            src_n_frames,
-            tgt_audio_paths,
-            tgt_n_frames,
-            src_langs,
-            tgt_langs,
-            ids,
-            target_is_code,
-            target_dictionary,
-            n_frames_per_step,
+            split=split_name,
+            is_train_split=is_train_split,
+            data_cfg=data_cfg,
+            src_audio_paths=src_audio_paths,
+            src_n_frames=src_n_frames,
+            tgt_audio_paths=tgt_audio_paths,
+            tgt_n_frames=tgt_n_frames,
+            src_langs=src_langs,
+            tgt_langs=tgt_langs,
+            ids=ids,
+            target_is_code=target_is_code,
+            target_dictionary=target_dictionary,
+            n_frames_per_step=n_frames_per_step,
         )
 
         if has_multitask:
