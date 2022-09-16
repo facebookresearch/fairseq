@@ -74,7 +74,6 @@ class SpeechToTextTask(LegacyFairseqTask):
                 task_obj = DummyMultiTask(task_config, task_config.tgt_dict)
                 self.multitask_tasks[task_name] = task_obj
 
-
     def _get_speaker_to_id(self):
         speaker_to_id = None
         speaker_set_filename = self.data_cfg.config.get("speaker_set_filename")

@@ -486,4 +486,3 @@ class SpeechToSpeechTask(LegacyFairseqTask):
                     prefix_tokens=prefix_tokens,
                     constraints=constraints,
                 )
-
