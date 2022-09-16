@@ -193,6 +193,7 @@ def do_setup(package_data):
         ],
         extras_require={
             "dev": ["flake8", "pytest", "black==22.3.0"],
+            "docs": ["sphinx", "sphinx-argparse"],
         },
         dependency_links=dependency_links,
         packages=find_packages(

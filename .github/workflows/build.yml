@@ -65,3 +65,7 @@ jobs:
 
     - name: Lint with black
       run: black --check .
+
+    - name: Build doc
+      run: make singlehtml
+      working_dir: docs/
