@@ -18,6 +18,7 @@ from fairseq.data.audio.speech_to_text_dataset import (
     SpeechToTextDataset,
     SpeechToTextDatasetCreator,
     _collate_frames,
+    TextTargetMultitaskData,
 )
 
 logger = logging.getLogger(__name__)
@@ -229,57 +230,6 @@ class SpeechToSpeechDataset(SpeechToTextDataset):
         if return_order:
             out["order"] = order
         return out
-
-
-class TextTargetMultitaskData(object):
-    # mandatory columns
-    KEY_ID, KEY_TEXT = "id", "tgt_text"
-
-    def __init__(self, args, split, tgt_dict):
-        samples = SpeechToTextDatasetCreator._load_samples_from_tsv(args.data, split)
-        self.data = {s[self.KEY_ID]: s[self.KEY_TEXT] for s in samples}
-        self.dict = tgt_dict
-        self.append_eos = args.decoder_type != "ctc"
-
-    def get(self, sample_id):
-        if sample_id in self.data:
-            return self.dict.encode_line(
-                self.data[sample_id],
-                add_if_not_exist=False,
-                append_eos=self.append_eos,
-            )
-        else:
-            logger.warning(f"no target for {sample_id}")
-            return torch.IntTensor([])
-
-    def collater(self, samples: List[torch.Tensor]) -> torch.Tensor:
-        out = fairseq_data_utils.collate_tokens(
-            samples,
-            self.dict.pad(),
-            self.dict.eos(),
-            left_pad=False,
-            move_eos_to_beginning=False,
-        ).long()
-
-        prev_out = fairseq_data_utils.collate_tokens(
-            samples,
-            self.dict.pad(),
-            self.dict.eos(),
-            left_pad=False,
-            move_eos_to_beginning=True,
-        ).long()
-
-        target_lengths = torch.tensor([t.size(0) for t in samples], dtype=torch.long)
-        ntokens = sum(t.size(0) for t in samples)
-
-        output = {
-            "prev_output_tokens": prev_out,
-            "target": out,
-            "target_lengths": target_lengths,
-            "ntokens": ntokens,
-        }
-
-        return output
 
 
 class SpeechToSpeechMultitaskDataset(SpeechToSpeechDataset):
