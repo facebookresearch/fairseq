@@ -498,8 +498,8 @@ class TextTargetMultitaskData(object):
 
 
 class SpeechToTextMultitaskDataset(SpeechToTextDataset):
-    def __init__(self, *argv):
-        super().__init__(*argv)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.multitask_data = {}
 
     def add_multitask_dataset(self, task_name, task_data):
@@ -586,24 +586,25 @@ class SpeechToTextDatasetCreator(object):
             SpeechToTextMultitaskDataset if has_multitask else SpeechToTextDataset
         )
 
-        ds = dataset_cls(
-            split_name,
-            is_train_split,
-            cfg,
-            audio_paths,
-            n_frames,
-            src_texts,
-            tgt_texts,
-            speakers,
-            src_langs,
-            tgt_langs,
-            ids,
-            tgt_dict,
-            pre_tokenizer,
-            bpe_tokenizer,
-            n_frames_per_step,
-            speaker_to_id,
-        )
+        if has_multitask:
+            ds = dataset_cls(
+                split=split_name,
+                is_train_split=is_train_split,
+                cfg=cfg,
+                audio_paths=audio_paths,
+                n_frames=n_frames,
+                src_texts=src_texts,
+                tgt_texts=tgt_texts,
+                speakers=speakers,
+                src_langs=src_langs,
+                tgt_langs=tgt_langs,
+                ids=ids,
+                tgt_dict=tgt_dict,
+                pre_tokenizer=pre_tokenizer,
+                bpe_tokenizer=bpe_tokenizer,
+                n_frames_per_step=n_frames_per_step,
+                speaker_to_id=speaker_to_id,
+            )
 
         if has_multitask:
             for task_name, task_obj in multitask.items():
