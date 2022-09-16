@@ -2,14 +2,14 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+
+import logging
 from argparse import Namespace
 from copy import deepcopy
 from pathlib import Path
-import logging
 from typing import Dict, Optional
 
 from fairseq.data import Dictionary
-
 
 logger = logging.getLogger(__name__)
 
@@ -335,3 +335,7 @@ class SingleTaskConfig(object):
                 loss_weight_min,
             )
         return weight
+
+    @property
+    def rdrop_alpha(self):
+        return self.config.get("rdrop_alpha", None)
