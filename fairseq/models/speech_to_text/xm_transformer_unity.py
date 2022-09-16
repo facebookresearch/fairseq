@@ -12,7 +12,7 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
-from fairseq.models.speech_to_speech.modules import CTCDecoder
+from fairseq.models.speech_to_speech.modules.ctc_decoder import CTCDecoder
 from fairseq.models.speech_to_text.xm_transformer import XMTransformerModel
 from fairseq.models.speech_to_text.xm_transformer import (
     base_architecture as xm_t_base_architecture,
