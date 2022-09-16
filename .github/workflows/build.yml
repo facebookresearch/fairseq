@@ -65,7 +65,7 @@ jobs:
 
     - name: Run tests
       run: |
-         python setup.py test
+         pytest tests/
 
     - name: Lint with black
       run: |
