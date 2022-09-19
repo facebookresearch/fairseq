@@ -149,6 +149,7 @@ and [RoBERTa](https://pytorch.org/hub/pytorch_fairseq_roberta/) for more example
 
 * [PyTorch](http://pytorch.org/) version >= 1.5.0
 * Python version >= 3.6
+* the python-dev package: depending on the OS, called python3-dev or python3-devel or libpythonX.Y-dev, ...
 * For training new models, you'll also need an NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
 * **To install fairseq** and develop locally:
 
