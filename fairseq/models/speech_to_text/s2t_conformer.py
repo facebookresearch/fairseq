@@ -12,8 +12,11 @@ import torch
 from fairseq import checkpoint_utils
 from fairseq.data.data_utils import lengths_to_padding_mask
 from fairseq.models import FairseqEncoder, register_model, register_model_architecture
-from fairseq.models.speech_to_text.s2t_transformer import (
+from fairseq.models.speech_to_text.modules.convolution import (
     Conv1dSubsampler,
+    Conv2dSubsampler,
+)
+from fairseq.models.speech_to_text.s2t_transformer import (
     S2TTransformerEncoder,
     S2TTransformerModel,
 )
@@ -39,12 +42,21 @@ class S2TConformerEncoder(FairseqEncoder):
         if args.no_scale_embedding:
             self.embed_scale = 1.0
         self.padding_idx = 1
-        self.subsample = Conv1dSubsampler(
-            args.input_feat_per_channel * args.input_channels,
-            args.conv_channels,
-            args.encoder_embed_dim,
-            [int(k) for k in args.conv_kernel_sizes.split(",")],
-        )
+        self.conv_version = args.conv_version
+        if self.conv_version == "s2t_transformer":
+            self.subsample = Conv1dSubsampler(
+                args.input_feat_per_channel * args.input_channels,
+                args.conv_channels,
+                args.encoder_embed_dim,
+                [int(k) for k in args.conv_kernel_sizes.split(",")],
+            )
+        elif self.conv_version == "convtransformer":
+            self.subsample = Conv2dSubsampler(
+                args.input_channels,
+                args.input_feat_per_channel,
+                args.conv_out_channels,
+                args.encoder_embed_dim,
+            )
         self.pos_enc_type = args.pos_enc_type
         if self.pos_enc_type == "rel_pos":
             self.embed_positions = RelPositionalEncoding(

@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import logging
 import math
@@ -18,7 +21,10 @@ from fairseq.models import (
     register_model_architecture,
 )
 from fairseq.models.speech_to_text.hub_interface import S2THubInterface
-from fairseq.models.speech_to_text.modules.convolution import Conv1dSubsampler
+from fairseq.models.speech_to_text.modules.convolution import (
+    Conv1dSubsampler,
+    Conv2dSubsampler,
+)
 from fairseq.models.transformer import Embedding, TransformerDecoder
 from fairseq.modules import (
     FairseqDropout,
@@ -80,13 +86,26 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
             "--conv-kernel-sizes",
             type=str,
             metavar="N",
-            help="kernel sizes of Conv1d subsampling layers",
+            help="kernel sizes of Conv1d (s2t_transformer) subsampling layers",
         )
         parser.add_argument(
             "--conv-channels",
             type=int,
             metavar="N",
-            help="# of channels in Conv1d subsampling layers",
+            help="# of channels in Conv1d (s2t_transformer) subsampling layers",
+        )
+        parser.add_argument(
+            "--conv-out-channels",
+            type=int,
+            metavar="N",
+            help="# of channels in Conv2d (convtransformer) subsampling layers",
+        )
+        parser.add_argument(
+            "--conv-version",
+            type=str,
+            default="s2t_transformer",
+            choices=["s2t_transformer", "convtransformer"],
+            help="version of frontend convolutional layers",
         )
         # Transformer
         parser.add_argument(
@@ -291,12 +310,21 @@ class S2TTransformerEncoder(FairseqEncoder):
             self.embed_scale = 1.0
         self.padding_idx = 1
 
-        self.subsample = Conv1dSubsampler(
-            args.input_feat_per_channel * args.input_channels,
-            args.conv_channels,
-            args.encoder_embed_dim,
-            [int(k) for k in args.conv_kernel_sizes.split(",")],
-        )
+        self.conv_version = args.conv_version
+        if self.conv_version == "s2t_transformer":
+            self.subsample = Conv1dSubsampler(
+                args.input_feat_per_channel * args.input_channels,
+                args.conv_channels,
+                args.encoder_embed_dim,
+                [int(k) for k in args.conv_kernel_sizes.split(",")],
+            )
+        elif self.conv_version == "convtransformer":
+            self.subsample = Conv2dSubsampler(
+                args.input_channels,
+                args.input_feat_per_channel,
+                args.conv_out_channels,
+                args.encoder_embed_dim,
+            )
 
         self.embed_positions = PositionalEmbedding(
             args.max_source_positions, args.encoder_embed_dim, self.padding_idx
@@ -426,8 +454,11 @@ class TransformerDecoderScriptable(TransformerDecoder):
 def base_architecture(args):
     args.encoder_freezing_updates = getattr(args, "encoder_freezing_updates", 0)
     # Convolutional subsampler
-    args.conv_kernel_sizes = getattr(args, "conv_kernel_sizes", "5,5")
-    args.conv_channels = getattr(args, "conv_channels", 1024)
+    args.input_channels = getattr(args, "input_channels", 1)
+    args.conv_kernel_sizes = getattr(args, "conv_kernel_sizes", "5,5")  # for Conv1d
+    args.conv_channels = getattr(args, "conv_channels", 1024)  # for Conv1d
+    args.conv_out_channels = getattr(args, "conv_out_channels", 256)  # for Conv2d
+    args.conv_version = getattr(args, "conv_version", "s2t_transformer")
     # Transformer
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 2048)
