@@ -6,6 +6,7 @@
 import csv
 import logging
 import re
+from argparse import Namespace
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +18,7 @@ import torch.nn.functional as F
 
 from fairseq.data import ConcatDataset, Dictionary, FairseqDataset, ResamplingDataset
 from fairseq.data import data_utils as fairseq_data_utils
+from fairseq.data import encoders
 from fairseq.data.audio.audio_utils import get_features_or_waveform
 from fairseq.data.audio.data_cfg import S2TDataConfig
 from fairseq.data.audio.dataset_transforms import CompositeAudioDatasetTransform
@@ -395,11 +397,39 @@ class TextTargetMultitaskData(object):
         self.data = {s[self.KEY_ID]: s[self.KEY_TEXT] for s in samples}
         self.dict = tgt_dict
         self.append_eos = args.decoder_type != "ctc"
+        self.pre_tokenizer = self.build_tokenizer(args)
+        self.bpe_tokenizer = self.build_bpe(args)
+
+    @classmethod
+    def tokenize(cls, tokenizer, text: str):
+        return text if tokenizer is None else tokenizer.encode(text)
+
+    def get_tokenized_tgt_text(self, index: int):
+        text = self.tokenize(self.pre_tokenizer, self.data[index])
+        text = self.tokenize(self.bpe_tokenizer, text)
+        return text
+
+    def build_tokenizer(self, args):
+        pre_tokenizer = args.config.get("pre_tokenizer")
+        if pre_tokenizer is not None:
+            logger.info(f"pre-tokenizer: {pre_tokenizer}")
+            return encoders.build_tokenizer(Namespace(**pre_tokenizer))
+        else:
+            return None
+
+    def build_bpe(self, args):
+        bpe_tokenizer = args.config.get("bpe_tokenizer")
+        if bpe_tokenizer is not None:
+            logger.info(f"tokenizer: {bpe_tokenizer}")
+            return encoders.build_bpe(Namespace(**bpe_tokenizer))
+        else:
+            return None
 
     def get(self, sample_id):
         if sample_id in self.data:
+            tokenized = self.get_tokenized_tgt_text(sample_id)
             return self.dict.encode_line(
-                self.data[sample_id],
+                tokenized,
                 add_if_not_exist=False,
                 append_eos=self.append_eos,
             )
@@ -411,7 +441,7 @@ class TextTargetMultitaskData(object):
         out = fairseq_data_utils.collate_tokens(
             samples,
             self.dict.pad(),
-            self.dict.eos(),
+            eos_idx=self.dict.eos(),
             left_pad=False,
             move_eos_to_beginning=False,
         ).long()
@@ -419,7 +449,7 @@ class TextTargetMultitaskData(object):
         prev_out = fairseq_data_utils.collate_tokens(
             samples,
             self.dict.pad(),
-            self.dict.eos(),
+            eos_idx=self.dict.eos(),
             left_pad=False,
             move_eos_to_beginning=True,
         ).long()
