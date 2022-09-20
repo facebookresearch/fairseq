@@ -3,25 +3,26 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import logging
 import json
+import logging
 from typing import Dict
 
 import numpy as np
 import torch
-from torch import nn
 import torch.nn.functional as F
-from fairseq.models import BaseFairseqModel, register_model
-from fairseq.models.text_to_speech.hub_interface import VocoderHubInterface
+from torch import nn
+
 from fairseq.data.audio.audio_utils import (
-    get_window,
+    TTSSpectrogram,
     get_fourier_basis,
     get_mel_filters,
-    TTSSpectrogram,
+    get_window,
 )
 from fairseq.data.audio.speech_to_text_dataset import S2TDataConfig
+from fairseq.models import BaseFairseqModel, register_model
 from fairseq.models.text_to_speech.codehifigan import CodeGenerator as CodeHiFiGANModel
 from fairseq.models.text_to_speech.hifigan import Generator as HiFiGANModel
+from fairseq.models.text_to_speech.hub_interface import VocoderHubInterface
 
 logger = logging.getLogger(__name__)
 
@@ -219,7 +220,10 @@ class CodeHiFiGANVocoder(BaseFairseqModel):
     ) -> None:
         super().__init__()
         self.model = CodeHiFiGANModel(model_cfg)
-        state_dict = torch.load(checkpoint_path)
+        if torch.cuda.is_available():
+            state_dict = torch.load(checkpoint_path)
+        else:
+            state_dict = torch.load(checkpoint_path, map_location=torch.device("cpu"))
         self.model.load_state_dict(state_dict["generator"])
         self.model.eval()
         if fp16:
