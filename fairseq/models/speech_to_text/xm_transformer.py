@@ -633,10 +633,10 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
 
         # make sure all arguments are present in older models
         base_architecture(args)
-        # if getattr(args, "load_pretrained_decoder_from", None) is not None:
-        #     ckpt = torch.load(getattr(args, "load_pretrained_decoder_from", None))
-        #     decoder_args_dict = cls.get_decoder_args_from_checkpoint(ckpt["cfg"])
-        #     args = cls.override_decoder_args(args, decoder_args_dict)
+        if getattr(args, "load_pretrained_decoder_from", None) is not None:
+            ckpt = torch.load(getattr(args, "load_pretrained_decoder_from", None))
+            decoder_args_dict = cls.get_decoder_args_from_checkpoint(ckpt["cfg"])
+            args = cls.override_decoder_args(args, decoder_args_dict)
 
         decoder_embed_tokens = build_embedding(
             task.target_dictionary, args.decoder_embed_dim
