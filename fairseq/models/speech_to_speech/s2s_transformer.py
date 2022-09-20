@@ -247,7 +247,7 @@ class S2UTTransformerModel(S2STransformerMultitaskModelBase):
         parser.add_argument(
             "--conv-kernel-sizes",
             type=str,
-            metavar="N",
+            metavar="STR",
             help="kernel sizes of Conv1d (s2t_transformer) subsampling layers",
         )
         parser.add_argument(
@@ -435,7 +435,7 @@ class S2SpecTTransformerModel(S2STransformerMultitaskModelBase):
         parser.add_argument(
             "--conv-kernel-sizes",
             type=str,
-            metavar="N",
+            metavar="STR",
             help="kernel sizes of Conv1d (s2t_transformer) subsampling layers",
         )
         parser.add_argument(
@@ -621,8 +621,6 @@ def base_s2st_transformer_encoder_architecture(args):
 
     # Convolutional subsampler
     args.input_channels = getattr(args, "input_channels", 1)
-    args.conv_kernel_sizes = getattr(args, "conv_kernel_sizes", "5,5")
-    args.conv_channels = getattr(args, "conv_channels", 1024)
     args.conv_kernel_sizes = getattr(args, "conv_kernel_sizes", "5,5")  # for Conv1d
     args.conv_channels = getattr(args, "conv_channels", 1024)  # for Conv1d
     args.conv_out_channels = getattr(args, "conv_out_channels", 256)  # for Conv2d

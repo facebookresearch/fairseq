@@ -243,6 +243,7 @@ class S2SpecT2ConformerModel(S2SpecTConformerModel):
     model_name="s2spect2_conformer", arch_name="s2spect2_conformer"
 )
 def s2spect2_conformer_architecture_base(args):
+    args.conv_version = getattr(args, "conv_version", "convtransformer")
     args.attn_type = getattr(args, "attn_type", None)
     args.pos_enc_type = getattr(args, "pos_enc_type", "abs")
     args.max_source_positions = getattr(args, "max_source_positions", 6000)

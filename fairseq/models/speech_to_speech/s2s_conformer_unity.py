@@ -281,6 +281,7 @@ class UnityConformerModel(S2UTConformerModel):
 
 @register_model_architecture(model_name="unity_conformer", arch_name="unity_conformer")
 def unity_conformer_architecture_base(args):
+    args.conv_version = getattr(args, "conv_version", "convtransformer")
     args.attn_type = getattr(args, "attn_type", None)
     args.pos_enc_type = getattr(args, "pos_enc_type", "abs")
     args.max_source_positions = getattr(args, "max_source_positions", 6000)
