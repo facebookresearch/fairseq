@@ -35,6 +35,7 @@ jobs:
         python -m pip install --upgrade pip
         git submodule update --init --recursive
         python -m pip install '.[dev,docs]'
+        cd /tmp && python -c "import fairseq; import fairseq.criterions; import fairseq.dataclass.configs"
 
     - name: Install optional test requirements
       run: |
@@ -61,11 +62,11 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
     - name: Run tests
-      run: pytest tests/
+      run: pytest -vvv tests/
 
     - name: Lint with black
       run: black --check .
 
     - name: Build doc
       run: make singlehtml
-      working_dir: docs/
+      working-directory: docs/
