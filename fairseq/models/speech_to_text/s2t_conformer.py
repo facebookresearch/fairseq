@@ -54,7 +54,7 @@ class S2TConformerEncoder(FairseqEncoder):
             self.subsample = Conv2dSubsampler(
                 args.input_channels,
                 args.input_feat_per_channel,
-                256,
+                args.conv_out_channels,
                 args.encoder_embed_dim,
             )
         self.pos_enc_type = args.pos_enc_type
