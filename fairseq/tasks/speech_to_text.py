@@ -85,7 +85,7 @@ class SpeechToTextTask(LegacyFairseqTask):
 
                         if not self.eos_token_mt:
                             raise Warning(
-                                "Please provide --eos_token to replace eos in sequence generator"
+                                "Please provide eos_token in --multitask-config-yaml to replace eos in sequence generator"
                             )
 
     def _get_speaker_to_id(self):

@@ -232,7 +232,7 @@ class SpeechToSpeechTask(LegacyFairseqTask):
 
                         if not self.eos_token_mt:
                             raise Warning(
-                                "Please provide --eos_token to replace eos in sequence generator"
+                                "Please provide eos_token in --multitask-config-yaml to replace eos in sequence generator"
                             )
 
         self._infer_tgt_lang_id = infer_tgt_lang_id
