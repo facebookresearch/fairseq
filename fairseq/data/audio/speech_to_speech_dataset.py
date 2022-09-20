@@ -52,11 +52,11 @@ class SpeechToSpeechDataset(SpeechToTextDataset):
     ):
         tgt_texts = tgt_audio_paths if target_is_code else None
         super().__init__(
-            split,
-            is_train_split,
-            data_cfg,
-            src_audio_paths,
-            src_n_frames,
+            split=split,
+            is_train_split=is_train_split,
+            cfg=data_cfg,
+            audio_paths=src_audio_paths,
+            n_frames=src_n_frames,
             ids=ids,
             tgt_dict=tgt_dict,
             tgt_texts=tgt_texts,
@@ -298,7 +298,7 @@ class SpeechToSpeechDatasetCreator(object):
         samples: List[Dict],
         data_cfg: S2SDataConfig,
         target_is_code: bool = False,
-        target_dictionary: Dictionary = None,
+        tgt_dict: Dictionary = None,
         n_frames_per_step: int = 1,
         multitask: Optional[Dict] = None,
     ) -> SpeechToSpeechDataset:
@@ -335,7 +335,7 @@ class SpeechToSpeechDatasetCreator(object):
             tgt_langs=tgt_langs,
             ids=ids,
             target_is_code=target_is_code,
-            target_dictionary=target_dictionary,
+            tgt_dict=tgt_dict,
             n_frames_per_step=n_frames_per_step,
         )
 
@@ -357,7 +357,7 @@ class SpeechToSpeechDatasetCreator(object):
         epoch: int,
         seed: int,
         target_is_code: bool = False,
-        target_dictionary: Dictionary = None,
+        tgt_dict: Dictionary = None,
         n_frames_per_step: int = 1,
         multitask: Optional[Dict] = None,
     ) -> SpeechToSpeechDataset:
@@ -365,14 +365,14 @@ class SpeechToSpeechDatasetCreator(object):
         for split in splits.split(","):
             samples = SpeechToTextDatasetCreator._load_samples_from_tsv(root, split)
             ds = cls._from_list(
-                split,
-                is_train_split,
-                samples,
-                data_cfg,
-                target_is_code,
-                target_dictionary,
-                n_frames_per_step,
-                multitask,
+                split_name=split,
+                is_train_split=is_train_split,
+                samples=samples,
+                data_cfg=data_cfg,
+                target_is_code=target_is_code,
+                tgt_dict=tgt_dict,
+                n_frames_per_step=n_frames_per_step,
+                multitask=multitask,
             )
             datasets.append(ds)
         return ConcatDataset(datasets) if len(datasets) > 1 else datasets[0]
