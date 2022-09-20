@@ -121,17 +121,13 @@ class S2SpecT2ConformerModel(S2SpecTConformerModel):
         base_model = cls(encoder, decoder)
 
         # set up multitask decoders
-        is_mt_decoder = False
         base_model.mt_task_name = None
         base_model.multitask_decoders = {}
-        n_aux_tasks = len(list(task.multitask_tasks.items()))
-        for i, (task_name, task_obj) in enumerate(task.multitask_tasks.items()):
-            if i == n_aux_tasks - 1:
-                is_mt_decoder = True
+        has_first_pass_decoder = False
+        for task_name, task_obj in task.multitask_tasks.items():
+            if task_obj.is_first_pass_decoder:
+                has_first_pass_decoder = True
                 base_model.mt_task_name = task_name
-                assert "target" in task_name
-                assert task_obj.args.decoder_type == "transformer"
-                # NOTE: we assume that the last task is for the first-pass decoder
 
             in_dim = (
                 args.encoder_embed_dim
@@ -142,7 +138,7 @@ class S2SpecT2ConformerModel(S2SpecTConformerModel):
                 task_obj.args,
                 task_obj.target_dictionary,
                 in_dim,
-                is_mt_decoder,
+                task_obj.is_first_pass_decoder,
                 getattr(args, "translation_decoder_layers", 4),
                 getattr(args, "decoder_embed_dim", 256),
                 getattr(args, "decoder_attention_heads", 4),
@@ -158,11 +154,13 @@ class S2SpecT2ConformerModel(S2SpecTConformerModel):
                 getattr(base_model, f"{task_name}_decoder")
             )
 
-        assert is_mt_decoder, "set at least one intermediate non-CTC decoder"
+        assert has_first_pass_decoder, "set at least one intermediate non-CTC decoder"
 
         # set up encoder on top of the auxiliary MT decoder
         if getattr(args, "synthesizer_encoder_layers", 0) > 0:
             base_model.synthesizer_encoder = cls.build_text_encoder(args)
+        else:
+            base_model.synthesizer_encoder = None
 
         return base_model
 
@@ -210,7 +208,7 @@ class S2SpecT2ConformerModel(S2SpecTConformerModel):
             mt_decoder_padding_mask = prev_output_tokens_mt.eq(mt_decoder.padding_idx)
 
         # 2. TTS encoder
-        if hasattr(self, "synthesizer_encoder"):
+        if self.synthesizer_encoder is not None:
             tts_encoder_out = self.synthesizer_encoder(
                 x,
                 mt_decoder_padding_mask,

@@ -13,6 +13,9 @@ from fairseq.models import (
     register_model_architecture,
 )
 from fairseq.models.speech_to_speech.modules.ctc_decoder import CTCDecoder
+from fairseq.models.speech_to_speech.modules.transformer_encoder import (
+    TransformerEncoderNoEmb,
+)
 from fairseq.models.speech_to_text.xm_transformer import XMTransformerModel
 from fairseq.models.speech_to_text.xm_transformer import (
     base_architecture as xm_t_base_architecture,
@@ -100,7 +103,7 @@ class UnitYXMTransformerModel(XMTransformerModel):
         )
 
     @classmethod
-    def build_text_decoder(cls, args, task):
+    def build_text_decoder(cls, args, tgt_dict):
         _args = copy.deepcopy(args)
 
         if args.adaptor_proj or args.encoder_proj:  # not V0 arch
@@ -111,8 +114,8 @@ class UnitYXMTransformerModel(XMTransformerModel):
         _args.layerdrop = _args.decoder_layerdrop
         _args.decoder_layers = _args.translation_decoder_layers
 
-        embed_tokens = build_embedding(task.target_dictionary, _args.decoder_embed_dim)
-        decoder = TransformerDecoder(_args, task.target_dictionary, embed_tokens)
+        embed_tokens = build_embedding(tgt_dict, _args.decoder_embed_dim)
+        decoder = TransformerDecoder(_args, tgt_dict, embed_tokens)
 
         if getattr(args, "load_pretrained_aux_decoder_from", None) is not None:
             decoder = cls.maybe_load_pretrained(
@@ -178,20 +181,19 @@ class UnitYXMTransformerModel(XMTransformerModel):
         # set up multitask decoders
         base_model.mt_task_name = None
         base_model.multitask_decoders = {}
-        n_aux_tasks = len(list(task.multitask_tasks.items()))
-        for i, (task_name, task_obj) in enumerate(task.multitask_tasks.items()):
-
-            if i < n_aux_tasks - 1:
-                task_decoder = cls.build_multitask_decoder(
-                    task_obj.args, task_obj.target_dictionary, args.decoder_embed_dim
-                )
-            else:
+        has_first_pass_decoder = False
+        for task_name, task_obj in task.multitask_tasks.items():
+            if task_obj.is_first_pass_decoder:
+                has_first_pass_decoder = True
                 base_model.mt_task_name = task_name
-                assert "target" in task_name
-                assert task_obj.args.decoder_type == "transformer"
-                # NOTE: we assume that the last task is for the first-pass decoder
 
-                task_decoder = cls.build_text_decoder(args, task_obj)
+            task_decoder = cls.build_multitask_decoder(
+                args,
+                task_obj.args,
+                task_obj.target_dictionary,
+                args.decoder_embed_dim,
+                task_obj.is_first_pass_decoder,
+            )
 
             setattr(base_model, f"{task_name}_decoder", task_decoder)
             decoder_model_cls = (
@@ -203,6 +205,8 @@ class UnitYXMTransformerModel(XMTransformerModel):
                 getattr(base_model, f"{task_name}_decoder")
             )
 
+        assert has_first_pass_decoder, "set at least one intermediate non-CTC decoder"
+
         # set up encoder on top of the auxiliary MT decoder
         if getattr(args, "synthesizer_encoder_layers", 0) > 0:
             base_model.synthesizer_encoder = cls.build_t2u_encoder(unit_args)
@@ -212,24 +216,29 @@ class UnitYXMTransformerModel(XMTransformerModel):
         return base_model
 
     @classmethod
-    def build_multitask_decoder(cls, args, tgt_dict, in_dim):
-        decoder_args = args.decoder_args
+    def build_multitask_decoder(
+        cls, args, mtl_args, tgt_dict, in_dim, is_first_pass_decoder
+    ):
+        decoder_args = mtl_args.decoder_args
         decoder_args.encoder_embed_dim = in_dim
-        if args.decoder_type == "transformer":
-            from fairseq.models.speech_to_speech import (
-                base_multitask_text_transformer_decoder_arch,
-            )
+        if mtl_args.decoder_type == "transformer":
+            if is_first_pass_decoder:
+                task_decoder = cls.build_text_decoder(args, tgt_dict)
+            else:
+                from fairseq.models.speech_to_speech import (
+                    base_multitask_text_transformer_decoder_arch,
+                )
 
-            base_multitask_text_transformer_decoder_arch(decoder_args)  # 2L
-            task_decoder = TransformerDecoder(
-                decoder_args,
-                tgt_dict,
-                embed_tokens=TransformerModelBase.build_embedding(
+                base_multitask_text_transformer_decoder_arch(decoder_args)  # 2L
+                task_decoder = TransformerDecoder(
                     decoder_args,
                     tgt_dict,
-                    decoder_args.decoder_embed_dim,
-                ),
-            )
+                    embed_tokens=TransformerModelBase.build_embedding(
+                        decoder_args,
+                        tgt_dict,
+                        decoder_args.decoder_embed_dim,
+                    ),
+                )
         elif args.decoder_type == "ctc":
             task_decoder = CTCDecoder(
                 dictionary=tgt_dict,
@@ -250,9 +259,6 @@ class UnitYXMTransformerModel(XMTransformerModel):
         _args.encoder_ffn_embed_dim = args.decoder_ffn_embed_dim
         _args.encoder_attention_heads = args.decoder_attention_heads
         _args.encoder_normalize_before = True
-
-        from fairseq.models.speech_to_speech import TransformerEncoderNoEmb
-
         return TransformerEncoderNoEmb(_args)
 
     def forward(

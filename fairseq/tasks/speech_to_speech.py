@@ -221,10 +221,15 @@ class SpeechToSpeechTask(LegacyFairseqTask):
             multitask_cfg = MultitaskConfig(
                 Path(args.data) / args.multitask_config_yaml
             )
-            for task_name, task_config in multitask_cfg.get_all_tasks().items():
-                task_obj = DummyMultiTask(task_config, task_config.tgt_dict)
+            first_pass_task_idx = multitask_cfg.first_pass_decoder_task_index
+            for i, (task_name, task_config) in enumerate(
+                multitask_cfg.get_all_tasks().items()
+            ):
+                task_obj = DummyMultiTask(
+                    task_config, task_config.tgt_dict, i == first_pass_task_idx
+                )
                 self.multitask_tasks[task_name] = task_obj
-                if "target" in task_name and task_obj.args.decoder_type != "ctc":
+                if task_obj.is_first_pass_decoder:
                     self.tgt_dict_mt = task_obj.target_dictionary
                     if task_config.prepend_bos_and_append_tgt_lang_tag:
                         self.eos_token_mt = task_config.eos_token
