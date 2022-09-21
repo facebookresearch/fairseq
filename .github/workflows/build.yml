@@ -38,21 +38,7 @@ jobs:
 
     - name: Check installation
       working-directory: /tmp
-      shell: python
-      run: |
-        import _imp
-        print(_imp.extension_suffixes())
-        from pathlib import Path
-        import fairseq
-        print(fairseq.__file__)
-        import fairseq.criterions
-        import fairseq.dataclass.configs
-        print(list(Path(fairseq.__file__).parent.glob('*.so')))
-        print(list(Path(fairseq.__file__).parent.glob('data/*.so')))
-        from fairseq import libbleu
-        print(libbleu.__file__)
-        from fairseq.data import data_utils_fast
-        print(data_utils_fast.__file__)
+      run: python $GITHUB_WORKSPACE/scripts/check_installation.py
 
     - name: Install optional test requirements
       run: |
