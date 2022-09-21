@@ -711,16 +711,16 @@ class SpeechToTextDatasetCreator(object):
     ) -> SpeechToTextDataset:
         datasets = [
             cls._from_tsv(
-                root,
-                cfg,
-                split,
-                tgt_dict,
-                is_train_split,
-                pre_tokenizer,
-                bpe_tokenizer,
-                n_frames_per_step,
-                speaker_to_id,
-                multitask,
+                root=root,
+                cfg=cfg,
+                split=split,
+                tgt_dict=tgt_dict,
+                is_train_split=is_train_split,
+                pre_tokenizer=pre_tokenizer,
+                bpe_tokenizer=bpe_tokenizer,
+                n_frames_per_step=n_frames_per_step,
+                speaker_to_id=speaker_to_id,
+                multitask=multitask,
             )
             for split in splits.split(",")
         ]
