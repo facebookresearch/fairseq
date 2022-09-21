@@ -34,11 +34,29 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         git submodule update --init --recursive
-        python -m pip install '.[dev,docs]'
-        cd /tmp && python -c "import fairseq; import fairseq.criterions; import fairseq.dataclass.configs"
+        python -m pip install .
+
+    - name: Check installation
+      working-directory: /tmp
+      shell: python
+      run: |
+        import _imp
+        print(_imp.extension_suffixes())
+        from pathlib import Path
+        import fairseq
+        print(fairseq.__file__)
+        import fairseq.criterions
+        import fairseq.dataclass.configs
+        print(list(Path(fairseq.__file__).parent.glob('*.so')))
+        print(list(Path(fairseq.__file__).parent.glob('data/*.so')))
+        from fairseq import libbleu
+        print(libbleu.__file__)
+        from fairseq.data import data_utils_fast
+        print(data_utils_fast.__file__)
 
     - name: Install optional test requirements
       run: |
+        python -m pip install '.[dev,docs]'
         python -m pip install iopath transformers pyarrow
         python -m pip install git+https://github.com/facebookresearch/fairscale.git@main
         python -m pip install pygit2 pgzip
