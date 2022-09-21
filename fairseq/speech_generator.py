@@ -126,7 +126,7 @@ class AutoRegressiveSpeechGenerator(SpeechGenerator):
         return finalized
 
 
-class Translatotron2SpeechGenerator(SpeechGenerator):
+class MultiDecoderSpeechGenerator(SpeechGenerator):
     def __init__(
         self,
         models,

@@ -432,9 +432,9 @@ class SpeechToSpeechTask(LegacyFairseqTask):
                 if getattr(args, "teacher_forcing", False):
                     raise NotImplementedError
                 else:
-                    from fairseq.speech_generator import Translatotron2SpeechGenerator
+                    from fairseq.speech_generator import MultiDecoderSpeechGenerator
 
-                    generator = Translatotron2SpeechGenerator
+                    generator = MultiDecoderSpeechGenerator
 
                 lang_token_ids_aux = {
                     i
