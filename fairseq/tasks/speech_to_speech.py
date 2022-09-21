@@ -18,6 +18,7 @@ from fairseq.data.audio.data_cfg import MultitaskConfig, S2SDataConfig
 from fairseq.data.audio.speech_to_speech_dataset import SpeechToSpeechDatasetCreator
 from fairseq.data.audio.speech_to_text_dataset import SpeechToTextDataset
 from fairseq.tasks import LegacyFairseqTask, register_task
+from fairseq.tasks.speech_to_text import DummyMultiTask
 from fairseq.tasks.text_to_speech import batch_mel_cepstral_distortion
 
 logger = logging.getLogger(__name__)
@@ -279,14 +280,14 @@ class SpeechToSpeechTask(LegacyFairseqTask):
 
     def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         self.datasets[split] = SpeechToSpeechDatasetCreator.from_tsv(
-            self.args.data,
-            self.data_cfg,
-            split,
+            root=self.args.data,
+            data_cfg=self.data_cfg,
+            splits=split,
             is_train_split=split.startswith("train"),
             epoch=epoch,
             seed=self.args.seed,
             target_is_code=self.args.target_is_code,
-            target_dictionary=self.target_dictionary,
+            tgt_dict=self.target_dictionary,
             n_frames_per_step=self.args.n_frames_per_step,
             multitask=self.multitask_tasks,
         )
@@ -485,41 +486,3 @@ class SpeechToSpeechTask(LegacyFairseqTask):
                     prefix_tokens=prefix_tokens,
                     constraints=constraints,
                 )
-
-
-class DummyMultiTask(LegacyFairseqTask):
-    def __init__(self, args, tgt_dict):
-        super().__init__(args)
-        self.tgt_dict = tgt_dict
-
-    @property
-    def target_dictionary(self):
-        return self.tgt_dict
-
-    def inference_step(
-        self, generator, models, sample, prefix_tokens=None, constraints=None
-    ):
-        if self.args.decoder_type == "ctc":
-            model = models[0]  # only support single model
-            encoder_out = model(**sample)
-            if hasattr(model, "get_logits"):
-                emissions = model.get_logits(
-                    encoder_out
-                )  # no need to normalize emissions
-            else:
-                emissions = model.get_normalized_probs(encoder_out, log_probs=True)
-            return generator.decode(
-                emissions.transpose(0, 1).float().cpu().contiguous()
-            )
-        else:
-            raise NotImplementedError("only ctc decoder is supported at the moment")
-
-    def build_generator(
-        self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None
-    ):
-        if self.args.decoder_type == "ctc":
-            from examples.speech_recognition.w2l_decoder import W2lViterbiDecoder
-
-            return W2lViterbiDecoder(args, self.tgt_dict)
-        else:
-            raise NotImplementedError("only ctc decoder is supported at the moment")

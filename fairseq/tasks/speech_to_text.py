@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fairseq.data import Dictionary, encoders
 from fairseq.data.audio.audio_utils import get_features_or_waveform
+from fairseq.data.audio.data_cfg import MultitaskConfig
 from fairseq.data.audio.speech_to_text_dataset import (
     S2TDataConfig,
     SpeechToTextDataset,
@@ -29,6 +30,12 @@ class SpeechToTextTask(LegacyFairseqTask):
             type=str,
             default="config.yaml",
             help="Configuration YAML filename (under manifest root)",
+        )
+        parser.add_argument(
+            "--multitask-config-yaml",
+            type=str,
+            default=None,
+            help="Configuration YAML filename for the multitasks (under manifest root)",
         )
         parser.add_argument(
             "--max-source-positions",
@@ -57,6 +64,15 @@ class SpeechToTextTask(LegacyFairseqTask):
             raise ValueError(
                 "Please set only one of the two options to avoid adding target token multiple times"
             )
+
+        self.multitask_tasks = {}
+        if getattr(args, "multitask_config_yaml", None) is not None:
+            multitask_cfg = MultitaskConfig(
+                Path(args.data) / args.multitask_config_yaml
+            )
+            for task_name, task_config in multitask_cfg.get_all_tasks().items():
+                task_obj = DummyMultiTask(task_config, task_config.tgt_dict)
+                self.multitask_tasks[task_name] = task_obj
 
     def _get_speaker_to_id(self):
         speaker_to_id = None
@@ -98,12 +114,12 @@ class SpeechToTextTask(LegacyFairseqTask):
         pre_tokenizer = self.build_tokenizer(self.args)
         bpe_tokenizer = self.build_bpe(self.args)
         self.datasets[split] = SpeechToTextDatasetCreator.from_tsv(
-            self.args.data,
-            self.data_cfg,
-            split,
-            self.tgt_dict,
-            pre_tokenizer,
-            bpe_tokenizer,
+            root=self.args.data,
+            cfg=self.data_cfg,
+            splits=split,
+            tgt_dict=self.tgt_dict,
+            pre_tokenizer=pre_tokenizer,
+            bpe_tokenizer=bpe_tokenizer,
             is_train_split=is_train_split,
             epoch=epoch,
             seed=self.args.seed,
@@ -167,6 +183,29 @@ class SpeechToTextTask(LegacyFairseqTask):
             models, args, seq_gen_cls=None, extra_gen_cls_kwargs=extra_gen_cls_kwargs
         )
 
+    def train_step(
+        self, sample, model, criterion, optimizer, update_num, ignore_grad=False
+    ):
+        for task_name, task_obj in self.multitask_tasks.items():
+            criterion.set_multitask_loss_weight(
+                task_name, task_obj.args.get_loss_weight(update_num)
+            )
+            if task_name in model.multitask_decoders:
+                model.multitask_decoders[task_name].train()
+
+        loss, sample_size, logging_output = super().train_step(
+            sample, model, criterion, optimizer, update_num, ignore_grad
+        )
+        return loss, sample_size, logging_output
+
+    def valid_step(self, sample, model, criterion):
+        for task_name, task_obj in self.multitask_tasks.items():
+            if task_name in model.multitask_decoders:
+                model.multitask_decoders[task_name].eval()
+        loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
+
+        return loss, sample_size, logging_output
+
     def build_tokenizer(self, args):
         logger.info(f"pre-tokenizer: {self.data_cfg.pre_tokenizer}")
         return encoders.build_tokenizer(Namespace(**self.data_cfg.pre_tokenizer))
@@ -183,3 +222,41 @@ class SpeechToTextTask(LegacyFairseqTask):
         return SpeechToTextDataset(
             "interactive", False, self.data_cfg, src_tokens, src_lengths
         )
+
+
+class DummyMultiTask(LegacyFairseqTask):
+    def __init__(self, args, tgt_dict):
+        super().__init__(args)
+        self.tgt_dict = tgt_dict
+
+    @property
+    def target_dictionary(self):
+        return self.tgt_dict
+
+    def inference_step(
+        self, generator, models, sample, prefix_tokens=None, constraints=None
+    ):
+        if self.args.decoder_type == "ctc":
+            model = models[0]  # only support single model
+            encoder_out = model(**sample)
+            if hasattr(model, "get_logits"):
+                emissions = model.get_logits(
+                    encoder_out
+                )  # no need to normalize emissions
+            else:
+                emissions = model.get_normalized_probs(encoder_out, log_probs=True)
+            return generator.decode(
+                emissions.transpose(0, 1).float().cpu().contiguous()
+            )
+        else:
+            raise NotImplementedError("only ctc decoder is supported at the moment")
+
+    def build_generator(
+        self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None
+    ):
+        if self.args.decoder_type == "ctc":
+            from examples.speech_recognition.w2l_decoder import W2lViterbiDecoder
+
+            return W2lViterbiDecoder(args, self.tgt_dict)
+        else:
+            raise NotImplementedError("only ctc decoder is supported at the moment")
