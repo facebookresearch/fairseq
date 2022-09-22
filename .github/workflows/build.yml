@@ -35,7 +35,7 @@ jobs:
         python -m pip install --upgrade pip
         git submodule update --init --recursive
         python setup.py build_ext --inplace
-        python -m pip install --editable .
+        python -m pip install --editable . --no-binary numpy
 
     - name: Install optional test requirements
       run: |
@@ -47,7 +47,7 @@ jobs:
     - name: Install xformers for Macos
       if: matrix.platform == 'macos-latest'
       run: |
-        brew install llvm libomp
+        brew install llvm
         CC=/usr/local/opt/llvm/bin/clang CXX=clang++ pip install git+https://github.com/facebookresearch/xformers.git@main
 
     - name: Install xformers for non-MacOS
