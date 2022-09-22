@@ -58,12 +58,19 @@ jobs:
       run: |
         python -m pip install --progress-bar off git+https://github.com/facebookresearch/xformers.git@main
 
+    - name: Lint with black
+      run: black --check --diff .
+
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Build doc
+      run: make singlehtml
+      working-directory: docs/
 
     - name: Run tests
       # When installing in non-editable mode, the .so files will be generated in 'site-packages/fairseq'.
@@ -72,9 +79,3 @@ jobs:
       # https://docs.pytest.org/en/7.1.x/explanation/pythonpath.html
       run: pytest --import-mode=append -vvv tests/
 
-    - name: Lint with black
-      run: black --check .
-
-    - name: Build doc
-      run: make singlehtml
-      working-directory: docs/
