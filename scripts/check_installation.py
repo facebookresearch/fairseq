@@ -3,7 +3,12 @@ import os
 
 cwd = Path(".").resolve()
 print("running 'check_installation.py' from:", cwd)
-assert "fairseq" not in cwd.parts, "You should not run this from fairseq directory"
+
+# Old versions of numpy/torch can prevent loading the .so files
+import torch
+print("torch:", torch.__version__)
+import numpy
+print("numpy:", numpy.__version__)
 
 import fairseq
 print("Fairseq installed at:", fairseq.__file__)

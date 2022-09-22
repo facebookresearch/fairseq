@@ -66,7 +66,11 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
     - name: Run tests
-      run: pytest -vvv tests/
+      # When installing in non-editable mode, the .so files will be generated in 'site-packages/fairseq'.
+      # But by default, pytest import machinery will load local fairseq, and won't see the .so.
+      # Use --import-mode=append to favorize the 'site-packages/fairseq'.
+      # https://docs.pytest.org/en/7.1.x/explanation/pythonpath.html
+      run: pytest --import-mode=append -vvv tests/
 
     - name: Lint with black
       run: black --check .
