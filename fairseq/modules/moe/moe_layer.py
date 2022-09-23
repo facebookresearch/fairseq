@@ -163,7 +163,7 @@ class MOELayer(Base):
 
         ## add in task level decoder routing
         if encoder_embeddings is not None:
-            encoder_embeddings = encoder_embeddings[:, 0].unsqueeze(1).repeat(1,n_tok,1) ## repeat first tokens embedding across 
+            encoder_embeddings = encoder_embeddings[:, 1].unsqueeze(1).repeat(1,n_tok,1) ## repeat first tokens embedding across 
             reshaped_encoder_embedding = encoder_embeddings.reshape(-1, d_model)
         else:
             reshaped_encoder_embedding = None
