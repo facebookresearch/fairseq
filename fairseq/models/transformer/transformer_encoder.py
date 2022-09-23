@@ -301,6 +301,7 @@ class TransformerEncoderBase(FairseqEncoder):
             new_encoder_embedding = [
                 encoder_out["encoder_embedding"][0].index_select(0, new_order)
             ]
+            
 
         if len(encoder_out["src_tokens"]) == 0:
             src_tokens = []

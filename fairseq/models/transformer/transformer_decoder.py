@@ -433,7 +433,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             prev_output_tokens, token_embeddings, incremental_state
         )
         if self.pass_encoder_embeddings:
-            encoder_embeddings = encoder_out["encoder_embedding"][0]
+            encoder_embeddings = x[0]
         else:
             encoder_embeddings = None
 
