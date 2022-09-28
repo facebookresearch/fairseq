@@ -392,11 +392,6 @@ class TextTargetMultitaskData(object):
     # mandatory columns
     KEY_ID, KEY_TEXT = "id", "tgt_text"
     LANG_TAG_TEMPLATE = "<lang:{}>"
-    LANG_TAG_MAPPING = {
-        "<lang:en>": "[en_XX]",
-        "<lang:es>": "[es_XX]",
-        "<lang:ru>": "[ru_RU]",
-    }  # FIXME: make this optional
 
     def __init__(self, args, split, tgt_dict):
         samples = SpeechToTextDatasetCreator._load_samples_from_tsv(args.data, split)
@@ -409,6 +404,7 @@ class TextTargetMultitaskData(object):
             args.prepend_bos_and_append_tgt_lang_tag
         )
         self.eos_token = args.eos_token
+        self.lang_tag_mapping = args.get_lang_tag_mapping
 
     @classmethod
     def is_lang_tag(cls, token):
@@ -424,10 +420,9 @@ class TextTargetMultitaskData(object):
         text = self.tokenize(self.bpe_tokenizer, text)
         return text
 
-    @classmethod
-    def get_lang_tag_idx(cls, lang: str, dictionary: Dictionary):
-        lang_tag = cls.LANG_TAG_TEMPLATE.format(lang)
-        lang_tag = cls.LANG_TAG_MAPPING.get(lang_tag, lang_tag)
+    def get_lang_tag_idx(self, lang: str, dictionary: Dictionary):
+        lang_tag = self.LANG_TAG_TEMPLATE.format(lang)
+        lang_tag = self.lang_tag_mapping.get(lang_tag, lang_tag)
         lang_tag_idx = dictionary.index(lang_tag)
         assert lang_tag_idx != dictionary.unk(), (lang, lang_tag)
         return lang_tag_idx

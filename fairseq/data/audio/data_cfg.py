@@ -381,3 +381,7 @@ class SingleTaskConfig(object):
                     'The name of the first-pass decoder does not include "target".'
                 )
         return flag
+
+    @property
+    def get_lang_tag_mapping(self):
+        return self.config.get("lang_tag_mapping", {})
