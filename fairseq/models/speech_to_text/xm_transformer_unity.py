@@ -61,7 +61,7 @@ def unit_transformer_decoder_arch_large(
 
 
 @register_model("unity_xm_transformer")
-class UnitYXMTransformerModel(XMTransformerModel):
+class XMTransformerModelUnitY(XMTransformerModel):
     @classmethod
     def hub_models(cls):
         base_url = "http://dl.fbaipublicfiles.com/fairseq/s2t"
