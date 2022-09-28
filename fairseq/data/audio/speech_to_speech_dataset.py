@@ -319,7 +319,7 @@ class SpeechToSpeechDatasetCreator(object):
         src_langs = [s.get(cls.KEY_SRC_LANG, cls.DEFAULT_LANG) for s in samples]
         tgt_langs = [s.get(cls.KEY_TGT_LANG, cls.DEFAULT_LANG) for s in samples]
 
-        has_multitask = len(multitask) > 0
+        has_multitask = multitask is not None and len(multitask.keys()) > 0
         dataset_cls = (
             SpeechToSpeechMultitaskDataset if has_multitask else SpeechToSpeechDataset
         )
