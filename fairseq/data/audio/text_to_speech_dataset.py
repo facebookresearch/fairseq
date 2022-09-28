@@ -5,21 +5,22 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.abs
 
-from pathlib import Path
-from typing import List, Dict, Optional, Any
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
 
+from fairseq.data import Dictionary
+from fairseq.data import data_utils as fairseq_data_utils
 from fairseq.data.audio.audio_utils import get_features_or_waveform
 from fairseq.data.audio.speech_to_text_dataset import (
+    S2TDataConfig,
     SpeechToTextDataset,
     SpeechToTextDatasetCreator,
-    S2TDataConfig,
     _collate_frames,
 )
-from fairseq.data import Dictionary, data_utils as fairseq_data_utils
 
 
 @dataclass
@@ -196,6 +197,7 @@ class TextToSpeechDatasetCreator(SpeechToTextDatasetCreator):
         bpe_tokenizer,
         n_frames_per_step,
         speaker_to_id,
+        multitask=None,
     ) -> TextToSpeechDataset:
         audio_root = Path(cfg.audio_root)
         ids = [s[cls.KEY_ID] for s in samples]

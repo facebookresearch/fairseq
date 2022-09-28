@@ -4,13 +4,13 @@
 # LICENSE file in the root directory of this source tree.
 
 import csv
-import io
 import logging
 import re
+from argparse import Namespace
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -18,6 +18,7 @@ import torch.nn.functional as F
 
 from fairseq.data import ConcatDataset, Dictionary, FairseqDataset, ResamplingDataset
 from fairseq.data import data_utils as fairseq_data_utils
+from fairseq.data import encoders
 from fairseq.data.audio.audio_utils import get_features_or_waveform
 from fairseq.data.audio.data_cfg import S2TDataConfig
 from fairseq.data.audio.dataset_transforms import CompositeAudioDatasetTransform
@@ -387,6 +388,135 @@ class SpeechToTextDataset(FairseqDataset):
         raise False
 
 
+class TextTargetMultitaskData(object):
+    # mandatory columns
+    KEY_ID, KEY_TEXT = "id", "tgt_text"
+
+    def __init__(self, args, split, tgt_dict):
+        samples = SpeechToTextDatasetCreator._load_samples_from_tsv(args.data, split)
+        self.data = {s[self.KEY_ID]: s[self.KEY_TEXT] for s in samples}
+        self.dict = tgt_dict
+        self.append_eos = args.decoder_type != "ctc"
+        self.pre_tokenizer = self.build_tokenizer(args)
+        self.bpe_tokenizer = self.build_bpe(args)
+
+    @classmethod
+    def tokenize(cls, tokenizer, text: str):
+        return text if tokenizer is None else tokenizer.encode(text)
+
+    def get_tokenized_tgt_text(self, index: int):
+        text = self.tokenize(self.pre_tokenizer, self.data[index])
+        text = self.tokenize(self.bpe_tokenizer, text)
+        return text
+
+    def build_tokenizer(self, args):
+        pre_tokenizer = args.config.get("pre_tokenizer")
+        if pre_tokenizer is not None:
+            logger.info(f"pre-tokenizer: {pre_tokenizer}")
+            return encoders.build_tokenizer(Namespace(**pre_tokenizer))
+        else:
+            return None
+
+    def build_bpe(self, args):
+        bpe_tokenizer = args.config.get("bpe_tokenizer")
+        if bpe_tokenizer is not None:
+            logger.info(f"tokenizer: {bpe_tokenizer}")
+            return encoders.build_bpe(Namespace(**bpe_tokenizer))
+        else:
+            return None
+
+    def get(self, sample_id):
+        if sample_id in self.data:
+            tokenized = self.get_tokenized_tgt_text(sample_id)
+            return self.dict.encode_line(
+                tokenized,
+                add_if_not_exist=False,
+                append_eos=self.append_eos,
+            )
+        else:
+            logger.warning(f"no target for {sample_id}")
+            return torch.IntTensor([])
+
+    def collater(self, samples: List[torch.Tensor]) -> torch.Tensor:
+        out = fairseq_data_utils.collate_tokens(
+            samples,
+            self.dict.pad(),
+            eos_idx=self.dict.eos(),
+            left_pad=False,
+            move_eos_to_beginning=False,
+        ).long()
+
+        prev_out = fairseq_data_utils.collate_tokens(
+            samples,
+            self.dict.pad(),
+            eos_idx=self.dict.eos(),
+            left_pad=False,
+            move_eos_to_beginning=True,
+        ).long()
+
+        target_lengths = torch.tensor([t.size(0) for t in samples], dtype=torch.long)
+        ntokens = sum(t.size(0) for t in samples)
+
+        output = {
+            "prev_output_tokens": prev_out,
+            "target": out,
+            "target_lengths": target_lengths,
+            "ntokens": ntokens,
+        }
+
+        return output
+
+
+class SpeechToTextMultitaskDataset(SpeechToTextDataset):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.multitask_data = {}
+
+    def add_multitask_dataset(self, task_name, task_data):
+        self.multitask_data[task_name] = task_data
+
+    def __getitem__(
+        self, index: int
+    ) -> Tuple[SpeechToTextDatasetItem, Dict[str, torch.Tensor]]:
+        s2t_data = super().__getitem__(index)
+
+        multitask_target = {}
+        sample_id = self.ids[index]
+        tgt_lang = self.tgt_langs[index]
+        for task_name, task_dataset in self.multitask_data.items():
+            multitask_target[task_name] = task_dataset.get(sample_id, tgt_lang)
+
+        return s2t_data, multitask_target
+
+    def collater(
+        self, samples: List[Tuple[SpeechToTextDatasetItem, Dict[str, torch.Tensor]]]
+    ) -> Dict:
+        if len(samples) == 0:
+            return {}
+
+        out = super().collater([s for s, _ in samples], return_order=True)
+        order = out["order"]
+        del out["order"]
+
+        for task_name, task_dataset in self.multitask_data.items():
+            if "multitask" not in out:
+                out["multitask"] = {}
+            d = [s[task_name] for _, s in samples]
+            task_target = task_dataset.collater(d)
+            out["multitask"][task_name] = {
+                "target": task_target["target"].index_select(0, order),
+                "target_lengths": task_target["target_lengths"].index_select(0, order),
+                "ntokens": task_target["ntokens"],
+            }
+            out["multitask"][task_name]["net_input"] = {
+                "prev_output_tokens": task_target["prev_output_tokens"].index_select(
+                    0, order
+                ),
+            }
+
+        return out
+
+
 class SpeechToTextDatasetCreator(object):
     # mandatory columns
     KEY_ID, KEY_AUDIO, KEY_N_FRAMES = "id", "audio", "n_frames"
@@ -409,6 +539,7 @@ class SpeechToTextDatasetCreator(object):
         bpe_tokenizer,
         n_frames_per_step,
         speaker_to_id,
+        multitask: Optional[Dict] = None,
     ) -> SpeechToTextDataset:
         audio_root = Path(cfg.audio_root)
         ids = [s[cls.KEY_ID] for s in samples]
@@ -419,12 +550,18 @@ class SpeechToTextDatasetCreator(object):
         speakers = [s.get(cls.KEY_SPEAKER, cls.DEFAULT_SPEAKER) for s in samples]
         src_langs = [s.get(cls.KEY_SRC_LANG, cls.DEFAULT_LANG) for s in samples]
         tgt_langs = [s.get(cls.KEY_TGT_LANG, cls.DEFAULT_LANG) for s in samples]
-        return SpeechToTextDataset(
-            split_name,
-            is_train_split,
-            cfg,
-            audio_paths,
-            n_frames,
+
+        has_multitask = len(multitask) > 0
+        dataset_cls = (
+            SpeechToTextMultitaskDataset if has_multitask else SpeechToTextDataset
+        )
+
+        ds = dataset_cls(
+            split=split_name,
+            is_train_split=is_train_split,
+            cfg=cfg,
+            audio_paths=audio_paths,
+            n_frames=n_frames,
             src_texts=src_texts,
             tgt_texts=tgt_texts,
             speakers=speakers,
@@ -437,6 +574,14 @@ class SpeechToTextDatasetCreator(object):
             n_frames_per_step=n_frames_per_step,
             speaker_to_id=speaker_to_id,
         )
+
+        if has_multitask:
+            for task_name, task_obj in multitask.items():
+                task_data = TextTargetMultitaskData(
+                    task_obj.args, split_name, task_obj.target_dictionary
+                )
+                ds.add_multitask_dataset(task_name, task_data)
+        return ds
 
     @classmethod
     def get_size_ratios(
@@ -502,6 +647,7 @@ class SpeechToTextDatasetCreator(object):
         bpe_tokenizer,
         n_frames_per_step,
         speaker_to_id,
+        multitask: Optional[Dict] = None,
     ) -> SpeechToTextDataset:
         samples = cls._load_samples_from_tsv(root, split)
         return cls._from_list(
@@ -514,6 +660,7 @@ class SpeechToTextDatasetCreator(object):
             bpe_tokenizer,
             n_frames_per_step,
             speaker_to_id,
+            multitask,
         )
 
     @classmethod
@@ -530,18 +677,20 @@ class SpeechToTextDatasetCreator(object):
         seed: int,
         n_frames_per_step: int = 1,
         speaker_to_id=None,
+        multitask: Optional[Dict] = None,
     ) -> SpeechToTextDataset:
         datasets = [
             cls._from_tsv(
-                root,
-                cfg,
-                split,
-                tgt_dict,
-                is_train_split,
-                pre_tokenizer,
-                bpe_tokenizer,
-                n_frames_per_step,
-                speaker_to_id,
+                root=root,
+                cfg=cfg,
+                split=split,
+                tgt_dict=tgt_dict,
+                is_train_split=is_train_split,
+                pre_tokenizer=pre_tokenizer,
+                bpe_tokenizer=bpe_tokenizer,
+                n_frames_per_step=n_frames_per_step,
+                speaker_to_id=speaker_to_id,
+                multitask=multitask,
             )
             for split in splits.split(",")
         ]

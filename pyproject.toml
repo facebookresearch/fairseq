@@ -1,3 +1,23 @@
 [build-system]
-requires = ["setuptools", "wheel", "cython"]
+requires = [
+  "setuptools>=18.0",
+  "wheel",
+  "cython",
+  "numpy>=1.23.3",
+  "torch>=1.10",
+]
 build-backend = "setuptools.build_meta"
+
+[tool.black]
+extend-exclude = '''
+(
+^/examples/|
+^/fairseq/model_parallel/megatron|
+^/build/
+)
+'''
+
+[tool.isort]
+profile = "black"
+known_third_party = "_cffi_backend,agg_results,aml,bitarray,boto3,botocore,dump_hubert_feature,dynamicconv_cuda,editdistance,faiss,fasttext,feature_utils,ffmpeg,g2p_en,h5py,hydra,hypothesis,indicnlp,inflect,iopath,joblib,kaldi_io,kenlm,libfb,librosa,lightconv_cuda,matplotlib,misc,mmpt,mmpt_cli,model,nltk,npy_append_array,numpy,omegaconf,pandas,pathbuilder,preprocessing,progressbar,pythainlp,random_sequence_shuffler,regex,sacrebleu,sacremoses,scipy,sentencepiece,setuptools,six,sklearn,soundfile,sweep,sweep_wmt_en2de_transformer_big_common,tabulate,torch,torchaudio,tqdm,unidecode,utils,videoreader,wav2vec_cluster_faiss,wget,yaml"
+skip_gitignore = true

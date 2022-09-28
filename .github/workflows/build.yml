@@ -34,14 +34,17 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         git submodule update --init --recursive
-        python setup.py build_ext --inplace
-        python -m pip install --editable .
+        python -m pip install .
+
+    - name: Check installation
+      working-directory: /tmp
+      run: python $GITHUB_WORKSPACE/scripts/check_installation.py
 
     - name: Install optional test requirements
       run: |
+        python -m pip install '.[dev,docs]'
         python -m pip install iopath transformers pyarrow
         python -m pip install git+https://github.com/facebookresearch/fairscale.git@main
-        python -m pip install pytest
         python -m pip install pygit2 pgzip
         
     - name: Install xformers for Macos
@@ -55,19 +58,24 @@ jobs:
       run: |
         python -m pip install --progress-bar off git+https://github.com/facebookresearch/xformers.git@main
 
+    - name: Lint with black
+      run: black --check --diff .
+
     - name: Lint with flake8
       run: |
-        pip install flake8
         # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --extend-exclude fairseq/model_parallel/megatron
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --extend-exclude fairseq/model_parallel/megatron
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Build doc
+      run: make singlehtml
+      working-directory: docs/
 
     - name: Run tests
-      run: |
-         python setup.py test
+      # When installing in non-editable mode, the .so files will be generated in 'site-packages/fairseq'.
+      # But by default, pytest import machinery will load local fairseq, and won't see the .so.
+      # Use --import-mode=append to favorize the 'site-packages/fairseq'.
+      # https://docs.pytest.org/en/7.1.x/explanation/pythonpath.html
+      run: pytest --import-mode=append -vvv tests/
 
-    - name: Lint with black
-      run: |
-        pip install black==22.3.0
-        black --check . --extend-exclude 'examples|fairseq\/model_parallel\/megatron'
