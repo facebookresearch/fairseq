@@ -94,7 +94,7 @@ class AugTransformerDecoderBase(TransformerDecoderBase):
         self,
         prev_output_tokens,
         encoder_out: Optional[Dict[str, List[Tensor]]] = None,
-        encoder_out2: Optional[Dict[str, List[Tensor]]] = None,
+        encoder_out_aug: Optional[Dict[str, List[Tensor]]] = None,
         incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
         features_only: bool = False,
         full_context_alignment: bool = False,
@@ -125,7 +125,7 @@ class AugTransformerDecoderBase(TransformerDecoderBase):
         x, extra = self.extract_features(
             prev_output_tokens,
             encoder_out=encoder_out,
-            encoder_out2=encoder_out2,
+            encoder_out_aug=encoder_out_aug,
             incremental_state=incremental_state,
             full_context_alignment=full_context_alignment,
             alignment_layer=alignment_layer,
@@ -140,7 +140,7 @@ class AugTransformerDecoderBase(TransformerDecoderBase):
         self,
         prev_output_tokens,
         encoder_out: Optional[Dict[str, List[Tensor]]],
-        encoder_out2: Optional[Dict[str, List[Tensor]]],
+        encoder_out_aug: Optional[Dict[str, List[Tensor]]],
         incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
         full_context_alignment: bool = False,
         alignment_layer: Optional[int] = None,
@@ -149,7 +149,7 @@ class AugTransformerDecoderBase(TransformerDecoderBase):
         return self.extract_features_scriptable(
             prev_output_tokens,
             encoder_out,
-            encoder_out2,
+            encoder_out_aug,
             incremental_state,
             full_context_alignment,
             alignment_layer,
@@ -166,7 +166,7 @@ class AugTransformerDecoderBase(TransformerDecoderBase):
         self,
         prev_output_tokens,
         encoder_out: Optional[Dict[str, List[Tensor]]],
-        encoder_out2: Optional[Dict[str, List[Tensor]]],
+        encoder_out_aug: Optional[Dict[str, List[Tensor]]],
         incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
         full_context_alignment: bool = False,
         alignment_layer: Optional[int] = None,
@@ -202,12 +202,15 @@ class AugTransformerDecoderBase(TransformerDecoderBase):
         if encoder_out is not None and len(encoder_out["encoder_padding_mask"]) > 0:
             padding_mask = encoder_out["encoder_padding_mask"][0]
 
-        enc2: Optional[Tensor] = None
-        padding_mask2: Optional[Tensor] = None
-        if encoder_out2 is not None and len(encoder_out2["encoder_out"]) > 0:
-            enc2 = encoder_out2["encoder_out"][0]
-        if encoder_out2 is not None and len(encoder_out2["encoder_padding_mask"]) > 0:
-            padding_mask2 = encoder_out2["encoder_padding_mask"][0]
+        enc_aug: Optional[Tensor] = None
+        padding_mask_aug: Optional[Tensor] = None
+        if encoder_out_aug is not None and len(encoder_out_aug["encoder_out"]) > 0:
+            enc_aug = encoder_out_aug["encoder_out"][0]
+        if (
+            encoder_out_aug is not None
+            and len(encoder_out_aug["encoder_padding_mask"]) > 0
+        ):
+            padding_mask_aug = encoder_out_aug["encoder_padding_mask"][0]
 
         # embed positions
         positions = None
@@ -249,7 +252,7 @@ class AugTransformerDecoderBase(TransformerDecoderBase):
 
         # decoder layers
         attn: Optional[Tensor] = None
-        attn2: Optional[Tensor] = None
+        attn_aug: Optional[Tensor] = None
         inner_states: List[Optional[Tensor]] = [x]
         for idx, layer in enumerate(self.layers):
             if incremental_state is None and not full_context_alignment:
@@ -257,12 +260,12 @@ class AugTransformerDecoderBase(TransformerDecoderBase):
             else:
                 self_attn_mask = None
 
-            x, layer_attn, layer_attn2, _ = layer(
+            x, layer_attn, layer_attn_aug, _ = layer(
                 x,
                 enc,
                 padding_mask,
-                enc2,
-                padding_mask2,
+                enc_aug,
+                padding_mask_aug,
                 incremental_state,
                 self_attn_mask=self_attn_mask,
                 self_attn_padding_mask=self_attn_padding_mask,
@@ -272,8 +275,8 @@ class AugTransformerDecoderBase(TransformerDecoderBase):
             inner_states.append(x)
             if layer_attn is not None and idx == alignment_layer:
                 attn = layer_attn.float().to(x)
-            if layer_attn2 is not None and idx == alignment_layer:
-                attn2 = layer_attn2.float().to(x)
+            if layer_attn_aug is not None and idx == alignment_layer:
+                attn_aug = layer_attn_aug.float().to(x)
 
         if attn is not None:
             if alignment_heads is not None:
@@ -282,12 +285,12 @@ class AugTransformerDecoderBase(TransformerDecoderBase):
             # average probabilities over heads
             attn = attn.mean(dim=0)
 
-        if attn2 is not None:
+        if attn_aug is not None:
             if alignment_heads is not None:
-                attn2 = attn2[:alignment_heads]
+                attn_aug = attn_aug[:alignment_heads]
 
             # average probabilities over heads
-            attn2 = attn2.mean(dim=0)
+            attn_aug = attn_aug.mean(dim=0)
 
         if self.layer_norm is not None:
             x = self.layer_norm(x)
@@ -298,7 +301,7 @@ class AugTransformerDecoderBase(TransformerDecoderBase):
         if self.project_out_dim is not None:
             x = self.project_out_dim(x)
 
-        return x, {"attn": [attn], "attn2": [attn2], "inner_states": inner_states}
+        return x, {"attn": [attn], "attn_aug": [attn_aug], "inner_states": inner_states}
 
     def upgrade_state_dict_named(self, state_dict, name):
         """Upgrade a (possibly old) state dict for new versions of fairseq."""

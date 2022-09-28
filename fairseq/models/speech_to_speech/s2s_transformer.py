@@ -237,7 +237,7 @@ class S2STransformerMultitaskModelBase(FairseqEncoderDecoderModel):
 @register_model("s2ut_transformer")
 class S2UTTransformerModel(S2STransformerMultitaskModelBase):
     """
-    Direct speech-to-speech translation model with S2T Transformer encoder + Transformer discrete unit decoder
+    Direct speech-to-speech translation model with Transformer encoder + Transformer discrete unit decoder
     https://arxiv.org/abs/2107.05604
     """
 

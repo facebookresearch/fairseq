@@ -241,10 +241,10 @@ class MultiDecoderSequenceGenerator(nn.Module):
             }
 
         if getattr(single_model, "t2u_augmented_cross_attn", False):
-            encoder_outs2 = [t2u_encoder_out]
+            encoder_outs_aug = [t2u_encoder_out]
         else:
             encoder_outs = [t2u_encoder_out]
-            encoder_outs2 = None
+            encoder_outs_aug = None
 
         # 3. T2U decoder
         finalized = self.generator.generate_decoder(
@@ -255,6 +255,6 @@ class MultiDecoderSequenceGenerator(nn.Module):
             prefix_tokens,
             constraints,
             bos_token,
-            encoder_outs2=encoder_outs2,
+            encoder_outs_aug=encoder_outs_aug,
         )
         return finalized

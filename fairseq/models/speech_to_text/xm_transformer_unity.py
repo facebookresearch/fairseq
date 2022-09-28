@@ -313,7 +313,7 @@ class UnitYXMTransformerModel(XMTransformerModel):
             decoder_out = self.decoder(
                 prev_output_tokens,
                 encoder_out=encoder_out,
-                encoder_out2=t2u_encoder_out,
+                encoder_out_aug=t2u_encoder_out,
             )
         else:
             decoder_out = self.decoder(

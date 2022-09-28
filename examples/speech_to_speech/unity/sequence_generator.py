@@ -270,7 +270,7 @@ class SequenceGenerator(nn.Module):
         constraints: Optional[Tensor] = None,
         bos_token: Optional[int] = None,
         aux_task_name="",
-        encoder_outs2: Optional[Tensor] = None,
+        encoder_outs_aug: Optional[Tensor] = None,
     ):
         incremental_states = torch.jit.annotate(
             List[Dict[str, Dict[str, Optional[Tensor]]]],
@@ -305,8 +305,10 @@ class SequenceGenerator(nn.Module):
         encoder_outs = self.model.reorder_encoder_out(encoder_outs, new_order)
         # ensure encoder_outs is a List.
         assert encoder_outs is not None
-        if encoder_outs2 is not None:
-            encoder_outs2 = self.model.reorder_encoder_out(encoder_outs2, new_order)
+        if encoder_outs_aug is not None:
+            encoder_outs_aug = self.model.reorder_encoder_out(
+                encoder_outs_aug, new_order
+            )
 
         # initialize buffers
         scores = (
@@ -378,9 +380,9 @@ class SequenceGenerator(nn.Module):
                 encoder_outs = self.model.reorder_encoder_out(
                     encoder_outs, reorder_state
                 )
-                if encoder_outs2 is not None:
-                    encoder_outs2 = self.model.reorder_encoder_out(
-                        encoder_outs2, reorder_state
+                if encoder_outs_aug is not None:
+                    encoder_outs_aug = self.model.reorder_encoder_out(
+                        encoder_outs_aug, reorder_state
                     )
             with torch.autograd.profiler.record_function(
                 "EnsembleModel: forward_decoder"
@@ -391,7 +393,7 @@ class SequenceGenerator(nn.Module):
                     incremental_states,
                     self.temperature,
                     decoder_name=decoder_name,
-                    encoder_outs2=encoder_outs2,
+                    encoder_outs_aug=encoder_outs_aug,
                 )
 
             if self.lm_model is not None and not aux_task_name:
@@ -844,24 +846,24 @@ class EnsembleModel(nn.Module):
         incremental_states: List[Dict[str, Dict[str, Optional[Tensor]]]],
         temperature: float = 1.0,
         decoder_name="decoder",
-        encoder_outs2: List[Dict[str, List[Tensor]]] = None,
+        encoder_outs_aug: List[Dict[str, List[Tensor]]] = None,
     ):
         log_probs = []
         avg_attn: Optional[Tensor] = None
         encoder_out: Optional[Dict[str, List[Tensor]]] = None
-        encoder_out2: Optional[Dict[str, List[Tensor]]] = None
+        encoder_out_aug: Optional[Dict[str, List[Tensor]]] = None
         for i, model in enumerate(self.models):
             if self.has_encoder():
                 encoder_out = encoder_outs[i]
-                if encoder_outs2 is not None:
-                    encoder_out2 = encoder_outs2[i]
+                if encoder_outs_aug is not None:
+                    encoder_out_aug = encoder_outs_aug[i]
             # decode each model
             if self.has_incremental_states():
-                if encoder_out2 is not None:
+                if encoder_out_aug is not None:
                     decoder_out = getattr(model, decoder_name).forward(
                         tokens,
                         encoder_out=encoder_out,
-                        encoder_out2=encoder_out2,
+                        encoder_out_aug=encoder_out_aug,
                         incremental_state=incremental_states[i],
                     )
                 else:

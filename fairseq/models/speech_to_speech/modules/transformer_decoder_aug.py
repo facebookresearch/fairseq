@@ -41,7 +41,7 @@ class AugTransformerUnitDecoder(AugTransformerDecoder):
         self,
         prev_output_tokens,
         encoder_out: Optional[Dict[str, List[Tensor]]] = None,
-        encoder_out2: Optional[Dict[str, List[Tensor]]] = None,
+        encoder_out_aug: Optional[Dict[str, List[Tensor]]] = None,
         incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
         features_only: bool = False,
         full_context_alignment: bool = False,
@@ -72,7 +72,7 @@ class AugTransformerUnitDecoder(AugTransformerDecoder):
         x, extra = self.extract_features(
             prev_output_tokens,
             encoder_out=encoder_out,
-            encoder_out2=encoder_out2,
+            encoder_out_aug=encoder_out_aug,
             incremental_state=incremental_state,
             full_context_alignment=full_context_alignment,
             alignment_layer=alignment_layer,

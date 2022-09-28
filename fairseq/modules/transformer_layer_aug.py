@@ -59,7 +59,7 @@ class AugTransformerDecoderLayerBase(TransformerDecoderLayerBase):
         x,
         encoder_out: Optional[torch.Tensor] = None,
         encoder_padding_mask: Optional[torch.Tensor] = None,
-        encoder_out2: Optional[torch.Tensor] = None,
+        encoder_out_aug: Optional[torch.Tensor] = None,
         encoder_padding_mask2: Optional[torch.Tensor] = None,
         incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
         prev_self_attn_state: Optional[List[torch.Tensor]] = None,
@@ -145,7 +145,7 @@ class AugTransformerDecoderLayerBase(TransformerDecoderLayerBase):
             x = self.self_attn_layer_norm(x)
 
         assert encoder_out is not None
-        assert encoder_out2 is not None
+        assert encoder_out_aug is not None
 
         if self.encoder_attn_merge_type == "sequential":
             ratios = self.get_dropnet_ratio()
@@ -200,8 +200,8 @@ class AugTransformerDecoderLayerBase(TransformerDecoderLayerBase):
 
                 x, attn2 = self.encoder_attn2(
                     query=x,
-                    key=encoder_out2,
-                    value=encoder_out2,
+                    key=encoder_out_aug,
+                    value=encoder_out_aug,
                     key_padding_mask=encoder_padding_mask2,
                     incremental_state=incremental_state,
                     static_kv=True,
@@ -241,8 +241,8 @@ class AugTransformerDecoderLayerBase(TransformerDecoderLayerBase):
             )
             x2, attn2 = self.encoder_attn2(
                 query=x,
-                key=encoder_out2,
-                value=encoder_out2,
+                key=encoder_out_aug,
+                value=encoder_out_aug,
                 key_padding_mask=encoder_padding_mask2,
                 incremental_state=incremental_state,
                 static_kv=True,
