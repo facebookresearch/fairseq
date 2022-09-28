@@ -147,8 +147,8 @@ and [RoBERTa](https://pytorch.org/hub/pytorch_fairseq_roberta/) for more example
 
 # Requirements and Installation
 
-* [PyTorch](http://pytorch.org/) version >= 1.5.0
-* Python version >= 3.6
+* [PyTorch](http://pytorch.org/) version >= 1.10.0
+* Python version >= 3.8
 * For training new models, you'll also need an NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
 * **To install fairseq** and develop locally:
 

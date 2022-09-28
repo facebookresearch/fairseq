@@ -31,6 +31,7 @@ install_dep_common: &install_dep_common
         python -m torch.utils.collect_env
 
 install_dep_fused_ops: &install_dep_fused_ops
+  # this version of Apex is from Feb 2021 and doesn't work with torch>=1.12
   - run:
       name: Install Megatron/Apex Dependencies
       working_directory: ~/
@@ -57,22 +58,22 @@ install_dep_xformers: &install_dep_xformers
         pip install -r requirements.txt
         pip install -e .
 
-install_dep_pt19: &install_dep_pt19
+install_dep_pt1_10: &install_dep_pt1_10
   - run:
       name: Install Pytorch Dependencies
       command: |
         source activate fairseq
         pip install --upgrade setuptools
-        pip install torch==1.9.1+cu111 torchvision==0.10.1+cu111 torchaudio==0.9.1 -f https://download.pytorch.org/whl/torch_stable.html
+        pip install torch==1.10.1+cu111 torchaudio==0.10.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html
         python -c 'import torch; print("Torch version:", torch.__version__)'
 
-install_dep_pt18: &install_dep_pt18
+install_dep_pt1_12: &install_dep_pt1_12
   - run:
       name: Install Pytorch Dependencies
       command: |
         source activate fairseq
         pip install --upgrade setuptools
-        pip install torch==1.8.1+cu111 torchvision==0.9.1+cu111 torchaudio==0.8.1 -f https://download.pytorch.org/whl/torch_stable.html
+        pip install torch==1.12.1+cu116 torchaudio==0.12.1+cu116 -f https://download.pytorch.org/whl/torch_stable.html
         python -c 'import torch; print("Torch version:", torch.__version__)'
 
 install_repo: &install_repo
@@ -121,7 +122,7 @@ create_conda_env: &create_conda_env
 
 jobs:
 
-  gpu_tests_pt19:
+  gpu_tests_pt1_10:
     <<: *gpu
 
     working_directory: ~/fairseq-py
@@ -132,7 +133,7 @@ jobs:
       - <<: *create_conda_env
       - restore_cache:
           key: *cache_key
-      - <<: *install_dep_pt19
+      - <<: *install_dep_pt1_10
       - <<: *install_dep_common
       - <<: *install_dep_fused_ops
       - save_cache:
@@ -142,7 +143,7 @@ jobs:
       - <<: *install_repo
       - <<: *run_unittests
 
-  gpu_tests_pt18:
+  gpu_tests_pt1_12:
     <<: *gpu
 
     working_directory: ~/fairseq-py
@@ -153,7 +154,7 @@ jobs:
       - <<: *create_conda_env
       - restore_cache:
           key: *cache_key
-      - <<: *install_dep_pt18
+      - <<: *install_dep_pt1_12
       - <<: *install_dep_common
       - <<: *install_dep_fused_ops
       - save_cache:
@@ -167,5 +168,6 @@ workflows:
   version: 2
   build:
     jobs:
-      - gpu_tests_pt18
-      - gpu_tests_pt19
+      # TODO: Figure out how to run APEX on  torch 1.12
+      # - gpu_tests_pt1_12
+      - gpu_tests_pt1_10

@@ -66,7 +66,7 @@ class CtcCriterionConfig(FairseqDataclass):
 @register_criterion("ctc", dataclass=CtcCriterionConfig)
 class CtcCriterion(FairseqCriterion):
     def __init__(
-        self, cfg: CtcCriterionConfig, task: FairseqTask, rdrop_alpha: bool = False
+        self, cfg: CtcCriterionConfig, task: FairseqTask, rdrop_alpha: int = 0.0
     ):
         super().__init__(task)
         self.blank_idx = (
@@ -111,7 +111,7 @@ class CtcCriterion(FairseqCriterion):
         self.zero_infinity = cfg.zero_infinity
         self.sentence_avg = cfg.sentence_avg
 
-    def forward(self, model, sample, reduce=True, net_output=None):
+    def forward(self, model, sample, reduce=True, **kwargs):
         net_output = model(**sample["net_input"])
         lprobs = model.get_normalized_probs(
             net_output, log_probs=True
