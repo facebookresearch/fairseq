@@ -10,7 +10,6 @@ import torch.nn as nn
 from torch import Tensor
 
 from fairseq import search
-from fairseq.sequence_generator import SequenceGenerator
 
 
 class MultiDecoderSequenceGenerator(nn.Module):
@@ -69,6 +68,9 @@ class MultiDecoderSequenceGenerator(nn.Module):
                 length (default: False)
         """
         super().__init__()
+
+        from examples.speech_to_speech.unity.sequence_generator import SequenceGenerator
+
         self.generator = SequenceGenerator(
             models,
             tgt_dict,

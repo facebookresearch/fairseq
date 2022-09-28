@@ -173,7 +173,7 @@ class SpeechToTextTask(LegacyFairseqTask):
         args,
         extra_gen_cls_kwargs,
     ):
-        from fairseq.sequence_generator_multi_decoder import (
+        from examples.speech_to_speech.unity.sequence_generator_multi_decoder import (
             MultiDecoderSequenceGenerator,
         )
 

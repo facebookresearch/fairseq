@@ -146,8 +146,8 @@ class MultiDecoderSpeechGenerator(SpeechGenerator):
         self.tgt_dict_mt = tgt_dict_mt
         self.eos_mt = eos_mt
 
+        from examples.speech_to_speech.unity.sequence_generator import SequenceGenerator
         from fairseq import search
-        from fairseq.sequence_generator import SequenceGenerator
 
         self.text_generator = SequenceGenerator(
             models,

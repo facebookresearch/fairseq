@@ -91,7 +91,6 @@ class SequenceGenerator(nn.Module):
             ).long()
 
         self.vocab_size = len(tgt_dict)
-        self.beam_size = beam_size
         # the max beam size is the dictionary size - 1, since we never select pad
         self.beam_size = min(beam_size, self.vocab_size - 1)
         self.model.set_decoder_beam_size(self.beam_size)
@@ -210,13 +209,6 @@ class SequenceGenerator(nn.Module):
         constraints: Optional[Tensor] = None,
         bos_token: Optional[int] = None,
     ):
-        incremental_states = torch.jit.annotate(
-            List[Dict[str, Dict[str, Optional[Tensor]]]],
-            [
-                torch.jit.annotate(Dict[str, Dict[str, Optional[Tensor]]], {})
-                for i in range(self.model.models_size)
-            ],
-        )
         net_input = sample["net_input"]
 
         if "src_tokens" in net_input:
@@ -245,18 +237,55 @@ class SequenceGenerator(nn.Module):
                 + str(net_input.keys())
             )
 
-        # bsz: total number of sentences in beam
-        # Note that src_tokens may have more than 2 dimensions (i.e. audio features)
-        bsz, src_len = src_tokens.size()[:2]
-        beam_size = self.beam_size
-
         if constraints is not None and not self.search.supports_constraints:
             raise NotImplementedError(
                 "Target-side constraints were provided, but search method doesn't support them"
             )
 
         # Initialize constraints, when active
-        self.search.init_constraints(constraints, beam_size)
+        self.search.init_constraints(constraints, self.beam_size)
+
+        # compute the encoder output for each beam
+        with torch.autograd.profiler.record_function("EnsembleModel: forward_encoder"):
+            encoder_outs = self.model.forward_encoder(net_input)
+
+        finalized = self.generate_decoder(
+            encoder_outs,
+            src_tokens,
+            src_lengths,
+            sample,
+            prefix_tokens,
+            constraints,
+            bos_token,
+        )
+        return finalized
+
+    def generate_decoder(
+        self,
+        encoder_outs,
+        src_tokens,
+        src_lengths,
+        sample: Dict[str, Dict[str, Tensor]],
+        prefix_tokens: Optional[Tensor] = None,
+        constraints: Optional[Tensor] = None,
+        bos_token: Optional[int] = None,
+        aux_task_name="",
+        encoder_outs2: Optional[Tensor] = None,
+    ):
+        incremental_states = torch.jit.annotate(
+            List[Dict[str, Dict[str, Optional[Tensor]]]],
+            [
+                torch.jit.annotate(Dict[str, Dict[str, Optional[Tensor]]], {})
+                for i in range(self.model.models_size)
+            ],
+        )
+
+        # bsz: total number of sentences in beam
+        # Note that src_tokens may have more than 2 dimensions (i.e. audio features)
+        bsz, src_len = src_tokens.size()[:2]
+        beam_size = self.beam_size
+
+        decoder_name = f"{aux_task_name}_decoder" if aux_task_name else "decoder"
 
         max_len: int = -1
         if self.match_source_len:
@@ -269,9 +298,6 @@ class SequenceGenerator(nn.Module):
         assert (
             self.min_len <= max_len
         ), "min_len cannot be larger than max_len, please adjust these!"
-        # compute the encoder output for each beam
-        with torch.autograd.profiler.record_function("EnsembleModel: forward_encoder"):
-            encoder_outs = self.model.forward_encoder(net_input)
 
         # placeholder of indices for bsz * beam_size to hold tokens and accumulative scores
         new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)
@@ -279,6 +305,8 @@ class SequenceGenerator(nn.Module):
         encoder_outs = self.model.reorder_encoder_out(encoder_outs, new_order)
         # ensure encoder_outs is a List.
         assert encoder_outs is not None
+        if encoder_outs2 is not None:
+            encoder_outs2 = self.model.reorder_encoder_out(encoder_outs2, new_order)
 
         # initialize buffers
         scores = (
@@ -344,10 +372,16 @@ class SequenceGenerator(nn.Module):
                         corr.unsqueeze(-1) * beam_size
                     )
                     original_batch_idxs = original_batch_idxs[batch_idxs]
-                self.model.reorder_incremental_state(incremental_states, reorder_state)
+                self.model.reorder_incremental_state(
+                    incremental_states, reorder_state, decoder_name
+                )
                 encoder_outs = self.model.reorder_encoder_out(
                     encoder_outs, reorder_state
                 )
+                if encoder_outs2 is not None:
+                    encoder_outs2 = self.model.reorder_encoder_out(
+                        encoder_outs2, reorder_state
+                    )
             with torch.autograd.profiler.record_function(
                 "EnsembleModel: forward_decoder"
             ):
@@ -356,9 +390,11 @@ class SequenceGenerator(nn.Module):
                     encoder_outs,
                     incremental_states,
                     self.temperature,
+                    decoder_name=decoder_name,
+                    encoder_outs2=encoder_outs2,
                 )
 
-            if self.lm_model is not None:
+            if self.lm_model is not None and not aux_task_name:
                 lm_out = self.lm_model(tokens[:, : step + 1])
                 probs = self.lm_model.get_normalized_probs(
                     lm_out, log_probs=True, sample=None
@@ -807,23 +843,38 @@ class EnsembleModel(nn.Module):
         encoder_outs: List[Dict[str, List[Tensor]]],
         incremental_states: List[Dict[str, Dict[str, Optional[Tensor]]]],
         temperature: float = 1.0,
+        decoder_name="decoder",
+        encoder_outs2: List[Dict[str, List[Tensor]]] = None,
     ):
         log_probs = []
         avg_attn: Optional[Tensor] = None
         encoder_out: Optional[Dict[str, List[Tensor]]] = None
+        encoder_out2: Optional[Dict[str, List[Tensor]]] = None
         for i, model in enumerate(self.models):
             if self.has_encoder():
                 encoder_out = encoder_outs[i]
+                if encoder_outs2 is not None:
+                    encoder_out2 = encoder_outs2[i]
             # decode each model
             if self.has_incremental_states():
-                decoder_out = model.decoder.forward(
-                    tokens,
-                    encoder_out=encoder_out,
-                    incremental_state=incremental_states[i],
-                )
+                if encoder_out2 is not None:
+                    decoder_out = getattr(model, decoder_name).forward(
+                        tokens,
+                        encoder_out=encoder_out,
+                        encoder_out2=encoder_out2,
+                        incremental_state=incremental_states[i],
+                    )
+                else:
+                    decoder_out = getattr(model, decoder_name).forward(
+                        tokens,
+                        encoder_out=encoder_out,
+                        incremental_state=incremental_states[i],
+                    )
             else:
-                if hasattr(model, "decoder"):
-                    decoder_out = model.decoder.forward(tokens, encoder_out=encoder_out)
+                if hasattr(model, decoder_name):
+                    decoder_out = getattr(model, decoder_name).forward(
+                        tokens, encoder_out=encoder_out
+                    )
                 else:
                     decoder_out = model.forward(tokens)
 
@@ -845,7 +896,7 @@ class EnsembleModel(nn.Module):
                 decoder_out[0][:, -1:, :].div_(temperature),
                 None if decoder_len <= 1 else decoder_out[1],
             )
-            probs = model.get_normalized_probs(
+            probs = getattr(model, decoder_name).get_normalized_probs(
                 decoder_out_tuple, log_probs=True, sample=None
             )
             probs = probs[:, -1, :]
@@ -896,119 +947,120 @@ class EnsembleModel(nn.Module):
         self,
         incremental_states: List[Dict[str, Dict[str, Optional[Tensor]]]],
         new_order,
+        decoder_name="decoder",
     ):
         if not self.has_incremental_states():
             return
         for i, model in enumerate(self.models):
-            model.decoder.reorder_incremental_state_scripting(
+            getattr(model, decoder_name).reorder_incremental_state_scripting(
                 incremental_states[i], new_order
             )
 
 
-class SequenceGeneratorWithAlignment(SequenceGenerator):
-    def __init__(
-        self, models, tgt_dict, left_pad_target=False, print_alignment="hard", **kwargs
-    ):
-        """Generates translations of a given source sentence.
+# class SequenceGeneratorWithAlignment(SequenceGenerator):
+#     def __init__(
+#         self, models, tgt_dict, left_pad_target=False, print_alignment="hard", **kwargs
+#     ):
+#         """Generates translations of a given source sentence.
 
-        Produces alignments following "Jointly Learning to Align and
-        Translate with Transformer Models" (Garg et al., EMNLP 2019).
+#         Produces alignments following "Jointly Learning to Align and
+#         Translate with Transformer Models" (Garg et al., EMNLP 2019).
 
-        Args:
-            left_pad_target (bool, optional): Whether or not the
-                hypothesis should be left padded or not when they are
-                teacher forced for generating alignments.
-        """
-        super().__init__(EnsembleModelWithAlignment(models), tgt_dict, **kwargs)
-        self.left_pad_target = left_pad_target
+#         Args:
+#             left_pad_target (bool, optional): Whether or not the
+#                 hypothesis should be left padded or not when they are
+#                 teacher forced for generating alignments.
+#         """
+#         super().__init__(EnsembleModelWithAlignment(models), tgt_dict, **kwargs)
+#         self.left_pad_target = left_pad_target
 
-        if print_alignment == "hard":
-            self.extract_alignment = utils.extract_hard_alignment
-        elif print_alignment == "soft":
-            self.extract_alignment = utils.extract_soft_alignment
+#         if print_alignment == "hard":
+#             self.extract_alignment = utils.extract_hard_alignment
+#         elif print_alignment == "soft":
+#             self.extract_alignment = utils.extract_soft_alignment
 
-    @torch.no_grad()
-    def generate(self, models, sample, **kwargs):
-        finalized = super()._generate(sample, **kwargs)
+#     @torch.no_grad()
+#     def generate(self, models, sample, **kwargs):
+#         finalized = super()._generate(sample, **kwargs)
 
-        src_tokens = sample["net_input"]["src_tokens"]
-        bsz = src_tokens.shape[0]
-        beam_size = self.beam_size
-        (
-            src_tokens,
-            src_lengths,
-            prev_output_tokens,
-            tgt_tokens,
-        ) = self._prepare_batch_for_alignment(sample, finalized)
-        if any(getattr(m, "full_context_alignment", False) for m in self.model.models):
-            attn = self.model.forward_align(src_tokens, src_lengths, prev_output_tokens)
-        else:
-            attn = [
-                finalized[i // beam_size][i % beam_size]["attention"].transpose(1, 0)
-                for i in range(bsz * beam_size)
-            ]
+#         src_tokens = sample["net_input"]["src_tokens"]
+#         bsz = src_tokens.shape[0]
+#         beam_size = self.beam_size
+#         (
+#             src_tokens,
+#             src_lengths,
+#             prev_output_tokens,
+#             tgt_tokens,
+#         ) = self._prepare_batch_for_alignment(sample, finalized)
+#         if any(getattr(m, "full_context_alignment", False) for m in self.model.models):
+#             attn = self.model.forward_align(src_tokens, src_lengths, prev_output_tokens)
+#         else:
+#             attn = [
+#                 finalized[i // beam_size][i % beam_size]["attention"].transpose(1, 0)
+#                 for i in range(bsz * beam_size)
+#             ]
 
-        if src_tokens.device != "cpu":
-            src_tokens = src_tokens.to("cpu")
-            tgt_tokens = tgt_tokens.to("cpu")
-            attn = [i.to("cpu") for i in attn]
+#         if src_tokens.device != "cpu":
+#             src_tokens = src_tokens.to("cpu")
+#             tgt_tokens = tgt_tokens.to("cpu")
+#             attn = [i.to("cpu") for i in attn]
 
-        # Process the attn matrix to extract hard alignments.
-        for i in range(bsz * beam_size):
-            alignment = self.extract_alignment(
-                attn[i], src_tokens[i], tgt_tokens[i], self.pad, self.eos
-            )
-            finalized[i // beam_size][i % beam_size]["alignment"] = alignment
-        return finalized
+#         # Process the attn matrix to extract hard alignments.
+#         for i in range(bsz * beam_size):
+#             alignment = self.extract_alignment(
+#                 attn[i], src_tokens[i], tgt_tokens[i], self.pad, self.eos
+#             )
+#             finalized[i // beam_size][i % beam_size]["alignment"] = alignment
+#         return finalized
 
-    def _prepare_batch_for_alignment(self, sample, hypothesis):
-        src_tokens = sample["net_input"]["src_tokens"]
-        bsz = src_tokens.shape[0]
-        src_tokens = (
-            src_tokens[:, None, :]
-            .expand(-1, self.beam_size, -1)
-            .contiguous()
-            .view(bsz * self.beam_size, -1)
-        )
-        src_lengths = sample["net_input"]["src_lengths"]
-        src_lengths = (
-            src_lengths[:, None]
-            .expand(-1, self.beam_size)
-            .contiguous()
-            .view(bsz * self.beam_size)
-        )
-        prev_output_tokens = data_utils.collate_tokens(
-            [beam["tokens"] for example in hypothesis for beam in example],
-            self.pad,
-            self.eos,
-            self.left_pad_target,
-            move_eos_to_beginning=True,
-        )
-        tgt_tokens = data_utils.collate_tokens(
-            [beam["tokens"] for example in hypothesis for beam in example],
-            self.pad,
-            self.eos,
-            self.left_pad_target,
-            move_eos_to_beginning=False,
-        )
-        return src_tokens, src_lengths, prev_output_tokens, tgt_tokens
+#     def _prepare_batch_for_alignment(self, sample, hypothesis):
+#         src_tokens = sample["net_input"]["src_tokens"]
+#         bsz = src_tokens.shape[0]
+#         src_tokens = (
+#             src_tokens[:, None, :]
+#             .expand(-1, self.beam_size, -1)
+#             .contiguous()
+#             .view(bsz * self.beam_size, -1)
+#         )
+#         src_lengths = sample["net_input"]["src_lengths"]
+#         src_lengths = (
+#             src_lengths[:, None]
+#             .expand(-1, self.beam_size)
+#             .contiguous()
+#             .view(bsz * self.beam_size)
+#         )
+#         prev_output_tokens = data_utils.collate_tokens(
+#             [beam["tokens"] for example in hypothesis for beam in example],
+#             self.pad,
+#             self.eos,
+#             self.left_pad_target,
+#             move_eos_to_beginning=True,
+#         )
+#         tgt_tokens = data_utils.collate_tokens(
+#             [beam["tokens"] for example in hypothesis for beam in example],
+#             self.pad,
+#             self.eos,
+#             self.left_pad_target,
+#             move_eos_to_beginning=False,
+#         )
+#         return src_tokens, src_lengths, prev_output_tokens, tgt_tokens
 
 
-class EnsembleModelWithAlignment(EnsembleModel):
-    """A wrapper around an ensemble of models."""
+# class EnsembleModelWithAlignment(EnsembleModel):
+#     """A wrapper around an ensemble of models."""
 
-    def __init__(self, models):
-        super().__init__(models)
+#     def __init__(self, models):
+#         super().__init__(models)
 
-    def forward_align(self, src_tokens, src_lengths, prev_output_tokens):
-        avg_attn = None
-        for model in self.models:
-            decoder_out = model(src_tokens, src_lengths, prev_output_tokens)
-            attn = decoder_out[1]["attn"][0]
-            if avg_attn is None:
-                avg_attn = attn
-            else:
-                avg_attn.add_(attn)
-        if len(self.models) > 1:
-            avg_attn.div_(len(self.models))
-        return avg_attn
+#     def forward_align(self, src_tokens, src_lengths, prev_output_tokens):
+#         avg_attn = None
+#         for model in self.models:
+#             decoder_out = model(src_tokens, src_lengths, prev_output_tokens)
+#             attn = decoder_out[1]["attn"][0]
+#             if avg_attn is None:
+#                 avg_attn = attn
+#             else:
+#                 avg_attn.add_(attn)
+#         if len(self.models) > 1:
+#             avg_attn.div_(len(self.models))
+#         return avg_attn
