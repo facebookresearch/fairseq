@@ -132,7 +132,7 @@ class BerardModel(FairseqEncoderDecoderModel):
             lstm_size=args.lstm_size,
             dropout=args.dropout,
         )
-        if getattr(args, "load_pretrained_encoder_from", None):
+        if getattr(args, "load_pretrained_encoder_from", None) is not None:
             encoder = checkpoint_utils.load_pretrained_component_from_model(
                 component=encoder, checkpoint=args.load_pretrained_encoder_from
             )
@@ -150,7 +150,7 @@ class BerardModel(FairseqEncoderDecoderModel):
             attention_dim=args.attention_dim,
             output_layer_dim=args.output_layer_dim,
         )
-        if getattr(args, "load_pretrained_decoder_from", None):
+        if getattr(args, "load_pretrained_decoder_from", None) is not None:
             decoder = checkpoint_utils.load_pretrained_component_from_model(
                 component=decoder, checkpoint=args.load_pretrained_decoder_from
             )
