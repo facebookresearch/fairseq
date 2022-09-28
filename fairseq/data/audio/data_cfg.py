@@ -366,7 +366,7 @@ class SingleTaskConfig(object):
 
     @property
     def rdrop_alpha(self):
-        return self.config.get("rdrop_alpha", None)
+        return self.config.get("rdrop_alpha", 0.0)
 
     @property
     def is_first_pass_decoder(self):
