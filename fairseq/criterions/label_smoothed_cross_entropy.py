@@ -160,8 +160,7 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             'nsentences': sample['target'].size(0),
             'sample_size': sample_size,
             'distil_rate': self.real_distil_rate,
-            'KD_loss': extra_result['KD_loss'].data if extra_result.get('KD_loss', None) is not None else 0,
-            'num_distil_token': extra_result['num_distil_token'].data if extra_result.get('num_distil_token', None) is not None else 0
+            'KD_loss': extra_result['KD_loss'].data if extra_result.get('KD_loss', None) is not None else 0
         }
         
         if self.report_accuracy:
