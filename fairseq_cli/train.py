@@ -174,7 +174,7 @@ def main(cfg: FairseqConfig) -> None:
 
         xm.rendezvous("load_checkpoint")  # wait for all workers
 
-    if cfg.task.distillation:
+    if cfg.task["_name"] == "kd_translation":
         # build teacher model here
         teacher_models, _ = load_model_ensemble(
             [cfg.task.teacher_checkpoint_path],

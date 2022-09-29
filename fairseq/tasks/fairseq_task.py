@@ -514,9 +514,7 @@ class FairseqTask(object):
         model.set_num_updates(update_num)
         with torch.autograd.profiler.record_function("forward"):
             with torch.cuda.amp.autocast(enabled=(isinstance(optimizer, AMPOptimizer))):
-                if self.cfg.task["_name"] == "translation" and self.cfg.task.distillation and self.cfg.criterion["_name"] == "label_smoothed_cross_entropy":
-                    # as of now, KD has only been implemented for translation task
-                    # and label_smoothed_cross_entropy criterion
+                if self.cfg["_name"] == "kd_translation":
                     loss, sample_size, logging_output = criterion(model, sample, teacher_model=teacher_model)
                 else:
                     loss, sample_size, logging_output = criterion(model, sample)
