@@ -227,7 +227,9 @@ class SequenceGenerator(nn.Module):
                 src_lengths = net_input["src_lengths"]
             else:
                 src_lengths = (
-                    (src_tokens.ne(self.eos) & src_tokens.ne(self.pad)).long().sum(dim=1)
+                    (src_tokens.ne(self.eos) & src_tokens.ne(self.pad))
+                    .long()
+                    .sum(dim=1)
                 )
         elif "source" in net_input:
             src_tokens = net_input["source"]
