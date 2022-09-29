@@ -54,6 +54,7 @@ class Trainer(object):
 
         self.cfg = cfg
         self.task = task
+        self.teacher_model = None
 
         # catalog shared parameters
         shared_params = _catalog_shared_params(model)
@@ -828,7 +829,7 @@ class Trainer(object):
                         optimizer=self.optimizer,
                         update_num=self.get_num_updates(),
                         ignore_grad=is_dummy_batch,
-                        **extra_kwargs,
+                        teacher_model=self.teacher_model,
                     )
                     del loss
 

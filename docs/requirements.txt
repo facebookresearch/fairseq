@@ -1,0 +1,2 @@
+sphinx<2.0
+sphinx-argparse

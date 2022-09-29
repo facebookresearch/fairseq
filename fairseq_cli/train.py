@@ -39,6 +39,7 @@ from fairseq.file_io import PathManager
 from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from fairseq.trainer import Trainer
+from fairseq.checkpoint_utils import load_model_ensemble
 
 
 def main(cfg: FairseqConfig) -> None:
@@ -95,6 +96,7 @@ def main(cfg: FairseqConfig) -> None:
     else:
         model = task.build_model(cfg.model)
     criterion = task.build_criterion(cfg.criterion)
+
     logger.info(model)
     logger.info("task: {}".format(task.__class__.__name__))
     logger.info("model: {}".format(model.__class__.__name__))
@@ -171,6 +173,21 @@ def main(cfg: FairseqConfig) -> None:
         import torch_xla.core.xla_model as xm
 
         xm.rendezvous("load_checkpoint")  # wait for all workers
+
+    if cfg.task.distillation:
+        # build teacher model here
+        teacher_models, _ = load_model_ensemble(
+            [cfg.task.teacher_checkpoint_path],
+            task=task
+        )
+        teacher_model = teacher_models[0]
+        teacher_model = teacher_model.to(trainer.device)
+        trainer.teacher_model = teacher_model
+        trainer.teacher_model.eval()
+
+        logger.info(
+            f"loaded teacher checkpoint {cfg.task.teacher_checkpoint_path} in {'training' if trainer.teacher_model.training else 'evaluation'} mode"
+        )
 
     max_epoch = cfg.optimization.max_epoch or math.inf
     lr = trainer.get_lr()

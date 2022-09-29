@@ -8,6 +8,8 @@ import itertools
 import json
 import logging
 import os
+from pydoc import tempfilepager
+from tempfile import tempdir
 from typing import Optional
 from argparse import Namespace
 from omegaconf import II
@@ -228,6 +230,29 @@ class TranslationConfig(FairseqDataclass):
     )
     required_seq_len_multiple: int = II("dataset.required_seq_len_multiple")
 
+    # option to start knowledge distillation
+    distillation: bool = field(
+        default=False, metadata={"help": "perform distillation"}
+    )
+    distillation_strategy: str = field(
+        default="normal", metadata={"help": "distillation strategy to be used"}
+    )
+    distillation_rate: float = field(
+        default=0.5, metadata={"help": "the hyperparameter `tau` to control the number of words to get distillation knowledge"}
+    )
+    temperature_schedule: str = field(
+        default="none", metadata={"help": "temperature schedule for distillation"}
+    )
+    temperature: float = field(
+        default=1, metadata={"help": "initial temperature to be used during distillation"}
+    )
+    teacher_checkpoint_path: str = field(
+        default="", metadata={"help": "teacher checkpoint path when performing distillation"}
+    )
+    difficult_queue_size: int = field(
+        default=30000, metadata={"help": "queue size"}
+    )
+
     # options for reporting BLEU during validation
     eval_bleu: bool = field(
         default=False, metadata={"help": "evaluation with BLEU scores"}
@@ -285,7 +310,12 @@ class TranslationTask(FairseqTask):
         super().__init__(cfg)
         self.src_dict = src_dict
         self.tgt_dict = tgt_dict
-
+        self.distillation_strategy = cfg.distillation_strategy
+        self.distillation_rate = cfg.distillation_rate
+        self.temperature_schedule = cfg.temperature_schedule
+        self.temperature = cfg.temperature
+        self.difficult_queue_siz = cfg.difficult_queue_size
+        
     @classmethod
     def setup_task(cls, cfg: TranslationConfig, **kwargs):
         """Setup the task (e.g., load dictionaries).

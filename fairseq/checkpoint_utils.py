@@ -15,6 +15,7 @@ import traceback
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
+from torch.serialization import default_restore_location
 
 import numpy as np
 import torch

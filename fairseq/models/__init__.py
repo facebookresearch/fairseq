@@ -99,7 +99,7 @@ def build_model(cfg: FairseqDataclass, task, from_checkpoint=False):
 
     assert model is not None, (
         f"Could not infer model type from {cfg}. "
-        "Available models: {}".format(MODEL_DATACLASS_REGISTRY.keys())
+        f"Available models: {MODEL_DATACLASS_REGISTRY.keys()}"
         + f" Requested model type: {model_type}"
     )
 
