@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import logging
 import math
@@ -7,6 +10,8 @@ from typing import Dict, List, Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch import Tensor
+
 from fairseq import checkpoint_utils, utils
 from fairseq.data.data_utils import lengths_to_padding_mask
 from fairseq.models import (
@@ -15,9 +20,9 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
+from fairseq.models.speech_to_text.modules.convolution import infer_conv_output_dim
 from fairseq.models.transformer import Embedding, TransformerDecoder
 from fairseq.modules import LayerNorm, PositionalEmbedding, TransformerEncoderLayer
-from torch import Tensor
 
 logger = logging.getLogger(__name__)
 
@@ -251,7 +256,7 @@ class ConvTransformerEncoder(FairseqEncoder):
             ),
             torch.nn.ReLU(),
         )
-        transformer_input_dim = self.infer_conv_output_dim(
+        transformer_input_dim = infer_conv_output_dim(
             self.in_channels, self.input_dim, args.conv_out_channels
         )
         self.out = torch.nn.Linear(transformer_input_dim, args.encoder_embed_dim)
@@ -273,16 +278,6 @@ class ConvTransformerEncoder(FairseqEncoder):
 
     def pooling_ratio(self):
         return 4
-
-    def infer_conv_output_dim(self, in_channels, input_dim, out_channels):
-        sample_seq_len = 200
-        sample_bsz = 10
-        x = torch.randn(sample_bsz, in_channels, sample_seq_len, input_dim)
-        x = torch.nn.Conv2d(1, out_channels, 3, stride=2, padding=3 // 2)(x)
-        x = torch.nn.Conv2d(out_channels, out_channels, 3, stride=2, padding=3 // 2)(x)
-        x = x.transpose(1, 2)
-        mb, seq = x.size()[:2]
-        return x.contiguous().view(mb, seq, -1).size(-1)
 
     def forward(self, src_tokens, src_lengths):
         """Encode input sequence.
