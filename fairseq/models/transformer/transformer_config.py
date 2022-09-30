@@ -95,6 +95,18 @@ class QuantNoiseConfig(FairseqDataclass):
 
 @dataclass
 class TransformerConfig(FairseqDataclass):
+    use_factorized_embedding: bool = field(
+        default=False,
+        metadata={"help": "use factorized embeddings instead of regular embeddings. Factorized embeddings use lesser number of parameters"}
+    )
+    factorized_embedding_dim: int = field(
+        default=128,
+        metadata={"help": "hidden dimension for the factorized embeddings"}
+    )
+    layernorm_factorized_embedding: bool = field(
+        default=False,
+        metadata={"help": "add layernorm to factorized embeddings"}
+    )
     activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
         default="relu",
         metadata={"help": "activation function to use"},
