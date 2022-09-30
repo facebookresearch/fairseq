@@ -186,7 +186,10 @@ def main(cfg: FairseqConfig) -> None:
         trainer.teacher_model.eval()
 
         logger.info(
-            f"loaded teacher checkpoint {cfg.task.teacher_checkpoint_path} in {'training' if trainer.teacher_model.training else 'evaluation'} mode"
+            "loaded teacher checkpoint {} in {} mode".format(
+                cfg.task.teacher_checkpoint_path,
+                'training' if trainer.teacher_model.training else 'evaluation'
+            )
         )
 
     max_epoch = cfg.optimization.max_epoch or math.inf

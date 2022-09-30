@@ -21,26 +21,10 @@ from fairseq.models.transformer import (
     TransformerEncoderBase,
 )
 
+from fairseq.modules import FactorizedEmbedding
+
+
 logger = logging.getLogger(__name__)
-
-
-class FactorizedEmbedding(nn.Module):
-    def __init__(self, num_embeddings, embedding_dim, hid_dim, padding_idx, layernorm=False):
-        super().__init__()
-        self.embedding_dim = embedding_dim
-        self.padding_idx = padding_idx
-        self.em = nn.Embedding(num_embeddings, hid_dim, padding_idx=padding_idx)
-        self.fc = nn.Linear(hid_dim, embedding_dim, bias=False)
-        self.layernorm = nn.LayerNorm(embedding_dim) if layernorm else None
-        self._initialize_embed_params()
-
-    def _initialize_embed_params(self):
-        nn.init.normal_(self.em.weight, mean=0, std=self.embedding_dim**-0.5)
-        nn.init.constant_(self.em.weight[self.padding_idx], 0)
-
-    def forward(self, x):
-        x = self.fc(self.em(x))
-        return x if self.layernorm is None else self.layernorm(x)
 
 
 class TransformerModelBase(FairseqEncoderDecoderModel):
@@ -153,7 +137,6 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
                 layernorm=cfg.layernorm_factorized_embedding
             )
             if path:
-                # TODO add loading from path
                 raise NotImplementedError
         return emb
 

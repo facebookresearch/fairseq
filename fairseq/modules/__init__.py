@@ -50,6 +50,7 @@ from .rotary_positional_embedding import RotaryPositionalEmbedding
 from .positional_encoding import (
     RelPositionalEncoding,
 )
+from .factorized_embedding import FactorizedEmbedding
 
 __all__ = [
     "AdaptiveInput",
@@ -101,4 +102,5 @@ __all__ = [
     "RelPositionalEncoding",
     "RotaryPositionalEmbedding",
     "RotaryPositionMultiHeadedAttention",
+    "FactorizedEmbedding"
 ]
