@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class KDTranslationConfig(TranslationConfig):
     # option to start knowledge distillation
     distillation_strategy: str = field(
-        default="none", metadata={"help": "distillation strategy to be used"}
+        default="generic", metadata={"help": "distillation strategy to be used"}
     )
     distillation_rate: float = field(
         default=0.5, metadata={"help": "the hyperparameter `tau` to control the number of words to get distillation knowledge"}

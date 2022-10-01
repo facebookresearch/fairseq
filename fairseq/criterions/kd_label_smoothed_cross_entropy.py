@@ -208,10 +208,10 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             lprobs, target, self.eps, ignore_index=self.padding_idx, reduce=reduce,
         )
 
-        if distil_strategy == 'none' or teacher_output is None:
+        if teacher_output is None:
             loss = golden_loss
         
-        elif distil_strategy == 'distil_all':
+        elif distil_strategy == 'generic':
             # distill all word with no selection
             KL_loss = F.kl_div(lprobs_T, teacher_lprobs_T, reduction='none', log_target=True)
             KL_loss = KL_loss.sum(dim=-1)
