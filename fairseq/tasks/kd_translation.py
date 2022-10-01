@@ -8,7 +8,7 @@
 
 from dataclasses import dataclass, field
 import logging
-
+from typing import Optional
 from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationConfig, TranslationTask
 
@@ -21,20 +21,23 @@ logger = logging.getLogger(__name__)
 @dataclass
 class KDTranslationConfig(TranslationConfig):
     # option to start knowledge distillation
-    distillation_strategy: str = field(
+    distil_strategy: str = field(
         default="generic", metadata={"help": "distillation strategy to be used"}
     )
-    distillation_rate: float = field(
+    distil_rate: float = field(
         default=0.5, metadata={"help": "the hyperparameter `tau` to control the number of words to get distillation knowledge"}
     )
-    temperature_schedule: str = field(
-        default="none", metadata={"help": "temperature schedule for distillation"}
+    temp_schedule: Optional[str] = field(
+        default=None, metadata={"help": "temperature schedule for distillation"}
     )
-    temperature: float = field(
-        default=1, metadata={"help": "initial temperature to be used during distillation"}
+    student_temp: float = field(
+        default=1, metadata={"help": "student model temperature for distillation"}
     )
-    teacher_checkpoint_path: str = field(
-        default="", metadata={"help": "teacher checkpoint path when performing distillation"}
+    teacher_temp: float = field(
+        default=1, metadata={"help": "teacher model emperature for distillation"}
+    )
+    teacher_checkpoint_path: Optional[str] = field(
+        default=None, metadata={"help": "teacher checkpoint path when performing distillation"}
     )
     difficult_queue_size: int = field(
         default=20000, metadata={"help": "queue size"}
@@ -56,8 +59,9 @@ class KDTranslationTask(TranslationTask):
 
     def __init__(self, cfg: KDTranslationConfig, src_dict, tgt_dict):
         super().__init__(cfg, src_dict, tgt_dict)
-        self.distillation_strategy = cfg.distillation_strategy
-        self.distillation_rate = cfg.distillation_rate
-        self.temperature_schedule = cfg.temperature_schedule
+        self.distil_strategy = cfg.distil_strategy
+        self.distil_rate = cfg.distil_rate
+        self.temp_schedule = cfg.temp_schedule
+        self.teacher_temp = cfg.teacher_temp
+        self.student_temp = cfg.student_temp
         self.difficult_queue_size = cfg.difficult_queue_size
-        self.temperature = cfg.temperature
