@@ -25,7 +25,7 @@ class KDTranslationConfig(TranslationConfig):
         default="none", metadata={"help": "distillation strategy to be used"}
     )
     distillation_rate: float = field(
-        default=0, metadata={"help": "the hyperparameter `tau` to control the number of words to get distillation knowledge"}
+        default=0.5, metadata={"help": "the hyperparameter `tau` to control the number of words to get distillation knowledge"}
     )
     temperature_schedule: str = field(
         default="none", metadata={"help": "temperature schedule for distillation"}
@@ -37,7 +37,7 @@ class KDTranslationConfig(TranslationConfig):
         default="", metadata={"help": "teacher checkpoint path when performing distillation"}
     )
     difficult_queue_size: int = field(
-        default=0, metadata={"help": "queue size"}
+        default=20000, metadata={"help": "queue size"}
     )
 
 
@@ -59,5 +59,5 @@ class KDTranslationTask(TranslationTask):
         self.distillation_strategy = cfg.distillation_strategy
         self.distillation_rate = cfg.distillation_rate
         self.temperature_schedule = cfg.temperature_schedule
-        self.temperature = cfg.temperature
         self.difficult_queue_size = cfg.difficult_queue_size
+        self.temperature = cfg.temperature
