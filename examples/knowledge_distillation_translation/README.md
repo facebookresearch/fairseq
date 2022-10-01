@@ -15,7 +15,7 @@ fairseq-train $data_dir \
 --max-update 1000000 \
 --arch transformer --activation-fn gelu --use-factorized-embedding --factorized-embedding-dim 128 --layernorm-factorized-embedding \
 --task kd_translation --distillation-strategy batch_level --distillation-rate 0.5 --temperature 2 --temperature-schedule none --teacher-checkpoint-path $teacher_checkpoint_path \
---criterion kd_label_smoothed_cross_entropy --label-smoothing 0.1 --alpha 10 \
+--criterion kd_label_smoothed_cross_entropy --label-smoothing 0.1 --alpha 0.5 \
 --source-lang SRC --target-lang TGT \
 --lr-scheduler inverse_sqrt --optimizer adam --adam-betas "(0.9, 0.98)" --clip-norm 1.0 --warmup-init-lr 1e-07 --lr 0.0005 --warmup-updates 4000 \
 --dropout 0.2 \
