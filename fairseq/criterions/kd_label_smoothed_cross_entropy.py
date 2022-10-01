@@ -78,7 +78,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         self.range_eps = 0.01
         self.queue = torch.cuda.FloatTensor([])
         self.teacher_loss_queue =  torch.cuda.FloatTensor([])
-        self.real_distil_rate = 0.0
+        self.real_distil_rate = 0
         self.dict_count = None
         self.alpha = alpha
 
@@ -141,7 +141,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             with torch.no_grad():
                 teacher_output = teacher_model(**sample['net_input'])
 
-        loss, nll_loss, extra_result = self.compute_loss(
+        loss, nll_loss, extra = self.compute_loss(
             model, 
             net_output, 
             sample, 
@@ -160,7 +160,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             'nsentences': sample['target'].size(0),
             'sample_size': sample_size,
             'distil_rate': self.real_distil_rate,
-            'KD_loss': extra_result['KD_loss'].data if extra_result.get('KD_loss', None) is not None else 0
+            'KD_loss': extra['KD_loss'].data if extra.get('KD_loss', None) is not None else 0
         }
         
         if self.report_accuracy:
@@ -187,7 +187,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         bsz, seq_len = target.size()
         target = target.view(-1, 1)
         pad_mask = target.eq(self.padding_idx).view(-1)
-        loss, nll_loss, extra_result = None, None, {}
+        loss, nll_loss, extra = None, None, {}
 
         if distil_strategy == 'none' or teacher_output is None:
             # not use distillation
@@ -205,7 +205,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             KL_loss = KL_loss.sum(dim=-1)
             KL_loss.masked_fill_(pad_mask, 0.)
             KL_loss = KL_loss.sum()
-            extra_result['KD_loss'] = KL_loss
+            extra['KD_loss'] = KL_loss
             loss = golden_loss + (self.alpha * KL_loss)
 
         elif distil_strategy == 'distil_only':
@@ -214,9 +214,9 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             KL_loss = F.kl_div(lprobs, distil_lprobs, reduction='none', log_target=True)
             KL_loss = KL_loss.sum(dim=-1)
             KL_loss.masked_fill_(pad_mask, 0.)
-            loss = KL_loss.sum()
             nll_loss = None
-
+            loss = KL_loss.sum()
+            
         elif distil_strategy == 'batch_level':
             # batch level selection, Word CE
             golden_loss, nll_loss = label_smoothed_nll_loss(
@@ -236,10 +236,10 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             KL_loss = KL_loss[~pad_mask]
             KL_loss = KL_loss[~KL_mask]
             KD_loss = KL_loss.sum() 
-            extra_result['KD_loss'] = KD_loss
-            loss = golden_loss.sum() + (self.alpha * KD_loss)
+            extra['KD_loss'] = KD_loss
             nll_loss = nll_loss.sum()
-        
+            loss = (((1 - self.alpha) * golden_loss.sum()) + (self.alpha * KD_loss))
+            
         elif distil_strategy == 'global_level':
             golden_loss, nll_loss = label_smoothed_nll_loss(
                 lprobs, target, self.eps, ignore_index=self.padding_idx, reduce=False,
@@ -264,9 +264,9 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             KL_loss = KL_loss.view(-1)
             KL_loss = KL_loss[~KL_mask]
             KD_loss = KL_loss.sum()
-            extra_result['KD_loss'] = KD_loss
+            extra['KD_loss'] = KD_loss
             nll_loss = nll_loss.sum()
-            loss = golden_loss.sum() + (self.alpha * KD_loss)
+            loss = (((1 - self.alpha) * golden_loss.sum()) + (self.alpha * KD_loss))
       
         elif distil_strategy == 'word_ce_low':
             golden_loss, nll_loss = label_smoothed_nll_loss(
@@ -286,8 +286,8 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             KL_loss = KL_loss[~pad_mask]
             KL_loss = KL_loss[~KL_mask]
             KD_loss = KL_loss.sum()
-            extra_result['KD_loss'] = KD_loss
-            loss = golden_loss.sum() + (self.alpha * KD_loss)
+            extra['KD_loss'] = KD_loss
+            loss = (((1 - self.alpha) * golden_loss.sum()) + (self.alpha * KD_loss))
             nll_loss = nll_loss.sum()
         
         elif distil_strategy == 'word_ce_high':
@@ -308,8 +308,8 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             KL_loss = KL_loss[~pad_mask]
             KL_loss = KL_loss[~KL_mask]
             KD_loss = KL_loss.sum() 
-            extra_result['KD_loss'] = KD_loss
-            loss = golden_loss.sum() + (self.alpha * KD_loss)
+            extra['KD_loss'] = KD_loss
+            loss = (((1 - self.alpha) * golden_loss.sum()) + (self.alpha * KD_loss))
             nll_loss = nll_loss.sum()
         
         elif distil_strategy == 'word_norm_high':
@@ -335,8 +335,8 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             need_learn = norm_gate <= target_norm
             KL_loss = KL_loss[need_learn]
             KD_loss = KL_loss.sum()
-            extra_result['KD_loss'] = KD_loss
-            loss = golden_loss.sum() + (self.alpha * KD_loss)
+            extra['KD_loss'] = KD_loss
+            loss = (((1 - self.alpha) * golden_loss.sum()) + (self.alpha * KD_loss))
             nll_loss = nll_loss.sum()
 
         elif distil_strategy == 'word_norm_low':
@@ -362,8 +362,8 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             need_learn = norm_gate >= target_norm
             KL_loss = KL_loss[need_learn]
             KD_loss = KL_loss.sum()
-            extra_result['KD_loss'] = KD_loss
-            loss = golden_loss.sum() + (self.alpha * KD_loss)
+            extra['KD_loss'] = KD_loss
+            loss = (((1 - self.alpha) * golden_loss.sum()) + (self.alpha * KD_loss))
             nll_loss = nll_loss.sum()
 
         elif distil_strategy == 'word_frequency_low':
@@ -393,8 +393,8 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             need_learn = target_count_cuda <= count_gate
             KL_loss = KL_loss[need_learn]
             KD_loss = KL_loss.sum()
-            extra_result['KD_loss'] = KD_loss
-            loss = golden_loss.sum() + (self.alpha * KD_loss)
+            extra['KD_loss'] = KD_loss
+            loss = (((1 - self.alpha) * golden_loss.sum()) + (self.alpha * KD_loss))
             nll_loss = nll_loss.sum()
         
         elif distil_strategy == 'word_frequency_high':
@@ -424,8 +424,8 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             need_learn = target_count_cuda >= count_gate
             KL_loss = KL_loss[need_learn]
             KD_loss = KL_loss.sum()
-            extra_result['KD_loss'] = KD_loss
-            loss = golden_loss.sum() + (self.alpha * KD_loss)
+            extra['KD_loss'] = KD_loss
+            loss = (((1 - self.alpha) * golden_loss.sum()) + (self.alpha * KD_loss))
             nll_loss = nll_loss.sum()
         
         elif distil_strategy == 'sentence_length_high':
@@ -450,8 +450,8 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             KL_loss.masked_fill_(need_ignore, 0.0)
 
             KD_loss = KL_loss.sum()
-            extra_result['KD_loss'] = KD_loss
-            loss = golden_loss.sum() + (self.alpha * KD_loss)
+            extra['KD_loss'] = KD_loss
+            loss = (((1 - self.alpha) * golden_loss.sum()) + (self.alpha * KD_loss))
             nll_loss = nll_loss.sum()
         
         elif distil_strategy == 'sentence_length_low':
@@ -476,8 +476,8 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             KL_loss.masked_fill_(need_ignore, 0.0)
 
             KD_loss = KL_loss.sum()
-            extra_result['KD_loss'] = KD_loss
-            loss = golden_loss.sum() + (self.alpha * KD_loss)
+            extra['KD_loss'] = KD_loss
+            loss = (((1 - self.alpha) * golden_loss.sum()) + (self.alpha * KD_loss))
             nll_loss = nll_loss.sum()
         
         elif distil_strategy == 'sentence_loss_mean_low':
@@ -504,8 +504,8 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             need_ignore = need_ignore.view(-1, 1)
             KL_loss.masked_fill_(need_ignore, 0.0)
             KD_loss = KL_loss.sum()
-            extra_result['KD_loss'] = KD_loss
-            loss = golden_loss.sum() + (self.alpha * KD_loss)
+            extra['KD_loss'] = KD_loss
+            loss = (((1 - self.alpha) * golden_loss.sum()) + (self.alpha * KD_loss))
             nll_loss = nll_loss.sum()
         
         elif distil_strategy == 'sentence_loss_mean_high':
@@ -532,8 +532,8 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             need_ignore = need_ignore.view(-1, 1)
             KL_loss.masked_fill_(need_ignore, 0.0)
             KD_loss = KL_loss.sum()
-            extra_result['KD_loss'] = KD_loss
-            loss = golden_loss.sum() + (self.alpha * KD_loss)
+            extra['KD_loss'] = KD_loss
+            loss = (((1 - self.alpha) * golden_loss.sum()) + (self.alpha * KD_loss))
             nll_loss = nll_loss.sum()
         elif distil_strategy == 'teacher_entropy_low':
             golden_loss, nll_loss = label_smoothed_nll_loss(
@@ -555,8 +555,8 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             need_learn = need_learn.view(-1)
             KL_loss = KL_loss[need_learn]
             KD_loss = KL_loss.sum()
-            extra_result['KD_loss'] = KD_loss
-            loss = golden_loss.sum() + (self.alpha * KD_loss)
+            extra['KD_loss'] = KD_loss
+            loss = (((1 - self.alpha) * golden_loss.sum()) + (self.alpha * KD_loss))
             nll_loss = nll_loss.sum()
         elif distil_strategy == 'teacher_entropy_high':
             golden_loss, nll_loss = label_smoothed_nll_loss(
@@ -578,7 +578,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             need_learn = need_learn.view(-1)
             KL_loss = KL_loss[need_learn]
             KD_loss = KL_loss.sum()
-            loss = golden_loss.sum() + (self.alpha * KD_loss)
+            loss = (((1 - self.alpha) * golden_loss.sum()) + (self.alpha * KD_loss))
             nll_loss = nll_loss.sum()
 
         elif distil_strategy == 'teacher_golden_high':
@@ -601,8 +601,8 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             need_learn = need_learn.view(-1)
             KL_loss = KL_loss[need_learn]
             KD_loss = KL_loss.sum()
-            extra_result['KD_loss'] = KD_loss
-            loss = golden_loss.sum() + (self.alpha * KD_loss)
+            extra['KD_loss'] = KD_loss
+            loss = (((1 - self.alpha) * golden_loss.sum()) + (self.alpha * KD_loss))
             nll_loss = nll_loss.sum()
         
         elif distil_strategy == 'teacher_golden_low':
@@ -625,11 +625,11 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             need_learn = need_learn.view(-1)
             KL_loss = KL_loss[need_learn]
             KD_loss = KL_loss.sum()
-            extra_result['KD_loss'] = KD_loss
-            loss = golden_loss.sum() + (self.alpha * KD_loss)
+            extra['KD_loss'] = KD_loss
+            loss = (((1 - self.alpha) * golden_loss.sum()) + (self.alpha * KD_loss))
             nll_loss = nll_loss.sum()
 
-        return loss, nll_loss, extra_result
+        return loss, nll_loss, extra
 
 
     def compute_accuracy(self, model, net_output, sample):
