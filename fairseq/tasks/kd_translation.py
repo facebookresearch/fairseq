@@ -30,9 +30,6 @@ class KDTranslationConfig(TranslationConfig):
     distil_rate: float = field(
         default=0.5, metadata={"help": "the hyperparameter `tau` to control the number of words to get distillation knowledge"}
     )
-    temp_schedule: Optional[str] = field(
-        default=None, metadata={"help": "temperature schedule for distillation"}
-    )
     student_temp: float = field(
         default=1, metadata={"help": "student model temperature for distillation"}
     )
@@ -64,7 +61,6 @@ class KDTranslationTask(TranslationTask):
         super().__init__(cfg, src_dict, tgt_dict)
         self.distil_strategy = cfg.distil_strategy
         self.distil_rate = cfg.distil_rate
-        self.temp_schedule = cfg.temp_schedule
         self.teacher_temp = cfg.teacher_temp
         self.student_temp = cfg.student_temp
         self.difficult_queue_size = cfg.difficult_queue_size
