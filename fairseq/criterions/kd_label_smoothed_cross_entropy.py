@@ -113,17 +113,16 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             teacher_predict_mask = teacher_predict_max > 0.5 # B*T x 1
             temperature = torch.ones_like(teacher_predict_max) * self.task.teacher_temp # B*T x 1 
             temperature = temperature.masked_fill(teacher_predict_mask, self.task.teacher_temp) # B*T x 1
-            # teacher_predict /= self.task.teacher_temp
+            teacher_predict /= self.task.teacher_temp
         elif self.task.temp_schedule == 'topk':
-            distil_probs = F.softmax(teacher_predict, dim=-1) # B*T x vocab
+            distil_probs = F.softmax(teacher_predict, dim=-1, dtype=torch.float32) # B*T x vocab
             distil_mask = distil_probs > 0.01
             invalid_mask = (distil_mask.sum(dim=-1) == 0)
             distil_mask[invalid_mask, :] = True
             teacher_predict.masked_fill_(~distil_mask, float("-inf"))
-        # else:
-        #     teacher_predict /= self.task.teacher_temp
-        teacher_predict /= self.task.teacher_temp
-        teacher_probs_T = F.softmax(teacher_predict, dim=-1) # B x T x vocab
+        else:
+            teacher_predict /= self.task.teacher_temp
+        teacher_probs_T = F.softmax(teacher_predict, dim=-1, dtype=torch.float32) # B x T x vocab
         return teacher_probs_T
 
     
