@@ -55,6 +55,7 @@ class Trainer(object):
         self.cfg = cfg
         self.task = task
         self.teacher_model = None
+        self.perform_distillation = False
 
         # catalog shared parameters
         shared_params = _catalog_shared_params(model)
@@ -822,15 +823,26 @@ class Trainer(object):
             try:
                 with maybe_no_sync():
                     # forward and backward
-                    loss, sample_size_i, logging_output = self.task.train_step(
-                        sample=sample,
-                        model=self.model,
-                        criterion=self.criterion,
-                        optimizer=self.optimizer,
-                        update_num=self.get_num_updates(),
-                        ignore_grad=is_dummy_batch,
-                        teacher_model=self.teacher_model,
-                    )
+                    if self.perform_distillation:
+                        loss, sample_size_i, logging_output = self.task.train_step(
+                            sample=sample,
+                            model=self.model,
+                            criterion=self.criterion,
+                            optimizer=self.optimizer,
+                            update_num=self.get_num_updates(),
+                            ignore_grad=is_dummy_batch,
+                            teacher_model=self.teacher_model,
+                        )
+                    else:
+                        loss, sample_size_i, logging_output = self.task.train_step(
+                            sample=sample,
+                            model=self.model,
+                            criterion=self.criterion,
+                            optimizer=self.optimizer,
+                            update_num=self.get_num_updates(),
+                            ignore_grad=is_dummy_batch
+                        )
+                        
                     del loss
 
                 logging_outputs.append(logging_output)
