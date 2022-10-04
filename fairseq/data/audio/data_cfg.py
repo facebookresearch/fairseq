@@ -271,7 +271,7 @@ class MultitaskConfig(object):
                 idx = i
         if idx < 0:
             for i, (k, v) in enumerate(self.config.items()):
-                if k.startwith("target") and v.decoder_type == "transformer":
+                if k.startswith("target") and v.decoder_type == "transformer":
                     idx = i
         return idx
 
