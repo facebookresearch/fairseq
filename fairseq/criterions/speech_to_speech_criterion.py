@@ -429,7 +429,7 @@ class SpeechToSpectrogramMultitaskTaskCriterion(Tacotron2Criterion, MultitaskCri
 
 @register_criterion("speech_to_spectrogram_2pass", dataclass=Tacotron2CriterionConfig)
 class SpeechToSpectrogram2passMultitaskTaskCriterion(
-    Tacotron2Criterion, MultitaskCriterion
+    SpeechToSpectrogramMultitaskTaskCriterion
 ):
     def __init__(
         self,
@@ -448,7 +448,6 @@ class SpeechToSpectrogram2passMultitaskTaskCriterion(
             bce_pos_weight,
             ctc_weight,
         )
-        MultitaskCriterion.__init__(self, task.multitask_tasks)
 
     def forward(self, model, sample, reduction="mean"):
         bsz, max_len, _ = sample["target"].size()
@@ -511,24 +510,3 @@ class SpeechToSpectrogram2passMultitaskTaskCriterion(
         loss += multitask_loss
         logging_output["multitask"] = multitask_log
         return loss, sample_size, logging_output
-
-    @classmethod
-    def reduce_metrics(cls, logging_outputs) -> None:
-        super().reduce_metrics(logging_outputs)
-
-        # inference metrics
-        if "targ_frames" in logging_outputs[0]:
-            n = sum(log.get("norm_frames", 0) for log in logging_outputs)
-            for key, new_key in [
-                ("mcd_loss", "mcd_loss"),
-                ("pred_frames", "pred_ratio"),
-                ("nins", "ins_rate"),
-                ("ndel", "del_rate"),
-            ]:
-                val = sum(log.get(key, 0) for log in logging_outputs)
-                metrics.log_scalar(new_key, val / n, n, round=3)
-
-        if "multitask" not in logging_outputs[0]:
-            return
-
-        MultitaskCriterion.reduce_metrics(logging_outputs)
