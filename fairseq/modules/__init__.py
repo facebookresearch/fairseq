@@ -15,6 +15,7 @@ from .downsampled_multihead_attention import DownsampledMultiHeadAttention
 from .dynamic_convolution import DynamicConv, DynamicConv1dTBC
 from .dynamic_crf_layer import DynamicCRF
 from .ema_module import EMAModuleConfig, EMAModule
+from .factorized_embedding import FactorizedEmbedding
 from .fairseq_dropout import FairseqDropout
 from .fp32_batch_norm import Fp32BatchNorm
 from .fp32_group_norm import Fp32GroupNorm
@@ -66,6 +67,7 @@ __all__ = [
     "DynamicCRF",
     "EMAModule",
     "EMAModuleConfig",
+    "FactorizedEmbedding",
     "FairseqDropout",
     "Fp32BatchNorm",
     "Fp32GroupNorm",
