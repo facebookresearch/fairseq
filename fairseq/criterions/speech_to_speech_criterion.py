@@ -37,7 +37,7 @@ class MultitaskCriterion:
             if rdrop_alpha_task is None:
                 rdrop_alpha_task = rdrop_alpha
             self.rdrop_alpha_mtl = rdrop_alpha_task
-            logger.info(f"rdrop_alpha is set to {rdrop_alpha_task}")
+            logger.info(f"rdrop_alpha is set to {rdrop_alpha_task} for {task_name}")
 
             if task_obj.args.decoder_type == "ctc":
                 self.multitask_criterion[task_name] = CtcCriterion(
