@@ -79,7 +79,9 @@ class SpeechToTextTask(LegacyFairseqTask):
                 multitask_cfg.get_all_tasks().items()
             ):
                 task_obj = DummyMultiTask(
-                    task_config, task_config.tgt_dict, i == first_pass_task_idx
+                    task_config,
+                    task_config.tgt_dict,
+                    first_pass=i == first_pass_task_idx,
                 )
                 self.multitask_tasks[task_name] = task_obj
                 if task_obj.is_first_pass_decoder:

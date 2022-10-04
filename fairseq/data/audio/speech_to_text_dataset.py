@@ -443,7 +443,7 @@ class TextTargetMultitaskData(object):
         else:
             return None
 
-    def get(self, sample_id, tgt_lang):
+    def get(self, sample_id, tgt_lang=None):
         if sample_id in self.data:
             tokenized = self.get_tokenized_tgt_text(sample_id)
             target = self.dict.encode_line(
