@@ -12,9 +12,11 @@ import torch
 from fairseq.data import Dictionary
 
 DATA_SOURCE_PREFIX_TAGS = {
-    "mining": "<MINED_DATA>",
-    "mmt_bt": "<MMT_BT_DATA>",
-    "smt_bt": "<SMT_BT_DATA>",
+    "general_domain" : "<GD_DATA>", 
+    "bt" : "<BT_DATA>", 
+    "manual" : "<MANUAL_DATA>",
+    "names" : "<EXP_NAME>", 
+    "igct" : "<EXP_IGCT>"
 }
 
 

@@ -171,6 +171,7 @@ class MultilingualDatasetManager(object):
             args, "add_data_source_prefix_tags", False
         )
         self.add_ssl_task_tokens = getattr(args, "add_ssl_task_tokens", False)
+        self.add_data_type_tags = getattr(args, "add_data_type_tags", False)
 
     @classmethod
     def setup_data_manager(cls, args, lang_pairs, langs, dicts, sampling_method):
@@ -506,6 +507,12 @@ class MultilingualDatasetManager(object):
             default=None,
             type=lambda uf: eval_str_dict(uf, type=str),
         )
+        parser.add_argument(
+            "--add-data-type-tags",
+            default=False,
+            action="store_true",
+            help="store the type of data to be translated",
+        )
 
     @classmethod
     def load_langs(cls, args, **kwargs):
@@ -827,13 +834,18 @@ class MultilingualDatasetManager(object):
                     if self.add_data_source_prefix_tags:
                         for fold in DATA_SOURCE_PREFIX_TAGS:
                             if train_split == f"train_{fold}":
-                                logger.info(
-                                    f"Prepending prefix token: {DATA_SOURCE_PREFIX_TAGS[fold]} for {train_split} data."
-                                )
-                                src_dataset = PrependTokenDataset(
-                                    src_dataset,
-                                    src_dict.index(DATA_SOURCE_PREFIX_TAGS[fold]),
-                                )
+                                if self.add_data_type_tags:
+                                    fold_tags = fold.split('_')
+                                else:
+                                    fold_tags = [fold]
+                                for fold_tag in fold_tags:
+                                    logger.info(
+                                        f"Prepending prefix token: {DATA_SOURCE_PREFIX_TAGS[fold_tag]} for {train_split} data."
+                                    )
+                                    src_dataset = PrependTokenDataset(
+                                        src_dataset,
+                                        src_dict.index(DATA_SOURCE_PREFIX_TAGS[fold_tag]),
+                                    )
                     src_datasets.append(src_dataset)
                     tgt_datasets.append(
                         self.load_data(train_prefix + tgt, tgt_dict, dataset_impl)
