@@ -21,6 +21,5 @@ fairseq-train $bin_dir \
 --memory-efficient-fp16 \
 --update-freq 1 \
 --distributed-world-size 1 \
---user-dir $custom_model_dir \
 --eval-bleu --eval-bleu-detok moses --eval-bleu-remove-bpe --eval-bleu-args '{"beam": 5, "lenpen": 1}' --best-checkpoint-metric bleu --maximize-best-checkpoint-metric
 ```
