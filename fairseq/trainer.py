@@ -824,24 +824,17 @@ class Trainer(object):
                 with maybe_no_sync():
                     # forward and backward
                     if self.perform_distillation:
-                        loss, sample_size_i, logging_output = self.task.train_step(
-                            sample=sample,
-                            model=self.model,
-                            criterion=self.criterion,
-                            optimizer=self.optimizer,
-                            update_num=self.get_num_updates(),
-                            ignore_grad=is_dummy_batch,
-                            teacher_model=self.teacher_model,
-                        )
-                    else:
-                        loss, sample_size_i, logging_output = self.task.train_step(
-                            sample=sample,
-                            model=self.model,
-                            criterion=self.criterion,
-                            optimizer=self.optimizer,
-                            update_num=self.get_num_updates(),
-                            ignore_grad=is_dummy_batch
-                        )
+                        with torch.no_grad():
+                            sample["teacher_output"] = self.teacher_model(**sample["net_input"])
+
+                    loss, sample_size_i, logging_output = self.task.train_step(
+                        sample=sample,
+                        model=self.model,
+                        criterion=self.criterion,
+                        optimizer=self.optimizer,
+                        update_num=self.get_num_updates(),
+                        ignore_grad=is_dummy_batch
+                    )
                         
                     del loss
 

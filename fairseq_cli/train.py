@@ -173,17 +173,17 @@ def main(cfg: FairseqConfig) -> None:
         import torch_xla.core.xla_model as xm
         xm.rendezvous("load_checkpoint")  # wait for all workers
 
-    print(cfg.task._name, cfg.criterion._name)
     if (cfg.task._name == "kd_translation") and (cfg.criterion._name == "kd_label_smoothed_cross_entropy"):
         # build teacher model here
-        teacher_models, _ = load_model_ensemble(
+        teacher_models = load_model_ensemble(
             [cfg.task.teacher_checkpoint_path],
             task=task
-        )
+        )[0][0]
+
+        trainer.teacher_model = teacher_models.to(trainer.device)
+        trainer.teacher_model.eval()
 
         trainer.perform_distillation = True
-        trainer.teacher_model = teacher_models[0].to(trainer.device)
-        trainer.teacher_model.eval()
 
         logger.info(
             "loaded teacher from {} in {} mode".format(
