@@ -17,47 +17,6 @@ gpu: &gpu
 # -------------------------------------------------------------------------------------
 cache_key: &cache_key cache-key-{{ .Environment.CIRCLE_JOB }}-{{ checksum ".circleci/config.yml" }}-{{ checksum "setup.py"}}
 
-install_dep_common: &install_dep_common
-  - run:
-      name: Install Common Dependencies
-      command: |
-        source activate fairseq
-        pip install --upgrade setuptools
-        pip install bitarray boto3 deepspeed editdistance fastBPE iopath ipdb ipython pyarrow pytest sacremoses sentencepiece subword-nmt hydra-core==1.0.7 omegaconf==2.0.6
-        pip install --progress-bar off pytest
-        pip install --progress-bar off fairscale
-        pip install -i https://test.pypi.org/simple/ bitsandbytes-cuda111 -U
-        python -c 'import torch; print("Torch version:", torch.__version__)'
-        python -m torch.utils.collect_env
-
-install_dep_fused_ops: &install_dep_fused_ops
-  # this version of Apex is from Feb 2021 and doesn't work with torch>=1.12
-  - run:
-      name: Install Megatron/Apex Dependencies
-      working_directory: ~/
-      command: |
-        source activate fairseq
-        git clone https://github.com/NVIDIA/apex
-        cd apex
-        git checkout e2083df5eb96643c61613b9df48dd4eea6b07690
-        sed -i '101,107 s/^/#/' setup.py
-        pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--deprecated_fused_adam" --global-option="--xentropy" --global-option="--fast_multihead_attn" ./
-        cd ~/
-        git clone --depth=1 --branch v2.4 https://github.com/NVIDIA/Megatron-LM.git
-        cd Megatron-LM
-        pip install -e .
-
-install_dep_xformers: &install_dep_xformers
-  - run:
-      name: Install xFormers Dependencies
-      working_directory: ~/
-      command: |
-        source activate fairseq
-        git clone https://github.com/facebookresearch/xformers.git
-        cd xformers
-        pip install -r requirements.txt
-        pip install -e .
-
 install_dep_pt1_10: &install_dep_pt1_10
   - run:
       name: Install Pytorch Dependencies
@@ -81,8 +40,9 @@ install_repo: &install_repo
       name: Install Repository
       command: |
         source activate fairseq
-        pip install .
-        python setup.py build_ext --inplace
+        python -m pip install fairscale
+        python -m pip install -e '.[dev,docs]'
+        python -c 'import torch; print("Torch version:", torch.__version__)'
 
 run_unittests: &run_unittests
   - run:
@@ -134,8 +94,6 @@ jobs:
       - restore_cache:
           key: *cache_key
       - <<: *install_dep_pt1_10
-      - <<: *install_dep_common
-      - <<: *install_dep_fused_ops
       - save_cache:
           paths:
             - ~/miniconda/
@@ -155,8 +113,6 @@ jobs:
       - restore_cache:
           key: *cache_key
       - <<: *install_dep_pt1_12
-      - <<: *install_dep_common
-      - <<: *install_dep_fused_ops
       - save_cache:
           paths:
             - ~/miniconda/
@@ -168,6 +124,5 @@ workflows:
   version: 2
   build:
     jobs:
-      # TODO: Figure out how to run APEX on  torch 1.12
-      # - gpu_tests_pt1_12
+      - gpu_tests_pt1_12
       - gpu_tests_pt1_10
