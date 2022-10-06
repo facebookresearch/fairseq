@@ -39,6 +39,7 @@ from fairseq.data import (
 from fairseq.data.encoders.utils import get_whole_word_mask
 from fairseq.data.multilingual.multilingual_utils import (
     DATA_SOURCE_PREFIX_TAGS,
+    DATA_SOURCE_TYPE_TAGS, 
     EncoderLangtok,
     LangTokSpec,
     LangTokStyle,
@@ -834,18 +835,25 @@ class MultilingualDatasetManager(object):
                     if self.add_data_source_prefix_tags:
                         for fold in DATA_SOURCE_PREFIX_TAGS:
                             if train_split == f"train_{fold}":
+                                logger.info(
+                                        f"Prepending prefix token: {DATA_SOURCE_PREFIX_TAGS[fold]} for {train_split} data."
+                                    )
+                                src_dataset = PrependTokenDataset(
+                                        src_dataset,
+                                        src_dict.index(DATA_SOURCE_PREFIX_TAGS[fold]),
+                                    )
                                 if self.add_data_type_tags:
-                                    fold_tags = fold.split('_')
-                                else:
-                                    fold_tags = [fold]
-                                for fold_tag in fold_tags:
+                                    fold_tag_type = fold.split('_')[1]
+                                    data_type_tag = DATA_SOURCE_TYPE_TAGS[fold_tag_type]
                                     logger.info(
-                                        f"Prepending prefix token: {DATA_SOURCE_PREFIX_TAGS[fold_tag]} for {train_split} data."
+                                        f"Prepending prefix token: {data_type_tag} for {train_split} data."
                                     )
                                     src_dataset = PrependTokenDataset(
-                                        src_dataset,
-                                        src_dict.index(DATA_SOURCE_PREFIX_TAGS[fold_tag]),
-                                    )
+                                            src_dataset,
+                                            src_dict.index(data_type_tag),
+                                        )
+
+
                     src_datasets.append(src_dataset)
                     tgt_datasets.append(
                         self.load_data(train_prefix + tgt, tgt_dict, dataset_impl)

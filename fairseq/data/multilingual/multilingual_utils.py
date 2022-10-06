@@ -13,8 +13,13 @@ from fairseq.data import Dictionary
 
 DATA_SOURCE_PREFIX_TAGS = {
     "general_domain" : "<GD_DATA>", 
-    "bt" : "<BT_DATA>", 
-    "manual" : "<MANUAL_DATA>",
+    "bt_igct" : "<BT_DATA>", 
+    "manual_igct" : "<MANUAL_DATA>",
+    "bt_names" : "<BT_DATA>", 
+    "manual_igct" : "<MANUAL_DATA>"
+}
+
+DATA_SOURCE_TYPE_TAGS = {
     "names" : "<EXP_NAME>", 
     "igct" : "<EXP_IGCT>"
 }
