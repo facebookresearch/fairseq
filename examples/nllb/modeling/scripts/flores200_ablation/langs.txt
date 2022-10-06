@@ -1,0 +1,1 @@
+ace_Latn,afr,ara_Arab,ast,ayr,bel,bul,cjk,cym,eng,eus,ewe,fas,fin,fon,fra,fuv,hau,hin,isl,ita,jpn,kea,kik,kin,kon,kor,lav,lin,luo,mal,mar,nso,oci,por,run,rus,sin,snd,swh,tam,tat_Cyrl,tel,tir,tsn,tso,twi,urd,vie,wol,yor,yue,zho_Hans

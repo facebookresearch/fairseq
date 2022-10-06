@@ -3,11 +3,12 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 import random
+
 import numpy as np
 import torch
 
-from .shardedtensor import *
 from .load_config import *
+from .shardedtensor import *
 
 
 def set_seed(seed=43211):
@@ -29,8 +30,7 @@ def get_world_size():
 
 
 def get_local_rank():
-    return torch.distributed.get_rank() \
-        if torch.distributed.is_initialized() else 0
+    return torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
 
 
 def print_on_rank0(func):
@@ -43,6 +43,7 @@ class RetriMeter(object):
     """
     Statistics on whether retrieval yields a better pair.
     """
+
     def __init__(self, freq=1024):
         self.freq = freq
         self.total = 0
@@ -64,5 +65,12 @@ class RetriMeter(object):
             print("[INFO]", self)
 
     def __repr__(self):
-        return "RetriMeter (" + str(self.replace / self.total) \
-            + "/" + str(self.replace) + "/" + str(self.total) + ")"
+        return (
+            "RetriMeter ("
+            + str(self.replace / self.total)
+            + "/"
+            + str(self.replace)
+            + "/"
+            + str(self.total)
+            + ")"
+        )

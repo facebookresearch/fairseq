@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import io
 import itertools
 import logging
 import os
@@ -10,16 +11,12 @@ import sys
 from typing import Any, List, Optional, Union
 
 import numpy as np
-
 import torch
 import torch.nn.functional as F
+
 from fairseq.data import data_utils
+from fairseq.data.audio.audio_utils import parse_path, read_from_stored_zip
 from fairseq.data.fairseq_dataset import FairseqDataset
-from fairseq.data.audio.audio_utils import (
-    parse_path,
-    read_from_stored_zip,
-)
-import io
 
 logger = logging.getLogger(__name__)
 

@@ -8,9 +8,8 @@ import logging
 import os
 
 import soundfile as sf
-from examples.textless_nlp.gslm.unit2speech.tts_data import (
-    TacotronInputDataset,
-)
+
+from examples.textless_nlp.gslm.unit2speech.tts_data import TacotronInputDataset
 from examples.textless_nlp.gslm.unit2speech.utils import (
     load_quantized_audio_from_file,
     load_tacotron,
@@ -27,9 +26,7 @@ def get_logger():
 
 
 def get_parser():
-    parser = argparse.ArgumentParser(
-        description="Wav2Vec 2.0 speech generator."
-    )
+    parser = argparse.ArgumentParser(description="Wav2Vec 2.0 speech generator.")
     parser.add_argument(
         "--quantized_unit_path",
         type=str,
@@ -92,9 +89,7 @@ def main(args, logger):
             strength=args.denoiser_strength,
         )
         out_file_path = os.path.join(args.out_audio_dir, f"{name}.wav")
-        sf.write(
-            f"{out_file_path}", aud_dn[0].cpu().float().numpy(), sample_rate
-        )
+        sf.write(f"{out_file_path}", aud_dn[0].cpu().float().numpy(), sample_rate)
 
 
 if __name__ == "__main__":

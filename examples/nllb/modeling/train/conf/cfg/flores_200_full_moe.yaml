@@ -1,0 +1,30 @@
+defaults:
+  - default
+  - override cluster: example
+  - override dataset: flores200.full.v4.4
+  - override model_type: moe
+
+train_prefix: moe128
+model_type.expert_count: 128
+arch: "transformer_24_24_big"
+train_subset: "train,train_mining,train_mmt_bt,train_smt_bt"
+
+# update/checkpoint
+max_updates: 300000
+validate_interval_updates: 20000
+save_interval_updates: 10000
+best_checkpoint_metric: "nll_loss"
+synchronize_checkpoints_before_copy: true
+
+# batch size
+max_tokens: 4096
+update_freq: 1
+num_nodes: 32
+num_gpus_per_node: 8
+
+encoder_langtok: src
+ddp_backend: fully_sharded
+lr: 0.002
+warmup: 8000
+temp: 1
+max_time_mins: 4320

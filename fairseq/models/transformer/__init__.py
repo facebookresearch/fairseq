@@ -35,6 +35,7 @@ __all__ = [
     "TransformerEncoderBase",
     "TransformerModel",
     "Embedding",
+    "fsdpwrap_expert",
     "Linear",
     "base_architecture",
     "tiny_architecture",

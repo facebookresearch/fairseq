@@ -5,25 +5,24 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+import json
 import logging
 import os
-import torch
-import json
-
 from argparse import Namespace
 from dataclasses import dataclass, field
-from typing import Optional, Any
+from typing import Any, Optional
+
+import torch
 
 from fairseq.data import AddTargetDataset, Dictionary, encoders
-from fairseq.tasks.audio_pretraining import AudioPretrainingTask, AudioPretrainingConfig
+from fairseq.data.text_compressor import TextCompressionLevel, TextCompressor
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.configs import GenerationConfig
-from fairseq.data.text_compressor import TextCompressor, TextCompressionLevel
+from fairseq.tasks.audio_pretraining import AudioPretrainingConfig, AudioPretrainingTask
 
-from . import register_task
 from .. import utils
 from ..logging import metrics
-
+from . import register_task
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +97,12 @@ class AudioFinetuningConfig(AudioPretrainingConfig):
         metadata={
             "help": "required for autoregressive decoders (like seq2seq models); "
             "adds 'prev_output_tokens' to input and appends eos to target"
+        },
+    )
+    fbank_features: int = field(
+        default=0,
+        metadata={
+            "help": "Number of fbank features used (Default 0, not used)",
         },
     )
 

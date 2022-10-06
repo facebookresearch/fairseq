@@ -1,15 +1,17 @@
+import json
 import math
 import os
-import json
+
 import numpy as np
 import torch
 import torchaudio.compliance.kaldi as kaldi
 import yaml
+
 from fairseq import checkpoint_utils, tasks
 from fairseq.file_io import PathManager
 
 try:
-    from simuleval import READ_ACTION, WRITE_ACTION, DEFAULT_EOS
+    from simuleval import DEFAULT_EOS, READ_ACTION, WRITE_ACTION
     from simuleval.agents import SpeechAgent
     from simuleval.states import ListEntry, SpeechStates
 except ImportError:
@@ -64,7 +66,7 @@ class OnlineFeatureExtractor:
 
         input_samples = samples[:effective_num_samples]
         self.previous_residual_samples = samples[
-            num_frames * self.num_samples_per_shift:
+            num_frames * self.num_samples_per_shift :
         ]
 
         torch.manual_seed(1)
@@ -127,14 +129,15 @@ class FairseqSimulSTAgent(SpeechAgent):
 
         self.load_model_vocab(args)
 
-        if getattr(
-            self.model.decoder.layers[0].encoder_attn,
-            'pre_decision_ratio',
-            None
-        ) is not None:
-            self.speech_segment_size *= (
-                self.model.decoder.layers[0].encoder_attn.pre_decision_ratio
+        if (
+            getattr(
+                self.model.decoder.layers[0].encoder_attn, "pre_decision_ratio", None
             )
+            is not None
+        ):
+            self.speech_segment_size *= self.model.decoder.layers[
+                0
+            ].encoder_attn.pre_decision_ratio
 
         args.global_cmvn = None
         if args.config:
@@ -147,7 +150,10 @@ class FairseqSimulSTAgent(SpeechAgent):
         if args.global_stats:
             with PathManager.open(args.global_stats, "r") as f:
                 global_cmvn = json.loads(f.read())
-                self.global_cmvn = {"mean": global_cmvn["mean"], "std": global_cmvn["stddev"]}
+                self.global_cmvn = {
+                    "mean": global_cmvn["mean"],
+                    "std": global_cmvn["stddev"],
+                }
 
         self.feature_extractor = OnlineFeatureExtractor(args)
 
@@ -290,9 +296,7 @@ class FairseqSimulSTAgent(SpeechAgent):
     def update_model_encoder(self, states):
         if len(states.units.source) == 0:
             return
-        src_indices = self.to_device(
-            states.units.source.value.unsqueeze(0)
-        )
+        src_indices = self.to_device(states.units.source.value.unsqueeze(0))
         src_lengths = self.to_device(
             torch.LongTensor([states.units.source.value.size(0)])
         )
@@ -320,7 +324,9 @@ class FairseqSimulSTAgent(SpeechAgent):
             "tgt": 1 + len(states.units.target),
         }
 
-        states.incremental_states["online"] = {"only": torch.tensor(not states.finish_read())}
+        states.incremental_states["online"] = {
+            "only": torch.tensor(not states.finish_read())
+        }
 
         x, outputs = self.model.decoder.forward(
             prev_output_tokens=tgt_indices,

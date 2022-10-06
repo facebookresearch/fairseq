@@ -16,10 +16,10 @@ import pprint
 
 import soundfile as sf
 import torch
-import fairseq
 from torch import nn
 from torch.utils.data import DataLoader
 
+import fairseq
 
 try:
     import tqdm
@@ -210,7 +210,9 @@ class DatasetWriter:
         return loader
 
     def load_model(self):
-        model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([self.checkpoint])
+        model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task(
+            [self.checkpoint]
+        )
         model = model[0]
 
         self.quantize_location = getattr(cfg.model, "vq", "encoder")

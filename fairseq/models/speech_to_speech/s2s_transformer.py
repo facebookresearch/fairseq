@@ -12,21 +12,17 @@ from torch import Tensor
 
 from fairseq import checkpoint_utils, utils
 from fairseq.models import (
-    FairseqEncoderModel,
     FairseqEncoderDecoderModel,
+    FairseqEncoderModel,
     FairseqLanguageModel,
     register_model,
     register_model_architecture,
 )
-from fairseq.models.speech_to_text import S2TTransformerEncoder
+from fairseq.models.speech_to_speech.hub_interface import S2SHubInterface
 from fairseq.models.speech_to_speech.modules import CTCDecoder, StackedEmbedding
+from fairseq.models.speech_to_text import S2TTransformerEncoder
 from fairseq.models.text_to_speech import TTSTransformerDecoder
-from fairseq.models.transformer import (
-    Linear,
-    TransformerDecoder,
-    TransformerModelBase,
-)
-
+from fairseq.models.transformer import Linear, TransformerDecoder, TransformerModelBase
 
 logger = logging.getLogger(__name__)
 
@@ -260,6 +256,13 @@ class S2UTTransformerModel(S2STransformerMultitaskModelBase):
             metavar="N",
             help="# of channels in Conv1d subsampling layers",
         )
+        parser.add_argument(
+            "--conv-version",
+            type=str,
+            default="s2t_transformer",
+            choices=["s2t_transformer", "convtransformer"],
+            help="version of frontend convolutional layers",
+        )
         # Transformer
         parser.add_argument(
             "--activation-fn",
@@ -372,6 +375,63 @@ class S2UTTransformerModel(S2STransformerMultitaskModelBase):
         )
 
     @classmethod
+    def hub_models(cls):
+        base_url = "https://dl.fbaipublicfiles.com/speech_matrix/s2s_models"
+        source_lang_list = [
+            "cs",
+            "de",
+            "en",
+            "es",
+            "et",
+            "fi",
+            "fr",
+            "hr",
+            "hu",
+            "it",
+            "nl",
+            "pl",
+            "pt",
+            "ro",
+            "sk",
+            "sl",
+        ]
+        tgt_lang_list = ["en", "es", "fr"]
+        import itertools
+
+        pairs = [
+            (a, b)
+            for a, b in itertools.product(source_lang_list, tgt_lang_list)
+            if a != b
+        ]
+        return {
+            f"textless_{src}_{tgt}": f"{base_url}/checkpoint_textless_{src}_{tgt}.tar"
+            for src, tgt in pairs
+        }
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        model_name_or_path,
+        checkpoint_file="model.pt",
+        data_name_or_path=".",
+        config_yaml="config.yaml",
+        task="speech_to_speech",
+        **kwargs,
+    ):
+        from fairseq import hub_utils
+
+        x = hub_utils.from_pretrained(
+            model_name_or_path,
+            checkpoint_file,
+            data_name_or_path,
+            archive_map=cls.hub_models(),
+            config_yaml=config_yaml,
+            task=task,
+            **kwargs,
+        )
+        return S2SHubInterface(x["args"], x["task"], x["models"][0])
+
+    @classmethod
     def build_decoder(cls, args, tgt_dict):
         num_embeddings = len(tgt_dict)
         padding_idx = tgt_dict.pad()
@@ -434,6 +494,13 @@ class S2SpecTTransformerModel(S2STransformerMultitaskModelBase):
             type=int,
             metavar="N",
             help="# of channels in Conv1d subsampling layers",
+        )
+        parser.add_argument(
+            "--conv-version",
+            type=str,
+            default="s2t_transformer",
+            choices=["s2t_transformer", "convtransformer"],
+            help="version of frontend convolutional layers",
         )
         # Transformer
         parser.add_argument(
@@ -604,8 +671,10 @@ def base_s2st_transformer_encoder_architecture(args):
     args.encoder_freezing_updates = getattr(args, "encoder_freezing_updates", 0)
 
     # Convolutional subsampler
+    args.input_channels = getattr(args, "input_channels", 1)
     args.conv_kernel_sizes = getattr(args, "conv_kernel_sizes", "5,5")
     args.conv_channels = getattr(args, "conv_channels", 1024)
+    args.conv_version = getattr(args, "conv_version", "s2t_transformer")
     # Transformer
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 2048)

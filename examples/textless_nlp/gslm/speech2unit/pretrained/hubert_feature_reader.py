@@ -3,10 +3,11 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import torch
-import fairseq
 import soundfile as sf
+import torch
 import torch.nn.functional as F
+
+import fairseq
 
 
 class HubertFeatureReader:
@@ -20,9 +21,7 @@ class HubertFeatureReader:
             model,
             cfg,
             task,
-        ) = fairseq.checkpoint_utils.load_model_ensemble_and_task(
-            [checkpoint_path]
-        )
+        ) = fairseq.checkpoint_utils.load_model_ensemble_and_task([checkpoint_path])
         self.model = model[0].eval().cuda()
         self.task = task
         self.layer = layer
@@ -48,7 +47,7 @@ class HubertFeatureReader:
 
             feat = []
             for start in range(0, x.size(1), self.max_chunk):
-                x_chunk = x[:, start: start + self.max_chunk]
+                x_chunk = x[:, start : start + self.max_chunk]
                 feat_chunk, _ = self.model.extract_features(
                     source=x_chunk,
                     padding_mask=None,

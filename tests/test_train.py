@@ -10,8 +10,9 @@ from io import StringIO
 from unittest.mock import MagicMock, patch
 
 import torch
-from fairseq import checkpoint_utils, data
 from omegaconf import OmegaConf
+
+from fairseq import checkpoint_utils, data
 
 
 def mock_trainer(epoch, num_updates, iterations_in_epoch):
@@ -70,6 +71,7 @@ def get_mock_cfg(finetune_from_model):
                 "finetune_from_model": finetune_from_model,
                 "model_parallel_size": 1,
                 "restore_file": "checkpoint_last.pt",
+                "replication_count": 1,
             },
             "common": {
                 "model_parallel_size": 1,

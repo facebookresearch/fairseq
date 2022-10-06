@@ -23,10 +23,11 @@ install_dep_common: &install_dep_common
       command: |
         source activate fairseq
         pip install --upgrade setuptools
-        pip install bitarray boto3 deepspeed editdistance fastBPE iopath ipdb ipython pyarrow pytest sacremoses sentencepiece subword-nmt hydra-core==1.0.7 omegaconf==2.0.6
+        pip install bitarray boto3 deepspeed editdistance fastBPE iopath ipdb ipython pyarrow pytest sacremoses sentencepiece subword-nmt hydra-core==1.2.0 omegaconf==2.2.2
+        pip install statsmodels==0.12.2 more_itertools submitit boto3 editdistance transformers sklearn scipy cython Jinja2==2.11.3
         pip install --progress-bar off pytest
         pip install --progress-bar off fairscale
-        pip install -i https://test.pypi.org/simple/ bitsandbytes-cuda111 -U
+        pip install -i https://test.pypi.org/simple/ bitsandbytes-cuda112 -U
         python -c 'import torch; print("Torch version:", torch.__version__)'
         python -m torch.utils.collect_env
 
@@ -36,15 +37,20 @@ install_dep_fused_ops: &install_dep_fused_ops
       working_directory: ~/
       command: |
         source activate fairseq
-        git clone https://github.com/NVIDIA/apex
-        cd apex
-        git checkout e2083df5eb96643c61613b9df48dd4eea6b07690
-        sed -i '101,107 s/^/#/' setup.py
-        pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--deprecated_fused_adam" --global-option="--xentropy" --global-option="--fast_multihead_attn" ./
-        cd ~/
-        git clone --depth=1 --branch v2.4 https://github.com/NVIDIA/Megatron-LM.git
-        cd Megatron-LM
-        pip install -e .
+        if [ ! -d "apex" ]; then
+          git clone https://github.com/NVIDIA/apex
+          cd apex
+          git checkout e2083df5eb96643c61613b9df48dd4eea6b07690
+          sed -i '101,107 s/^/#/' setup.py
+          pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--deprecated_fused_adam" --global-option="--xentropy" --global-option="--fast_multihead_attn" ./
+          cd ~/
+        fi
+        if [ ! -d "Megatron-LM" ]; then
+          git clone --depth=1 --branch v2.4 https://github.com/NVIDIA/Megatron-LM.git
+          cd Megatron-LM
+          pip install -e .
+          cd ~/
+        fi
 
 install_dep_xformers: &install_dep_xformers
   - run:
@@ -57,6 +63,15 @@ install_dep_xformers: &install_dep_xformers
         pip install -r requirements.txt
         pip install -e .
 
+install_dep_pt110: &install_dep_pt110
+  - run:
+      name: Install Pytorch Dependencies
+      command: |
+        source activate fairseq
+        pip install --upgrade setuptools
+        pip install torch==1.10.1+cu111 torchvision==0.11.2+cu111 torchaudio==0.10.1 -f https://download.pytorch.org/whl/torch_stable.html
+        python -c 'import torch; print("Torch version:", torch.__version__)'
+
 install_dep_pt19: &install_dep_pt19
   - run:
       name: Install Pytorch Dependencies
@@ -66,21 +81,12 @@ install_dep_pt19: &install_dep_pt19
         pip install torch==1.9.1+cu111 torchvision==0.10.1+cu111 torchaudio==0.9.1 -f https://download.pytorch.org/whl/torch_stable.html
         python -c 'import torch; print("Torch version:", torch.__version__)'
 
-install_dep_pt18: &install_dep_pt18
-  - run:
-      name: Install Pytorch Dependencies
-      command: |
-        source activate fairseq
-        pip install --upgrade setuptools
-        pip install torch==1.8.1+cu111 torchvision==0.9.1+cu111 torchaudio==0.8.1 -f https://download.pytorch.org/whl/torch_stable.html
-        python -c 'import torch; print("Torch version:", torch.__version__)'
-
 install_repo: &install_repo
   - run:
       name: Install Repository
       command: |
         source activate fairseq
-        pip install .
+        pip install -e .
         python setup.py build_ext --inplace
 
 run_unittests: &run_unittests
@@ -89,6 +95,7 @@ run_unittests: &run_unittests
       command: |
         source activate fairseq
         pytest tests/gpu/test_binaries_gpu.py
+        pytest tests/gpu/test_ema_gpu.py
 
 check_nvidia_driver: &check_nvidia_driver
   - run:
@@ -120,7 +127,6 @@ create_conda_env: &create_conda_env
 # -------------------------------------------------------------------------------------
 
 jobs:
-
   gpu_tests_pt19:
     <<: *gpu
 
@@ -138,11 +144,13 @@ jobs:
       - save_cache:
           paths:
             - ~/miniconda/
+            - ~/Megatron-LM/
+            - ~/apex/
           key: *cache_key
       - <<: *install_repo
       - <<: *run_unittests
 
-  gpu_tests_pt18:
+  gpu_tests_pt110:
     <<: *gpu
 
     working_directory: ~/fairseq-py
@@ -153,12 +161,14 @@ jobs:
       - <<: *create_conda_env
       - restore_cache:
           key: *cache_key
-      - <<: *install_dep_pt18
+      - <<: *install_dep_pt110
       - <<: *install_dep_common
       - <<: *install_dep_fused_ops
       - save_cache:
           paths:
             - ~/miniconda/
+            - ~/Megatron-LM/
+            - ~/apex/
           key: *cache_key
       - <<: *install_repo
       - <<: *run_unittests
@@ -167,5 +177,5 @@ workflows:
   version: 2
   build:
     jobs:
-      - gpu_tests_pt18
       - gpu_tests_pt19
+      - gpu_tests_pt110

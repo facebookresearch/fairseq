@@ -8,16 +8,16 @@
 import logging
 import os
 import sys
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+from omegaconf import MISSING
 
-from dataclasses import dataclass, field
 from fairseq.data import Dictionary, HubertDataset
 from fairseq.dataclass.configs import FairseqDataclass
 from fairseq.tasks import register_task
 from fairseq.tasks.fairseq_task import FairseqTask
-from omegaconf import MISSING
 
 logger = logging.getLogger(__name__)
 

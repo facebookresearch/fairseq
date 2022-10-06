@@ -7,17 +7,17 @@
 
 import logging
 import sys
-import torch
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
+import torch
+from omegaconf import MISSING, DictConfig
+
 from fairseq.data import Dictionary
-from fairseq.data.codedataset import ExpressiveCodeDataConfig, CodeDataset
+from fairseq.data.codedataset import CodeDataset, ExpressiveCodeDataConfig
 from fairseq.dataclass.configs import FairseqDataclass
 from fairseq.tasks import register_task
 from fairseq.tasks.fairseq_task import FairseqTask
-from omegaconf import MISSING, DictConfig
-
 
 logger = logging.getLogger(__name__)
 

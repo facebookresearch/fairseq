@@ -3,9 +3,10 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import torch
-import fairseq
 import soundfile as sf
+import torch
+
+import fairseq
 
 
 class Wav2VecFeatureReader:
@@ -15,9 +16,7 @@ class Wav2VecFeatureReader:
     """
 
     def __init__(self, checkpoint_path, layer):
-        state = fairseq.checkpoint_utils.load_checkpoint_to_cpu(
-            checkpoint_path
-        )
+        state = fairseq.checkpoint_utils.load_checkpoint_to_cpu(checkpoint_path)
 
         w2v_args = state["args"]
         self.task = fairseq.tasks.setup_task(w2v_args)

@@ -1,0 +1,7 @@
+name: example
+data_dir: /data/nllb
+partition: ???
+flores_path: /data/nllb/flores200
+non_flores_path: /data/nllb/non_flores_evaluation_data
+memory_multiplier: 50
+timeout_min: 1000

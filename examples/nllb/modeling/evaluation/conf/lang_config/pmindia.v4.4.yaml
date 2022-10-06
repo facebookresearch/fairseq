@@ -1,0 +1,20 @@
+bin_root: non_flores_v4.2/pmindia
+
+sampled:
+  - eng_Latn-ben_Beng
+
+all:
+  - eng_Latn-ben_Beng
+  - eng_Latn-hin_Deva
+  - eng_Latn-mal_Mlym
+  - eng_Latn-sin_Sinh
+  - eng_Latn-tam_Taml
+  - eng_Latn-tel_Telu
+  - eng_Latn-urd_Arab
+  - ben_Beng-eng_Latn
+  - hin_Deva-eng_Latn
+  - mal_Mlym-eng_Latn
+  - sin_Sinh-eng_Latn
+  - tam_Taml-eng_Latn
+  - tel_Telu-eng_Latn
+  - urd_Arab-eng_Latn

@@ -3,11 +3,16 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+
 import torch
 from torch import nn
 
+from fairseq.distributed import fsdp_wrap
 from fairseq.models import FairseqEncoder
-from fairseq.models.transformer import Linear
+from fairseq.models.transformer import DEFAULT_MIN_PARAMS_TO_WRAP, Linear
+from fairseq.models.transformer.fsdp_wrap_expert import fsdp_wrap_expert
+from fairseq.modules.checkpoint_activations import checkpoint_wrapper
+from fairseq.modules.conformer_layer import ConformerEncoderLayer
 
 
 class CTCDecoder(FairseqEncoder):

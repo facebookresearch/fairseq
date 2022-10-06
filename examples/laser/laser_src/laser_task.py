@@ -4,27 +4,26 @@
 # LICENSE file in the root directory of this source tree.
 
 
-from collections import OrderedDict, defaultdict
 import json
-import os
 import logging
+import os
 from argparse import ArgumentError
+from collections import OrderedDict, defaultdict
 
-from fairseq import options, models
+from fairseq import models, options
 from fairseq.data import (
-    data_utils,
     Dictionary,
-    LanguagePairDataset,
-    IndexedDataset,
     FairseqDataset,
+    IndexedDataset,
+    LanguagePairDataset,
+    data_utils,
 )
-from .multitask_data_utils import (
-    MultitaskDatasetWrapper,
-    MultidatasetEpochBatchIterator,
-)
-
-
 from fairseq.tasks import LegacyFairseqTask, register_task
+
+from .multitask_data_utils import (
+    MultidatasetEpochBatchIterator,
+    MultitaskDatasetWrapper,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +207,7 @@ class LaserTask(LegacyFairseqTask):
                 if init_pair_datasets[key]["sample"] is None:
                     val = float(init_pair_datasets[key]["len"]) / length_sum
                     freq_per_dataset[key] = val
-                    weighted_freqs_sum += val ** self.args.weighting_alpha
+                    weighted_freqs_sum += val**self.args.weighting_alpha
 
             for key in freq_per_dataset:
                 val = (

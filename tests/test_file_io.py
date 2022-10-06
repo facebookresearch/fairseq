@@ -55,5 +55,6 @@ class TestFileIO(unittest.TestCase):
             f = PathManager.opena(_asyncfile, "wb")
             f.close()
 
+            self.assertIsNotNone(PathManager)
         finally:
             self.assertTrue(PathManager.async_close())

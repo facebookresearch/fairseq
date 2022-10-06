@@ -3,22 +3,23 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from typing import Any, List, Dict, Optional
+from typing import Any, Dict, List, Optional
+
 import torch
 import torch.nn as nn
 from torch import Tensor
 
-from fairseq.utils import safe_hasattr
 from fairseq.models.transformer import (
-    TransformerModel,
+    TransformerDecoder,
     TransformerEncoder,
-    TransformerDecoder
+    TransformerModel,
 )
+from fairseq.utils import safe_hasattr
 
 from ..modules.attn_head_selector import AttnHeadSelector
 from ..modules.head_selection_transformer_layer import (
+    HeadSelectionTransformerDecoderLayer,
     HeadSelectionTransformerEncoderLayer,
-    HeadSelectionTransformerDecoderLayer
 )
 
 
@@ -34,60 +35,64 @@ class HeadSelectionTransformerModel(TransformerModel):
             "--encoder-attn-head-select",
             action="store_true",
             default=False,
-            help="encoder head selection"
+            help="encoder head selection",
         )
         parser.add_argument(
             "--total-encoder-attention-heads",
             type=int,
-            help="total number of encoder attention heads"
+            help="total number of encoder attention heads",
         )
         # decoder self attention
         parser.add_argument(
             "--decoder-self-attn-head-select",
             action="store_true",
             default=False,
-            help="decoder self-attention head selection"
+            help="decoder self-attention head selection",
         )
         # decoder-encoder attention
         parser.add_argument(
             "--dec-enc-attn-head-select",
             action="store_true",
             default=False,
-            help="decoder-encoder attention head selection"
+            help="decoder-encoder attention head selection",
         )
         parser.add_argument(
             "--total-decoder-attention-heads",
             type=int,
-            help="total number of decoder attention heads"
+            help="total number of decoder attention heads",
         )
         # selection strategy
         parser.add_argument(
             "--attn-head-select-strategy",
             type=str,
-            help="attention head selection strategy, subset or group"
+            help="attention head selection strategy, subset or group",
         )
 
     @classmethod
     def build_encoder(cls, args, src_dict, embed_tokens):
-        if safe_hasattr(args, "encoder_attn_head_select") and args.encoder_attn_head_select:
-            return HeadSelectionTransformerEncoder(
-                args, src_dict, embed_tokens
-            )
+        if (
+            safe_hasattr(args, "encoder_attn_head_select")
+            and args.encoder_attn_head_select
+        ):
+            return HeadSelectionTransformerEncoder(args, src_dict, embed_tokens)
         else:
             return TransformerEncoder(args, src_dict, embed_tokens)
 
     @classmethod
     def build_decoder(cls, args, tgt_dict, embed_tokens):
-        if (safe_hasattr(args, "decoder_self_attn_head_select") and args.decoder_self_attn_head_select) or (safe_hasattr(args, "dec_enc_attn_head_select") and args.dec_enc_attn_head_select):
-            return HeadSelectionTransformerDecoder(
-                args, tgt_dict, embed_tokens
-            )
+        if (
+            safe_hasattr(args, "decoder_self_attn_head_select")
+            and args.decoder_self_attn_head_select
+        ) or (
+            safe_hasattr(args, "dec_enc_attn_head_select")
+            and args.dec_enc_attn_head_select
+        ):
+            return HeadSelectionTransformerDecoder(args, tgt_dict, embed_tokens)
         else:
             return TransformerDecoder(args, tgt_dict, embed_tokens)
 
 
 class HeadSelectionTransformerEncoder(TransformerEncoder):
-
     def __init__(self, args, dictionary, embed_tokens):
         self.num_tasks = args.encoder_tasks
         self.num_layers = args.encoder_layers
@@ -101,7 +106,7 @@ class HeadSelectionTransformerEncoder(TransformerEncoder):
             self.num_layers,
             self.total_num_heads,
             self.num_heads,
-            self.select_strategy
+            self.select_strategy,
         )
         self.task_ids = None
         self.layers = nn.ModuleList(
@@ -111,11 +116,9 @@ class HeadSelectionTransformerEncoder(TransformerEncoder):
     def set_task_ids(self, task_ids):
         self.task_ids = task_ids
 
-    def build_encoder_layer(self, args, layer_idx=None):
+    def build_encoder_layer(self, args, layer_idx=None, is_moe_layer=False):
         return HeadSelectionTransformerEncoderLayer(
-            args,
-            layer_idx,
-            attn_head_selector=self.attn_head_selector
+            args, layer_idx, attn_head_selector=self.attn_head_selector
         )
 
     def forward(
@@ -126,11 +129,12 @@ class HeadSelectionTransformerEncoder(TransformerEncoder):
         token_embeddings: Optional[torch.Tensor] = None,
     ):
         self.attn_head_selector.head_select(self.task_ids)
-        return super().forward(src_tokens, src_lengths, return_all_hiddens, token_embeddings)
+        return super().forward(
+            src_tokens, src_lengths, return_all_hiddens, token_embeddings
+        )
 
 
 class HeadSelectionTransformerDecoder(TransformerDecoder):
-
     def __init__(
         self,
         args,
@@ -145,45 +149,56 @@ class HeadSelectionTransformerDecoder(TransformerDecoder):
         self.num_heads = args.decoder_attention_heads
         self.select_strategy = args.attn_head_select_strategy
         super().__init__(
-            args, dictionary, embed_tokens,
+            args,
+            dictionary,
+            embed_tokens,
             no_encoder_attn=no_encoder_attn,
-            output_projection=output_projection
+            output_projection=output_projection,
         )
         self.self_attn_head_selector = None
         self.enc_attn_head_selector = None
-        if safe_hasattr(args, "decoder_self_attn_head_select") and args.decoder_self_attn_head_select:
+        if (
+            safe_hasattr(args, "decoder_self_attn_head_select")
+            and args.decoder_self_attn_head_select
+        ):
             self.self_attn_head_selector = AttnHeadSelector(
                 self.num_tasks,
                 self.num_layers,
                 self.total_num_heads,
                 self.num_heads,
-                self.select_strategy
+                self.select_strategy,
             )
-        if safe_hasattr(args, "dec_enc_attn_head_select") and args.dec_enc_attn_head_select:
+        if (
+            safe_hasattr(args, "dec_enc_attn_head_select")
+            and args.dec_enc_attn_head_select
+        ):
             self.enc_attn_head_selector = AttnHeadSelector(
                 self.num_tasks,
                 self.num_layers,
                 self.total_num_heads,
                 self.num_heads,
-                self.select_strategy
+                self.select_strategy,
             )
         self.task_ids = None
         self.layers = nn.ModuleList(
             [
-                self.build_head_selection_decoder_layer(args, no_encoder_attn, idx) for idx in range(args.decoder_layers)
+                self.build_head_selection_decoder_layer(args, no_encoder_attn, idx)
+                for idx in range(args.decoder_layers)
             ]
         )
 
     def set_task_ids(self, task_ids):
         self.task_ids = task_ids
 
-    def build_head_selection_decoder_layer(self, args, no_encoder_attn=False, layer_idx=None):
+    def build_head_selection_decoder_layer(
+        self, args, no_encoder_attn=False, layer_idx=None
+    ):
         return HeadSelectionTransformerDecoderLayer(
             args,
             layer_idx,
             self.self_attn_head_selector,
             self.enc_attn_head_selector,
-            no_encoder_attn=no_encoder_attn
+            no_encoder_attn=no_encoder_attn,
         )
 
     def forward(
@@ -211,5 +226,5 @@ class HeadSelectionTransformerDecoder(TransformerDecoder):
             alignment_layer=alignment_layer,
             alignment_heads=alignment_heads,
             src_lengths=src_lengths,
-            return_all_hiddens=return_all_hiddens
+            return_all_hiddens=return_all_hiddens,
         )

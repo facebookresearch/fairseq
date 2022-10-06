@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 import logging
 import math
@@ -11,6 +14,7 @@ from torch import Tensor
 
 from fairseq import checkpoint_utils, utils
 from fairseq.data.data_utils import lengths_to_padding_mask
+from fairseq.distributed import fsdp_wrap
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderDecoderModel,
@@ -18,64 +22,28 @@ from fairseq.models import (
     register_model_architecture,
 )
 from fairseq.models.speech_to_text.hub_interface import S2THubInterface
-from fairseq.models.transformer import Embedding, TransformerDecoder
+from fairseq.models.speech_to_text.modules.convolution import (
+    Conv1dSubsampler,
+    Conv2dSubsampler,
+)
+from fairseq.models.transformer import (
+    DEFAULT_MIN_PARAMS_TO_WRAP,
+    Embedding,
+    TransformerConfig,
+    TransformerDecoder,
+)
+from fairseq.models.transformer.fsdp_wrap_expert import fsdp_wrap_expert
 from fairseq.modules import (
     FairseqDropout,
+    LayerDropModuleList,
     LayerNorm,
     PositionalEmbedding,
+    TransformerDecoderLayer,
     TransformerEncoderLayer,
 )
+from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 
 logger = logging.getLogger(__name__)
-
-
-class Conv1dSubsampler(nn.Module):
-    """Convolutional subsampler: a stack of 1D convolution (along temporal
-    dimension) followed by non-linear activation via gated linear units
-    (https://arxiv.org/abs/1911.08460)
-
-    Args:
-        in_channels (int): the number of input channels
-        mid_channels (int): the number of intermediate channels
-        out_channels (int): the number of output channels
-        kernel_sizes (List[int]): the kernel size for each convolutional layer
-    """
-
-    def __init__(
-        self,
-        in_channels: int,
-        mid_channels: int,
-        out_channels: int,
-        kernel_sizes: List[int] = (3, 3),
-    ):
-        super(Conv1dSubsampler, self).__init__()
-        self.n_layers = len(kernel_sizes)
-        self.conv_layers = nn.ModuleList(
-            nn.Conv1d(
-                in_channels if i == 0 else mid_channels // 2,
-                mid_channels if i < self.n_layers - 1 else out_channels * 2,
-                k,
-                stride=2,
-                padding=k // 2,
-            )
-            for i, k in enumerate(kernel_sizes)
-        )
-
-    def get_out_seq_lens_tensor(self, in_seq_lens_tensor):
-        out = in_seq_lens_tensor.clone()
-        for _ in range(self.n_layers):
-            out = ((out.float() - 1) / 2 + 1).floor().long()
-        return out
-
-    def forward(self, src_tokens, src_lengths):
-        bsz, in_seq_len, _ = src_tokens.size()  # B x T x (C x D)
-        x = src_tokens.transpose(1, 2).contiguous()  # -> B x (C x D) x T
-        for conv in self.conv_layers:
-            x = conv(x)
-            x = nn.functional.glu(x, dim=1)
-        _, _, out_seq_len = x.size()
-        x = x.transpose(1, 2).transpose(0, 1).contiguous()  # -> T x B x (C x D)
-        return x, self.get_out_seq_lens_tensor(src_lengths)
 
 
 @register_model("s2t_transformer")
@@ -135,6 +103,13 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
             type=int,
             metavar="N",
             help="# of channels in Conv1d subsampling layers",
+        )
+        parser.add_argument(
+            "--conv-version",
+            type=str,
+            default="s2t_transformer",
+            choices=["s2t_transformer", "convtransformer"],
+            help="version of frontend convolutional layers",
         )
         # Transformer
         parser.add_argument(
@@ -239,6 +214,104 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
             metavar="N",
             help="freeze encoder for first N updates",
         )
+        parser.add_argument("--checkpoint-activations", action="store_true")
+        parser.add_argument("--offload-activations", action="store_true")
+        parser.add_argument("--min-params-to-wrap", type=int)
+
+        # args for mixture-of-expert layers
+        parser.add_argument(
+            "--moe-freq",
+            type=int,
+            metavar="D",
+            default=0,
+            help="Frequency at which we insert MoE Transformer layers",
+        )
+        parser.add_argument(
+            "--encoder-moe-freq",
+            type=int,
+            metavar="D",
+            default=0,
+            help="Frequency at which we insert MoE Transformer encoder layers",
+        )
+        parser.add_argument(
+            "--decoder-moe-freq",
+            type=int,
+            metavar="D",
+            default=0,
+            help="Frequency at which we insert MoE Transformer decoder layers",
+        )
+        parser.add_argument(
+            "--moe-expert-count",
+            type=int,
+            metavar="D",
+            default=0,
+            help="Number of experts in each MoE Layer",
+        )
+        parser.add_argument(
+            "--moe-gating-use-fp32",
+            default=False,
+            action="store_true",
+            help="Use FP32 computations in MoE top2 gating function",
+        )
+        parser.add_argument(
+            "--moe-second-expert-policy",
+            type=str,
+            default="sampling",
+            help="policy for second expert, options: all/sampling/random",
+        )
+        parser.add_argument(
+            "--moe-normalize-gate-prob-before-dropping",
+            default=False,
+            action="store_true",
+            help="whether to normalize gate probs before or after dropping experts for capacity and randomization",
+        )
+        parser.add_argument(
+            "--moe-expert-ffn-dim", type=int, default=0, help="MoE Expert FFN dimension"
+        )
+        parser.add_argument(
+            "--moe-top1-expert",
+            default=False,
+            action="store_true",
+            help="Use top1 gate instead of top2",
+        )
+        parser.add_argument(
+            "--moe-eval-capacity-token-fraction",
+            type=float,
+            default=0.25,
+            help="Fraction of tokens as capacity during validation"
+            + "if set to negative, use same as training. range: (0.0, 1.0].",
+        )
+        parser.add_argument(
+            "--moe-normalize-expert-grad",
+            type=str,
+            default="sqrt_num_experts",
+            help="Divide expert gradients by (1) 'num_experts' (2) 'sqrt_num_experts'",
+        )
+        parser.add_argument(
+            "--use-moe-pad-mask",
+            default=False,
+            action="store_true",
+            help="Don't route padding tokens to any expert",
+        )
+        parser.add_argument(
+            "--pass-tokens-transformer-layer",
+            default=False,
+            action="store_true",
+            help="Pass source or masked previous output tokens to the transformer layer",
+        )
+        # args for pseudo-MoE layers
+        parser.add_argument(
+            "--alternate-ffn-embed-dim",
+            type=int,
+            default=0,
+            help="FFN embed dim of alternate pseudo-MoE blocks",
+        )
+        parser.add_argument(
+            "--alternate-decoder-ffn-embed-dim",
+            type=int,
+            default=0,
+            help="FFN embed dim of alternate pseudo-MoE blocks",
+        )
 
     @classmethod
     def build_encoder(cls, args):
@@ -258,7 +331,9 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
 
     @classmethod
     def build_decoder(cls, args, task, embed_tokens):
-        return TransformerDecoderScriptable(args, task.target_dictionary, embed_tokens)
+        return TransformerDecoderScriptable(
+            TransformerConfig.from_namespace(args), task.target_dictionary, embed_tokens
+        )
 
     @classmethod
     def build_model(cls, args, task):
@@ -339,20 +414,35 @@ class S2TTransformerEncoder(FairseqEncoder):
             self.embed_scale = 1.0
         self.padding_idx = 1
 
-        self.subsample = Conv1dSubsampler(
-            args.input_feat_per_channel * args.input_channels,
-            args.conv_channels,
-            args.encoder_embed_dim,
-            [int(k) for k in args.conv_kernel_sizes.split(",")],
-        )
+        self.conv_version = args.conv_version
+        if self.conv_version == "s2t_transformer":
+            self.subsample = Conv1dSubsampler(
+                args.input_feat_per_channel * args.input_channels,
+                args.conv_channels,
+                args.encoder_embed_dim,
+                [int(k) for k in args.conv_kernel_sizes.split(",")],
+            )
+        elif self.conv_version == "convtransformer":
+            self.subsample = Conv2dSubsampler(
+                args.input_channels,
+                args.input_feat_per_channel,
+                256,
+                args.encoder_embed_dim,
+            )
 
         self.embed_positions = PositionalEmbedding(
             args.max_source_positions, args.encoder_embed_dim, self.padding_idx
         )
 
-        self.transformer_layers = nn.ModuleList(
-            [TransformerEncoderLayer(args) for _ in range(args.encoder_layers)]
+        self.transformer_layers = nn.ModuleList([])
+        moe_freq = max(
+            getattr(args, "encoder_moe_freq", 0), getattr(args, "moe_freq", 0)
         )
+        for i in range(args.encoder_layers):
+            is_moe_layer = moe_freq != 0 and (i + 1) % moe_freq == 0
+            self.transformer_layers.append(
+                self.build_encoder_layer(args, is_moe_layer=is_moe_layer)
+            )
         if args.encoder_normalize_before:
             self.layer_norm = LayerNorm(args.encoder_embed_dim)
         else:
@@ -361,6 +451,25 @@ class S2TTransformerEncoder(FairseqEncoder):
         self.ctc_proj = None
         if getattr(args, "ctc_weight", 0.0) > 0.0:
             self.ctc_proj = nn.Linear(args.encoder_embed_dim, args.tgt_dict_size)
+
+    def build_encoder_layer(self, args, is_moe_layer=False):
+        layer = TransformerEncoderLayer(args, is_moe_layer=is_moe_layer)
+        checkpoint = getattr(args, "checkpoint_activations", False)
+        if checkpoint:
+            offload_to_cpu = getattr(args, "offload_activations", False)
+            layer = checkpoint_wrapper(layer, offload_to_cpu=offload_to_cpu)
+        # if we are checkpointing, enforce that FSDP always wraps the
+        # checkpointed layer, regardless of layer size
+        min_params_to_wrap = (
+            getattr(args, "min_params_to_wrap", DEFAULT_MIN_PARAMS_TO_WRAP)
+            if not checkpoint
+            else 0
+        )
+        if not is_moe_layer or getattr(args, "ddp_backend", None) != "fully_sharded":
+            layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
+        else:
+            layer = fsdp_wrap_expert(args, layer, min_num_params=min_params_to_wrap)
+        return layer
 
     def _forward(self, src_tokens, src_lengths, return_all_hiddens=False):
         x, input_lengths = self.subsample(src_tokens, src_lengths)
@@ -374,7 +483,9 @@ class S2TTransformerEncoder(FairseqEncoder):
         encoder_states = []
 
         for layer in self.transformer_layers:
-            x = layer(x, encoder_padding_mask)
+            x, _ = layer(x, encoder_padding_mask)
+            if not isinstance(x, Tensor):  # extra fields in layer output
+                x = x[0]
             if return_all_hiddens:
                 encoder_states.append(x)
 
@@ -447,7 +558,105 @@ class S2TTransformerEncoder(FairseqEncoder):
         self.num_updates = num_updates
 
 
+# rewrite name for backward compatibility in `make_generation_fast_`
+def module_name_fordropout(module_name: str) -> str:
+    if module_name == "TransformerDecoderBase":
+        return "TransformerDecoder"
+    else:
+        return module_name
+
+
 class TransformerDecoderScriptable(TransformerDecoder):
+    def __init__(
+        self,
+        cfg,
+        dictionary,
+        embed_tokens,
+        no_encoder_attn=False,
+        output_projection=None,
+    ):
+        self.cfg = cfg
+        super().__init__(
+            cfg,
+            dictionary,
+            embed_tokens,
+            no_encoder_attn=no_encoder_attn,
+            output_projection=output_projection,
+        )
+        self.register_buffer("version", torch.Tensor([3]))
+        self._future_mask = torch.empty(0)
+
+        self.dropout_module = FairseqDropout(
+            cfg.dropout, module_name=module_name_fordropout(self.__class__.__name__)
+        )
+        self.decoder_layerdrop = cfg.decoder_layerdrop
+        self.share_input_output_embed = cfg.share_decoder_input_output_embed
+
+        input_embed_dim = embed_tokens.embedding_dim
+        embed_dim = cfg.decoder_embed_dim
+        self.embed_dim = embed_dim
+        self.output_embed_dim = cfg.decoder_output_dim
+
+        self.padding_idx = embed_tokens.padding_idx
+        self.max_target_positions = cfg.max_target_positions
+
+        self.embed_tokens = embed_tokens
+
+        self.embed_scale = 1.0 if cfg.no_scale_embedding else math.sqrt(embed_dim)
+
+        # Disabling quant noise
+        self.quant_noise = None
+
+        self.project_in_dim = (
+            nn.Linear(input_embed_dim, embed_dim, bias=False)
+            if embed_dim != input_embed_dim
+            else None
+        )
+        self.embed_positions = (
+            PositionalEmbedding(
+                self.max_target_positions,
+                embed_dim,
+                self.padding_idx,
+                learned=cfg.decoder_learned_pos,
+            )
+            if not cfg.no_token_positional_embeddings
+            else None
+        )
+        self.layernorm_embedding = None
+
+        self.cross_self_attention = cfg.cross_self_attention
+
+        if self.decoder_layerdrop > 0.0:
+            self.layers = LayerDropModuleList(p=self.decoder_layerdrop)
+        else:
+            self.layers = nn.ModuleList([])
+
+        for i in range(cfg.decoder_layers):
+            moe_freq = max(cfg.decoder_moe_freq, cfg.moe_freq)
+            is_moe_layer = moe_freq != 0 and (i + 1) % moe_freq == 0
+            self.layers.append(
+                self.build_decoder_layer(
+                    cfg, no_encoder_attn, is_moe_layer=is_moe_layer
+                )
+            )
+        self.num_layers = len(self.layers)
+
+        if cfg.decoder_normalize_before and not cfg.no_decoder_final_norm:
+            self.layer_norm = LayerNorm(embed_dim, export=cfg.export)
+        else:
+            self.layer_norm = None
+
+        self.project_out_dim = (
+            nn.Linear(embed_dim, self.output_embed_dim, bias=False)
+            if embed_dim != self.output_embed_dim and not cfg.tie_adaptive_weights
+            else None
+        )
+
+        self.adaptive_softmax = None
+        self.output_projection = output_projection
+        if self.output_projection is None:
+            self.build_output_projection(cfg, dictionary, embed_tokens)
+
     def extract_features(
         self,
         prev_output_tokens,
@@ -456,6 +665,8 @@ class TransformerDecoderScriptable(TransformerDecoder):
         full_context_alignment: bool = False,
         alignment_layer: Optional[int] = None,
         alignment_heads: Optional[int] = None,
+        token_embeddings: Optional[torch.Tensor] = None,
+        self_attn_padding_mask: Optional[Tensor] = None,
     ):
         # call scriptable method from parent class
         x, _ = self.extract_features_scriptable(
@@ -469,13 +680,30 @@ class TransformerDecoderScriptable(TransformerDecoder):
         extra = {"encoder_out": encoder_out} if incremental_state is None else None
         return x, extra
 
+    def build_decoder_layer(self, cfg, no_encoder_attn=False, is_moe_layer=False):
+        layer = TransformerDecoderLayer(cfg, no_encoder_attn, is_moe_layer=is_moe_layer)
+        checkpoint = cfg.checkpoint_activations
+        if checkpoint:
+            offload_to_cpu = cfg.offload_activations
+            layer = checkpoint_wrapper(layer, offload_to_cpu=offload_to_cpu)
+        # if we are checkpointing, enforce that FSDP always wraps the
+        # checkpointed layer, regardless of layer size
+        min_params_to_wrap = cfg.min_params_to_wrap if not checkpoint else 0
+        if not is_moe_layer or cfg.ddp_backend != "fully_sharded":
+            layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
+        else:
+            layer = fsdp_wrap_expert(cfg, layer, min_num_params=min_params_to_wrap)
+        return layer
+
 
 @register_model_architecture(model_name="s2t_transformer", arch_name="s2t_transformer")
 def base_architecture(args):
     args.encoder_freezing_updates = getattr(args, "encoder_freezing_updates", 0)
     # Convolutional subsampler
+    args.input_channels = getattr(args, "input_channels", 1)
     args.conv_kernel_sizes = getattr(args, "conv_kernel_sizes", "5,5")
     args.conv_channels = getattr(args, "conv_channels", 1024)
+    args.conv_version = getattr(args, "conv_version", "s2t_transformer")
     # Transformer
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 2048)

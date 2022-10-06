@@ -34,6 +34,9 @@ class FairseqDataclass:
     def name():
         return None
 
+    def positional_args(self):
+        return ["data"]
+
     def _get_all_attributes(self) -> List[str]:
         return [k for k in self.__dataclass_fields__.keys()]
 
@@ -250,6 +253,39 @@ class CommonConfig(FairseqDataclass):
             "help": "path to run plasma_store, defaults to /tmp/plasma. Paths outside /tmp tend to fail."
         },
     )
+    log_nvidia_smi: bool = field(
+        default=False, metadata={"help": "log output from nvidia-smi during training"}
+    )
+    use_tutel_moe: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Use MSFT Tutel if it's available for faster MoE impl"},
+    )
+
+
+@dataclass
+class ReshardConfig(FairseqDataclass):
+    save_dir: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "where to save the resharded checkpoints",
+            "argparse_alias": "--dest-dir",
+        },
+    )
+    save_prefix: Optional[str] = field(
+        default="reshard", metadata={"help": "save to dest-dir/save-prefix-shard{i}.pt"}
+    )
+    target_world_size: Optional[int] = field(
+        default=128,
+        metadata={
+            "help": "The maximum number of GPUs you want to use to evaluate. AssertionError if any FSDP module's number of parameters is not divisible by this."
+        },
+    )
+    do_pad: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Add padding to make sure that running on target world size works. This reduces flexibility for world sizes smaller than target world size."
+        },
+    )
 
 
 @dataclass
@@ -437,6 +473,7 @@ class DistributedTrainingConfig(FairseqDataclass):
     )
     fp16: bool = II("common.fp16")
     memory_efficient_fp16: bool = II("common.memory_efficient_fp16")
+    bf16: bool = II("common.bf16")
     tpu: bool = II("common.tpu")
     # configuration for --ddp-backend=fully_sharded
     no_reshard_after_forward: bool = field(
@@ -458,12 +495,24 @@ class DistributedTrainingConfig(FairseqDataclass):
         default=False,
         metadata={"help": "not flatten parameter param for fsdp"},
     )
+    freeze_up_to_layer: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "Freeze all layers up to the layer number specified (1 indexed)"
+        },
+    )
 
 
 @dataclass
 class DatasetConfig(FairseqDataclass):
     num_workers: int = field(
         default=1, metadata={"help": "how many subprocesses to use for data loading"}
+    )
+    num_workers_valid: int = field(
+        default=0,
+        metadata={
+            "help": "how many subprocesses to use for data loading during validation"
+        },
     )
     skip_invalid_size_inputs_valid_test: bool = field(
         default=False,
@@ -662,6 +711,10 @@ class CheckpointConfig(FairseqDataclass):
             "help": "finetune from a pretrained model; note that meters and lr scheduler will be reset"
         },
     )
+    ignore_suffix: Optional[bool] = field(
+        default=False,
+        metadata={"help": "ignore suffix when first loading. Messes up requeue."},
+    )
     reset_dataloader: bool = field(
         default=False,
         metadata={
@@ -723,9 +776,31 @@ class CheckpointConfig(FairseqDataclass):
     no_last_checkpoints: bool = field(
         default=False, metadata={"help": "don't store last checkpoints"}
     )
+    no_best_checkpoints: bool = field(
+        default=False, metadata={"help": "don't store best checkpoints"}
+    )
     no_save_optimizer_state: bool = field(
         default=False,
         metadata={"help": "don't save optimizer-state as part of checkpoint"},
+    )
+    no_save_optimizer_state_on_training_finished: bool = field(
+        default=False,
+        metadata={
+            "help": "don't save optimizer-state as part of checkpoint when training is done"
+        },
+    )
+    synchronize_checkpoints_before_copy: bool = field(
+        default=False,
+        metadata={
+            "help": "Make sure all ranks are done saving checkpoints before copy/symlink"
+        },
+    )
+    symlink_best_and_last_checkpoints: bool = field(
+        default=False,
+        metadata={
+            "help": "Symlink best and last checkpoints instead of copying",
+            "argparse_alias": "--symlink",
+        },
     )
     best_checkpoint_metric: str = field(
         default="loss", metadata={"help": 'metric to use for saving "best" checkpoints'}
@@ -775,6 +850,20 @@ class CheckpointConfig(FairseqDataclass):
             "argparse_alias": "--save-async",
         },
     )
+    s3_upload_path: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": (
+                "Upload checkpoints asynchronously in a separate "
+                "thread to S3. NOTE: This feature is currently being tested."
+            ),
+            "argparse_alias": "--s3-dir",
+        },
+    )
+    replication_count: int = field(
+        default=1,
+        metadata={"help": ("replciation when loading moe expert states")},
+    )
     model_parallel_size: int = II("common.model_parallel_size")
 
 
@@ -811,6 +900,10 @@ class GenerationConfig(FairseqDataclass):
         default=5,
         metadata={"help": "beam size"},
     )
+    beam_mt: int = field(
+        default=0,
+        metadata={"help": "beam size for the first-pass decoder"},
+    )
     nbest: int = field(
         default=1,
         metadata={"help": "number of hypotheses to output"},
@@ -825,6 +918,18 @@ class GenerationConfig(FairseqDataclass):
         default=200,
         metadata={
             "help": "generate sequences of maximum length ax + b, where x is the source length"
+        },
+    )
+    max_len_a_mt: float = field(
+        default=0,
+        metadata={
+            "help": "generate sequences of maximum length ax + b, where x is the source length for the first-pass decoder"
+        },
+    )
+    max_len_b_mt: int = field(
+        default=200,
+        metadata={
+            "help": "generate sequences of maximum length ax + b, where x is the source length for the first-pass decoder"
         },
     )
     min_len: int = field(
@@ -851,6 +956,12 @@ class GenerationConfig(FairseqDataclass):
         default=1,
         metadata={
             "help": "length penalty: <1.0 favors shorter, >1.0 favors longer sentences"
+        },
+    )
+    lenpen_mt: float = field(
+        default=1,
+        metadata={
+            "help": "length penalty for the first-pass decoder: <1.0 favors shorter, >1.0 favors longer sentences"
         },
     )
     unkpen: float = field(
@@ -1028,7 +1139,24 @@ class CommonEvalConfig(FairseqDataclass):
         },
     )
     results_path: Optional[str] = field(
-        default=None, metadata={"help": "path to save eval results (optional)"}
+        default=None,
+        metadata={
+            "help": "path to save eval results (optional)",
+            "argparse_alias": "--sp",
+        },
+    )
+    # GShard or Switch model
+    is_moe: bool = field(
+        default=False,
+        metadata={
+            "help": "if set, use distributed init for MoE generation or evaluation"
+        },
+    )
+    moe_generation: bool = field(
+        default=False,
+        metadata={
+            "help": "if set, same batch on all GPUs (regardless of is_moe value)"
+        },
     )
 
 
@@ -1057,6 +1185,11 @@ class EvalLMConfig(FairseqDataclass):
         metadata={
             "help": "if BxT is more than this, will batch the softmax over vocab to this amount of tokens, in order to fit into GPU memory"
         },
+    )
+    stats_path: Optional[str] = field(default=None, metadata={"argparse_alias": "--sp"})
+    max_valid_steps: Optional[int] = field(
+        default=None,
+        metadata={"help": "How many batches to evaluate", "argparse_alias": "--nval"},
     )
 
 

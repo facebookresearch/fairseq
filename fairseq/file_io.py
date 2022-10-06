@@ -5,11 +5,16 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import errno
+import json
 import logging
 import os
 import shutil
 from typing import List, Optional
 
+import torch
+from omegaconf import OmegaConf
+from omegaconf.dictconfig import DictConfig
 
 logger = logging.getLogger(__file__)
 
@@ -76,6 +81,15 @@ class PathManager:
         return shutil.copyfile(src_path, dst_path)
 
     @staticmethod
+    def symlink(src_path: str, dst_path: str):
+        try:
+            os.symlink(src_path, dst_path)
+        except OSError as e:
+            if e.errno == errno.EEXIST:
+                os.remove(dst_path)
+                os.symlink(src_path, dst_path)
+
+    @staticmethod
     def get_local_path(path: str, **kwargs) -> str:
         if IOPathManager:
             return IOPathManager.get_local_path(path, **kwargs)
@@ -94,6 +108,12 @@ class PathManager:
         return os.path.isfile(path)
 
     @staticmethod
+    def islink(path: str) -> Optional[bool]:
+        if not PathManager.path_requires_pathmanager(path):
+            return os.path.islink(path)
+        return None
+
+    @staticmethod
     def ls(path: str) -> List[str]:
         if IOPathManager:
             return IOPathManager.ls(path)
@@ -110,6 +130,7 @@ class PathManager:
         if IOPathManager:
             return IOPathManager.rm(path)
         os.remove(path)
+        assert not os.path.exists(path)
 
     @staticmethod
     def chmod(path: str, mode: int) -> None:
@@ -161,6 +182,7 @@ class PathManager:
         encoding: Optional[str] = None,
         errors: Optional[str] = None,
         newline: Optional[str] = None,
+        callback_after_file_close=None,
     ):
         """
         Return file descriptor with asynchronous write operations.
@@ -181,6 +203,7 @@ class PathManager:
             encoding=encoding,
             errors=errors,
             newline=newline,
+            callback_after_file_close=callback_after_file_close,
         )
 
     @staticmethod
@@ -194,3 +217,50 @@ class PathManager:
         if IOPathManager:
             return IOPathManager.async_close()
         return False
+
+
+def recursively_cast_dictconfigs(cfg):
+    if isinstance(cfg, DictConfig):
+        cfg = OmegaConf.to_container(cfg, resolve=True)
+    assert not isinstance(cfg, DictConfig)
+    if isinstance(cfg, dict):
+        return {k2: recursively_cast_dictconfigs(v2) for k2, v2 in cfg.items()}
+    else:
+        # Easy to support List, Tuple if needed
+        return cfg
+
+
+def torch_load_cpu(path):
+    state = torch.load(path, map_location=torch.device("cpu"))
+    # If model was trained with fp16, model from loaded state_dict can be moved to fp16
+    if not isinstance(state, dict):
+        return state
+    if "cfg" in state:
+        state["cfg"] = recursively_cast_dictconfigs(state["cfg"])
+        if (
+            state["cfg"]["common"]["fp16"]
+            or state["cfg"]["common"]["memory_efficient_fp16"]
+        ):
+            state["model"] = {k: v.half() for k, v in state["model"].items()}
+    return state
+
+
+def save_json(content, path, indent=4):
+    with open(path, "w") as f:
+        json.dump(content, f, indent=indent)
+
+
+def load_json(p):
+    return json.load(open(p))
+
+
+def load_jsonl(path):
+    with open(path).read() as jsonl_content:
+        result = [json.loads(jline) for jline in jsonl_content.splitlines()]
+    return result
+
+
+def load_and_pop_last_optimizer_state(pth):
+    st = torch_load_cpu(pth)
+    st.pop("last_optimizer_state", None)
+    return st

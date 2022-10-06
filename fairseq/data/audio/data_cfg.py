@@ -2,6 +2,7 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+import os
 from argparse import Namespace
 from pathlib import Path
 from typing import Dict, Optional
@@ -15,14 +16,14 @@ def get_config_from_yaml(yaml_path: Path):
     except ImportError:
         print("Please install PyYAML: pip install PyYAML")
     config = {}
-    if yaml_path.is_file():
+    if os.path.isfile(yaml_path):
         try:
             with open(yaml_path) as f:
                 config = yaml.load(f, Loader=yaml.FullLoader)
         except Exception as e:
-            raise Exception(f"Failed to load config from {yaml_path.as_posix()}: {e}")
+            raise Exception(f"Failed to load config from {yaml_path}: {e}")
     else:
-        raise FileNotFoundError(f"{yaml_path.as_posix()} not found")
+        raise FileNotFoundError(f"{yaml_path} not found")
 
     return config
 
@@ -32,12 +33,14 @@ class S2TDataConfig(object):
 
     def __init__(self, yaml_path: Path):
         self.config = get_config_from_yaml(yaml_path)
-        self.root = yaml_path.parent
+        self.root = os.path.dirname(yaml_path)
 
     def _auto_convert_to_abs_path(self, x):
         if isinstance(x, str):
-            if not Path(x).exists() and (self.root / x).exists():
-                return (self.root / x).as_posix()
+            if Path(x).exists():
+                return x
+            if Path(self.root + "/" + x).exists():
+                return self.root + "/" + x
         elif isinstance(x, dict):
             return {k: self._auto_convert_to_abs_path(v) for k, v in x.items()}
         return x
@@ -117,6 +120,10 @@ class S2TDataConfig(object):
         return self.use_audio_input and self.config.get("standardize_audio", False)
 
     @property
+    def apply_ucmvn(self) -> bool:
+        return self.config.get("apply_ucmvn", True)
+
+    @property
     def use_sample_rate(self):
         """Needed by the dataset loader to see if the model requires
         raw audio with specific sample rate as inputs."""
@@ -156,6 +163,11 @@ class S2TDataConfig(object):
     @property
     def hub(self) -> Dict[str, str]:
         return self.config.get("hub", {})
+
+    @property
+    def external_nllb_code(self) -> Optional[str]:
+        """Whether to map lang token to iso code in manifests"""
+        return self.config.get("external_nllb_code", None)
 
 
 class S2SDataConfig(S2TDataConfig):
@@ -210,7 +222,7 @@ class MultitaskConfig(object):
         config = get_config_from_yaml(yaml_path)
         self.config = {}
         for k, v in config.items():
-            self.config[k] = SingleTaskConfig(k, v)
+            self.config[k] = SingleTaskConfig(k, v, root=os.path.dirname(yaml_path))
 
     def get_all_tasks(self):
         return self.config
@@ -221,10 +233,12 @@ class MultitaskConfig(object):
 
 
 class SingleTaskConfig(object):
-    def __init__(self, name, config):
+    def __init__(self, name, config, root=""):
         self.task_name = name
         self.config = config
         dict_path = config.get("dict", "")
+        if len(dict_path) > 0 and not os.path.isabs(dict_path):
+            dict_path = os.path.join(root, dict_path)
         self.tgt_dict = Dictionary.load(dict_path) if Path(dict_path).exists() else None
 
     @property
@@ -297,3 +311,17 @@ class SingleTaskConfig(object):
                 loss_weight_min,
             )
         return weight
+
+    @property
+    def prepend_bos_and_append_tgt_lang_tag(self) -> bool:
+        """Prepend BOS and append target lang ID token to the target (e.g. mBART with language token pretraining)."""
+        return self.config.get("prepend_bos_and_append_tgt_lang_tag", False)
+
+    @property
+    def eos_token(self):
+        """EOS token during generation"""
+        return self.config.get("eos_token", "<eos>")
+
+    @property
+    def rdrop_alpha(self):
+        return self.config.get("rdrop_alpha", 0.0)

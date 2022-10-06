@@ -3,12 +3,12 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import math
 from dataclasses import dataclass
 from enum import Enum, auto
-import math
-import numpy as np
-from typing import Tuple, List, Optional, Dict
+from typing import Dict, List, Optional, Tuple
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -17,10 +17,7 @@ from torch import autograd
 from fairseq import checkpoint_utils, utils
 from fairseq.dataclass import FairseqDataclass
 from fairseq.models import BaseFairseqModel, register_model
-from fairseq.modules import (
-    SamePad,
-    TransposeLast,
-)
+from fairseq.modules import SamePad, TransposeLast
 
 
 class SegmentationType(Enum):
@@ -419,7 +416,7 @@ class Wav2vec_U(BaseFairseqModel):
         super().set_num_updates(num_updates)
         self.update_num = num_updates
         self.curr_temp = max(
-            self.max_temp * self.temp_decay ** num_updates, self.min_temp
+            self.max_temp * self.temp_decay**num_updates, self.min_temp
         )
 
     def discrim_step(self, num_updates):

@@ -8,27 +8,21 @@ import math
 from dataclasses import dataclass, field
 from typing import Optional
 
-from omegaconf import II
-
 import torch
+import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.distributed as dist
+from omegaconf import II
 
-from fairseq.modules import EMAModule, EMAModuleConfig
 from fairseq.data.data_utils import compute_mask_indices
 from fairseq.models import BaseFairseqModel, register_model
 from fairseq.models.wav2vec import (
     ConvFeatureExtractionModel,
-    Wav2Vec2Config,
     TransformerEncoder,
+    Wav2Vec2Config,
 )
-from fairseq.modules import (
-    GradMultiply,
-    LayerNorm,
-)
+from fairseq.modules import EMAModule, EMAModuleConfig, GradMultiply, LayerNorm
 from fairseq.utils import index_put
-
 
 logger = logging.getLogger(__name__)
 
@@ -505,20 +499,18 @@ class Data2VecAudioModel(BaseFairseqModel):
         if dist.is_initialized():
             zc = torch.tensor(y.size(0)).cuda()
             zs = y.sum(dim=0)
-            zss = (y ** 2).sum(dim=0)
+            zss = (y**2).sum(dim=0)
 
             dist.all_reduce(zc)
             dist.all_reduce(zs)
             dist.all_reduce(zss)
 
-            var = zss / (zc - 1) - (zs ** 2) / (zc * (zc - 1))
+            var = zss / (zc - 1) - (zs**2) / (zc * (zc - 1))
             return torch.sqrt(var + 1e-6).mean()
         else:
             return torch.sqrt(y.var(dim=0) + 1e-6).mean()
 
-    def extract_features(
-        self, source, padding_mask, mask=False, layer=None
-    ):
+    def extract_features(self, source, padding_mask, mask=False, layer=None):
         res = self.forward(
             source,
             padding_mask,

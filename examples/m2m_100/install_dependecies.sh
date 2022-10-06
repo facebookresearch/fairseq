@@ -75,4 +75,3 @@ fi
 
 
 pip install pythainlp sacrebleu indic-nlp-library
-

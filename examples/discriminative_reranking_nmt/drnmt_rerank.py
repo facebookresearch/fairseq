@@ -7,19 +7,18 @@
 Score raw text with a trained model.
 """
 
-from collections import namedtuple
 import logging
-from multiprocessing import Pool
-import sys
 import os
 import random
+import sys
+from collections import namedtuple
+from multiprocessing import Pool
 
 import numpy as np
 import sacrebleu
 import torch
 
 from fairseq import checkpoint_utils, options, utils
-
 
 logger = logging.getLogger("fairseq_cli.drnmt_rerank")
 logger.setLevel(logging.INFO)
@@ -121,7 +120,8 @@ def decode_rerank_scores(args):
     # Load ensemble
     logger.info("loading model(s) from {}".format(args.path))
     models, _model_args, task = checkpoint_utils.load_model_ensemble_and_task(
-        [args.path], arg_overrides=eval(args.model_overrides),
+        [args.path],
+        arg_overrides=eval(args.model_overrides),
     )
 
     for model in models:
@@ -172,7 +172,7 @@ def decode_rerank_scores(args):
 
 
 def get_score(mt_s, md_s, w1, lp, tgt_len):
-    return mt_s / (tgt_len ** lp) * w1 + md_s
+    return mt_s / (tgt_len**lp) * w1 + md_s
 
 
 def get_best_hyps(mt_scores, md_scores, hypos, fw_weight, lenpen, beam):
@@ -267,7 +267,11 @@ def main(args):
             rerank_scores = p.starmap(
                 score_target_hypo,
                 [
-                    (args, random_params[i][0], random_params[i][1],)
+                    (
+                        args,
+                        random_params[i][0],
+                        random_params[i][1],
+                    )
                     for i in range(args.num_trials)
                 ],
             )
@@ -290,7 +294,8 @@ def main(args):
     if args.results_path is not None:
         os.makedirs(args.results_path, exist_ok=True)
         output_path = os.path.join(
-            args.results_path, "generate-{}.txt".format(args.gen_subset),
+            args.results_path,
+            "generate-{}.txt".format(args.gen_subset),
         )
         with open(output_path, "w", buffering=1, encoding="utf-8") as o:
             print_result(best_scores, best_hypos, o)

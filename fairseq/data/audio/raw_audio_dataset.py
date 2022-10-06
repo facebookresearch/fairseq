@@ -4,24 +4,26 @@
 # LICENSE file in the root directory of this source tree.
 
 
+import io
 import logging
 import os
 import sys
-import io
+from lib2to3.pytree import convert
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
-from .. import FairseqDataset
-from ..data_utils import compute_mask_indices, get_buckets, get_bucketed_sizes
 from fairseq.data.audio.audio_utils import (
+    get_fbank,
+    is_sf_audio_data,
     parse_path,
     read_from_stored_zip,
-    is_sf_audio_data,
 )
-from fairseq.data.text_compressor import TextCompressor, TextCompressionLevel
+from fairseq.data.text_compressor import TextCompressionLevel, TextCompressor
 
+from .. import FairseqDataset
+from ..data_utils import compute_mask_indices, get_bucketed_sizes, get_buckets
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,7 @@ class RawAudioDataset(FairseqDataset):
         pad=False,
         normalize=False,
         compute_mask_indices=False,
+        fbank_features=0,
         **mask_compute_kwargs,
     ):
         super().__init__()
@@ -45,6 +48,8 @@ class RawAudioDataset(FairseqDataset):
         self.max_sample_size = (
             max_sample_size if max_sample_size is not None else sys.maxsize
         )
+        if fbank_features > 0:
+            self.max_sample_size = convert_n_frames(self.max_sample_size)
         self.min_sample_size = min_sample_size
         self.pad = pad
         self.shuffle = shuffle
@@ -55,6 +60,7 @@ class RawAudioDataset(FairseqDataset):
             self._features_size_map = {}
             self._C = mask_compute_kwargs["encoder_embed_dim"]
             self._conv_feature_layers = eval(mask_compute_kwargs["conv_feature_layers"])
+        self.fbank_features = fbank_features
 
     def __getitem__(self, index):
         raise NotImplementedError()
@@ -76,8 +82,21 @@ class RawAudioDataset(FairseqDataset):
                 feats = F.layer_norm(feats, feats.shape)
         return feats
 
+    def postprocess_fbank(self, x):
+        mean = x.mean(axis=0)
+        square_sums = (x**2).sum(axis=0)
+        x = np.subtract(x, mean)
+        var = square_sums / x.shape[0] - mean**2
+        std = np.sqrt(np.maximum(var, 1e-10))
+        x = np.divide(x, std)
+
+        return x
+
     def crop_to_max_size(self, wav, target_size):
-        size = len(wav)
+        if wav.dim() == 1:
+            size = len(wav)
+        else:
+            size = wav.size()[0]
         diff = size - target_size
         if diff <= 0:
             return wav
@@ -130,25 +149,40 @@ class RawAudioDataset(FairseqDataset):
 
         sources = [s["source"] for s in samples]
         sizes = [len(s) for s in sources]
-
         if self.pad:
             target_size = min(max(sizes), self.max_sample_size)
         else:
             target_size = min(min(sizes), self.max_sample_size)
-
-        collated_sources = sources[0].new_zeros(len(sources), target_size)
-        padding_mask = (
-            torch.BoolTensor(collated_sources.shape).fill_(False) if self.pad else None
-        )
+        if self.fbank_features > 0:
+            collated_sources = torch.zeros(
+                len(sources), target_size, self.fbank_features
+            )
+            padding_mask = (
+                torch.BoolTensor(collated_sources.shape[:-1]).fill_(False)
+                if self.pad
+                else None
+            )
+        else:
+            collated_sources = sources[0].new_zeros(len(sources), target_size)
+            padding_mask = (
+                torch.BoolTensor(collated_sources.shape).fill_(False)
+                if self.pad
+                else None
+            )
         for i, (source, size) in enumerate(zip(sources, sizes)):
             diff = size - target_size
             if diff == 0:
                 collated_sources[i] = source
             elif diff < 0:
                 assert self.pad
-                collated_sources[i] = torch.cat(
-                    [source, source.new_full((-diff,), 0.0)]
-                )
+                if self.fbank_features > 0:
+                    collated_sources[i] = torch.cat(
+                        [source, source.new_full((-diff, self.fbank_features), 0.0)]
+                    )
+                else:
+                    collated_sources[i] = torch.cat(
+                        [source, source.new_full((-diff,), 0.0)]
+                    )
                 padding_mask[i, diff:] = True
             else:
                 collated_sources[i] = self.crop_to_max_size(source, target_size)
@@ -245,6 +279,11 @@ class RawAudioDataset(FairseqDataset):
             )
 
 
+# Calculate sample sizes for fbank features
+def convert_n_frames(size, sample_rate=16000, stride=0.01, frame_size=0.025):
+    return (size / sample_rate - 2 * (frame_size - stride)) / stride + 2
+
+
 class FileAudioDataset(RawAudioDataset):
     def __init__(
         self,
@@ -258,6 +297,7 @@ class FileAudioDataset(RawAudioDataset):
         num_buckets=0,
         compute_mask_indices=False,
         text_compression_level=TextCompressionLevel.none,
+        fbank_features=0,
         **mask_compute_kwargs,
     ):
         super().__init__(
@@ -268,6 +308,7 @@ class FileAudioDataset(RawAudioDataset):
             pad=pad,
             normalize=normalize,
             compute_mask_indices=compute_mask_indices,
+            fbank_features=0,
             **mask_compute_kwargs,
         )
 
@@ -277,6 +318,7 @@ class FileAudioDataset(RawAudioDataset):
         self.fnames = []
         sizes = []
         self.skipped_indices = set()
+        self.fbank_features = fbank_features
 
         with open(manifest_path, "r") as f:
             self.root_dir = f.readline().strip()
@@ -289,7 +331,10 @@ class FileAudioDataset(RawAudioDataset):
                     self.skipped_indices.add(i)
                     continue
                 self.fnames.append(self.text_compressor.compress(items[0]))
-                sizes.append(sz)
+                if fbank_features > 0:
+                    sizes.append(convert_n_frames(sz))
+                else:
+                    sizes.append(sz)
         logger.info(f"loaded {len(self.fnames)}, skipped {skipped} samples")
 
         self.sizes = np.array(sizes, dtype=np.int64)
@@ -318,11 +363,14 @@ class FileAudioDataset(RawAudioDataset):
             byte_data = read_from_stored_zip(_path, slice_ptr[0], slice_ptr[1])
             assert is_sf_audio_data(byte_data)
             path_or_fp = io.BytesIO(byte_data)
+        if self.fbank_features > 0:
+            feats = torch.from_numpy(get_fbank(path_or_fp, n_bins=self.fbank_features))
+            feats = self.postprocess_fbank(feats)
+        else:
+            wav, curr_sample_rate = sf.read(path_or_fp, dtype="float32")
 
-        wav, curr_sample_rate = sf.read(path_or_fp, dtype="float32")
-
-        feats = torch.from_numpy(wav).float()
-        feats = self.postprocess(feats, curr_sample_rate)
+            feats = torch.from_numpy(wav).float()
+            feats = self.postprocess(feats, curr_sample_rate)
         return {"id": index, "source": feats}
 
 
@@ -352,7 +400,7 @@ class BinarizedAudioDataset(RawAudioDataset):
             **mask_compute_kwargs,
         )
 
-        from fairseq.data import data_utils, Dictionary
+        from fairseq.data import Dictionary, data_utils
 
         self.fnames_dict = Dictionary.load(os.path.join(data_dir, "dict.txt"))
 

@@ -147,7 +147,7 @@ class HubertCtc(BaseFairseqModel):
         w2v_encoder = HubertEncoder(cfg, task)
         return cls(cfg, w2v_encoder)
 
-    def get_normalized_probs(self, net_output, log_probs):
+    def get_normalized_probs(self, net_output, log_probs, sample=None):
         """Get normalized probabilities (or log probs) from a net's output."""
 
         logits = net_output["encoder_out"]

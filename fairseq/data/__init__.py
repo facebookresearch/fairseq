@@ -19,7 +19,12 @@ from .bucket_pad_length_dataset import BucketPadLengthDataset
 from .colorize_dataset import ColorizeDataset
 from .concat_dataset import ConcatDataset
 from .concat_sentences_dataset import ConcatSentencesDataset
-from .denoising_dataset import DenoisingDataset
+from .denoising_dataset import (
+    DenoisingDataset,
+    DenoisingLangPairDataset,
+    LMLangPairDataset,
+    MixedDenoisingLMLangPairDataset,
+)
 from .id_dataset import IdDataset
 from .indexed_dataset import (
     IndexedCachedDataset,
@@ -78,6 +83,8 @@ __all__ = [
     "ConcatSentencesDataset",
     "CountingIterator",
     "DenoisingDataset",
+    "DenoisingLangPairDataset",
+    "LMLangPairDataset",
     "Dictionary",
     "EncodedFastaDataset",
     "EpochBatchIterator",

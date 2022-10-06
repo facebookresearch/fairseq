@@ -19,8 +19,8 @@ from fairseq.dataclass import ChoiceEnum, FairseqDataclass
 from fairseq.models import BaseFairseqModel, register_model
 from fairseq.models.wav2vec.wav2vec2 import (
     EXTRACTOR_MODE_CHOICES,
-    MASKING_DISTRIBUTION_CHOICES,
     LAYER_TYPE_CHOICES,
+    MASKING_DISTRIBUTION_CHOICES,
     ConvFeatureExtractionModel,
     TransformerEncoder,
 )

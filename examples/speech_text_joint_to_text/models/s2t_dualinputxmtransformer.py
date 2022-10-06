@@ -6,28 +6,24 @@
 import copy
 
 import torch.nn as nn
-from fairseq import checkpoint_utils
-from fairseq import utils
+
+from fairseq import checkpoint_utils, utils
 from fairseq.data.data_utils import lengths_to_padding_mask
-from fairseq.models import (
-    register_model,
-    register_model_architecture,
-    FairseqEncoder,
-)
+from fairseq.models import FairseqEncoder, register_model, register_model_architecture
 from fairseq.models.speech_to_text import Wav2VecEncoderWithAdaptor
 from fairseq.models.speech_to_text.xm_transformer import (
+    need_finetuning,
     set_default_adaptor_args,
     set_default_w2v_encoder_args,
-    need_finetuning
 )
-from fairseq.models.transformer import TransformerEncoder, TransformerDecoder
+from fairseq.models.transformer import TransformerDecoder, TransformerEncoder
 from fairseq.models.wav2vec import TransformerSentenceEncoderLayer
 from fairseq.utils import safe_hasattr
 
 from .s2t_dualinputtransformer import (
+    DualInputEncoder,
     DualInputS2TTransformerModel,
     TransformerMultiInputDecoder,
-    DualInputEncoder,
 )
 
 
@@ -441,17 +437,15 @@ class DualInputXMTransformerModel(DualInputS2TTransformerModel):
 
         for k, p in spch_encoder.named_parameters():
             # Freeze pretrained models by default
-            if safe_hasattr(
-                args, "finetune_w2v_params"
-            ) and need_finetuning(args.finetune_w2v_params, k):
+            if safe_hasattr(args, "finetune_w2v_params") and need_finetuning(
+                args.finetune_w2v_params, k
+            ):
                 p.requires_grad = True
             else:
                 p.requires_grad = False
         for k, p in text_encoder.named_parameters():
             # Freeze pretrained models by default
-            if safe_hasattr(
-                args, "finetune_mbart_encoder_params"
-            ) and need_finetuning(
+            if safe_hasattr(args, "finetune_mbart_encoder_params") and need_finetuning(
                 args.finetune_mbart_encoder_params, k
             ):
                 p.requires_grad = True
@@ -488,9 +482,7 @@ class DualInputXMTransformerModel(DualInputS2TTransformerModel):
             decoder.layer_norm = None
         for k, p in decoder.named_parameters():
             # Freeze pretrained models by default
-            if safe_hasattr(
-                args, "finetune_mbart_decoder_params"
-            ) and need_finetuning(
+            if safe_hasattr(args, "finetune_mbart_decoder_params") and need_finetuning(
                 args.finetune_mbart_decoder_params, k
             ):
                 p.requires_grad = True

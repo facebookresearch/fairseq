@@ -1,0 +1,10 @@
+defaults:
+  - generate_multi
+  - override lang_config: flores200.sampled
+  - override model_config: flores200.full
+
+fairseq_root: ???
+model_folder: ???
+
+model_type: moe
+add_data_source_prefix_tags: true

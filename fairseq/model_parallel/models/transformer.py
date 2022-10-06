@@ -91,7 +91,7 @@ class ModelParallelTransformerEncoder(TransformerEncoder):
         if args.no_final_layer_norm:
             self.layer_norm = None
 
-    def build_encoder_layer(self, args):
+    def build_encoder_layer(self, args, is_moe_layer=False):
         return ModelParallelTransformerEncoderLayer(args)
 
 
@@ -101,7 +101,7 @@ class ModelParallelTransformerDecoder(TransformerDecoder):
     is a :class:`ModelParallelTransformerDecoderLayer`.
     """
 
-    def build_decoder_layer(self, args, no_encoder_attn=False):
+    def build_decoder_layer(self, args, no_encoder_attn=False, is_moe_layer=False):
         return ModelParallelTransformerDecoderLayer(args, no_encoder_attn)
 
     def output_layer(self, features, **kwargs):

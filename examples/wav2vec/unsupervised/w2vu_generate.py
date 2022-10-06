@@ -9,30 +9,27 @@ Run inference for pre-processed data with a trained model.
 """
 
 import ast
-from collections import namedtuple
-from dataclasses import dataclass, field
-from enum import Enum, auto
-import hydra
-from hydra.core.config_store import ConfigStore
 import logging
 import math
 import os
-from omegaconf import OmegaConf
-from typing import Optional
 import sys
+from collections import namedtuple
+from dataclasses import dataclass, field
+from enum import Enum, auto
+from typing import Optional
 
 import editdistance
+import hydra
 import torch
-
+from hydra.core.config_store import ConfigStore
 from hydra.core.hydra_config import HydraConfig
-
-from fairseq import checkpoint_utils, progress_bar, tasks, utils
-from fairseq.data.data_utils import post_process
-from fairseq.dataclass.configs import FairseqDataclass, FairseqConfig
-from fairseq.logging.meters import StopwatchMeter
-from omegaconf import open_dict
+from omegaconf import OmegaConf, open_dict
 
 from examples.speech_recognition.kaldi.kaldi_decoder import KaldiDecoderConfig
+from fairseq import checkpoint_utils, progress_bar, tasks, utils
+from fairseq.data.data_utils import post_process
+from fairseq.dataclass.configs import FairseqConfig, FairseqDataclass
+from fairseq.logging.meters import StopwatchMeter
 
 logging.root.setLevel(logging.INFO)
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
@@ -594,7 +591,7 @@ def main(cfg: UnsupGenerateConfig, model=None):
             "blank_weight": cfg.blank_weight,
             "blank_mode": cfg.blank_mode,
         }
-    
+
     if cfg.decode_stride:
         overrides["model"]["generator_stride"] = cfg.decode_stride
 

@@ -1,0 +1,23 @@
+bin_root: non_flores_v4.2/madar
+
+sampled:
+    - ary_Arab-arb_Arab
+    - arz_Arab-arb_Arab
+
+all:
+    - aeb_Arab-arb_Arab
+    - arb_Arab-aeb_Arab
+    - acm_Arab-arb_Arab
+    - arb_Arab-acm_Arab
+    - acq_Arab-arb_Arab
+    - arb_Arab-acq_Arab
+    - ajp_Arab-arb_Arab
+    - arb_Arab-ajp_Arab
+    - apc_Arab-arb_Arab
+    - arb_Arab-apc_Arab
+    - ars_Arab-arb_Arab
+    - arb_Arab-ars_Arab
+    - ary_Arab-arb_Arab
+    - arb_Arab-ary_Arab
+    - arz_Arab-arb_Arab
+    - arb_Arab-arz_Arab

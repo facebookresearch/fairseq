@@ -4,7 +4,9 @@
 # LICENSE file in the root directory of this source tree.
 
 from dataclasses import dataclass, field
+
 import torch
+
 from fairseq import metrics, utils
 from fairseq.criterions import register_criterion
 from fairseq.criterions.label_smoothed_cross_entropy import (
@@ -94,7 +96,7 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
     def forward(self, model, sample, reduce=True):
         net_output = model(**sample["net_input"])
         # 1. Compute cross entropy loss
-        loss, nll_loss = self.compute_loss(model, net_output, sample, reduce=reduce)
+        loss, nll_loss, _ = self.compute_loss(model, net_output, sample, reduce=reduce)
 
         # 2. Compute cross latency loss
         latency_loss, expected_latency, expected_delays_var = self.compute_latency_loss(

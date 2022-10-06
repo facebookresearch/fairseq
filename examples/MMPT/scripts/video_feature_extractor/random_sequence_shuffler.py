@@ -1,12 +1,10 @@
 # Copyright (c) Facebook, Inc. All Rights Reserved
 
 import numpy as np
-
 from torch.utils.data.sampler import Sampler
 
 
 class RandomSequenceSampler(Sampler):
-
     def __init__(self, n_sample, seq_len):
         self.n_sample = n_sample
         self.seq_len = seq_len

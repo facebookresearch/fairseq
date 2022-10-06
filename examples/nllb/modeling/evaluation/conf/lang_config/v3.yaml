@@ -1,0 +1,413 @@
+bin_root: flores125.en_xx_en.v3.3
+
+sampled:
+- eng-zho_Hans
+- eng-ara
+- eng-ind
+- eng-tur
+- eng-vie
+- eng-jpn
+- eng-tam
+- eng-kor
+- eng-hin
+- eng-tha
+- eng-lav
+- eng-ben
+- eng-isl
+- eng-hau
+- eng-zul
+- eng-xho
+- eng-oci
+- eng-snd
+- eng-ibo
+- eng-kat
+- eng-ceb
+- eng-mon
+- eng-asm
+- zho_Hans-eng
+- ara-eng
+- ind-eng
+- tur-eng
+- vie-eng
+- jpn-eng
+- tam-eng
+- kor-eng
+- hin-eng
+- tha-eng
+- lav-eng
+- ben-eng
+- isl-eng
+- hau-eng
+- zul-eng
+- xho-eng
+- oci-eng
+- snd-eng
+- ibo-eng
+- kat-eng
+- ceb-eng
+- mon-eng
+- asm-eng
+
+all:
+- eng-afr
+- eng-amh
+- eng-ara
+- eng-asm
+- eng-ast
+- eng-aym
+- eng-azj
+- eng-bel
+- eng-ben
+- eng-bos
+- eng-bul
+- eng-cat
+- eng-ceb
+- eng-ces
+- eng-ckb
+- eng-cym
+- eng-dan
+- eng-deu
+- eng-dyu
+- eng-ell
+- eng-eng
+- eng-est
+- eng-fas
+- eng-fin
+- eng-fra
+- eng-ful
+- eng-gla
+- eng-gle
+- eng-glg
+- eng-guj
+- eng-hat
+- eng-hau
+- eng-heb
+- eng-hin
+- eng-hrv
+- eng-hun
+- eng-hye
+- eng-ibo
+- eng-ilo
+- eng-ind
+- eng-isl
+- eng-ita
+- eng-jav
+- eng-jpn
+- eng-kac
+- eng-kam
+- eng-kan
+- eng-kat
+- eng-kaz
+- eng-kea
+- eng-khm
+- eng-kir
+- eng-kmb
+- eng-kon
+- eng-kor
+- eng-kur
+- eng-lao
+- eng-lav
+- eng-lin
+- eng-lit
+- eng-ltz
+- eng-lug
+- eng-luo
+- eng-mal
+- eng-mar
+- eng-mkd
+- eng-mlg
+- eng-mlt
+- eng-mon
+- eng-mri
+- eng-msa
+- eng-mya
+- eng-nld
+- eng-nob
+- eng-npi
+- eng-nso
+- eng-nya
+- eng-oci
+- eng-orm
+- eng-ory
+- eng-pan
+- eng-pol
+- eng-por
+- eng-pus
+- eng-que
+- eng-ron
+- eng-rus
+- eng-sin
+- eng-slk
+- eng-slv
+- eng-sna
+- eng-snd
+- eng-som
+- eng-spa
+- eng-sqi
+- eng-srp
+- eng-ssw
+- eng-sun
+- eng-swe
+- eng-swh
+- eng-tam
+- eng-tel
+- eng-tgk
+- eng-tgl
+- eng-tha
+- eng-tir
+- eng-tsn
+- eng-tur
+- eng-ukr
+- eng-umb
+- eng-urd
+- eng-uzb
+- eng-vie
+- eng-wol
+- eng-xho
+- eng-yid
+- eng-yor
+- eng-yue
+- eng-zho_Hans
+- eng-zul
+- afr-eng
+- amh-eng
+- ara-eng
+- asm-eng
+- ast-eng
+- aym-eng
+- azj-eng
+- bel-eng
+- ben-eng
+- bos-eng
+- bul-eng
+- cat-eng
+- ceb-eng
+- ces-eng
+- ckb-eng
+- cym-eng
+- dan-eng
+- deu-eng
+- dyu-eng
+- ell-eng
+- eng-eng
+- est-eng
+- fas-eng
+- fin-eng
+- fra-eng
+- ful-eng
+- gla-eng
+- gle-eng
+- glg-eng
+- guj-eng
+- hat-eng
+- hau-eng
+- heb-eng
+- hin-eng
+- hrv-eng
+- hun-eng
+- hye-eng
+- ibo-eng
+- ilo-eng
+- ind-eng
+- isl-eng
+- ita-eng
+- jav-eng
+- jpn-eng
+- kac-eng
+- kam-eng
+- kan-eng
+- kat-eng
+- kaz-eng
+- kea-eng
+- khm-eng
+- kir-eng
+- kmb-eng
+- kon-eng
+- kor-eng
+- kur-eng
+- lao-eng
+- lav-eng
+- lin-eng
+- lit-eng
+- ltz-eng
+- lug-eng
+- luo-eng
+- mal-eng
+- mar-eng
+- mkd-eng
+- mlg-eng
+- mlt-eng
+- mon-eng
+- mri-eng
+- msa-eng
+- mya-eng
+- nld-eng
+- nob-eng
+- npi-eng
+- nso-eng
+- nya-eng
+- oci-eng
+- orm-eng
+- ory-eng
+- pan-eng
+- pol-eng
+- por-eng
+- pus-eng
+- que-eng
+- ron-eng
+- rus-eng
+- sin-eng
+- slk-eng
+- slv-eng
+- sna-eng
+- snd-eng
+- som-eng
+- spa-eng
+- sqi-eng
+- srp-eng
+- ssw-eng
+- sun-eng
+- swe-eng
+- swh-eng
+- tam-eng
+- tel-eng
+- tgk-eng
+- tgl-eng
+- tha-eng
+- tir-eng
+- tsn-eng
+- tur-eng
+- ukr-eng
+- umb-eng
+- urd-eng
+- uzb-eng
+- vie-eng
+- wol-eng
+- xho-eng
+- yid-eng
+- yor-eng
+- yue-eng
+- zho_Hans-eng
+- zul-eng
+
+model_langs:
+  - afr
+  - amh
+  - ara
+  - asm
+  - ast
+  - aym
+  - azj
+  - bel
+  - ben
+  - bos
+  - bul
+  - cat
+  - ceb
+  - ces
+  - ckb
+  - cym
+  - dan
+  - deu
+  - dyu
+  - ell
+  - eng
+  - est
+  - fas
+  - fin
+  - fra
+  - ful
+  - gla
+  - gle
+  - glg
+  - guj
+  - hat
+  - hau
+  - heb
+  - hin
+  - hrv
+  - hun
+  - hye
+  - ibo
+  - ilo
+  - ind
+  - isl
+  - ita
+  - jav
+  - jpn
+  - kac
+  - kam
+  - kan
+  - kat
+  - kaz
+  - kea
+  - khm
+  - kir
+  - kmb
+  - kon
+  - kor
+  - kur
+  - lao
+  - lav
+  - lin
+  - lit
+  - ltz
+  - lug
+  - luo
+  - mal
+  - mar
+  - mkd
+  - mlg
+  - mlt
+  - mon
+  - mri
+  - msa
+  - mya
+  - nld
+  - nob
+  - npi
+  - nso
+  - nya
+  - oci
+  - orm
+  - ory
+  - pan
+  - pol
+  - por
+  - pus
+  - que
+  - ron
+  - rus
+  - sin
+  - slk
+  - slv
+  - sna
+  - snd
+  - som
+  - spa
+  - sqi
+  - srp
+  - ssw
+  - sun
+  - swe
+  - swh
+  - tam
+  - tel
+  - tgk
+  - tgl
+  - tha
+  - tir
+  - tsn
+  - tur
+  - ukr
+  - umb
+  - urd
+  - uzb
+  - vie
+  - wol
+  - xho
+  - yid
+  - yor
+  - yue
+  - zho_Hans
+  - zul

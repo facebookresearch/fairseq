@@ -27,21 +27,44 @@ class LocalJob(BaseJob):
 
     CMD_CONFIG = {
         "local_single": [
-            "fairseq-train", "[yaml]", "--user-dir", "mmpt",
-            "--task", "mmtask", "--arch", "mmarch",
-            "--criterion", "mmloss",
+            "fairseq-train",
+            "[yaml]",
+            "--user-dir",
+            "mmpt",
+            "--task",
+            "mmtask",
+            "--arch",
+            "mmarch",
+            "--criterion",
+            "mmloss",
         ],
         "local_small": [
-            "fairseq-train", "[yaml]", "--user-dir", "mmpt",
-            "--task", "mmtask", "--arch", "mmarch",
-            "--criterion", "mmloss",
-            "--distributed-world-size", "2"
+            "fairseq-train",
+            "[yaml]",
+            "--user-dir",
+            "mmpt",
+            "--task",
+            "mmtask",
+            "--arch",
+            "mmarch",
+            "--criterion",
+            "mmloss",
+            "--distributed-world-size",
+            "2",
         ],
         "local_big": [
-            "fairseq-train", "[yaml]", "--user-dir", "mmpt",
-            "--task", "mmtask", "--arch", "mmarch",
-            "--criterion", "mmloss",
-            "--distributed-world-size", "8"
+            "fairseq-train",
+            "[yaml]",
+            "--user-dir",
+            "mmpt",
+            "--task",
+            "mmtask",
+            "--arch",
+            "mmarch",
+            "--criterion",
+            "mmloss",
+            "--distributed-world-size",
+            "8",
         ],
         "local_predict": ["python", "mmpt_cli/predict.py", "[yaml]"],
     }
@@ -67,19 +90,21 @@ class LocalJob(BaseJob):
             config = load_config(config_file=self.yaml_file)
             for field in config.fairseq:
                 for key in config.fairseq[field]:
-                    if key in ["fp16", "reset_optimizer", "reset_dataloader", "reset_meters"]:  # a list of binary flag.
+                    if key in [
+                        "fp16",
+                        "reset_optimizer",
+                        "reset_dataloader",
+                        "reset_meters",
+                    ]:  # a list of binary flag.
                         param = ["--" + key.replace("_", "-")]
                     else:
                         if key == "lr":
                             value = str(config.fairseq[field][key][0])
                         elif key == "adam_betas":
-                            value = "'"+str(config.fairseq[field][key])+"'"
+                            value = "'" + str(config.fairseq[field][key]) + "'"
                         else:
                             value = str(config.fairseq[field][key])
-                        param = [
-                            "--" + key.replace("_", "-"),
-                            value
-                        ]
+                        param = ["--" + key.replace("_", "-"), value]
                     cmd_list.extend(param)
 
         print("launching", " ".join(cmd_list))

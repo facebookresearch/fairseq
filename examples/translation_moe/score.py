@@ -20,6 +20,7 @@ import numpy as np
 import sacrebleu
 from sacrebleu import corpus_bleu as _corpus_bleu
 
+
 def main():
     parser = argparse.ArgumentParser(sys.argv[0])
     parser.add_argument(

@@ -1,0 +1,19 @@
+bin_root: non_flores_v4.2/pmindia
+
+sampled:
+  - eng-tam
+all:
+  - eng-ben
+  - eng-hin
+  - eng-mal
+  - eng-sin
+  - eng-tam
+  - eng-tel
+  - eng-urd
+  - ben-eng
+  - hin-eng
+  - mal-eng
+  - sin-eng
+  - tam-eng
+  - tel-eng
+  - urd-eng

@@ -6,10 +6,11 @@
 from typing import Any, Dict, Optional
 
 import torch.nn as nn
+from torch import Tensor
+
 from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models.transformer import TransformerDecoder, TransformerEncoder
 from fairseq.modules import TransformerDecoderLayer, TransformerEncoderLayer
-from torch import Tensor
 
 from ..modules.latent_layers import LayerSelect
 
@@ -27,7 +28,7 @@ class LatentTransformerEncoder(TransformerEncoder):
             num_layers=self.num_layers,
             num_logits=self.num_logits,
             soft_select=getattr(args, "soft_select", False),
-            sampling_tau=getattr(args, "sampling_tau", 5.),
+            sampling_tau=getattr(args, "sampling_tau", 5.0),
         )
         self.lang_idx = None
         self.layers = nn.ModuleList(
@@ -62,7 +63,7 @@ class LatentTransformerEncoderLayer(TransformerEncoderLayer):
         self.idx = idx
         self.layer_select = layer_select
 
-    def residual_connection(self, x, residual):
+    def residual_connection(self, x, residual, alpha=None):
         return residual + x * self.layer_select(self.idx)
 
 
@@ -83,7 +84,7 @@ class LatentTransformerDecoder(TransformerDecoder):
             num_layers=self.num_layers,
             num_logits=self.num_logits,
             soft_select=getattr(args, "soft_select", False),
-            sampling_tau=getattr(args, "sampling_tau", 5.),
+            sampling_tau=getattr(args, "sampling_tau", 5.0),
         )
         self.lang_idx = None
         self.layers = nn.ModuleList(
@@ -96,7 +97,9 @@ class LatentTransformerDecoder(TransformerDecoder):
     def set_lang_idx(self, lang_idx):
         self.lang_idx = lang_idx
 
-    def _build_decoder_layer(self, args, no_encoder_attn=False, idx=None):
+    def _build_decoder_layer(
+        self, args, no_encoder_attn=False, idx=None, is_moe_layer=False
+    ):
         return LatentTransformerDecoderLayer(
             args, idx, layer_select=self.layer_select, no_encoder_attn=no_encoder_attn
         )
@@ -152,5 +155,5 @@ class LatentTransformerDecoderLayer(TransformerDecoderLayer):
         self.idx = idx
         self.layer_select = layer_select
 
-    def residual_connection(self, x, residual):
+    def residual_connection(self, x, residual, alpha=None):
         return residual + x * self.layer_select(self.idx)

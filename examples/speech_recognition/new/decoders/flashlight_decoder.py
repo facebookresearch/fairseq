@@ -9,21 +9,20 @@ import gc
 import os.path as osp
 import warnings
 from collections import deque, namedtuple
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import torch
+from omegaconf import OmegaConf, open_dict
+
 from fairseq import tasks
 from fairseq.data.dictionary import Dictionary
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.models.fairseq_model import FairseqModel
 from fairseq.utils import apply_to_sample
-from omegaconf import open_dict, OmegaConf
 
-from typing import List
-
-from .decoder_config import FlashlightDecoderConfig
 from .base_decoder import BaseDecoder
+from .decoder_config import FlashlightDecoderConfig
 
 try:
     from flashlight.lib.text.decoder import (
@@ -135,7 +134,7 @@ class KenLMDecoder(BaseDecoder):
         for i, token_idx in enumerate(token_idxs):
             if token_idx == self.blank:
                 continue
-            if i == 0 or token_idx != token_idxs[i-1]:
+            if i == 0 or token_idx != token_idxs[i - 1]:
                 timesteps.append(i)
         return timesteps
 

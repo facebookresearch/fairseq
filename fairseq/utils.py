@@ -15,7 +15,9 @@ import warnings
 from itertools import accumulate
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
+import numpy as np
 import torch
+import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor
 
@@ -55,6 +57,20 @@ class FileContentsAction(argparse.Action):
                 argument = f.read().strip()
         else:
             argument = values
+        setattr(namespace, self.dest, argument)
+
+
+class CSVFileContentsAction(FileContentsAction):
+    def __init__(self, option_strings, dest, nargs=None, **kwargs):
+        if nargs is not None:
+            raise ValueError("nargs not allowed")
+        super(CSVFileContentsAction, self).__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        super(CSVFileContentsAction, self).__call__(
+            parser, namespace, values, option_string
+        )
+        argument = getattr(namespace, self.dest).split(",")
         setattr(namespace, self.dest, argument)
 
 
@@ -115,11 +131,11 @@ def move_to_cuda(sample, device=None):
     return apply_to_sample(_move_to_cuda, sample)
 
 
-def move_to_cpu(sample):
+def move_to_cpu(sample, cast_to_fp32=True):
     def _move_to_cpu(tensor):
         # PyTorch has poor support for half tensors (float16) on CPU.
         # Move any such tensors to float32.
-        if tensor.dtype in {torch.bfloat16, torch.float16}:
+        if cast_to_fp32 and tensor.dtype in {torch.bfloat16, torch.float16}:
             tensor = tensor.to(dtype=torch.float32)
         return tensor.cpu()
 
@@ -264,6 +280,10 @@ def make_positions(tensor, padding_idx: int, onnx_trace: bool = False):
     # how to handle the dtype kwarg in cumsum.
     mask = tensor.ne(padding_idx).int()
     return (torch.cumsum(mask, dim=1).type_as(mask) * mask).long() + padding_idx
+
+
+def assert_equal(a, b, msg=""):
+    assert a == b, f"{msg}{a} != {b}"
 
 
 def strip_pad(tensor, pad):
@@ -575,6 +595,7 @@ def get_activation_fn(activation: str) -> Callable:
 def get_available_activation_fns() -> List:
     return [
         "relu",
+        "relu_squared",
         "gelu",
         "gelu_fast",  # deprecated
         "gelu_accurate",
@@ -812,6 +833,11 @@ def eval_bool(x, default=False):
         return default
 
 
+def print_r0(x, file=None):
+    if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+        print(x, file=file, flush=True)
+
+
 def reset_logging():
     root = logging.getLogger()
     for handler in root.handlers:
@@ -844,8 +870,8 @@ def safe_hasattr(obj, k):
 
 def hotreload_function(name=None):
     """
-    Decorator to function to enable hot-reload for debugging. 
-    It allows you to debug a function without having reloading all heavy models, dataset loading and 
+    Decorator to function to enable hot-reload for debugging.
+    It allows you to debug a function without having reloading all heavy models, dataset loading and
         preprocessing, allow faster debugging.
     If you want to change model or dataset loading, consider relaunching your code
     -----------------------------------
@@ -857,8 +883,8 @@ def hotreload_function(name=None):
                 Type "disable" to stop pausing this function and let code continue without pause
                 Ctril + C to terminal
         if func raise error:
-            it will prompt user to 
-                1. Edit code, and press enter to retry 
+            it will prompt user to
+                1. Edit code, and press enter to retry
                 2. Ctrl + C to terminate
                 3. Type "raise" to raise that exception
     * Requirements:
@@ -892,38 +918,46 @@ def hotreload_function(name=None):
     try:
         import jurigged
     except ImportError as e:
-        logger.warning(f'Please install jurigged: pip install jurigged[develoop]')
+        logger.warning(f"Please install jurigged: pip install jurigged[develoop]")
         raise e
-    from fairseq.distributed import utils as distributed_utils
     import traceback
-    
+
+    from fairseq.distributed import utils as distributed_utils
+
     def hotreload_decorator(func):
-        assert callable(func), f'not callable: {func}'
+        assert callable(func), f"not callable: {func}"
         jname = name or func.__name__
-        logger.info(f'jurigged-hotreload:Apply jurigged on {jname}:{func.__name__}')
+        logger.info(f"jurigged-hotreload:Apply jurigged on {jname}:{func.__name__}")
         HOTRELOAD_PAUSE = bool(os.environ.get("HOTRELOAD_PAUSE", 0))
         cublk = bool(os.environ.get("CUDA_LAUNCH_BLOCKING", 0))
         prefix = f"HOTRELOAD:{jname}:[cublk={cublk}]"
         hot_reload_state = {"disable": False}
+
         def func_wrapper(*args, **kwargs):
-            if not HOTRELOAD_PAUSE or hot_reload_state['disable']:
+            if not HOTRELOAD_PAUSE or hot_reload_state["disable"]:
                 return func(*args, **kwargs)
             world_size = distributed_utils.get_global_world_size()
-            assert world_size <= 1, f'HOTRELOAD_PAUSE:{jname} currently cannot do distributed training'
+            assert (
+                world_size <= 1
+            ), f"HOTRELOAD_PAUSE:{jname} currently cannot do distributed training"
             success = False
             while not success:
                 try:
                     output = func(*args, **kwargs)
                     # success = True
-                    end_action = input(f'{prefix}: PAUSE, you may edit code now. Enter to re-run, ctrl+C to terminate, '
-                        f'type "done" to continue (function still being watched), or type "disable" to stop pausing this function :')
+                    end_action = input(
+                        f"{prefix}: PAUSE, you may edit code now. Enter to re-run, ctrl+C to terminate, "
+                        f'type "done" to continue (function still being watched), or type "disable" to stop pausing this function :'
+                    )
                     if end_action.strip().lower() in ["disable", "done"]:
                         success = True
                     else:
-                        logger.warning(f'{prefix}: action={end_action} function will re-run now.')
+                        logger.warning(
+                            f"{prefix}: action={end_action} function will re-run now."
+                        )
                 except Exception as e:
                     action = input(
-                        f'{prefix}:ERROR: \n{traceback.format_exc()}\n'
+                        f"{prefix}:ERROR: \n{traceback.format_exc()}\n"
                         f'Edit code to try again: enter to continue, ctrl+C to terminate, or type "raise" to raise the exception: '
                     )
                     if action.strip().lower() == "raise":
@@ -931,13 +965,36 @@ def hotreload_function(name=None):
 
             if end_action.strip().lower() == "disable":
                 logger.warning(
-                    f'{prefix}: Stop pausing {jname}. The function is still being watched and newly editted code will take effect '
-                    f'if the {jname} is called again later.'
+                    f"{prefix}: Stop pausing {jname}. The function is still being watched and newly editted code will take effect "
+                    f"if the {jname} is called again later."
                     f' "unset HOTRELOAD_PAUSE" before relaunch to disable hotreload and'
-                    f' remove @hotreload_function decorator in the code.'
+                    f" remove @hotreload_function decorator in the code."
                 )
-                hot_reload_state['disable'] = True
+                hot_reload_state["disable"] = True
             return output
+
         return func_wrapper
+
     return hotreload_decorator
 
+
+def round_safe(x):
+    if torch.is_tensor(x):
+        return float(np.round(x.cpu().numpy(), 4))
+    else:
+        try:
+            return round(x, 4)
+        except Exception:
+            return x
+
+
+def print_mem(msg):
+    gb_denom = 1024**3
+    mem_info = f"max_GB: {torch.cuda.max_memory_allocated()/gb_denom:.1f}, current_GB: {torch.cuda.memory_allocated()/gb_denom:.1f}"
+    print_r0(f"{msg}: {mem_info}")
+
+
+def remove_prefix(text: str, prefix: str):
+    if text.startswith(prefix):
+        return text[len(prefix) :]
+    return text

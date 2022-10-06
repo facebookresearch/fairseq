@@ -7,10 +7,11 @@ import gc
 import os
 import random
 import shutil
-import numpy as np
 
+import numpy as np
 import torch
 import tqdm
+
 from examples.textless_nlp.gslm.speech2unit.pretrained.cpc_feature_reader import (
     CpcFeatureReader,
 )
@@ -46,18 +47,14 @@ def get_feature_iterator(
         lines = fp.read().split("\n")
         root = lines.pop(0).strip()
         file_path_list = [
-            os.path.join(root, line.split("\t")[0])
-            for line in lines
-            if len(line) > 0
+            os.path.join(root, line.split("\t")[0]) for line in lines if len(line) > 0
         ]
         if sample_pct < 1.0:
             file_path_list = random.sample(
                 file_path_list, int(sample_pct * len(file_path_list))
             )
         num_files = len(file_path_list)
-        reader = feature_reader_cls(
-            checkpoint_path=checkpoint_path, layer=layer
-        )
+        reader = feature_reader_cls(checkpoint_path=checkpoint_path, layer=layer)
 
         def iterate():
             for file_path in file_path_list:

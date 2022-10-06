@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import functools
 import math
 from typing import Dict, List, Optional
 
@@ -13,14 +14,15 @@ from torch import Tensor
 from fairseq import utils
 from fairseq.distributed import fsdp_wrap
 from fairseq.models import FairseqEncoder
-from fairseq.models.transformer import TransformerConfig
+from fairseq.models.transformer import DEFAULT_MIN_PARAMS_TO_WRAP, TransformerConfig
+from fairseq.models.transformer.fsdp_wrap_expert import fsdp_wrap_expert
 from fairseq.modules import (
     FairseqDropout,
     LayerDropModuleList,
     LayerNorm,
     PositionalEmbedding,
     SinusoidalPositionalEmbedding,
-    transformer_layer,
+    TransformerEncoderLayer,
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
@@ -92,9 +94,10 @@ class TransformerEncoderBase(FairseqEncoder):
             self.layers = LayerDropModuleList(p=self.encoder_layerdrop)
         else:
             self.layers = nn.ModuleList([])
-        self.layers.extend(
-            [self.build_encoder_layer(cfg) for i in range(cfg.encoder.layers)]
-        )
+        moe_freq = max(cfg.encoder_moe_freq, cfg.moe_freq)
+        for i in range(cfg.encoder.layers):
+            is_moe_layer = moe_freq != 0 and (i + 1) % moe_freq == 0
+            self.layers.append(self.build_encoder_layer(cfg, is_moe_layer=is_moe_layer))
         self.num_layers = len(self.layers)
 
         if cfg.encoder.normalize_before:
@@ -102,9 +105,9 @@ class TransformerEncoderBase(FairseqEncoder):
         else:
             self.layer_norm = None
 
-    def build_encoder_layer(self, cfg):
-        layer = transformer_layer.TransformerEncoderLayerBase(
-            cfg, return_fc=self.return_fc
+    def build_encoder_layer(self, cfg, is_moe_layer=False):
+        layer = TransformerEncoderLayer(
+            cfg, return_fc=self.return_fc, is_moe_layer=is_moe_layer
         )
         checkpoint = cfg.checkpoint_activations
         if checkpoint:
@@ -113,7 +116,10 @@ class TransformerEncoderBase(FairseqEncoder):
         # if we are checkpointing, enforce that FSDP always wraps the
         # checkpointed layer, regardless of layer size
         min_params_to_wrap = cfg.min_params_to_wrap if not checkpoint else 0
-        layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
+        if not is_moe_layer or cfg.ddp_backend != "fully_sharded":
+            layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
+        else:
+            layer = fsdp_wrap_expert(cfg, layer, min_num_params=min_params_to_wrap)
         return layer
 
     def forward_embedding(
@@ -213,11 +219,23 @@ class TransformerEncoderBase(FairseqEncoder):
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
 
-        encoder_states = []
-        fc_results = []
+        src_lengths = (
+            src_tokens.ne(self.padding_idx)
+            .sum(dim=1, dtype=torch.int32)
+            .reshape(-1, 1)
+            .contiguous()
+        )
+        results = {
+            "encoder_padding_mask": [encoder_padding_mask],  # B x T
+            "encoder_embedding": [encoder_embedding],  # B x T x C
+            "encoder_states": [],  # List[T x B x C]
+            "fc_results": [],  # List[T x B x C]
+            "src_tokens": [],
+            "src_lengths": [src_lengths],
+        }
 
         if return_all_hiddens:
-            encoder_states.append(x)
+            results["encoder_states"].append(x)
 
         # nested tensor and BT enable
         layer = self.layers[0]
@@ -290,19 +308,29 @@ class TransformerEncoderBase(FairseqEncoder):
         else:
             processing_mask = encoder_padding_mask
         encoder_padding_mask_out = processing_mask if has_pads else None
+        loss_keys = ["moe_gate_loss", "cmr_gate_loss_num", "cmr_gate_loss_denom"]
+        for key in loss_keys:
+            results[key] = []
         for layer in self.layers:
-            lr = layer(x, encoder_padding_mask=encoder_padding_mask_out)
-
+            passed_src_tokens = (
+                src_tokens if self.cfg.pass_tokens_transformer_layer else None
+            )
+            lr, l_aux_i = layer(
+                x,
+                encoder_padding_mask=encoder_padding_mask_out,
+                tokens=passed_src_tokens,
+            )
             if isinstance(lr, tuple) and len(lr) == 2:
                 x, fc_result = lr
             else:
                 x = lr
                 fc_result = None
-
             if return_all_hiddens and not torch.jit.is_scripting():
-                assert encoder_states is not None
-                encoder_states.append(x)
-                fc_results.append(fc_result)
+                assert results["encoder_states"] is not None
+                results["encoder_states"].append(x)
+                results["fc_results"].append(fc_result)
+            for key in loss_keys:
+                results[key].append((l_aux_i or {}).get(key, None))
 
         # change back to non-nested and Batch second
         if NT_flag:
@@ -314,25 +342,13 @@ class TransformerEncoderBase(FairseqEncoder):
         if self.layer_norm is not None:
             x = self.layer_norm(x)
 
+        results["encoder_out"] = [x]  # T x B x C
+
         # The Pytorch Mobile lite interpreter does not supports returning NamedTuple in
         # `forward` so we use a dictionary instead.
         # TorchScript does not support mixed values so the values are all lists.
         # The empty list is equivalent to None.
-        src_lengths = (
-            src_tokens.ne(self.padding_idx)
-            .sum(dim=1, dtype=torch.int32)
-            .reshape(-1, 1)
-            .contiguous()
-        )
-        return {
-            "encoder_out": [x],  # T x B x C
-            "encoder_padding_mask": [encoder_padding_mask],  # B x T
-            "encoder_embedding": [encoder_embedding],  # B x T x C
-            "encoder_states": encoder_states,  # List[T x B x C]
-            "fc_results": fc_results,  # List[T x B x C]
-            "src_tokens": [],
-            "src_lengths": [src_lengths],
-        }
+        return results
 
     @torch.jit.export
     def reorder_encoder_out(self, encoder_out: Dict[str, List[Tensor]], new_order):
@@ -433,7 +449,7 @@ class TransformerEncoder(TransformerEncoderBase):
             return_fc=return_fc,
         )
 
-    def build_encoder_layer(self, args):
+    def build_encoder_layer(self, args, is_moe_layer=False):
         return super().build_encoder_layer(
-            TransformerConfig.from_namespace(args),
+            TransformerConfig.from_namespace(args), is_moe_layer=is_moe_layer
         )

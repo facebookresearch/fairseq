@@ -8,9 +8,9 @@ import argparse
 import logging
 from pathlib import Path
 
+import pandas as pd
 import soundfile as sf
 from tqdm import tqdm
-import pandas as pd
 
 from examples.speech_to_speech.preprocessing.data_utils import (
     gen_config_yaml,

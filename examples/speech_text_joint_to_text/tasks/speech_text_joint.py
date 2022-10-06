@@ -8,18 +8,18 @@ from argparse import Namespace
 from pathlib import Path
 
 import torch
+
 from fairseq.data import (
-    encoders,
+    ConcatDataset,
     Dictionary,
     ResamplingDataset,
     TransformEosLangPairDataset,
-    ConcatDataset,
+    encoders,
 )
-from fairseq.data.iterators import GroupedEpochBatchIterator
 from fairseq.data.audio.multi_modality_dataset import (
-    MultiModalityDataset,
     LangPairMaskDataset,
     ModalityDatasetItem,
+    MultiModalityDataset,
 )
 from fairseq.data.audio.speech_to_text_dataset import (
     SpeechToTextDataset,
@@ -29,6 +29,7 @@ from fairseq.data.audio.speech_to_text_joint_dataset import (
     S2TJointDataConfig,
     SpeechToTextJointDatasetCreator,
 )
+from fairseq.data.iterators import GroupedEpochBatchIterator
 from fairseq.tasks import register_task
 from fairseq.tasks.speech_to_text import SpeechToTextTask
 from fairseq.tasks.translation import load_langpair_dataset
@@ -92,7 +93,9 @@ class SpeechTextJointToTextTask(SpeechToTextTask):
             help="use mixed data in one update when update-freq  > 1",
         )
         parser.add_argument(
-            "--load-speech-only", action="store_true", help="load speech data only",
+            "--load-speech-only",
+            action="store_true",
+            help="load speech data only",
         )
         parser.add_argument(
             "--mask-text-ratio",
@@ -258,7 +261,9 @@ class SpeechTextJointToTextTask(SpeechToTextTask):
         text_dataset = None
         if self.args.parallel_text_data != "" and is_train_split:
             text_dataset = self.load_langpair_dataset(
-                self.data_cfg.prepend_tgt_lang_tag_no_change, 1.0, epoch=epoch,
+                self.data_cfg.prepend_tgt_lang_tag_no_change,
+                1.0,
+                epoch=epoch,
             )
             if self.args.mask_text_ratio > 0:
                 # add mask

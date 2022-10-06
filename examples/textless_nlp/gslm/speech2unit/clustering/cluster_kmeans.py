@@ -8,10 +8,10 @@ import logging
 import os
 import time
 
+import joblib
 import numpy as np
 from sklearn.cluster import MiniBatchKMeans
 
-import joblib
 from examples.textless_nlp.gslm.speech2unit.pretrained.utils import (
     get_and_dump_features,
     get_features,
@@ -174,9 +174,7 @@ def main(args, logger):
             )
         )
         if args.out_features_path:
-            logger.info(
-                f"Saved extracted features at {args.out_features_path}"
-            )
+            logger.info(f"Saved extracted features at {args.out_features_path}")
     logger.info(f"Features shape = {features_batch.shape}\n")
 
     # Learn and save K-means model

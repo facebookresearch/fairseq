@@ -30,7 +30,6 @@ from fairseq.dataclass.initialize import hydra_init
 
 hydra_init()
 
-import fairseq.criterions  # noqa
 import fairseq.distributed  # noqa
 import fairseq.models  # noqa
 import fairseq.modules  # noqa

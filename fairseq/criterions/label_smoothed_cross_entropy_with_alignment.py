@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+from dataclasses import dataclass, field
 
 from fairseq import metrics, utils
 from fairseq.criterions import register_criterion
@@ -12,8 +13,6 @@ from .label_smoothed_cross_entropy import (
     LabelSmoothedCrossEntropyCriterion,
     LabelSmoothedCrossEntropyCriterionConfig,
 )
-
-from dataclasses import dataclass, field
 
 
 @dataclass
@@ -45,7 +44,7 @@ class LabelSmoothedCrossEntropyCriterionWithAlignment(
         3) logging outputs to display while training
         """
         net_output = model(**sample["net_input"])
-        loss, nll_loss = self.compute_loss(model, net_output, sample, reduce=reduce)
+        loss, nll_loss, _ = self.compute_loss(model, net_output, sample, reduce=reduce)
         sample_size = (
             sample["target"].size(0) if self.sentence_avg else sample["ntokens"]
         )

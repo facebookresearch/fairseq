@@ -5,15 +5,14 @@
 
 import argparse
 import logging
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
 
 import pandas as pd
 from torchaudio.datasets import LJSPEECH
 from tqdm import tqdm
 
 from examples.speech_to_text.data_utils import save_df_to_tsv
-
 
 log = logging.getLogger(__name__)
 
@@ -32,9 +31,9 @@ def process(args):
     for x in dataset._flist:
         id_ = x[0]
         speaker = id_.split("-")[0]
-        id_to_split[id_] = {
-            "LJ001": "test", "LJ002": "test", "LJ003": "dev"
-        }.get(speaker, "train")
+        id_to_split[id_] = {"LJ001": "test", "LJ002": "test", "LJ003": "dev"}.get(
+            speaker, "train"
+        )
     manifest_by_split = {split: defaultdict(list) for split in SPLITS}
     progress = tqdm(enumerate(dataset), total=len(dataset))
     for i, (waveform, _, utt, normalized_utt) in progress:
@@ -53,7 +52,7 @@ def process(args):
     for split in SPLITS:
         save_df_to_tsv(
             pd.DataFrame.from_dict(manifest_by_split[split]),
-            manifest_root / f"{split}.audio.tsv"
+            manifest_root / f"{split}.audio.tsv",
         )
 
 

@@ -4,8 +4,10 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
+
 import numpy as np
 import torch.utils.data
+
 from fairseq.data import data_utils
 
 logger = logging.getLogger(__name__)
@@ -55,6 +57,11 @@ class FairseqDataset(torch.utils.data.Dataset, EpochListening):
     def num_tokens(self, index):
         """Return the number of tokens in a sample. This value is used to
         enforce ``--max-tokens`` during batching."""
+        raise NotImplementedError
+
+    def num_tokens_vec(self, indices):
+        """Return the number of tokens for a set of positions defined by indices.
+        This value is used to enforce ``--max-tokens`` during batching."""
         raise NotImplementedError
 
     def num_tokens_vec(self, indices):
@@ -188,6 +195,11 @@ class FairseqDataset(torch.utils.data.Dataset, EpochListening):
                 indices, self.size, max_sizes
             )
         return indices, ignored
+
+    def ordered_indices_per_dataset(self):
+        """Return a list of ordered indices vectors for each underlying dataset
+        (with parent dataset indices)."""
+        return [self.ordered_indices()]
 
     @property
     def supports_fetch_outside_dataloader(self):

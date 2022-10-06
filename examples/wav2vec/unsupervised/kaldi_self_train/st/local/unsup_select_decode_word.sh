@@ -31,5 +31,3 @@ if [ ! -z $ref_txt ] && $get_best_wer; then
     done | grep "score=" | sed 's/=/ /g' | sed 's/;//g' | sort -k3n | head -n1
   done
 fi
-
-

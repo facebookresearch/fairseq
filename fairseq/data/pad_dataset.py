@@ -22,10 +22,10 @@ class PadDataset(BaseWrapperDataset):
 
 
 class LeftPadDataset(PadDataset):
-    def __init__(self, dataset, pad_idx):
-        super().__init__(dataset, pad_idx, left_pad=True)
+    def __init__(self, dataset, pad_idx, pad_length=None):
+        super().__init__(dataset, pad_idx, left_pad=True, pad_length=pad_length)
 
 
 class RightPadDataset(PadDataset):
-    def __init__(self, dataset, pad_idx):
-        super().__init__(dataset, pad_idx, left_pad=False)
+    def __init__(self, dataset, pad_idx, pad_length=None):
+        super().__init__(dataset, pad_idx, left_pad=False, pad_length=pad_length)

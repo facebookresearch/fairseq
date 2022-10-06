@@ -82,69 +82,6 @@ extensions = [
 cmdclass = {}
 
 
-try:
-    # torch is not available when generating docs
-    from torch.utils import cpp_extension
-
-    extensions.extend(
-        [
-            cpp_extension.CppExtension(
-                "fairseq.libbase",
-                sources=[
-                    "fairseq/clib/libbase/balanced_assignment.cpp",
-                ],
-            )
-        ]
-    )
-
-    extensions.extend(
-        [
-            cpp_extension.CppExtension(
-                "fairseq.libnat",
-                sources=[
-                    "fairseq/clib/libnat/edit_dist.cpp",
-                ],
-            ),
-            cpp_extension.CppExtension(
-                "alignment_train_cpu_binding",
-                sources=[
-                    "examples/operators/alignment_train_cpu.cpp",
-                ],
-            ),
-        ]
-    )
-    if "CUDA_HOME" in os.environ:
-        extensions.extend(
-            [
-                cpp_extension.CppExtension(
-                    "fairseq.libnat_cuda",
-                    sources=[
-                        "fairseq/clib/libnat_cuda/edit_dist.cu",
-                        "fairseq/clib/libnat_cuda/binding.cpp",
-                    ],
-                ),
-                cpp_extension.CppExtension(
-                    "fairseq.ngram_repeat_block_cuda",
-                    sources=[
-                        "fairseq/clib/cuda/ngram_repeat_block_cuda.cpp",
-                        "fairseq/clib/cuda/ngram_repeat_block_cuda_kernel.cu",
-                    ],
-                ),
-                cpp_extension.CppExtension(
-                    "alignment_train_cuda_binding",
-                    sources=[
-                        "examples/operators/alignment_train_kernel.cu",
-                        "examples/operators/alignment_train_cuda.cpp",
-                    ],
-                ),
-            ]
-        )
-    cmdclass["build_ext"] = cpp_extension.BuildExtension
-
-except ImportError:
-    pass
-
-
 if "READTHEDOCS" in os.environ:
     # don't build extensions when generating docs
     extensions = []
@@ -192,7 +129,7 @@ def do_setup(package_data):
         long_description_content_type="text/markdown",
         setup_requires=[
             "cython",
-            'numpy<1.20.0; python_version<"3.7"',
+            'numpy==1.21.1; python_version<"3.7"',
             'numpy; python_version>="3.7"',
             "setuptools>=18.0",
         ],
@@ -200,16 +137,32 @@ def do_setup(package_data):
             "cffi",
             "cython",
             'dataclasses; python_version<"3.7"',
-            "hydra-core>=1.0.7,<1.1",
-            "omegaconf<2.1",
-            'numpy<1.20.0; python_version<"3.7"',
+            "hydra-core==1.2.0",
+            "omegaconf==2.2.2",
+            'numpy==1.21.1; python_version<"3.7"',
             'numpy; python_version>="3.7"',
             "regex",
-            "sacrebleu>=1.4.12",
+            "sacrebleu @ git+https://github.com/mjpost/sacrebleu.git@master",
+            "sentencepiece",
             "torch",
             "tqdm",
+            "typing_extensions",
             "bitarray",
             "torchaudio>=0.8.0",
+            "boto3",
+            "scikit-learn==0.24.1",
+            "scipy",
+            "submitit",
+            "soundfile",
+            "pyarrow",
+            "transformers",
+            "sklearn",
+            "iopath",
+            "editdistance",
+            "more_itertools",
+            "sacremoses",
+            "subword-nmt",
+            "fairscale",
         ],
         dependency_links=dependency_links,
         packages=find_packages(
@@ -223,6 +176,21 @@ def do_setup(package_data):
             ]
         )
         + extra_packages,
+        extras_require={
+            "dev": [
+                # NOTE: The version here should match the version in .pre-commit-config.yaml
+                "flake8==3.9.2",
+                "pre-commit",
+                # test deps
+                "pytest",
+                "ipdb",
+                "ipython",
+            ],
+            "gpu": [
+                "deepspeed",
+                "fastBPE",
+            ],
+        },
         package_data=package_data,
         ext_modules=extensions,
         test_suite="tests",

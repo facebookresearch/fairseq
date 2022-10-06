@@ -3,14 +3,14 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from typing import Dict, List, Optional
+
+import torch
+from torch import Tensor
+
 from fairseq.modules import TransformerDecoderLayer, TransformerEncoderLayer
 
 from . import build_monotonic_attention
-
-from typing import Dict, Optional, List
-
-from torch import Tensor
-import torch
 
 
 class TransformerMonotonicEncoderLayer(TransformerEncoderLayer):
@@ -29,8 +29,7 @@ class TransformerMonotonicDecoderLayer(TransformerDecoderLayer):
         self.encoder_attn = build_monotonic_attention(args)
 
     def prune_incremental_state(
-        self,
-        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]
+        self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]
     ):
         input_buffer = self.self_attn._get_input_buffer(incremental_state)
         for key in ["prev_key", "prev_value"]:

@@ -13,10 +13,10 @@ from fairseq.trainer import Trainer
 
 try:
     from fairseq.model_parallel.megatron.mpu import (
+        get_cuda_rng_tracker,
         get_data_parallel_rank,
         get_data_parallel_world_size,
         get_model_parallel_src_rank,
-        get_cuda_rng_tracker,
     )
 
     has_megatron_submodule = True
@@ -38,11 +38,11 @@ class MegatronTrainer(Trainer):
 
     def clip_grad_norm(self, clip_norm):
         def _aggregate_model_parallel_grad_norm(total_norm):
-            total_norm = total_norm ** 2
+            total_norm = total_norm**2
             distributed_utils.all_reduce(
                 total_norm, group=distributed_utils.get_model_parallel_group()
             )
-            total_norm = total_norm ** 0.5
+            total_norm = total_norm**0.5
             return total_norm
 
         return self.optimizer.clip_grad_norm(

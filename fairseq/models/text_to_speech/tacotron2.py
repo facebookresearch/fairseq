@@ -16,8 +16,7 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
-from fairseq.modules import LSTMCellWithZoneOut, LocationAttention
-
+from fairseq.modules import LocationAttention, LSTMCellWithZoneOut
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +88,7 @@ class Tacotron2Encoder(FairseqEncoder):
 
         return {
             "encoder_out": [x],  # B x T x C
-            "encoder_padding_mask": encoder_padding_mask,  # B x T
+            "encoder_padding_mask": [encoder_padding_mask],  # B x T
         }
 
 
@@ -250,7 +249,7 @@ class Tacotron2Decoder(FairseqIncrementalDecoder):
         target_lengths=None,
         **kwargs,
     ):
-        enc_mask = encoder_out["encoder_padding_mask"]
+        enc_mask = encoder_out["encoder_padding_mask"][0]
         enc_out = encoder_out["encoder_out"][0]
         in_len = enc_out.size(1)
 

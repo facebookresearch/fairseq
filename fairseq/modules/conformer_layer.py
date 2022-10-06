@@ -4,15 +4,22 @@
 # LICENSE file in the root directory of this source tree.
 
 
-import torch
 from typing import Optional
+
+import torch
+import torch.nn.functional as F
+from torch import Tensor, nn
+
+from fairseq import utils
+from fairseq.distributed import utils as dist_utils
 from fairseq.modules import (
+    ESPNETMultiHeadedAttention,
     LayerNorm,
     MultiheadAttention,
-    ESPNETMultiHeadedAttention,
     RelPositionMultiHeadedAttention,
     RotaryPositionMultiHeadedAttention,
 )
+from fairseq.modules.moe import MOELayer, Top1Gate, Top2Gate
 from fairseq.utils import get_activation_fn
 
 
@@ -141,7 +148,7 @@ class FeedForwardModule(torch.nn.Module):
         x = self.activation(x)
         x = self.dropout1(x)
         x = self.w_2(x)
-        return self.dropout2(x)
+        return self.dropout2(x), None
 
 
 class ConformerEncoderLayer(torch.nn.Module):
@@ -149,6 +156,7 @@ class ConformerEncoderLayer(torch.nn.Module):
 
     def __init__(
         self,
+        args,
         embed_dim,
         ffn_embed_dim,
         attention_heads,
@@ -158,6 +166,8 @@ class ConformerEncoderLayer(torch.nn.Module):
         activation_fn="swish",
         attn_type=None,
         pos_enc_type="abs",
+        is_moe_layer=False,
+        is_moe_ffn2=False,
     ):
         """
         Args:
@@ -173,12 +183,28 @@ class ConformerEncoderLayer(torch.nn.Module):
         self.pos_enc_type = pos_enc_type
         super(ConformerEncoderLayer, self).__init__()
 
-        self.ffn1 = FeedForwardModule(
-            embed_dim,
-            ffn_embed_dim,
-            dropout,
-            dropout,
-        )
+        if is_moe_layer:
+            if args.moe_top1_expert:
+                gate = Top1Gate(
+                    embed_dim,
+                    args.moe_expert_count,
+                    use_fp32=args.moe_gating_use_fp32,
+                    moe_eval_capacity_token_fraction=getattr(
+                        args, "moe_eval_capacity_token_fraction", 0.25
+                    ),
+                    use_tutel=getattr(args, "use_tutel_moe", False),
+                )
+            else:
+                gate = Top2Gate(
+                    embed_dim,
+                    args.moe_expert_count,
+                    args.moe_gating_use_fp32,
+                    args.moe_second_expert_policy,
+                    args.moe_normalize_gate_prob_before_dropping,
+                    getattr(args, "moe_eval_capacity_token_fraction", 0.25),
+                    getattr(args, "moe_batch_prioritized_routing", False),
+                    use_tutel=getattr(args, "use_tutel_moe", False),
+                )
 
         self.self_attn_layer_norm = LayerNorm(embed_dim, export=False)
         self.self_attn_dropout = torch.nn.Dropout(dropout)
@@ -217,13 +243,36 @@ class ConformerEncoderLayer(torch.nn.Module):
             activation_fn=activation_fn,
         )
 
-        self.ffn2 = FeedForwardModule(
-            embed_dim,
-            ffn_embed_dim,
-            dropout,
-            dropout,
-            activation_fn=activation_fn,
-        )
+        if is_moe_layer:
+            ffn_dim = args.encoder_ffn_embed_dim
+            self.ffn1 = MOELayer(
+                gate,
+                make_experts(args, embed_dim, ffn_dim, args.dropout, args.dropout),
+                args,
+                max_positions=getattr(args, "max_source_positions", None),
+            )
+        else:
+            self.ffn1 = FeedForwardModule(
+                embed_dim,
+                ffn_embed_dim,
+                dropout,
+                dropout,
+            )
+        if is_moe_layer and is_moe_ffn2:
+            self.ffn2 = MOELayer(
+                gate,
+                make_experts(args, embed_dim, ffn_dim, args.dropout, args.dropout),
+                args,
+                max_positions=getattr(args, "max_source_positions", None),
+            )
+        else:
+            self.ffn2 = FeedForwardModule(
+                embed_dim,
+                ffn_embed_dim,
+                dropout,
+                dropout,
+                activation_fn=activation_fn,
+            )
         self.final_layer_norm = LayerNorm(embed_dim, export=False)
 
     def forward(
@@ -241,7 +290,7 @@ class ConformerEncoderLayer(torch.nn.Module):
             Tensor of shape T X B X C
         """
         residual = x
-        x = self.ffn1(x)
+        x, _ = self.ffn1(x)
         x = x * 0.5 + residual
         residual = x
         x = self.self_attn_layer_norm(x)
@@ -274,7 +323,7 @@ class ConformerEncoderLayer(torch.nn.Module):
         x = residual + x
 
         residual = x
-        x = self.ffn2(x)
+        x, _ = self.ffn2(x)
 
         layer_result = x
 
@@ -297,3 +346,39 @@ class ConformerWav2Vec2EncoderLayer(ConformerEncoderLayer):
         position_emb=None,
     ):
         return super().forward(x, self_attn_padding_mask, position_emb)
+
+
+def make_experts(args, embed_dim, expert_ffn_dim, dropout1, dropout2) -> nn.ModuleList:
+    world_size = (
+        1
+        if not torch.distributed.is_initialized()
+        else torch.distributed.get_world_size()
+    )
+    expert_list = []
+    ddp_rank = dist_utils.get_data_parallel_rank()
+    start_seed = torch.randint(1000000, (1,)).item()
+    # at least as many experts than gpus
+    if args.moe_expert_count >= world_size:
+        assert (
+            args.moe_expert_count % world_size == 0
+        ), f"{args.moe_expert_count}, {world_size}"
+        local_moe_expert_count = args.moe_expert_count // world_size
+        for i in range(local_moe_expert_count):
+            with utils.set_torch_seed(
+                start_seed + ddp_rank * local_moe_expert_count + i
+            ):
+                expert_list.append(
+                    FeedForwardModule(embed_dim, expert_ffn_dim, dropout1, dropout2)
+                )
+    # less experts than gpus
+    else:
+        assert (
+            world_size % args.moe_expert_count == 0
+        ), f"{world_size}, {args.moe_expert_count}"
+        # initialize each FFN with the same seed on different GPUs
+        with utils.set_torch_seed(start_seed + ddp_rank % args.moe_expert_count):
+            expert_list.append(
+                FeedForwardModule(embed_dim, expert_ffn_dim, dropout1, dropout2)
+            )
+    experts = nn.ModuleList(expert_list)
+    return experts

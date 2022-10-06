@@ -34,4 +34,3 @@ if [ ! -z $ref_txt ] && $get_best_wer; then
   done
 fi
 wait
-

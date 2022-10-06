@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from dataclasses import dataclass, field
+
 import torch
 from omegaconf import II
 
@@ -14,7 +15,6 @@ from fairseq.tasks.translation import TranslationConfig, TranslationTask
 
 from .logsumexp_moe import LogSumExpMoE
 from .mean_pool_gating_network import MeanPoolGatingNetwork
-
 
 METHOD_CHOICES = ChoiceEnum(["sMoElp", "sMoEup", "hMoElp", "hMoEup"])
 
@@ -122,7 +122,9 @@ class TranslationMoETask(TranslationTask):
                 elif getattr(cfg, "dropout", None):
                     dropout = cfg.dropout
                 else:
-                    raise ValueError("Must specify task.mean_pool_gating_network_dropout")
+                    raise ValueError(
+                        "Must specify task.mean_pool_gating_network_dropout"
+                    )
 
                 model.gating_network = MeanPoolGatingNetwork(
                     encoder_dim,

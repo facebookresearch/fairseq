@@ -8,14 +8,15 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 import torch
+
 from fairseq.dataclass import FairseqDataclass
 from fairseq.models import (
     FairseqIncrementalDecoder,
     FairseqLanguageModel,
     register_model,
 )
-from .adaptive_span_model import TransformerSeq as AdaptiveSpanTransformerModel
 
+from .adaptive_span_model import TransformerSeq as AdaptiveSpanTransformerModel
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +95,10 @@ class AdaptiveSpanDecoder(FairseqIncrementalDecoder):
         if mems is None:
             # first time init
             mems = self.init_hid_cache(bsz)
-        output = self.model(x=src_tokens, h_cache=mems,)
+        output = self.model(
+            x=src_tokens,
+            h_cache=mems,
+        )
         if incremental_state is not None:
             self.set_incremental_state(incremental_state, "mems", output[1])
         else:

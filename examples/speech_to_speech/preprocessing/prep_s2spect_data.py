@@ -7,19 +7,22 @@
 import argparse
 import logging
 import os
-from pathlib import Path
 import shutil
-import torchaudio
+from pathlib import Path
 
-import soundfile as sf
-from tqdm import tqdm
 import pandas as pd
+import soundfile as sf
+import torchaudio
+from tqdm import tqdm
 
 from examples.speech_synthesis.data_utils import extract_logmel_spectrogram
 from examples.speech_to_speech.preprocessing.data_utils import gen_config_yaml
-from examples.speech_to_text.data_utils import create_zip, get_zip_manifest, save_df_to_tsv
+from examples.speech_to_text.data_utils import (
+    create_zip,
+    get_zip_manifest,
+    save_df_to_tsv,
+)
 from fairseq.data.audio.audio_utils import convert_waveform
-
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +44,21 @@ def prepare_target_data(args, tgt_audios):
         sample_id = tgt_audio.stem
         waveform, sample_rate = torchaudio.load(tgt_audio.as_posix())
         waveform, sample_rate = convert_waveform(
-            waveform, sample_rate, normalize_volume=args.normalize_volume,
-            to_sample_rate=args.sample_rate
+            waveform,
+            sample_rate,
+            normalize_volume=args.normalize_volume,
+            to_sample_rate=args.sample_rate,
         )
         extract_logmel_spectrogram(
-            waveform, sample_rate, feature_root / f"{sample_id}.npy",
-            win_length=args.win_length, hop_length=args.hop_length,
-            n_fft=args.n_fft, n_mels=args.n_mels, f_min=args.f_min,
-            f_max=args.f_max
+            waveform,
+            sample_rate,
+            feature_root / f"{sample_id}.npy",
+            win_length=args.win_length,
+            hop_length=args.hop_length,
+            n_fft=args.n_fft,
+            n_mels=args.n_mels,
+            f_min=args.f_min,
+            f_max=args.f_max,
         )
     print("ZIPing features...")
     create_zip(feature_root, zip_path)
@@ -116,12 +126,17 @@ def process(args):
         "features": {
             "type": "spectrogram+melscale+log",
             "sample_rate": args.sample_rate,
-            "eps": 1e-5, "n_mels": args.n_mels, "n_fft": args.n_fft,
-            "window_fn": "hann", "win_length": args.win_length,
+            "eps": 1e-5,
+            "n_mels": args.n_mels,
+            "n_fft": args.n_fft,
+            "window_fn": "hann",
+            "win_length": args.win_length,
             "hop_length": args.hop_length,
-            "win_len_t": win_len_t, "hop_len_t": hop_len_t,
-            "f_min": args.f_min, "f_max": args.f_max,
-            "n_stft": args.n_fft // 2 + 1
+            "win_len_t": win_len_t,
+            "hop_len_t": hop_len_t,
+            "f_min": args.f_min,
+            "f_max": args.f_max,
+            "n_stft": args.n_fft // 2 + 1,
         }
     }
     gen_config_yaml(

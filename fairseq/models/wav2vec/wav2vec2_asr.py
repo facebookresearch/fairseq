@@ -21,6 +21,8 @@ from omegaconf import II, MISSING, open_dict
 from fairseq import checkpoint_utils, tasks, utils
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
+from fairseq.distributed import fsdp_wrap
+from fairseq.distributed import utils as dist_utils
 from fairseq.models import (
     BaseFairseqModel,
     FairseqEncoder,
@@ -146,6 +148,12 @@ class Wav2Vec2AsrConfig(FairseqDataclass):
     freeze_finetune_updates: int = field(
         default=0, metadata={"help": "dont finetune wav2vec for this many updates"}
     )
+    alternating_freeze_finetune_updates: int = field(
+        default=0,
+        metadata={
+            "help": "alternating between freezing & updating encoder every this many updates"
+        },
+    )
     feature_grad_mult: float = field(
         default=0.0, metadata={"help": "reset feature grad mult in wav2vec 2.0 to this"}
     )
@@ -231,7 +239,7 @@ class Wav2VecCtc(BaseFairseqModel):
 
         return logits
 
-    def get_normalized_probs(self, net_output, log_probs):
+    def get_normalized_probs(self, net_output, log_probs, sample=None):
         """Get normalized probabilities (or log probs) from a net's output."""
 
         logits = self.get_logits(net_output)
@@ -371,6 +379,8 @@ class Wav2VecEncoder(FairseqEncoder):
             "checkpoint_activations": cfg.checkpoint_activations,
             "offload_activations": cfg.offload_activations,
             "min_params_to_wrap": cfg.min_params_to_wrap,
+            "not_fsdp_flatten_parameters": True,
+            "ddp_backend": cfg.ddp_backend,
         }
 
         if cfg.w2v_args is None:
@@ -418,6 +428,9 @@ class Wav2VecEncoder(FairseqEncoder):
         self.w2v_model = model
 
         self.final_dropout = nn.Dropout(cfg.final_dropout)
+        self.alternating_freeze_finetune_updates = (
+            cfg.alternating_freeze_finetune_updates
+        )
         self.freeze_finetune_updates = cfg.freeze_finetune_updates
         self.num_updates = 0
 
@@ -446,10 +459,12 @@ class Wav2VecEncoder(FairseqEncoder):
                         for (k, v) in state["model"].items()
                         if name + "." in k
                     }
-                    assert isinstance(module, FullyShardedDataParallel)
-                    with module.summon_full_params():
-                        module.load_state_dict(new_dict, strict=True)
-                    module._reset_lazy_init()
+                    # assert isinstance(module, FullyShardedDataParallel), module
+                    module.load_state_dict(new_dict, strict=True)
+                    try:
+                        module._reset_lazy_init()
+                    except:
+                        pass
 
             # Once layers are loaded, filter them out and load everything else.
             r = re.compile("encoder.layers.\d.")
@@ -479,6 +494,10 @@ class Wav2VecEncoder(FairseqEncoder):
         }
 
         ft = self.freeze_finetune_updates <= self.num_updates
+        if self.alternating_freeze_finetune_updates > 0:
+            ft = ft & (
+                (self.num_updates // self.alternating_freeze_finetune_updates) % 2 == 0
+            )
 
         with torch.no_grad() if not ft else contextlib.ExitStack():
             res = self.w2v_model.extract_features(**w2v_args)

@@ -110,6 +110,13 @@ class TransformerConfig(FairseqDataclass):
             "alias": "--relu-dropout",
         },
     )
+    moe_eom: float = field(
+        default=0.0,
+        metadata={"help": "Masking rate for MoE expert output masking (EOM)"},
+    )
+    moe_fom: float = field(
+        default=0.0, metadata={"help": "Masking rate for Final output masking (FOM)"}
+    )
     adaptive_input: bool = False
     encoder: EncDecBaseConfig = EncDecBaseConfig()
     # TODO should really be in the encoder config
@@ -190,6 +197,7 @@ class TransformerConfig(FairseqDataclass):
     )
     # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
     quant_noise: QuantNoiseConfig = field(default=QuantNoiseConfig())
+
     min_params_to_wrap: int = field(
         default=DEFAULT_MIN_PARAMS_TO_WRAP,
         metadata={
@@ -218,9 +226,164 @@ class TransformerConfig(FairseqDataclass):
         metadata={"help": "shuffle tokens between workers before computing assignment"},
     )
 
+    # Mixture of Expert Layer arguments
+    alternate_ffn_embed_dim: int = field(
+        default=0,
+        metadata={"help": "FFN embed dim of alternate pseudo-MoE blocks"},
+    )
+    alternate_decoder_ffn_embed_dim: int = field(
+        default=0,
+        metadata={"help": "decoder FFN embed dim of alternate decoder layers"},
+    )
+    moe_freq: int = field(
+        default=0,
+        metadata={"help": "Frequency at which we insert MoE Transformer layers"},
+    )
+    encoder_moe_freq: int = field(
+        default=0,
+        metadata={
+            "help": "Frequency at which we insert MoE Transformer encoder layers"
+        },
+    )
+    decoder_moe_freq: int = field(
+        default=0,
+        metadata={
+            "help": "Frequency at which we insert MoE Transformer decoder layers"
+        },
+    )
+    moe_expert_count: int = field(
+        default=0, metadata={"help": "Number of experts in each MoE Layer"}
+    )
+    moe_gating_use_fp32: bool = field(
+        default=False,
+        metadata={"help": "Use FP32 computations in MoE top2 gating function"},
+    )
+    moe_second_expert_policy: str = field(
+        default="sampling",
+        metadata={"help": "policy for second expert, options: all/sampling/random"},
+    )
+    moe_normalize_gate_prob_before_dropping: bool = field(
+        default=False,
+        metadata={
+            "help": "whether to normalize gate probs before or after dropping experts for capacity and randomization"
+        },
+    )
+    moe_local_drop: float = field(
+        default=0.0,
+        metadata={"help": "Probability of gating drop out to local experts"},
+    )
+    moe_expert_ffn_dim: Optional[int] = field(
+        default=None, metadata={"help": "MoE expert FFN dimension"}
+    )
+    moe_top1_expert: Optional[bool] = field(
+        default=False, metadata={"help": "Use top1 gate instead of top2"}
+    )
+    moe_eval_capacity_token_fraction: Optional[float] = field(
+        default=0.25,
+        metadata={
+            "help": "Default: 0.25, Fraction of tokens as capacity during validation, if set to negative, use same as training. range: (0.0, 1.0]."
+        },
+    )
+    moe_normalize_expert_grad: Optional[str] = field(
+        default="world_size",
+        metadata={
+            "help": "Divide expert gradients by (1) 'world_size' (2) 'sqrt_world_size'"
+        },
+    )
+    use_moe_pad_mask: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Don't route padding tokens to any expert",
+        },
+    )
+    record_a2a_perf_stats: Optional[bool] = field(
+        default=False,
+        metadata={"help": "records all to all perf stats during distributed training"},
+    )
+    dummy_a2a: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "By passes all to all during distributed training by returning the input buffer as output"
+        },
+    )
+    moe_batch_prioritized_routing: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "if true orders token by the gate prob before capacity dropping."
+        },
+    )
+    pass_tokens_transformer_layer: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Pass source or masked previous output tokens to the transformer layer."
+        },
+    )
+    moe_cmr: Optional[bool] = field(
+        default=False, metadata={"help": "If true enables CMR gating"}
+    )
+    cmr_log_lang_gates: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "whether to log per-lang fraction of tokens routed to MOE vs. CMR"
+        },
+    )
+    cmr_gate_drop: Optional[float] = field(
+        default=0.0, metadata={"help": "CMR gate dropout rate"}
+    )
+
+    # NormFormer
+    scale_fc: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Insert LayerNorm between fully connected layers",
+        },
+    )
+    scale_attn: Optional[bool] = field(
+        default=False, metadata={"help": "Insert LayerNorm after attention"}
+    )
+    scale_heads: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Learn a scale coefficient for each attention head"},
+    )
+    scale_heads_inside: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Learn a scale coefficient for each attention head. Doing the math inside the attention head is slower"
+        },
+    )
+    scale_resids: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Learn a scale coefficient for each residual connection"},
+    )
+    use_stable_embedding: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Use bitsandbytes StableEmbeddingLayer which saves embedding state in fp32",
+            "argparse_alias": "--stable-emb",
+        },
+    )
+
     export: bool = field(
         default=False,
         metadata={"help": "make the layernorm exportable with torchscript."},
+    )
+
+    alibi: bool = field(
+        default=False,
+        metadata={
+            "help": "use the ALiBi position method instead of regular position embeddings"
+        },
+    )
+    use_fused_softmax: bool = field(
+        default=False, metadata={"help": "use Megatron softmax kernel"}
+    )
+
+    no_emb_dropout: Optional[bool] = field(
+        default=False, metadata={"help": "Avoid emb dropout for decoder"}
+    )
+
+    init_model_on_gpu: Optional[bool] = field(
+        default=False, metadata={"help": "Initialize model on GPUs."}
     )
 
     # copied from transformer_lm but expected in transformer_decoder:
@@ -229,6 +392,24 @@ class TransformerConfig(FairseqDataclass):
         metadata={"help": "don't add an extra layernorm after the last decoder block"},
     )
 
+    memory_efficient_fp16: bool = II("common.memory_efficient_fp16")
+    fp16: bool = II("common.fp16")
+    fp16_no_flatten_grads: bool = II("common.fp16_no_flatten_grads")
+    ddp_backend: str = II("distributed_training.ddp_backend")
+    world_size: int = II("distributed_training.distributed_world_size")
+    distributed_rank: int = II("distributed_training.distributed_rank")
+    batch_size: Optional[int] = II("dataset.batch_size")
+    batch_size_valid: Optional[int] = II("dataset.batch_size_valid")
+    # use_tutel_moe: bool = II("common.use_tutel_moe")
+    use_tutel_moe: bool = field(
+        default=False,
+        metadata={"help": "use tutel moe"},
+    )
+
+    analyse_moe_gating: bool = field(
+        default=False,
+        metadata={"help": "used to output more stats when analysing MoE models"},
+    )
     # We need to make this hierarchical dataclass like the flat namespace
     # __getattr__ and __setattr__ here allow backward compatibility
     # for subclasses of Transformer(Legacy) that depend on read/write on

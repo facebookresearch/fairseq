@@ -46,7 +46,7 @@ class LabelSmoothedCrossEntropyWithCtcCriterion(LabelSmoothedCrossEntropyCriteri
 
     def forward(self, model, sample, reduce=True):
         net_output = model(**sample["net_input"])
-        loss, nll_loss = self.compute_loss(model, net_output, sample, reduce=reduce)
+        loss, nll_loss, _ = self.compute_loss(model, net_output, sample, reduce=reduce)
 
         ctc_loss = torch.tensor(0.0).type_as(loss)
         if self.ctc_weight > 0.0:

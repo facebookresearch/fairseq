@@ -1,0 +1,32 @@
+bin_root: non_flores_v4.2/lafand
+
+sampled:
+ - eng_Latn-hau_Latn
+
+all:
+  - eng_Latn-hau_Latn
+  - eng_Latn-ibo_Latn
+  - eng_Latn-lug_Latn
+  - eng_Latn-luo_Latn
+  - eng_Latn-swh_Latn
+  - eng_Latn-tsn_Latn
+  - eng_Latn-yor_Latn
+  - eng_Latn-zul_Latn
+  - hau_Latn-eng_Latn
+  - ibo_Latn-eng_Latn
+  - lug_Latn-eng_Latn
+  - luo_Latn-eng_Latn
+  - swh_Latn-eng_Latn
+  - tsn_Latn-eng_Latn
+  - yor_Latn-eng_Latn
+  - zul_Latn-eng_Latn
+  - fra_Latn-bam_Latn
+  - fra_Latn-ewe_Latn
+  - fra_Latn-fon_Latn
+  - fra_Latn-mos_Latn
+  - fra_Latn-wol_Latn
+  - bam_Latn-fra_Latn
+  - ewe_Latn-fra_Latn
+  - fon_Latn-fra_Latn
+  - mos_Latn-fra_Latn
+  - wol_Latn-fra_Latn

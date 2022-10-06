@@ -1,0 +1,14 @@
+defaults:
+  - default
+
+dataset_name: "flores200.ablation.v4.2"
+num_shards: 8
+langs_file: "examples/nllb/modeling/scripts/flores200_ablation/langs.txt"
+lang_pairs_file: "examples/nllb/modeling/scripts/flores200_ablation/lang_pairs.txt"
+data_prefix:
+  example: /data/nllb/flores200.en_xx_en.v4.2.256k/data_bin
+
+mono_num_shards: 8
+mono_data_prefix:
+  example: /data/nllb/flores200.monolingual.v1.256k/data_bin
+mono_langs: ace_Latn,afr,ara_Arab,ast,ayr,bel,bul,cjk,cym,eng,eus,ewe,fas,fin,fon,fra,fuv,hau,hin,isl,ita,jpn,kea,kik,kin,kon,kor,lav,lin,luo,mal,mar,nso,oci,por,run,rus,sin,snd,swh,tam,tat_Cyrl,tel,tir,tsn,tso,twi,urd,vie,wol,yor,zho_Hans

@@ -5,25 +5,26 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
+from typing import Dict, List
+
+from torch import Tensor, nn
+
 from fairseq import checkpoint_utils
-from fairseq.models import (
-    register_model,
-    register_model_architecture,
-)
+from fairseq.models import register_model, register_model_architecture
 from fairseq.models.speech_to_text import (
+    ConvTransformerEncoder,
     ConvTransformerModel,
     convtransformer_espnet,
-    ConvTransformerEncoder,
 )
 from fairseq.models.speech_to_text.modules.augmented_memory_attention import (
-    augmented_memory,
-    SequenceEncoder,
     AugmentedMemoryConvTransformerEncoder,
+    SequenceEncoder,
+    augmented_memory,
+)
+from fairseq.models.speech_to_text.modules.emformer import (
+    NoSegAugmentedMemoryTransformerEncoderLayer,
 )
 
-from torch import nn, Tensor
-from typing import Dict, List
-from fairseq.models.speech_to_text.modules.emformer import NoSegAugmentedMemoryTransformerEncoderLayer
 
 @register_model("convtransformer_simul_trans")
 class SimulConvTransformerModel(ConvTransformerModel):
@@ -129,7 +130,9 @@ class ConvTransformerEmformerEncoder(ConvTransformerEncoder):
         self.conv_transformer_encoder = ConvTransformerEncoder(args)
 
     def forward(self, src_tokens, src_lengths):
-        encoder_out: Dict[str, List[Tensor]] = self.conv_transformer_encoder(src_tokens, src_lengths.to(src_tokens.device))
+        encoder_out: Dict[str, List[Tensor]] = self.conv_transformer_encoder(
+            src_tokens, src_lengths.to(src_tokens.device)
+        )
         output = encoder_out["encoder_out"][0]
         encoder_padding_masks = encoder_out["encoder_padding_mask"]
 
@@ -137,7 +140,8 @@ class ConvTransformerEmformerEncoder(ConvTransformerEncoder):
             "encoder_out": [output],
             # This is because that in the original implementation
             # the output didn't consider the last segment as right context.
-            "encoder_padding_mask": [encoder_padding_masks[0][:, : output.size(0)]] if len(encoder_padding_masks) > 0
+            "encoder_padding_mask": [encoder_padding_masks[0][:, : output.size(0)]]
+            if len(encoder_padding_masks) > 0
             else [],
             "encoder_embedding": [],
             "encoder_states": [],

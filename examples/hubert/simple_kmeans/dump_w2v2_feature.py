@@ -7,13 +7,12 @@ import logging
 import os
 import sys
 
-import fairseq
 import soundfile as sf
 import torch
 import torch.nn.functional as F
+from feature_utils import dump_feature, get_path_iterator
 
-from feature_utils import get_path_iterator, dump_feature
-
+import fairseq
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -59,7 +58,7 @@ class Wav2Vec2FeatureReader(object):
 
             feat = []
             for start in range(0, x.size(1), self.max_chunk):
-                x_chunk = x[:, start: start + self.max_chunk]
+                x_chunk = x[:, start : start + self.max_chunk]
                 res = self.model.extract_features(
                     source=x_chunk,
                     padding_mask=None,

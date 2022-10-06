@@ -13,7 +13,6 @@ from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import ChoiceEnum, FairseqDataclass
 
-
 _EPSILON = torch.finfo(torch.float32).eps
 TARGET_DIST_NORM_CHOICES = ChoiceEnum(["none", "minmax"])
 
@@ -41,7 +40,11 @@ class KLDivergenceRerankingCriterionConfig(FairseqDataclass):
 )
 class KLDivergenceRerankingCriterion(FairseqCriterion):
     def __init__(
-        self, task, target_dist_norm, temperature, forward_batch_size,
+        self,
+        task,
+        target_dist_norm,
+        temperature,
+        forward_batch_size,
     ):
         super().__init__(task)
         self.target_dist_norm = target_dist_norm

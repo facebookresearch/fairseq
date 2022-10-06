@@ -17,10 +17,10 @@ import sys
 import editdistance
 import numpy as np
 import torch
+
 from fairseq import checkpoint_utils, options, progress_bar, tasks, utils
 from fairseq.data.data_utils import post_process
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
-
 
 logging.basicConfig()
 logging.root.setLevel(logging.INFO)
@@ -244,7 +244,6 @@ def main(args, task=None, model_state=None):
         )
         optimize_models(args, use_cuda, models)
         task.load_dataset(args.gen_subset, task_cfg=saved_cfg.task)
-
 
     # Set dictionary
     tgt_dict = task.target_dictionary

@@ -5,17 +5,16 @@
 
 import argparse
 import logging
-import numpy as np
 import re
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from torchaudio.datasets import VCTK
 from tqdm import tqdm
 
 from examples.speech_to_text.data_utils import save_df_to_tsv
-
 
 log = logging.getLogger(__name__)
 
@@ -23,7 +22,7 @@ SPLITS = ["train", "dev", "test"]
 
 
 def normalize_text(text):
-    return re.sub(r"[^a-zA-Z.?!,'\- ]", '', text)
+    return re.sub(r"[^a-zA-Z.?!,'\- ]", "", text)
 
 
 def process(args):
@@ -59,7 +58,7 @@ def process(args):
     for _split in SPLITS:
         save_df_to_tsv(
             pd.DataFrame.from_dict(manifest_by_split[_split]),
-            manifest_root / f"{_split}.audio.tsv"
+            manifest_root / f"{_split}.audio.tsv",
         )
 
 

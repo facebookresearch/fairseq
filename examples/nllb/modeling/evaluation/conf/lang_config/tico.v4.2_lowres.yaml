@@ -1,0 +1,10 @@
+bin_root: non_flores_v4.2/tico
+
+sampled:
+  - eng-hau
+all:
+    - eng-hau
+    - eng-lin
+    - eng-mar
+    - eng-tir
+    - eng-urd

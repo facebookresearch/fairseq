@@ -7,15 +7,15 @@
 import argparse
 import os
 import os.path as osp
-import tqdm
-import torch
-import torch.nn.functional as F
 from shutil import copyfile
 
+import soundfile as sf
+import torch
+import torch.nn.functional as F
+import tqdm
 from npy_append_array import NpyAppendArray
 
 import fairseq
-import soundfile as sf
 
 
 def get_parser():
@@ -62,7 +62,9 @@ class Wav2VecFeatureReader(object):
                     source = F.layer_norm(source, source.shape)
             source = source.view(1, -1)
 
-            m_res = self.model(source=source, mask=False, features_only=True, layer=self.layer)
+            m_res = self.model(
+                source=source, mask=False, features_only=True, layer=self.layer
+            )
             return m_res["x"].squeeze(0).cpu()
 
 

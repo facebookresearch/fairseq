@@ -12,12 +12,14 @@ on the aggregation context in which the logging occurs. See the
 """
 
 import contextlib
+import logging
+import subprocess
+import time
 import uuid
 from collections import defaultdict
 from typing import Callable, List, Optional
 
 from .meters import *
-
 
 # Aggregation contexts are considered "active" when inside the scope
 # created by the :func:`aggregate` context manager.
@@ -314,3 +316,37 @@ def xla_metrics_report():
         print(met.metrics_report())
     except ImportError:
         return
+
+
+def nvidia_smi_gpu_memory_stats():
+    """
+    Parse the nvidia-smi output and extract the memory used stats.
+    """
+    out_dict = {}
+    try:
+        sp = subprocess.Popen(
+            ["nvidia-smi", "--query-gpu=index,memory.used", "--format=csv,noheader"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            close_fds=True,
+        )
+        out_str = sp.communicate()
+        out_list = out_str[0].decode("utf-8").split("\n")
+        out_dict = {}
+        for item in out_list:
+            if " MiB" in item:
+                gpu_idx, mem_used = item.split(",")
+                gpu_key = f"gpu_{gpu_idx}_mem_used_gb"
+                out_dict[gpu_key] = int(mem_used.strip().split(" ")[0]) / 1024
+    except FileNotFoundError:
+        logging.error(
+            "Failed to find the 'nvidia-smi' executable for printing GPU stats"
+        )
+    except subprocess.CalledProcessError as e:
+        logging.error(f"nvidia-smi returned non zero error code: {e.returncode}")
+
+    return out_dict
+
+
+def get_nvidia_smi_gpu_memory_stats_str():
+    return "nvidia-smi stats: {}".format(nvidia_smi_gpu_memory_stats())

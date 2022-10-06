@@ -13,6 +13,9 @@ from typing import Dict, List, Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from omegaconf import DictConfig
+from torch import Tensor
+
 from fairseq import utils
 from fairseq.data import Dictionary
 from fairseq.dataclass.utils import (
@@ -20,9 +23,6 @@ from fairseq.dataclass.utils import (
     gen_parser_from_dataclass,
 )
 from fairseq.models import FairseqDecoder, FairseqEncoder
-from omegaconf import DictConfig
-from torch import Tensor
-
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +160,9 @@ class BaseFairseqModel(nn.Module):
             if hasattr(m, "set_num_updates") and m != self:
                 m.set_num_updates(num_updates)
 
-    def prepare_for_inference_(self, cfg: DictConfig):
+    def prepare_for_inference_(self, cfg: DictConfig, moe_disable_padding=True):
+        from fairseq.modules.moe import MOELayer
+
         """Prepare model for inference."""
         kwargs = {}
         kwargs["beamable_mm_beam_size"] = (
@@ -173,6 +175,9 @@ class BaseFairseqModel(nn.Module):
             kwargs["retain_dropout"] = cfg.generation.retain_dropout
             kwargs["retain_dropout_modules"] = cfg.generation.retain_dropout_modules
         self.make_generation_fast_(**kwargs)
+        for n, m in self.named_modules():
+            if isinstance(m, MOELayer) and moe_disable_padding:
+                m.prepare_for_inference_()
 
     def make_generation_fast_(self, **kwargs):
         """
@@ -239,6 +244,8 @@ class BaseFairseqModel(nn.Module):
         model_name_or_path,
         checkpoint_file="model.pt",
         data_name_or_path=".",
+        moe_disable_padding=True,
+        skip_prepare_for_inference=False,
         **kwargs,
     ):
         """
@@ -272,7 +279,13 @@ class BaseFairseqModel(nn.Module):
             **kwargs,
         )
         logger.info(x["args"])
-        return hub_utils.GeneratorHubInterface(x["args"], x["task"], x["models"])
+        return hub_utils.GeneratorHubInterface(
+            x["args"],
+            x["task"],
+            x["models"],
+            moe_disable_padding=moe_disable_padding,
+            skip_prepare_for_inference=skip_prepare_for_inference,
+        )
 
     @classmethod
     def hub_models(cls):

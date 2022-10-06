@@ -220,7 +220,7 @@ class FastSpeech2Encoder(FairseqEncoder):
     def __init__(self, args, src_dict, embed_speaker):
         super().__init__(src_dict)
         self.args = args
-        self.padding_idx = src_dict.pad()
+        self.padding_idx = src_dict.pad() if src_dict is not None else 1
         self.n_frames_per_step = args.n_frames_per_step
         self.out_dim = args.output_frame_dim * args.n_frames_per_step
 
@@ -234,14 +234,17 @@ class FastSpeech2Encoder(FairseqEncoder):
         self.dropout_module = FairseqDropout(
             p=args.dropout, module_name=self.__class__.__name__
         )
-        self.embed_tokens = Embedding(
-            len(src_dict), args.encoder_embed_dim, padding_idx=self.padding_idx
-        )
+        if src_dict is None:
+            self.embed_tokens = None
+        else:
+            self.embed_tokens = Embedding(
+                len(src_dict), args.encoder_embed_dim, padding_idx=self.padding_idx
+            )
 
-        self.embed_positions = PositionalEmbedding(
-            args.max_source_positions, args.encoder_embed_dim, self.padding_idx
-        )
-        self.pos_emb_alpha = nn.Parameter(torch.ones(1))
+            self.embed_positions = PositionalEmbedding(
+                args.max_source_positions, args.encoder_embed_dim, self.padding_idx
+            )
+            self.pos_emb_alpha = nn.Parameter(torch.ones(1))
         self.dec_pos_emb_alpha = nn.Parameter(torch.ones(1))
 
         self.encoder_fft_layers = nn.ModuleList(
@@ -294,11 +297,14 @@ class FastSpeech2Encoder(FairseqEncoder):
         energies=None,
         **kwargs,
     ):
-        x = self.embed_tokens(src_tokens)
+        if self.embed_tokens is None:
+            x = src_tokens
+        else:
+            x = self.embed_tokens(src_tokens)
 
-        enc_padding_mask = src_tokens.eq(self.padding_idx)
-        x += self.pos_emb_alpha * self.embed_positions(enc_padding_mask)
-        x = self.dropout_module(x)
+            enc_padding_mask = src_tokens.eq(self.padding_idx)
+            x += self.pos_emb_alpha * self.embed_positions(enc_padding_mask)
+            x = self.dropout_module(x)
 
         for layer in self.encoder_fft_layers:
             x = layer(x, enc_padding_mask)

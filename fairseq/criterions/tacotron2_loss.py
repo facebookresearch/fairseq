@@ -37,6 +37,10 @@ class Tacotron2CriterionConfig(FairseqDataclass):
         metadata={"help": "weight of positive examples for BCE loss"},
     )
     ctc_weight: float = field(default=0.0, metadata={"help": "weight for CTC loss"})
+    rdrop_alpha: float = field(
+        default=0.0,
+        metadata={"help": "alpha for r-drop, 0 means no r-drop"},
+    )
     sentence_avg: bool = II("optimization.sentence_avg")
 
 
@@ -90,6 +94,7 @@ class Tacotron2Criterion(FairseqCriterion):
         guided_attention_loss_sigma,
         bce_pos_weight,
         ctc_weight,
+        rdrop_alpha,
     ):
         super().__init__(task)
         self.sentence_avg = sentence_avg
@@ -99,6 +104,7 @@ class Tacotron2Criterion(FairseqCriterion):
         if use_guided_attention_loss:
             self.guided_attn = GuidedAttentionLoss(guided_attention_loss_sigma)
         self.ctc_weight = ctc_weight
+        self.rdrop_alpha = rdrop_alpha
 
     def forward(self, model, sample, reduction="mean"):
         bsz, max_len, _ = sample["target"].size()
@@ -176,6 +182,10 @@ class Tacotron2Criterion(FairseqCriterion):
         tgt_lens,
         reduction="mean",
     ):
+        if self.rdrop_alpha > 0:
+            feat_tgt = torch.cat([feat_tgt, feat_tgt.clone()], dim=0)
+            eos_tgt = torch.cat([eos_tgt, eos_tgt.clone()], dim=0)
+            tgt_lens = torch.cat([tgt_lens, tgt_lens.clone()], dim=0)
         mask = lengths_to_mask(tgt_lens)
         _eos_out = eos_out[mask].squeeze()
         _eos_tgt = eos_tgt[mask]
@@ -224,3 +234,42 @@ class Tacotron2Criterion(FairseqCriterion):
     @staticmethod
     def logging_outputs_can_be_summed() -> bool:
         return False
+
+
+def compute_kl_loss(feat_out, feat_out_post, eos_out, bce_pos_weight, reduction="mean"):
+    feat_out = feat_out.view(-1, feat_out.size(-1))
+    feat_out_post = feat_out_post.view(-1, feat_out_post.size(-1))
+
+    p, q = torch.split(feat_out, feat_out.size(0) // 2, dim=0)
+    p_post, q_post = torch.split(feat_out_post, feat_out_post.size(0) // 2, dim=0)
+    p_eos, q_eos = torch.split(eos_out, eos_out.size(0) // 2, dim=0)
+
+    l1_loss_p = F.l1_loss(p, q, reduction=reduction) + F.l1_loss(
+        p_post, q_post, reduction=reduction
+    )
+    l1_loss_q = F.l1_loss(q, p, reduction=reduction) + F.l1_loss(
+        q_post, p_post, reduction=reduction
+    )
+    mse_loss_p = F.mse_loss(p, q, reduction=reduction) + F.mse_loss(
+        p_post, q_post, reduction=reduction
+    )
+    mse_loss_q = F.mse_loss(q, p, reduction=reduction) + F.mse_loss(
+        q_post, p_post, reduction=reduction
+    )
+    eos_loss_p = F.binary_cross_entropy_with_logits(
+        p_eos,
+        q_eos,
+        pos_weight=torch.tensor(bce_pos_weight),
+        reduction=reduction,
+    )
+    eos_loss_q = F.binary_cross_entropy_with_logits(
+        q_eos,
+        p_eos,
+        pos_weight=torch.tensor(bce_pos_weight),
+        reduction=reduction,
+    )
+
+    loss = (
+        l1_loss_p + l1_loss_q + mse_loss_p + mse_loss_q + eos_loss_p + eos_loss_q
+    ) / 2
+    return loss

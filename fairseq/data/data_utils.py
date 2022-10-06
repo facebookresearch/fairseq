@@ -7,9 +7,11 @@ try:
     from collections.abc import Iterable
 except ImportError:
     from collections import Iterable
+
 import contextlib
 import itertools
 import logging
+import os
 import re
 import warnings
 from typing import Optional, Tuple
@@ -17,9 +19,8 @@ from typing import Optional, Tuple
 import numpy as np
 import torch
 
-from fairseq.file_io import PathManager
 from fairseq import utils
-import os
+from fairseq.file_io import PathManager
 
 logger = logging.getLogger(__name__)
 
@@ -463,7 +464,7 @@ def compute_mask_indices(
         else:
             raise Exception("unknown mask selection " + mask_type)
 
-        if sum(lengths) == 0:
+        if len(lengths) > 0 and sum(lengths) == 0:
             lengths[0] = min(mask_length, sz - 1)
 
         if no_overlap:
@@ -496,7 +497,7 @@ def compute_mask_indices(
                 parts.extend(arrange(s, e, length, min_length))
             mask_idc = np.asarray(mask_idc)
         else:
-            min_len = min(lengths)
+            min_len = min(lengths) if len(lengths) > 0 else 0
             if sz - min_len <= num_mask:
                 min_len = sz - num_mask - 1
 

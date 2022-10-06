@@ -16,6 +16,10 @@ from torch import nn
 
 from fairseq import utils
 from fairseq.data import encoders
+from fairseq.distributed.utils import (
+    get_data_parallel_rank,
+    get_data_parallel_world_size,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +29,7 @@ def from_pretrained(
     checkpoint_file="model.pt",
     data_name_or_path=".",
     archive_map=None,
-    **kwargs
+    **kwargs,
 ):
     from fairseq import checkpoint_utils, file_utils
 
@@ -70,10 +74,31 @@ def from_pretrained(
     if "user_dir" in kwargs:
         utils.import_user_module(argparse.Namespace(user_dir=kwargs["user_dir"]))
 
-    models, args, task = checkpoint_utils.load_model_ensemble_and_task(
-        [os.path.join(model_path, cpt) for cpt in checkpoint_file.split(os.pathsep)],
-        arg_overrides=kwargs,
-    )
+    model_paths = [
+        os.path.join(model_path, cpt) for cpt in checkpoint_file.split(os.pathsep)
+    ]
+
+    if "is_vocoder" in kwargs:
+        args = {"data": kwargs["data"], "model_path": model_paths}
+        task = None
+        models = None
+    else:
+        models, args, task = checkpoint_utils.load_model_ensemble_and_task(
+            model_paths,
+            arg_overrides=kwargs,
+            suffix=kwargs.get("suffix", ""),
+            is_moe=kwargs.get("is_moe", False),
+        )
+
+    if "config_yaml" in kwargs:
+        if "task" in args:
+            args.task.config_yaml = os.path.abspath(
+                os.path.join(model_path, kwargs["config_yaml"])
+            )
+
+    if "generation_args" in kwargs and kwargs["generation_args"]:
+        for key in kwargs["generation_args"]:
+            setattr(args["generation"], key, kwargs["generation_args"][key])
 
     return {
         "args": args,
@@ -88,17 +113,56 @@ class GeneratorHubInterface(nn.Module):
     translation or language model.
     """
 
-    def __init__(self, cfg, task, models):
+    lang_tokens = {}
+    langs = None
+    add_lang_bos_token = False
+
+    def to_lang_token(self, lang):
+        return f"<{lang}>"
+
+    def __init__(
+        self,
+        cfg,
+        task,
+        models,
+        moe_disable_padding=True,
+        skip_prepare_for_inference=False,
+    ):
         super().__init__()
         self.cfg = cfg
+
         self.task = task
         self.models = nn.ModuleList(models)
         self.src_dict = task.source_dictionary
         self.tgt_dict = task.target_dictionary
 
+        if "langs" in cfg.task:
+            self.langs = self.cfg.task.langs
+            lang_tokens = [
+                self.to_lang_token(x.strip()) for x in self.cfg.task.langs.split(",")
+            ]
+
+            # for debug purpose
+            for lang_token in lang_tokens:
+                if lang_token not in self.src_dict:
+                    self.src_dict.add_symbol(lang_token)
+
+                if lang_token not in self.tgt_dict:
+                    self.tgt_dict.add_symbol(lang_token)
+
+            self.lang_tokens = set(lang_tokens)
+
+            if "add_bos_token" in cfg.task:
+                # self.add_lang_bos_token = True
+                self.add_lang_bos_token = cfg.task.add_bos_token
+
         # optimize model for generation
-        for model in self.models:
-            model.prepare_for_inference_(cfg)
+        if not skip_prepare_for_inference:
+            for model in self.models:
+                # For moe models and eval_lm
+                model.prepare_for_inference_(
+                    cfg, moe_disable_padding=moe_disable_padding
+                )
 
         # Load alignment dictionary for unknown word replacement
         # (None if no unknown word replacement, empty if no path to align dictionary)
@@ -163,11 +227,16 @@ class GeneratorHubInterface(nn.Module):
         skip_invalid_size_inputs=False,
         inference_step_args=None,
         prefix_allowed_tokens_fn=None,
-        **kwargs
+        batch_size=None,
+        **kwargs,
     ) -> List[List[Dict[str, torch.Tensor]]]:
         if torch.is_tensor(tokenized_sentences) and tokenized_sentences.dim() == 1:
             return self.generate(
-                tokenized_sentences.unsqueeze(0), beam=beam, verbose=verbose, **kwargs
+                tokenized_sentences.unsqueeze(0),
+                beam=beam,
+                verbose=verbose,
+                batch_size=batch_size,
+                **kwargs,
             )[0]
 
         # build generator using current args as well as any kwargs
@@ -184,11 +253,32 @@ class GeneratorHubInterface(nn.Module):
 
         inference_step_args = inference_step_args or {}
         results = []
-        for batch in self._build_batches(tokenized_sentences, skip_invalid_size_inputs):
+        rank, world_size = get_data_parallel_rank(), get_data_parallel_world_size()
+        batches = self._build_batches(
+            tokenized_sentences,
+            skip_invalid_size_inputs,
+            rank=rank,
+            world_size=world_size,
+            batch_size=batch_size,
+        )
+        # To ensure even batch count across workers, some batches might be dummy batches. We shouldn't score these.
+        first_batch = None
+        for batch in batches:
+            is_dummy_batch = False
+            if not first_batch and "net_input" in batch:
+                first_batch = batch
+            if "net_input" not in batch:
+                if first_batch is not None:
+                    batch = first_batch
+                    is_dummy_batch = True
+                else:
+                    continue
             batch = utils.apply_to_sample(lambda t: t.to(self.device), batch)
             translations = self.task.inference_step(
                 generator, self.models, batch, **inference_step_args
             )
+            if is_dummy_batch:  # Don't score it or add it to hypotheses
+                continue
             for id, hypos in zip(batch["id"].tolist(), translations):
                 results.append((id, hypos))
 
@@ -231,15 +321,64 @@ class GeneratorHubInterface(nn.Module):
                         )
         return outputs
 
+    def get_sentence_and_language(self, sentence: str):
+        """
+        If sentence is prefixed with the language, it is striped and both are replaced.
+
+        input: '<lang>en-EN</lang>Some sentence here'
+        output: en-EN, 'Some sentence here'
+        """
+
+        lang_begin = "<lang>"
+        lang_end = "</lang>"
+
+        lang = None
+        if sentence.startswith(lang_begin):
+            idx = sentence.find(lang_end)
+            if idx > 0:
+                lang = sentence[: idx + len(lang_end)]
+                lang = lang.replace(lang_begin, "").replace(lang_end, "")
+                sentence = sentence[idx + len(lang_end) :]
+
+        return lang, sentence
+
+    def add_language_to_sentence(self, sentence: str, lang_token):
+        lang_begin = "<lang>"
+        lang_end = "</lang>"
+
+        lang_prefix = lang_begin + lang_token + lang_end
+        sentence = lang_prefix + sentence
+
+        return sentence
+
     def encode(self, sentence: str) -> torch.LongTensor:
+        lang, sentence = self.get_sentence_and_language(sentence)
+
         sentence = self.tokenize(sentence)
         sentence = self.apply_bpe(sentence)
+
+        if lang is not None:
+            sentence = f"{lang} {sentence}"
+
         return self.binarize(sentence)
 
     def decode(self, tokens: torch.LongTensor) -> str:
         sentence = self.string(tokens)
+
+        # Remove the lang token
+        sent_split = sentence.split(" ", 1)
+        lang_token = None
+        if sent_split[0] in self.lang_tokens:
+            lang_token = sent_split[0]
+            sentence = sent_split[1]
+
         sentence = self.remove_bpe(sentence)
-        return self.detokenize(sentence)
+        sentence = self.detokenize(sentence)
+
+        if lang_token is not None:
+            sentence = self.add_language_to_sentence(sentence, lang_token)
+
+        return sentence
 
     def tokenize(self, sentence: str) -> str:
         if self.tokenizer is not None:
@@ -268,16 +407,25 @@ class GeneratorHubInterface(nn.Module):
         return self.tgt_dict.string(tokens)
 
     def _build_batches(
-        self, tokens: List[List[int]], skip_invalid_size_inputs: bool
+        self,
+        tokens: List[torch.LongTensor],
+        skip_invalid_size_inputs: bool,
+        world_size=None,
+        rank=None,
+        batch_size=None,
     ) -> Iterator[Dict[str, Any]]:
         lengths = torch.LongTensor([t.numel() for t in tokens])
+        if batch_size is None:
+            batch_size = self.cfg.dataset.batch_size
         batch_iterator = self.task.get_batch_iterator(
             dataset=self.task.build_dataset_for_inference(tokens, lengths),
             max_tokens=self.cfg.dataset.max_tokens,
-            max_sentences=self.cfg.dataset.batch_size,
+            max_sentences=batch_size,
             max_positions=self.max_positions,
             ignore_invalid_inputs=skip_invalid_size_inputs,
             disable_iterator_cache=True,
+            num_shards=world_size,
+            shard_id=rank,
         ).next_epoch_itr(shuffle=False)
         return batch_iterator
 

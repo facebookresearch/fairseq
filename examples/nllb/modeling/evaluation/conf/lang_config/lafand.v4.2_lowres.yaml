@@ -1,0 +1,11 @@
+bin_root: non_flores_v4.2/lafand
+
+sampled:
+  - eng-hau
+all:
+    - eng-hau
+    - eng-luo
+    - eng-yor
+    - fra-ewe
+    - fra-fon
+    - fra-wol

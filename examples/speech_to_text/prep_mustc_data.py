@@ -7,16 +7,21 @@
 import argparse
 import logging
 import os
-from pathlib import Path
 import shutil
 from itertools import groupby
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Tuple
 
 import numpy as np
 import pandas as pd
 import soundfile as sf
+import torch
+from torch.utils.data import Dataset
+from tqdm import tqdm
+
 from examples.speech_to_text.data_utils import (
+    cal_gcmvn_stats,
     create_zip,
     extract_fbank_features,
     filter_manifest_df,
@@ -25,14 +30,8 @@ from examples.speech_to_text.data_utils import (
     get_zip_manifest,
     load_df_from_tsv,
     save_df_to_tsv,
-    cal_gcmvn_stats,
 )
-import torch
-from torch.utils.data import Dataset
-from tqdm import tqdm
-
-from fairseq.data.audio.audio_utils import get_waveform, convert_waveform
-
+from fairseq.data.audio.audio_utils import convert_waveform, get_waveform
 
 log = logging.getLogger(__name__)
 
@@ -92,11 +91,8 @@ class MUSTC(Dataset):
                     )
                 )
 
-    def __getitem__(
-            self, n: int
-    ) -> Tuple[torch.Tensor, int, str, str, str, str]:
-        wav_path, offset, n_frames, sr, src_utt, tgt_utt, spk_id, \
-            utt_id = self.data[n]
+    def __getitem__(self, n: int) -> Tuple[torch.Tensor, int, str, str, str, str]:
+        wav_path, offset, n_frames, sr, src_utt, tgt_utt, spk_id, utt_id = self.data[n]
         waveform, _ = get_waveform(wav_path, frames=n_frames, start=offset)
         waveform = torch.from_numpy(waveform)
         return waveform, sr, src_utt, tgt_utt, spk_id, utt_id
@@ -124,28 +120,31 @@ def process(args):
                 for waveform, sample_rate, _, _, _, utt_id in tqdm(dataset):
                     tgt_sample_rate = 16_000
                     _wavform, _ = convert_waveform(
-                        waveform, sample_rate, to_mono=True,
-                        to_sample_rate=tgt_sample_rate
+                        waveform,
+                        sample_rate,
+                        to_mono=True,
+                        to_sample_rate=tgt_sample_rate,
                     )
                     sf.write(
                         (audio_root / f"{utt_id}.flac").as_posix(),
-                        _wavform.T.numpy(), tgt_sample_rate
+                        _wavform.T.numpy(),
+                        tgt_sample_rate,
                     )
             else:
                 print("Extracting log mel filter bank features...")
                 gcmvn_feature_list = []
-                if split == 'train' and args.cmvn_type == "global":
+                if split == "train" and args.cmvn_type == "global":
                     print("And estimating cepstral mean and variance stats...")
 
                 for waveform, sample_rate, _, _, _, utt_id in tqdm(dataset):
                     features = extract_fbank_features(
                         waveform, sample_rate, audio_root / f"{utt_id}.npy"
                     )
-                    if split == 'train' and args.cmvn_type == "global":
+                    if split == "train" and args.cmvn_type == "global":
                         if len(gcmvn_feature_list) < args.gcmvn_max_num:
                             gcmvn_feature_list.append(features)
 
-                if split == 'train' and args.cmvn_type == "global":
+                if split == "train" and args.cmvn_type == "global":
                     # Estimate and save cmv
                     stats = cal_gcmvn_stats(gcmvn_feature_list)
                     with open(cur_root / "gcmvn.npz", "wb") as f:
@@ -171,9 +170,7 @@ def process(args):
                 manifest["id"].append(utt_id)
                 manifest["audio"].append(audio_paths[utt_id])
                 manifest["n_frames"].append(audio_lengths[utt_id])
-                manifest["tgt_text"].append(
-                    src_utt if args.task == "asr" else tgt_utt
-                )
+                manifest["tgt_text"].append(src_utt if args.task == "asr" else tgt_utt)
                 manifest["speaker"].append(speaker_id)
             if is_train_split:
                 train_text.extend(manifest["tgt_text"])
@@ -199,7 +196,7 @@ def process(args):
                 spm_filename=spm_filename_prefix + ".model",
                 yaml_filename=f"config_{args.task}.yaml",
                 specaugment_policy=None,
-                extra={"use_audio_input": True}
+                extra={"use_audio_input": True},
             )
         else:
             gen_config_yaml(
@@ -209,8 +206,7 @@ def process(args):
                 specaugment_policy="lb",
                 cmvn_type=args.cmvn_type,
                 gcmvn_path=(
-                    cur_root / "gcmvn.npz" if args.cmvn_type == "global"
-                    else None
+                    cur_root / "gcmvn.npz" if args.cmvn_type == "global" else None
                 ),
             )
         # Clean up
@@ -232,14 +228,14 @@ def process_joint(args):
             for t in df["tgt_text"]:
                 f.write(t + "\n")
         special_symbols = None
-        if args.task == 'st':
-            special_symbols = [f'<lang:{lang}>' for lang in MUSTC.LANGUAGES]
+        if args.task == "st":
+            special_symbols = [f"<lang:{lang}>" for lang in MUSTC.LANGUAGES]
         gen_vocab(
             Path(f.name),
             cur_root / spm_filename_prefix,
             args.vocab_type,
             args.vocab_size,
-            special_symbols=special_symbols
+            special_symbols=special_symbols,
         )
     # Generate config YAML
     gen_config_yaml(
@@ -272,15 +268,18 @@ def main():
     parser.add_argument("--task", type=str, choices=["asr", "st"])
     parser.add_argument("--joint", action="store_true", help="")
     parser.add_argument(
-        "--cmvn-type", default="utterance",
+        "--cmvn-type",
+        default="utterance",
         choices=["global", "utterance"],
-        help="The type of cepstral mean and variance normalization"
+        help="The type of cepstral mean and variance normalization",
     )
     parser.add_argument(
-        "--gcmvn-max-num", default=150000, type=int,
+        "--gcmvn-max-num",
+        default=150000,
+        type=int,
         help="Maximum number of sentences to use to estimate global mean and "
-             "variance"
-        )
+        "variance",
+    )
     parser.add_argument("--use-audio-input", action="store_true")
     args = parser.parse_args()
 

@@ -8,18 +8,18 @@
 import logging
 import os
 import sys
-
 from argparse import Namespace
 from dataclasses import dataclass, field
-from typing import Optional
-from omegaconf import MISSING, II, OmegaConf
+from typing import Any, Optional
+
+from omegaconf import II, MISSING, OmegaConf
 
 from fairseq.data import BinarizedAudioDataset, FileAudioDataset
-from fairseq.dataclass import FairseqDataclass, ChoiceEnum
 from fairseq.data.text_compressor import TextCompressionLevel
+from fairseq.dataclass import ChoiceEnum, FairseqDataclass
+from fairseq.dataclass.configs import GenerationConfig
 
 from . import FairseqTask, register_task
-
 
 logger = logging.getLogger(__name__)
 
@@ -88,14 +88,12 @@ class AudioPretrainingConfig(FairseqDataclass):
             "help": "flag to compute mask indices in data preparation.",
         },
     )
-
     inferred_w2v_config: Optional[InferredW2vConfig] = field(
         default=None,
         metadata={
             "help": "wav2vec 2.0 masking arguments used to pre-compute masks (required for TPU)",
         },
     )
-
     tpu: bool = II("common.tpu")
     text_compression_level: ChoiceEnum([x.name for x in TextCompressionLevel]) = field(
         default="none",
@@ -104,6 +102,40 @@ class AudioPretrainingConfig(FairseqDataclass):
             "target texts): none/low/high (default: none). "
         },
     )
+    fbank_features: int = field(
+        default=0,
+        metadata={
+            "help": "Number of fbank features used (Default 0, not used)",
+        },
+    )
+    eval_wer: bool = field(
+        default=False, metadata={"help": "compute WER for Seq2Seq models"}
+    )
+    eval_wer_config: GenerationConfig = field(
+        default_factory=lambda: GenerationConfig(),
+        metadata={"help": "beam search config for evaluating wer during training"},
+    )
+    eval_wer_tokenizer: Any = field(
+        default=None,
+        metadata={"help": "tokenizer config for evaluating wer during training"},
+    )
+    eval_wer_post_process: str = field(
+        default="letter",
+        metadata={
+            "help": "remove BPE tokens before scoring (can be sentencepiece, letter, and more)"
+        },
+    )
+    eval_bleu: bool = field(
+        default=False, metadata={"help": "evaluation with BLEU scores"}
+    )
+    autoregressive: bool = field(
+        default=False,
+        metadata={
+            "help": "required for autoregressive decoders (like seq2seq models); "
+            "adds 'prev_output_tokens' to input and appends eos to target"
+        },
+    )
+    train_subset: str = II("dataset.train_subset")
 
 
 @register_task("audio_pretraining", dataclass=AudioPretrainingConfig)
@@ -115,7 +147,6 @@ class AudioPretrainingTask(FairseqTask):
     @classmethod
     def setup_task(cls, cfg: AudioPretrainingConfig, **kwargs):
         """Setup the task (e.g., load dictionaries).
-
         Args:
             cfg (AudioPretrainingConfig): configuration of this task
         """
@@ -171,6 +202,7 @@ class AudioPretrainingTask(FairseqTask):
                 num_buckets=self.cfg.num_batch_buckets or int(self.cfg.tpu),
                 compute_mask_indices=(self.cfg.precompute_mask_indices or self.cfg.tpu),
                 text_compression_level=text_compression_level,
+                fbank_features=self.cfg.fbank_features,
                 **self._get_mask_precompute_kwargs(task_cfg),
             )
 

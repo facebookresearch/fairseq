@@ -1,0 +1,35 @@
+bin_root: non_flores_v4.2/wmt
+
+sampled:
+ - eng_Latn-ces_Latn
+all:
+  - eng_Latn-ces_Latn
+  - eng_Latn-deu_Latn
+  - eng_Latn-est_Latn
+  - eng_Latn-fin_Latn
+  - eng_Latn-fra_Latn
+  - eng_Latn-guj_Gujr
+  - eng_Latn-hin_Deva
+  - eng_Latn-kaz_Cyrl
+  - eng_Latn-lvs_Latn
+  - eng_Latn-lit_Latn
+  - eng_Latn-ron_Latn
+  - eng_Latn-rus_Cyrl
+  - eng_Latn-spa_Latn
+  - eng_Latn-tur_Latn
+  - eng_Latn-zho_Hans
+  - ces_Latn-eng_Latn
+  - deu_Latn-eng_Latn
+  - est_Latn-eng_Latn
+  - fin_Latn-eng_Latn
+  - fra_Latn-eng_Latn
+  - guj_Gujr-eng_Latn
+  - hin_Deva-eng_Latn
+  - kaz_Cyrl-eng_Latn
+  - lvs_Latn-eng_Latn
+  - lit_Latn-eng_Latn
+  - ron_Latn-eng_Latn
+  - rus_Cyrl-eng_Latn
+  - spa_Latn-eng_Latn
+  - tur_Latn-eng_Latn
+  - zho_Hans-eng_Latn

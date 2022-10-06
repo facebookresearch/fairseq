@@ -289,6 +289,17 @@ class Wav2Vec2Config(FairseqDataclass):
     )
     fp16: bool = field(default=False, metadata={"help": "If fp16 is being used"})
 
+    # Fbank
+    fbank_features: int = field(
+        default=0,
+    )
+    fbank_stride: int = field(
+        default=2,
+    )
+    sample_every_k_steps: int = field(
+        default=0,
+    )
+
 
 @register_model("wav2vec2", dataclass=Wav2Vec2Config)
 class Wav2Vec2Model(BaseFairseqModel):
@@ -296,15 +307,21 @@ class Wav2Vec2Model(BaseFairseqModel):
         super().__init__()
         self.cfg = cfg
 
-        feature_enc_layers = eval(cfg.conv_feature_layers)
-        self.embed = feature_enc_layers[-1][0]
+        if cfg.fbank_features <= 0:
 
-        self.feature_extractor = ConvFeatureExtractionModel(
-            conv_layers=feature_enc_layers,
-            dropout=0.0,
-            mode=cfg.extractor_mode,
-            conv_bias=cfg.conv_bias,
-        )
+            feature_enc_layers = eval(cfg.conv_feature_layers)
+            self.embed = feature_enc_layers[-1][0]
+
+            self.feature_extractor = ConvFeatureExtractionModel(
+                conv_layers=feature_enc_layers,
+                dropout=0.0,
+                mode=cfg.extractor_mode,
+                conv_bias=cfg.conv_bias,
+            )
+        else:
+            self._stride = cfg.fbank_stride
+            self.embed = self._stride * cfg.fbank_features
+            self.sample_every_k_steps = cfg.sample_every_k_steps
 
         self.post_extract_proj = (
             nn.Linear(self.embed, cfg.encoder_embed_dim)
@@ -578,6 +595,36 @@ class Wav2Vec2Model(BaseFairseqModel):
 
         return input_lengths.to(torch.long)
 
+    def sample_fbank(self, input, lengths):
+        num_frames, batch_size, input_dim = input.shape
+        if num_frames % self._stride:
+            num_frames = num_frames - (num_frames % self._stride)
+            input = input[:num_frames, :, :]
+            # pyre-fixme[9, 58]
+            lengths = lengths // self._stride
+            maxT = num_frames // self._stride
+        else:
+            input = input[:num_frames, :, :]
+            # pyre-fixme[9, 58]
+            lengths = lengths // self._stride
+            maxT = num_frames // self._stride
+
+        stacked = (
+            input.permute(1, 0, 2)
+            .reshape(batch_size, maxT, input_dim * self._stride)
+            .permute(1, 0, 2)
+        ).contiguous()
+        if self.sample_every_k_steps > 1:
+            idx = np.array(
+                [
+                    i
+                    for i in range(stacked.size()[1])
+                    if i % self.sample_every_k_steps != 0
+                ]
+            )
+            stacked = stacked[:, idx, :]
+        return stacked
+
     def forward(
         self,
         source,
@@ -589,25 +636,35 @@ class Wav2Vec2Model(BaseFairseqModel):
         mask_channel_indices=None,
         padding_count=None,
     ):
-
-        if self.feature_grad_mult > 0:
-            features = self.feature_extractor(source)
-            if self.feature_grad_mult != 1.0:
-                features = GradMultiply.apply(features, self.feature_grad_mult)
-        else:
-            with torch.no_grad():
+        if self.cfg.fbank_features <= 0:
+            if self.feature_grad_mult > 0:
                 features = self.feature_extractor(source)
+                if self.feature_grad_mult != 1.0:
+                    features = GradMultiply.apply(features, self.feature_grad_mult)
+            else:
+                with torch.no_grad():
+                    features = self.feature_extractor(source)
+            features = features.transpose(1, 2)
+        else:
+            input_lengths = torch.tensor([source[0].size()[0]] * len(source))
+            if padding_mask is not None and padding_mask.any():
+                input_lengths = (1 - padding_mask.long()).sum(-1)
+            features = self.sample_fbank(source.permute(1, 0, 2), input_lengths)
+            features = features.permute(1, 0, 2)  # B x T x D
 
         features_pen = features.float().pow(2).mean()
-
-        features = features.transpose(1, 2)
         features = self.layer_norm(features)
         unmasked_features = features.clone()
 
         if padding_mask is not None and padding_mask.any():
             input_lengths = (1 - padding_mask.long()).sum(-1)
             # apply conv formula to get real output_lengths
-            output_lengths = self._get_feat_extract_output_lengths(input_lengths)
+            if self.cfg.fbank_features <= 0:
+                output_lengths = self._get_feat_extract_output_lengths(input_lengths)
+            else:
+                output_lengths = input_lengths // self._stride
+                if self.sample_every_k_steps > 1:
+                    output_lengths //= self.sample_every_k_steps + 1
 
             padding_mask = torch.zeros(
                 features.shape[:2], dtype=features.dtype, device=features.device
@@ -917,7 +974,7 @@ def make_conv_pos(e, k, g):
 
 
 class TransformerEncoder(nn.Module):
-    def build_encoder_layer(self, args: Wav2Vec2Config):
+    def build_encoder_layer(self, args: Wav2Vec2Config, is_moe_layer: bool = False):
         if args.layer_type == "transformer":
             layer = TransformerSentenceEncoderLayer(
                 embedding_dim=self.embedding_dim,
@@ -931,6 +988,7 @@ class TransformerEncoder(nn.Module):
             )
         elif args.layer_type == "conformer":
             layer = ConformerWav2Vec2EncoderLayer(
+                args=args,
                 embed_dim=self.embedding_dim,
                 ffn_embed_dim=args.encoder_ffn_embed_dim,
                 attention_heads=args.encoder_attention_heads,
@@ -940,6 +998,7 @@ class TransformerEncoder(nn.Module):
                 attn_type=args.attn_type,
                 use_fp16=args.fp16,
                 pos_enc_type="abs",
+                is_moe_layer=is_moe_layer,
             )
         layer = fsdp_wrap(layer)
         if args.checkpoint_activations:
@@ -1086,8 +1145,9 @@ class TransformerEncoder(nn.Module):
 
 
 class ConformerEncoder(TransformerEncoder):
-    def build_encoder_layer(self, args):
+    def build_encoder_layer(self, args, is_moe_layer=False):
         layer = ConformerWav2Vec2EncoderLayer(
+            args=args,
             embed_dim=self.embedding_dim,
             ffn_embed_dim=args.encoder_ffn_embed_dim,
             attention_heads=args.encoder_attention_heads,
@@ -1097,6 +1157,7 @@ class ConformerEncoder(TransformerEncoder):
             attn_type=args.attn_type,
             pos_enc_type=args.pos_enc_type,
             use_fp16=args.fp16,  # only used for rope
+            is_moe_layer=is_moe_layer,
         )
         layer = fsdp_wrap(layer)
         if args.checkpoint_activations:

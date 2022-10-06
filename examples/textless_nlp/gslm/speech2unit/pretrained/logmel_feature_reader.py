@@ -13,7 +13,7 @@ class LogMelFeatureReader:
     Wrapper class to run inference on HuBERT model.
     Helps extract features for a given audio file.
     """
-    
+
     def __init__(self, *args, **kwargs):
         self.num_mel_bins = kwargs.get("num_mel_bins", 80)
         self.frame_length = kwargs.get("frame_length", 25.0)

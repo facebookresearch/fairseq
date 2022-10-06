@@ -1,0 +1,13 @@
+bin_root: non_flores_v4.2/floresv1
+
+sampled:
+  - eng-sin
+all:
+  - eng-khm
+  - eng-npi
+  - eng-pus
+  - eng-sin
+  - khm-eng
+  - npi-eng
+  - pus-eng
+  - sin-eng

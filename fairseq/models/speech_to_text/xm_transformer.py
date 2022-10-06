@@ -4,7 +4,10 @@
 # LICENSE file in the root directory of this source tree.
 
 import copy
+import functools
 import logging
+import math
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -14,18 +17,56 @@ from torch import Tensor
 
 from fairseq import checkpoint_utils, utils
 from fairseq.data.data_utils import lengths_to_padding_mask
+from fairseq.distributed import fsdp_wrap
 from fairseq.models import (
+    FairseqDecoder,
     FairseqEncoder,
     FairseqEncoderDecoderModel,
     register_model,
     register_model_architecture,
 )
+from fairseq.models.speech_to_speech.modules import CTCDecoder
 from fairseq.models.speech_to_text.hub_interface import S2THubInterface
-from fairseq.models.transformer import Embedding, TransformerDecoder
+from fairseq.models.transformer import (
+    Embedding,
+    TransformerConfig,
+    TransformerDecoder,
+    TransformerModelBase,
+)
+from fairseq.models.transformer.fsdp_wrap_expert import fsdp_wrap_expert
 from fairseq.models.wav2vec import Wav2VecEncoder
+from fairseq.modules import (
+    FairseqDropout,
+    LayerDropModuleList,
+    LayerNorm,
+    PositionalEmbedding,
+    TransformerDecoderLayer,
+)
+from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.layer_norm import LayerNorm
 
 logger = logging.getLogger(__name__)
+
+# rewrite name for backward compatibility in `make_generation_fast_`
+
+
+def module_name_fordropout(module_name: str) -> str:
+    if module_name == "TransformerDecoderBase":
+        return "TransformerDecoder"
+    else:
+        return module_name
+
+
+def build_embedding(dictionary, embed_dim):
+    num_embeddings = len(dictionary)
+    padding_idx = dictionary.pad()
+    return Embedding(num_embeddings, embed_dim, padding_idx)
+
+
+def build_embedding(dictionary, embed_dim):
+    num_embeddings = len(dictionary)
+    padding_idx = dictionary.pad()
+    return Embedding(num_embeddings, embed_dim, padding_idx)
 
 
 class Conv1dAdaptor(nn.Module):
@@ -310,16 +351,16 @@ class Wav2VecEncoderWithAdaptor(FairseqEncoder):
         self.num_updates = num_updates
 
     def forward(self, src_tokens, src_lengths=None, **kwargs):
-        if (
-            self.freezing_updates is not None
-            and self.num_updates > self.freezing_updates
-        ):
-            for p in self.w2v_encoder.w2v_model.parameters():
-                p.requires_grad = True
+        if self.freezing_updates is not None:
+            if self.num_updates > self.freezing_updates:
+                for p in self.w2v_encoder.w2v_model.parameters():
+                    p.requires_grad = True
 
         padding_mask = lengths_to_padding_mask(src_lengths)
         out = self.w2v_encoder.forward(src_tokens, padding_mask, tbc=True)
+
         x, padding_mask = out["encoder_out"], out["padding_mask"]
+
         if self.w2v_proj_ln is not None:
             x = self.w2v_proj_ln(x)
 
@@ -487,6 +528,11 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             "xm_transformer-21_en-xls_r_2b",
             "xm_transformer-en_15-xls_r_2b",
             "xm_transformer-22_16-xls_r_2b",
+            "xm_transformer_s2ut_800m-es-en-st-asr-bt_h1_2022",
+            "xm_transformer_s2ut_800m-en-es-st_plus_asr",
+            "xm_transformer_s2ut_es_en_st_asr_test",
+            "xm_transformer_s2ut_en-hk",
+            "xm_transformer_s2ut_hk-en",
         ]
         return {i: f"{base_url}/{i}.tar.gz" for i in model_ids}
 
@@ -497,6 +543,8 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         checkpoint_file="model.pt",
         data_name_or_path=".",
         config_yaml="config.yaml",
+        task="speech_to_text",
+        generation_args=None,
         **kwargs,
     ):
         from fairseq import hub_utils
@@ -507,6 +555,8 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             data_name_or_path,
             archive_map=cls.hub_models(),
             config_yaml=config_yaml,
+            task=task,
+            generation_args=generation_args,
             **kwargs,
         )
         return S2THubInterface(x["args"], x["task"], x["models"][0])
@@ -522,36 +572,163 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         parser.add_argument("--checkpoint-activations", action="store_true")
         parser.add_argument("--offload-activations", action="store_true")
         parser.add_argument("--min-params-to-wrap", type=int)
+        # args for mixture-of-expert layers
+        parser.add_argument(
+            "--moe-freq",
+            type=int,
+            metavar="D",
+            default=0,
+            help="Frequency at which we insert MoE Transformer layers",
+        )
+        parser.add_argument(
+            "--encoder-moe-freq",
+            type=int,
+            metavar="D",
+            default=0,
+            help="Frequency at which we insert MoE Transformer encoder layers",
+        )
+        parser.add_argument(
+            "--decoder-moe-freq",
+            type=int,
+            metavar="D",
+            default=0,
+            help="Frequency at which we insert MoE Transformer decoder layers",
+        )
+        parser.add_argument(
+            "--moe-expert-count",
+            type=int,
+            metavar="D",
+            default=0,
+            help="Number of experts in each MoE Layer",
+        )
+        parser.add_argument(
+            "--moe-gating-use-fp32",
+            default=False,
+            action="store_true",
+            help="Use FP32 computations in MoE top2 gating function",
+        )
+        parser.add_argument(
+            "--moe-second-expert-policy",
+            type=str,
+            default="sampling",
+            help="policy for second expert, options: all/sampling/random",
+        )
+        parser.add_argument(
+            "--moe-normalize-gate-prob-before-dropping",
+            default=False,
+            action="store_true",
+            help="whether to normalize gate probs before or after dropping experts for capacity and randomization",
+        )
+        parser.add_argument(
+            "--moe-expert-ffn-dim", type=int, default=0, help="MoE Expert FFN dimension"
+        )
+        parser.add_argument(
+            "--moe-top1-expert",
+            default=False,
+            action="store_true",
+            help="Use top1 gate instead of top2",
+        )
+        parser.add_argument(
+            "--moe-eval-capacity-token-fraction",
+            type=float,
+            default=0.25,
+            help="Fraction of tokens as capacity during validation"
+            + "if set to negative, use same as training. range: (0.0, 1.0].",
+        )
+        parser.add_argument(
+            "--moe-normalize-expert-grad",
+            type=str,
+            default="sqrt_num_experts",
+            help="Divide expert gradients by (1) 'num_experts' (2) 'sqrt_num_experts'",
+        )
+        parser.add_argument(
+            "--use-moe-pad-mask",
+            default=False,
+            action="store_true",
+            help="Don't route padding tokens to any expert",
+        )
+        parser.add_argument(
+            "--pass-tokens-transformer-layer",
+            default=False,
+            action="store_true",
+            help="Pass source or masked previous output tokens to the transformer layer",
+        )
+        # args for pseudo-MoE layers
+        parser.add_argument(
+            "--alternate-ffn-embed-dim",
+            type=int,
+            default=0,
+            help="FFN embed dim of alternate pseudo-MoE blocks",
+        )
+        parser.add_argument(
+            "--alternate-decoder-ffn-embed-dim",
+            type=int,
+            default=0,
+            help="FFN embed dim of alternate pseudo-MoE blocks",
+        )
+        parser.add_argument(
+            "--base-layers",
+            type=int,
+            default=0,
+        )
 
     @classmethod
-    def maybe_load_pretrained(cls, component, checkpoint: Optional[str] = None):
+    def maybe_load_pretrained(
+        cls, component, checkpoint: Optional[str] = None, is_moe: bool = False
+    ):
         if checkpoint is None:
             return component
 
         _load = checkpoint_utils.load_pretrained_component_from_model
+        state_key_replacements = {}
+
+        if is_moe:
+            # Hack to initialize all experts with pretrained model weights
+            if isinstance(component, FairseqEncoder):
+                component_type = "encoder"
+            elif isinstance(component, FairseqDecoder):
+                component_type = "decoder"
+            for name, _ in component.named_parameters():
+                if ".moe_layer.experts." in name and len(name.split(".")) == 7:
+                    s = name.split(".")
+                    from_key = component_type + "." + ".".join(s[:2] + s[-2:])
+                    state_key_replacements[name] = from_key
+
         try:
             return _load(component, checkpoint)
         except RuntimeError as e:
             logger.warning(e)
-            return _load(component, checkpoint, strict=False)
+            return _load(
+                component,
+                checkpoint,
+                strict=False,
+                state_key_replacements=state_key_replacements,
+            )
 
     @classmethod
     def build_encoder(cls, args):
         _args = copy.deepcopy(args)
         if not args.adaptor_proj and not args.encoder_proj:  # V0 arch
-            state = checkpoint_utils.load_checkpoint_to_cpu(args.w2v_path)
-            if state.get("cfg") is not None:
-                encoder_embed_dim = state["cfg"]._content["model"]["encoder_embed_dim"]
-            elif state.get("args") is not None:
-                encoder_embed_dim = state["args"].encoder_embed_dim
+            if args.w2v_path:
+                state = checkpoint_utils.load_checkpoint_to_cpu(args.w2v_path)
+                if state.get("cfg") is not None:
+                    encoder_embed_dim = state["cfg"]._content["model"][
+                        "encoder_embed_dim"
+                    ]
+                elif state.get("args") is not None:
+                    encoder_embed_dim = state["args"].encoder_embed_dim
+                else:
+                    raise ValueError(f"Invalid config in {args.w2v_path}")
+                _args.decoder_embed_dim = encoder_embed_dim
+                del state
             else:
-                raise ValueError(f"Invalid config in {args.w2v_path}")
-            _args.decoder_embed_dim = encoder_embed_dim
-            del state
+                _args.decoder_embed_dim = args.encoder_embed_dim
 
         encoder = Wav2VecEncoderWithAdaptor(_args)
         encoder = cls.maybe_load_pretrained(
-            encoder, getattr(args, "load_pretrained_encoder_from", None)
+            encoder,
+            getattr(args, "load_pretrained_encoder_from", None),
+            getattr(args, "encoder_moe_freq", 0) > 0,
         )
         if args.remove_weight_norm:
             # remove the wn for EMA usage
@@ -589,10 +766,17 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         _args.dropout = args.decoder_dropout
         _args.attention_dropout = args.decoder_attention_dropout
         _args.activation_dropout = args.decoder_activation_dropout
+        _args.layerdrop = _args.decoder_layerdrop
 
-        decoder = TransformerDecoder(_args, task.target_dictionary, embed_tokens)
+        decoder = TransformerDecoderScriptable(
+            TransformerConfig.from_namespace(_args),
+            task.target_dictionary,
+            embed_tokens,
+        )
         decoder = cls.maybe_load_pretrained(
-            decoder, getattr(args, "load_pretrained_decoder_from", None)
+            decoder,
+            getattr(args, "load_pretrained_decoder_from", None),
+            getattr(args, "decoder_moe_freq", 0) > 0,
         )
 
         for k, p in decoder.named_parameters():
@@ -605,15 +789,10 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
 
         # make sure all arguments are present in older models
         base_architecture(args)
-        if getattr(args, "load_pretrained_decoder_from", None):
-            ckpt = torch.load(getattr(args, "load_pretrained_decoder_from", None))
-            decoder_args_dict = cls.get_decoder_args_from_checkpoint(ckpt["cfg"])
-            args = cls.override_decoder_args(args, decoder_args_dict)
-
-        def build_embedding(dictionary, embed_dim):
-            num_embeddings = len(dictionary)
-            padding_idx = dictionary.pad()
-            return Embedding(num_embeddings, embed_dim, padding_idx)
+        # if getattr(args, "load_pretrained_decoder_from", None) is not None:
+        #     ckpt = torch.load(getattr(args, "load_pretrained_decoder_from", None))
+        #     decoder_args_dict = cls.get_decoder_args_from_checkpoint(ckpt["cfg"])
+        #     args = cls.override_decoder_args(args, decoder_args_dict)
 
         decoder_embed_tokens = build_embedding(
             task.target_dictionary, args.decoder_embed_dim
@@ -622,6 +801,37 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         encoder = cls.build_encoder(args)
         decoder = cls.build_decoder(args, task, decoder_embed_tokens)
         return cls(encoder, decoder)
+
+    @classmethod
+    def build_multitask_decoder(cls, args, tgt_dict, in_dim):
+        decoder_args = args.decoder_args
+        decoder_args.encoder_embed_dim = in_dim
+        if args.decoder_type == "transformer":
+            from fairseq.models.speech_to_speech import (
+                base_multitask_text_transformer_decoder_arch,
+            )
+
+            base_multitask_text_transformer_decoder_arch(decoder_args)  # 2L
+            task_decoder = TransformerDecoder(
+                decoder_args,
+                tgt_dict,
+                embed_tokens=TransformerModelBase.build_embedding(
+                    decoder_args,
+                    tgt_dict,
+                    decoder_args.decoder_embed_dim,
+                ),
+            )
+        elif args.decoder_type == "ctc":
+            task_decoder = CTCDecoder(
+                dictionary=tgt_dict,
+                in_dim=in_dim,
+            )
+        else:
+            raise NotImplementedError(
+                "currently only support multitask decoder_type 'transformer', 'ctc'"
+            )
+
+        return task_decoder
 
     def get_normalized_probs(
         self,
@@ -653,6 +863,137 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
                 del state_dict[k]
 
 
+class TransformerDecoderScriptable(TransformerDecoder):
+    def __init__(
+        self,
+        cfg,
+        dictionary,
+        embed_tokens,
+        no_encoder_attn=False,
+        output_projection=None,
+    ):
+        self.cfg = cfg
+        super().__init__(
+            cfg,
+            dictionary,
+            embed_tokens,
+            no_encoder_attn=no_encoder_attn,
+            output_projection=output_projection,
+        )
+        self.register_buffer("version", torch.Tensor([3]))
+        self._future_mask = torch.empty(0)
+
+        self.dropout_module = FairseqDropout(
+            cfg.dropout, module_name=module_name_fordropout(self.__class__.__name__)
+        )
+        self.decoder_layerdrop = cfg.decoder_layerdrop
+        self.share_input_output_embed = cfg.share_decoder_input_output_embed
+
+        input_embed_dim = embed_tokens.embedding_dim
+        embed_dim = cfg.decoder_embed_dim
+        self.embed_dim = embed_dim
+        self.output_embed_dim = cfg.decoder_output_dim
+
+        self.padding_idx = embed_tokens.padding_idx
+        self.max_target_positions = cfg.max_target_positions
+
+        self.embed_tokens = embed_tokens
+
+        self.embed_scale = 1.0 if cfg.no_scale_embedding else math.sqrt(embed_dim)
+
+        # Disabling quant noise
+        self.quant_noise = None
+
+        self.project_in_dim = (
+            nn.Linear(input_embed_dim, embed_dim, bias=False)
+            if embed_dim != input_embed_dim
+            else None
+        )
+        self.embed_positions = (
+            PositionalEmbedding(
+                self.max_target_positions,
+                embed_dim,
+                self.padding_idx,
+                learned=cfg.decoder_learned_pos,
+            )
+            if not cfg.no_token_positional_embeddings
+            else None
+        )
+        self.layernorm_embedding = None
+
+        self.cross_self_attention = cfg.cross_self_attention
+
+        if self.decoder_layerdrop > 0.0:
+            self.layers = LayerDropModuleList(p=self.decoder_layerdrop)
+        else:
+            self.layers = nn.ModuleList([])
+
+        for i in range(cfg.decoder_layers):
+            moe_freq = max(cfg.decoder_moe_freq, cfg.moe_freq)
+            is_moe_layer = moe_freq != 0 and (i + 1) % moe_freq == 0
+            self.layers.append(
+                self.build_decoder_layer(
+                    cfg, no_encoder_attn, is_moe_layer=is_moe_layer
+                )
+            )
+        self.num_layers = len(self.layers)
+
+        if cfg.decoder_normalize_before and not cfg.no_decoder_final_norm:
+            self.layer_norm = LayerNorm(embed_dim, export=cfg.export)
+        else:
+            self.layer_norm = None
+
+        self.project_out_dim = (
+            nn.Linear(embed_dim, self.output_embed_dim, bias=False)
+            if embed_dim != self.output_embed_dim and not cfg.tie_adaptive_weights
+            else None
+        )
+
+        self.adaptive_softmax = None
+        self.output_projection = output_projection
+        if self.output_projection is None:
+            self.build_output_projection(cfg, dictionary, embed_tokens)
+
+    def extract_features(
+        self,
+        prev_output_tokens,
+        encoder_out: Optional[Dict[str, List[Tensor]]] = None,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
+        full_context_alignment: bool = False,
+        alignment_layer: Optional[int] = None,
+        alignment_heads: Optional[int] = None,
+        token_embeddings: Optional[torch.Tensor] = None,
+        self_attn_padding_mask: Optional[Tensor] = None,
+    ):
+        # call scriptable method from parent class
+        x, _ = self.extract_features_scriptable(
+            prev_output_tokens,
+            encoder_out,
+            incremental_state,
+            full_context_alignment,
+            alignment_layer,
+            alignment_heads,
+        )
+        extra = {"encoder_out": encoder_out} if incremental_state is None else None
+        return x, extra
+
+    def build_decoder_layer(self, cfg, no_encoder_attn=False, is_moe_layer=False):
+        layer = TransformerDecoderLayer(cfg, no_encoder_attn, is_moe_layer=is_moe_layer)
+        checkpoint = cfg.checkpoint_activations
+        if checkpoint:
+            offload_to_cpu = cfg.offload_activations
+            layer = checkpoint_wrapper(layer, offload_to_cpu=offload_to_cpu)
+        # if we are checkpointing, enforce that FSDP always wraps the
+        # checkpointed layer, regardless of layer size
+        min_params_to_wrap = cfg.min_params_to_wrap if not checkpoint else 0
+        if cfg.ddp_backend == "fully_sharded":
+            if not is_moe_layer:
+                layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
+            else:
+                layer = fsdp_wrap_expert(cfg, layer, min_num_params=min_params_to_wrap)
+        return layer
+
+
 def set_default_w2v_encoder_args(args):
     args.no_pretrained_weights = getattr(args, "no_pretrained_weights", False)
     args.dropout_input = getattr(args, "dropout_input", 0)
@@ -677,6 +1018,9 @@ def set_default_w2v_encoder_args(args):
     args.no_mask_channel_overlap = getattr(args, "no_mask_channel_overlap", False)
 
     args.freeze_finetune_updates = getattr(args, "freeze_finetune_updates", 0)
+    args.alternating_freeze_finetune_updates = getattr(
+        args, "alternating_freeze_finetune_updates", 0
+    )
     args.feature_grad_mult = 0.1
     args.layerdrop = getattr(args, "layerdrop", 0.0)
 

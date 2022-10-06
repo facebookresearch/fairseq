@@ -17,14 +17,10 @@
 
 
 import torch
-
 from torch import nn
 
 try:
-    from transformers.modeling_bert import (
-        BertEmbeddings,
-        ACT2FN,
-    )
+    from transformers.modeling_bert import ACT2FN, BertEmbeddings
 except ImportError:
     pass
 
@@ -99,10 +95,13 @@ class MMBertEmbeddings(BertEmbeddings):
                 video_len = 0
                 starting_offset = self.max_video_len + 2  # first text token.
                 ending_offset = self.max_video_len + input_ids.size(1) + 1
-            position_ids = torch.cat([
-                self.position_ids[:, :video_len + 1],
-                self.position_ids[:, starting_offset:ending_offset]
-                ], dim=1)
+            position_ids = torch.cat(
+                [
+                    self.position_ids[:, : video_len + 1],
+                    self.position_ids[:, starting_offset:ending_offset],
+                ],
+                dim=1,
+            )
 
         if token_type_ids is None:
             token_type_ids = torch.zeros(
@@ -116,9 +115,9 @@ class MMBertEmbeddings(BertEmbeddings):
         if inputs_embeds is None:
             inputs_embeds = self.word_embeddings(input_ids)
         if input_video_embeds is not None:
-            inputs_mm_embeds = torch.cat([
-                inputs_embeds[:, :1], input_video_embeds, inputs_embeds[:, 1:]
-            ], dim=1)
+            inputs_mm_embeds = torch.cat(
+                [inputs_embeds[:, :1], input_video_embeds, inputs_embeds[:, 1:]], dim=1
+            )
         else:
             # text only for `MMFusionShare`.
             inputs_mm_embeds = inputs_embeds

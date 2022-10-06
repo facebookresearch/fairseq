@@ -338,7 +338,7 @@ class SpeechWavTransformerEncoder(FairseqEncoder):
             x = x.transpose(0, 1)
             encoder_states = []
             for layer in self.layers:
-                x = layer(x, encoder_padding_mask)
+                x, _ = layer(x, encoder_padding_mask)
                 if return_all_hiddens:
                     encoder_states.append(x)
             if self.normalize_before:
@@ -445,7 +445,7 @@ class StackedSpeechWavTransformerEncoder(FairseqEncoder):
         def cal_text_layers(x, padding_mask, return_all_hiddens=False):
             encoder_states = []
             for layer in self.text_encoder_layers:
-                x = layer(x, padding_mask)
+                x, _ = layer(x, padding_mask)
                 if return_all_hiddens:
                     encoder_states.append(x)
             if self.final_layer_norm is not None:

@@ -3,16 +3,17 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from dataclasses import dataclass, field
 import itertools
 import json
 import logging
 import os
-from typing import Optional
 from argparse import Namespace
-from omegaconf import II
+from dataclasses import dataclass, field
+from typing import Optional
 
 import numpy as np
+from omegaconf import II
+
 from fairseq import metrics, utils
 from fairseq.data import (
     AppendTokenDataset,
@@ -28,7 +29,6 @@ from fairseq.data import (
 from fairseq.data.indexed_dataset import get_available_dataset_impl
 from fairseq.dataclass import ChoiceEnum, FairseqDataclass
 from fairseq.tasks import FairseqTask, register_task
-
 
 EVAL_BLEU_ORDER = 4
 
@@ -58,6 +58,7 @@ def load_langpair_dataset(
     shuffle=True,
     pad_to_multiple=1,
     prepend_bos_src=None,
+    fixed_pad_length=None,
 ):
     def split_exists(split, src, tgt, lang, data_path):
         filename = os.path.join(data_path, "{}.{}-{}.{}".format(split, src, tgt, lang))
@@ -167,6 +168,7 @@ def load_langpair_dataset(
         num_buckets=num_buckets,
         shuffle=shuffle,
         pad_to_multiple=pad_to_multiple,
+        fixed_pad_length=fixed_pad_length,
     )
 
 
@@ -221,6 +223,9 @@ class TranslationConfig(FairseqDataclass):
             "help": "if >0, then bucket source and target lengths into "
             "N buckets and pad accordingly; this is useful on TPUs to minimize the number of compilations"
         },
+    )
+    pad_to_fixed_length: bool = field(
+        default=False, metadata={"help": "pad batch to fixed sequence length"}
     )
     train_subset: str = II("dataset.train_subset")
     dataset_impl: Optional[ChoiceEnum(get_available_dataset_impl())] = II(
@@ -285,6 +290,13 @@ class TranslationTask(FairseqTask):
         super().__init__(cfg)
         self.src_dict = src_dict
         self.tgt_dict = tgt_dict
+        if self.cfg.pad_to_fixed_length:
+            self.pad_to_fixed_length = {
+                "source": self.args.max_source_positions,
+                "target": self.args.max_target_positions,
+            }
+        else:
+            self.pad_to_fixed_length = None
 
     @classmethod
     def setup_task(cls, cfg: TranslationConfig, **kwargs):
@@ -354,6 +366,7 @@ class TranslationTask(FairseqTask):
             num_buckets=self.cfg.num_batch_buckets,
             shuffle=(split != "test"),
             pad_to_multiple=self.cfg.required_seq_len_multiple,
+            fixed_pad_length=self.pad_to_fixed_length,
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):

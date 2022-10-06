@@ -19,10 +19,12 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 
-from fairseq import checkpoint_utils, options, scoring, tasks, utils
+from fairseq import checkpoint_utils, distributed_utils, options, scoring, tasks, utils
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
+from fairseq.distributed import fsdp_enable_wrap, fsdp_wrap
 from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
+from fairseq.utils import print_r0
 
 
 def main(cfg: DictConfig):
@@ -40,9 +42,12 @@ def main(cfg: DictConfig):
 
     if cfg.common_eval.results_path is not None:
         os.makedirs(cfg.common_eval.results_path, exist_ok=True)
+        rank_suffix = ""
+        if torch.distributed.is_initialized() and torch.distributed.get_rank() > 0:
+            rank_suffix = "-other_ranks"
         output_path = os.path.join(
             cfg.common_eval.results_path,
-            "generate-{}.txt".format(cfg.dataset.gen_subset),
+            "generate-{}{}.txt".format(cfg.dataset.gen_subset, rank_suffix),
         )
         with open(output_path, "w", buffering=1, encoding="utf-8") as h:
             return _main(cfg, h)
@@ -93,6 +98,34 @@ def _main(cfg: DictConfig, output_file):
 
     # Load ensemble
     logger.info("loading model(s) from {}".format(cfg.common_eval.path))
+    if (
+        cfg.common_eval.is_moe
+        and torch.distributed.is_initialized()
+        and torch.distributed.get_world_size() > 1
+    ):
+        cfg.checkpoint.checkpoint_suffix = f"-rank-{torch.distributed.get_rank()}"
+        moe_freq = 1
+    else:
+        moe_freq = 0
+
+    def _build_fn(train_cfg):
+        # cfg.distributed_training must be passed in (using args like ddp-backend and --use-sharded-state.
+        # It is not inferred from the checkpoint
+        extra = {"is_moe": True, "use_sharded_state": True}
+        with fsdp_enable_wrap(cfg.distributed_training, **extra):
+            model = fsdp_wrap(task.build_model(train_cfg.model))
+
+        return model
+
+    # Load ensemble
+    if (
+        cfg.common_eval.is_moe
+        and cfg.distributed_training.ddp_backend == "fully_sharded"
+    ):
+        build_model_hook = lambda cfg, _: _build_fn(cfg)
+    else:
+        build_model_hook = None
+
     models, saved_cfg = checkpoint_utils.load_model_ensemble(
         utils.split_paths(cfg.common_eval.path),
         arg_overrides=overrides,
@@ -100,6 +133,8 @@ def _main(cfg: DictConfig, output_file):
         suffix=cfg.checkpoint.checkpoint_suffix,
         strict=(cfg.checkpoint.checkpoint_shard_count == 1),
         num_shards=cfg.checkpoint.checkpoint_shard_count,
+        is_moe=moe_freq > 0,
+        build_model_hook=build_model_hook,
     )
 
     # loading the dataset should happen after the checkpoint has been loaded so we can give it the saved task config
@@ -131,13 +166,20 @@ def _main(cfg: DictConfig, output_file):
             model.half()
         if use_cuda and not cfg.distributed_training.pipeline_model_parallel:
             model.cuda()
-        model.prepare_for_inference_(cfg)
+        if not cfg.common_eval.is_moe:
+            model.prepare_for_inference_(cfg)
 
     # Load alignment dictionary for unknown word replacement
     # (None if no unknown word replacement, empty if no path to align dictionary)
     align_dict = utils.load_align_dict(cfg.generation.replace_unk)
 
     # Load dataset (possibly sharded)
+    num_shards = cfg.distributed_training.distributed_world_size
+    shard_id = cfg.distributed_training.distributed_rank
+    # We need all GPUs to process the same batch
+    if cfg.common_eval.is_moe or cfg.common_eval.moe_generation:
+        num_shards = 1
+        shard_id = 0
     itr = task.get_batch_iterator(
         dataset=task.dataset(cfg.dataset.gen_subset),
         max_tokens=cfg.dataset.max_tokens,
@@ -148,8 +190,8 @@ def _main(cfg: DictConfig, output_file):
         ignore_invalid_inputs=cfg.dataset.skip_invalid_size_inputs_valid_test,
         required_batch_size_multiple=cfg.dataset.required_batch_size_multiple,
         seed=cfg.common.seed,
-        num_shards=cfg.distributed_training.distributed_world_size,
-        shard_id=cfg.distributed_training.distributed_rank,
+        num_shards=num_shards,
+        shard_id=shard_id,
         num_workers=cfg.dataset.num_workers,
         data_buffer_size=cfg.dataset.data_buffer_size,
     ).next_epoch_itr(shuffle=False)
@@ -205,6 +247,8 @@ def _main(cfg: DictConfig, output_file):
             prefix_tokens=prefix_tokens,
             constraints=constraints,
         )
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
         num_generated_tokens = sum(len(h[0]["tokens"]) for h in hypos)
         gen_timer.stop(num_generated_tokens)
 
@@ -254,9 +298,9 @@ def _main(cfg: DictConfig, output_file):
 
             if not cfg.common_eval.quiet:
                 if src_dict is not None:
-                    print("S-{}\t{}".format(sample_id, src_str), file=output_file)
+                    print_r0("S-{}\t{}".format(sample_id, src_str), file=output_file)
                 if has_target:
-                    print("T-{}\t{}".format(sample_id, target_str), file=output_file)
+                    print_r0("T-{}\t{}".format(sample_id, target_str), file=output_file)
 
             # Process top predictions
             for j, hypo in enumerate(hypos[i][: cfg.generation.nbest]):
@@ -273,16 +317,16 @@ def _main(cfg: DictConfig, output_file):
                 if not cfg.common_eval.quiet:
                     score = hypo["score"] / math.log(2)  # convert to base 2
                     # original hypothesis (after tokenization and BPE)
-                    print(
+                    print_r0(
                         "H-{}\t{}\t{}".format(sample_id, score, hypo_str),
                         file=output_file,
                     )
                     # detokenized hypothesis
-                    print(
+                    print_r0(
                         "D-{}\t{}\t{}".format(sample_id, score, detok_hypo_str),
                         file=output_file,
                     )
-                    print(
+                    print_r0(
                         "P-{}\t{}".format(
                             sample_id,
                             " ".join(
@@ -299,7 +343,7 @@ def _main(cfg: DictConfig, output_file):
                     )
 
                     if cfg.generation.print_alignment == "hard":
-                        print(
+                        print_r0(
                             "A-{}\t{}".format(
                                 sample_id,
                                 " ".join(
@@ -312,7 +356,7 @@ def _main(cfg: DictConfig, output_file):
                             file=output_file,
                         )
                     if cfg.generation.print_alignment == "soft":
-                        print(
+                        print_r0(
                             "A-{}\t{}".format(
                                 sample_id,
                                 " ".join(
@@ -323,7 +367,7 @@ def _main(cfg: DictConfig, output_file):
                         )
 
                     if cfg.generation.print_step:
-                        print(
+                        print_r0(
                             "I-{}\t{}".format(sample_id, hypo["steps"]),
                             file=output_file,
                         )
@@ -338,7 +382,7 @@ def _main(cfg: DictConfig, output_file):
                                 tgt_dict=tgt_dict,
                                 remove_bpe=None,
                             )
-                            print(
+                            print_r0(
                                 "E-{}_{}\t{}".format(sample_id, step, h_str),
                                 file=output_file,
                             )
@@ -388,7 +432,7 @@ def _main(cfg: DictConfig, output_file):
                     "If you are using BPE on the target side, the BLEU score is computed on BPE tokens, not on proper words.  Use --sacrebleu for standard 13a BLEU tokenization"
                 )
         # use print to be consistent with other main outputs: S-, H-, T-, D- and so on
-        print(
+        print_r0(
             "Generate {} with beam={}: {}".format(
                 cfg.dataset.gen_subset, cfg.generation.beam, scorer.result_string()
             ),
@@ -410,7 +454,8 @@ def cli_main():
         "model args (e.g. `AudioPretraining`)",
     )
     args = options.parse_args_and_arch(parser)
-    main(args)
+    cfg = convert_namespace_to_omegaconf(args)
+    distributed_utils.call_main(cfg, main)
 
 
 if __name__ == "__main__":

@@ -22,8 +22,14 @@ except ImportError:
 from fairseq import utils
 from fairseq.incremental_decoding_utils import with_incremental_state
 from fairseq.modules.fairseq_dropout import FairseqDropout
+from fairseq.modules.linear import Linear
 from fairseq.modules.quant_noise import quant_noise
 
+try:
+    HAS_FUSED_MASK_SOFTMAX = True
+    from megatron.model.fused_softmax import ScaledUpperTriangMaskedSoftmax
+except ImportError:
+    HAS_FUSED_MASK_SOFTMAX = False
 
 # TODO: move this into xformers?
 # TODO: uint8 input type should just output a bool
@@ -81,6 +87,9 @@ class MultiheadAttention(nn.Module):
         encoder_decoder_attention=False,
         q_noise=0.0,
         qn_block_size=8,
+        scale_heads=False,
+        use_fused_softmax=False,
+        init_model_on_gpu=False,
         # TODO: pass in config rather than string.
         # config defined in xformers.components.attention.AttentionConfig
         xformers_att_config: Optional[str] = None,
@@ -106,8 +115,19 @@ class MultiheadAttention(nn.Module):
         self.dropout_module = FairseqDropout(
             dropout, module_name=self.__class__.__name__
         )
-
         self.head_dim = embed_dim // num_heads
+        if scale_heads:
+            device, dtype = (
+                (torch.cuda.current_device(), torch.float16)
+                if init_model_on_gpu
+                else (None, torch.float32)
+            )
+            self.c_attn = nn.Parameter(
+                torch.ones((num_heads,), device=device, dtype=dtype), requires_grad=True
+            )
+        else:
+            self.c_attn = None
+
         assert (
             self.head_dim * num_heads == self.embed_dim
         ), "embed_dim must be divisible by num_heads"
@@ -120,20 +140,49 @@ class MultiheadAttention(nn.Module):
             "Self-attention requires query, key and " "value to be of the same size"
         )
 
+        random_state = torch.get_rng_state()
         self.k_proj = quant_noise(
-            nn.Linear(self.kdim, embed_dim, bias=bias), q_noise, qn_block_size
+            Linear(
+                self.kdim,
+                embed_dim,
+                bias=bias,
+                init_model_on_gpu=init_model_on_gpu,
+            ),
+            q_noise,
+            qn_block_size,
         )
         self.v_proj = quant_noise(
-            nn.Linear(self.vdim, embed_dim, bias=bias), q_noise, qn_block_size
+            Linear(
+                self.vdim,
+                embed_dim,
+                bias=bias,
+                init_model_on_gpu=init_model_on_gpu,
+            ),
+            q_noise,
+            qn_block_size,
         )
         self.q_proj = quant_noise(
-            nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
+            Linear(
+                embed_dim,
+                embed_dim,
+                bias=bias,
+                init_model_on_gpu=init_model_on_gpu,
+            ),
+            q_noise,
+            qn_block_size,
         )
 
         self.out_proj = quant_noise(
-            nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
+            Linear(
+                embed_dim,
+                embed_dim,
+                bias=bias,
+                init_model_on_gpu=init_model_on_gpu,
+            ),
+            q_noise,
+            qn_block_size,
         )
-
+        torch.set_rng_state(random_state)
         if add_bias_kv:
             self.bias_k = Parameter(torch.Tensor(1, 1, embed_dim))
             self.bias_v = Parameter(torch.Tensor(1, 1, embed_dim))
@@ -160,17 +209,26 @@ class MultiheadAttention(nn.Module):
 
         self.onnx_trace = False
         self.skip_embed_dim_check = False
+        self.use_fused_softmax = use_fused_softmax and HAS_FUSED_MASK_SOFTMAX
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
 
     def reset_parameters(self):
+        def _init_method_bias(weight, bias):
+            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(weight)
+            bound = 1 / math.sqrt(fan_in)
+            nn.init.uniform_(bias, -bound, bound)
+
         if self.qkv_same_dim:
             # Empirically observed the convergence to be much better with
             # the scaled initialization
             nn.init.xavier_uniform_(self.k_proj.weight, gain=1 / math.sqrt(2))
             nn.init.xavier_uniform_(self.v_proj.weight, gain=1 / math.sqrt(2))
             nn.init.xavier_uniform_(self.q_proj.weight, gain=1 / math.sqrt(2))
+            _init_method_bias(self.k_proj.weight, self.k_proj.bias)
+            _init_method_bias(self.v_proj.weight, self.v_proj.bias)
+            _init_method_bias(self.q_proj.weight, self.q_proj.bias)
         else:
             nn.init.xavier_uniform_(self.k_proj.weight)
             nn.init.xavier_uniform_(self.v_proj.weight)
@@ -521,6 +579,8 @@ class MultiheadAttention(nn.Module):
             # A workaround for quantization to work. Otherwise JIT compilation
             # treats bias in linear module as method.
             and not torch.jit.is_scripting()
+            and not self.use_fused_softmax
+            and self.c_attn is None
             # The Multihead attention implemented in pytorch forces strong dimension check
             # for input embedding dimention and K,Q,V projection dimension.
             # Since pruning will break the dimension check and it is not easy to modify the pytorch API,
@@ -598,7 +658,9 @@ class MultiheadAttention(nn.Module):
             q = self.q_proj(query)
             k = self.k_proj(key)
             v = self.v_proj(value)
-        q *= self.scaling
+
+        if not self.use_fused_softmax:
+            q *= self.scaling
 
         if self.bias_k is not None:
             assert self.bias_v is not None
@@ -702,8 +764,11 @@ class MultiheadAttention(nn.Module):
         attn_weights = self.apply_sparse_mask(attn_weights, tgt_len, src_len, bsz)
 
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
-
+        # Replace any non-finite values with finite equivalents, since otherwise
+        # we may get NaN when adding attn_mask or computing softmax.
         if attn_mask is not None:
+            attn_weights = torch.nan_to_num(attn_weights)
+        if not self.use_fused_softmax and attn_mask is not None:
             attn_mask = attn_mask.unsqueeze(0)
             if self.onnx_trace:
                 attn_mask = attn_mask.repeat(attn_weights.size(0), 1, 1)
@@ -731,11 +796,17 @@ class MultiheadAttention(nn.Module):
 
         if before_softmax:
             return attn_weights, v
+        if not self.use_fused_softmax or torch.jit.is_scripting():
+            attn_weights_float = utils.softmax(
+                attn_weights, dim=-1, onnx_trace=self.onnx_trace
+            )
+            attn_weights = attn_weights_float.type_as(attn_weights)
+        else:
+            attn_weights = ScaledUpperTriangMaskedSoftmax.apply(
+                attn_weights, self.scaling
+            )
+            attn_weights_float = attn_weights
 
-        attn_weights_float = utils.softmax(
-            attn_weights, dim=-1, onnx_trace=self.onnx_trace
-        )
-        attn_weights = attn_weights_float.type_as(attn_weights)
         attn_probs = self.dropout_module(attn_weights)
 
         assert v is not None
@@ -762,6 +833,10 @@ class MultiheadAttention(nn.Module):
         else:
             attn = torch.bmm(attn_probs, v)
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
+        if self.c_attn is not None:
+            c_attn = self.c_attn.repeat(bsz)
+            attn = torch.einsum("bth,b->bth", attn, c_attn)
+
         if self.onnx_trace and attn.size(1) == 1:
             # when ONNX tracing a single decoder step (sequence length == 1)
             # the transpose is a no-op copy before view, thus unnecessary

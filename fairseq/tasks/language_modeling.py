@@ -10,6 +10,8 @@ from typing import Optional
 
 import numpy as np
 import torch
+from omegaconf import II
+
 from fairseq import utils
 from fairseq.data import (
     AppendTokenDataset,
@@ -30,8 +32,6 @@ from fairseq.data.indexed_dataset import get_available_dataset_impl
 from fairseq.data.shorten_dataset import maybe_shorten_dataset
 from fairseq.dataclass import ChoiceEnum, FairseqDataclass
 from fairseq.tasks import LegacyFairseqTask, register_task
-from omegaconf import II
-
 
 SAMPLE_BREAK_MODE_CHOICES = ChoiceEnum(["none", "complete", "complete_doc", "eos"])
 SHORTEN_METHOD_CHOICES = ChoiceEnum(["none", "truncate", "random_crop"])
@@ -67,6 +67,9 @@ class LanguageModelingConfig(FairseqDataclass):
     past_target: bool = field(default=False, metadata={"help": "include past target"})
     add_bos_token: bool = field(
         default=False, metadata={"help": "prepend beginning of sentence token (<s>)"}
+    )
+    max_source_positions: Optional[int] = field(
+        default=None, metadata={"help": "max number of tokens in the source sequence"}
     )
     max_target_positions: Optional[int] = field(
         default=None, metadata={"help": "max number of tokens in the target sequence"}
@@ -192,7 +195,7 @@ class LanguageModelingTask(LegacyFairseqTask):
         for target in self.targets:
             if target not in model.supported_targets:
                 raise ValueError(
-                    "Unsupported language modeling target: {}".format(target)
+                    f"Unsupported language modeling target: {target} not in {model.supported_targets}"
                 )
 
         return model

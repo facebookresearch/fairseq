@@ -3,10 +3,9 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import torch
-
 from collections import OrderedDict
 
+import torch
 from torch.utils.data import Dataset
 from torch.utils.data.dataloader import default_collate
 
@@ -66,8 +65,7 @@ class MMDataset(Dataset):
             batch = OrderedDict()
             for key in samples[0]:
                 if samples[0][key] is not None:
-                    batch[key] = default_collate(
-                        [sample[key] for sample in samples])
+                    batch[key] = default_collate([sample[key] for sample in samples])
                 # if torch.is_tensor(batch[key]):
                 #    print(key, batch[key].size())
                 # else:

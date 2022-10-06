@@ -1,0 +1,18 @@
+bin_root: non_flores_v4.2/autshumato
+
+sampled:
+  - eng_Latn-afr_Latn
+
+all:
+  - eng_Latn-afr_Latn
+  - eng_Latn-nso_Latn
+  - eng_Latn-ssw_Latn
+  - eng_Latn-tsn_Latn
+  - eng_Latn-xho_Latn
+  - eng_Latn-zul_Latn
+  - afr_Latn-eng_Latn
+  - nso_Latn-eng_Latn
+  - ssw_Latn-eng_Latn
+  - tsn_Latn-eng_Latn
+  - xho_Latn-eng_Latn
+  - zul_Latn-eng_Latn

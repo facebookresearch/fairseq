@@ -1,0 +1,79 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: json
+  log_interval: 200
+
+checkpoint:
+  no_epoch_checkpoints: true
+  best_checkpoint_metric: wer
+  save_interval: 3
+
+task:
+  _name: audio_finetuning
+  data: ???
+  normalize: true
+  labels: ltr
+  fbank_features: 80
+  max_sample_size: 250000
+  min_sample_size: 32000
+
+dataset:
+  num_workers: 6
+  max_tokens: 10000
+  skip_invalid_size_inputs_valid_test: true
+  train_subset: train_librispeech
+  valid_subset: dev_librispeech-clean
+  validate_interval: 2
+
+distributed_training:
+  ddp_backend: fully_sharded
+  distributed_world_size: 8
+
+criterion:
+  _name: ctc
+  zero_infinity: true
+
+optimization:
+  max_update: 100000
+  lr: [0.0003]
+  sentence_avg: true
+  update_freq: [1]
+
+optimizer:
+  _name: adam
+  adam_betas: (0.9,0.98)
+  adam_eps: 1e-08
+
+lr_scheduler:
+  _name: tri_stage
+  phase_ratio: [0.1, 0.4, 0.5]
+  final_lr_scale: 0.05
+
+
+model:
+  _name: wav2vec_ctc
+  w2v_path: ???
+  apply_mask: false
+  mask_length: 2
+  mask_prob: 0.5
+  layerdrop: 0.1
+  activation_dropout: 0.0
+  feature_grad_mult: 0.0
+  freeze_finetune_updates: 5000
+  fbank_features: 80
+  sample_every_k_steps: 0
+  no_pretrained_weights: false
+
+hydra:
+  launcher:
+    cpus_per_task: ${distributed_training.distributed_world_size}
+    gpus_per_node: ???
+    tasks_per_node: ${hydra.launcher.gpus_per_node}
+    nodes: 1
+    mem_gb: 400
+    timeout_min: 4320
+    max_num_timeout: 50
+    name: ${hydra.job.config_name}
+    submitit_folder: ${hydra.sweep.dir}/submitit

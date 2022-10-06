@@ -7,24 +7,22 @@ from typing import Dict, List, NamedTuple, Optional
 
 import torch
 import torch.nn as nn
+from torch import Tensor
+
 from examples.simultaneous_translation.modules.monotonic_transformer_layer import (
     TransformerMonotonicDecoderLayer,
     TransformerMonotonicEncoderLayer,
 )
-from fairseq.models import (
-    register_model,
-    register_model_architecture,
-)
+from fairseq.models import register_model, register_model_architecture
 from fairseq.models.transformer import (
-    TransformerModel,
-    TransformerEncoder,
     TransformerDecoder,
+    TransformerEncoder,
+    TransformerModel,
     base_architecture,
+    tiny_architecture,
     transformer_iwslt_de_en,
     transformer_vaswani_wmt_en_de_big,
-    tiny_architecture
 )
-from torch import Tensor
 
 DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
@@ -68,10 +66,7 @@ class TransformerMonotonicEncoder(TransformerEncoder):
         self.dictionary = dictionary
         self.layers = nn.ModuleList([])
         self.layers.extend(
-            [
-                TransformerMonotonicEncoderLayer(args)
-                for i in range(args.encoder_layers)
-            ]
+            [TransformerMonotonicEncoderLayer(args) for i in range(args.encoder_layers)]
         )
 
 
@@ -94,10 +89,7 @@ class TransformerMonotonicDecoder(TransformerDecoder):
         self.dictionary = dictionary
         self.layers = nn.ModuleList([])
         self.layers.extend(
-            [
-                TransformerMonotonicDecoderLayer(args)
-                for _ in range(args.decoder_layers)
-            ]
+            [TransformerMonotonicDecoderLayer(args) for _ in range(args.decoder_layers)]
         )
         self.policy_criterion = getattr(args, "policy_criterion", "any")
         self.num_updates = None
@@ -233,7 +225,9 @@ class TransformerMonotonicDecoder(TransformerDecoder):
                     assert attn is not None
                     if self.policy_criterion == "any":
                         # Any head decide to read than read
-                        head_read = layer.encoder_attn._get_monotonic_buffer(incremental_state)["head_read"]
+                        head_read = layer.encoder_attn._get_monotonic_buffer(
+                            incremental_state
+                        )["head_read"]
                         assert head_read is not None
                         if head_read.any():
                             # We need to prune the last self_attn saved_state
