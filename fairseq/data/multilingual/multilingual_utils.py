@@ -13,15 +13,16 @@ from fairseq.data import Dictionary
 
 DATA_SOURCE_PREFIX_TAGS = {
     "general_domain" : "<GD_DATA>", 
-    "bt_igct" : "<BT_DATA>", 
-    "manual_igct" : "<MANUAL_DATA>",
-    "bt_names" : "<BT_DATA>", 
-    "manual_igct" : "<MANUAL_DATA>"
+    "bt" : "<BT_DATA>", 
+    "manual" : "<MANUAL_DATA>"
 }
 
 DATA_SOURCE_TYPE_TAGS = {
     "names" : "<EXP_NAME>", 
-    "igct" : "<EXP_IGCT>"
+    "igct" : "<EXP_IGCT>", 
+    "desc" : "<EXP_DESC>", 
+    "avatar" : "<EXP_AVATAR>", 
+    "chat" : "<EXP_CHAT>"
 }
 
 
@@ -105,6 +106,8 @@ def augment_dictionary(
     # Add special tokens.
     if add_data_source_prefix_tags:
         for name, tok in DATA_SOURCE_PREFIX_TAGS.items():
+            dictionary.add_symbol(tok)
+        for name, tok in DATA_SOURCE_TYPE_TAGS.items():
             dictionary.add_symbol(tok)
 
     if (

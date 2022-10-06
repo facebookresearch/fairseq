@@ -834,24 +834,24 @@ class MultilingualDatasetManager(object):
                     # Prepend prefix tag if it's a "train_<fold>" data source.
                     if self.add_data_source_prefix_tags:
                         for fold in DATA_SOURCE_PREFIX_TAGS:
-                            if train_split == f"train_{fold}":
-                                logger.info(
-                                        f"Prepending prefix token: {DATA_SOURCE_PREFIX_TAGS[fold]} for {train_split} data."
-                                    )
-                                src_dataset = PrependTokenDataset(
-                                        src_dataset,
-                                        src_dict.index(DATA_SOURCE_PREFIX_TAGS[fold]),
-                                    )
-                                if self.add_data_type_tags:
-                                    fold_tag_type = fold.split('_')[1]
-                                    data_type_tag = DATA_SOURCE_TYPE_TAGS[fold_tag_type]
+                            for data_type in DATA_SOURCE_TYPE_TAGS:
+                                if train_split == f"train_{fold}_{data_type}":
                                     logger.info(
-                                        f"Prepending prefix token: {data_type_tag} for {train_split} data."
-                                    )
+                                            f"Prepending prefix token: {DATA_SOURCE_PREFIX_TAGS[fold]} for {train_split} data."
+                                        )
                                     src_dataset = PrependTokenDataset(
                                             src_dataset,
-                                            src_dict.index(data_type_tag),
+                                            src_dict.index(DATA_SOURCE_PREFIX_TAGS[fold]),
                                         )
+                                    if self.add_data_type_tags:
+                                        data_type_tag = DATA_SOURCE_TYPE_TAGS[data_type]
+                                        logger.info(
+                                            f"Prepending prefix token: {data_type_tag} for {train_split} data."
+                                        )
+                                        src_dataset = PrependTokenDataset(
+                                                src_dataset,
+                                                src_dict.index(data_type_tag),
+                                            )
 
 
                     src_datasets.append(src_dataset)
