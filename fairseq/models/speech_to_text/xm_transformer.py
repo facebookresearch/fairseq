@@ -17,6 +17,8 @@ from fairseq.data.data_utils import lengths_to_padding_mask
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderDecoderModel,
+    FairseqEncoderModel,
+    FairseqLanguageModel,
     register_model,
     register_model_architecture,
 )
@@ -643,7 +645,29 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
 
         encoder = cls.build_encoder(args)
         decoder = cls.build_decoder(args, task, decoder_embed_tokens)
-        return cls(encoder, decoder)
+        base_model = cls(encoder, decoder)
+
+        # set up multitask decoders
+        base_model.multitask_decoders = {}
+        for i, (task_name, task_obj) in enumerate(task.multitask_tasks.items()):
+            # dummy auxiliary decoder
+            if task_obj.args.get_loss_weight(0) == 0:
+                continue
+
+            task_decoder = cls.build_multitask_decoder(
+                task_obj.args, task_obj.target_dictionary, args.decoder_embed_dim
+            )
+
+            setattr(base_model, f"{task_name}_decoder", task_decoder)
+            decoder_model_cls = (
+                FairseqEncoderModel
+                if task_obj.args.decoder_type == "ctc"
+                else FairseqLanguageModel
+            )
+            base_model.multitask_decoders[task_name] = decoder_model_cls(
+                getattr(base_model, f"{task_name}_decoder")
+            )
+        return base_model
 
     def get_normalized_probs(
         self,
@@ -653,7 +677,14 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
     ):
         return self.get_normalized_probs_scriptable(net_output, log_probs, sample)
 
-    def forward(self, src_tokens, src_lengths, prev_output_tokens, **kwargs):
+    def forward(
+        self,
+        src_tokens,
+        src_lengths,
+        prev_output_tokens,
+        return_all_hiddens=False,
+        **kwargs,
+    ):
         """
         The forward method inherited from the base class has a **kwargs
         argument in its input, which is not supported in torchscript. This
@@ -665,6 +696,12 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         decoder_out = self.decoder(
             prev_output_tokens=prev_output_tokens, encoder_out=encoder_out
         )
+        if return_all_hiddens:
+            decoder_out[-1]["encoder_states"] = encoder_out["encoder_out"]
+            # NOTE: from the top layer
+            decoder_out[-1]["encoder_padding_mask"] = encoder_out[
+                "encoder_padding_mask"
+            ]
         return decoder_out
 
     def upgrade_state_dict(self, state_dict):
