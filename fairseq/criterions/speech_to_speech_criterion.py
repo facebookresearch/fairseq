@@ -33,6 +33,10 @@ class MultitaskCriterion:
         self.multitask_criterion = OrderedDict()
         self.multitask_loss_weight = OrderedDict()
         for task_name, task_obj in multitask_tasks.items():
+            if task_obj.args.get_loss_weight(0) == 0:
+                logger.info(f"Skip {task_name} loss criterion")
+                continue
+
             rdrop_alpha_task = task_obj.args.rdrop_alpha
             if rdrop_alpha_task is None:
                 rdrop_alpha_task = rdrop_alpha
