@@ -3,6 +3,7 @@
 import logging
 from collections import OrderedDict, namedtuple
 from typing import Dict, Optional
+from .entity_retrieval_model import ERBertBased, EntityRetrievalNetwork
 
 import torch
 import torch.nn as nn
@@ -12,6 +13,7 @@ from torch import Tensor
 from fairseq import checkpoint_utils, utils
 from fairseq.file_io import PathManager
 from fairseq.models import (
+    FairseqEncoder,
     FairseqDecoder,
     FairseqEncoderDecoderModel,
     register_model,
@@ -30,6 +32,41 @@ from fairseq.models.transformer import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class SpeechTextEntitiesEncoder(FairseqEncoder):
+    def __init__(self, speech_encoder, text_encoder) -> None:
+        super().__init__(text_encoder.dictionary)
+        self.speech_encoder = speech_encoder
+        self.text_encoder = text_encoder
+
+    def forward(
+        self,
+        src_tokens,
+        src_lengths,
+        positive_retr_tokens,
+        negative_retr_tokens,
+        **kwargs
+    ):
+        speech_encoder_out = self.speech_encoder(src_tokens, src_lengths, return_all_hiddens=False)
+        speech_padding_mask = speech_encoder_out['encoder_padding_mask'][0]
+        speech_encoded = speech_encoder_out['encoder_out'][0]
+        positive_encoder_outs = [
+            self.text_encoder(
+                pr_tokens, pr_tokens.ne(self.dictionary.pad()).sum(dim=1).long(), return_all_hiddens=False
+            ) for pr_tokens in positive_retr_tokens
+        ]
+        negative_encoder_outs = [
+            self.text_encoder(
+                nr_tokens, nr_tokens.ne(self.dictionary.pad()).sum(dim=1).long(), return_all_hiddens=False
+            ) for nr_tokens in negative_retr_tokens
+        ]
+        return {
+            "encoder_out": [speech_encoded],
+            "encoder_padding_mask": [speech_padding_mask],
+            "positive_encoder_outs": positive_encoder_outs,
+            "negative_encoder_outs": negative_encoder_outs,
+        }
 
 
 class SpeechTextPreTrainEncoder(MultiModalityEncoder):
@@ -208,6 +245,8 @@ class SpeechTextPreTrainEncoder(MultiModalityEncoder):
         elif mode == "unsup_speech":
             kwargs["features_only"] = False
             return self.unsup_speech_encoder, kwargs
+        elif mode == "sup_speech_entities":
+            return SpeechTextEntitiesEncoder(self.sup_s2s_speech_encoder, self.text_encoder), kwargs
         elif mode in ("text", "bitext"):
             return self.text_encoder, kwargs
         else:
@@ -216,6 +255,44 @@ class SpeechTextPreTrainEncoder(MultiModalityEncoder):
 
     def forward(self, src_tokens, src_lengths=None, mode="", alignment=None, **kwargs):
         return super().forward(src_tokens, src_lengths, mode, **kwargs)
+
+
+class EntityRetrievalDecoder(FairseqDecoder):
+    def __init__(self, dictionary, er_network):
+        super().__init__(dictionary)
+        self.retrieval_network = er_network
+    
+    def forward(
+        self,
+        prev_output_tokens,
+        encoder_out,
+        incremental_state=None,
+        **kwargs,
+    ):
+        speech_encoded = encoder_out['encoder_out'][0]
+        speech_padding_mask = encoder_out['encoder_padding_mask'][0]
+        positive_encoder_outs = encoder_out['positive_encoder_outs']
+        negative_encoder_outs = encoder_out['negative_encoder_outs']
+        positive_retrieval_encoder_out = [
+            self.retrieval_network(
+                p_encoded['encoder_out'][0],
+                speech_encoded,
+                p_encoded['encoder_padding_mask'][0],
+                speech_padding_mask)
+            for p_encoded in positive_encoder_outs
+        ]
+        negative_retrieval_encoder_out = [
+            self.retrieval_network(
+                n_encoded['encoder_out'][0],
+                speech_encoded,
+                n_encoded['encoder_padding_mask'][0],
+                speech_padding_mask)
+            for n_encoded in negative_encoder_outs
+        ]
+        return {
+            "positive_retrieval_out": positive_retrieval_encoder_out,
+            "negative_retrieval_out": negative_retrieval_encoder_out,
+        }
 
 
 # SpeechDummyDecoder works as an extension of encoder, so we could fit encoder only training into seq2seq training
@@ -362,10 +439,11 @@ class SpeechDummyDecoder(FairseqDecoder):
 
 
 class SpeechTextPreTrainDecoder(MultiInputDecoder):
-    def __init__(self, dictionary, speech_decoder, text_decoder):
+    def __init__(self, dictionary, speech_decoder, text_decoder, er_network_decoder):
         super().__init__(dictionary)
         self.speech_decoder = speech_decoder
         self.text_decoder = text_decoder
+        self.er_network_decoder = er_network_decoder
 
     def select_decoder(self, mode, **kwargs):
         if mode == "unsup_speech":
@@ -380,6 +458,8 @@ class SpeechTextPreTrainDecoder(MultiInputDecoder):
             if "alignment" in kwargs:
                 del kwargs["alignment"]
             return self.text_decoder, kwargs
+        if mode in ("sup_speech_entities"):
+            return self.er_network_decoder, kwargs
 
         raise NotImplementedError(f"{mode} is not supported")
         return None, kwargs
@@ -425,6 +505,16 @@ class SpeechTextPreTrainDecoder(MultiInputDecoder):
         return speech_decoder
 
     @classmethod
+    def build_entity_retrieval_network_decoder(cls, args, dictionary):
+        if args.retrieval_network == "bert_like":
+            retrieval_network = ERBertBased(args)
+        elif args.retrieval_network == "speech2slot":
+            retrieval_network = EntityRetrievalNetwork(args)
+        else:
+            raise Exception(f"Entity retrieval network {args.retrieval_network} not supported")
+        return EntityRetrievalDecoder(dictionary, retrieval_network)
+
+    @classmethod
     def build_decoder(
         cls, args, text_dictionary, speech_dictionary, speech_output_embedding
     ):
@@ -432,12 +522,13 @@ class SpeechTextPreTrainDecoder(MultiInputDecoder):
         speech_decoder = cls.build_dummy_speech_decoder(
             args, speech_dictionary, speech_output_embedding
         )
+        er_network_decoder = cls.build_entity_retrieval_network_decoder(args, speech_dictionary)
         if getattr(args, "load_pretrained_mbart_decoder_from", None):
             text_decoder = checkpoint_utils.load_pretrained_component_from_model(
                 component=text_decoder,
                 checkpoint=args.load_pretrained_mbart_decoder_from,
             )
-        return SpeechTextPreTrainDecoder(text_dictionary, speech_decoder, text_decoder)
+        return SpeechTextPreTrainDecoder(text_dictionary, speech_decoder, text_decoder, er_network_decoder)
 
 
 @register_model("speech_text_pretrain_bart")
@@ -546,6 +637,86 @@ class SpeechTextPreTrainModel(FairseqEncoderDecoderModel):
 
         parser.add_argument("--use-decoder-output-proj", action="store_true")
 
+        ## ENTITIES RETRIEVAL NETWORK
+        parser.add_argument(
+            "--er-dropout", type=float, metavar="D", help="dropout probability"
+        )
+        parser.add_argument(
+            "--er-attention-dropout",
+            type=float,
+            metavar="D",
+            help="dropout probability for attention weights",
+        )
+        parser.add_argument(
+            "--er-activation-dropout",
+            type=float,
+            metavar="D",
+            help="dropout probability after activation in FFN.",
+        )
+        parser.add_argument(
+            "--er-encoder-embed-dim",
+            type=int,
+            metavar="N",
+            help="encoder embedding dimension",
+        )
+        parser.add_argument(
+            "--er-encoder-ffn-embed-dim",
+            type=int,
+            metavar="N",
+            help="encoder embedding dimension for FFN",
+        )
+        parser.add_argument(
+            "--er-encoder-layers", type=int, metavar="N", help="num encoder layers"
+        )
+        parser.add_argument(
+            "--er-encoder-attention-heads",
+            type=int,
+            metavar="N",
+            help="num encoder attention heads",
+        )
+        parser.add_argument(
+            "--er-encoder-normalize-before",
+            action="store_true",
+            help="apply layernorm before each encoder block",
+        )
+        parser.add_argument(
+            "--pretrained-encoder",
+            type=str,
+            metavar="PATH",
+            help="path where to retrieve pretrained encoders",
+        )
+        parser.add_argument(
+            "--retrieval-network",
+            type=str,
+            metavar="NET",
+            choices=['bert_like', 'speech2slot'],
+            help="type of retrieval network to use",
+        )
+        parser.add_argument(
+            "--er-activation-fn",
+            type=str,
+            metavar="FN",
+            choices=['softmax', 'entmax15', 'sparsemax'],
+            help="type of retrieval network to use",
+        )
+        parser.add_argument(
+            "--er-modality-embedding",
+            action="store_true",
+            help="add modality embedding in the ER network",
+        )
+        parser.add_argument(
+            "--er-window-attention-mask",
+            action="store_true",
+            help="if set, attention masks avoids looking too far in the audio from current frame",
+        )
+        parser.add_argument(
+            "--er-window-attention-mask-factor",
+            type=int,
+            metavar="N",
+            default=2,
+            help="how many times the phoneme length to look around the current frame",
+        )
+
     @classmethod
     def build_model(cls, args, task):
         encoder = SpeechTextPreTrainEncoder.build_encoder(args, task.src_dict)
@@ -649,6 +820,18 @@ def speech_text_pretrain_bart_base(args):
     args.decoder_layers = getattr(args, "decoder_layers", 6)
 
     args.no_emb_update_unsup = getattr(args, "no_emb_update_unsup", False)
+
+    args.er_encoder_layers = getattr(args, "er_encoder_layers", 3)
+    args.er_encoder_normalize_before = getattr(args, "er_encoder_normalize_before", args.encoder_normalize_before)
+    args.er_encoder_attention_heads = getattr(args, "er_encoder_attention_heads", args.encoder_attention_heads)
+    args.er_encoder_embed_dim = getattr(args, "er_encoder_embed_dim", args.encoder_embed_dim)
+    args.er_encoder_ffn_embed_dim = getattr(
+        args, "er_encoder_ffn_embed_dim", args.er_encoder_embed_dim * 4
+    )
+    args.er_dropout = getattr(args, "er_dropout", args.dropout)
+    args.er_attention_dropout = getattr(args, "er_attention_dropout", args.attention_dropout)
+    args.er_activation_dropout = getattr(args, "er_activation_dropout", args.er_dropout)
+    args.retrieval_network = getattr(args, "retrieval_network", "bert_like")
 
 
 @register_model_architecture(

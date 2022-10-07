@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 
+from collections import OrderedDict
 import math
+from fairseq.checkpoint_utils import load_checkpoint_to_cpu
+from fairseq.file_io import PathManager
+from fairseq.models.speech_to_text.s2t_transformer import S2TTransformerModel
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 from fairseq.data.data_utils import compute_mask_indices
-from fairseq.models import FairseqEncoder
+from fairseq.models import FairseqEncoder, register_model, register_model_architecture
 from fairseq.models.wav2vec import ConvFeatureExtractionModel
 from fairseq.modules import GradMultiply, LayerNorm, SamePad, TransformerEncoderLayer
 
@@ -19,6 +23,13 @@ class SpeechWavTransformerEncoder(FairseqEncoder):
     # extra parameters for speech encoder besides those defined in transformermodel
     @staticmethod
     def add_args(parser):
+        parser.add_argument(
+            "--load-pretrained-wav2vec-encoder",
+            type=str,
+            default="",
+            metavar="EXPR",
+            help=""" path to the pretrained speech text encoder from wav2vec """,
+        )
         parser.add_argument(
             "--dropout-input",
             type=float,
@@ -253,6 +264,31 @@ class SpeechWavTransformerEncoder(FairseqEncoder):
 
         return input_lengths.to(torch.long)
 
+    def laod_pretrained_wav2vec(self, checkpoint):
+        component_pairs = (
+            ("feature_extractor", self.subsample),
+            ("post_extract_proj", self.feat_proj),
+            ("layer_norm", self.feat_layer_norm),
+            ("encoder.pos_conv", self.embed_positions),
+            ("encoder.layers", self.layers),
+            ("encoder.layer_norm", self.layer_norm),
+            ("mask_emb", self.mask_emb),
+        )
+        if not PathManager.exists(checkpoint):
+            raise IOError("Model file not found: {}".format(checkpoint))
+        state = load_checkpoint_to_cpu(checkpoint)
+        for component_type, component in component_pairs:
+            if isinstance(component, nn.parameter.Parameter):
+                component.data.copy_(state["model"][component_type])
+            else:
+                component_state_dict = OrderedDict()
+                for key in state["model"].keys():
+                    if key.startswith(component_type):
+                        component_subkey = key[len(component_type) + 1 :]
+                        component_state_dict[component_subkey] = state["model"][key]
+                component.load_state_dict(component_state_dict, strict=True)
+        return state
+
     def apply_mask(self, x, padding_mask):
         B, T, C = x.shape
         if self.mask_prob > 0:
@@ -318,22 +354,23 @@ class SpeechWavTransformerEncoder(FairseqEncoder):
             input_lengths = (1 - padding_mask.long()).sum(-1)
         else:
             input_lengths = src_lengths
-        # apply conv formula to get real output_lengths
-        output_lengths = self._get_feat_extract_output_lengths(input_lengths)
+        if input_lengths is not None:
+            # apply conv formula to get real output_lengths
+            output_lengths = self._get_feat_extract_output_lengths(input_lengths)
 
-        padding_mask = torch.zeros(
-            features.shape[:2], dtype=features.dtype, device=features.device
-        )
-
-        # these two operations makes sure that all values
-        # before the output lengths indices are attended to
-        padding_mask[
-            (
-                torch.arange(padding_mask.shape[0], device=padding_mask.device),
-                output_lengths - 1,
+            padding_mask = torch.zeros(
+                features.shape[:2], dtype=features.dtype, device=features.device
             )
-        ] = 1
-        padding_mask = (1 - padding_mask.flip([-1]).cumsum(-1).flip([-1])).bool()
+
+            # these two operations makes sure that all values
+            # before the output lengths indices are attended to
+            padding_mask[
+                (
+                    torch.arange(padding_mask.shape[0], device=padding_mask.device),
+                    output_lengths - 1,
+                )
+            ] = 1
+            padding_mask = (1 - padding_mask.flip([-1]).cumsum(-1).flip([-1])).bool()
 
         features = self.feat_scale * features if self.feat_scale != 1.0 else features
         unmasked_features = features.clone()
@@ -502,3 +539,106 @@ class StackedSpeechWavTransformerEncoder(FairseqEncoder):
 
     def reorder_encoder_out(self, encoder_out, new_order):
         return self.speech_encoder.reorder_encoder_out(encoder_out, new_order)
+
+
+@register_model("s2t_wav_transformer")
+class S2TWavTransformerModel(S2TTransformerModel):
+    @staticmethod
+    def add_args(parser):
+        S2TTransformerModel.add_args(parser)
+        SpeechWavTransformerEncoder.add_args(parser)
+
+    @classmethod
+    def build_encoder(cls, args):
+        encoder = SpeechWavTransformerEncoder(args)
+        # Load pretrained wav2vec
+        if args.load_pretrained_wav2vec_encoder:
+            encoder.laod_pretrained_wav2vec(args.load_pretrained_wav2vec_encoder)
+        # add CTC weight
+        encoder.ctc_proj = None
+        if getattr(args, "ctc_weight", 0.0) > 0.0:
+            encoder.ctc_proj = nn.Linear(args.encoder_embed_dim, args.tgt_dict_size)
+        return encoder
+
+
+@register_model_architecture(
+    "s2t_wav_transformer", "s2t_wav_transformer_base"
+)
+def speech_text_pretrain_bart_base(args):
+    # speech masking
+    args.dropout_input = getattr(args, "dropout_input", 0)
+    args.dropout_features = getattr(args, "dropout_features", 0)
+    args.speech_mask_length = getattr(args, "speech_mask_length", 0)
+    args.speech_mask_prob = getattr(args, "speech_mask_prob", 0.)
+    args.speech_sup_mask_prob = getattr(args, "speech_sup_mask_prob", 0.)
+    args.speech_unsup_mask_prob = getattr(
+        args, "speech_unsup_mask_prob", args.speech_mask_prob
+    )
+    args.speech_mask_selection = getattr(args, "speech_mask_selection", "static")
+    args.speech_mask_other = getattr(args, "speech_mask_other", 0)
+    args.speech_mask_min_space = getattr(args, "speech_mask_min_space", 0)
+    args.speech_no_mask_overlap = getattr(args, "speech_no_mask_overlap", False)
+
+    args.speech_mask_channel_length = getattr(args, "speech_mask_channel_length", 0)
+    args.speech_mask_channel_prob = getattr(args, "speech_mask_channel_prob", 0.0)
+    args.speech_mask_channel_selection = getattr(
+        args, "speech_mask_channel_selection", "static"
+    )
+    args.speech_mask_channel_other = getattr(args, "speech_mask_channel_other", 0)
+    args.speech_mask_channel_min_space = getattr(
+        args, "speech_mask_channel_min_space", 0
+    )
+    args.speech_no_mask_channel_overlap = getattr(
+        args, "speech_no_mask_channel_overlap", False
+    )
+    args.no_scale_feature = getattr(args, "", False)
+    args.feature_grad_mult = getattr(args, "feature_grad_mult", .0)  # 0.1
+
+    # Transformer
+    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 768)
+    args.encoder_ffn_embed_dim = getattr(
+        args, "encoder_ffn_embed_dim", args.encoder_embed_dim * 4
+    )
+    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 12)
+    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", False)
+    args.encoder_layerdrop = getattr(args, "encoder_layerdrop", 0)
+    args.encoder_learned_pos = getattr(args, "encoder_learned_pos", False)
+    args.speech_conv_bias = getattr(args, "speech_conv_bias", False)
+
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", args.encoder_embed_dim)
+    args.decoder_ffn_embed_dim = getattr(
+        args, "decoder_ffn_embed_dim", args.encoder_ffn_embed_dim
+    )
+    args.decoder_attention_heads = getattr(
+        args, "decoder_attention_heads", args.encoder_attention_heads
+    )
+    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", False)
+    args.decoder_learned_pos = getattr(args, "decoder_learned_pos", False)
+    args.dropout = getattr(args, "dropout", 0.1)
+    args.attention_dropout = getattr(args, "attention_dropout", args.dropout)
+    args.activation_dropout = getattr(args, "activation_dropout", 0.0)
+    args.activation_fn = getattr(args, "activation_fn", "relu")  # gelu?
+    args.adaptive_softmax_cutoff = getattr(args, "adaptive_softmax_cutoff", None)
+    args.adaptive_softmax_dropout = getattr(args, "adaptive_softmax_dropout", 0)
+
+    args.speech_unsup_dropout = getattr(args, "speech_unsup_dropout", 0)
+    args.speech_unsup_feature_dropout = getattr(args, "speech_unsup_feature_dropout", 0)
+
+    args.tie_adaptive_weights = getattr(args, "tie_adaptive_weights", False)
+    args.share_decoder_input_output_embed = getattr(
+        args, "share_decoder_input_output_embed", False
+    )
+    args.no_token_positional_embeddings = getattr(
+        args, "no_token_positional_embeddings", False
+    )
+    args.adaptive_input = getattr(args, "adaptive_input", False)
+    args.decoder_layerdrop = getattr(args, "decoder_layerdrop", 0.0)
+    args.decoder_output_dim = getattr(
+        args, "decoder_output_dim", args.decoder_embed_dim
+    )
+    args.layernorm_embedding = getattr(args, "layernorm_embedding", False)
+    args.no_scale_embedding = getattr(args, "no_scale_embedding", False)
+    args.quant_noise_pq = getattr(args, "quant_noise_pq", 0)
+
+    args.encoder_layers = getattr(args, "encoder_layers", 12)
+    args.decoder_layers = getattr(args, "decoder_layers", 6)

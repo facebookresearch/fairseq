@@ -166,7 +166,7 @@ class SpeechToTextJointDataset(SpeechToTextDataset):
     def __len__(self):
         return self.n_samples
 
-    def collater(self, samples: List[SpeechToTextJointDatasetItem]) -> Dict:
+    def collater(self, samples: List[SpeechToTextJointDatasetItem], return_order=False) -> Dict:
         s2t_out = super().collater(samples, return_order=True)
         if s2t_out == {}:
             return s2t_out
@@ -221,6 +221,8 @@ class SpeechToTextJointDataset(SpeechToTextDataset):
             "ntokens": s2t_out["ntokens"],
             "nsentences": len(samples),
         }
+        if return_order:
+            out["order"] = order
         return out
 
 

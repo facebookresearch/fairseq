@@ -11,6 +11,7 @@ from fairseq.criterions.label_smoothed_cross_entropy import (
     LabelSmoothedCrossEntropyCriterionConfig,
     label_smoothed_nll_loss,
 )
+from torch.nn import functional as F
 
 
 @register_criterion(
@@ -55,6 +56,27 @@ class SpeechTextPreTrainCrossEntCriterion(LabelSmoothedCrossEntropyCriterion):
         return lprobs, target
 
     def compute_loss(self, model, net_output, sample, reduce=True):
+        if isinstance(net_output, dict):
+            loss = None
+            nretrievals = 0
+            n_correct = 0
+            for pr_out in net_output['positive_retrieval_out']:
+                probs = torch.sigmoid(pr_out)
+                _loss = F.binary_cross_entropy(probs, torch.ones_like(pr_out) - self.eps, reduction="sum" if reduce else "none")
+                if loss is None:
+                    loss = _loss
+                else:
+                    loss += _loss
+                nretrievals += pr_out.shape[0]
+                if self.report_accuracy:
+                    n_correct += (probs > 0.5).sum().item()
+            for nr_out in net_output['negative_retrieval_out']:
+                probs = torch.sigmoid(nr_out)
+                loss += F.binary_cross_entropy(probs, torch.zeros_like(nr_out) + self.eps, reduction="sum" if reduce else "none")
+                nretrievals += nr_out.shape[0]
+                if self.report_accuracy:
+                    n_correct += (probs < 0.5).sum().item()
+            return loss, loss, net_output['positive_retrieval_out'][0].shape[0], nretrievals, n_correct
         lprobs, target = self.get_lprobs_and_target(model, net_output, sample)
         n_correct = 0
         if isinstance(target, dict):

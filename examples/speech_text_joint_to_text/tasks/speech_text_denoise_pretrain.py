@@ -7,8 +7,11 @@ import os
 import re
 from argparse import Namespace
 from pathlib import Path
+from examples.speech_text_joint_to_text.data.retrieval_wrapper_dataset import SpeechTextRetrievalDataset
+from examples.speech_text_joint_to_text.data.speech_to_text_joint_dataset_with_entities import SpeechToTextJointWithEntitiesDatasetCreator
 
-from fairseq.data import ConcatDataset, Dictionary, encoders
+from fairseq.data import ConcatDataset, Dictionary, data_utils, encoders
+from fairseq.data import iterators
 from fairseq.data.audio.multi_modality_dataset import (
     FileAudioDatasetWrapper,
     ModalityDatasetItem,
@@ -92,6 +95,14 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
             metavar="N",
             help="Multiple Ratio for speech dataset with transcripts ",
         )
+        # s2t
+        parser.add_argument(
+            "--supervised-speech-entities-sample-ratio",
+            default="1",
+            type=str,
+            metavar="N",
+            help="Multiple Ratio for speech dataset with transcripts and entities ",
+        )
         # ssl
         parser.add_argument(
             "--unsupervised-speech-sample-ratio",
@@ -155,6 +166,48 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
             default="config.yaml",
             help="supervised speech configuration yaml file",
         )
+
+        parser.add_argument(
+            "--sup-speech-entities-data", default="", help="path to supervised speech data with entities"
+        )
+        parser.add_argument(
+            "--sup-speech-entities-train-subset",
+            default="",
+            help="supervised speech training subsets with entities",
+        )
+        parser.add_argument(
+            "--sup-speech-entities-valid-subset",
+            default="",
+            help="supervised speech validation subsets with entities",
+        )
+        parser.add_argument(
+            "--config-entities-yaml",
+            default="config.yaml",
+            help="supervised-speech-with-entities configuration yaml file",
+        )
+        parser.add_argument(
+            "--min-source-len",
+            type=int,
+            metavar="N",
+            default=15000,
+            help="minimun length for encoder speech input ",
+        )
+        parser.add_argument(
+            "--num-negatives",
+            type=int,
+            metavar="N",
+            default=1,
+            help="number of negative words per sample",
+        )
+        parser.add_argument(
+            "--max-words",
+            type=int,
+            metavar="N",
+            default=5,
+            help="max number of words per sample",
+        )
+
+
         parser.add_argument(
             "--unsup-speech-train-data",
             default="",
@@ -246,6 +299,16 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
                 f"load supervised sequece to sequence speech data configure from {Path(args.sup_speech_s2s_data) / args.config_yaml}"
             )
 
+        self.data_entities_cfg = (
+            S2TJointDataConfig(Path(args.sup_speech_entities_data) / args.config_entities_yaml)
+            if args.sup_speech_entities_train_subset != ""
+            else None
+        )
+        if self.data_entities_cfg is not None:
+            logger.info(
+                f"load supervised speech with entities data configure from {Path(args.sup_speech_entities_data) / args.config_entities_yaml}"
+            )
+
         def parse_data_ratio(sample_ratio):
             ratios = sample_ratio.split(",")
             if len(ratios) == 1:
@@ -269,6 +332,7 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
 
         self.sup_ratio = parse_data_ratio(args.supervised_speech_sample_ratio)
         self.sup_s2s_ratio = parse_data_ratio(args.supervised_speech_s2s_sample_ratio)
+        self.sup_entities_ratio = parse_data_ratio(args.supervised_speech_entities_sample_ratio)
         self.text_ratio = parse_data_ratio(args.text_sample_ratio)
         self.bitext_ratio = parse_data_ratio(args.bitext_sample_ratio)
         self.unsup_ratio = parse_data_ratio(args.unsupervised_speech_sample_ratio)
@@ -287,6 +351,14 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
         logger.info(f"tokenizer {msg}: {data_cfg.bpe_tokenizer}")
         return encoders.build_bpe(Namespace(**data_cfg.bpe_tokenizer))
 
+    def build_src_tokenizer(self, data_cfg):
+        logger.info(f"src-pre-tokenizer: {data_cfg.src_pre_tokenizer}")
+        return encoders.build_tokenizer(Namespace(**data_cfg.src_pre_tokenizer))
+
+    def build_src_bpe(self, data_cfg):
+        logger.info(f"tokenizer: {data_cfg.src_bpe_tokenizer}")
+        return encoders.build_bpe(Namespace(**data_cfg.src_bpe_tokenizer))
+
     @classmethod
     def resolve_data_type(cls, split, use_sup_speech_ctc):
         if len(split.split("_")) == 1:
@@ -303,6 +375,7 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
             "bitext",
             "sup_speech_ali",
             "sup_speech_s2s",
+            "sup_speech_entities",
             "unsup_speech",
             "sup_speech_ctc",
         ), f"failed resolving {split} (it resulted into: {dtype} ; is_train={is_train})"
@@ -318,7 +391,7 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
                 self.args.max_text_tokens,
                 self.args.batch_size,
             )
-        elif dtype in ("sup_speech_ctc", "sup_speech_ali", "sup_speech_s2s"):
+        elif dtype in ("sup_speech_ctc", "sup_speech_ali", "sup_speech_s2s", "sup_speech_entities"):
             dsitem = ModalityDatasetItem(
                 dtype,
                 dataset,
@@ -426,6 +499,33 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
                     "sup_speech_s2s", sup_speech_s2s_dataset
                 )
                 msets.append(dsitem)
+
+            if self.args.sup_speech_entities_train_subset != "":
+                pre_tokenizer = self.build_tokenizer(self.data_entities_cfg, msg="(s2ent)")
+                bpe_tokenizer = self.build_bpe(self.data_entities_cfg, msg="(s2ent)")
+                src_pre_tokenizer = self.build_src_tokenizer(self.data_entities_cfg)
+                src_bpe_tokenizer = self.build_src_bpe(self.data_entities_cfg)
+
+                sup_speech_entities_dataset = SpeechTextRetrievalDataset(SpeechToTextJointWithEntitiesDatasetCreator.from_tsv(
+                        self.args.sup_speech_entities_data,
+                        self.data_entities_cfg,
+                        self.args.sup_speech_entities_train_subset,
+                        tgt_dict=self.tgt_dict,
+                        src_dict=self.src_dict,
+                        pre_tokenizer=pre_tokenizer,
+                        bpe_tokenizer=bpe_tokenizer,
+                        src_pre_tokenizer=src_pre_tokenizer,
+                        src_bpe_tokenizer=src_bpe_tokenizer,
+                        is_train_split=is_train,
+                        epoch=epoch,
+                        seed=self.args.seed,
+                    ), self.src_dict, num_negatives=self.args.num_negatives, max_words=self.args.max_words)
+
+                dsitem = self.create_modalitydatasetitem(
+                    "sup_speech_entities", sup_speech_entities_dataset
+                )
+                msets.append(dsitem)
+
             if self.args.unsup_speech_train_data != "":
                 unsup_speech_dataset = FileAudioDatasetWrapper(
                     self.args.unsup_speech_train_data,
@@ -439,7 +539,7 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
                 )
                 msets.append(dsitem)
 
-            pre_train_dataset = MultiModalityDataset(msets)
+            pre_train_dataset = MultiModalityDataset(msets, min_source_len=self.args.min_source_len)
             self.datasets[split] = pre_train_dataset
         else:  # validation split, load them for each type of data
             if dtype == "text":
@@ -525,6 +625,37 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
                 dset = datasets[0] if len(datasets) == 1 else ConcatDataset(datasets)
                 dsitem = self.create_modalitydatasetitem("sup_speech_s2s", dset)
                 self.datasets[split] = MultiModalityDataset([dsitem])
+
+            elif dtype == "sup_speech_entities":
+                assert self.args.sup_speech_entities_valid_subset != ""
+                pre_tokenizer = self.build_tokenizer(self.data_entities_cfg)
+                bpe_tokenizer = self.build_bpe(self.data_entities_cfg)
+                src_pre_tokenizer = self.build_src_tokenizer(self.data_entities_cfg)
+                src_bpe_tokenizer = self.build_src_bpe(self.data_entities_cfg)
+
+                datasets = []
+                for split_name in self.args.sup_speech_entities_valid_subset.split(","):
+                    datasets.append(
+                        SpeechTextRetrievalDataset(SpeechToTextJointWithEntitiesDatasetCreator.from_tsv(
+                            self.args.sup_speech_entities_data,
+                            self.data_entities_cfg,
+                            split_name,
+                            tgt_dict=self.tgt_dict,
+                            src_dict=self.src_dict,
+                            pre_tokenizer=pre_tokenizer,
+                            bpe_tokenizer=bpe_tokenizer,
+                            src_pre_tokenizer=src_pre_tokenizer,
+                            src_bpe_tokenizer=src_bpe_tokenizer,
+                            is_train_split=is_train,
+                            epoch=epoch,
+                            seed=self.args.seed,
+                        ), self.src_dict, num_negatives=self.args.num_negatives, max_words=self.args.max_words)
+                    )
+
+                dset = datasets[0] if len(datasets) == 1 else ConcatDataset(datasets)
+                dsitem = self.create_modalitydatasetitem("sup_speech_entities", dset)
+                self.datasets[split] = MultiModalityDataset([dsitem], min_source_len=self.args.min_source_len)
+
             elif dtype == "unsup_speech":
                 assert self.args.unsup_speech_valid_data != ""
                 unsup_speech_dataset = FileAudioDatasetWrapper(
@@ -550,6 +681,11 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
             if len(self.sup_s2s_ratio) > epoch
             else self.sup_s2s_ratio[-1]
         )
+        sup_entities_ratio = (
+            self.sup_entities_ratio[epoch]
+            if len(self.sup_entities_ratio) > epoch
+            else self.sup_entities_ratio[-1]
+        )
         unsup_ratio = (
             self.unsup_ratio[epoch]
             if len(self.unsup_ratio) > epoch
@@ -565,7 +701,7 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
             if len(self.bitext_ratio) > epoch
             else self.bitext_ratio[-1]
         )
-        return text_ratio, bitext_ratio, sup_ratio, sup_s2s_ratio, unsup_ratio
+        return text_ratio, bitext_ratio, sup_ratio, sup_s2s_ratio, unsup_ratio, sup_entities_ratio
 
     def get_batch_iterator(
         self,
@@ -589,6 +725,47 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
 
         assert isinstance(dataset, MultiModalityDataset)
         if len(dataset.id_to_mode) == 1:
+            if dataset.id_to_mode[0] == 'sup_speech_entities':
+                max_positions = dataset.max_positions[0]
+                max_tokens = dataset.max_tokens[0]
+                max_sentences = dataset.max_sentences[0]
+
+                dataset.set_epoch(epoch)
+
+                # get indices ordered by example size
+                with data_utils.numpy_seed(seed):
+                    indices = dataset.ordered_indices()
+
+                # filter examples that are too large
+                if max_positions is not None:
+                    indices = self.filter_indices_by_size(
+                        indices, dataset, max_positions, ignore_invalid_inputs
+                    )
+                indices = dataset.datasets[0].filter_short_utterances(indices, dataset.min_source_len, ignore_invalid_inputs)
+
+                # create mini-batches with given size constraints
+                batch_sampler = dataset.batch_by_size(
+                    indices,
+                    max_tokens=max_tokens,
+                    max_sentences=max_sentences,
+                    required_batch_size_multiple=required_batch_size_multiple,
+                )
+
+                # return a reusable, sharded iterator
+                return iterators.EpochBatchIterator(
+                    dataset=dataset,
+                    collate_fn=dataset.collater,
+                    batch_sampler=batch_sampler,
+                    seed=seed,
+                    num_shards=num_shards,
+                    shard_id=shard_id,
+                    num_workers=num_workers,
+                    epoch=epoch,
+                    buffer_size=data_buffer_size,
+                    skip_remainder_batch=skip_remainder_batch,
+                    grouped_shuffling=grouped_shuffling,
+                )
+
             max_positions = dataset.max_positions[0]
             max_tokens = dataset.max_tokens[0]
             max_sentences = dataset.max_sentences[0]
@@ -616,12 +793,15 @@ class SpeechTextJointDenoisingPreTask(PairedDenoisingTask):
             sup_ratio,
             sup_s2s_ratio,
             unsup_ratio,
+            sup_entities_ratio,
         ) = self.get_sample_ratio(epoch)
         for mode in dataset.id_to_mode:
             if mode in ("sup_speech_ctc", "sup_speech_ali"):
                 mult_ratio.append(sup_ratio)
             elif mode == "sup_speech_s2s":
                 mult_ratio.append(sup_s2s_ratio)
+            elif mode == "sup_speech_entities":
+                mult_ratio.append(sup_entities_ratio)
             elif mode == "text":
                 mult_ratio.append(text_ratio)
             elif mode == "bitext":

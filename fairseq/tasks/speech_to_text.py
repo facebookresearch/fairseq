@@ -51,6 +51,11 @@ class SpeechToTextTask(LegacyFairseqTask):
             metavar="N",
             help="max number of tokens in the target sequence",
         )
+        parser.add_argument(
+            "--lm-is-class-based",
+            default=False,
+            action='store_true'
+        )
 
     def __init__(self, args, tgt_dict):
         super().__init__(args)
@@ -179,8 +184,14 @@ class SpeechToTextTask(LegacyFairseqTask):
         eos_id = self.tgt_dict.index(eos_token) if eos_token else None
         extra_gen_cls_kwargs["eos"] = eos_id
 
+        if getattr(self.args, "lm_is_class_based", False):
+            from examples.speech_text_joint_to_text.models.class_lm import ClassBasedLanguageModel, TAGS
+            extra_gen_cls_kwargs["lm_model"] = ClassBasedLanguageModel(
+                extra_gen_cls_kwargs["lm_model"], extra_gen_cls_kwargs["lm_model_aux"], self.target_dictionary, TAGS)
+            del extra_gen_cls_kwargs["lm_model_aux"]
+
         return super().build_generator(
-            models, args, seq_gen_cls=None, extra_gen_cls_kwargs=extra_gen_cls_kwargs
+            models, args, seq_gen_cls=seq_gen_cls, extra_gen_cls_kwargs=extra_gen_cls_kwargs
         )
 
     def train_step(

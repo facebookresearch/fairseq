@@ -110,7 +110,7 @@ def _main(cfg: DictConfig, output_file):
 
         try:
             lms, _ = checkpoint_utils.load_model_ensemble(
-                [cfg.generation.lm_path], arg_overrides=overrides, task=None
+                utils.split_paths(cfg.generation.lm_path), arg_overrides=overrides, task=None
             )
         except:
             logger.warning(
@@ -119,7 +119,7 @@ def _main(cfg: DictConfig, output_file):
             )
             raise
 
-        assert len(lms) == 1
+        assert len(lms) <= 2
     else:
         lms = [None]
 
@@ -164,6 +164,8 @@ def _main(cfg: DictConfig, output_file):
     gen_timer = StopwatchMeter()
 
     extra_gen_cls_kwargs = {"lm_model": lms[0], "lm_weight": cfg.generation.lm_weight}
+    if len(lms) > 1:
+        extra_gen_cls_kwargs["lm_model_aux"] = lms[1]
     generator = task.build_generator(
         models, cfg.generation, extra_gen_cls_kwargs=extra_gen_cls_kwargs
     )
