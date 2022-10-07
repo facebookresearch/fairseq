@@ -22,7 +22,7 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
-from fairseq.models.speech_to_speech.modules import CTCDecoder
+from fairseq.models.speech_to_speech.modules.ctc_decoder import CTCDecoder
 from fairseq.models.speech_to_text.hub_interface import S2THubInterface
 from fairseq.models.transformer import (
     Embedding,
@@ -639,7 +639,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
 
         # make sure all arguments are present in older models
         base_architecture(args)
-        if getattr(args, "load_pretrained_decoder_from", None):
+        if getattr(args, "load_pretrained_decoder_from", None) is not None:
             ckpt = torch.load(getattr(args, "load_pretrained_decoder_from", None))
             decoder_args_dict = cls.get_decoder_args_from_checkpoint(ckpt["cfg"])
             args = cls.override_decoder_args(args, decoder_args_dict)

@@ -162,7 +162,7 @@ class ConvTransformerModel(FairseqEncoderDecoderModel):
     @classmethod
     def build_encoder(cls, args):
         encoder = ConvTransformerEncoder(args)
-        if getattr(args, "load_pretrained_encoder_from", None):
+        if getattr(args, "load_pretrained_encoder_from", None) is not None:
             encoder = checkpoint_utils.load_pretrained_component_from_model(
                 component=encoder, checkpoint=args.load_pretrained_encoder_from
             )
@@ -171,7 +171,7 @@ class ConvTransformerModel(FairseqEncoderDecoderModel):
     @classmethod
     def build_decoder(cls, args, task, embed_tokens):
         decoder = TransformerDecoderNoExtra(args, task.target_dictionary, embed_tokens)
-        if getattr(args, "load_pretrained_decoder_from", None):
+        if getattr(args, "load_pretrained_decoder_from", None) is not None:
             decoder = checkpoint_utils.load_pretrained_component_from_model(
                 component=decoder, checkpoint=args.load_pretrained_decoder_from
             )
