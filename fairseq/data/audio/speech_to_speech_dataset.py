@@ -247,8 +247,9 @@ class SpeechToSpeechMultitaskDataset(SpeechToSpeechDataset):
 
         multitask_target = {}
         sample_id = self.ids[index]
+        tgt_lang = self.tgt_langs[index]
         for task_name, task_dataset in self.multitask_data.items():
-            multitask_target[task_name] = task_dataset.get(sample_id)
+            multitask_target[task_name] = task_dataset.get(sample_id, tgt_lang)
 
         return s2s_data, multitask_target
 
@@ -318,7 +319,7 @@ class SpeechToSpeechDatasetCreator(object):
         src_langs = [s.get(cls.KEY_SRC_LANG, cls.DEFAULT_LANG) for s in samples]
         tgt_langs = [s.get(cls.KEY_TGT_LANG, cls.DEFAULT_LANG) for s in samples]
 
-        has_multitask = len(multitask) > 0
+        has_multitask = multitask is not None and len(multitask.keys()) > 0
         dataset_cls = (
             SpeechToSpeechMultitaskDataset if has_multitask else SpeechToSpeechDataset
         )

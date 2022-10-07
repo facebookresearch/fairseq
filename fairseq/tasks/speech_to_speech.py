@@ -8,6 +8,7 @@ import logging
 import math
 from argparse import Namespace
 from pathlib import Path
+from typing import List
 
 import torch
 import torch.nn as nn
@@ -16,7 +17,10 @@ from fairseq import utils
 from fairseq.data import Dictionary
 from fairseq.data.audio.data_cfg import MultitaskConfig, S2SDataConfig
 from fairseq.data.audio.speech_to_speech_dataset import SpeechToSpeechDatasetCreator
-from fairseq.data.audio.speech_to_text_dataset import SpeechToTextDataset
+from fairseq.data.audio.speech_to_text_dataset import (
+    SpeechToTextDataset,
+    TextTargetMultitaskData,
+)
 from fairseq.tasks import LegacyFairseqTask, register_task
 from fairseq.tasks.speech_to_text import DummyMultiTask
 from fairseq.tasks.text_to_speech import batch_mel_cepstral_distortion
@@ -209,15 +213,35 @@ class SpeechToSpeechTask(LegacyFairseqTask):
         super().__init__(args)
         self.tgt_dict = tgt_dict
         self.data_cfg = S2SDataConfig(Path(args.data) / args.config_yaml)
+
         self.multitask_tasks = {}
+        self.tgt_dict_mt = None
+        self.eos_token_mt = None
         if getattr(args, "multitask_config_yaml", None) is not None:
             multitask_cfg = MultitaskConfig(
                 Path(args.data) / args.multitask_config_yaml
             )
-            for task_name, task_config in multitask_cfg.get_all_tasks().items():
-                self.multitask_tasks[task_name] = DummyMultiTask(
-                    task_config, task_config.tgt_dict
+            first_pass_task_idx = multitask_cfg.first_pass_decoder_task_index
+            for i, (task_name, task_config) in enumerate(
+                multitask_cfg.get_all_tasks().items()
+            ):
+                task_obj = DummyMultiTask(
+                    task_config,
+                    task_config.tgt_dict,
+                    first_pass=i == first_pass_task_idx,
                 )
+                self.multitask_tasks[task_name] = task_obj
+                if task_obj.is_first_pass_decoder:
+                    self.tgt_dict_mt = task_obj.target_dictionary
+                    if task_config.prepend_bos_and_append_tgt_lang_tag:
+                        self.eos_token_mt = task_config.eos_token
+                        assert not isinstance(self.eos_token_mt, List)
+
+                        if not self.eos_token_mt:
+                            raise Warning(
+                                "Please provide eos_token in --multitask-config-yaml to replace eos in sequence generator"
+                            )
+
         self._infer_tgt_lang_id = infer_tgt_lang_id
 
     @classmethod
@@ -267,11 +291,13 @@ class SpeechToSpeechTask(LegacyFairseqTask):
         from fairseq import criterions
 
         if len(self.multitask_tasks) > 0:
-            if self.args.target_is_code and args._name != "speech_to_unit":
+            if self.args.target_is_code and not args._name.startswith("speech_to_unit"):
                 raise ValueError(
                     "set --criterion speech_to_unit for speech-to-unit loss with multitask"
                 )
-            elif not self.args.target_is_code and args._name != "speech_to_spectrogram":
+            elif not self.args.target_is_code and not args._name.startswith(
+                "speech_to_spectrogram"
+            ):
                 raise ValueError(
                     "set --criterion speech_to_spectrogram for speech-to-spectrogram loss with multitask"
                 )
@@ -295,6 +321,10 @@ class SpeechToSpeechTask(LegacyFairseqTask):
     @property
     def target_dictionary(self):
         return self.tgt_dict
+
+    @property
+    def target_dictionary_mt(self):
+        return self.tgt_dict_mt
 
     @property
     def source_dictionary(self):
@@ -326,6 +356,36 @@ class SpeechToSpeechTask(LegacyFairseqTask):
 
         return model
 
+    def build_generator_dual_decoder(
+        self,
+        models,
+        args,
+        extra_gen_cls_kwargs=None,
+    ):
+        from examples.speech_to_speech.unity.sequence_generator_multi_decoder import (
+            MultiDecoderSequenceGenerator,
+        )
+
+        return MultiDecoderSequenceGenerator(
+            models,
+            self.target_dictionary,
+            self.target_dictionary_mt,
+            beam_size=max(1, getattr(args, "beam", 1)),
+            beam_size_mt=max(1, getattr(args, "beam_mt", 1)),
+            max_len_a=getattr(args, "max_len_a", 0),
+            max_len_b=getattr(args, "max_len_b", 200),
+            max_len_a_mt=getattr(args, "max_len_a_mt", 0),
+            max_len_b_mt=getattr(args, "max_len_b_mt", 200),
+            min_len=getattr(args, "min_len", 1),
+            normalize_scores=(not getattr(args, "unnormalized", False)),
+            len_penalty=getattr(args, "lenpen", 1),
+            unk_penalty=getattr(args, "unkpen", 0),
+            temperature=getattr(args, "temperature", 1.0),
+            match_source_len=getattr(args, "match_source_len", False),
+            no_repeat_ngram_size=getattr(args, "no_repeat_ngram_size", 0),
+            **extra_gen_cls_kwargs,
+        )
+
     def build_generator(
         self,
         models,
@@ -344,14 +404,23 @@ class SpeechToSpeechTask(LegacyFairseqTask):
                 else self.vocoder.cpu()
             )
 
+        has_dual_decoder = getattr(models[0], "mt_task_name", None) is not None
+
         if self.args.target_is_code:
             if self.args.n_frames_per_step == 1:
-                seq_generator = super().build_generator(
-                    models,
-                    args,
-                    seq_gen_cls=None,
-                    extra_gen_cls_kwargs=extra_gen_cls_kwargs,
-                )
+                if has_dual_decoder:
+                    seq_generator = self.build_generator_dual_decoder(
+                        models,
+                        args,
+                        extra_gen_cls_kwargs=extra_gen_cls_kwargs,
+                    )
+                else:
+                    seq_generator = super().build_generator(
+                        models,
+                        args,
+                        seq_gen_cls=None,
+                        extra_gen_cls_kwargs=extra_gen_cls_kwargs,
+                    )
             else:
                 assert (
                     getattr(args, "beam", 1) == 1 and getattr(args, "nbest", 1) == 1
@@ -361,24 +430,64 @@ class SpeechToSpeechTask(LegacyFairseqTask):
                     self.args.target_code_size,
                 )
         else:
-            if getattr(args, "teacher_forcing", False):
-                from fairseq.speech_generator import (
-                    TeacherForcingAutoRegressiveSpeechGenerator,
+            if has_dual_decoder:
+                if getattr(args, "teacher_forcing", False):
+                    raise NotImplementedError
+                else:
+                    from fairseq.speech_generator import MultiDecoderSpeechGenerator
+
+                    generator = MultiDecoderSpeechGenerator
+
+                lang_token_ids_aux = {
+                    i
+                    for s, i in self.tgt_dict_mt.indices.items()
+                    if TextTargetMultitaskData.is_lang_tag(s)
+                }
+
+                if extra_gen_cls_kwargs is None:
+                    extra_gen_cls_kwargs = {}
+                extra_gen_cls_kwargs[
+                    "symbols_to_strip_from_output"
+                ] = lang_token_ids_aux
+
+                eos_id_mt = (
+                    self.tgt_dict_mt.index(self.eos_token_mt)
+                    if self.eos_token_mt
+                    else None
                 )
+                assert eos_id_mt != self.tgt_dict_mt.unk()
+                extra_gen_cls_kwargs["eos_mt"] = eos_id_mt
 
-                generator = TeacherForcingAutoRegressiveSpeechGenerator
-                logger.info("Teacher forcing mode for generation")
+                seq_generator = generator(
+                    models,
+                    args,
+                    self.vocoder,
+                    self.data_cfg,
+                    self.target_dictionary_mt,
+                    max_iter=self.args.max_target_positions,
+                    eos_prob_threshold=self.args.eos_prob_threshold,
+                    **extra_gen_cls_kwargs,
+                )
             else:
-                from fairseq.speech_generator import AutoRegressiveSpeechGenerator
+                if getattr(args, "teacher_forcing", False):
+                    from fairseq.speech_generator import (
+                        TeacherForcingAutoRegressiveSpeechGenerator,
+                    )
 
-                generator = AutoRegressiveSpeechGenerator
-            seq_generator = generator(
-                models[0],
-                self.vocoder,
-                self.data_cfg,
-                max_iter=self.args.max_target_positions,
-                eos_prob_threshold=self.args.eos_prob_threshold,
-            )
+                    generator = TeacherForcingAutoRegressiveSpeechGenerator
+                    logger.info("Teacher forcing mode for generation")
+                else:
+                    from fairseq.speech_generator import AutoRegressiveSpeechGenerator
+
+                    generator = AutoRegressiveSpeechGenerator
+
+                seq_generator = generator(
+                    models[0],
+                    self.vocoder,
+                    self.data_cfg,
+                    max_iter=self.args.max_target_positions,
+                    eos_prob_threshold=self.args.eos_prob_threshold,
+                )
 
         return seq_generator
 

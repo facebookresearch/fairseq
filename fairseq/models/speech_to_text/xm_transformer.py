@@ -623,6 +623,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         _args.dropout = args.decoder_dropout
         _args.attention_dropout = args.decoder_attention_dropout
         _args.activation_dropout = args.decoder_activation_dropout
+        _args.layerdrop = _args.decoder_layerdrop
 
         decoder = TransformerDecoder(_args, task.target_dictionary, embed_tokens)
         decoder = cls.maybe_load_pretrained(
