@@ -204,13 +204,18 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             target, 
             self.eps, 
             ignore_index=self.padding_idx, 
-            reduce=(reduce and (distil_strategy == 'generic'))
+            reduce=(reduce and (distil_strategy == 'word_and_seq_level'))
         )
 
         if teacher_output is None:
+            # this option can be used for seq-level distillation as mentioned in Kim and Rush
+            # Use the result of running beam search and taking the highest-scoring sequence with the teacher model as the training data for the student model
             loss = golden_loss
         
-        elif distil_strategy == 'generic':
+        elif distil_strategy == 'word_and_seq_level':
+            # this option can be used for word-level distillation as mentioned in Kim and Rush
+            # Student is trained on the original data and additionally trained to minimize the cross-entropy of the teacher distribution at the word-level.
+            # if you use the result of beam-search of the teacher-model as the training data for the student model, then we can perform Word-KD + Seq-KD
             KD_loss = cross_entropy(
                 teacher_probs_T,
                 student_lprobs_T,
