@@ -26,16 +26,22 @@ def main(args):
 
     dataset = MUSTC(root.as_posix(), lang, split)
     output = Path(args.output).absolute()
-    output.mkdir(exist_ok=True)
-    f_text = open(output / f"{split}.{lang}", "w")
-    f_wav_list = open(output / f"{split}.wav_list", "w")
-    for waveform, sample_rate, _, text, _, utt_id in tqdm(dataset):
+    output.mkdir(parents=True, exist_ok=True)
+    if args.task == "asr":
+        f_text = open(output / f"{split}_{args.task}.en", "w")
+    else:
+        f_text = open(output / f"{split}_{args.task}.{lang}", "w")
+    f_wav_list = open(output / f"{split}_{args.task}.wav_list", "w")
+    for waveform, sample_rate, src_text, tgt_text, _, utt_id in tqdm(dataset):
         sf.write(
             output / f"{utt_id}.wav",
             waveform.squeeze(0).numpy(),
             samplerate=int(sample_rate),
         )
-        f_text.write(text + "\n")
+        if args.task == "asr":
+            f_text.write(src_text + "\n")
+        else:
+            f_text.write(tgt_text + "\n")
         f_wav_list.write(str(output / f"{utt_id}.wav") + "\n")
 
 
