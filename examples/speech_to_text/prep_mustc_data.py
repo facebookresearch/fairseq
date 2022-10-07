@@ -36,7 +36,8 @@ from fairseq.data.audio.audio_utils import convert_waveform, get_waveform
 log = logging.getLogger(__name__)
 
 
-MANIFEST_COLUMNS = ["id", "audio", "n_frames", "tgt_text", "speaker"]
+MANIFEST_COLUMNS = ["id", "audio", "n_frames", "tgt_text", "src_text", "speaker"]
+SAMPLING_RATE = 16_000
 
 
 class MUSTC(Dataset):
@@ -108,28 +109,47 @@ def process(args):
         if not cur_root.is_dir():
             print(f"{cur_root.as_posix()} does not exist. Skipped.")
             continue
+        if args.use_audio_input:
+            cur_root_manifest = cur_root / "manifests" / f"{args.task}_w2v"
+        else:
+            cur_root_manifest = cur_root / "manifests" / args.task
+        cur_root_manifest.mkdir(parents=True, exist_ok=True)
         # Extract features
         audio_root = cur_root / ("flac" if args.use_audio_input else "fbank80")
-        audio_root.mkdir(exist_ok=True)
+        audio_root.mkdir(parents=True, exist_ok=True)
 
         for split in MUSTC.SPLITS:
             print(f"Fetching split {split}...")
             dataset = MUSTC(root.as_posix(), lang, split)
             if args.use_audio_input:
                 print("Converting audios...")
+                gcmvn_feature_list = []
+                if split == "train" and args.cmvn_type == "global":
+                    print("And estimating cepstral mean and variance stats...")
+
                 for waveform, sample_rate, _, _, _, utt_id in tqdm(dataset):
-                    tgt_sample_rate = 16_000
                     _wavform, _ = convert_waveform(
                         waveform,
                         sample_rate,
                         to_mono=True,
-                        to_sample_rate=tgt_sample_rate,
-                    )
-                    sf.write(
-                        (audio_root / f"{utt_id}.flac").as_posix(),
-                        _wavform.T.numpy(),
-                        tgt_sample_rate,
-                    )
+                        to_sample_rate=SAMPLING_RATE,
+                    )  # (1, T)
+                    if not (audio_root / f"{utt_id}.flac").is_file():
+                        sf.write(
+                            (audio_root / f"{utt_id}.flac").as_posix(),
+                            _wavform.T.numpy(),
+                            SAMPLING_RATE,
+                        )
+                    if split == "train" and args.cmvn_type == "global":
+                        if len(gcmvn_feature_list) < args.gcmvn_max_num:
+                            gcmvn_feature_list.append(_wavform.transpose(0, 1))
+
+                if split == "train" and args.cmvn_type == "global":
+                    # Estimate and save cmv
+                    stats = cal_gcmvn_stats(gcmvn_feature_list)
+                    if not (cur_root_manifest / "gcmvn.npz").is_file():
+                        with open(cur_root_manifest / "gcmvn.npz", "wb") as f:
+                            np.savez(f, mean=stats["mean"], std=stats["std"])
             else:
                 print("Extracting log mel filter bank features...")
                 gcmvn_feature_list = []
@@ -139,7 +159,7 @@ def process(args):
                 for waveform, sample_rate, _, _, _, utt_id in tqdm(dataset):
                     features = extract_fbank_features(
                         waveform, sample_rate, audio_root / f"{utt_id}.npy"
-                    )
+                    )  # (T,D)
                     if split == "train" and args.cmvn_type == "global":
                         if len(gcmvn_feature_list) < args.gcmvn_max_num:
                             gcmvn_feature_list.append(features)
@@ -147,13 +167,15 @@ def process(args):
                 if split == "train" and args.cmvn_type == "global":
                     # Estimate and save cmv
                     stats = cal_gcmvn_stats(gcmvn_feature_list)
-                    with open(cur_root / "gcmvn.npz", "wb") as f:
-                        np.savez(f, mean=stats["mean"], std=stats["std"])
+                    if not (cur_root_manifest / "gcmvn.npz").is_file():
+                        with open(cur_root_manifest / "gcmvn.npz", "wb") as f:
+                            np.savez(f, mean=stats["mean"], std=stats["std"])
 
         # Pack features into ZIP
         zip_path = cur_root / f"{audio_root.name}.zip"
         print("ZIPing audios/features...")
-        create_zip(audio_root, zip_path)
+        if not zip_path.is_file():
+            create_zip(audio_root, zip_path)
         print("Fetching ZIP manifest...")
         audio_paths, audio_lengths = get_zip_manifest(
             zip_path,
@@ -169,14 +191,30 @@ def process(args):
             for _, _, src_utt, tgt_utt, speaker_id, utt_id in tqdm(dataset):
                 manifest["id"].append(utt_id)
                 manifest["audio"].append(audio_paths[utt_id])
-                manifest["n_frames"].append(audio_lengths[utt_id])
+                if args.use_audio_input:
+                    manifest["n_frames"].append(
+                        int(audio_lengths[utt_id] * 100 / SAMPLING_RATE)
+                    )
+                else:
+                    manifest["n_frames"].append(audio_lengths[utt_id])
                 manifest["tgt_text"].append(src_utt if args.task == "asr" else tgt_utt)
+                manifest["src_text"].append(src_utt)
                 manifest["speaker"].append(speaker_id)
             if is_train_split:
                 train_text.extend(manifest["tgt_text"])
+                min_n_frames = 5
+                max_n_frames = 3000
+            else:
+                min_n_frames = 0
+                max_n_frames = 1e10
             df = pd.DataFrame.from_dict(manifest)
-            df = filter_manifest_df(df, is_train_split=is_train_split)
-            save_df_to_tsv(df, cur_root / f"{split}_{args.task}.tsv")
+            df = filter_manifest_df(
+                df,
+                is_train_split=is_train_split,
+                min_n_frames=min_n_frames,
+                max_n_frames=max_n_frames,
+            )
+            save_df_to_tsv(df, cur_root_manifest / f"{split}_{args.task}.tsv")
         # Generate vocab
         v_size_str = "" if args.vocab_type == "char" else str(args.vocab_size)
         spm_filename_prefix = f"spm_{args.vocab_type}{v_size_str}_{args.task}"
@@ -185,28 +223,38 @@ def process(args):
                 f.write(t + "\n")
             gen_vocab(
                 Path(f.name),
-                cur_root / spm_filename_prefix,
+                cur_root_manifest / spm_filename_prefix,
                 args.vocab_type,
                 args.vocab_size,
             )
         # Generate config YAML
         if args.use_audio_input:
             gen_config_yaml(
-                cur_root,
+                cur_root_manifest,
                 spm_filename=spm_filename_prefix + ".model",
                 yaml_filename=f"config_{args.task}.yaml",
                 specaugment_policy=None,
+                input_channels=None,
+                input_feat_per_channel=None,
+                cmvn_type=args.cmvn_type,
+                gcmvn_path=(
+                    cur_root_manifest / "gcmvn.npz"
+                    if args.cmvn_type == "global"
+                    else None
+                ),
                 extra={"use_audio_input": True},
             )
         else:
             gen_config_yaml(
-                cur_root,
+                cur_root_manifest,
                 spm_filename=spm_filename_prefix + ".model",
                 yaml_filename=f"config_{args.task}.yaml",
                 specaugment_policy="lb",
                 cmvn_type=args.cmvn_type,
                 gcmvn_path=(
-                    cur_root / "gcmvn.npz" if args.cmvn_type == "global" else None
+                    cur_root_manifest / "gcmvn.npz"
+                    if args.cmvn_type == "global"
+                    else None
                 ),
             )
         # Clean up
@@ -275,7 +323,7 @@ def main():
     )
     parser.add_argument(
         "--gcmvn-max-num",
-        default=150000,
+        default=1e20,
         type=int,
         help="Maximum number of sentences to use to estimate global mean and "
         "variance",
