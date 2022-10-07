@@ -1,0 +1,25 @@
+audio_root: audios
+input_channels: 1
+input_feat_per_channel: 80
+output_channels: 1
+output_feat_per_channel: 1
+output_feat_reduction_rate: 0
+output_sample_rate: 16000
+specaugment:
+  freq_mask_F: 27
+  freq_mask_N: 1
+  time_mask_N: 1
+  time_mask_T: 100
+  time_mask_p: 1.0
+  time_wrap_W: 0
+transforms:
+  _eval:
+  - utterance_cmvn
+  _train:
+  - utterance_cmvn
+  - specaugment
+vocoder:
+  dur_prediction: true
+  model_path: vocoder.pt
+  speaker: false
+  type: code_hifigan

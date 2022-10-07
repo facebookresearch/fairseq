@@ -1,0 +1,7 @@
+source_unit:
+  data: source_unit
+  decoder_type: transformer
+  dict: source_unit/dict.txt
+  encoder_layer: 6
+  loss_weight: 8.0
+  target_type: text
