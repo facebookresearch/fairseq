@@ -107,7 +107,13 @@ class S2THubInterface(nn.Module):
             if tts_model_id is None:
                 logger.warning("TTS model configuration not found")
             else:
-                _repo, _id = tts_model_id.split(":")
+                temp = tts_model_id.split(":")
+                if len(temp) == 2:
+                    _repo, _id = temp
+                elif len(temp) == 3:
+                    _repo, _id = ":".join(temp[:2]), temp[2]
+                else:
+                    raise Exception("Invalid TTS model path")
                 tts_model = torch.hub.load(_repo, _id, verbose=False)
                 pred = (pred, tts_model.predict(pred, speaker=speaker))
         return pred
