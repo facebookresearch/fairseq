@@ -41,6 +41,16 @@ remove the BPE continuation markers and detokenize the output.
     H-0     -0.0643349438905716     Pourquoi est-il rare de découvrir de nouvelles espèces de mammifères marins?
     P-0     -0.0763 -0.1849 -0.0956 -0.0946 -0.0735 -0.1150 -0.1301 -0.0042 -0.0321 -0.0171 -0.0052 -0.0062 -0.0015
 
+In the code block above `MODEL_DIR=wmt14.en-fr.fconv-py` is used to set a 
+path variable which is later utilized in setting the flags for ``fairseq-interactive``
+so in essence the line ``--path $MODEL_DIR/model.pt $MODEL_DIR \`` is equivalent to 
+``--path $wmt14.en-fr.fconv-py/model.pt $wmt14.en-fr.fconv-py \``
+The flag ``--source-lang`` tells the model the source language which is English
+and similarly ``--target-lang`` tells the model the target language which is French.
+Following the discussion in the start ``tokenizer.perl`` from ``mosesdecoder`` is used
+using the flag ``--tokenizer``. The flag ``--bpe`` specifies the bytepair encoder to use
+and ``--bpe-codes`` gives the path to the bytepair encoding codes to use
+
 This generation script produces three types of outputs: a line prefixed
 with *O* is a copy of the original source sentence; *H* is the
 hypothesis along with an average log-likelihood; and *P* is the
