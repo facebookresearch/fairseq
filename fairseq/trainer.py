@@ -1122,6 +1122,7 @@ class Trainer(object):
             self.criterion.eval()
 
             sample, is_dummy_batch = self._prepare_sample(sample)
+            sample["teacher_output"] = self.teacher_model(**sample["net_input"])
 
             try:
                 _loss, sample_size, logging_output = self.task.valid_step(
