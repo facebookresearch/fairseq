@@ -193,7 +193,7 @@ def main(cfg: FairseqConfig) -> None:
             )
         )
     if (cfg.task._name == "kd_translation") ^ (cfg.criterion._name == "kd_label_smoothed_cross_entropy"):
-        raise NotImplementedError("criterion and task mismatch")
+        raise ValueError("criterion and task mismatch")
     
 
     max_epoch = cfg.optimization.max_epoch or math.inf
