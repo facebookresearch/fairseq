@@ -6,13 +6,15 @@
 """
 Train a new model on one or across multiple GPUs.
 """
-
+import torch
 import argparse
 import logging
 import math
 import os
 import sys
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+torch.autograd.set_detect_anomaly(True)
 
 # We need to setup root logger before importing any fairseq libraries.
 logging.basicConfig(
@@ -24,7 +26,6 @@ logging.basicConfig(
 logger = logging.getLogger("fairseq_cli.train")
 
 import numpy as np
-import torch
 from omegaconf import DictConfig, OmegaConf
 
 from fairseq import checkpoint_utils, options, quantization_utils, tasks, utils
@@ -39,6 +40,7 @@ from fairseq.file_io import PathManager
 from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from fairseq.trainer import Trainer
+from fairseq.checkpoint_utils import load_model_ensemble
 
 
 def main(cfg: FairseqConfig) -> None:
@@ -95,6 +97,7 @@ def main(cfg: FairseqConfig) -> None:
     else:
         model = task.build_model(cfg.model)
     criterion = task.build_criterion(cfg.criterion)
+
     logger.info(model)
     logger.info("task: {}".format(task.__class__.__name__))
     logger.info("model: {}".format(model.__class__.__name__))
@@ -169,8 +172,29 @@ def main(cfg: FairseqConfig) -> None:
     )
     if cfg.common.tpu:
         import torch_xla.core.xla_model as xm
-
         xm.rendezvous("load_checkpoint")  # wait for all workers
+
+    if (cfg.task._name == "kd_translation") and (cfg.criterion._name == "kd_label_smoothed_cross_entropy"):
+        # build teacher model here
+        teacher_models = load_model_ensemble(
+            [cfg.task.teacher_checkpoint_path],
+            task=task
+        )[0][0]
+
+        trainer.teacher_model = teacher_models.to(trainer.device)
+        trainer.teacher_model.eval()
+
+        trainer.perform_distillation = True
+
+        logger.info(
+            "loaded teacher from {} in {} mode".format(
+                cfg.task.teacher_checkpoint_path,
+                'training' if trainer.teacher_model.training else 'evaluation'
+            )
+        )
+    if (cfg.task._name == "kd_translation") ^ (cfg.criterion._name == "kd_label_smoothed_cross_entropy"):
+        raise ValueError("criterion and task mismatch")
+    
 
     max_epoch = cfg.optimization.max_epoch or math.inf
     lr = trainer.get_lr()

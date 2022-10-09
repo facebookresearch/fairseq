@@ -15,6 +15,7 @@ from fairseq import utils
 from fairseq.dataclass.utils import gen_parser_from_dataclass
 from fairseq.distributed import fsdp_wrap
 from fairseq.models import FairseqEncoderDecoderModel
+from fairseq.modules import FactorizedEmbedding
 from fairseq.models.transformer import (
     TransformerConfig,
     TransformerDecoderBase,
@@ -120,11 +121,22 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
 
-        emb = Embedding(num_embeddings, embed_dim, padding_idx)
-        # if provided, load from preloaded dictionaries
-        if path:
-            embed_dict = utils.parse_embedding(path)
-            utils.load_embedding(embed_dict, dictionary, emb)
+        if not cfg.use_factorized_embedding:
+            emb = Embedding(num_embeddings, embed_dim, padding_idx)
+            # if provided, load from preloaded dictionaries
+            if path:
+                embed_dict = utils.parse_embedding(path)
+                utils.load_embedding(embed_dict, dictionary, emb)
+        else:
+            emb = FactorizedEmbedding(
+                num_embeddings, 
+                embed_dim, 
+                padding_idx=padding_idx,
+                hid_dim=cfg.factorized_embedding_dim,
+                layernorm=cfg.layernorm_factorized_embedding
+            )
+            if path:
+                raise NotImplementedError
         return emb
 
     @classmethod
