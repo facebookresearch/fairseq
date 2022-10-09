@@ -1,0 +1,19 @@
+includes: projects/mfmmlm.yaml
+project_dir: mtm/mmfusionmtm
+task_group:
+  pretrain:
+    task: VLMTask  # reproducible
+    dataset:
+      aligner: MFMMLMAligner
+    model:
+      use_seg_emb: True  # reproducible
+      model_cls: MMFusionMTM
+      mm_encoder_cls: MMBertForMFMMLM
+    loss:
+      loss_cls: MTM
+  finetune:
+    model:
+      use_seg_emb: True  # reproducible
+  test:
+    model:
+      use_seg_emb: True  # reproducible

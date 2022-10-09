@@ -56,9 +56,9 @@ def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=None, reduce=T
     return loss, nll_loss
 
 
-def cross_entropy(teacher_probs, student_probs, reduction='mean'):
+def cross_entropy(teacher_probs, student_lprobs, reduction='mean'):
     # implements \sum p_i * log(q_i)
-    loss = -1.0 * teacher_probs * torch.log(student_probs)
+    loss = -1.0 * teacher_probs * student_lprobs
     if reduction == 'none':
         return loss
     elif reduction == 'sum':
@@ -124,7 +124,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             probs_T = F.softmax(predict/self.task.teacher_temp, dim=-1)
             return probs_T, lprobs
         else:
-            probs_T = F.softmax(predict/self.task.student_temp, dim=-1)
+            probs_T = F.log_softmax(predict/self.task.student_temp, dim=-1)
             return probs_T
 
 
@@ -189,8 +189,8 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         extra = {}
 
         # generate soft-probabilities by using high temperature
-        student_probs_T = self.get_probs_and_vanilla_lprobs(net_output, teacher=False)
-        teacher_probs_T, teacher_lprobs = self.get_probs_and_vanilla_lprobs(teacher_output, teacher=True)
+        student_lprobs_T = self.get_Tprobs_and_vanilla_lprobs(net_output, teacher=False)
+        teacher_probs_T, teacher_lprobs = self.get_Tprobs_and_vanilla_lprobs(teacher_output, teacher=True)
 
         # compute preliminary loss and nll_loss of student_model
         golden_loss, nll_loss = label_smoothed_nll_loss(
@@ -221,7 +221,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             # if you use the result of beam-search of the teacher-model as the training data for the student model, then we can perform Word-KD + Seq-KD
             kd_loss = cross_entropy(
                 teacher_probs_T,
-                student_probs_T,
+                student_lprobs_T,
                 reduction='none'
             )
             kd_loss = kd_loss.sum(dim=-1)
@@ -246,7 +246,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             KD_mask = nll_loss < loss_gate
             kd_loss = cross_entropy(
                 teacher_probs_T,
-                student_probs_T,
+                student_lprobs_T,
                 reduction='none'
             )
             kd_loss = kd_loss.sum(dim=-1).view(-1)
@@ -263,14 +263,14 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             golden_loss = golden_loss.view(-1)
             word_rate = self.task.distil_rate
             teacher_probs_T = teacher_probs_T[~pad_mask]
-            student_probs_T = student_probs_T[~pad_mask]
+            student_lprobs_T = student_lprobs_T[~pad_mask]
             nll_loss = nll_loss[~pad_mask]
             golden_loss = golden_loss[~pad_mask]
             golden_loss_teacher = golden_loss_teacher[~pad_mask]
             # get kl loss
             kd_loss = cross_entropy(
                 teacher_probs_T,
-                student_probs_T,
+                student_lprobs_T,
                 reduction='none'
             )
             kd_loss = kd_loss.sum(dim=-1).view(-1) # B * T 

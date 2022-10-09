@@ -1,0 +1,65 @@
+dataset:
+  video_processor: ShardedVideoRetriVideoProcessor
+  bert_name: bert-base-uncased
+  meta_processor: ShardedHow2VideoRetriMetaProcessor
+  train_path: data/how2/how2_s3d_train.lst
+  val_path: data/how2/how2_s3d_val.lst
+  vfeat_dir: data/feat/feat_how2_s3d_shard_small
+  text_processor: ShardedVideoRetriTextProcessor
+  tfeat_dir: data/feat/feat_how2_s3d_shard_small/raw_caption_dedup.bert-base-uncased.
+  aligner: VideoRetriOverlappedAligner
+  subsampling: 1
+  sampled_min_len: 8
+  sampled_max_len: 64
+  max_video_len: 32
+  max_len: 96
+  lazy_vfeat_mask: true
+  mfm_probability: 0.15
+  mlm_probability: 0.15
+  mm_prob: 0.5
+  sampled_video_min_len: 3
+  sampled_video_max_len: 32
+  num_video_per_batch: 32
+  clip_per_video: 16
+fairseq:
+  common:
+    tensorboard_logdir: run
+    log_interval: 1000
+    fp16: true
+  dataset:
+    num_workers: 4
+    batch_size: 1
+  optimization:
+    lr:
+    - 5.0e-05
+    clip_norm: 2.0
+    optimizer: adam
+    adam_betas: (0.9, 0.98)
+    lr_scheduler: polynomial_decay
+    total_num_update: 1000000
+    warmup_updates: 1000
+    weight_decay: 0.0
+    ddp_backend: no_c10d
+    max_epoch: 25
+  checkpoint:
+    save_dir: runs/retri/videoclip
+    save_interval_updates: 1024
+    keep_interval_updates: 2
+    keep_last_epochs: 30
+task_type: sweep_big
+slurm_config: big
+eval:
+  save_path: runs/retri/videoclip
+model:
+  model_cls: MMFusionSeparate
+  mm_encoder_cls: null
+  video_encoder_cls: MMBertForEncoder
+  text_encoder_cls: BertModel
+  num_hidden_video_layers: 6
+loss:
+  loss_cls: MMContraLoss
+task: VideoRetriTask
+retri_epoch: 1
+vectorpool_cls: VideoVectorPool
+retriever_cls: VectorRetriever
+num_cands: 64

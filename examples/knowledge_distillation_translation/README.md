@@ -12,7 +12,7 @@ The KD implementation has been sourced from [here](https://github.com/LeslieOver
 fairseq-train $bin_dir \
 --max-source-positions 210 --max-target-positions 210 --max-update 1000000 --max-tokens 8192 \
 --arch transformer --activation-fn gelu --dropout 0.2 \
---task kd_translation --distil-strategy word_and_seq_level --teacher-temp 3 --student-temp 3 --teacher-checkpoint-path $teacher_checkpoint_dir \
+--task kd_translation --distil-strategy word_and_seq_level --teacher-temp 2 --student-temp 2 --teacher-checkpoint-path $teacher_checkpoint_dir \
 --criterion kd_label_smoothed_cross_entropy --label-smoothing 0.1 --alpha 0.5 \
 --source-lang SRC --target-lang TGT \
 --lr-scheduler inverse_sqrt --optimizer adam --adam-betas "(0.9, 0.98)" --clip-norm 1.0 --warmup-init-lr 1e-07 --lr 0.0005 --warmup-updates 4000 \
@@ -21,5 +21,4 @@ fairseq-train $bin_dir \
 --fp16 \
 --update-freq 8 \
 --distributed-world-size 1 \
---eval-bleu --eval-bleu-detok moses --eval-bleu-remove-bpe --eval-bleu-args '{"beam": 5, "lenpen": 1}' --best-checkpoint-metric bleu --maximize-best-checkpoint-metric
 ```
