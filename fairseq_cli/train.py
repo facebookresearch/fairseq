@@ -6,13 +6,15 @@
 """
 Train a new model on one or across multiple GPUs.
 """
-
+import torch
 import argparse
 import logging
 import math
 import os
 import sys
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+torch.autograd.set_detect_anomaly(True)
 
 # We need to setup root logger before importing any fairseq libraries.
 logging.basicConfig(
@@ -24,7 +26,6 @@ logging.basicConfig(
 logger = logging.getLogger("fairseq_cli.train")
 
 import numpy as np
-import torch
 from omegaconf import DictConfig, OmegaConf
 
 from fairseq import checkpoint_utils, options, quantization_utils, tasks, utils
