@@ -9,7 +9,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from fairseq import utils
-from fairseq.incremental_decoding_utils import with_incremental_state, FairseqIncrementalState
+from fairseq.incremental_decoding_utils import (
+    FairseqIncrementalState,
+    with_incremental_state,
+)
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from torch import Tensor
 
@@ -412,7 +415,10 @@ class DynamicConv_scripatable(nn.Module, FairseqIncrementalState):
         return output
 
     def _forward_unfolded(
-        self, x, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]], query
+        self,
+        x,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        query,
     ):
         """The conventional implementation of convolutions.
         Unfolding the input by having a window shifting to the right."""
@@ -471,22 +477,32 @@ class DynamicConv_scripatable(nn.Module, FairseqIncrementalState):
         return output
 
     def reorder_incremental_state(
-        self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]], new_order: Tensor
+        self,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        new_order: Tensor,
     ):
         input_buffer = self._get_input_buffer(incremental_state)
         if input_buffer is not None:
             input_buffer = input_buffer.index_select(1, new_order)
             self._set_input_buffer(incremental_state, input_buffer)
 
-    def _get_input_buffer(self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]):
+    def _get_input_buffer(
+        self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]
+    ):
         result = self.get_incremental_state(incremental_state, "input_buffer")
         if result is not None and "input_buffer" in result:
             return result["input_buffer"]
         else:
             return None
 
-    def _set_input_buffer(self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]], new_buffer: Optional[Tensor]):
-        return self.set_incremental_state(incremental_state, "input_buffer", {"input_buffer": new_buffer})
+    def _set_input_buffer(
+        self,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        new_buffer: Optional[Tensor],
+    ):
+        return self.set_incremental_state(
+            incremental_state, "input_buffer", {"input_buffer": new_buffer}
+        )
 
     def extra_repr(self):
         s = "{}, kernel_size={}, padding_l={}, num_heads={}, weight_softmax={}, conv_bias={}, renorm_padding={}, in_proj={}".format(  # noqa
