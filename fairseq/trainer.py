@@ -760,7 +760,7 @@ class Trainer(object):
         if self.quantizer is not None:
             self.quantizer.begin_epoch(epoch)
 
-        # task specific setup per epoch
+        # task specific setup per epochtrain_step
         self.task.begin_epoch(epoch, self.get_model())
 
         if self.tpu:
@@ -828,6 +828,10 @@ class Trainer(object):
                             teacher_output = self.teacher_model(**sample["net_input"])
                             sample["teacher_output"] = teacher_output
                             sample["teacher_lprobs"] = self.teacher_model.get_normalized_probs(
+                                teacher_output, 
+                                log_probs=True
+                            )
+                            sample["teacher_probs"] = self.teacher_model.get_normalized_probs(
                                 teacher_output, 
                                 log_probs=True
                             )
