@@ -12,7 +12,7 @@ from .character_token_embedder import CharacterTokenEmbedder
 from .conv_tbc import ConvTBC
 from .cross_entropy import cross_entropy
 from .downsampled_multihead_attention import DownsampledMultiHeadAttention
-from .dynamic_convolution import DynamicConv, DynamicConv1dTBC
+from .dynamic_convolution import DynamicConv, DynamicConv1dTBC, DynamicConv_scripatable
 from .dynamic_crf_layer import DynamicCRF
 from .ema_module import EMAModuleConfig, EMAModule
 from .fairseq_dropout import FairseqDropout
@@ -62,6 +62,7 @@ __all__ = [
     "DownsampledMultiHeadAttention",
     "DynamicConv1dTBC",
     "DynamicConv",
+    "DynamicConv_scripatable",
     "DynamicCRF",
     "EMAModule",
     "EMAModuleConfig",
