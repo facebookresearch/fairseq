@@ -825,7 +825,12 @@ class Trainer(object):
                     # forward and backward
                     if self.perform_distillation:
                         with torch.no_grad():
-                            sample["teacher_output"] = self.teacher_model(**sample["net_input"])
+                            teacher_output = self.teacher_model(**sample["net_input"])
+                            sample["teacher_output"] = teacher_output
+                            sample["teacher_lprobs"] = self.teacher_model.get_normalized_probs(
+                                teacher_output, 
+                                log_probs=True
+                            )
 
                     loss, sample_size_i, logging_output = self.task.train_step(
                         sample=sample,
@@ -1124,7 +1129,12 @@ class Trainer(object):
             sample, is_dummy_batch = self._prepare_sample(sample)
 
             if self.perform_distillation:
-                sample["teacher_output"] = self.teacher_model(**sample["net_input"])
+                teacher_output = self.teacher_model(**sample["net_input"])
+                sample["teacher_output"] = teacher_output
+                sample["teacher_lprobs"] = self.teacher_model.get_normalized_probs(
+                    teacher_output, 
+                    log_probs=True
+                )
 
             try:
                 _loss, sample_size, logging_output = self.task.valid_step(
