@@ -209,7 +209,6 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
                 teacher_probs_T,
                 reduction='none'
             )
-            kd_loss = kd_loss.sum(dim=-1)
             kd_loss.masked_fill_(pad_mask, 0.)
             kd_loss = kd_loss.sum()
             extra['kd_loss'] = kd_loss
@@ -221,6 +220,10 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             nll_loss = nll_loss.view(-1)
             nll_loss = nll_loss[~pad_mask]
             words_num = nll_loss.size(0)
+            teacher_probs_T = teacher_probs_T[~pad_mask]
+            student_logits_T = student_logits_T[~pad_mask]
+            golden_loss = golden_loss[~pad_mask]
+            golden_loss_teacher = golden_loss_teacher[~pad_mask]
             loss_gate = nll_loss.topk(
                 math.ceil(
                     words_num * self.task.distil_rate
@@ -234,8 +237,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
                 teacher_probs_T,
                 reduction='none'
             )
-            kd_loss = kd_loss.sum(dim=-1).view(-1)
-            kd_loss = kd_loss[~pad_mask][~KD_mask]
+            kd_loss = kd_loss[~KD_mask]
             kd_loss = kd_loss.sum()
             nll_loss = nll_loss.sum()
             extra['kd_loss'] = kd_loss
@@ -246,9 +248,9 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         elif distil_strategy == 'global_level':
             nll_loss = nll_loss.view(-1) 
             golden_loss = golden_loss.view(-1)
-            word_rate = self.task.distil_rate
+            words_num = self.queue.size(0)
             teacher_probs_T = teacher_probs_T[~pad_mask]
-            student_lprobs_T = student_lprobs_T[~pad_mask]
+            student_logits_T = student_logits_T[~pad_mask]
             nll_loss = nll_loss[~pad_mask]
             golden_loss = golden_loss[~pad_mask]
             golden_loss_teacher = golden_loss_teacher[~pad_mask]
@@ -258,12 +260,11 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
                 teacher_probs_T,
                 reduction='none'
             )
-            kd_loss = kd_loss.sum(dim=-1).view(-1) # B * T 
             # from the queue get the gate
             self.push_to_FIFO_queue(nll_loss)
             loss_gate = self.queue.topk(
                 math.ceil(
-                    self.queue.size(0) * word_rate
+                    words_num * self.task.distil_rate
                 ), 
                 dim=0, 
                 largest=True
@@ -277,6 +278,10 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             extra['golden_loss_teacher'] = golden_loss_teacher.sum()
             extra['golden_loss_student'] = golden_loss.sum()
             loss = (1.0 - self.alpha) * golden_loss.sum() + self.alpha * kd_loss
+
+        else:
+            raise ValueError("unknown strategy!")
+
         return loss, nll_loss, extra
 
 
