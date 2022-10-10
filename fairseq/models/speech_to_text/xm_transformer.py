@@ -533,6 +533,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             "xm_transformer_s2ut_es_en_st_asr_test",
             "xm_transformer_s2ut_en-hk",
             "xm_transformer_s2ut_hk-en",
+            "xm_transformer_sm_all-en",
         ]
         return {i: f"{base_url}/{i}.tar.gz" for i in model_ids}
 
