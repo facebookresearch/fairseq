@@ -314,7 +314,7 @@ class LightConvModel(FairseqEncoderDecoderModel):
         self,
         src_tokens: Tensor,
         prev_output_tokens: Tensor,
-        src_lengths: Optional[Tensor] = None
+        src_lengths: Optional[Tensor] = None,
     ):
         """
         (The forward method inherited from the base class has a **kwargs
@@ -343,9 +343,7 @@ class LightConvModel(FairseqEncoderDecoderModel):
                 - a dictionary with any model-specific outputs
         """
         encoder_out = self.encoder(src_tokens, src_lengths)
-        decoder_out = self.decoder(
-            prev_output_tokens, encoder_out=encoder_out
-        )
+        decoder_out = self.decoder(prev_output_tokens, encoder_out=encoder_out)
         return decoder_out
 
 
@@ -399,7 +397,9 @@ class LightConvEncoder(FairseqEncoder):
         else:
             self.layer_norm = None
 
-    def forward(self, src_tokens: Tensor, src_lengths: Optional[Tensor] = None) -> Dict[str, List[Tensor]]:
+    def forward(
+        self, src_tokens: Tensor, src_lengths: Optional[Tensor] = None
+    ) -> Dict[str, List[Tensor]]:
         """
         Args:
             src_tokens (LongTensor): tokens in the source language of shape
@@ -445,7 +445,9 @@ class LightConvEncoder(FairseqEncoder):
         return output_dict
 
     @torch.jit.export
-    def reorder_encoder_out(self, encoder_out: Dict[str, List[Tensor]], new_order: Tensor):
+    def reorder_encoder_out(
+        self, encoder_out: Dict[str, List[Tensor]], new_order: Tensor
+    ):
         """
         Reorder encoder output according to *new_order*.
 
@@ -462,7 +464,9 @@ class LightConvEncoder(FairseqEncoder):
             encoder = [encoder_out["encoder_out"][0].index_select(1, new_order)]
         output_dict = {"encoder_out": encoder}
 
-        if ("encoder_padding_mask" not in encoder_out) or (len(encoder_out["encoder_padding_mask"]) == 0):
+        if ("encoder_padding_mask" not in encoder_out) or (
+            len(encoder_out["encoder_padding_mask"]) == 0
+        ):
             encoder_padding_mask = []
         else:
             encoder_padding_mask = [
@@ -531,7 +535,10 @@ class LightConvDecoder(FairseqIncrementalDecoder):
         self.layers.extend(
             [
                 LightConvDecoderLayer(
-                    args, no_encoder_attn, kernel_size=args.decoder_kernel_size_list[i], dictionary=dictionary
+                    args,
+                    no_encoder_attn,
+                    kernel_size=args.decoder_kernel_size_list[i],
+                    dictionary=dictionary,
                 )
                 for i in range(args.decoder_layers)
             ]
@@ -639,7 +646,10 @@ class LightConvDecoder(FairseqIncrementalDecoder):
             if encoder_out is not None:
                 if len(encoder_out["encoder_out"]) > 0:
                     encoder = encoder_out["encoder_out"][0]
-                if "encoder_padding_mask" in encoder_out and len(encoder_out["encoder_padding_mask"]) > 0:
+                if (
+                    "encoder_padding_mask" in encoder_out
+                    and len(encoder_out["encoder_padding_mask"]) > 0
+                ):
                     encoder_padding_mask = encoder_out["encoder_padding_mask"][0]
             x, attn = layer(
                 x,
@@ -687,7 +697,9 @@ class LightConvDecoder(FairseqIncrementalDecoder):
         return self._future_mask[:dim, :dim]
 
     def reorder_incremental_state(
-        self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]], new_order: Tensor
+        self,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        new_order: Tensor,
     ):
         for layer in self.layers:
             layer.reorder_incremental_state(incremental_state, new_order)
@@ -933,7 +945,7 @@ class LightConvDecoderLayer(nn.Module):
             if prev_attn_state is not None:
                 saved_state: Dict[str, Optional[Tensor]] = {
                     "prev_key": prev_attn_state[0],
-                    "prev_value": prev_attn_state[1]
+                    "prev_value": prev_attn_state[1],
                 }
                 self.encoder_attn._set_input_buffer(incremental_state, saved_state)
             x, attn = self.encoder_attn(
@@ -973,7 +985,9 @@ class LightConvDecoderLayer(nn.Module):
         self.need_attn = need_attn
 
     def reorder_incremental_state(
-        self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]], new_order: Tensor
+        self,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        new_order: Tensor,
     ):
         self.encoder_attn.reorder_incremental_state(incremental_state, new_order)
         self.conv.reorder_incremental_state(incremental_state, new_order)
