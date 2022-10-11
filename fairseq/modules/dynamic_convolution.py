@@ -500,9 +500,12 @@ class DynamicConv_scripatable(nn.Module, FairseqIncrementalState):
         incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
         new_buffer: Optional[Tensor],
     ):
-        return self.set_incremental_state(
+        result = self.set_incremental_state(
             incremental_state, "input_buffer", {"input_buffer": new_buffer}
         )
+        if result is not None:
+            incremental_state = result
+        return incremental_state
 
     def extra_repr(self):
         s = "{}, kernel_size={}, padding_l={}, num_heads={}, weight_softmax={}, conv_bias={}, renorm_padding={}, in_proj={}".format(  # noqa
