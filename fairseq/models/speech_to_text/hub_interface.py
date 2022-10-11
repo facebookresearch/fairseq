@@ -42,7 +42,8 @@ class S2THubInterface(nn.Module):
             else:
                 import torchaudio.compliance.kaldi as kaldi
 
-                feat = kaldi.fbank(audio, num_mel_bins=80).numpy()  # 1 x T x D
+                feat = kaldi.fbank(audio, num_mel_bins=80).numpy()
+                feat = np.expand_dims(feat, axis=0)  # T x D -> 1 x T x D
         elif input_type in {"waveform", "standardized_waveform"}:
             if isinstance(audio, str):
                 feat, sr = get_wav(audio)  # C x T
