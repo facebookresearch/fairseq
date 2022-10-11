@@ -444,7 +444,9 @@ class DynamicConv_scripatable(nn.Module, FairseqIncrementalState):
             if input_buffer is not None:
                 x_unfold = torch.cat([input_buffer, x.unsqueeze(3)], dim=3)
             else:
-                x_unfold = x.unsqueeze(3).clone()
+                input_buffer_temp = x.unsqueeze(3).clone()
+                x_unfold = torch.cat([input_buffer_temp, x.unsqueeze(3)], dim=3)
+                # x_unfold = x.unsqueeze(3).clone()
             if self.kernel_size > 1:
                 self._set_input_buffer(
                     incremental_state, x_unfold[:, :, :, -self.kernel_size + 1 :]
