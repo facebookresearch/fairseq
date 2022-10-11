@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -19,7 +20,7 @@ from fairseq.models import (
 )
 from fairseq.modules import (
     AdaptiveSoftmax,
-    DynamicConv,
+    DynamicConv_scripatable as DynamicConv,
     FairseqDropout,
     LayerNorm,
     LightweightConv,
@@ -27,6 +28,7 @@ from fairseq.modules import (
     PositionalEmbedding,
 )
 from fairseq.utils import safe_hasattr
+from torch import Tensor
 
 
 @register_model("lightconv")
@@ -308,6 +310,42 @@ class LightConvModel(FairseqEncoderDecoderModel):
         decoder = LightConvDecoder(args, tgt_dict, decoder_embed_tokens)
         return LightConvModel(encoder, decoder)
 
+    def forward(
+        self,
+        src_tokens: Tensor,
+        prev_output_tokens: Tensor,
+        src_lengths: Optional[Tensor] = None,
+    ):
+        """
+        (The forward method inherited from the base class has a **kwargs
+        argument in its input, which is not supported in torchscript. This
+        method overwrites the forward method definition without **kwargs.)
+
+        Run the forward pass for an encoder-decoder model.
+
+        First feed a batch of source tokens through the encoder. Then, feed the
+        encoder output and previous decoder outputs (i.e., teacher forcing) to
+        the decoder to produce the next outputs::
+
+            encoder_out = self.encoder(src_tokens, src_lengths)
+            return self.decoder(prev_output_tokens, encoder_out)
+
+        Args:
+            src_tokens (LongTensor): tokens in the source language of shape
+                `(batch, src_len)`
+            src_lengths (LongTensor): source sentence lengths of shape `(batch)`
+            prev_output_tokens (LongTensor): previous decoder outputs of shape
+                `(batch, tgt_len)`, for teacher forcing
+
+        Returns:
+            tuple:
+                - the decoder's output of shape `(batch, tgt_len, vocab)`
+                - a dictionary with any model-specific outputs
+        """
+        encoder_out = self.encoder(src_tokens, src_lengths)
+        decoder_out = self.decoder(prev_output_tokens, encoder_out=encoder_out)
+        return decoder_out
+
 
 class LightConvEncoder(FairseqEncoder):
     """
@@ -356,8 +394,12 @@ class LightConvEncoder(FairseqEncoder):
         self.normalize = args.encoder_normalize_before
         if self.normalize:
             self.layer_norm = LayerNorm(embed_dim)
+        else:
+            self.layer_norm = None
 
-    def forward(self, src_tokens, **unused):
+    def forward(
+        self, src_tokens: Tensor, src_lengths: Optional[Tensor] = None
+    ) -> Dict[str, List[Tensor]]:
         """
         Args:
             src_tokens (LongTensor): tokens in the source language of shape
@@ -380,23 +422,32 @@ class LightConvEncoder(FairseqEncoder):
         x = x.transpose(0, 1)
 
         # compute padding mask
-        encoder_padding_mask = src_tokens.eq(self.padding_idx)
+        encoder_padding_mask = src_tokens.eq(self.padding_idx)  # B x T
         if not encoder_padding_mask.any():
-            encoder_padding_mask = None
+            encoder_mask = None
+        else:
+            encoder_mask = encoder_padding_mask
 
         # encoder layers
         for layer in self.layers:
-            x = layer(x, encoder_padding_mask)
+            x = layer(x, encoder_mask)
 
-        if self.normalize:
+        if self.layer_norm is not None:
             x = self.layer_norm(x)
 
-        return {
-            "encoder_out": x,  # T x B x C
-            "encoder_padding_mask": encoder_padding_mask,  # B x T
-        }
+        output_dict: Dict[str, List[Tensor]] = {}
+        if src_lengths is not None:
+            output_dict["src_lengths"] = [src_lengths]
+        output_dict["encoder_out"] = [x]  # T x B x C
+        if encoder_mask is not None:
+            output_dict["encoder_padding_mask"] = [encoder_mask]  # B x T
 
-    def reorder_encoder_out(self, encoder_out, new_order):
+        return output_dict
+
+    @torch.jit.export
+    def reorder_encoder_out(
+        self, encoder_out: Dict[str, List[Tensor]], new_order: Tensor
+    ):
         """
         Reorder encoder output according to *new_order*.
 
@@ -407,15 +458,22 @@ class LightConvEncoder(FairseqEncoder):
         Returns:
             *encoder_out* rearranged according to *new_order*
         """
-        if encoder_out["encoder_out"] is not None:
-            encoder_out["encoder_out"] = encoder_out["encoder_out"].index_select(
-                1, new_order
-            )
-        if encoder_out["encoder_padding_mask"] is not None:
-            encoder_out["encoder_padding_mask"] = encoder_out[
-                "encoder_padding_mask"
-            ].index_select(0, new_order)
-        return encoder_out
+        if len(encoder_out["encoder_out"]) == 0:
+            encoder = []
+        else:
+            encoder = [encoder_out["encoder_out"][0].index_select(1, new_order)]
+        output_dict = {"encoder_out": encoder}
+
+        if ("encoder_padding_mask" not in encoder_out) or (
+            len(encoder_out["encoder_padding_mask"]) == 0
+        ):
+            encoder_padding_mask = []
+        else:
+            encoder_padding_mask = [
+                encoder_out["encoder_padding_mask"][0].index_select(0, new_order)
+            ]
+        output_dict["encoder_padding_mask"] = encoder_padding_mask
+        return output_dict
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""
@@ -477,13 +535,17 @@ class LightConvDecoder(FairseqIncrementalDecoder):
         self.layers.extend(
             [
                 LightConvDecoderLayer(
-                    args, no_encoder_attn, kernel_size=args.decoder_kernel_size_list[i]
+                    args,
+                    no_encoder_attn,
+                    kernel_size=args.decoder_kernel_size_list[i],
+                    dictionary=dictionary,
                 )
                 for i in range(args.decoder_layers)
             ]
         )
 
         self.adaptive_softmax = None
+        self.output_projection = None
 
         self.project_out_dim = (
             Linear(embed_dim, output_embed_dim, bias=False)
@@ -501,18 +563,33 @@ class LightConvDecoder(FairseqIncrementalDecoder):
                 factor=args.adaptive_softmax_factor,
                 tie_proj=args.tie_adaptive_proj,
             )
-        elif not self.share_input_output_embed:
-            self.embed_out = nn.Parameter(
-                torch.Tensor(len(dictionary), output_embed_dim)
+        elif self.share_input_output_embed:
+            self.output_projection = nn.Linear(
+                self.embed_tokens.weight.shape[1],
+                self.embed_tokens.weight.shape[0],
+                bias=False,
             )
-            nn.init.normal_(self.embed_out, mean=0, std=output_embed_dim**-0.5)
+            self.output_projection.weight = self.embed_tokens.weight
+
+        else:
+            self.output_projection = nn.Linear(
+                output_embed_dim, len(dictionary), bias=False
+            )
+            nn.init.normal_(
+                self.output_projection.weight, mean=0, std=output_embed_dim**-0.5
+            )
         self.register_buffer("version", torch.Tensor([2]))
         self.normalize = args.decoder_normalize_before and final_norm
         if self.normalize:
             self.layer_norm = LayerNorm(embed_dim)
+        else:
+            self.layer_norm = None
 
     def forward(
-        self, prev_output_tokens, encoder_out=None, incremental_state=None, **kwargs
+        self,
+        prev_output_tokens: Tensor,
+        encoder_out: Optional[Dict[str, List[Tensor]]] = None,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
     ):
         """
         Args:
@@ -546,7 +623,7 @@ class LightConvDecoder(FairseqIncrementalDecoder):
                 positions = positions[:, -1:]
 
         # embed tokens and positions
-        x = self.embed_scale * self.embed_tokens(prev_output_tokens)
+        x = self.embed_scale * self.embed_tokens(prev_output_tokens.contiguous())
 
         if self.project_in_dim is not None:
             x = self.project_in_dim(x)
@@ -559,21 +636,30 @@ class LightConvDecoder(FairseqIncrementalDecoder):
         x = x.transpose(0, 1)
         attn = None
 
-        inner_states = [x]
+        inner_states: List[Optional[Tensor]] = [x]
 
         # decoder layers
+        attn: Optional[Tensor] = None
         for layer in self.layers:
+            encoder: Optional[Tensor] = None
+            encoder_padding_mask: Optional[Tensor] = None
+            if encoder_out is not None:
+                if len(encoder_out["encoder_out"]) > 0:
+                    encoder = encoder_out["encoder_out"][0]
+                if (
+                    "encoder_padding_mask" in encoder_out
+                    and len(encoder_out["encoder_padding_mask"]) > 0
+                ):
+                    encoder_padding_mask = encoder_out["encoder_padding_mask"][0]
             x, attn = layer(
                 x,
-                encoder_out["encoder_out"] if encoder_out is not None else None,
-                encoder_out["encoder_padding_mask"]
-                if encoder_out is not None
-                else None,
+                encoder,
+                encoder_padding_mask,
                 incremental_state,
             )
             inner_states.append(x)
 
-        if self.normalize:
+        if self.layer_norm is not None:
             x = self.layer_norm(x)
 
         # T x B x C -> B x T x C
@@ -584,12 +670,9 @@ class LightConvDecoder(FairseqIncrementalDecoder):
 
         if self.adaptive_softmax is None:
             # project back to size of vocabulary
-            if self.share_input_output_embed:
-                x = F.linear(x, self.embed_tokens.weight)
-            else:
-                x = F.linear(x, self.embed_out)
+            x = self.output_projection(x)
 
-        return x, {"attn": attn, "inner_states": inner_states}
+        return x, {"attn": [attn], "inner_states": inner_states}
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""
@@ -612,6 +695,14 @@ class LightConvDecoder(FairseqIncrementalDecoder):
                 utils.fill_with_neg_inf(self._future_mask.resize_(dim, dim)), 1
             )
         return self._future_mask[:dim, :dim]
+
+    def reorder_incremental_state(
+        self,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        new_order: Tensor,
+    ):
+        for layer in self.layers:
+            layer.reorder_incremental_state(incremental_state, new_order)
 
 
 class LightConvEncoderLayer(nn.Module):
@@ -672,9 +763,10 @@ class LightConvEncoderLayer(nn.Module):
         self.normalize_before = args.encoder_normalize_before
         self.fc1 = Linear(self.embed_dim, args.encoder_ffn_embed_dim)
         self.fc2 = Linear(args.encoder_ffn_embed_dim, self.embed_dim)
-        self.layer_norms = nn.ModuleList([LayerNorm(self.embed_dim) for _ in range(2)])
+        self.layer_norm1 = LayerNorm(self.embed_dim)
+        self.layer_norm2 = LayerNorm(self.embed_dim)
 
-    def forward(self, x, encoder_padding_mask):
+    def forward(self, x, encoder_padding_mask: Optional[Tensor] = None) -> Tensor:
         """
         Args:
             x (Tensor): input to the layer of shape `(seq_len, batch, embed_dim)`
@@ -685,7 +777,9 @@ class LightConvEncoderLayer(nn.Module):
             encoded output of shape `(batch, src_len, embed_dim)`
         """
         residual = x
-        x = self.maybe_layer_norm(0, x, before=True)
+        normalize = self.maybe_layer_norm(before=True)
+        if normalize:
+            x = self.layer_norm1(x)
         x = self.input_dropout_module(x)
         x = self.linear1(x)
         if self.act is not None:
@@ -696,24 +790,27 @@ class LightConvEncoderLayer(nn.Module):
         x = self.linear2(x)
         x = self.dropout_module(x)
         x = residual + x
-        x = self.maybe_layer_norm(0, x, after=True)
+        normalize = self.maybe_layer_norm(after=True)
+        if normalize:
+            x = self.layer_norm1(x)
 
         residual = x
-        x = self.maybe_layer_norm(1, x, before=True)
+        normalize = self.maybe_layer_norm(before=True)
+        if normalize:
+            x = self.layer_norm2(x)
         x = F.relu(self.fc1(x))
         x = self.relu_dropout_module(x)
         x = self.fc2(x)
         x = self.dropout_module(x)
         x = residual + x
-        x = self.maybe_layer_norm(1, x, after=True)
+        normalize = self.maybe_layer_norm(after=True)
+        if normalize:
+            x = self.layer_norm2(x)
         return x
 
-    def maybe_layer_norm(self, i, x, before=False, after=False):
-        assert before ^ after
-        if after ^ self.normalize_before:
-            return self.layer_norms[i](x)
-        else:
-            return x
+    def maybe_layer_norm(self, before: bool = False, after: bool = False):
+        assert before ^ after, "Incorrect arguments"
+        return after ^ self.normalize_before
 
     def extra_repr(self):
         return (
@@ -736,7 +833,7 @@ class LightConvDecoderLayer(nn.Module):
         kernel_size: kernel size of the convolution
     """
 
-    def __init__(self, args, no_encoder_attn=False, kernel_size=0):
+    def __init__(self, args, no_encoder_attn=False, kernel_size=0, dictionary=None):
         super().__init__()
         self.embed_dim = args.decoder_embed_dim
         self.conv_dim = args.decoder_conv_dim
@@ -790,6 +887,7 @@ class LightConvDecoderLayer(nn.Module):
                 args.decoder_attention_heads,
                 dropout=args.attention_dropout,
                 encoder_decoder_attention=True,
+                dictionary=dictionary,
             )
             self.encoder_attn_layer_norm = LayerNorm(self.embed_dim)
 
@@ -801,14 +899,14 @@ class LightConvDecoderLayer(nn.Module):
 
     def forward(
         self,
-        x,
-        encoder_out,
-        encoder_padding_mask,
-        incremental_state,
-        prev_conv_state=None,
-        prev_attn_state=None,
-        conv_mask=None,
-        conv_padding_mask=None,
+        x: Tensor,
+        encoder_out: Optional[Tensor],
+        encoder_padding_mask: Optional[Tensor],
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        prev_conv_state: Optional[Tensor] = None,
+        prev_attn_state: Optional[Tuple[Tensor, Tensor]] = None,
+        conv_mask: Optional[Tensor] = None,
+        conv_padding_mask: Optional[Tensor] = None,
     ):
         """
         Args:
@@ -820,10 +918,10 @@ class LightConvDecoderLayer(nn.Module):
             encoded output of shape `(batch, src_len, embed_dim)`
         """
         residual = x
-        x = self.maybe_layer_norm(self.conv_layer_norm, x, before=True)
+        normalize = self.maybe_layer_norm(before=True)
+        if normalize:
+            x = self.conv_layer_norm(x)
         if prev_conv_state is not None:
-            if incremental_state is None:
-                incremental_state = {}
             self.conv._set_input_buffer(incremental_state, prev_conv_state)
         x = self.input_dropout_module(x)
         x = self.linear1(x)
@@ -833,17 +931,22 @@ class LightConvDecoderLayer(nn.Module):
         x = self.linear2(x)
         x = self.dropout_module(x)
         x = residual + x
-        x = self.maybe_layer_norm(self.conv_layer_norm, x, after=True)
+        normalize = self.maybe_layer_norm(after=True)
+        if normalize:
+            x = self.conv_layer_norm(x)
 
-        attn = None
+        attn: Optional[Tensor] = None
         if self.encoder_attn is not None:
             residual = x
-            x = self.maybe_layer_norm(self.encoder_attn_layer_norm, x, before=True)
+            normalize = self.maybe_layer_norm(before=True)
+            if normalize:
+                x = self.encoder_attn_layer_norm(x)
+
             if prev_attn_state is not None:
-                if incremental_state is None:
-                    incremental_state = {}
-                prev_key, prev_value = prev_attn_state
-                saved_state = {"prev_key": prev_key, "prev_value": prev_value}
+                saved_state: Dict[str, Optional[Tensor]] = {
+                    "prev_key": prev_attn_state[0],
+                    "prev_value": prev_attn_state[1],
+                }
                 self.encoder_attn._set_input_buffer(incremental_state, saved_state)
             x, attn = self.encoder_attn(
                 query=x,
@@ -856,27 +959,38 @@ class LightConvDecoderLayer(nn.Module):
             )
             x = self.dropout_module(x)
             x = residual + x
-            x = self.maybe_layer_norm(self.encoder_attn_layer_norm, x, after=True)
+            normalize = self.maybe_layer_norm(after=True)
+            if normalize:
+                x = self.encoder_attn_layer_norm(x)
 
         residual = x
-        x = self.maybe_layer_norm(self.final_layer_norm, x, before=True)
+        normalize = self.maybe_layer_norm(before=True)
+        if normalize:
+            x = self.final_layer_norm(x)
         x = F.relu(self.fc1(x))
         x = self.relu_dropout_module(x)
         x = self.fc2(x)
         x = self.dropout_module(x)
         x = residual + x
-        x = self.maybe_layer_norm(self.final_layer_norm, x, after=True)
+        normalize = self.maybe_layer_norm(after=True)
+        if normalize:
+            x = self.final_layer_norm(x)
         return x, attn
 
-    def maybe_layer_norm(self, layer_norm, x, before=False, after=False):
-        assert before ^ after
-        if after ^ self.normalize_before:
-            return layer_norm(x)
-        else:
-            return x
+    def maybe_layer_norm(self, before: bool = False, after: bool = False):
+        assert before ^ after, "Incorrect usage"
+        return after ^ self.normalize_before
 
-    def make_generation_fast_(self, need_attn=False, **kwargs):
+    def make_generation_fast_(self, need_attn: bool = False, **kwargs):
         self.need_attn = need_attn
+
+    def reorder_incremental_state(
+        self,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        new_order: Tensor,
+    ):
+        self.encoder_attn.reorder_incremental_state(incremental_state, new_order)
+        self.conv.reorder_incremental_state(incremental_state, new_order)
 
     def extra_repr(self):
         return (
