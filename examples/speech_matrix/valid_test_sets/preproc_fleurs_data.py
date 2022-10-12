@@ -7,13 +7,7 @@ from datasets import load_dataset
 from examples.speech_matrix.data_helper.data_cfg import FLEURS_LANGS
 
 
-def get_lang_data(
-    lang,
-    out_audio_dir,
-    out_manifest_dir,
-    split,
-    out_sr=16000
-):
+def get_lang_data(lang, out_audio_dir, out_manifest_dir, split, out_sr=16000):
     lang_code = lang[:2]
     data = load_dataset("fleurs", lang)
     data_size = len(data[split])
@@ -26,7 +20,7 @@ def get_lang_data(
         save_split = "valid"
     aud_manifest = os.path.join(out_manifest_dir, f"{save_split}_{lang_code}.tsv")
     out_aud_manifest = open(aud_manifest, "w")
-    out_aud_manifest.write(out_audio_dir+"\n")
+    out_aud_manifest.write(out_audio_dir + "\n")
 
     trans_fn = os.path.join(out_manifest_dir, f"{save_split}_{lang_code}.trans")
     out_trans = open(trans_fn, "w")
@@ -44,7 +38,7 @@ def get_lang_data(
             F.resample(waveform, in_sr, out_sr)
         nf = waveform.size(-1)
         fn = ".".join(os.path.basename(aud["path"]).split(".")[:-1])
-        save_fn = os.path.join(out_audio_dir, fn+".flac")
+        save_fn = os.path.join(out_audio_dir, fn + ".flac")
         # save audio
         if not os.path.exists(save_fn):
             torchaudio.save(save_fn, waveform, out_sr)
@@ -52,8 +46,8 @@ def get_lang_data(
         out_aud_manifest.write(f"{fn}.flac\t{nf}\n")
         text = data[split][idx]["transcription"]
         raw_text = data[split][idx]["raw_transcription"]
-        out_trans.write(text+"\n")
-        out_raw_trans.write(raw_text+"\n")
+        out_trans.write(text + "\n")
+        out_raw_trans.write(raw_text + "\n")
     out_aud_manifest.close()
     out_trans.close()
     out_raw_trans.close()
@@ -77,5 +71,5 @@ if __name__ == "__main__":
                 out_audio_dir=os.path.join(args.proc_fleurs_dir, "audios", lang_code),
                 out_manifest_dir=os.path.join(args.proc_fleurs_dir, "aud_manifests"),
                 split=split,
-                out_sr=16000
+                out_sr=16000,
             )

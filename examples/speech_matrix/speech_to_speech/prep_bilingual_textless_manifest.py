@@ -37,9 +37,7 @@ def filter_dataframe(df, td):
     return res_df
 
 
-def prep_data_with_threshold(
-    lang_pair, save_root
-):
+def prep_data_with_threshold(lang_pair, save_root):
     manifest_dir = os.path.join(save_root, manifest_key, lang_pair)
     s2u_manifest = os.path.join(manifest_dir, f"{manifest_prefix}.tsv")
     asr_manifest = os.path.join(manifest_dir, "source_unit", f"{manifest_prefix}.tsv")
@@ -48,8 +46,11 @@ def prep_data_with_threshold(
     out_s2u_manifest = parse_out_fn(s2u_manifest, td)
     out_asr_manifest = parse_out_fn(asr_manifest, td)
     s2u_df = pd.read_csv(
-        s2u_manifest, sep="\t", header=0,
-        encoding="utf-8", escapechar="\\",
+        s2u_manifest,
+        sep="\t",
+        header=0,
+        encoding="utf-8",
+        escapechar="\\",
         quoting=csv.QUOTE_NONE,
     )
     s2u_df = filter_dataframe(s2u_df, td)
@@ -57,8 +58,11 @@ def prep_data_with_threshold(
     print("save to {}".format(out_s2u_manifest))
 
     asr_df = pd.read_csv(
-        asr_manifest, sep="\t", header=0,
-        encoding="utf-8", escapechar="\\",
+        asr_manifest,
+        sep="\t",
+        header=0,
+        encoding="utf-8",
+        escapechar="\\",
         quoting=csv.QUOTE_NONE,
     )
     asr_df["score"] = s2u_df["score"]
@@ -124,16 +128,9 @@ if __name__ == "__main__":
             if src_lang == tgt_lang:
                 continue
             prep_data_with_threshold(
-                lang_pair=f"{src_lang}-{tgt_lang}",
-                save_root=args.save_root
+                lang_pair=f"{src_lang}-{tgt_lang}", save_root=args.save_root
             )
             # config
-            gen_config(
-                src_lang, tgt_lang,
-                save_root=args.save_root
-            )
+            gen_config(src_lang, tgt_lang, save_root=args.save_root)
             # dict
-            gen_dict(
-                src_lang, tgt_lang,
-                save_root=args.save_root
-            )
+            gen_dict(src_lang, tgt_lang, save_root=args.save_root)

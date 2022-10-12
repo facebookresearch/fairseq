@@ -28,17 +28,11 @@ if __name__ == "__main__":
 
     # download audio zips
     for lang in VP_LANGS:
-        download_audio(
-            lang=lang,
-            save_root=args.save_root
-        )
+        download_audio(lang=lang, save_root=args.save_root)
 
     # download speech alignments
     for src_lang in VP_LANGS:
         for tgt_lang in VP_LANGS:
             if src_lang >= tgt_lang:
                 continue
-            download_aligned_speech(
-                src_lang, tgt_lang,
-                save_root=args.save_root
-            )
+            download_aligned_speech(src_lang, tgt_lang, save_root=args.save_root)

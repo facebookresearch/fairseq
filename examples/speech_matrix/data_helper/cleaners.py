@@ -11,30 +11,33 @@ from typing import List, Callable
 
 
 # Regular expression matching whitespace:
-_whitespace_re = re.compile(r'\s+')
+_whitespace_re = re.compile(r"\s+")
 
 # List of (regular expression, replacement) pairs for abbreviations:
 _abbreviations = {
-  "en": [(re.compile('\\b%s\\.' % x[0], re.IGNORECASE), x[1]) for x in [
-    ('mrs', 'misess'),
-    ('mr', 'mister'),
-    ('dr', 'doctor'),
-    ('st', 'saint'),
-    ('co', 'company'),
-    ('jr', 'junior'),
-    ('maj', 'major'),
-    ('gen', 'general'),
-    ('drs', 'doctors'),
-    ('rev', 'reverend'),
-    ('lt', 'lieutenant'),
-    ('hon', 'honorable'),
-    ('sgt', 'sergeant'),
-    ('capt', 'captain'),
-    ('esq', 'esquire'),
-    ('ltd', 'limited'),
-    ('col', 'colonel'),
-    ('ft', 'fort'),
-  ]],
+    "en": [
+        (re.compile("\\b%s\\." % x[0], re.IGNORECASE), x[1])
+        for x in [
+            ("mrs", "misess"),
+            ("mr", "mister"),
+            ("dr", "doctor"),
+            ("st", "saint"),
+            ("co", "company"),
+            ("jr", "junior"),
+            ("maj", "major"),
+            ("gen", "general"),
+            ("drs", "doctors"),
+            ("rev", "reverend"),
+            ("lt", "lieutenant"),
+            ("hon", "honorable"),
+            ("sgt", "sergeant"),
+            ("capt", "captain"),
+            ("esq", "esquire"),
+            ("ltd", "limited"),
+            ("col", "colonel"),
+            ("ft", "fort"),
+        ]
+    ],
 }
 
 
@@ -56,7 +59,7 @@ def lowercase(text):
 
 
 def collapse_whitespace(text):
-    return re.sub(_whitespace_re, ' ', text)
+    return re.sub(_whitespace_re, " ", text)
 
 
 def convert_to_ascii(text):
@@ -64,27 +67,31 @@ def convert_to_ascii(text):
 
 
 def basic_cleaners(text):
-    '''Basic pipeline that lowercases and collapses whitespace without transliteration.'''
+    """Basic pipeline that lowercases and collapses whitespace without transliteration."""
     text = lowercase(text)
     text = collapse_whitespace(text)
     return text
 
 
 def transliteration_cleaners(text):
-    '''Pipeline for non-English text that transliterates to ASCII.'''
+    """Pipeline for non-English text that transliterates to ASCII."""
     text = convert_to_ascii(text)
     text = lowercase(text)
     text = collapse_whitespace(text)
     return text
 
 
-PUNCTUATIONS_EXCLUDE_APOSTROPHE = string.punctuation.replace("'", "") + "¡¨«°³º»¿‘“”…♪♫ˆᵉ™，ʾ˚"
+PUNCTUATIONS_EXCLUDE_APOSTROPHE = (
+    string.punctuation.replace("'", "") + "¡¨«°³º»¿‘“”…♪♫ˆᵉ™，ʾ˚"
+)
 PUNCTUATIONS_TO_SPACE = "-/–·—•"
 
 
 def remove_punctuations(text, punctuations=string.punctuation):
-    text = text.translate(str.maketrans(PUNCTUATIONS_TO_SPACE, " "*len(PUNCTUATIONS_TO_SPACE)))
-    return text.translate(str.maketrans('', '', punctuations))
+    text = text.translate(
+        str.maketrans(PUNCTUATIONS_TO_SPACE, " " * len(PUNCTUATIONS_TO_SPACE))
+    )
+    return text.translate(str.maketrans("", "", punctuations))
 
 
 def remove_parentheses(text: str) -> str:
@@ -125,12 +132,12 @@ def expand_capitals(text):
     words = text.split()
     for i, w in enumerate(words):
         if w.isupper():
-            words[i] = ' '.join(w)
-    return ' '.join(words)
+            words[i] = " ".join(w)
+    return " ".join(words)
 
 
 def english_cleaners(text, punctuations=string.punctuation):
-    '''Pipeline for English text, including number and abbreviation expansion.'''
+    """Pipeline for English text, including number and abbreviation expansion."""
     text = convert_to_ascii(text)
     text = remap_chars(text)
     text = lowercase(text)
@@ -163,7 +170,7 @@ def text_cleaners(text, lang="en"):
     text = lowercase(text)
     text = remove_parentheses(text)
 
-    if lang in ['en', 'fr', 'es']:
+    if lang in ["en", "fr", "es"]:
         text = expand_numbers(text, lang)
     text = expand_abbreviations(text, lang)
     text = remove_punctuations(text, punctuations=PUNCTUATIONS_EXCLUDE_APOSTROPHE)

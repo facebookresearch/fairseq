@@ -1,4 +1,22 @@
-VP_LANGS = ["cs", "de", "en", "es", "et", "fi", "fr", "hr", "hu", "it", "lt", "nl", "pl", "pt", "ro", "sk", "sl"]
+VP_LANGS = [
+    "cs",
+    "de",
+    "en",
+    "es",
+    "et",
+    "fi",
+    "fr",
+    "hr",
+    "hu",
+    "it",
+    "lt",
+    "nl",
+    "pl",
+    "pt",
+    "ro",
+    "sk",
+    "sl",
+]
 EXTRA_LANGS = [lang for lang in VP_LANGS if lang not in set(["en", "es", "fr"])]
 
 
@@ -22,9 +40,7 @@ lang2fam = {
     "sk": "slavic",
     "sl": "slavic",
 }
-hubert_config_hub = {
-    lang: (3, 11, 1000) for lang in VP_LANGS
-}
+hubert_config_hub = {lang: (3, 11, 1000) for lang in VP_LANGS}
 hubert_config_hub["it"] = (3, 11, 800)
 en_es_fr_hubert = "mhubert_base_vp_en_es_fr_it3.pt"
 hubert_model_hub = {

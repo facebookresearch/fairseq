@@ -130,8 +130,7 @@ class ASRGenerator(object):
                 raise RuntimeError("Silence token is not found in the vocabulary")
 
         try:
-            from transformers import (AutoFeatureExtractor, AutoTokenizer,
-                                      Wav2Vec2ForCTC)
+            from transformers import AutoFeatureExtractor, AutoTokenizer, Wav2Vec2ForCTC
         except ImportError:
             raise ImportError("Install transformers to load HF wav2vec model")
 

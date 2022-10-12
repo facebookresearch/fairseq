@@ -12,16 +12,10 @@ from examples.speech_matrix.data_helper.cleaners import text_cleaners
 domain = "fleurs"
 
 
-def read_flores_texts(
-    flores_root,
-    flores_lang,
-    splits=["dev", "devtest"]
-):
+def read_flores_texts(flores_root, flores_lang, splits=["dev", "devtest"]):
     texts = []
     for split in splits:
-        fn = os.path.join(
-            flores_root, split, f"{flores_lang}.{split}"
-        )
+        fn = os.path.join(flores_root, split, f"{flores_lang}.{split}")
         with open(fn, "r") as fin:
             texts += [line.strip() for line in fin.readlines()]
     return texts
@@ -62,14 +56,25 @@ def map_raw_text_to_speech(aud_manifest, trans_fn, raw_trans_fn):
 
 def align_speech_to_speech(
     # input args
-    flores_root, src_lang, tgt_lang,
-    src_flores_lang, tgt_flores_lang,
-    src_aud_manifest, src_trans_fn, src_raw_trans_fn,
-    tgt_aud_manifest, tgt_trans_fn, tgt_raw_trans_fn,
+    flores_root,
+    src_lang,
+    tgt_lang,
+    src_flores_lang,
+    tgt_flores_lang,
+    src_aud_manifest,
+    src_trans_fn,
+    src_raw_trans_fn,
+    tgt_aud_manifest,
+    tgt_trans_fn,
+    tgt_raw_trans_fn,
     # output s2t
-    s2t_src_aud_manifest, s2t_tgt_aud_manifest, s2t_trans_fn,
+    s2t_src_aud_manifest,
+    s2t_tgt_aud_manifest,
+    s2t_trans_fn,
     # output t2s
-    t2s_tgt_aud_manifest, t2s_src_aud_manifest, t2s_trans_fn
+    t2s_tgt_aud_manifest,
+    t2s_src_aud_manifest,
+    t2s_trans_fn,
 ):
     """
     (sa1, sa2, sa3) <-> st (src audios <-> flores text)
@@ -90,15 +95,15 @@ def align_speech_to_speech(
 
     # output
     s2t_src_aud_fout = open(s2t_src_aud_manifest, "w")
-    s2t_src_aud_fout.write(src_aud_root+"\n")
+    s2t_src_aud_fout.write(src_aud_root + "\n")
     s2t_tgt_aud_fout = open(s2t_tgt_aud_manifest, "w")
-    s2t_tgt_aud_fout.write(tgt_aud_root+"\n")
+    s2t_tgt_aud_fout.write(tgt_aud_root + "\n")
     s2t_trans_fout = open(s2t_trans_fn, "w")
 
     t2s_tgt_aud_fout = open(t2s_tgt_aud_manifest, "w")
-    t2s_tgt_aud_fout.write(tgt_aud_root+"\n")
+    t2s_tgt_aud_fout.write(tgt_aud_root + "\n")
     t2s_src_aud_fout = open(t2s_src_aud_manifest, "w")
-    t2s_src_aud_fout.write(src_aud_root+"\n")
+    t2s_src_aud_fout.write(src_aud_root + "\n")
     t2s_trans_fout = open(t2s_trans_fn, "w")
 
     # raw text alignment in flores
@@ -116,21 +121,21 @@ def align_speech_to_speech(
         for src_idx, src_aud in enumerate(src_aud_list):
             if len(tgt_aud_list) != 0:
                 # src_aud
-                s2t_src_aud_fout.write(src_aud+"\n")
-                s2t_trans_fout.write(text_cleaners(tgt_text, tgt_lang)+"\n")
+                s2t_src_aud_fout.write(src_aud + "\n")
+                s2t_trans_fout.write(text_cleaners(tgt_text, tgt_lang) + "\n")
                 # tgt_aud
                 tgt_idx = src_idx % len(tgt_aud_list)
-                s2t_tgt_aud_fout.write(tgt_aud_list[tgt_idx]+"\n")
+                s2t_tgt_aud_fout.write(tgt_aud_list[tgt_idx] + "\n")
 
         # tgt_lang -> src_lang
         for tgt_idx, tgt_aud in enumerate(tgt_aud_list):
             if len(src_aud_list) != 0:
                 # tgt_aud
-                t2s_tgt_aud_fout.write(tgt_aud+"\n")
-                t2s_trans_fout.write(text_cleaners(src_text, src_lang)+"\n")
+                t2s_tgt_aud_fout.write(tgt_aud + "\n")
+                t2s_trans_fout.write(text_cleaners(src_text, src_lang) + "\n")
                 # src_aud
                 src_idx = tgt_idx % len(src_aud_list)
-                t2s_src_aud_fout.write(src_aud_list[src_idx]+"\n")
+                t2s_src_aud_fout.write(src_aud_list[src_idx] + "\n")
 
     s2t_src_aud_fout.close()
     s2t_tgt_aud_fout.close()
@@ -154,12 +159,10 @@ if __name__ == "__main__":
     manifest_root = os.path.join(args.save_root, manifest_key)
     splits = ["valid", "test"]
     fleurs_lang_num = len(FLEURS_LANGS)
-    fleurs_manifest_dir = os.path.join(
-        args.proc_fleurs_dir, "aud_manifests"
-    )
+    fleurs_manifest_dir = os.path.join(args.proc_fleurs_dir, "aud_manifests")
 
     for src_idx in range(fleurs_lang_num):
-        for tgt_idx in range(src_idx+1, fleurs_lang_num):
+        for tgt_idx in range(src_idx + 1, fleurs_lang_num):
             src_fleurs_lang = FLEURS_LANGS[src_idx]
             src_lang = src_fleurs_lang[:2]
             src_flores_lang = FLORES_LANG_MAP[src_lang]
@@ -169,24 +172,14 @@ if __name__ == "__main__":
             tgt_flores_lang = FLORES_LANG_MAP[tgt_lang]
 
             # src_lang -> tgt_lang
-            src_to_tgt_dir = os.path.join(
-                fleurs_manifest_dir, f"{src_lang}-{tgt_lang}"
-            )
+            src_to_tgt_dir = os.path.join(fleurs_manifest_dir, f"{src_lang}-{tgt_lang}")
             os.makedirs(src_to_tgt_dir, exist_ok=True)
             # tgt_lang -> src_lang
-            tgt_to_src_dir = os.path.join(
-                fleurs_manifest_dir, f"{tgt_lang}-{src_lang}"
-            )
+            tgt_to_src_dir = os.path.join(fleurs_manifest_dir, f"{tgt_lang}-{src_lang}")
             os.makedirs(tgt_to_src_dir, exist_ok=True)
-            s2t_manifest_dir = os.path.join(
-                manifest_root,
-                f"{src_lang}-{tgt_lang}"
-            )
+            s2t_manifest_dir = os.path.join(manifest_root, f"{src_lang}-{tgt_lang}")
             os.makedirs(s2t_manifest_dir, exist_ok=True)
-            t2s_manifest_dir = os.path.join(
-                manifest_root,
-                f"{tgt_lang}-{src_lang}"
-            )
+            t2s_manifest_dir = os.path.join(manifest_root, f"{tgt_lang}-{src_lang}")
             os.makedirs(t2s_manifest_dir, exist_ok=True)
 
             for split in splits:
@@ -198,18 +191,42 @@ if __name__ == "__main__":
                     tgt_lang=tgt_lang,
                     src_flores_lang=src_flores_lang,
                     tgt_flores_lang=tgt_flores_lang,
-                    src_aud_manifest=os.path.join(fleurs_manifest_dir, f"{split}_{src_lang}.tsv"),
-                    src_trans_fn=os.path.join(fleurs_manifest_dir, f"{split}_{src_lang}.trans"),
-                    src_raw_trans_fn=os.path.join(fleurs_manifest_dir, f"{split}_{src_lang}.raw.trans"),
-                    tgt_aud_manifest=os.path.join(fleurs_manifest_dir, f"{split}_{tgt_lang}.tsv"),
-                    tgt_trans_fn=os.path.join(fleurs_manifest_dir, f"{split}_{tgt_lang}.trans"),
-                    tgt_raw_trans_fn=os.path.join(fleurs_manifest_dir, f"{split}_{tgt_lang}.raw.trans"),
+                    src_aud_manifest=os.path.join(
+                        fleurs_manifest_dir, f"{split}_{src_lang}.tsv"
+                    ),
+                    src_trans_fn=os.path.join(
+                        fleurs_manifest_dir, f"{split}_{src_lang}.trans"
+                    ),
+                    src_raw_trans_fn=os.path.join(
+                        fleurs_manifest_dir, f"{split}_{src_lang}.raw.trans"
+                    ),
+                    tgt_aud_manifest=os.path.join(
+                        fleurs_manifest_dir, f"{split}_{tgt_lang}.tsv"
+                    ),
+                    tgt_trans_fn=os.path.join(
+                        fleurs_manifest_dir, f"{split}_{tgt_lang}.trans"
+                    ),
+                    tgt_raw_trans_fn=os.path.join(
+                        fleurs_manifest_dir, f"{split}_{tgt_lang}.raw.trans"
+                    ),
                     # output args
-                    s2t_src_aud_manifest=os.path.join(src_to_tgt_dir, f"{split}_{src_lang}-{tgt_lang}_{src_lang}.tsv"),
-                    s2t_tgt_aud_manifest=os.path.join(src_to_tgt_dir, f"{split}_{src_lang}-{tgt_lang}_{tgt_lang}.tsv"),
-                    s2t_trans_fn=os.path.join(s2t_manifest_dir, f"{split}_{domain}.{tgt_lang}"),
+                    s2t_src_aud_manifest=os.path.join(
+                        src_to_tgt_dir, f"{split}_{src_lang}-{tgt_lang}_{src_lang}.tsv"
+                    ),
+                    s2t_tgt_aud_manifest=os.path.join(
+                        src_to_tgt_dir, f"{split}_{src_lang}-{tgt_lang}_{tgt_lang}.tsv"
+                    ),
+                    s2t_trans_fn=os.path.join(
+                        s2t_manifest_dir, f"{split}_{domain}.{tgt_lang}"
+                    ),
                     # t2s
-                    t2s_tgt_aud_manifest=os.path.join(tgt_to_src_dir, f"{split}_{tgt_lang}-{src_lang}_{tgt_lang}.tsv"),
-                    t2s_src_aud_manifest=os.path.join(tgt_to_src_dir, f"{split}_{tgt_lang}-{src_lang}_{src_lang}.tsv"),
-                    t2s_trans_fn=os.path.join(t2s_manifest_dir, f"{split}_{domain}.{src_lang}")
+                    t2s_tgt_aud_manifest=os.path.join(
+                        tgt_to_src_dir, f"{split}_{tgt_lang}-{src_lang}_{tgt_lang}.tsv"
+                    ),
+                    t2s_src_aud_manifest=os.path.join(
+                        tgt_to_src_dir, f"{split}_{tgt_lang}-{src_lang}_{src_lang}.tsv"
+                    ),
+                    t2s_trans_fn=os.path.join(
+                        t2s_manifest_dir, f"{split}_{domain}.{src_lang}"
+                    ),
                 )
