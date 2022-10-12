@@ -759,10 +759,12 @@ def load_model_ensemble_and_task_from_hf_hub(
 
     _arg_overrides = arg_overrides or {}
     _arg_overrides["data"] = cache_dir
-    return load_model_ensemble_and_task(
+    models, cfg, task = load_model_ensemble_and_task(
         [p.as_posix() for p in Path(cache_dir).glob("*.pt")],
         arg_overrides=_arg_overrides,
     )
+    cfg.task.config_yaml = f"{cache_dir}/{cfg.task.config_yaml}"
+    return models, cfg, task
 
 
 def checkpoint_paths(path, pattern=r"checkpoint(\d+)\.pt", keep_match=False):
