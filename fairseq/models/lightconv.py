@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -313,8 +313,8 @@ class LightConvModel(FairseqEncoderDecoderModel):
     def forward(
         self,
         src_tokens: Tensor,
+        src_lengths: Tensor,
         prev_output_tokens: Tensor,
-        src_lengths: Optional[Tensor] = None,
     ):
         """
         (The forward method inherited from the base class has a **kwargs
@@ -590,6 +590,7 @@ class LightConvDecoder(FairseqIncrementalDecoder):
         prev_output_tokens: Tensor,
         encoder_out: Optional[Dict[str, List[Tensor]]] = None,
         incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
+        src_lengths: Optional[Any] = None,
     ):
         """
         Args:
@@ -695,14 +696,6 @@ class LightConvDecoder(FairseqIncrementalDecoder):
                 utils.fill_with_neg_inf(self._future_mask.resize_(dim, dim)), 1
             )
         return self._future_mask[:dim, :dim]
-
-    def reorder_incremental_state(
-        self,
-        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
-        new_order: Tensor,
-    ):
-        for layer in self.layers:
-            layer.reorder_incremental_state(incremental_state, new_order)
 
 
 class LightConvEncoderLayer(nn.Module):
@@ -983,14 +976,6 @@ class LightConvDecoderLayer(nn.Module):
 
     def make_generation_fast_(self, need_attn: bool = False, **kwargs):
         self.need_attn = need_attn
-
-    def reorder_incremental_state(
-        self,
-        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
-        new_order: Tensor,
-    ):
-        self.encoder_attn.reorder_incremental_state(incremental_state, new_order)
-        self.conv.reorder_incremental_state(incremental_state, new_order)
 
     def extra_repr(self):
         return (
