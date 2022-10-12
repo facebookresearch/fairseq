@@ -60,7 +60,7 @@ python mined_train_sets/download_speech_to_unit.py \
     --save-root ${SAVE_ROOT}
 ```
 
-The speech-to-unit data for a language pair is saved to ${SAVE_ROOT}/s2u_manifests/${lang_pair}.
+The speech-to-unit data for a language pair is saved to ```${SAVE_ROOT}/s2u_manifests/${lang_pair}```
 
 ### Reproduce Bilingual Train Data
 
@@ -108,13 +108,25 @@ sl | [ckpt](https://dl.fbaipublicfiles.com/speech_matrix/s2s_models/checkpoint_t
 Download 260M Slavic-to-English [model](https://dl.fbaipublicfiles.com/speech_matrix/s2s_models/checkpoint_textless_slavic_en_260m.pt).
 
 ### XM Transformer
+Check out [here](https://github.com/facebookresearch/fairseq/blob/main/examples/speech_to_speech/docs/enhanced_direct_s2st_discrete_units.md) for XM Transformer model training.
+
+Example training command:
+```
+python3 $FAIRSEQ_ROOT/train.py --distributed-world-size 32 --distributed-port 12314 --save-dir $SAVE_DIR $DATA_ROOT --ddp-backend legacy_ddp --num-workers 0 --task speech_to_text --criterion label_smoothed_cross_entropy --no-epoch-checkpoints --report-accuracy --clip-norm 10.0 --log-format simple --log-interval 500 --seed 121 --max-update 160000 --share-decoder-input-output-embed --validate-interval 1 --save-interval 1 --save-interval-updates 500 --skip-invalid-size-inputs-valid-test --keep-best-checkpoints 10 --optimizer adam --adam-betas '"'"'(0.9, 0.98)'"'"' --lr 0.0001 --dropout 0.1 --attention-dropout 0.1 --relu-dropout 0.1 --lr-scheduler inverse_sqrt --warmup-updates 5000 --arch xm_transformer --normalize --adaptor-n-layers 1 --decoder-attention-heads 16 --decoder-normalize-before --load-pretrained-decoder-from ${UNIT_MBART_PATH} --w2v-path ${XLSR_PATH} --config-yaml config.yaml --mask-prob 0.3 --mask-channel-prob 0.25 --mask-channel-length 10 --layerdrop 0.1 --finetune-decoder-params all --label-smoothing 0.2 --patience 30 --max-tokens 9000 --max-tokens-valid 9000 --max-target-positions 9000 --max-source-positions 9000 --max-positions 9000 --update-freq 2 --train-subset $TRAIN_SUBSET --valid-subset $VALID_SUBSET --checkpoint-activations --encoder-proj 
+```
+
 Architecture | direction | #params | Link
 |---|---|---|---
 Dense XM| Slavic-to-English | 1.3B | [ckpt](https://dl.fbaipublicfiles.com/speech_matrix/s2s_models/checkpoint_xm_transformer_slavic_en_1.3b.pt)
 Dense XM| All-to-English | 1.3B | [ckpt](https://dl.fbaipublicfiles.com/speech_matrix/s2s_models/checkpoint_xm_transformer_all_en_1.3b.pt)
 
 
-### Sparse XM Transformer
+### Sparse XM Transformer (gshard)
+Following arguments could be added for gshard in XM Transformer training, following the settings in paper (decoder-only MoE):
+
+```
+--moe-freq 2 --encoder-moe-freq 0 --decoder-moe-freq 2 --moe-expert-count $NUM_EXPERTS
+```
 
 Architecture | direction | #params | Link
 |---|---|---|---
@@ -165,8 +177,7 @@ fairseq-generate $DATA_ROOT \
   --path $MODEL_DIR/checkpoint_best.pt  --gen-subset $GEN_SUBSET \
   --max-tokens 18000 \
   --beam 10 --max-len-a 1 --max-len-b 200 \
-  --results-path ${RESULTS_PATH} \
-  --model-overrides {'max_target_positions': 5000, 'load_pretrained_decoder_from': $UMBART_PATH, 'load_pretrained_encoder_from': $XLSR_PATH, 'w2v_path': $XLSR_PATH}
+  --results-path ${RESULTS_PATH} 
 ```
 
 2. Convert unit sequences to waveform.
@@ -182,6 +193,23 @@ python examples/speech_to_speech/generate_waveform_from_code.py \
   --results-path ${RESULTS_PATH} --dur-prediction
 ```
 
+## ASR-BLEU evaluation
+
+Use the following command to compute ASR-BLEU with inference results on test sets
+
+TGT_LANG: Target language
+
+AUDIO_FOLDER: A folder contains all inference results (audio files)
+
+REFERENCE_PATH: A txt file with each line to be translation result in plain text 
+
+```
+cd ${FAIRSEQ_ROOT}/examples/speech_to_speech/asr_bleu
+python3 compute_asr_bleu.py --lang ${TGT_LANG} \
+--audio_dirpath ${AUDIO_FOLDER} \
+--reference_path ${REFERENCE_PATH} \
+--reference_format txt
+```
 
 ## Mining with Speech Encoder
 
@@ -200,8 +228,8 @@ For people who are interested in trying out our speech encoders and mining paral
       Ann Lee and
       Vedanuj Goswani and
       Changhan Wang and
-      Juan Pino and Beno Sagot and 
+      Juan Pino and 
+      Beno Sagot and 
       Holger Schwenk",
 }
 ```
-
