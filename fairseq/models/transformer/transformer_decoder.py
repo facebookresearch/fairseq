@@ -203,10 +203,11 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             nn.init.normal_(
                 self.output_projection.weight, mean=0, std=self.output_embed_dim**-0.5
             )
-        num_base_layers = cfg.base_layers
-        for i in range(num_base_layers):
+        self.num_base_layers = cfg.base_layers
+        for i in range(self.num_base_layers):
             self.layers.insert(
-                ((i + 1) * cfg.decoder.layers) // (num_base_layers + 1), BaseLayer(cfg)
+                ((i + 1) * cfg.decoder.layers) // (self.num_base_layers + 1),
+                BaseLayer(cfg),
             )
 
     @staticmethod
@@ -538,6 +539,30 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             ]
         else:
             return self._future_mask[:cur_seq_len, :cur_seq_len]
+
+    def upgrade_state_dict(self, state_dict):
+        """update layer id if there is base layers which are not presenting in state dict"""
+        if self.num_base_layers > 0:
+            # confirm there is layer mismatches
+            layer_mismatch = True
+            for key in state_dict.keys():
+                if key.startswith(f"layers.{len(self.layers) - 1}"):
+                    layer_mismatch = False
+            cur_num_base_layers = self.num_base_layers if layer_mismatch else 0
+            # reverse loop to avoid index overlap
+            for i in range(len(self.layers) - 1, -1, -1):
+                if isinstance(self.layers[i], BaseLayer):
+                    cur_num_base_layers -= 1
+                    continue
+                if cur_num_base_layers == 0:
+                    break
+                new_prefix = f"layers.{i}."
+                old_prefix = f"layers.{i-cur_num_base_layers}."
+                for old_key in list(state_dict.keys()):
+                    if old_key.startswith(old_prefix):
+                        new_key = old_key.replace(old_prefix, new_prefix)
+                        state_dict[new_key] = state_dict.pop(old_key)
+        return state_dict
 
     def upgrade_state_dict_named(self, state_dict, name):
         """Upgrade a (possibly old) state dict for new versions of fairseq."""

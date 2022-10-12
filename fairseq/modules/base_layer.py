@@ -3,67 +3,54 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import sys
-
-import torch
 import torch.nn as nn
-
+import torch
+import sys
+import numpy as np
 from fairseq import utils
 from fairseq.distributed import utils as distributed_utils
 from fairseq.modules.layer_norm import LayerNorm
-from fairseq.modules.linear import Linear
 
 
 class BaseLayer(nn.Module):
     def __init__(self, args):
         super().__init__()
-
-        ddp_backend = getattr(args, "ddp_backend")
-        assert ddp_backend in {
-            "no_c10d",
-            "legacy_ddp",
-        }, f"Incompatible backend {ddp_backend} for MOE models"
-
         self.num_workers = distributed_utils.get_data_parallel_world_size()
-        self.expert_count = args.world_size
-        self.num_local_experts = self.expert_count // self.num_workers
-
-        expert_centroids = torch.empty(self.expert_count, args.decoder_embed_dim)
+        expert_centroids = torch.empty(self.num_workers, args.decoder_embed_dim)
         torch.nn.init.orthogonal_(expert_centroids, gain=0.1)
         self.register_parameter(
             "expert_centroids", torch.nn.Parameter(expert_centroids)
         )
-
-        self.experts = nn.ModuleList(
-            [
-                nn.Sequential(
-                    *([BaseSublayer(args) for _ in range(args.base_sublayers)])
-                )
-                for _ in range(self.num_local_experts)
-            ]
+        self.expert_network = nn.Sequential(
+            *([BaseSublayer(args) for _ in range(args.base_sublayers)])
         )
-
         self.expert_id = distributed_utils.get_data_parallel_rank()
         self.shuffle = args.base_shuffle
-        self.cpp = self.load_assignment()
 
         # Add a special attribute to the expert parameters, so we know not to sync their gradients
-        for param in self.experts.parameters():
-            param.base_expert = True
+        for param in self.expert_network.parameters():
+            param.expert = True
 
     def forward(self, input_features, *args, **kwargs):
-        assert (
-            not self.training or self.num_local_experts == 1
-        ), f"Found {self.num_local_experts} local experts during training. \
-             Can only have 1 during training."
-
         features = input_features.reshape(-1, input_features.size(-1))
         is_training = input_features.requires_grad
 
         if self.shuffle and is_training:
             # Send each token to a random worker, to break correlations within the batch
             shuffle_sort = torch.randperm(features.size(0), device=features.device)
-            features = All2All.apply(features[shuffle_sort])
+            shuffle_input_splits = [0] * self.num_workers
+            for i in range(shuffle_sort.size(0)):
+                shuffle_input_splits[i % self.num_workers] += 1
+            shuffle_input_splits = torch.tensor(
+                shuffle_input_splits, device=features.device
+            )
+            shuffle_output_splits = All2All.apply(shuffle_input_splits)
+
+            features = All2All.apply(
+                features[shuffle_sort],
+                shuffle_input_splits.tolist(),
+                shuffle_output_splits.tolist(),
+            )
 
         with torch.no_grad():
             # Compute similarity of each token to each expert, for routing
@@ -77,89 +64,125 @@ class BaseLayer(nn.Module):
             if is_training
             else self.greedy_assignment(token_expert_affinities)
         )
-
-        # Merge splits to current world size so All2All works
-        input_splits_merged = (
-            self.merge_splits(self.expert_count, self.num_workers, input_splits)
-            if not is_training
-            else None
-        )
-
-        output_splits_merged = (
-            self.merge_splits(self.expert_count, self.num_workers, output_splits)
-            if not is_training
-            else None
-        )
-
         # Swap these tokens for the right ones for our expert
         routed_features = All2All.apply(
-            features[sort_by_expert], output_splits_merged, input_splits_merged
+            features[sort_by_expert], input_splits, output_splits
         )
 
-        if self.num_local_experts == 1:
-            if routed_features.size(0) > 0:
-                # Mix in the expert network based on how appropriate it is for these tokens
-                alpha = torch.sigmoid(
-                    routed_features.mv(self.expert_centroids[self.expert_id])
-                ).unsqueeze(1)
-                routed_features = (
-                    alpha * self.experts[0](routed_features)
-                    + (1 - alpha) * routed_features
-                )
-        else:
-            start_index = 0
-            for index, num_features_to_add in enumerate(input_splits):
-                # Determine which local expert the features correspond to and then extract features
-                local_expert_index = index % self.num_local_experts
-                local_expert_features = routed_features[
-                    start_index : start_index + num_features_to_add
-                ]
-
-                if local_expert_features.size(0) > 0:
-                    alpha = torch.sigmoid(
-                        local_expert_features.mv(
-                            self.expert_centroids[
-                                self.expert_id * self.num_local_experts
-                                + local_expert_index
-                            ]
-                        )
-                    ).unsqueeze(1)
-
-                    local_expert_features = (
-                        alpha * self.experts[local_expert_index](local_expert_features)
-                        + (1 - alpha) * local_expert_features
-                    )
-
-                    routed_features[
-                        start_index : start_index + num_features_to_add
-                    ] = local_expert_features
-
-                start_index += num_features_to_add
-
+        if routed_features.size(0) > 0:
+            # Mix in the expert network based on how appropriate it is for these tokens
+            alpha = torch.sigmoid(
+                routed_features.mv(self.expert_centroids[self.expert_id])
+            ).unsqueeze(1)
+            routed_features = (
+                alpha * self.expert_network(routed_features)
+                + (1 - alpha) * routed_features
+            )
         # Return to original worker and ordering
-        result = All2All.apply(
-            routed_features, input_splits_merged, output_splits_merged
-        )[self.inverse_sort(sort_by_expert)]
+        result = All2All.apply(routed_features, output_splits, input_splits)[
+            self.inverse_sort(sort_by_expert)
+        ]
 
         if self.shuffle and is_training:
             # Undo shuffling
-            result = All2All.apply(result)[self.inverse_sort(shuffle_sort)]
+            result = All2All.apply(
+                result, shuffle_output_splits.tolist(), shuffle_input_splits.tolist()
+            )[self.inverse_sort(shuffle_sort)]
 
         # Return additional Nones for compatibility with TransformerDecoderLayer
         return result.view(input_features.size()), None, None, None
 
+    def auction_lap(self, X, eps=None, compute_score=True):
+        """
+        X: n-by-n matrix w/ integer entries
+        eps: "bid size" -- smaller values means higher accuracy w/ longer runtime
+        """
+        eps = 1 / X.shape[0] if eps is None else eps
+
+        # --
+        # Init
+        cost = torch.zeros((1, X.shape[1]))
+        curr_ass = torch.zeros(X.shape[0]).long() - 1
+        bids = torch.zeros(X.shape)
+
+        if X.is_cuda:
+            cost, curr_ass, bids = cost.cuda(), curr_ass.cuda(), bids.cuda()
+
+        counter = 0
+        while (curr_ass == -1).any():
+            counter += 1
+
+            # --
+            # Bidding
+
+            unassigned = (curr_ass == -1).nonzero().squeeze()
+            if unassigned.dim() == 0:
+                unassigned = torch.tensor([unassigned.item()])
+
+            if counter > 100:
+                curr_ass[curr_ass == -1] = 0
+                break
+
+            value = X[unassigned] - cost
+            top_value, top_idx = value.topk(2, dim=1)
+
+            first_idx = top_idx[:, 0]
+            first_value, second_value = top_value[:, 0], top_value[:, 1]
+
+            bid_increments = first_value - second_value + eps
+
+            bids_ = bids[unassigned]
+            bids_.zero_()
+            try:
+                bids_.scatter_(
+                    dim=1,
+                    index=first_idx.contiguous().view(-1, 1),
+                    src=bid_increments.view(-1, 1),
+                )
+            except:
+                torch.set_printoptions(profile="full")
+
+            # --
+            # Assignment
+
+            have_bidder = (bids_ > 0).int().sum(dim=0).nonzero()
+
+            high_bids, high_bidders = bids_[:, have_bidder].max(dim=0)
+            high_bidders = unassigned[high_bidders.squeeze()]
+
+            cost[:, have_bidder] += high_bids
+
+            curr_ass[(curr_ass.view(-1, 1) == have_bidder.view(1, -1)).sum(dim=1)] = -1
+            curr_ass[high_bidders] = have_bidder.squeeze()
+
+        score = None
+        if compute_score:
+            score = int(X.gather(dim=1, index=curr_ass.view(-1, 1)).sum())
+
+        return score, curr_ass, counter
+
     def inverse_sort(self, order):
         # Creates an index that undoes a sort: xs==xs[order][inverse_sort(order)]
-        return torch.empty_like(order).scatter_(
+        results = torch.empty_like(order).scatter_(
             0, order, torch.arange(0, order.size(0), device=order.device)
         )
+        return results
 
     def balanced_assignment(self, scores):
         ok = scores.isfinite()
         if not ok.all():
             # NaNs here can break the assignment algorithm
             scores[~ok] = scores[ok].min()
-        return self.cpp.balanced_assignment(scores), None, None
+        unsorted = self.auction_lap(scores)[1]
+        nested = [[] for _ in range(self.num_workers)]
+        for i, x in enumerate(unsorted.tolist()):
+            nested[x].append(i)
+
+        unnested = [n for inner in nested for n in inner]
+        input_splits = [len(inner) for inner in nested]
+        output_splits = All2All.apply(torch.tensor(input_splits, device=scores.device))
+
+        return torch.tensor(unnested), input_splits, output_splits.tolist()
 
     # Assigns each token to the top k experts
     def greedy_assignment(self, scores, k=1):
@@ -169,61 +192,24 @@ class BaseLayer(nn.Module):
 
         # Find how many tokens we're sending to each other worker (being careful for sending 0 tokens to some workers)
         output_splits = torch.zeros(
-            (self.expert_count,), dtype=torch.long, device=scores.device
+            (self.num_workers,), dtype=torch.long, device=scores.device
         )
         workers, counts = torch.unique_consecutive(token_to_workers, return_counts=True)
         output_splits[workers] = counts
         # Tell other workers how many tokens to expect from us
         input_splits = All2All.apply(output_splits)
-        # Warning: .tolist() results in a device to host transfer from GPU -> CPU which is time-consuming
-        # and slows down model training with FSDP ddp_backend
-        return worker2token, input_splits.tolist(), output_splits.tolist()
-
-    def merge_splits(self, world_size_train, world_size_inference, splits):
-        assert world_size_train % world_size_inference == 0
-        splits_stitched = list(splits)[0:world_size_inference]
-        local_expert_count = int(world_size_train / world_size_inference)
-
-        for i in range(0, world_size_train, local_expert_count):
-            splits_stitched[i // local_expert_count] = sum(
-                splits[i : i + local_expert_count]
-            )
-
-        return splits_stitched
-
-    def load_assignment(self):
-        try:
-            from fairseq import libbase
-
-            return libbase
-
-        except ImportError as e:
-            sys.stderr.write(
-                "ERROR: missing libbase. run `python setup.py build_ext --inplace`\n"
-            )
-            raise e
+        return worker2token, output_splits.tolist(), input_splits.tolist()
 
 
 class BaseSublayer(nn.Module):
     def __init__(self, args):
         super().__init__()
-        init_model_on_gpu = getattr(args, "init_model_on_gpu", False)
         self.activation_fn = utils.get_activation_fn(
             activation=getattr(args, "activation_fn", "relu") or "relu"
         )
         self.norm = LayerNorm(args.decoder_embed_dim, export=False)
-        if init_model_on_gpu:
-            self.norm = self.norm.cuda().half()
-        self.ff1 = Linear(
-            args.decoder_embed_dim,
-            args.decoder_ffn_embed_dim,
-            init_model_on_gpu=init_model_on_gpu,
-        )
-        self.ff2 = Linear(
-            args.decoder_ffn_embed_dim,
-            args.decoder_embed_dim,
-            init_model_on_gpu=init_model_on_gpu,
-        )
+        self.ff1 = torch.nn.Linear(args.decoder_embed_dim, args.decoder_ffn_embed_dim)
+        self.ff2 = torch.nn.Linear(args.decoder_ffn_embed_dim, args.decoder_embed_dim)
         self.ff2.weight.data.zero_()
 
     def forward(self, xs):
