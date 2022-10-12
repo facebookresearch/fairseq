@@ -697,14 +697,6 @@ class LightConvDecoder(FairseqIncrementalDecoder):
             )
         return self._future_mask[:dim, :dim]
 
-    def reorder_incremental_state(
-        self,
-        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
-        new_order: Tensor,
-    ):
-        for layer in self.layers:
-            layer.reorder_incremental_state(incremental_state, new_order)
-
 
 class LightConvEncoderLayer(nn.Module):
     """Encoder layer block.
@@ -984,15 +976,6 @@ class LightConvDecoderLayer(nn.Module):
 
     def make_generation_fast_(self, need_attn: bool = False, **kwargs):
         self.need_attn = need_attn
-
-    def reorder_incremental_state(
-        self,
-        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
-        new_order: Tensor,
-    ):
-        if self.encoder_attn is not None:
-            self.encoder_attn.reorder_incremental_state(incremental_state, new_order)
-        self.conv.reorder_incremental_state(incremental_state, new_order)
 
     def extra_repr(self):
         return (
