@@ -990,7 +990,8 @@ class LightConvDecoderLayer(nn.Module):
         incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
         new_order: Tensor,
     ):
-        self.encoder_attn.reorder_incremental_state(incremental_state, new_order)
+        if self.encoder_attn is not None:
+            self.encoder_attn.reorder_incremental_state(incremental_state, new_order)
         self.conv.reorder_incremental_state(incremental_state, new_order)
 
     def extra_repr(self):
