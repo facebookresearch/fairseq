@@ -106,7 +106,7 @@ def _load_files(paths: List[Path]):
     for path in paths:
         with open(path, 'rb') as handle:
             data.append(handle.read())
-    return data
+    return paths, data
 
 
 def create_zip(data_root: Path, zip_path: Path):
@@ -122,9 +122,9 @@ def create_zip(data_root: Path, zip_path: Path):
                     for i in range(0, len(paths), chunksize)
                 ]
                 for future in as_completed(futures):
-                    data = future.result()
-                    for path, data_ in zip(paths, data):
-                        f.writestr(path.name, data_)
+                    chunk_paths, chunk_data = future.result()
+                    for path, data in zip(chunk_paths, chunk_data):
+                        f.writestr(path.name, data)
                         pbar.update(1)
 
 
