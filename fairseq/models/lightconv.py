@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -313,8 +313,8 @@ class LightConvModel(FairseqEncoderDecoderModel):
     def forward(
         self,
         src_tokens: Tensor,
+        src_lengths: Tensor,
         prev_output_tokens: Tensor,
-        src_lengths: Optional[Tensor] = None,
     ):
         """
         (The forward method inherited from the base class has a **kwargs
@@ -590,6 +590,7 @@ class LightConvDecoder(FairseqIncrementalDecoder):
         prev_output_tokens: Tensor,
         encoder_out: Optional[Dict[str, List[Tensor]]] = None,
         incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
+        src_lengths: Optional[Any] = None,
     ):
         """
         Args:
