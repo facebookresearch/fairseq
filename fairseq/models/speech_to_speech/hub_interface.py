@@ -90,6 +90,7 @@ class S2SHubInterface(nn.Module):
         _tgt_lang = tgt_lang or task.data_cfg.hub.get("tgt_lang", None)
         pred_tokens = generator.generate([model], sample)
         pred = pred_tokens[0][0]["tokens"][:-1] - NUM_SPECIAL_TOKENS
+        pred = " ".join([str(x) for x in pred.tolist()])
 
         if synthesize_speech:
             pfx = f"{_tgt_lang}_" if task.data_cfg.prepend_tgt_lang_tag else ""
@@ -97,7 +98,13 @@ class S2SHubInterface(nn.Module):
             if tts_model_id is None:
                 logger.warning("TTS model configuration not found")
             else:
-                _repo, _id = tts_model_id.split(":")
+                temp = tts_model_id.split(":")
+                if len(temp) == 2:
+                    _repo, _id = temp
+                elif len(temp) == 3:
+                    _repo, _id = ":".join(temp[:2]), temp[2]
+                else:
+                    raise Exception("Invalid TTS model path")
                 tts_model = torch.hub.load(_repo, _id, verbose=False)
                 pred = (pred, tts_model.predict(pred))
         return pred
