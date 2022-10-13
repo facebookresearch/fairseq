@@ -91,7 +91,6 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         self.alpha = alpha if not use_adaptive_weightage else None
         self.beta = 1 if adaptive_smoothing is not None else adaptive_smoothing
         self.queue = torch.cuda.FloatTensor([])
-        self.teacher_loss_queue = torch.cuda.FloatTensor([])
         
 
     def push_to_FIFO_queue(self, tensor):
@@ -103,17 +102,6 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             self.queue = torch.cat((self.queue, tensor))
         else:
             self.queue = torch.cat((self.queue[tensor_size: ], tensor))
-    
-    
-    def push_to_teacher_FIFO_queue(self, tensor):
-        tensor = tensor.detach().view(-1)
-        tensor_size = tensor.size(0)
-        current_size = self.teacher_loss_queue.size(0)
-        self.teacher_loss_queue = self.teacher_loss_queue.view(-1)
-        if tensor_size + current_size < self.task.difficult_queue_size:
-            self.teacher_loss_queue = torch.cat((self.teacher_loss_queue, tensor))
-        else:
-            self.teacher_loss_queue = torch.cat((self.teacher_loss_queue[tensor_size: ], tensor))
 
 
     def forward(self, model, sample, reduce=True):
@@ -162,7 +150,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             with torch.no_grad():
                 self.alpha = F.relu(torch.tanh(self.beta * (nll_loss_teacher - nll_loss_student)))
         loss = ((1.0 - self.alpha) * golden_loss).sum() + (self.alpha * kd_loss).sum()
-        return loss.sum()
+        return loss
 
 
     def get_lprobs_and_target(self, model, net_output, sample):
@@ -201,7 +189,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             target, 
             self.eps, 
             ignore_index=self.padding_idx, 
-            reduce=(reduce and (distil_strategy == 'word_and_seq_level'))
+            reduce=False
         )
 
         if teacher_lprobs is not None:
@@ -212,7 +200,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
                 target, 
                 self.eps, 
                 ignore_index=self.padding_idx, 
-                reduce=(reduce and (distil_strategy == 'word_and_seq_level'))
+                reduce=False
             )
 
         nll_loss = nll_loss.view(-1)
@@ -265,7 +253,6 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
                 kd_loss
             )
         elif not self.use_adaptive_weightage and distil_strategy == 'global_level':
-            words_num = self.queue.size(0)
             kd_loss = F.cross_entropy(
                 student_logits_T,
                 teacher_probs_T,
@@ -275,7 +262,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             self.push_to_FIFO_queue(nll_loss)
             loss_gate = self.queue.topk(
                 math.ceil(
-                    words_num * self.task.distil_rate
+                    self.queue.size(0) * self.task.distil_rate
                 ), 
                 dim=0, 
                 largest=True
