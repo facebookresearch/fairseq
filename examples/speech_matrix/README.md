@@ -164,7 +164,7 @@ For English (en), Spanish (es) and French (fr), we reuse HuBERT and kmeans model
 ### Textless Model Inference
 
 
-Check out [here]((../speech_to_speech/docs/direct_s2st_discrete_units.md)) for Textless model inference.
+Check out [here](../speech_to_speech/docs/direct_s2st_discrete_units.md) for Textless model inference.
 
 
 ### XM Transformer Model Inference 
