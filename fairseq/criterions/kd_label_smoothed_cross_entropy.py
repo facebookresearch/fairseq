@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-from matplotlib import use
 import numpy as np
 from dataclasses import dataclass, field
 
