@@ -122,4 +122,3 @@ class S2SHubInterface(nn.Module):
             tgt_lang=tgt_lang,
             synthesize_speech=synthesize_speech,
         )
-
