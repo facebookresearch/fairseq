@@ -226,15 +226,14 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
                 kd_loss
             )
         elif not self.use_adaptive_weightage and distil_strategy == 'batch_level':
-            words_num = nll_loss.size(0)
             loss_gate = nll_loss.topk(
                 math.ceil(
-                    words_num * self.task.distil_rate
+                    nll_loss.size(0) * self.task.distil_rate
                 ), 
                 dim=0, 
                 largest=True
             )[0][-1]
-            KD_mask = nll_loss >= loss_gate
+            KD_mask = nll_loss < loss_gate
             kd_loss = F.cross_entropy(
                 student_logits_T,
                 teacher_probs_T,
@@ -242,7 +241,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             )
             kd_loss.masked_fill_(pad_mask, 0)
             kd_loss = kd_loss.view(-1)
-            kd_loss = kd_loss[KD_mask]
+            kd_loss = kd_loss[~KD_mask]
             extra['kd_loss'] = kd_loss.sum()
             extra['nll_loss_student'] = nll_loss.sum()
             extra['nll_loss_teacher'] = nll_loss_teacher.sum()
@@ -267,10 +266,10 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
                 dim=0, 
                 largest=True
             )[0][-1]
-            KD_mask = nll_loss >= loss_gate # B * T
+            KD_mask = nll_loss < loss_gate # B * T
             kd_loss.masked_fill_(pad_mask, 0)
             kd_loss = kd_loss.view(-1)
-            kd_loss = kd_loss[KD_mask]
+            kd_loss = kd_loss[~KD_mask]
             extra['kd_loss'] = kd_loss.sum()
             extra['nll_loss_student'] = nll_loss.sum()
             extra['nll_loss_teacher'] = nll_loss_teacher.sum()
