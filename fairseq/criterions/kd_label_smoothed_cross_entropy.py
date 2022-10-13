@@ -90,30 +90,30 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         self.use_adaptive_weightage = use_adaptive_weightage
         self.alpha = alpha if not use_adaptive_weightage else None
         self.beta = 1 if adaptive_smoothing is not None else adaptive_smoothing
-        # self.queue = torch.cuda.FloatTensor([])
-        # self.teacher_loss_queue = torch.cuda.FloatTensor([])
+        self.queue = torch.cuda.FloatTensor([])
+        self.teacher_loss_queue = torch.cuda.FloatTensor([])
         
 
-    # def push_to_FIFO_queue(self, tensor):
-    #     tensor = tensor.detach().view(-1)
-    #     tensor_size = tensor.size(0)
-    #     current_size = self.queue.size(0)
-    #     self.queue = self.queue.view(-1)
-    #     if tensor_size + current_size < self.task.difficult_queue_size:
-    #         self.queue = torch.cat((self.queue, tensor))
-    #     else:
-    #         self.queue = torch.cat((self.queue[tensor_size: ], tensor))
+    def push_to_FIFO_queue(self, tensor):
+        tensor = tensor.detach().view(-1)
+        tensor_size = tensor.size(0)
+        current_size = self.queue.size(0)
+        self.queue = self.queue.view(-1)
+        if tensor_size + current_size < self.task.difficult_queue_size:
+            self.queue = torch.cat((self.queue, tensor))
+        else:
+            self.queue = torch.cat((self.queue[tensor_size: ], tensor))
     
     
-    # def push_to_teacher_FIFO_queue(self, tensor):
-    #     tensor = tensor.detach().view(-1)
-    #     tensor_size = tensor.size(0)
-    #     current_size = self.teacher_loss_queue.size(0)
-    #     self.teacher_loss_queue = self.teacher_loss_queue.view(-1)
-    #     if tensor_size + current_size < self.task.difficult_queue_size:
-    #         self.teacher_loss_queue = torch.cat((self.teacher_loss_queue, tensor))
-    #     else:
-    #         self.teacher_loss_queue = torch.cat((self.teacher_loss_queue[tensor_size: ], tensor))
+    def push_to_teacher_FIFO_queue(self, tensor):
+        tensor = tensor.detach().view(-1)
+        tensor_size = tensor.size(0)
+        current_size = self.teacher_loss_queue.size(0)
+        self.teacher_loss_queue = self.teacher_loss_queue.view(-1)
+        if tensor_size + current_size < self.task.difficult_queue_size:
+            self.teacher_loss_queue = torch.cat((self.teacher_loss_queue, tensor))
+        else:
+            self.teacher_loss_queue = torch.cat((self.teacher_loss_queue[tensor_size: ], tensor))
 
 
     def forward(self, model, sample, reduce=True):
@@ -160,9 +160,9 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
     def aggregate_losses(self, nll_loss_student, nll_loss_teacher, golden_loss, kd_loss):
         if self.use_adaptive_weightage:
             with torch.no_grad():
-                self.alpha = torch.sigmoid(self.beta * (nll_loss_teacher - nll_loss_student))
+                self.alpha = F.relu(torch.tanh(self.beta * (nll_loss_teacher - nll_loss_student)))
         loss = ((1.0 - self.alpha) * golden_loss).sum() + (self.alpha * kd_loss).sum()
-        return loss
+        return loss.sum()
 
 
     def get_lprobs_and_target(self, model, net_output, sample):
@@ -318,7 +318,6 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         nll_loss_student = sum(log.get('nll_loss_student', 0) for log in logging_outputs)
         ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
         sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
-        # sum new metrics
         nll_loss_teacher = sum(log.get('nll_loss_teacher', 0) for log in logging_outputs)
         kd_loss = sum(log.get('kd_loss', 0) for log in logging_outputs)
         # log metrics
