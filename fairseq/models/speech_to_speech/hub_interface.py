@@ -4,27 +4,19 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
-from argparse import Namespace
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import DataLoader, Dataset
 
-import fairseq.data.audio.feature_transforms.utterance_cmvn as utt_cmvn
 from fairseq import utils
-from fairseq.data import encoders
-from fairseq.data.audio.audio_utils import convert_waveform as convert_wav
 from fairseq.data.audio.audio_utils import get_fbank
-from fairseq.data.audio.audio_utils import get_waveform as get_wav
 from fairseq.data.audio.data_cfg import S2TDataConfig
 from fairseq.data.audio.feature_transforms import (
     AUDIO_FEATURE_TRANSFORM_REGISTRY,
     CompositeAudioFeatureTransform,
 )
-from fairseq.data.audio.speech_to_text_dataset import SpeechToTextDataset
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +54,13 @@ class S2SHubInterface(nn.Module):
         return x
 
     def get_model_input(self, task, audio: str):
-        feat = get_fbank(audio)  # C x T
+        if isinstance(audio, str):
+            feat = get_fbank(audio)  # C x T
+        else:
+            import torchaudio.compliance.kaldi as kaldi
+
+            audio = audio * (2**15)  # Assuming stardardized waveform
+            feat = kaldi.fbank(audio, num_mel_bins=80).numpy()
         feat = self.feature_transforms(feat)  # ignore
         feat = torch.from_numpy(feat).float()
         src_tokens = self.postprocess_fbank(feat).unsqueeze(0)
