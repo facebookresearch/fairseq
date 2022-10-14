@@ -176,7 +176,7 @@ fairseq-generate $DATA_ROOT \
   --task speech_to_text  \
   --path $MODEL_DIR/checkpoint_best.pt  --gen-subset $GEN_SUBSET \
   --max-tokens 18000 \
-  --beam 10 --max-len-a 1 --max-len-b 200 \
+  --beam 10 --max-len-a 0.003125 --max-len-b 200 \
   --results-path ${RESULTS_PATH} 
 ```
 
