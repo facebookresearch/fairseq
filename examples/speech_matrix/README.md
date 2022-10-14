@@ -180,6 +180,15 @@ fairseq-generate $DATA_ROOT \
   --results-path ${RESULTS_PATH} 
 ```
 
+For MoE inference, add the following options and make sure 
+
+(1) #num_experts % #num_gpus == 0 
+
+(2) No OOM issue 
+```
+--is-moe --distributed-world-size $NUM_GPUS
+```
+
 2. Convert unit sequences to waveform.
 
 ```
