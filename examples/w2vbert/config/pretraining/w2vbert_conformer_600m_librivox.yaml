@@ -1,0 +1,101 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: simple
+  log_interval: 500
+
+checkpoint:
+  save_interval_updates: 5000
+  keep_interval_updates: 1
+  no_epoch_checkpoints: true
+
+task:
+  _name: audio_pretraining
+  data: ???
+  max_sample_size: 250000
+  min_sample_size: 32000
+  normalize: true
+  fbank_features: 80
+
+dataset:
+  num_workers: 4
+  max_tokens: 6000
+  skip_invalid_size_inputs_valid_test: true
+  validate_after_updates: 5000
+  validate_interval_updates: 2500
+
+distributed_training:
+  distributed_world_size: 16
+  ddp_backend: legacy_ddp
+  nprocs_per_node: 8
+
+criterion:
+  _name: w2vbert
+  infonce: true
+  log_keys: ["prob_perplexity","code_perplexity","temp"]
+  loss_weights: [0.2, 0]
+  mlm_loss_weights: 1.0
+  mlm_label_smoothing: 0.0
+
+optimization:
+  max_update: 1_000_000
+  lr: [0.0005]
+  update_freq: 1
+
+optimizer:
+  _name: adam
+  adam_betas: (0.9,0.98)
+  adam_eps: 1e-06
+  weight_decay: 0.01
+  total_num_update: 1_000_000
+
+lr_scheduler:
+  _name: polynomial_decay
+  warmup_updates: 32000
+
+model:
+  _name: wav2vec2
+  quantize_targets: true
+  extractor_mode: layer_norm
+  layer_norm_first: true
+  final_dim: 768
+  latent_temp: [2.0,0.1,0.999995]
+  encoder_layerdrop: 0.00
+  dropout_input: 0.0
+  dropout_features: 0.0
+  dropout: 0.0
+  attention_dropout: 0.0
+  encoder_layers: 24
+  encoder_embed_dim: 1024
+  encoder_ffn_embed_dim: 4096
+  encoder_attention_heads: 16
+  conv_bias: True
+  w2v2_encoder_layers: 8
+  latent_vars: 1024
+  latent_groups: 1
+  latent_dim: 1024
+
+  feature_grad_mult: 1.0
+  fbank_features: 80
+  fbank_stride: 2
+  mask_length: 10
+  mask_prob: 0.65
+
+  layer_type: conformer
+  attn_type: espnet
+  pos_enc_type: rel_pos
+  fp16: true
+
+
+hydra:
+  launcher:
+    cpus_per_task: ${distributed_training.distributed_world_size}
+    gpus_per_node: ???
+    tasks_per_node: ${hydra.launcher.gpus_per_node}
+    nodes: 1
+    mem_gb: 400
+    timeout_min: 4320
+    max_num_timeout: 50
+    name: ${hydra.job.config_name}
+    submitit_folder: ${hydra.sweep.dir}/submitit
