@@ -123,7 +123,7 @@ jobs:
         run: |
           python3 -m cibuildwheel --output-dir dist
         env:
-          CIBW_BUILD: "cp36-*64 cp37-*64 cp38-*64"
+          CIBW_BUILD: "cp37-*64 cp38-*64"
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux1
           CIBW_BEFORE_BUILD: git submodule update --init --recursive && pip install .
           # Install system library
