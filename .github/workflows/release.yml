@@ -87,6 +87,7 @@ jobs:
       - name: Create Source Distribution
         run: |
           python3 -m pip install setuptools wheel twine torch
+          python3 -c "import torch; print(f'torch version: {torch.__version__}'):
           python3 setup.py sdist
  
       - uses: actions/upload-artifact@v2
@@ -123,7 +124,7 @@ jobs:
         run: |
           python3 -m cibuildwheel --output-dir dist
         env:
-          CIBW_BUILD: "cp38-*64"
+          CIBW_BUILD: "cp38-*64 cp39-*64 cp310-*64"
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux1
           CIBW_BEFORE_BUILD: git submodule update --init --recursive && pip install .
           # Install system library
