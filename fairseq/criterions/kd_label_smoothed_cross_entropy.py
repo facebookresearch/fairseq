@@ -86,21 +86,44 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         self.ignore_prefix_size = ignore_prefix_size
         self.report_accuracy = report_accuracy
         # new parameters
+        self.num_languages = len(self.task.src_lang_ids)
         self.use_adaptive_weightage = use_adaptive_weightage
         self.alpha = alpha if not use_adaptive_weightage else None
         self.beta = 1 if adaptive_smoothing is not None else adaptive_smoothing
-        self.queue = torch.cuda.FloatTensor([])
-        
+        if self.task.distil_strategy == "global_multi_level":
+            self.queue = {}
+            for id in self.task.src_lang_ids:
+                self.queue[id] = torch.cuda.FloatTensor([])
+        else:
+            self.queue = torch.cuda.FloatTensor([])
+
+    
+    # def get_lang_distil_rates(self, eps=1e-8):
+    #     lens = torch.cuda.FloatTensor([q.size(0) for (_, q) in self.queue.items()])
+    #     lens_prob = F.softmax(1/(lens + eps), dim=-1)
+    #     return lens_prob.tolist()
+
 
     def push_to_FIFO_queue(self, tensor):
-        tensor = tensor.detach().view(-1)
-        tensor_size = tensor.size(0)
-        current_size = self.queue.size(0)
-        self.queue = self.queue.view(-1)
-        if tensor_size + current_size < self.task.difficult_queue_size:
-            self.queue = torch.cat((self.queue, tensor))
-        else:
-            self.queue = torch.cat((self.queue[tensor_size: ], tensor))
+        # this method is applicable only when we have a single global queue
+        # here self.queue is torch.cuda.FloatTensor
+        tensor = tensor.detach()
+        tensor_sz = tensor.size(0)
+        current_queue_sz = self.queue.size(0)
+        if tensor_sz + current_queue_sz >= self.task.difficult_queue_size:
+            self.queue = self.queue[tensor_sz: ]
+        self.queue = torch.cat((self.queue, tensor))
+
+
+    def push_to_lang_FIFO_queue(self, id, tensor):
+        # this method is applicable only when we have a mulitple global queues
+        # here self.queue is dictionary of torch.cuda.FloatTensors
+        tensor = tensor.detach()
+        tensor_sz = tensor.size(0)
+        current_queue_sz = self.queue[id].size(0)
+        if tensor_sz + current_queue_sz >= self.task.difficult_queue_size:
+            self.queue[id] = self.queue[id][tensor_sz: ]
+        self.queue[id] = torch.cat((self.queue[id], tensor))
 
 
     def forward(self, model, sample, reduce=True):
@@ -119,9 +142,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             model, 
             net_output, 
             sample, 
-            reduce=reduce, 
-            teacher_output=teacher_output, 
-            distil_strategy=self.task.distil_strategy)
+            teacher_output=teacher_output)
 
         sample_size = (
             sample["target"].size(0) if self.sentence_avg else sample["ntokens"]
@@ -162,12 +183,10 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         return lprobs.view(-1, lprobs.size(-1)), target.view(-1)
 
 
-    def compute_loss(self, model, net_output, sample, reduce=True, teacher_output=None, distil_strategy="word_and_seq_level"):
-        lprobs = model.get_normalized_probs(net_output, log_probs=True)
-        lprobs = lprobs.view(-1, lprobs.size(-1))
-        target = model.get_targets(sample, net_output).view(-1, 1)
+    def compute_loss(self, model, net_output, sample, teacher_output=None):
+        lprobs, target = self.get_lprobs_and_target(model, net_output, sample)
         pad_mask = target.eq(self.padding_idx).view(-1)
-        extra = {}
+        extra = dict()
 
         # get student logits
         student_logits = net_output[0]
@@ -208,7 +227,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
 
         if teacher_output is None:
             loss = golden_loss
-        elif distil_strategy == 'word_and_seq_level':
+        elif self.task.distil_strategy == 'word_and_seq_level':
             kd_loss = F.cross_entropy(
                 student_logits_T,
                 teacher_probs_T,
@@ -224,7 +243,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
                 golden_loss,
                 kd_loss
             )
-        elif not self.use_adaptive_weightage and distil_strategy == 'batch_level':
+        elif not self.use_adaptive_weightage and self.task.distil_strategy == 'batch_level':
             loss_gate = nll_loss.topk(
                 math.ceil(
                     nll_loss.size(0) * self.task.distil_rate
@@ -250,7 +269,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
                 golden_loss,
                 kd_loss
             )
-        elif not self.use_adaptive_weightage and distil_strategy == 'global_level':
+        elif not self.use_adaptive_weightage and self.task.distil_strategy == 'global_level':
             kd_loss = F.cross_entropy(
                 student_logits_T,
                 teacher_probs_T,
@@ -278,10 +297,50 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
                 golden_loss,
                 kd_loss
             )
-        elif self.use_adaptive_weightage and (distil_strategy == 'global_level' or distil_strategy == 'batch_level'):
-            raise ValueError("adaptive weightage cannot be used with global_level or batch_level selection")
+        elif not self.use_adaptive_weightage and self.task.distil_strategy == "global_multi_level":
+            # add language-wise losses to their respective queues
+            kd_loss = F.cross_entropy(
+                student_logits_T,
+                teacher_probs_T,
+                reduction='none'
+            )
+
+            kd_loss.masked_fill_(pad_mask, 0)
+            kd_loss = kd_loss.view(-1)
+
+            indices, total_kd_loss = dict(), 0
+            inp_tokens = sample["net_input"]["src_tokens"]
+            inp_lang_ids = inp_tokens[:, 0:1].flatten().tolist()
+            for idx, val in enumerate(inp_lang_ids):
+                indices.setdefault(val, []).append(idx)
+            nll_loss = nll_loss.view(inp_tokens.size(0), -1)
+
+            for idx, val in indices.items():
+                val = torch.cuda.LongTensor(val)
+                nll_loss_lang = nll_loss.index_select(dim=0, index=val).view(-1)
+                self.push_to_lang_FIFO_queue(idx, nll_loss_lang)
+                loss_gate = self.queue[idx].topk(
+                    math.ceil(
+                        self.queue[idx].size(0) * self.task.distil_rate
+                    ), 
+                    dim=0, 
+                    largest=True
+                )[0][-1]
+                KD_mask = nll_loss_lang >= loss_gate
+                KD_indices = KD_mask.nonzero().view(-1)
+                total_kd_loss += kd_loss.gather(dim=0, index=KD_indices).sum()
+
+            extra['kd_loss'] = total_kd_loss
+            extra['nll_loss_student'] = nll_loss.sum()
+            extra['nll_loss_teacher'] = nll_loss_teacher.sum()
+            loss = self.aggregate_losses(
+                nll_loss,
+                nll_loss_teacher,
+                golden_loss,
+                total_kd_loss
+            )
         else:
-            raise ValueError("unknown strategy")
+            raise ValueError("unknown strategy or parameter mismatch")
         return loss, extra
 
 

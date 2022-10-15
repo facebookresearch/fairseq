@@ -59,8 +59,10 @@ class KDTranslationTask(TranslationTask):
 
     def __init__(self, cfg: KDTranslationConfig, src_dict, tgt_dict):
         super().__init__(cfg, src_dict, tgt_dict)
+        ## start of extra stuff
         self.distil_strategy = cfg.distil_strategy
         self.distil_rate = cfg.distil_rate
         self.teacher_temp = cfg.teacher_temp
         self.student_temp = cfg.student_temp
         self.difficult_queue_size = cfg.difficult_queue_size
+        self.src_lang_ids = [i for i in range(len(src_dict)) if src_dict[i].startswith("__src__")]
