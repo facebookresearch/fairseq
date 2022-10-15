@@ -128,6 +128,7 @@ jobs:
           CIBW_BEFORE_BUILD: git submodule update --init --recursive && pip install .
           # Install system library
           CIBW_BEFORE_BUILD_LINUX: yum install -y libffi-devel || apt-get install -y libffi-devel || apk add --update --no-cache libffi-devel || true
+          CIBW_ENVIRONMENT: "PIP_ONLY_BINARY=numpy"
           CIBW_SKIP: "*musllinux*"
 
       - uses: actions/upload-artifact@v2
