@@ -8,7 +8,6 @@
 
 from dataclasses import dataclass, field
 import logging
-import torch 
 
 from typing import Optional
 from fairseq.tasks import register_task
@@ -23,24 +22,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class KDTranslationConfig(TranslationConfig):
-    # option to start knowledge distillation
-    distil_strategy: str = field(
+    kd_strategy: str = field(
         default="word_and_seq_level", metadata={"help": "distillation strategy to be used"}
-    )
-    distil_rate: float = field(
-        default=0.5, metadata={"help": "the hyperparameter `tau` to control the number of words to get distillation knowledge"}
-    )
-    student_temp: float = field(
-        default=1, metadata={"help": "student model temperature for distillation"}
-    )
-    teacher_temp: float = field(
-        default=1, metadata={"help": "teacher model emperature for distillation"}
     )
     teacher_checkpoint_path: str = field(
         default="./", metadata={"help": "teacher checkpoint path when performing distillation"}
-    )
-    difficult_queue_size: int = field(
-        default=20000, metadata={"help": "queue size"}
     )
 
 
@@ -59,10 +45,5 @@ class KDTranslationTask(TranslationTask):
 
     def __init__(self, cfg: KDTranslationConfig, src_dict, tgt_dict):
         super().__init__(cfg, src_dict, tgt_dict)
-        ## start of extra stuff
-        self.distil_strategy = cfg.distil_strategy
-        self.distil_rate = cfg.distil_rate
-        self.teacher_temp = cfg.teacher_temp
-        self.student_temp = cfg.student_temp
-        self.difficult_queue_size = cfg.difficult_queue_size
+        self.kd_strategy = cfg.kd_strategy
         self.src_lang_ids = [i for i in range(len(src_dict)) if src_dict[i].startswith("__src__")]
