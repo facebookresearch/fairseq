@@ -61,7 +61,7 @@ class KDLabelSmoothedCrossEntropyCriterionConfig(FairseqDataclass):
         default=False,
         metadata={"help": "whether to use adaptive distil rate, i.e. different distil rates for different languages"}
     )
-    kd_rates_temp: Optional[int] = field(
+    kd_selection_temp: Optional[int] = field(
         default=None,
         metadata={"help": "temperature value for generating distil rates"}
     )
@@ -105,7 +105,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         use_adaptive_weightage,
         adaptive_smoothing,
         use_adaptive_kd_rates,
-        kd_rates_temp,
+        kd_selection_temp,
         ignore_prefix_size=0,
         report_accuracy=False,
     ):
@@ -123,7 +123,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         self.num_languages = len(self.task.src_lang_ids)
         self.use_adaptive_weightage = use_adaptive_weightage
         self.use_adaptive_kd_rates = use_adaptive_kd_rates
-        self.kd_rates_temp = kd_rates_temp
+        self.kd_selection_temp = kd_selection_temp
         self.alpha = alpha if not use_adaptive_weightage else None
         self.beta = 1 if adaptive_smoothing is not None else adaptive_smoothing
         if self.kd_strategy == "global_multi_level":
@@ -347,7 +347,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             for key, val in indices.items():
                 nll_loss_lang = nll_loss.index_select(0, torch.cuda.LongTensor(val)).view(-1)
                 self.push_to_lang_FIFO_queue(key, nll_loss_lang)
-            kd_rates = self.get_lang_kd_rates(indices, self.kd_rates_temp)
+            kd_rates = self.get_lang_kd_rates(indices, self.kd_selection_temp)
             for idx, kd_rate in zip(indices.keys(), kd_rates):
                 loss_gate = self.queue[idx].topk(
                     math.ceil(
