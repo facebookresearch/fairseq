@@ -61,7 +61,7 @@ class KDLabelSmoothedCrossEntropyCriterionConfig(FairseqDataclass):
         default=False,
         metadata={"help": "whether to use adaptive distil rate, i.e. different distil rates for different languages"}
     )
-    kd_selection_temp: Optional[int] = field(
+    kd_selection_temp: Optional[float] = field(
         default=None,
         metadata={"help": "temperature value for generating distil rates"}
     )
