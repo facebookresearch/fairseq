@@ -60,9 +60,6 @@ jobs:
       new_tag: ${{ steps.get-next-version-and-tag.outputs.tag }}
       branch_name: ${{ steps.get-next-version-and-tag.outputs.branch_name }}
 
-  create_sdist:
-    runs-on: ubuntu-latest
-
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
