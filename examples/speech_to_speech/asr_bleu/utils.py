@@ -7,7 +7,6 @@ import fairseq
 import torch
 from fairseq.data.data_utils import lengths_to_padding_mask
 from tqdm import tqdm
-from transformers import Wav2Vec2Processor
 
 try:
     import torchaudio
@@ -130,7 +129,8 @@ class ASRGenerator(object):
                 raise RuntimeError("Silence token is not found in the vocabulary")
 
         try:
-            from transformers import AutoFeatureExtractor, AutoTokenizer, Wav2Vec2ForCTC
+            from transformers import (AutoFeatureExtractor, AutoTokenizer,
+                                      Wav2Vec2ForCTC, Wav2Vec2Processor)
         except ImportError:
             raise ImportError("Install transformers to load HF wav2vec model")
 

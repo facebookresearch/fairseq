@@ -18,9 +18,7 @@ This toolkit have been used with:
 
 * Speechmatrix project: https://github.com/facebookresearch/fairseq/tree/ust/examples/speech_matrix.
 
-* Hokkien speech-to-speech translation project: TODO link.
-
-* Unsupervised speech-to-speech translation project: TODO link.
+* Hokkien speech-to-speech translation project: https://github.com/facebookresearch/fairseq/tree/ust/examples/hokkien.
 
 # Standalone run example
 
