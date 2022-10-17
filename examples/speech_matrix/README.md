@@ -224,6 +224,8 @@ python3 compute_asr_bleu.py --lang ${TGT_LANG} \
 
 For people who are interested in trying out our speech encoders and mining parallel speech by themselves, we also release speech encoders. Please check out [speech encoding intructions](speech_laser_encoders.md) for more details.
 
+## Huggingface Demo for Speech Matrix models
+This demo on huggingface has all-en multilingual model and bilingual models with target languages {en,fr,es} trained with Speech Matrix data. https://huggingface.co/spaces/facebook/speech_matrix
 
 ## Citation
 
