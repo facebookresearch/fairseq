@@ -29,32 +29,7 @@ jobs:
           echo ::set-output name=branch_name::test-$new_version-release
           echo "NEW_TAG=test-$new_tag" >> $GITHUB_ENV
           echo "NEW_BRANCH=test-$new_version-release" >> $GITHUB_ENV
-
-
-      # update the version number in version.txt
-      - name: update version
-        id: update-version
-        run : |
-          echo "current folder = $PWD"
-          echo "current branch = $(git branch --show-current)"
-          output=$(python3 release_utils.py --release-type ${{ github.event.inputs.name }} --update-version)
-
-      - name: add and commit
-        uses: EndBug/add-and-commit@v9
-        with:
-          author_name: ${{ secrets.AUTHOR_NAME }}
-          author_email: ${{ secrets.AUTHOR_EMAIL }}
-
-          # TODO: change this to main once shipit is disabled.
-          new_branch: '${{ env.NEW_BRANCH }}'
-          default_author: github_actor
-          message: '${{ env.NEW_TAG }} release'
-          pathspec_error_handling: exitAtEnd
-
-          # Arguments for the git pull command. Use NO-PULL to avoid the action pulling at all.
-          # pull: 'NO-PULL'
-          tag: '${{ env.NEW_TAG }}'
-
+          
     outputs:
       new_version: ${{ steps.get-next-version-and-tag.outputs.version }}
       new_tag: ${{ steps.get-next-version-and-tag.outputs.tag }}
@@ -70,8 +45,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-        with:
-          ref: ${{ needs.get_next_version.outputs.branch_name }}
 
       - name: Install Python
         uses: actions/setup-python@v2
@@ -97,7 +70,3 @@ jobs:
           CIBW_BEFORE_BUILD_LINUX: (yum install -y libffi-devel || apt-get install -y libffi-devel || apk add --update --no-cache libffi-devel || true) && (yum install -y libc6 || apt-get install -y libc6 || apk add --update --no-cache libc6 || true)
           CIBW_ENVIRONMENT: "PIP_ONLY_BINARY=numpy"
           CIBW_SKIP: "*musllinux*"
-
-      - uses: actions/upload-artifact@v2
-        with:
-          path: dist
