@@ -127,7 +127,7 @@ jobs:
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux1
           CIBW_BEFORE_BUILD: git submodule update --init --recursive && pip install .
           # Install system library
-          CIBW_BEFORE_BUILD_LINUX: (yum install -y libffi-devel || apt-get install -y libffi-devel || apk add --update --no-cache libffi-devel || true) && (apt-get update && apt-get install -y libc6)
+          CIBW_BEFORE_BUILD_LINUX: (yum install -y libffi-devel || apt-get install -y libffi-devel || apk add --update --no-cache libffi-devel || true) && (yum install -y libc6 || apt-get install -y libc6 || apk add --update --no-cache libc6 || true)
           CIBW_ENVIRONMENT: "PIP_ONLY_BINARY=numpy"
           CIBW_SKIP: "*musllinux*"
 
