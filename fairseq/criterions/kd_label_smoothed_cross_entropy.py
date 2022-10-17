@@ -137,10 +137,18 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
     def get_lang_kd_rates(self, indices, T=1):
         if self.use_adaptive_kd_rates:
             lens = torch.cuda.FloatTensor([len(v) for v in indices.values()])
-            lens_prob = F.softmax((1/lens)/T, dim=-1).tolist()
+            lens_prob = F.softmax((1/lens)/T, dim=-1, dtype=torch.float32).tolist()
             return lens_prob
         else:
             return [self.kd_rate] * len(indices)
+
+
+    def get_lang_ids(self, tokens):
+        non_pad_mask = tokens.ne(self.padding_idx)
+        col_indices = torch.max(non_pad_mask, dim=1)[1]
+        col_indices = col_indices.unsqueeze(1)
+        lang_ids = tokens.gather(1, col_indices)
+        return lang_ids.flatten().tolist()
 
 
     def push_to_FIFO_queue(self, tensor):
@@ -204,16 +212,6 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         return loss, sample_size, logging_output
 
 
-    def aggregate_losses(self, nll_loss_student, nll_loss_teacher, golden_loss, kd_loss):
-        if self.use_adaptive_weightage:
-            with torch.no_grad():
-                self.alpha = F.relu(torch.tanh(self.beta * (nll_loss_teacher - nll_loss_student)))
-            loss = ((1.0 - self.alpha) * golden_loss).sum() + (self.alpha * kd_loss).sum()
-        else:
-            loss = (1.0 - self.alpha) * golden_loss.sum() + self.alpha * kd_loss
-        return loss
-
-
     def get_lprobs_and_target(self, model, net_output, sample):
         lprobs = model.get_normalized_probs(net_output, log_probs=True)
         target = model.get_targets(sample, net_output)
@@ -237,7 +235,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         # get teacher probs
         teacher_logits = teacher_output[0]
         teacher_logits = teacher_logits.view(-1, teacher_logits.size(-1))
-        teacher_probs_T = F.softmax(teacher_logits/self.teacher_temp, dim=-1)
+        teacher_probs_T = F.softmax(teacher_logits/self.teacher_temp, dim=-1, dtype=torch.float32)
 
         # compute teacher log-probs to get teacher loss value
         teacher_lprobs = sample.get("teacher_lprobs", None)
@@ -340,14 +338,14 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             kd_loss = kd_loss.view(-1)
             indices, total_kd_loss = dict(), 0
             inp_tokens = sample["net_input"]["src_tokens"]
-            inp_lang_ids = inp_tokens[:, 0:1].flatten().tolist()
-            for idx, val in enumerate(inp_lang_ids):
+            for idx, val in enumerate(self.get_lang_ids(inp_tokens)):
                 indices.setdefault(val, []).append(idx)
             nll_loss = nll_loss.view(inp_tokens.size(0), -1)
             for key, val in indices.items():
                 nll_loss_lang = nll_loss.index_select(0, torch.cuda.LongTensor(val)).view(-1)
                 self.push_to_lang_FIFO_queue(key, nll_loss_lang)
             kd_rates = self.get_lang_kd_rates(indices, self.kd_selection_temp)
+            
             for idx, kd_rate in zip(indices.keys(), kd_rates):
                 loss_gate = self.queue[idx].topk(
                     math.ceil(
