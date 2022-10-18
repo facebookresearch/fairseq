@@ -65,12 +65,7 @@ class SinusoidalPositionalEmbedding(nn.Module):
         positions: Optional[Any] = None,
     ):
         """Input is expected to be of size [bsz x seqlen]."""
-        if torch.jit.is_scripting():
-            bspair = torch.onnx.operators.shape_as_tensor(input)
-        elif torch.onnx.is_in_onnx_export():
-            bspair = torch.onnx.operators.shape_as_tensor(input)
-        else:
-            bspair = input.size()
+        bspair = torch.onnx.operators.shape_as_tensor(input)
         bsz, seq_len = bspair[0], bspair[1]
         max_pos = self.padding_idx + 1 + seq_len
         if self.weights is None or max_pos > self.weights.size(0):
@@ -97,7 +92,7 @@ class SinusoidalPositionalEmbedding(nn.Module):
         if self.onnx_trace:
             flat_embeddings = self.weights.detach().index_select(0, positions.view(-1))
             embedding_shape = torch.cat(
-                (bsz, seq_len, torch.tensor([-1], dtype=torch.long))
+                (bsz.view(1), seq_len.view(1), torch.tensor([-1], dtype=torch.long))
             )
             embeddings = torch.onnx.operators.reshape_from_tensor_shape(
                 flat_embeddings, embedding_shape
