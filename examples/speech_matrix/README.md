@@ -247,4 +247,4 @@ This demo on huggingface has all-en multilingual model and bilingual models with
 
 ## License
 
-The released models and dataset are under NC-BY-CC 4.0.
+The released models and dataset are under CC-BY-NC 4.0.
