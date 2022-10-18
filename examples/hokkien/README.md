@@ -2,7 +2,9 @@
 
 We open source the speech-to-speech translation (S2ST) system to translate between English and Taiwanese Hokkien (hereafter Hokkien). Including the models we build, and the English-Hokkien parallel speech-to-speech translation benchmark dataset (TAT-S2ST) that we created to facilitate future research in this field.
 
-Details about building the model and dataset can be found in "[Speech-to-speech translation for a real-world unwritten language](https://research.facebook.com/publications/hokkien-direct-speech-to-speech-translation)"
+Details about building the model and dataset can be found in "[Speech-to-speech translation for a real-world unwritten language](https://research.facebook.com/publications/hokkien-direct-speech-to-speech-translation)".
+
+See our interactive [Demo page](https://huggingface.co/spaces/facebook/Hokkien_Translation) on Hugging Face.
 
 ## Dataset: TAT Speech-to-speech translation benchmark dataset (TAT-S2ST)
 
