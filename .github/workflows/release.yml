@@ -62,6 +62,7 @@ jobs:
       - name: Build wheels for CPython
         run: |
           echo $LD_LIBRARY_PATH
+          echo $(strings /lib64/libc.so.6 | grep GLIBC)
           python3 -m cibuildwheel --output-dir dist
         env:
           CIBW_BUILD: "cp38-*64"
