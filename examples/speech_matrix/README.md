@@ -1,4 +1,4 @@
-# Speech Matrix: A Large-Scale Mined Corpus of Multilingual Speech-to-Speech Translations
+# SpeechMatrix: A Large-Scale Mined Corpus of Multilingual Speech-to-Speech Translations
 
 
 ### Installation
@@ -67,7 +67,7 @@ The speech-to-unit data for a language pair is saved to ```${SAVE_ROOT}/s2u_mani
 In our bilingual speech-to-unit experiments, we set different thresholds to select a subset of mined data for the purpose of training efficiency. You can reproduce the training data and configurations as below:
 
 ```bash
-# SAVE_ROOT: the directory to save speech matrix mined data
+# SAVE_ROOT: the directory to save SpeechMatrix mined data
 python3 speech_to_speech/prep_bilingual_textless_manifest.py --save-root ${SAVE_ROOT}
 ```
 
@@ -224,8 +224,8 @@ python3 compute_asr_bleu.py --lang ${TGT_LANG} \
 
 For people who are interested in trying out our speech encoders and mining parallel speech by themselves, we also release speech encoders. Please check out [speech encoding intructions](speech_laser_encoders.md) for more details.
 
-## Huggingface Demo for Speech Matrix models
-This demo on huggingface has all-en multilingual model and bilingual models with target languages {en,fr,es} trained with Speech Matrix data. https://huggingface.co/spaces/facebook/speech_matrix
+## Huggingface Demo for SpeechMatrix models
+This demo on huggingface has all-en multilingual model and bilingual models with target languages {en,fr,es} trained with SpeechMatrix data. https://huggingface.co/spaces/facebook/speech_matrix
 
 ## Citation
 
