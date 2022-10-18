@@ -23,7 +23,7 @@ python3 download_vp_valid_test.py \
 ```bash
 # EPST_DIR: the directory of original EPST data.
 # PROC_EPST_DIR: the directory of EPST processed data.
-# SAVE_ROOT: the directory to save speech matrix mined data
+# SAVE_ROOT: the directory to save SpeechMatrix mined data
 python3 prep_epst_test_data.py \
     --epst-dir ${EPST_DIR} \
     --proc-epst-dir ${PROC_EPST_DIR} \
