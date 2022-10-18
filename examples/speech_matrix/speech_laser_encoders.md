@@ -1,4 +1,4 @@
-# Speech Matrix: A Large-Scale Mined Corpus of Multilingual Speech-to-Speech Translations
+# SpeechMatrix: A Large-Scale Mined Corpus of Multilingual Speech-to-Speech Translations
 
 
 ## SpeechLASER encoders
