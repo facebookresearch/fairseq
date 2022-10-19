@@ -62,6 +62,7 @@ class DeepSpeedTrainer(Trainer):
             )
         )
 
+        params = create_moe_param_groups(self.model)
         # create simple optimizer, deepspeed will handle dtype wrappers
         optimizer = optim.build_optimizer(self.cfg.optimizer, params)
 
@@ -70,16 +71,12 @@ class DeepSpeedTrainer(Trainer):
         self.device = torch.device("cuda", self.cfg.distributed_training.device_id)
         self.model.to(device=self.device)
 
-        parameters = create_moe_param_groups(self.model)
-        logger.info(len(parameters))
-        logger.info(parameters)
-        for group in parameters:
-            logger.info('moe' in group and group['moe'])
+
         engine, optimizer, _, _ = deepspeed.initialize(
             model=self.model,
             optimizer=optimizer,
             config_params=self.ds_config, 
-            model_parameters=parameters
+            model_parameters=params
         )
 
         self.zero_enabled = engine.zero_optimization_stage() > 0
