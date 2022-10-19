@@ -61,7 +61,6 @@ class DeepSpeedTrainer(Trainer):
                 chain(self.model.parameters(), self.criterion.parameters()),
             )
         )
-        params = create_moe_param_groups(self.model)
         #params_final = []
         #for group in params:
         #    for param in group["params"]:
