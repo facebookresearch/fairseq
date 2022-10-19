@@ -68,7 +68,7 @@ class DeepSpeedTrainer(Trainer):
         print(params)
         params_final = []
         for group in params:
-            for param in group:
+            for param in group["params"]:
                 params_final.append(param)
         print("params_final")
         print(params_final)
