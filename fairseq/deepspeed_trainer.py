@@ -73,6 +73,8 @@ class DeepSpeedTrainer(Trainer):
         parameters = create_moe_param_groups(self.model)
         logger.info(len(parameters))
         logger.info(parameters)
+        for group in parameters:
+            logger.info('moe' in group and group['moe'])
         engine, optimizer, _, _ = deepspeed.initialize(
             model=self.model,
             optimizer=optimizer,
