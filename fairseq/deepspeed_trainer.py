@@ -70,8 +70,9 @@ class DeepSpeedTrainer(Trainer):
         # create simple optimizer, deepspeed will handle dtype wrappers
         param_groups = create_moe_param_groups(self.model)
         optimizer = optim.build_optimizer(self.cfg.optimizer, params)
+        logger.info(optimizer)
         ## ad moe parameters
-        optimizer.param_groups(param_groups)
+        optimizer.set_param_groups(param_groups)
         logger.info(optimizer.param_groups)
 
         os.environ['LOCAL_RANK'] = str(self.cfg.distributed_training.device_id)
