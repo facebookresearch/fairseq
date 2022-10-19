@@ -29,10 +29,10 @@ class DeepSpeedTrainer(Trainer):
         self.train_step_count = 0
 
         #TODO: figure out workaround for checkpoint copying to not require rsync
-        try:
-             subprocess.check_output('which rsync', shell=True)
-        except subprocess.CalledProcessError:
-            raise RuntimeError('Please install rsync, this is required for model checkpointing')
+        #try:
+        #     subprocess.check_output('which rsync', shell=True)
+        #except subprocess.CalledProcessError:
+        #    raise RuntimeError('Please install rsync, this is required for model checkpointing')
 
         ds_config = {}
         if cfg.common.ds_config:

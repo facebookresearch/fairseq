@@ -66,7 +66,6 @@ class TransformerEncoderBase(FairseqEncoder):
         self.embed_tokens = embed_tokens
 
         self.embed_scale = 1.0 if cfg.no_scale_embedding else math.sqrt(embed_dim)
-
         self.embed_positions = (
             PositionalEmbedding(
                 cfg.max_source_positions,
