@@ -27,6 +27,7 @@ from fairseq.modules.moe import CMRLayer, MOELayer, Top1Gate, Top2Gate, MoE
 from fairseq.modules.quant_noise import quant_noise
 from fairseq.utils import relu_squared
 
+use_deepspeed = True
 
 def _linear(x, weight, bias=None):
     return F.linear(x, weight, bias)
@@ -192,7 +193,7 @@ class TransformerEncoderLayerBase(nn.Module):
                 self.quant_noise_block_size,
             )
         if build_moe:
-            if not cfg.common.deepspeed:
+            if not use_deepspeed:
                 lang_idx = None
                 if cfg.cmr_log_lang_gates:
                     lang_idx = getattr(cfg, "lang_idx", None)
@@ -623,7 +624,7 @@ class TransformerDecoderLayerBase(nn.Module):
             if cfg.cmr_log_lang_gates:
                 lang_idx = getattr(cfg, "lang_idx")
                 assert lang_idx is not None, cfg
-            if not cfg.common.deepspeed:
+            if not use_deepspeed:
                 if cfg.moe_top1_expert:
                     gate = Top1Gate(
                         self.embed_dim,
