@@ -137,8 +137,7 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
             emb = Embedding(
                 num_embeddings,
                 embed_dim,
-                padding_idx,
-                init_model_on_gpu=cfg.init_model_on_gpu,
+                padding_idx
             )
         # if provided, load from preloaded dictionaries
         if path:
