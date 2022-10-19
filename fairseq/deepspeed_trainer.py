@@ -70,6 +70,7 @@ class DeepSpeedTrainer(Trainer):
                 params_final.append(param)
         logger.info("params_final")
         logger.info(params_final)
+        raise ValueError
         # create simple optimizer, deepspeed will handle dtype wrappers
         optimizer = optim.build_optimizer(self.cfg.optimizer, params_final)
 
