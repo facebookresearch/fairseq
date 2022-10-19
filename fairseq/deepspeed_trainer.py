@@ -62,6 +62,9 @@ class DeepSpeedTrainer(Trainer):
                 chain(self.model.parameters(), self.criterion.parameters()),
             )
         )
+        logger.info("params")
+        logger.info(type(params))
+        logger.info(params)
         #params_final = []
         #for group in params:
         #    for param in group["params"]:
@@ -69,10 +72,11 @@ class DeepSpeedTrainer(Trainer):
 
         # create simple optimizer, deepspeed will handle dtype wrappers
         param_groups = create_moe_param_groups(self.model)
+        logger.info("param groups")
+        logger.info(type(param_groups))
+        logger.info(param_groups)
         optimizer = optim.build_optimizer(self.cfg.optimizer, params)
         logger.info(optimizer)
-        ## ad moe parameters
-        optimizer.set_param_groups(param_groups)
         logger.info(optimizer.param_groups)
 
         os.environ['LOCAL_RANK'] = str(self.cfg.distributed_training.device_id)
