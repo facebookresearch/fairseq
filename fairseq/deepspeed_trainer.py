@@ -71,7 +71,7 @@ class DeepSpeedTrainer(Trainer):
         self.model.to(device=self.device)
 
         parameters = create_moe_param_groups(self.model)
-
+        print(parameters)
         engine, optimizer, _, _ = deepspeed.initialize(
             model=self.model,
             optimizer=optimizer,
