@@ -49,7 +49,34 @@ MLS 10h | 20000
 
 For finetuning the 2B model, we make some additional changes for `finetune.yaml` . We use the fully_sharded `distributed_training.ddp_backend` provided by the [fairscale](https://github.com/facebookresearch/fairscale) library and and set `model.activation_checkpoint` to true. We also increase `dataset.max_tokens` to 2560000 and use a total effective batch size of 2560000*24. We sweep for the best `optimization.lr` within the interval [3e−6,3e−5] using dev error rate. For common voice dataset, we pick the `model.mask_prob` for different languages among {0.30, 0.40} based on best dev error rate.
 
+## LID Inference
 
+Model | Link
+|------|------
+XLS-R 300M + ft Voxlingua107 | [download](https://dl.fbaipublicfiles.com/fairseq/wav2vec/xlsr_300m_voxlingua107_ft.pt)
+
+How to run inference & calculate accuracy (step-by-step):
+1. Download the Voxlingua107 checkpoint from the table above.
+1. Use this python script to extract logit/embedding from the XLSR model: https://github.com/fairinternal/fairseq-py/blob/xlsr2/examples/wav2vec/gen_audio_embedding.py 
+```shell command
+CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python3 examples/wav2vec/gen_audio_embedding.py \
+    /fsx/data/VoxLingua107/manifest --path "/path/to/checkpoint.pt" \
+    --task audio_classification --batch-size 90 --gen-subset test \
+    --infer-manifest /fsx/data/VoxLingua107/manifest/test.tsv \
+    --infer-xtimes 10 --infer-max-sample-size 160000 --output-path /tmp/tmp_voxling_infer.npz
+```
+
+2. Calculate the overall accuracy, 0-5 seconds and 5-20 seconds:
+```shell command
+PYTHONPATH='.' python examples/wav2vec/eval_speaker_clf_task.py \
+    --task cls --merge mean_logit --data /tmp/tmp_voxling_infer.npz
+
+Output: 
+| run classification evaluation
+| acc = 94.34% -- err = 5.66% -- correct=1518 total=1609
+| acc 0to5 = 90.91% -- err = 9.09% -- c_5=230.0 t_5=253
+| acc 5to20 = 94.99% -- err = 5.01% -- c_20=1288.0 t_20=1356
+```
 
 ## Citation
 
