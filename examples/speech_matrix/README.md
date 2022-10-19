@@ -13,23 +13,23 @@ SpeechMatrix provides massive parallel speech which is mined from [VoxPopuli](ht
 
 Here is a summary of mined speech-to-speech data statistics, and the duration (hours) of source speech is reported in each of 272 language directions.
 
-Src/Tgt   |  cs   |  de   |  en   |  es   |  et   |  fi   |  fr   |  hr   |  hu   |  it   |  lt   |  nl   |  pl   |  pt   |  ro   |  sk   |  sl   
+Src/Tgt   |  cs   |  de   |  en   |  es   |  et   |  fi   |  fr   |  hr   |  hu   |  it   |  lt   |  nl   |  pl   |  pt   |  ro   |  sk   |  sl
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---
 cs   | - | 2381 | 3208 | 2290 | 952 | 1312 | 2476 | 726 | 1396 | 2410 | 84 | 2377 | 2516 | 1867 | 1190 | 2146 | 452
- de   | 2386 | - | 4734 | 3113 | 901 | 1477 | 3536 | 498 | 1871 | 3476 | 41 | 3384 | 2632 | 2250 | 1281 | 1646 | 361  
- en   | 3172 | 4676 | - | 4715 | 1585 | 2169 | 5178 | 824 | 2266 | 4897 | 82 | 4422 | 3583 | 3572 | 2258 | 2306 | 586 
- es   | 2240 | 3041 | 4708 | - | 862 | 1373 | 4446 | 528 | 1599 | 4418 | 47 | 3067 | 2646 | 3484 | 1857 | 1603 | 308 
+ de   | 2386 | - | 4734 | 3113 | 901 | 1477 | 3536 | 498 | 1871 | 3476 | 41 | 3384 | 2632 | 2250 | 1281 | 1646 | 361
+ en   | 3172 | 4676 | - | 4715 | 1585 | 2169 | 5178 | 824 | 2266 | 4897 | 82 | 4422 | 3583 | 3572 | 2258 | 2306 | 586
+ es   | 2240 | 3041 | 4708 | - | 862 | 1373 | 4446 | 528 | 1599 | 4418 | 47 | 3067 | 2646 | 3484 | 1857 | 1603 | 308
  et   | 943 | 892 | 1593 | 877 | - | 1201 | 934 | 265 | 1119 | 1019 | 39 | 1055 | 949 | 721 | 419 | 780 | 196
- fi   | 1296 | 1463 | 2180 | 1393 | 1197 | - | 1449 | 306 | 1473 | 1599 | 47 | 1654 | 1350 | 1128 | 621 | 977 | 260 
- fr   | 2424 | 3457 | 5171 | 4455 | 923 | 1435 | - | 560 | 1711 | 4618 | 50 | 3273 | 2822 | 3384 | 1991 | 1657 | 326 
- hr   | 736 | 507 | 854 | 553 | 273 | 317 | 588 | - | 328 | 615 | 24 | 546 | 660 | 433 | 277 | 586 | 136 
- hu   | 1417 | 1897 | 2346 | 1672 | 1140 | 1507 | 1787 | 328 | - | 1855 | 68 | 1839 | 1566 | 1315 | 808 | 1064 | 311 
- it   | 2404 | 3460 | 4948 | 4500 | 1028 | 1614 | 4700 | 607 | 1823 | - | 103 | 3414 | 2848 | 3421 | 1995 | 1656 | 474 
- lt   | 78 | 38 | 79 | 46 | 37 | 44 | 48 | 21 | 61 | 95 | - | 77 | 80 | 35 | 18 | 64 | 6 
- nl   | 2322 | 3305 | 4396 | 3066 | 1040 | 1633 | 3269 | 521 | 1768 | 3355 | 80 | - | 2459 | 2399 | 1352 | 1646 | 458 
- pl   | 2530 | 2646 | 3662 | 2735 | 967 | 1378 | 2913 | 656 | 1554 | 2883 | 88 | 2540 | - | 2121 | 1301 | 1892 | 431 
- pt   | 1849 | 2224 | 3606 | 3525 | 722 | 1131 | 3421 | 421 | 1279 | 3403 | 37 | 2436 | 2087 | - | 1579 | 1358 | 247 
- ro   | 1187 | 1275 | 2290 | 1894 | 423 | 627 | 2024 | 271 | 789 | 1996 | 19 | 1384 | 1288 | 1592 | - | 870 | 125 
+ fi   | 1296 | 1463 | 2180 | 1393 | 1197 | - | 1449 | 306 | 1473 | 1599 | 47 | 1654 | 1350 | 1128 | 621 | 977 | 260
+ fr   | 2424 | 3457 | 5171 | 4455 | 923 | 1435 | - | 560 | 1711 | 4618 | 50 | 3273 | 2822 | 3384 | 1991 | 1657 | 326
+ hr   | 736 | 507 | 854 | 553 | 273 | 317 | 588 | - | 328 | 615 | 24 | 546 | 660 | 433 | 277 | 586 | 136
+ hu   | 1417 | 1897 | 2346 | 1672 | 1140 | 1507 | 1787 | 328 | - | 1855 | 68 | 1839 | 1566 | 1315 | 808 | 1064 | 311
+ it   | 2404 | 3460 | 4948 | 4500 | 1028 | 1614 | 4700 | 607 | 1823 | - | 103 | 3414 | 2848 | 3421 | 1995 | 1656 | 474
+ lt   | 78 | 38 | 79 | 46 | 37 | 44 | 48 | 21 | 61 | 95 | - | 77 | 80 | 35 | 18 | 64 | 6
+ nl   | 2322 | 3305 | 4396 | 3066 | 1040 | 1633 | 3269 | 521 | 1768 | 3355 | 80 | - | 2459 | 2399 | 1352 | 1646 | 458
+ pl   | 2530 | 2646 | 3662 | 2735 | 967 | 1378 | 2913 | 656 | 1554 | 2883 | 88 | 2540 | - | 2121 | 1301 | 1892 | 431
+ pt   | 1849 | 2224 | 3606 | 3525 | 722 | 1131 | 3421 | 421 | 1279 | 3403 | 37 | 2436 | 2087 | - | 1579 | 1358 | 247
+ ro   | 1187 | 1275 | 2290 | 1894 | 423 | 627 | 2024 | 271 | 789 | 1996 | 19 | 1384 | 1288 | 1592 | - | 870 | 125
  sk   | 2127 | 1628 | 2329 | 1631 | 781 | 982 | 1685 | 574 | 1038 | 1650 | 69 | 1676 | 1869 | 1361 | 867 | - | 370
  sl   | 436 | 350 | 579 | 307 | 192 | 254 | 324 | 128 | 295 | 461 | 6 | 454 | 413 | 241 | 121 | 359 | -
 
@@ -112,7 +112,7 @@ Check out [here](https://github.com/facebookresearch/fairseq/blob/main/examples/
 
 Example training command:
 ```
-python3 $FAIRSEQ_ROOT/train.py --distributed-world-size 32 --distributed-port 12314 --save-dir $SAVE_DIR $DATA_ROOT --ddp-backend legacy_ddp --num-workers 0 --task speech_to_text --criterion label_smoothed_cross_entropy --no-epoch-checkpoints --report-accuracy --clip-norm 10.0 --log-format simple --log-interval 500 --seed 121 --max-update 160000 --share-decoder-input-output-embed --validate-interval 1 --save-interval 1 --save-interval-updates 500 --skip-invalid-size-inputs-valid-test --keep-best-checkpoints 10 --optimizer adam --adam-betas '"'"'(0.9, 0.98)'"'"' --lr 0.0001 --dropout 0.1 --attention-dropout 0.1 --relu-dropout 0.1 --lr-scheduler inverse_sqrt --warmup-updates 5000 --arch xm_transformer --normalize --adaptor-n-layers 1 --decoder-attention-heads 16 --decoder-normalize-before --load-pretrained-decoder-from ${UNIT_MBART_PATH} --w2v-path ${XLSR_PATH} --config-yaml config.yaml --mask-prob 0.3 --mask-channel-prob 0.25 --mask-channel-length 10 --layerdrop 0.1 --finetune-decoder-params all --label-smoothing 0.2 --patience 30 --max-tokens 9000 --max-tokens-valid 9000 --max-target-positions 9000 --max-source-positions 9000 --max-positions 9000 --update-freq 2 --train-subset $TRAIN_SUBSET --valid-subset $VALID_SUBSET --checkpoint-activations --encoder-proj 
+python3 $FAIRSEQ_ROOT/train.py --distributed-world-size 32 --distributed-port 12314 --save-dir $SAVE_DIR $DATA_ROOT --ddp-backend legacy_ddp --num-workers 0 --task speech_to_text --criterion label_smoothed_cross_entropy --no-epoch-checkpoints --report-accuracy --clip-norm 10.0 --log-format simple --log-interval 500 --seed 121 --max-update 160000 --share-decoder-input-output-embed --validate-interval 1 --save-interval 1 --save-interval-updates 500 --skip-invalid-size-inputs-valid-test --keep-best-checkpoints 10 --optimizer adam --adam-betas '"'"'(0.9, 0.98)'"'"' --lr 0.0001 --dropout 0.1 --attention-dropout 0.1 --relu-dropout 0.1 --lr-scheduler inverse_sqrt --warmup-updates 5000 --arch xm_transformer --normalize --adaptor-n-layers 1 --decoder-attention-heads 16 --decoder-normalize-before --load-pretrained-decoder-from ${UNIT_MBART_PATH} --w2v-path ${XLSR_PATH} --config-yaml config.yaml --mask-prob 0.3 --mask-channel-prob 0.25 --mask-channel-length 10 --layerdrop 0.1 --finetune-decoder-params all --label-smoothing 0.2 --patience 30 --max-tokens 9000 --max-tokens-valid 9000 --max-target-positions 9000 --max-source-positions 9000 --max-positions 9000 --update-freq 2 --train-subset $TRAIN_SUBSET --valid-subset $VALID_SUBSET --checkpoint-activations --encoder-proj
 ```
 
 Architecture | direction | #params | Link
@@ -167,7 +167,7 @@ For English (en), Spanish (es) and French (fr), we reuse HuBERT and kmeans model
 Check out [here](../speech_to_speech/docs/direct_s2st_discrete_units.md) for Textless model inference.
 
 
-### XM Transformer Model Inference 
+### XM Transformer Model Inference
 1. Check out the inference in [fairseq-S2T](../speech_to_speech/docs/enhanced_direct_s2st_discrete_units.md) to generate unit sequences (`${RESULTS_PATH}/generate-${GEN_SUBSET}.txt`).
 
 ```
@@ -177,14 +177,14 @@ fairseq-generate $DATA_ROOT \
   --path $MODEL_DIR/checkpoint_best.pt  --gen-subset $GEN_SUBSET \
   --max-tokens 18000 \
   --beam 10 --max-len-a 0.003125 --max-len-b 200 \
-  --results-path ${RESULTS_PATH} 
+  --results-path ${RESULTS_PATH}
 ```
 
-For MoE inference, add the following options and make sure 
+For MoE inference, add the following options and make sure
 
-(1) #num_experts % #num_gpus == 0 
+(1) #num_experts % #num_gpus == 0
 
-(2) No OOM issue 
+(2) No OOM issue
 ```
 --is-moe --distributed-world-size $NUM_GPUS
 ```
@@ -210,7 +210,7 @@ TGT_LANG: Target language
 
 AUDIO_FOLDER: A folder contains all inference results (audio files)
 
-REFERENCE_PATH: A txt file with each line to be translation result in plain text 
+REFERENCE_PATH: A txt file with each line to be translation result in plain text
 
 ```
 cd ${FAIRSEQ_ROOT}/examples/speech_to_speech/asr_bleu
@@ -239,12 +239,12 @@ This demo on huggingface has all-en multilingual model and bilingual models with
       Ann Lee and
       Vedanuj Goswani and
       Changhan Wang and
-      Juan Pino and 
-      Beno Sagot and 
+      Juan Pino and
+      Beno Sagot and
       Holger Schwenk",
 }
 ```
 
 ## License
 
-The released models and dataset are under CC-BY-NC 4.0.
+The released models and dataset are under [CC-BY-NC 4.0](../../LICENSE.model).

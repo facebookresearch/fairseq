@@ -72,12 +72,12 @@ See [ASR-BLEU example page](https://github.com/facebookresearch/fairseq/tree/ust
       Hirofumi Inaguma and
       Sravya Popuri and
       Changhan Wang and
-      Juan Pino and 
-      Wei-Ning Hsu and 
+      Juan Pino and
+      Wei-Ning Hsu and
       Ann Lee",
 }
 ```
 
 ## License
 
-The released models and TAT-S2ST dataset are under NC-BY-CC 4.0.
+The released models and TAT-S2ST dataset are under [CC-BY-NC 4.0](../../LICENSE.model).
