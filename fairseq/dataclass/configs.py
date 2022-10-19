@@ -117,6 +117,17 @@ class CommonConfig(FairseqDataclass):
     log_file: Optional[str] = field(
         default=None, metadata={"help": "log file to copy metrics to."}
     )
+    aim_repo: Optional[str] = field(
+        default=None,
+        metadata={"help": "path to Aim repository"},
+    )
+    aim_run_hash: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Aim run hash. If skipped, creates or continues run "
+            "based on save_dir"
+        },
+    )
     tensorboard_logdir: Optional[str] = field(
         default=None,
         metadata={
@@ -242,40 +253,31 @@ class CommonConfig(FairseqDataclass):
             "help": "path to run plasma_store, defaults to /tmp/plasma. Paths outside /tmp tend to fail."
         },
     )
-    log_nvidia_smi: bool = field(
-        default=False, metadata={"help": "log output from nvidia-smi during training"}
-    )
-    use_tutel_moe: Optional[bool] = field(
-        default=False,
-        metadata={"help": "Use MSFT Tutel if it's available for faster MoE impl"},
-    )
-
-
-@dataclass
-class ReshardConfig(FairseqDataclass):
-    save_dir: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "where to save the resharded checkpoints",
-            "argparse_alias": "--dest-dir",
-        },
-    )
-    save_prefix: Optional[str] = field(
-        default="reshard", metadata={"help": "save to dest-dir/save-prefix-shard{i}.pt"}
-    )
-    target_world_size: Optional[int] = field(
-        default=128,
-        metadata={
-            "help": "The maximum number of GPUs you want to use to evaluate. AssertionError if any FSDP module's number of parameters is not divisible by this."
-        },
-    )
-    do_pad: Optional[bool] = field(
+    deepspeed: bool = field(
         default=False,
         metadata={
-            "help": "Add padding to make sure that running on target world size works. This reduces flexibility for world sizes smaller than target world size."
+            "help": "enable DeepSpeed trainer"
         },
     )
-
+    ds_config: Optional[str] = field(
+        default="",
+        metadata={
+            "help": "path to ds_config.json, this is optional and will override auto-generated "
+            "values from the fairseq DeepSpeedTrainer"
+        }
+    )
+    zero: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": "ZeRO stage when using the DeepSpeed trainer"
+        }
+    )
+    exit_interval: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": "Exit the program after the iteration is divisible by this value."
+        } 
+    )
 
 @dataclass
 class DistributedTrainingConfig(FairseqDataclass):

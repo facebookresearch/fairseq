@@ -18,6 +18,9 @@ from fairseq.data import Dictionary, FairseqDataset, data_utils, encoders, itera
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import gen_parser_from_dataclass
 from fairseq.optim.amp_optimizer import AMPOptimizer
+from omegaconf import DictConfig
+from deepspeed import DeepSpeedOptimizer
+
 
 logger = logging.getLogger(__name__)
 
@@ -524,19 +527,10 @@ class FairseqTask(object):
         if ignore_grad:
             loss *= 0
         with torch.autograd.profiler.record_function("backward"):
-            optimizer.backward(loss)
-
-        def freeze_params(layer):
-            for param in layer.parameters():
-                param.grad = None
-
-        if getattr(self.cfg, "freeze_up_to_layer", None):
-            for module in model.modules():
-                if not isinstance(module, torch.nn.ModuleList):
-                    continue
-                for layer in module[: getattr(self.cfg, "freeze_up_to_layer", None)]:
-                    freeze_params(layer)
-
+            if isinstance(optimizer, DeepSpeedOptimizer):
+                model.backward(loss)
+            else:
+                optimizer.backward(loss)
         return loss, sample_size, logging_output
 
     def valid_step(self, sample, model, criterion):
@@ -546,7 +540,10 @@ class FairseqTask(object):
         return loss, sample_size, logging_output
 
     def optimizer_step(self, optimizer, model, update_num):
-        optimizer.step()
+        if isinstance(optimizer, DeepSpeedOptimizer):
+            model.step()
+        else:
+            optimizer.step()
 
     def build_dataset_for_inference(
         self, src_tokens: List[torch.Tensor], src_lengths: List[int], **kwargs

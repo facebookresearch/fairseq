@@ -20,6 +20,7 @@ from fairseq.models.transformer import (
     TransformerDecoderBase,
     TransformerEncoderBase,
 )
+import deepspeed
 
 logger = logging.getLogger(__name__)
 
@@ -117,12 +118,6 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
 
         encoder = cls.build_encoder(cfg, src_dict, encoder_embed_tokens)
         decoder = cls.build_decoder(cfg, tgt_dict, decoder_embed_tokens)
-        if not cfg.share_all_embeddings:
-            # fsdp_wrap is a no-op when --ddp-backend != fully_sharded
-            min_params_to_wrap = cfg.min_params_to_wrap
-            # fsdp_wrap is a no-op when --ddp-backend != fully_sharded
-            encoder = fsdp_wrap(encoder, min_num_params=min_params_to_wrap)
-            decoder = fsdp_wrap(decoder, min_num_params=min_params_to_wrap)
         return cls(cfg, encoder, decoder)
 
     @classmethod
@@ -212,16 +207,9 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
         return self.get_normalized_probs_scriptable(net_output, log_probs, sample)
 
 
-def Embedding(
-    num_embeddings, embedding_dim, padding_idx, init_model_on_gpu=False
-) -> nn.Embedding:
-    random_state = torch.get_rng_state()
-    device = torch.cuda.current_device() if init_model_on_gpu else None
-    dtype = torch.half if init_model_on_gpu else torch.float
-    weight = torch.empty(num_embeddings, embedding_dim, device=device, dtype=dtype)
-    nn.init.normal_(weight, mean=0, std=embedding_dim**-0.5)
-    nn.init.constant_(weight[padding_idx], 0)
-    m = nn.Embedding(
-        num_embeddings, embedding_dim, padding_idx=padding_idx, _weight=weight
-    )
+def Embedding(num_embeddings, embedding_dim, padding_idx):
+    m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
+    with deepspeed.zero.GatheredParameters(params=m.weight, modifier_rank=0):
+        nn.init.normal_(m.weight, mean=0, std=embedding_dim**-0.5)
+        nn.init.constant_(m.weight[padding_idx], 0)
     return m

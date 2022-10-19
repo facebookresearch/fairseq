@@ -30,6 +30,7 @@ from fairseq.modules import (
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.linear import Linear
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
+import deepspeed
 
 
 # rewrite name for backward compatibility in `make_generation_fast_`
@@ -189,13 +190,14 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
                 tie_proj=cfg.tie_adaptive_proj,
             )
         elif self.share_input_output_embed:
-            self.output_projection = Linear(
-                self.embed_tokens.weight.shape[1],
-                self.embed_tokens.weight.shape[0],
-                bias=False,
-                init_model_on_gpu=cfg.init_model_on_gpu,
-            )
-            self.output_projection.weight = self.embed_tokens.weight
+            params = [self.embed_tokens.weight, self.embed_tokens.weight]
+            with deepspeed.zero.GatheredParameters(params=params, modifier_rank=0):
+                self.output_projection = nn.Linear(
+                    self.embed_tokens.weight.shape[1],
+                    self.embed_tokens.weight.shape[0],
+                    bias=False,
+                )
+                self.output_projection.weight = self.embed_tokens.weight
         else:
             self.output_projection = Linear(
                 self.output_embed_dim,
@@ -203,9 +205,10 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
                 bias=False,
                 init_model_on_gpu=cfg.init_model_on_gpu,
             )
-            nn.init.normal_(
-                self.output_projection.weight, mean=0, std=self.output_embed_dim**-0.5
-            )
+            with deepspeed.zero.GatheredParameters(params=self.output_projection.weight, modifier_rank=0):
+                nn.init.normal_(
+                    self.output_projection.weight, mean=0, std=self.output_embed_dim**-0.5
+                )
         num_base_layers = cfg.base_layers
         for i in range(num_base_layers):
             self.layers.insert(
@@ -419,14 +422,24 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         if alignment_layer is None:
             alignment_layer = self.num_layers - 1
 
-        # compute self-attention padding mask (involves device-to-host transfer,
-        # so put it at the top of the forward)
-        if self_attn_padding_mask is None and (
-            self.cross_self_attention
-            or prev_output_tokens.device.type == "xla"
-            or prev_output_tokens.eq(self.padding_idx).any()
-        ):
-            self_attn_padding_mask = prev_output_tokens.eq(self.padding_idx)
+        enc: Optional[Tensor] = None
+        padding_mask: Optional[Tensor] = None
+        if encoder_out is not None and len(encoder_out["encoder_out"]) > 0:
+            enc = encoder_out["encoder_out"][0]
+        if encoder_out is not None and len(encoder_out["encoder_padding_mask"]) > 0:
+            padding_mask = encoder_out["encoder_padding_mask"][0]
+
+        # embed positions
+        positions = None
+        if self.embed_positions is not None:
+            positions = self.embed_positions(
+                prev_output_tokens, incremental_state=incremental_state
+            )
+
+        if incremental_state is not None:
+            prev_output_tokens = prev_output_tokens[:, -1:]
+            if positions is not None:
+                positions = positions[:, -1:]
 
         # embed tokens and positions
         x, _ = self.forward_embedding(

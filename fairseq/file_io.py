@@ -10,6 +10,8 @@ import boto3
 import errno
 import json
 import logging
+import torch
+import subprocess
 import os
 import shutil
 from typing import List, Optional
@@ -74,7 +76,14 @@ class PathManager:
             return IOPathManager._copy(
                 src_path=src_path, dst_path=dst_path, overwrite=overwrite
             )
-        return shutil.copyfile(src_path, dst_path)
+        if os.path.isdir(src_path):
+            logging.info(f'rank={torch.distributed.get_rank()}, rsync -r {src_path} {dst_path}')
+            #XXX: assumes ckpt path is on a shared filesystem
+            if torch.distributed.get_rank() == 0:
+                results = subprocess.check_output(f'rsync -r {src_path} {dst_path}', shell=True)
+            return True
+        else:
+            return shutil.copyfile(src_path, dst_path)
 
     @staticmethod
     def symlink(src_path: str, dst_path: str):

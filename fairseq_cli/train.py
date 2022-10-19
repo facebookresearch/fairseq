@@ -43,6 +43,7 @@ from fairseq.file_io import PathManager
 from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from fairseq.trainer import Trainer
+from fairseq.deepspeed_trainer import DeepSpeedTrainer
 
 
 def main(cfg: FairseqConfig) -> None:
@@ -102,6 +103,13 @@ def main(cfg: FairseqConfig) -> None:
             cfg.distributed_training.ddp_backend == "fully_sharded"
         ), "num_experts < num_gpus only supported by FSDP"
 
+    os.environ['LOCAL_RANK'] = str(cfg.distributed_training.device_id)
+    if cfg.distributed_training.distributed_world_size == 1:
+        os.environ['RANK'] = "0"
+        os.environ['WORLD_SIZE'] = "1"
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ['MASTER_PORT'] = "29500"
+
     # Build model and criterion
     if cfg.distributed_training.ddp_backend == "fully_sharded":
         # if cfg.distributed_training.use_sharded_state: assert cfg.checkpoint.no_save_optimizer_state, f'--use-sharded-state requires --no-save-optimizer-state'
@@ -111,6 +119,12 @@ def main(cfg: FairseqConfig) -> None:
 
         with fsdp_enable_wrap(cfg.distributed_training, **extra):
             model = fsdp_wrap(task.build_model(cfg.model))
+    elif cfg.common.zero == 3:
+        import deepspeed
+        logger.info("Creating model within ZeRO-3 context")
+        with deepspeed.zero.Init(mem_efficient_linear=True):
+            model = task.build_model(cfg.model)
+        logger.info("Finished creating model within ZeRO-3 context")
     else:
         model = task.build_model(cfg.model)
     criterion = task.build_criterion(cfg.criterion)
@@ -167,7 +181,9 @@ def main(cfg: FairseqConfig) -> None:
         quantizer = None
 
     # Build trainer
-    if cfg.common.model_parallel_size == 1:
+    if cfg.common.deepspeed:
+        trainer = DeepSpeedTrainer(cfg, task, model, criterion, quantizer)
+    elif cfg.common.model_parallel_size == 1:
         trainer = Trainer(cfg, task, model, criterion, quantizer)
     else:
         trainer = MegatronTrainer(cfg, task, model, criterion)
@@ -296,6 +312,17 @@ def train(
         log_file=cfg.common.log_file,
         log_interval=cfg.common.log_interval,
         epoch=epoch_itr.epoch,
+        aim_repo=(
+            cfg.common.aim_repo
+            if distributed_utils.is_master(cfg.distributed_training)
+            else None
+        ),
+        aim_run_hash=(
+            cfg.common.aim_run_hash
+            if distributed_utils.is_master(cfg.distributed_training)
+            else None
+        ),
+        aim_param_checkpoint_dir=cfg.checkpoint.save_dir,
         tensorboard_logdir=(
             cfg.common.tensorboard_logdir
             if distributed_utils.is_master(cfg.distributed_training)
@@ -527,12 +554,8 @@ def validate(
 
     trainer.begin_valid_epoch(epoch_itr.epoch)
     valid_losses = []
-    for subset in subsets:
-        logger.info(
-            'begin validation on "{}" subset on rank {}'.format(
-                subset, distributed_utils.get_global_rank()
-            )
-        )
+    for subset_idx, subset in enumerate(subsets):
+        logger.info('begin validation on "{}" subset'.format(subset))
 
         # Initialize data iterator
         itr = trainer.get_valid_iterator(subset).next_epoch_itr(
@@ -553,6 +576,17 @@ def validate(
             log_interval=cfg.common.log_interval,
             epoch=epoch_itr.epoch,
             prefix=f"valid on '{subset}' subset",
+            aim_repo=(
+                cfg.common.aim_repo
+                if distributed_utils.is_master(cfg.distributed_training)
+                else None
+            ),
+            aim_run_hash=(
+                cfg.common.aim_run_hash
+                if distributed_utils.is_master(cfg.distributed_training)
+                else None
+            ),
+            aim_param_checkpoint_dir=cfg.checkpoint.save_dir,
             tensorboard_logdir=(
                 cfg.common.tensorboard_logdir
                 if distributed_utils.is_master(cfg.distributed_training)
@@ -587,7 +621,9 @@ def validate(
                 trainer.valid_step(sample)
 
         # log validation stats
-        stats = get_valid_stats(cfg, trainer, agg.get_smoothed_values())
+        # only tracking the best metric on the 1st validation subset
+        tracking_best = subset_idx == 0
+        stats = get_valid_stats(cfg, trainer, agg.get_smoothed_values(), tracking_best)
 
         if hasattr(task, "post_validate"):
             task.post_validate(trainer.get_model(), stats, agg)
@@ -599,10 +635,13 @@ def validate(
 
 
 def get_valid_stats(
-    cfg: DictConfig, trainer: Trainer, stats: Dict[str, Any]
+    cfg: DictConfig,
+    trainer: Trainer,
+    stats: Dict[str, Any],
+    tracking_best: bool,
 ) -> Dict[str, Any]:
     stats["num_updates"] = trainer.get_num_updates()
-    if hasattr(checkpoint_utils.save_checkpoint, "best"):
+    if tracking_best and hasattr(checkpoint_utils.save_checkpoint, "best"):
         key = "best_{0}".format(cfg.checkpoint.best_checkpoint_metric)
         best_function = max if cfg.checkpoint.maximize_best_checkpoint_metric else min
         stats[key] = best_function(

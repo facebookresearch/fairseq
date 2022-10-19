@@ -419,117 +419,52 @@ class Trainer(object):
             self._gathered_optim_state = st
             assert self._gathered_optim_state is not None
 
-    def state_dict(self, filename, training_finished=False) -> Dict[str, Dict]:
-        if self.is_moe or self.is_base_moe:
-            (
-                (shared_model_state_dict, shared_optimizer_state_dict),
-                (expert_model_state_dict, expert_optimizer_state_dict),
-            ) = moe_checkpoint_utils.split_shared_and_expert_states(
-                self.model,
-                self.optimizer,
-            )
-            model_save_list = [
-                (
-                    filename,
-                    expert_model_state_dict,
-                    expert_optimizer_state_dict,
-                )
-            ]
-            if self.is_data_parallel_master:
-                if (
-                    self.is_fsdp
-                    and not self.use_sharded_state
-                    and not self.cfg.checkpoint.no_save_optimizer_state
-                ):
-                    assert self._gathered_optim_state is not None
-                    if "loss_scale" in expert_model_state_dict:
-                        self._gathered_optim_state[
-                            "loss_scale"
-                        ] = expert_model_state_dict["loss_scale"]
-                    model_save_list.append(
-                        (
-                            filename.replace("rank-0", "shared"),
-                            shared_model_state_dict,
-                            self._gathered_optim_state,
-                        )
-                    )
-                    self._gathered_optim_state = None  # let it get garbage collected
-                else:
-                    model_save_list.append(
-                        (
-                            filename.replace("rank-0", "shared"),
-                            shared_model_state_dict,
-                            shared_optimizer_state_dict,  # local
-                        )
-                    )
-            elif self.is_fsdp and self.use_sharded_state:
-                model_save_list.append(
-                    (
-                        filename.replace(f"rank-{self.data_parallel_rank}", "shared"),
-                        shared_model_state_dict,
-                        shared_optimizer_state_dict,
-                    )
-                )
+    def state_dict(self, exclude_model_and_optim=False):
+        state_dict = {
+            "args": None,  # legacy
+            "cfg": (
+                OmegaConf.to_container(self.cfg, resolve=True, enum_to_str=True)
+                if OmegaConf.is_config(self.cfg)
+                else self.cfg
+            ),
+            "model": None if exclude_model_and_optim else self.model.state_dict(),
+            "criterion": (
+                self.criterion.state_dict()
+                if utils.has_parameters(self.criterion)
+                else None
+            ),
+            "optimizer_history": (self._optim_history or [])
+            + [
+                {
+                    "criterion_name": self.get_criterion().__class__.__name__,
+                    "optimizer_name": self.optimizer.__class__.__name__,
+                    "lr_scheduler_state": self.lr_scheduler.state_dict(),
+                    "num_updates": self.get_num_updates(),
+                }
+            ],
+            "task_state": self.task.state_dict() if self.task is not None else {},
+            "extra_state": {
+                "metrics": metrics.state_dict(),
+                "previous_training_time": self.cumulative_training_time(),
+            },
+        }
+        if self.cfg.ema.store_ema:
+            # Save EMA model state as extra state
+            state_dict["extra_state"]["ema"] = self.ema.get_model().state_dict()
+            if self.cfg.ema.ema_fp32:
+                # Save EMA params in fp32
+                state_dict["extra_state"]["ema_fp32_params"] = self.ema.fp32_params
+        if not self.cfg.checkpoint.no_save_optimizer_state:
+            if self._gathered_optim_state is not None:
+                state_dict["last_optimizer_state"] = self._gathered_optim_state
+                self._gathered_optim_state = None
+            else:
+                state_dict["last_optimizer_state"] = None if exclude_model_and_optim else self.optimizer.state_dict()
+        if self.is_fsdp:
+            # save meta data for recombining checkpoint upon loading
+            state_dict["fsdp_metadata"] = self.model.local_metadata_dict()
+        return state_dict
 
-        else:
-            model_state_dict = self.model.state_dict()
-            optim_state = None
-            if not self.cfg.checkpoint.no_save_optimizer_state:
-                optim_state = self._gathered_optim_state or self.optimizer.state_dict()
-            model_save_list = [
-                (
-                    filename,
-                    model_state_dict,
-                    optim_state,
-                )
-            ]
-        state_dicts = {}
-        for filename, model_state_dict, optimizer_state_dict in model_save_list:
-            state_dict = {
-                "args": None,  # legacy
-                "cfg": (
-                    OmegaConf.to_container(self.cfg, resolve=True, enum_to_str=True)
-                    if OmegaConf.is_config(self.cfg)
-                    else self.cfg
-                ),
-                "model": model_state_dict,
-                "criterion": (
-                    self.criterion.state_dict()
-                    if utils.has_parameters(self.criterion)
-                    else None
-                ),
-                "optimizer_history": (self._optim_history or [])
-                + [
-                    {
-                        "criterion_name": self.get_criterion().__class__.__name__,
-                        "optimizer_name": self.optimizer.__class__.__name__,
-                        "lr_scheduler_state": self.lr_scheduler.state_dict(),
-                        "num_updates": self.get_num_updates(),
-                    }
-                ],
-                "task_state": self.task.state_dict() if self.task is not None else {},
-                "extra_state": {
-                    "metrics": metrics.state_dict(),
-                    "previous_training_time": self.cumulative_training_time(),
-                },
-            }
-            if self.cfg.ema.store_ema:
-                # Save EMA model state as extra state
-                state_dict["extra_state"]["ema"] = self.ema.get_model().state_dict()
-                if self.cfg.ema.ema_fp32:
-                    # Save EMA params in fp32
-                    state_dict["extra_state"]["ema_fp32_params"] = self.ema.fp32_params
-            if not self.cfg.checkpoint.no_save_optimizer_state or (
-                self.cfg.checkpoint.no_save_optimizer_state_on_training_finished
-                and training_finished
-            ):
-                state_dict["last_optimizer_state"] = optimizer_state_dict
-
-            if self.is_fsdp and self.use_sharded_state:
-                # save meta data for recombining checkpoint upon loading
-                state_dict["shard_metadata"] = self.model.local_metadata_dict()
-            state_dicts[filename] = state_dict
-        return state_dicts
 
     def save_checkpoint(
         self, filename, extra_state, training_finished=False, async_callback_fn=None

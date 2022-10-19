@@ -4,15 +4,16 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-from typing import Dict, List, Optional
 import sys
+from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
+from torch import Tensor
+
 from fairseq import search, utils
 from fairseq.data import data_utils
 from fairseq.models import FairseqIncrementalDecoder
-from torch import Tensor
 from fairseq.ngram_repeat_block import NGramRepeatBlock
 
 
@@ -80,6 +81,7 @@ class SequenceGenerator(nn.Module):
         self.beam_size = beam_size
         # the max beam size is the dictionary size - 1, since we never select pad
         self.beam_size = min(beam_size, self.vocab_size - 1)
+        self.model.set_decoder_beam_size(self.beam_size)
         self.max_len_a = max_len_a
         self.max_len_b = max_len_b
         self.min_len = min_len
@@ -663,7 +665,7 @@ class SequenceGenerator(nn.Module):
                 cum_unfin.append(prev)
         cum_fin_tensor = torch.tensor(cum_unfin, dtype=torch.int).to(bbsz_idx)
 
-        unfin_idx = bbsz_idx // beam_size
+        unfin_idx = torch.div(bbsz_idx, beam_size, rounding_mode="trunc")
         sent = unfin_idx + torch.index_select(cum_fin_tensor, 0, unfin_idx)
 
         # Create a set of "{sent}{unfin_idx}", where
@@ -767,6 +769,13 @@ class EnsembleModel(nn.Module):
             ]
             + [sys.maxsize]
         )
+
+    def set_decoder_beam_size(self, beam_size):
+        """Set beam size for efficient beamable enc-dec attention."""
+        if beam_size > 1:
+            for model in self.models:
+                if hasattr(model, "set_beam_size"):
+                    model.set_beam_size(beam_size)
 
     @torch.jit.export
     def forward_encoder(self, net_input: Dict[str, Tensor]):

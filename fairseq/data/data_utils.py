@@ -476,7 +476,7 @@ def compute_mask_indices(
                 new_parts = []
                 if span_start - s - min_space >= keep_length:
                     new_parts.append((s, span_start - min_space + 1))
-                if e - span_start - keep_length - min_space > keep_length:
+                if e - span_start - length - min_space > keep_length:
                     new_parts.append((span_start + length + min_space, e))
                 return new_parts
 
