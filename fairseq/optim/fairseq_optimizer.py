@@ -144,6 +144,10 @@ class FairseqOptimizer(object):
             return self.optimizer.supports_step_with_scale
         return False
 
+    @param_groups.setter
+    def param_groups(self, new_val):
+        self.param_groups = new_val
+
     @property
     def supports_groups(self):
         if hasattr(self.optimizer, "supports_groups"):

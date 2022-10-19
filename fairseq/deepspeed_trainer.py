@@ -55,9 +55,10 @@ class DeepSpeedTrainer(Trainer):
         self._build_optimizer()
 
     def _build_optimizer(self):
+        ## get non-moe parameters
         params = list(
             filter(
-                lambda p: p.requires_grad,
+                lambda p: p.requires_grad and not hasattr(p, "allreduce"),
                 chain(self.model.parameters(), self.criterion.parameters()),
             )
         )
@@ -69,7 +70,8 @@ class DeepSpeedTrainer(Trainer):
         # create simple optimizer, deepspeed will handle dtype wrappers
         param_groups = create_moe_param_groups(self.model)
         optimizer = optim.build_optimizer(self.cfg.optimizer, params)
-        optimizer.add_param_group(param_groups[1])
+        ## ad moe parameters
+        optimizer.param_groups(param_groups)
         logger.info(optimizer.param_groups)
 
         os.environ['LOCAL_RANK'] = str(self.cfg.distributed_training.device_id)
