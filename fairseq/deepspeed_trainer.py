@@ -19,6 +19,15 @@ from fairseq.optim.dynamic_loss_scaler import DynamicLossScaler
 
 logger = logging.getLogger(__name__)
 
+def create_moe_param_groups(model):
+    from deepspeed.moe.utils import split_params_into_different_moe_groups_for_optimizer
+
+    parameters = {
+        'params': [p for p in model.parameters()],
+        'name': 'parameters'
+    }
+
+    return split_params_into_different_moe_groups_for_optimizer(parameters)
 
 class DeepSpeedTrainer(Trainer):
     def __init__(self, cfg: FairseqConfig, task, model, criterion, quantizer=None):
@@ -61,10 +70,13 @@ class DeepSpeedTrainer(Trainer):
         self.device = torch.device("cuda", self.cfg.distributed_training.device_id)
         self.model.to(device=self.device)
 
+        parameters = create_moe_param_groups(self.model)
+
         engine, optimizer, _, _ = deepspeed.initialize(
             model=self.model,
             optimizer=optimizer,
-            config_params=self.ds_config
+            config_params=self.ds_config, 
+            model_parameters=parameters
         )
 
         self.zero_enabled = engine.zero_optimization_stage() > 0
