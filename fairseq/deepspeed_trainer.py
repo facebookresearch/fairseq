@@ -62,9 +62,13 @@ class DeepSpeedTrainer(Trainer):
             )
         )
 
-        params = list(create_moe_param_groups(self.model))
+        params = create_moe_param_groups(self.model)
+        params_final = []
+        for group in params:
+            for param in group:
+                params_final.append(param)
         # create simple optimizer, deepspeed will handle dtype wrappers
-        optimizer = optim.build_optimizer(self.cfg.optimizer, params)
+        optimizer = optim.build_optimizer(self.cfg.optimizer, params_final)
 
         os.environ['LOCAL_RANK'] = str(self.cfg.distributed_training.device_id)
         os.environ['OMPI_COMM_WORLD_LOCAL_RANK'] = str(self.cfg.distributed_training.device_id)
