@@ -83,7 +83,7 @@ class DeepSpeedTrainer(Trainer):
         logger.info(param_groups[0])
         logger.info("param group 2")
         logger.info(param_groups[1])
-        optimizer = optim.build_optimizer(self.cfg.optimizer, param_groups)
+        optimizer = optim.build_optimizer(self.cfg.optimizer, [param_groups[0]])
         logger.info("optimizer =")
         logger.info(optimizer)
         logger.info("optimizer param groups = ")
