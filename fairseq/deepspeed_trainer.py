@@ -62,7 +62,7 @@ class DeepSpeedTrainer(Trainer):
             )
         )
 
-        params = create_moe_param_groups(self.model)
+        params = list(create_moe_param_groups(self.model))
         # create simple optimizer, deepspeed will handle dtype wrappers
         optimizer = optim.build_optimizer(self.cfg.optimizer, params)
 
