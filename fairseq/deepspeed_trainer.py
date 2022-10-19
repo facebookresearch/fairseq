@@ -76,7 +76,7 @@ class DeepSpeedTrainer(Trainer):
         self.device = torch.device("cuda", self.cfg.distributed_training.device_id)
         self.model.to(device=self.device)
 
-
+        logger.info(optimizer.param_groups)
         engine, optimizer, _, _ = deepspeed.initialize(
             model=self.model,
             optimizer=optimizer,
