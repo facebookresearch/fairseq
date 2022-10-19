@@ -75,7 +75,7 @@ class DeepSpeedTrainer(Trainer):
         engine, optimizer, _, _ = deepspeed.initialize(
             model=self.model,
             #optimizer=optimizer,
-            #config_params=self.ds_config, 
+            config_params=self.ds_config, 
             model_parameters=parameters
         )
 
@@ -167,7 +167,15 @@ class DeepSpeedTrainer(Trainer):
         ds_config["gradient_clipping"] = self._get_config(ds_config, "gradient_clipping", self.cfg.optimization.clip_norm)
 
         if "zero_optimization" not in ds_config:
-            ds_config["zero_optimization"] = {}
+            ds_config["zero_optimization"] = {"stage": 2,
+                                            "allgather_partitions": True,
+                                            "reduce_scatter": True,
+                                            "allgather_bucket_size": 50000000,
+                                            "reduce_bucket_size": 50000000,
+                                            "overlap_comm": True,
+                                            "contiguous_gradients": True,
+                                            "cpu_offload": True
+                                        }
 
         zero_stage = self._get_config(ds_config, "zero_optimization:stage", cfg.common.zero)
         ds_config["zero_optimization"]["stage"] = zero_stage
