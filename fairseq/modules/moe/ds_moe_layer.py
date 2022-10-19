@@ -38,7 +38,7 @@ class MoE(DsMoE):
             enable_expert_tensor_parallelism (bool, optional): default=False, whether to use tensor parallelism for experts
         """
 
-        super(MoE, self).__init__()
+        super(MoE, self).__init__(hidden_size, expert, num_experts, ep_size, k, capacity_factor, eval_capacity_factor)
 
     def forward(self, hidden_states, used_token=None):
         output = self.deepspeed_moe(hidden_states, used_token)
