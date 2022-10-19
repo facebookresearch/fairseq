@@ -8,3 +8,4 @@ from .moe_cmr_layer import CMRLayer
 from .moe_layer import MOELayer
 from .top1gate import Top1Gate
 from .top2gate import Top2Gate
+from .ds_moe_layer import MoE

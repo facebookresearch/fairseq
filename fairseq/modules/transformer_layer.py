@@ -23,7 +23,7 @@ from fairseq.modules.fused_bias_gelu import (
 )
 from fairseq.modules.fused_bias_relu_squared import fused_bias_relu_squared
 from fairseq.modules.linear import Linear
-from fairseq.modules.moe import CMRLayer, MOELayer, Top1Gate, Top2Gate
+from fairseq.modules.moe import CMRLayer, MOELayer, Top1Gate, Top2Gate, MoE
 from fairseq.modules.quant_noise import quant_noise
 from fairseq.utils import relu_squared
 
@@ -611,52 +611,63 @@ class TransformerDecoderLayerBase(nn.Module):
             if cfg.cmr_log_lang_gates:
                 lang_idx = getattr(cfg, "lang_idx")
                 assert lang_idx is not None, cfg
-            if cfg.moe_top1_expert:
-                gate = Top1Gate(
-                    self.embed_dim,
-                    cfg.moe_expert_count,
-                    use_fp32=cfg.moe_gating_use_fp32,
-                    moe_eval_capacity_token_fraction=cfg.moe_eval_capacity_token_fraction,
-                    use_tutel=cfg.use_tutel_moe,
-                    init_model_on_gpu=init_model_on_gpu,
+            if not cfg.common.deepspeed:
+                if cfg.moe_top1_expert:
+                    gate = Top1Gate(
+                        self.embed_dim,
+                        cfg.moe_expert_count,
+                        use_fp32=cfg.moe_gating_use_fp32,
+                        moe_eval_capacity_token_fraction=cfg.moe_eval_capacity_token_fraction,
+                        use_tutel=cfg.use_tutel_moe,
+                        init_model_on_gpu=init_model_on_gpu,
+                    )
+                else:
+                    gate = Top2Gate(
+                        self.embed_dim,
+                        cfg.moe_expert_count,
+                        cfg.moe_gating_use_fp32,
+                        cfg.moe_second_expert_policy,
+                        cfg.moe_normalize_gate_prob_before_dropping,
+                        cfg.moe_eval_capacity_token_fraction,
+                        cfg.moe_batch_prioritized_routing,
+                        use_tutel=cfg.use_tutel_moe,
+                        init_model_on_gpu=init_model_on_gpu,
+                    )
+                experts = make_experts(cfg, self.embed_dim, ffn_dim, self.dropout_module)
+                self.moe_layer = MOELayer(
+                    gate,
+                    experts,
+                    cfg,
+                    max_positions=cfg.max_target_positions,
+                    tok_dropout=cfg.moe_eom,
+                    moe_local_drop=cfg.moe_local_drop,
                 )
+                if cfg.moe_cmr:
+                    self.cmr_layer = CMRLayer(
+                        self.moe_layer,
+                        lambda x: _ffn(
+                            x,
+                            self.fc1,
+                            self.activation_fn,
+                            self.activation_dropout_module,
+                            self.fc2,
+                            self.dropout_module,
+                            ffn_ln=self.ffn_layernorm,
+                        )[0],
+                        self.embed_dim,
+                        cfg.cmr_gate_drop,
+                        lang_idx=lang_idx,
+                    )
             else:
-                gate = Top2Gate(
-                    self.embed_dim,
-                    cfg.moe_expert_count,
-                    cfg.moe_gating_use_fp32,
-                    cfg.moe_second_expert_policy,
-                    cfg.moe_normalize_gate_prob_before_dropping,
-                    cfg.moe_eval_capacity_token_fraction,
-                    cfg.moe_batch_prioritized_routing,
-                    use_tutel=cfg.use_tutel_moe,
-                    init_model_on_gpu=init_model_on_gpu,
+                fc3 = nn.Linear(84, 84)
+                self.moe_layer = MoE(
+                    hidden_size = 84, 
+                    expert = fc3, 
+                    num_experts = 4, 
+                    ep_size = 2, 
+                    k = 2
                 )
-            experts = make_experts(cfg, self.embed_dim, ffn_dim, self.dropout_module)
-            self.moe_layer = MOELayer(
-                gate,
-                experts,
-                cfg,
-                max_positions=cfg.max_target_positions,
-                tok_dropout=cfg.moe_eom,
-                moe_local_drop=cfg.moe_local_drop,
-            )
-            if cfg.moe_cmr:
-                self.cmr_layer = CMRLayer(
-                    self.moe_layer,
-                    lambda x: _ffn(
-                        x,
-                        self.fc1,
-                        self.activation_fn,
-                        self.activation_dropout_module,
-                        self.fc2,
-                        self.dropout_module,
-                        ffn_ln=self.ffn_layernorm,
-                    )[0],
-                    self.embed_dim,
-                    cfg.cmr_gate_drop,
-                    lang_idx=lang_idx,
-                )
+                
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
         if init_model_on_gpu:
