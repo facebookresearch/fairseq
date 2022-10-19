@@ -62,15 +62,16 @@ class DeepSpeedTrainer(Trainer):
             )
         )
         logger.info("params")
-        logger.info(params)
+        print(params)
         params = create_moe_param_groups(self.model)
+        print("params2")
+        print(params)
         params_final = []
         for group in params:
             for param in group:
                 params_final.append(param)
-        logger.info("params_final")
-        logger.info(params_final)
-        raise ValueError
+        print("params_final")
+        print(params_final)
         # create simple optimizer, deepspeed will handle dtype wrappers
         optimizer = optim.build_optimizer(self.cfg.optimizer, params_final)
 
