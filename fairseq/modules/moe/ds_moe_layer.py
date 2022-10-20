@@ -40,30 +40,17 @@ class MoE(DsMoE):
             enable_expert_tensor_parallelism (bool, optional): default=False, whether to use tensor parallelism for experts
         """
 
-        super(MoE, self).__init__(hidden_size,
-                                  expert, 
-                                  num_experts, 
-                                  ep_size, 
-                                  k, 
-                                  capacity_factor, 
-                                  eval_capacity_factor, 
-                                  min_capacity, 
-                                  use_residual, 
-                                  noisy_gate_policy, 
-                                  drop_tokens, 
-                                  use_rts, 
-                                  use_tutel, 
-                                  enable_expert_tensor_parallelism)
+        super(MoE, self).__init__(hidden_size, expert, num_experts, ep_size, k, capacity_factor, eval_capacity_factor)
 
     def forward(self, *input: Tensor, input_padding_mask=None, used_token = None, prefix_tokens=None, 
         encoder_embeddings: Optional[Tensor]=None, **kwargs: Any):
         output = self.deepspeed_moe(input[0], used_token)
         if self.use_residual:
             # Residual MoE
-            output_mlp = self.mlp(input[0])
+            output_mlp = self.mlp(input)
             if type(output_mlp) is tuple:
                 output_mlp = output_mlp[0]  # Ignore the bias term for now
-            coef = self.coefficient(input[0])
+            coef = self.coefficient(input)
             coef = torch.nn.functional.softmax(coef, dim=-1)
             output = output * coef[..., 0:1] + output_mlp * coef[..., 1:]
         self.metadata =  { "moe_gate_loss" : self.deepspeed_moe.l_aux }
