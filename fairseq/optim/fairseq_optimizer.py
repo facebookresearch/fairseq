@@ -145,7 +145,7 @@ class FairseqOptimizer(object):
         return False
 
     @param_groups.setter
-    def set_param_groups(self, new_val):
+    def param_groups(self, new_val):
         self.param_groups = new_val
 
     @property
