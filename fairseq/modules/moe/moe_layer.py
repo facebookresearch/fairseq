@@ -380,7 +380,7 @@ class MOELayer(Base):
         combined_output = combined_output[: input_shape[0], :, :]
 
         self.record_all_to_all_stats()
-
+        print(combined_output.shape)
         return combined_output, {"moe_gate_loss": l_aux}
 
     def prepare_for_inference_(self):
