@@ -51,7 +51,6 @@ class MoE(DsMoE):
                                   use_residual, 
                                   noisy_gate_policy, 
                                   drop_tokens, 
-                                  noisy_gate_policy, 
                                   use_rts, 
                                   use_tutel, 
                                   enable_expert_tensor_parallelism)
