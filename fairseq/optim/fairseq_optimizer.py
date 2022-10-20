@@ -146,7 +146,7 @@ class FairseqOptimizer(object):
 
     @param_groups.setter
     def param_groups(self, new_val):
-        self.param_groups = new_val
+        self.optimizer.param_groups = new_val
 
     @property
     def supports_groups(self):
