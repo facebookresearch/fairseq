@@ -244,9 +244,9 @@ class TransformerEncoderLayerBase(nn.Module):
                         lang_idx=lang_idx,
                     )
             else:
-                fc3 = nn.Linear(84, 84)
+                fc3 = nn.Linear(self.embed_dim, ffn_dim)
                 self.moe_layer = MoE(
-                    hidden_size = 84, 
+                    hidden_size = self.embed_dim,
                     expert = fc3, 
                     num_experts = 4, 
                     ep_size = 2, 
@@ -672,9 +672,9 @@ class TransformerDecoderLayerBase(nn.Module):
                         lang_idx=lang_idx,
                     )
             else:
-                fc3 = nn.Linear(84, 84)
+                fc3 = nn.Linear(self.embed_dim, ffn_dim)
                 self.moe_layer = MoE(
-                    hidden_size = 84, 
+                    hidden_size = self.embed_dim,
                     expert = fc3, 
                     num_experts = 4, 
                     ep_size = 2, 
