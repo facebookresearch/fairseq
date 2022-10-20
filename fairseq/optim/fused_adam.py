@@ -211,7 +211,7 @@ class FusedAdamV1(torch.optim.Optimizer):
                 beta1, beta2 = group["betas"]
 
                 state["step"] += 1
-                g = g.cuda()
+                grad = grad.cuda()
                 with torch.cuda.device(p_data_fp32.device):
                     fused_adam_cuda.adam(
                         p_data_fp32,
