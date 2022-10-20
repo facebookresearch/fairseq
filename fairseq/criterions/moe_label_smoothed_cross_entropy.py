@@ -13,7 +13,8 @@ import torch
 from fairseq import distributed_utils, metrics, utils
 from fairseq.criterions import FairseqCriterion, MoECriterionConfig, register_criterion
 from fairseq.logging.meters import GroupedAverageMeter
-from fairseq.modules.moe import MOELayer
+from fairseq.modules.moe import MOELayer, MoE
+
 
 
 def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=None, reduce=True):
@@ -239,7 +240,7 @@ class MoELabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             vals = []
             module_names = []
             for name, module in model.named_modules():
-                if isinstance(module, MOELayer):
+                if isinstance(module, MOELayer) or isinstance(module, MoE):
                     val = module.metadata[key] if key in module.metadata else 0
                     vals.append(val)
                     module_names.append(name)

@@ -72,7 +72,7 @@ class DeepSpeedTrainer(Trainer):
         #for group in param_groups:
             #group.update(opt_settings)
         
-        optimizer = optim.build_optimizer(self.cfg.optimizer, param_groups)
+        optimizer = optim.build_optimizer(self.cfg.optimizer, param_groups, ds = True)
 
         
         #optimizer.param_groups[:] = list(param_groups) + optimizer.param_groups[1:]
