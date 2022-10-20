@@ -40,7 +40,21 @@ class MoE(DsMoE):
             enable_expert_tensor_parallelism (bool, optional): default=False, whether to use tensor parallelism for experts
         """
 
-        super(MoE, self).__init__(hidden_size, expert, num_experts, ep_size, k, capacity_factor, eval_capacity_factor)
+        super(MoE, self).__init__(hidden_size,
+                                  expert, 
+                                  num_experts, 
+                                  ep_size, 
+                                  k, 
+                                  capacity_factor, 
+                                  eval_capacity_factor, 
+                                  min_capacity, 
+                                  use_residual, 
+                                  noisy_gate_policy, 
+                                  drop_tokens, 
+                                  noisy_gate_policy, 
+                                  use_rts, 
+                                  use_tutel, 
+                                  enable_expert_tensor_parallelism)
 
     def forward(self, *input: Tensor, input_padding_mask=None, used_token = None, prefix_tokens=None, 
         encoder_embeddings: Optional[Tensor]=None, **kwargs: Any):

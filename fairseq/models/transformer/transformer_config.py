@@ -402,6 +402,14 @@ class TransformerConfig(FairseqDataclass):
     task_level_decoder_routing: bool = field(
         default=False
     )
+    use_residual: bool = field(
+        default = False, 
+        metadata={"help" : "use pyramid residual from DeepSpeed"}
+    )
+    eps_size: int = field(
+        default=2, 
+        metadata={"help" : "epsiolon size for deepspeed MoE"}
+    )
 
     # We need to make this hierarchical dataclass like the flat namespace
     # __getattr__ and __setattr__ here allow backward compatibility
