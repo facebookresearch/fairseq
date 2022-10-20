@@ -58,49 +58,37 @@ class DeepSpeedTrainer(Trainer):
         ## get non-moe parameters
         params = list(
             filter(
-                lambda p: p.requires_grad and not hasattr(p, "allreduce"),
+                lambda p: p.requires_grad,
                 chain(self.model.parameters(), self.criterion.parameters()),
             )
         )
+        
+        
+        param_groups = create_moe_param_groups(self.model)
+        #params = [{"params" : param_groups[0]}, {"moe" : True , "params" : param_groups[1]}]
+        #logger.info(params)
+        
+        #opt_settings = {'lr': 0.0005, 'bias_correction': True, 'betas': (0.9, 0.98), 'eps': 1e-08, 'weight_decay': 0.0, 'max_grad_norm': 0.0}
+        #for group in param_groups:
+            #group.update(opt_settings)
+        
+        optimizer = optim.build_optimizer(self.cfg.optimizer, param_groups)
+
+        
+        #optimizer.param_groups[:] = list(param_groups) + optimizer.param_groups[1:]
         os.environ['LOCAL_RANK'] = str(self.cfg.distributed_training.device_id)
         os.environ['OMPI_COMM_WORLD_LOCAL_RANK'] = str(self.cfg.distributed_training.device_id)
         self.device = torch.device("cuda", self.cfg.distributed_training.device_id)
         self.model.to(device=self.device)
-
-        logger.info("params")
-        logger.info(type(params))
-        logger.info(params)
-        #params_final = []
-        #for group in params:
-        #    for param in group["params"]:
-        #        params_final.append(param)
-
-        # create simple optimizer, deepspeed will handle dtype wrappers
-
         
-        param_groups = list(create_moe_param_groups(self.model))
-        logger.info("param groups")
-        logger.info(type(param_groups))
-        logger.info("param group 1")
-        logger.info(param_groups[0])
-        logger.info("param group 2")
-        logger.info(param_groups[1])
-        group1 = {'params' : param_groups[0]['params']}
-        final_params = [group1]
-
-        optimizer = optim.build_optimizer(self.cfg.optimizer, final_params)
-        logger.info("optimizer =")
-        logger.info(optimizer)
-        logger.info("optimizer param groups = ")
-        logger.info(optimizer.param_groups)
-
-
-        logger.info(optimizer)
+        #logger.info("pg2")
+        #logger.info(optimizer.param_groups)
+        
+        
         engine, optimizer, _, _ = deepspeed.initialize(
             model=self.model,
             optimizer=optimizer,
-            config_params=self.ds_config, 
-            model_parameters=param_groups
+            config_params=self.ds_config
         )
 
         self.zero_enabled = engine.zero_optimization_stage() > 0

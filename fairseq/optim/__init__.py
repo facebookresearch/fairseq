@@ -35,8 +35,8 @@ __all__ = [
 
 
 def build_optimizer(cfg: DictConfig, params,  *extra_args, **extra_kwargs):
-    if all(isinstance(p, dict) for p in params):
-        params = [t for p in params for t in p.values()]
+    #if all(isinstance(p, dict) for p in params):
+    #    params = [t for p in params for t in p.values()]
     #params = list(filter(lambda p: p.requires_grad, params))
     return _build_optimizer(cfg, params,   *extra_args, **extra_kwargs)
 
