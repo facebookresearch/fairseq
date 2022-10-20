@@ -53,4 +53,4 @@ class MoE(DsMoE):
             coef = self.coefficient(input)
             coef = torch.nn.functional.softmax(coef, dim=-1)
             output = output * coef[..., 0:1] + output_mlp * coef[..., 1:]
-        return output, None, None, self.deepspeed_moe.l_aux
+        return output, { "moe_gate_loss" : self.deepspeed_moe.l_aux }
