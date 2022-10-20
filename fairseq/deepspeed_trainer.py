@@ -45,8 +45,8 @@ class DeepSpeedTrainer(Trainer):
 
         ds_config = {}
         if cfg.common.ds_config:
-            assert os.path.isfile(cfg.model.deepspeed), f"deepspeed config path is not a file: {cfg.model.deepspeed}"
-            with open(cfg.model.deepspeed, 'r') as fd:
+            assert os.path.isfile(cfg.common.ds_config), f"deepspeed config path is not a file: {cfg.common.ds_configd}"
+            with open(cfg.common.ds_config, 'r') as fd:
                 ds_config = json.load(fd)
         
         self.ds_config = self._populate_ds_config(cfg, ds_config)
