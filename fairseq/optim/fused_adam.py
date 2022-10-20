@@ -211,7 +211,7 @@ class FusedAdamV1(torch.optim.Optimizer):
                 beta1, beta2 = group["betas"]
 
                 state["step"] += 1
-
+                g = g.cuda()
                 with torch.cuda.device(p_data_fp32.device):
                     fused_adam_cuda.adam(
                         p_data_fp32,
@@ -219,15 +219,15 @@ class FusedAdamV1(torch.optim.Optimizer):
                         exp_avg,
                         exp_avg_sq,
                         grad,
-                        group["lr"],
-                        beta1,
-                        beta2,
-                        group["eps"],
-                        combined_scale,
-                        state["step"],
-                        self.eps_mode,
-                        bias_correction,
-                        group["weight_decay"],
+                        float(group["lr"]),
+                        float(beta1),
+                        float(beta2),
+                        float(group["eps"]),
+                        int(combined_scale),
+                        int(state["step"]),
+                        int(self.eps_mode),
+                        int(bias_correction),
+                        int(group["weight_decay"]),
                     )
 
                 if p.device.type == "cpu":
