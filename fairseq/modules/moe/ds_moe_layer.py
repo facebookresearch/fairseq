@@ -1,6 +1,8 @@
 import torch 
 import typing
+from torch import Tensor
 from deepspeed.moe.layer import MoE as DsMoE
+from typing import Callable, Dict, Optional, Tuple, Any
 
 
 class MoE(DsMoE):
@@ -40,14 +42,15 @@ class MoE(DsMoE):
 
         super(MoE, self).__init__(hidden_size, expert, num_experts, ep_size, k, capacity_factor, eval_capacity_factor)
 
-    def forward(self, hidden_states, used_token=None):
-        output = self.deepspeed_moe(hidden_states, used_token)
+    def forward(self, *input: Tensor, input_padding_mask=None, used_token = None, prefix_tokens=None, 
+        encoder_embeddings: Optional[Tensor]=None, **kwargs: Any):
+        output = self.deepspeed_moe(input, used_token)
         if self.use_residual:
             # Residual MoE
-            output_mlp = self.mlp(hidden_states)
+            output_mlp = self.mlp(input)
             if type(output_mlp) is tuple:
                 output_mlp = output_mlp[0]  # Ignore the bias term for now
-            coef = self.coefficient(hidden_states)
+            coef = self.coefficient(input)
             coef = torch.nn.functional.softmax(coef, dim=-1)
             output = output * coef[..., 0:1] + output_mlp * coef[..., 1:]
         return output, None, None, self.deepspeed_moe.l_aux
