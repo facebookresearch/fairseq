@@ -116,9 +116,7 @@ class CPUAdam(torch.optim.Optimizer):
 
         self.ds_opt_adam = _get_cpu_adam()
         adamw_mode = True
-        self.ds_opt_adam.create_adam(
-            int(self.opt_id), float(lr), float(betas[0]), float(betas[1]), float(eps), bool(weight_decay), bool(adamw_mode)
-        )
+        self.ds_opt_adam.create_adam(int(self.opt_id), float(lr), float(betas[0]), float(betas[1]), float(eps), bool(weight_decay), bool(adamw_mode))
 
     @property
     def supports_memory_efficient_fp16(self):
