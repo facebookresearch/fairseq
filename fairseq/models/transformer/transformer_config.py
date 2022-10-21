@@ -410,6 +410,10 @@ class TransformerConfig(FairseqDataclass):
         default=2, 
         metadata={"help" : "epsiolon size for deepspeed MoE"}
     )
+    expert_list: str = field(
+        default = '', 
+        metadata={"help" : "list of expert sizes"}
+    )
 
     # We need to make this hierarchical dataclass like the flat namespace
     # __getattr__ and __setattr__ here allow backward compatibility

@@ -244,11 +244,15 @@ class TransformerEncoderLayerBase(nn.Module):
                         lang_idx=lang_idx,
                     )
             else:
+                if cfg.expert_list != '':
+                    num_experts = cfg.expert_list.split(',')
+                else:
+                    num_experts = cfg.moe_expert_count
                 fc3 = nn.Linear(self.embed_dim, self.embed_dim)
                 self.moe_layer = MoE(
                     hidden_size = self.embed_dim,
                     expert = fc3, 
-                    num_experts = cfg.moe_expert_count, 
+                    num_experts = num_experts, 
                     ep_size = cfg.eps_size, 
                     k = 1 if cfg.moe_top1_expert else 2, 
                     use_residual=cfg.use_residual, 
@@ -674,11 +678,15 @@ class TransformerDecoderLayerBase(nn.Module):
                         lang_idx=lang_idx,
                     )
             else:
+                if cfg.expert_list != '':
+                    num_experts = cfg.expert_list.split(',')
+                else:
+                    num_experts = cfg.moe_expert_count
                 fc3 = nn.Linear(self.embed_dim, self.embed_dim)
                 self.moe_layer = MoE(
                     hidden_size = self.embed_dim,
                     expert = fc3, 
-                    num_experts = cfg.moe_expert_count, 
+                    num_experts = num_experts, 
                     ep_size = cfg.eps_size, 
                     k = 1 if cfg.moe_top1_expert else 2, 
                     use_residual=cfg.use_residual, 

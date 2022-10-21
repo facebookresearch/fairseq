@@ -60,10 +60,10 @@ class MoE(DsMoE):
         output = self.deepspeed_moe(input[0], used_token)
         if self.use_residual:
             # Residual MoE
-            output_mlp = self.mlp(input)
+            output_mlp = self.mlp(input[0])
             if type(output_mlp) is tuple:
                 output_mlp = output_mlp[0]  # Ignore the bias term for now
-            coef = self.coefficient(input)
+            coef = self.coefficient(input[0])
             coef = torch.nn.functional.softmax(coef, dim=-1)
             output = output * coef[..., 0:1] + output_mlp * coef[..., 1:]
         self.metadata =  { "moe_gate_loss" : self.deepspeed_moe.l_aux }
