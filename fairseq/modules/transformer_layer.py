@@ -248,9 +248,11 @@ class TransformerEncoderLayerBase(nn.Module):
                 self.moe_layer = MoE(
                     hidden_size = self.embed_dim,
                     expert = fc3, 
-                    num_experts = 4, 
-                    ep_size = 2, 
-                    k = 2
+                    num_experts = cfg.moe_expert_count, 
+                    ep_size = cfg.eps_size, 
+                    k = 1 if cfg.moe_top1_expert else 2, 
+                    use_residual=cfg.use_residual, 
+                    use_tutel = cfg.use_tutel_moe
                 )
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
