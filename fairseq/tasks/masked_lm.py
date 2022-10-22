@@ -3,13 +3,13 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from dataclasses import dataclass, field
 import logging
 import os
-
-from omegaconf import MISSING, II, OmegaConf
+from dataclasses import dataclass, field
 
 import numpy as np
+from omegaconf import II, MISSING, OmegaConf
+
 from fairseq import utils
 from fairseq.data import (
     Dictionary,
@@ -30,7 +30,6 @@ from fairseq.dataclass import FairseqDataclass
 from fairseq.tasks import FairseqTask, register_task
 
 from .language_modeling import SAMPLE_BREAK_MODE_CHOICES, SHORTEN_METHOD_CHOICES
-
 
 logger = logging.getLogger(__name__)
 
@@ -131,12 +130,7 @@ class MaskedLMTask(FairseqTask):
         logger.info("dictionary: {} types".format(len(dictionary)))
         return cls(cfg, dictionary)
 
-    def load_dataset(self, split, epoch=1, combine=False, **kwargs):
-        """Load a given dataset split.
-
-        Args:
-            split (str): name of the split (e.g., train, valid, test)
-        """
+    def _load_dataset_split(self, split, epoch, combine):
         paths = utils.split_paths(self.cfg.data)
         assert len(paths) > 0
         data_path = paths[(epoch - 1) % len(paths)]
@@ -173,7 +167,15 @@ class MaskedLMTask(FairseqTask):
         logger.info("loaded {} blocks from: {}".format(len(dataset), split_path))
 
         # prepend beginning-of-sentence token (<s>, equiv. to [CLS] in BERT)
-        dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())
+        return PrependTokenDataset(dataset, self.source_dictionary.bos())
+
+    def load_dataset(self, split, epoch=1, combine=False, **kwargs):
+        """Load a given dataset split.
+
+        Args:
+            split (str): name of the split (e.g., train, valid, test)
+        """
+        dataset = self._load_dataset_split(split, epoch, combine)
 
         # create masked input and targets
         mask_whole_words = (

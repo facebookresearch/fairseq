@@ -6,7 +6,7 @@
 import torch.nn.functional as F
 
 
-def unfold1d(x, kernel_size, padding_l, pad_value=0):
+def unfold1d(x, kernel_size: int, padding_l: int, pad_value: float = 0):
     """unfold T x B x C to T x B x C x K"""
     if kernel_size > 1:
         T, B, C = x.size()

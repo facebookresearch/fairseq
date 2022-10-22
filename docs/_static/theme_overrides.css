@@ -1,9 +1,0 @@
-.wy-table-responsive table td kbd {
-    white-space: nowrap;
-}
-.wy-table-responsive table td {
-    white-space: normal !important;
-}
-.wy-table-responsive {
-    overflow: visible !important;
-}
