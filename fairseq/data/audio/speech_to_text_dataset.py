@@ -387,6 +387,160 @@ class SpeechToTextDataset(FairseqDataset):
         raise False
 
 
+class TextTargetMultitaskData(object):
+    # mandatory columns
+    KEY_ID, KEY_TEXT = "id", "tgt_text"
+    LANG_TAG_TEMPLATE = "<lang:{}>"
+
+    def __init__(self, args, split, tgt_dict):
+        samples = SpeechToTextDatasetCreator._load_samples_from_tsv(args.data, split)
+        self.data = {s[self.KEY_ID]: s[self.KEY_TEXT] for s in samples}
+        self.dict = tgt_dict
+        self.append_eos = args.decoder_type != "ctc"
+        self.pre_tokenizer = self.build_tokenizer(args)
+        self.bpe_tokenizer = self.build_bpe(args)
+        self.prepend_bos_and_append_tgt_lang_tag = (
+            args.prepend_bos_and_append_tgt_lang_tag
+        )
+        self.eos_token = args.eos_token
+        self.lang_tag_mapping = args.get_lang_tag_mapping
+
+    @classmethod
+    def is_lang_tag(cls, token):
+        pattern = cls.LANG_TAG_TEMPLATE.replace("{}", "(.*)")
+        return re.match(pattern, token)
+
+    @classmethod
+    def tokenize(cls, tokenizer, text: str):
+        return text if tokenizer is None else tokenizer.encode(text)
+
+    def get_tokenized_tgt_text(self, index: int):
+        text = self.tokenize(self.pre_tokenizer, self.data[index])
+        text = self.tokenize(self.bpe_tokenizer, text)
+        return text
+
+    def get_lang_tag_idx(self, lang: str, dictionary: Dictionary):
+        lang_tag = self.LANG_TAG_TEMPLATE.format(lang)
+        lang_tag = self.lang_tag_mapping.get(lang_tag, lang_tag)
+        lang_tag_idx = dictionary.index(lang_tag)
+        assert lang_tag_idx != dictionary.unk(), (lang, lang_tag)
+        return lang_tag_idx
+
+    def build_tokenizer(self, args):
+        pre_tokenizer = args.config.get("pre_tokenizer")
+        if pre_tokenizer is not None:
+            logger.info(f"pre-tokenizer: {pre_tokenizer}")
+            return encoders.build_tokenizer(Namespace(**pre_tokenizer))
+        else:
+            return None
+
+    def build_bpe(self, args):
+        bpe_tokenizer = args.config.get("bpe_tokenizer")
+        if bpe_tokenizer is not None:
+            logger.info(f"tokenizer: {bpe_tokenizer}")
+            return encoders.build_bpe(Namespace(**bpe_tokenizer))
+        else:
+            return None
+
+    def get(self, sample_id, tgt_lang=None):
+        if sample_id in self.data:
+            tokenized = self.get_tokenized_tgt_text(sample_id)
+            target = self.dict.encode_line(
+                tokenized,
+                add_if_not_exist=False,
+                append_eos=self.append_eos,
+            )
+            if self.prepend_bos_and_append_tgt_lang_tag:
+                bos = torch.LongTensor([self.dict.bos()])
+                lang_tag_idx = self.get_lang_tag_idx(tgt_lang, self.dict)
+                assert lang_tag_idx != self.dict.unk()
+                lang_tag_idx = torch.LongTensor([lang_tag_idx])
+                target = torch.cat((bos, target, lang_tag_idx), 0)
+            return target
+        else:
+            logger.warning(f"no target for {sample_id}")
+            return torch.IntTensor([])
+
+    def collater(self, samples: List[torch.Tensor]) -> torch.Tensor:
+        out = fairseq_data_utils.collate_tokens(
+            samples,
+            self.dict.pad(),
+            eos_idx=None,
+            left_pad=False,
+            move_eos_to_beginning=False,
+        ).long()
+
+        prev_out = fairseq_data_utils.collate_tokens(
+            samples,
+            self.dict.pad(),
+            eos_idx=None,
+            left_pad=False,
+            move_eos_to_beginning=True,
+        ).long()
+
+        target_lengths = torch.tensor([t.size(0) for t in samples], dtype=torch.long)
+        ntokens = sum(t.size(0) for t in samples)
+
+        output = {
+            "prev_output_tokens": prev_out,
+            "target": out,
+            "target_lengths": target_lengths,
+            "ntokens": ntokens,
+        }
+
+        return output
+
+
+class SpeechToTextMultitaskDataset(SpeechToTextDataset):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.multitask_data = {}
+
+    def add_multitask_dataset(self, task_name, task_data):
+        self.multitask_data[task_name] = task_data
+
+    def __getitem__(
+        self, index: int
+    ) -> Tuple[SpeechToTextDatasetItem, Dict[str, torch.Tensor]]:
+        s2t_data = super().__getitem__(index)
+
+        multitask_target = {}
+        sample_id = self.ids[index]
+        tgt_lang = self.tgt_langs[index]
+        for task_name, task_dataset in self.multitask_data.items():
+            multitask_target[task_name] = task_dataset.get(sample_id, tgt_lang)
+
+        return s2t_data, multitask_target
+
+    def collater(
+        self, samples: List[Tuple[SpeechToTextDatasetItem, Dict[str, torch.Tensor]]]
+    ) -> Dict:
+        if len(samples) == 0:
+            return {}
+
+        out = super().collater([s for s, _ in samples], return_order=True)
+        order = out["order"]
+        del out["order"]
+
+        for task_name, task_dataset in self.multitask_data.items():
+            if "multitask" not in out:
+                out["multitask"] = {}
+            d = [s[task_name] for _, s in samples]
+            task_target = task_dataset.collater(d)
+            out["multitask"][task_name] = {
+                "target": task_target["target"].index_select(0, order),
+                "target_lengths": task_target["target_lengths"].index_select(0, order),
+                "ntokens": task_target["ntokens"],
+            }
+            out["multitask"][task_name]["net_input"] = {
+                "prev_output_tokens": task_target["prev_output_tokens"].index_select(
+                    0, order
+                ),
+            }
+
+        return out
+
+
 class SpeechToTextDatasetCreator(object):
     # mandatory columns
     KEY_ID, KEY_AUDIO, KEY_N_FRAMES = "id", "audio", "n_frames"
@@ -419,12 +573,18 @@ class SpeechToTextDatasetCreator(object):
         speakers = [s.get(cls.KEY_SPEAKER, cls.DEFAULT_SPEAKER) for s in samples]
         src_langs = [s.get(cls.KEY_SRC_LANG, cls.DEFAULT_LANG) for s in samples]
         tgt_langs = [s.get(cls.KEY_TGT_LANG, cls.DEFAULT_LANG) for s in samples]
-        return SpeechToTextDataset(
-            split_name,
-            is_train_split,
-            cfg,
-            audio_paths,
-            n_frames,
+
+        has_multitask = multitask is not None and len(multitask.keys()) > 0
+        dataset_cls = (
+            SpeechToTextMultitaskDataset if has_multitask else SpeechToTextDataset
+        )
+
+        ds = dataset_cls(
+            split=split_name,
+            is_train_split=is_train_split,
+            cfg=cfg,
+            audio_paths=audio_paths,
+            n_frames=n_frames,
             src_texts=src_texts,
             tgt_texts=tgt_texts,
             speakers=speakers,
