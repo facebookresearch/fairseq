@@ -5,6 +5,7 @@
 
 import logging
 from pathlib import Path
+
 import torch
 
 from fairseq import checkpoint_utils
@@ -15,10 +16,8 @@ from fairseq.models.speech_to_speech.s2s_transformer import (
     s2spect_architecture_base,
     s2ut_architecture_base,
 )
-from fairseq.models.transformer import (
-    Linear,
-)
-
+from fairseq.models.speech_to_text import S2TConformerEncoder
+from fairseq.models.transformer import Linear
 
 logger = logging.getLogger(__name__)
 
@@ -76,15 +75,22 @@ class S2UTConformerModel(S2UTTransformerModel):
     @staticmethod
     def add_args(parser):
         S2UTTransformerModel.add_args(parser)
-        parser.add_argument("--depthwise-conv-kernel-size", default=31)
+        parser.add_argument(
+            "--depthwise-conv-kernel-size",
+            type=int,
+            metavar="N",
+            help="kernel size of depthwise convolution layers",
+        )
         parser.add_argument(
             "--attn-type",
-            default=None,
+            type=str,
+            metavar="STR",
             help="If not specified uses fairseq MHA. Other valid option is espnet for using conformer",
         )
         parser.add_argument(
             "--pos-enc-type",
-            default="abs",
+            type=str,
+            metavar="STR",
             help="Must be specified in addition to attn-type=espnet for rel_pos and rope",
         )
 

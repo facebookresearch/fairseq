@@ -4,13 +4,13 @@
 # LICENSE file in the root directory of this source tree.
 
 import csv
-import io
 import logging
 import re
+from argparse import Namespace
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -18,15 +18,16 @@ import torch.nn.functional as F
 
 from fairseq.data import ConcatDataset, Dictionary, FairseqDataset, ResamplingDataset
 from fairseq.data import data_utils as fairseq_data_utils
+from fairseq.data import encoders
 from fairseq.data.audio.audio_utils import get_features_or_waveform
 from fairseq.data.audio.data_cfg import S2TDataConfig
-from fairseq.data.audio.feature_transforms import CompositeAudioFeatureTransform
-from fairseq.data.audio.waveform_transforms import CompositeAudioWaveformTransform
 from fairseq.data.audio.dataset_transforms import CompositeAudioDatasetTransform
 from fairseq.data.audio.dataset_transforms.concataugment import ConcatAugment
 from fairseq.data.audio.dataset_transforms.noisyoverlapaugment import (
     NoisyOverlapAugment,
 )
+from fairseq.data.audio.feature_transforms import CompositeAudioFeatureTransform
+from fairseq.data.audio.waveform_transforms import CompositeAudioWaveformTransform
 
 logger = logging.getLogger(__name__)
 
@@ -563,6 +564,7 @@ class SpeechToTextDatasetCreator(object):
         bpe_tokenizer,
         n_frames_per_step,
         speaker_to_id,
+        multitask: Optional[Dict] = None,
     ) -> SpeechToTextDataset:
         audio_root = Path(cfg.audio_root)
         ids = [s[cls.KEY_ID] for s in samples]
