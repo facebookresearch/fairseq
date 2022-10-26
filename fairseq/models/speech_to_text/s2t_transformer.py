@@ -239,7 +239,7 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
         base_architecture(args)
 
         decoder_embed_tokens = TransformerModelBase.build_embedding(
-            task.target_dictionary, args.decoder_embed_dim
+            args, task.target_dictionary, args.decoder_embed_dim
         )
         args.tgt_dict_size = len(task.target_dictionary)
         encoder = cls.build_encoder(args)

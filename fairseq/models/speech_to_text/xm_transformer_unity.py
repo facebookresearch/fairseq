@@ -114,7 +114,7 @@ class XMTransformerModelUnitY(XMTransformerModel):
         _args.decoder_layers = _args.translation_decoder_layers
 
         embed_tokens = TransformerModelBase.build_embedding(
-            tgt_dict, _args.decoder_embed_dim
+            _args, tgt_dict, _args.decoder_embed_dim
         )
         decoder = TransformerDecoder(_args, tgt_dict, embed_tokens)
 
@@ -139,7 +139,7 @@ class XMTransformerModelUnitY(XMTransformerModel):
             proj = Linear(args.decoder_embed_dim, _args.decoder_embed_dim)
 
         embed_tokens = TransformerModelBase.build_embedding(
-            task.target_dictionary, _args.decoder_embed_dim
+            _args, task.target_dictionary, _args.decoder_embed_dim
         )
         decoder_cls = AugTransformerDecoder if aug_attn else TransformerDecoder
         decoder = decoder_cls(_args, task.target_dictionary, embed_tokens)
@@ -147,7 +147,7 @@ class XMTransformerModelUnitY(XMTransformerModel):
         if getattr(args, "load_pretrained_decoder_from", None) is not None:
             # load all layers first and then discard the bottom layers
             embed_tokens = TransformerModelBase.build_embedding(
-                task.target_dictionary, _args.decoder_embed_dim
+                _args, task.target_dictionary, _args.decoder_embed_dim
             )
             decoder_tmp = decoder_cls(_args, task.target_dictionary, embed_tokens)
             decoder_tmp = cls.maybe_load_pretrained(

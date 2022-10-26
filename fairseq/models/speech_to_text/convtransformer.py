@@ -185,7 +185,7 @@ class ConvTransformerModel(FairseqEncoderDecoderModel):
         base_architecture(args)
 
         decoder_embed_tokens = TransformerModelBase.build_embedding(
-            task.target_dictionary, args.decoder_embed_dim
+            args, task.target_dictionary, args.decoder_embed_dim
         )
         encoder = cls.build_encoder(args)
         decoder = cls.build_decoder(args, task, decoder_embed_tokens)

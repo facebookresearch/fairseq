@@ -636,7 +636,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             args = cls.override_decoder_args(args, decoder_args_dict)
 
         decoder_embed_tokens = TransformerModelBase.build_embedding(
-            task.target_dictionary, args.decoder_embed_dim
+            args, task.target_dictionary, args.decoder_embed_dim
         )
 
         encoder = cls.build_encoder(args)
