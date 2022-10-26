@@ -87,7 +87,7 @@ class DeepSpeedTrainer(Trainer):
         
         engine, optimizer, _, _ = deepspeed.initialize(
             model=self.model,
-            optimizer=optimizer,
+            optimizer=optimizer._optimizer,
             config_params=self.ds_config
         )
 
