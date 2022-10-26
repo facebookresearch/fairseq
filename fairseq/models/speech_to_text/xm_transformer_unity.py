@@ -216,42 +216,6 @@ class XMTransformerModelUnitY(XMTransformerModel):
         return base_model
 
     @classmethod
-    def build_multitask_decoder(
-        cls, args, mtl_args, tgt_dict, in_dim, is_first_pass_decoder
-    ):
-        decoder_args = mtl_args.decoder_args
-        decoder_args.encoder_embed_dim = in_dim
-        if mtl_args.decoder_type == "transformer":
-            if is_first_pass_decoder:
-                task_decoder = cls.build_text_decoder(args, tgt_dict)
-            else:
-                from fairseq.models.speech_to_speech import (
-                    base_multitask_text_transformer_decoder_arch,
-                )
-
-                base_multitask_text_transformer_decoder_arch(decoder_args)  # 2L
-                task_decoder = TransformerDecoder(
-                    decoder_args,
-                    tgt_dict,
-                    embed_tokens=TransformerModelBase.build_embedding(
-                        decoder_args,
-                        tgt_dict,
-                        decoder_args.decoder_embed_dim,
-                    ),
-                )
-        elif args.decoder_type == "ctc":
-            task_decoder = CTCDecoder(
-                dictionary=tgt_dict,
-                in_dim=in_dim,
-            )
-        else:
-            raise NotImplementedError(
-                "currently only support multitask decoder_type 'transformer', 'ctc'"
-            )
-
-        return task_decoder
-
-    @classmethod
     def build_t2u_encoder(cls, args):
         _args = copy.deepcopy(args)
         _args.encoder_layers = _args.synthesizer_encoder_layers
