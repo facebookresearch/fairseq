@@ -192,6 +192,13 @@ def main(cfg: FairseqConfig) -> None:
                 'training' if trainer.teacher_model.training else 'evaluation'
             )
         )
+
+        logger.info(
+            "teacher_model: {}\n\nstudent_model: {}".format(
+                trainer.teacher_model, model
+            )
+        )
+        
     if (cfg.task._name == "kd_translation") ^ (cfg.criterion._name == "kd_label_smoothed_cross_entropy"):
         raise ValueError("criterion and task mismatch")
     
