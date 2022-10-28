@@ -174,7 +174,7 @@ def main(cfg: FairseqConfig) -> None:
         import torch_xla.core.xla_model as xm
         xm.rendezvous("load_checkpoint")  # wait for all workers
 
-    if (cfg.task._name == "kd_translation") and (cfg.criterion._name == "kd_label_smoothed_cross_entropy"):
+    if (cfg.task._name == "translation") and (cfg.criterion._name == "label_smoothed_cross_entropy_with_kd"):
         # build teacher model here
         teacher_models = load_model_ensemble(
             [cfg.task.teacher_checkpoint_path],
@@ -187,22 +187,13 @@ def main(cfg: FairseqConfig) -> None:
         trainer.perform_distillation = True
 
         logger.info(
-            "loaded teacher from {} in {} mode".format(
+            "loaded teacher model {} from {} in {} mode".format(
+                trainer.teacher_model,
                 cfg.task.teacher_checkpoint_path,
                 'training' if trainer.teacher_model.training else 'evaluation'
             )
         )
-
-        logger.info(
-            "teacher_model: {}\n\nstudent_model: {}".format(
-                trainer.teacher_model, model
-            )
-        )
         
-    if (cfg.task._name == "kd_translation") ^ (cfg.criterion._name == "kd_label_smoothed_cross_entropy"):
-        raise ValueError("criterion and task mismatch")
-    
-
     max_epoch = cfg.optimization.max_epoch or math.inf
     lr = trainer.get_lr()
 

@@ -89,7 +89,7 @@ def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=None, reduce=T
 
 
 @register_criterion(
-    "kd_label_smoothed_cross_entropy", dataclass=KDLabelSmoothedCrossEntropyCriterionConfig
+    "label_smoothed_cross_entropy_with_kd", dataclass=KDLabelSmoothedCrossEntropyCriterionConfig
 )
 class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
     def __init__(
@@ -137,7 +137,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
     def get_lang_kd_rates(self, indices, T=1):
         if self.use_adaptive_kd_rates:
             lens = torch.cuda.FloatTensor([len(v) for v in indices.values()])
-            lens_prob = F.softmax((1/lens)/T, dim=-1, dtype=torch.float32).tolist()
+            lens_prob = F.softmax((1/lens)/T, dim=-1).tolist()
             return lens_prob
         else:
             return [self.kd_rate] * len(indices)
@@ -235,7 +235,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         # get teacher probs
         teacher_logits = teacher_output[0]
         teacher_logits = teacher_logits.view(-1, teacher_logits.size(-1))
-        teacher_probs_T = F.softmax(teacher_logits/self.teacher_temp, dim=-1, dtype=torch.float32)
+        teacher_probs_T = F.softmax(teacher_logits/self.teacher_temp, dim=-1)
 
         # compute teacher log-probs to get teacher loss value
         teacher_lprobs = sample.get("teacher_lprobs", None)

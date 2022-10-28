@@ -1140,7 +1140,7 @@ class Trainer(object):
                     log_probs=True
                 )
 
-            try:
+            try:                
                 _loss, sample_size, logging_output = self.task.valid_step(
                     sample, self.model, self.criterion, **extra_kwargs
                 )

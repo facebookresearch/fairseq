@@ -262,6 +262,12 @@ class TranslationConfig(FairseqDataclass):
     eval_bleu_print_samples: bool = field(
         default=False, metadata={"help": "print sample generations during validation"}
     )
+    kd_strategy: Optional[str] = field(
+        default=None, metadata={"help": "distillation strategy to be used"}
+    )
+    teacher_checkpoint_path: Optional[str] = field(
+        default=None, metadata={"help": "teacher checkpoint path when performing distillation"}
+    )
 
 
 @register_task("translation", dataclass=TranslationConfig)
@@ -282,6 +288,9 @@ class TranslationTask(FairseqTask):
         super().__init__(cfg)
         self.src_dict = src_dict
         self.tgt_dict = tgt_dict
+        ## additional parameters
+        self.kd_strategy = cfg.kd_strategy
+        self.src_lang_ids = [i for i in range(len(src_dict)) if src_dict[i].startswith("__src__")]
 
     @classmethod
     def setup_task(cls, cfg: TranslationConfig, **kwargs):
@@ -437,7 +446,7 @@ class TranslationTask(FairseqTask):
                         ref_len=int(meters["_bleu_ref_len"].sum),
                         **smooth,
                     )
-                    return round(bleu.score, 2)
+                    return round(bleu.score, 5)
 
                 metrics.log_derived("bleu", compute_bleu)
 
