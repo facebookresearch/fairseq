@@ -297,6 +297,7 @@ class Wav2VecEncoderWithAdaptor(FairseqEncoder):
 
     @classmethod
     def add_args(cls, parser):
+        """Add model-specific arguments to the parser."""
         add_wav2vec_asr_args(parser)
         parser.add_argument(
             "--normalize",
@@ -661,7 +662,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
                 continue
 
             task_decoder = cls.build_multitask_decoder(
-                task_obj.args, task_obj.target_dictionary, args.decoder_embed_dim
+                args, task_obj.args, task_obj.target_dictionary, args.decoder_embed_dim
             )
 
             setattr(base_model, f"{task_name}_decoder", task_decoder)
@@ -677,7 +678,12 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
 
     @classmethod
     def build_multitask_decoder(
-        cls, args, mtl_args, tgt_dict, in_dim, is_first_pass_decoder
+        cls,
+        args,
+        mtl_args,
+        tgt_dict,
+        in_dim,
+        is_first_pass_decoder=False,
     ):
         decoder_args = mtl_args.decoder_args
         decoder_args.encoder_embed_dim = in_dim
@@ -699,7 +705,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
                         decoder_args.decoder_embed_dim,
                     ),
                 )
-        elif args.decoder_type == "ctc":
+        elif mtl_args.decoder_type == "ctc":
             task_decoder = CTCDecoder(
                 dictionary=tgt_dict,
                 in_dim=in_dim,
