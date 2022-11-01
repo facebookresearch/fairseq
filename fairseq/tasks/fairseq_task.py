@@ -10,7 +10,8 @@ from argparse import Namespace
 from typing import Any, Callable, Dict, List
 
 import torch
-from fairseq import metrics, search, tokenizer, utils
+from fairseq import search, tokenizer, utils
+from fairseq.logging import metrics
 from fairseq.data import Dictionary, FairseqDataset, data_utils, encoders, iterators
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import gen_parser_from_dataclass
