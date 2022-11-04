@@ -37,13 +37,9 @@ class KDLabelSmoothedCrossEntropyCriterionConfig(FairseqDataclass):
         default=20000, 
         metadata={"help": "queue size for global_level, batch_level and global_multi_level selection"}
     )
-    student_temp: float = field(
+    kd_temp: float = field(
         default=1,
-        metadata={"help": "student model temperature for distillation"}
-    )
-    teacher_temp: float = field(
-        default=1,
-        metadata={"help": "teacher model emperature for distillation"}
+        metadata={"help": "teacher/student model temperature for distillation"}
     )
     alpha: Optional[float] = field(
         default=1,
@@ -99,8 +95,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         label_smoothing,
         kd_rate,
         kd_queue_size,
-        student_temp,
-        teacher_temp,
+        kd_temp,
         alpha,
         beta,
         use_adaptive_kd_rates,
@@ -117,8 +112,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         
         # new parameters
         self.kd_strategy = self.task.kd_strategy
-        self.student_temp = student_temp
-        self.teacher_temp = teacher_temp
+        self.kd_temp = kd_temp
         self.kd_rate = kd_rate
         self.alpha = alpha
         self.beta = beta
@@ -256,12 +250,12 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         # get student logits
         student_logits = net_output[0]
         student_logits = student_logits.view(-1, student_logits.size(-1))
-        student_logits_T = student_logits/self.student_temp
+        student_logits_T = student_logits/self.kd_temp
 
         # get teacher probs and lprobs
         teacher_logits = teacher_output[0]
         teacher_logits = teacher_logits.view(-1, teacher_logits.size(-1))
-        teacher_probs_T = F.softmax(teacher_logits/self.teacher_temp, dim=-1)
+        teacher_probs_T = F.softmax(teacher_logits/self.kd_temp, dim=-1)
         teacher_lprobs = F.log_softmax(teacher_logits, dim=-1)
 
         # compute preliminary loss and nll_loss of student_model
@@ -307,7 +301,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             extra['nll_loss_student'] = nll_loss.sum()
             extra['nll_loss_teacher'] = nll_loss_teacher.sum()
             loss = golden_loss.sum() + \
-                   self.alpha * self.student_temp * self.teacher_temp * extra['kd_loss'] + \
+                   self.alpha * self.kd_temp * self.kd_temp * extra['kd_loss'] + \
                    self.beta * extra.get('cos_sim_loss', 0)
 
         elif self.kd_strategy == 'batch_level':
@@ -323,7 +317,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             extra['nll_loss_student'] = nll_loss.sum()
             extra['nll_loss_teacher'] = nll_loss_teacher.sum()
             loss = golden_loss.sum() + \
-                   self.alpha * self.student_temp * self.teacher_temp * extra['kd_loss'] + \
+                   self.alpha * (self.kd_temp ** 2) * extra['kd_loss'] + \
                    self.beta * extra.get('cos_sim_loss', 0)
             
         elif self.kd_strategy == 'global_level':
@@ -340,7 +334,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             extra['nll_loss_student'] = nll_loss.sum()
             extra['nll_loss_teacher'] = nll_loss_teacher.sum()
             loss = golden_loss.sum() + \
-                   self.alpha * self.student_temp * self.teacher_temp * extra['kd_loss'] + \
+                   self.alpha * (self.kd_temp ** 2) * extra['kd_loss'] + \
                    self.beta * extra.get('cos_sim_loss', 0)
 
         elif self.kd_strategy == "global_multi_level":
@@ -370,7 +364,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             extra['nll_loss_student'] = nll_loss.sum()
             extra['nll_loss_teacher'] = nll_loss_teacher.sum()
             loss = golden_loss.sum() + \
-                   self.alpha * self.student_temp * self.teacher_temp * extra['kd_loss'] + \
+                   self.alpha * (self.kd_temp ** 2) * extra['kd_loss'] + \
                    self.beta * extra.get('cos_sim_loss', 0)
 
         else:
