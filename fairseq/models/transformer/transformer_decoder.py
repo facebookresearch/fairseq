@@ -138,7 +138,10 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         self.output_projection = output_projection
         if self.output_projection is None:
             self.build_output_projection(cfg, dictionary, embed_tokens)
-
+        
+        self.recurrent_stacking = cfg.decoder.recurrent_stacking
+        assert (self.recurrent_stacking > 1 and self.num_layers == 1) or (self.recurrent_stacking == 1 and self.num_layers > 1), "use a single layer when you have recurrent stacking and avoid recurrent stacking when you have multiple layers"
+        
     def build_output_projection(self, cfg, dictionary, embed_tokens):
         if cfg.adaptive_softmax_cutoff is not None:
             self.adaptive_softmax = AdaptiveSoftmax(
@@ -249,8 +252,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
     A scriptable subclass of this class has an extract_features method and calls
     super().extract_features, but super() is not supported in torchscript. A copy of
     this function is made to be used in the subclass instead.
-    """
-
+    """ 
     def extract_features_scriptable(
         self,
         prev_output_tokens,
@@ -331,25 +333,28 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         # decoder layers
         attn: Optional[Tensor] = None
         inner_states: List[Optional[Tensor]] = [x]
-        for idx, layer in enumerate(self.layers):
-            if incremental_state is None and not full_context_alignment:
-                self_attn_mask = self.buffered_future_mask(x)
-            else:
-                self_attn_mask = None
 
-            x, layer_attn, _ = layer(
-                x,
-                enc,
-                padding_mask,
-                incremental_state,
-                self_attn_mask=self_attn_mask,
-                self_attn_padding_mask=self_attn_padding_mask,
-                need_attn=bool((idx == alignment_layer)),
-                need_head_weights=bool((idx == alignment_layer)),
-            )
-            inner_states.append(x)
-            if layer_attn is not None and idx == alignment_layer:
-                attn = layer_attn.float().to(x)
+        for idx, layer in enumerate(self.layers):
+            for _ in range(self.recurrent_stacking):
+                if incremental_state is None and not full_context_alignment:
+                    self_attn_mask = self.buffered_future_mask(x)
+                else:
+                    self_attn_mask = None
+            
+                x, layer_attn, _ = layer(
+                    x,
+                    enc,
+                    padding_mask,
+                    incremental_state,
+                    self_attn_mask=self_attn_mask,
+                    self_attn_padding_mask=self_attn_padding_mask,
+                    need_attn=bool((idx == alignment_layer)),
+                    need_head_weights=bool((idx == alignment_layer)),
+                )
+
+                inner_states.append(x)
+                if layer_attn is not None and idx == alignment_layer:
+                    attn = layer_attn.float().to(x)
 
         if attn is not None:
             if alignment_heads is not None:

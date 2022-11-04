@@ -133,9 +133,9 @@ class TransformerModel(TransformerModelBase):
         return super().build_model(cfg, task)
 
     @classmethod
-    def build_embedding(cls, args, dictionary, embed_dim, path=None):
+    def build_embedding(cls, args, dictionary, embed_dim, hid_dim=None, path=None):
         return super().build_embedding(
-            TransformerConfig.from_namespace(args), dictionary, embed_dim, path
+            TransformerConfig.from_namespace(args), dictionary, embed_dim, hid_dim, path
         )
 
     @classmethod
@@ -158,9 +158,9 @@ class TransformerModel(TransformerModelBase):
 def tiny_architecture(args):
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 64)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 64)
-    args.encoder_layers = getattr(args, "encoder_layers", 2)
+    args.encoder_layers = 1 if getattr(args, "encoder_recurrent_stacking", 1) > 1 else getattr(args, "encoder_layers", 2)
     args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 2)
-    args.decoder_layers = getattr(args, "decoder_layers", 2)
+    args.decoder_layers = 1 if getattr(args, "decoder_recurrent_stacking", 1) > 1 else getattr(args, "decoder_layers", 2)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 2)
     return base_architecture(args)
 
@@ -170,7 +170,7 @@ def base_architecture(args):
     args.encoder_embed_path = getattr(args, "encoder_embed_path", None)
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 2048)
-    args.encoder_layers = getattr(args, "encoder_layers", 6)
+    args.encoder_layers = 1 if getattr(args, "encoder_recurrent_stacking", 1) > 1 else getattr(args, "encoder_layers", 6)
     args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 8)
     args.encoder_normalize_before = getattr(args, "encoder_normalize_before", False)
     args.encoder_learned_pos = getattr(args, "encoder_learned_pos", False)
@@ -180,7 +180,7 @@ def base_architecture(args):
     args.decoder_ffn_embed_dim = getattr(
         args, "decoder_ffn_embed_dim", args.encoder_ffn_embed_dim
     )
-    args.decoder_layers = getattr(args, "decoder_layers", 6)
+    args.decoder_layers = 1 if getattr(args, "decoder_recurrent_stacking", 1) > 1 else getattr(args, "decoder_layers", 6)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 8)
     args.decoder_normalize_before = getattr(args, "decoder_normalize_before", False)
     args.decoder_learned_pos = getattr(args, "decoder_learned_pos", False)

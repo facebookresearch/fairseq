@@ -48,6 +48,9 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
         self.cfg = cfg
         self.supports_align_args = True
 
+    def get_encoder_output(self):
+        return self.encoder_out
+
     @classmethod
     def add_args(cls, parser):
         """Add model-specific arguments to the parser."""
@@ -99,16 +102,16 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
             task.tgt_dict = src_dict
             logger.info(f"merged dict size: {len(src_dict)}")
             encoder_embed_tokens = cls.build_embedding(
-                cfg, src_dict, cfg.encoder.embed_dim
+                cfg, src_dict, cfg.encoder.factorized_embed_dim, cfg.encoder.embed_dim
             )
             decoder_embed_tokens = encoder_embed_tokens
             cfg.share_decoder_input_output_embed = True
         else:
             encoder_embed_tokens = cls.build_embedding(
-                cfg, src_dict, cfg.encoder.embed_dim, cfg.encoder.embed_path
+                cfg, src_dict, cfg.encoder.embed_dim, cfg.encoder.factorized_embed_dim, cfg.encoder.embed_path
             )
             decoder_embed_tokens = cls.build_embedding(
-                cfg, tgt_dict, cfg.decoder.embed_dim, cfg.decoder.embed_path
+                cfg, tgt_dict, cfg.decoder.embed_dim, cfg.decoder.factorized_embed_dim, cfg.decoder.embed_path
             )
         if cfg.offload_activations:
             cfg.checkpoint_activations = True  # offloading implies checkpointing
@@ -117,7 +120,7 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
         return cls(cfg, encoder, decoder)
 
     @classmethod
-    def build_embedding(cls, cfg, dictionary, embed_dim, path=None):
+    def build_embedding(cls, cfg, dictionary, embed_dim, hid_dim, path=None):
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
 
@@ -129,12 +132,11 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
                 utils.load_embedding(embed_dict, dictionary, emb)
         else:
             emb = FactorizedEmbedding(
-                num_embeddings, 
-                embed_dim, 
-                padding_idx=padding_idx,
-                hid_dim=cfg.factorized_embedding_dim,
-                layernorm=cfg.layernorm_factorized_embedding
-            )
+                    num_embeddings, 
+                    embed_dim,
+                    hid_dim=hid_dim,
+                    padding_idx=padding_idx
+                )
             if path:
                 raise NotImplementedError
         return emb
@@ -171,8 +173,14 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
         which are not supported by TorchScript.
         """
         encoder_out = self.encoder(
-            src_tokens, src_lengths=src_lengths, return_all_hiddens=return_all_hiddens
+            src_tokens, 
+            src_lengths=src_lengths, 
+            return_all_hiddens=return_all_hiddens
         )
+
+        # better save the encoder output
+        self.encoder_out = encoder_out
+
         decoder_out = self.decoder(
             prev_output_tokens,
             encoder_out=encoder_out,
@@ -182,6 +190,7 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
             src_lengths=src_lengths,
             return_all_hiddens=return_all_hiddens,
         )
+
         return decoder_out
 
     # Since get_normalized_probs is in the Fairseq Model which is not scriptable,

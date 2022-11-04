@@ -827,14 +827,7 @@ class Trainer(object):
                         with torch.no_grad():
                             teacher_output = self.teacher_model(**sample["net_input"])
                             sample["teacher_output"] = teacher_output
-                            sample["teacher_lprobs"] = self.teacher_model.get_normalized_probs(
-                                teacher_output, 
-                                log_probs=True
-                            )
-                            sample["teacher_probs"] = self.teacher_model.get_normalized_probs(
-                                teacher_output, 
-                                log_probs=True
-                            )
+                            sample["teacher_encoder_output"] = self.teacher_model.get_encoder_output()
 
                     loss, sample_size_i, logging_output = self.task.train_step(
                         sample=sample,
@@ -1135,10 +1128,7 @@ class Trainer(object):
             if self.perform_distillation:
                 teacher_output = self.teacher_model(**sample["net_input"])
                 sample["teacher_output"] = teacher_output
-                sample["teacher_lprobs"] = self.teacher_model.get_normalized_probs(
-                    teacher_output, 
-                    log_probs=True
-                )
+                sample["teacher_encoder_output"] = self.teacher_model.get_encoder_out()
 
             try:                
                 _loss, sample_size, logging_output = self.task.valid_step(

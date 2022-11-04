@@ -24,11 +24,19 @@ _NAME_PARSER = r"(decoder|encoder|quant_noise)_(.*)"
 
 @dataclass
 class EncDecBaseConfig(FairseqDataclass):
+    recurrent_stacking: Optional[int] = field(
+        default=1,
+        metadata={"help": "number of recurrent stackings for the encoder and decoder layers"}
+    )
     embed_path: Optional[str] = field(
         default=None, metadata={"help": "path to pre-trained embedding"}
     )
     embed_dim: Optional[int] = field(
         default=512, metadata={"help": "embedding dimension"}
+    )
+    factorized_embed_dim: Optional[int] = field(
+        default=None,
+        metadata={"help": "hidden dimension for the factorized embeddings. If this argument is specified, regular embeddings will be skipped and factorized embeddings will be generated. Nevertheless, embed_dim parameter must be specified"}
     )
     ffn_embed_dim: int = field(
         default=2048, metadata={"help": "embedding dimension for FFN"}
@@ -98,14 +106,6 @@ class TransformerConfig(FairseqDataclass):
     use_factorized_embedding: bool = field(
         default=False,
         metadata={"help": "use factorized embeddings instead of regular embeddings. Factorized embeddings use lesser number of parameters"}
-    )
-    factorized_embedding_dim: int = field(
-        default=128,
-        metadata={"help": "hidden dimension for the factorized embeddings"}
-    )
-    layernorm_factorized_embedding: bool = field(
-        default=False,
-        metadata={"help": "add layernorm to factorized embeddings"}
     )
     activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
         default="relu",
