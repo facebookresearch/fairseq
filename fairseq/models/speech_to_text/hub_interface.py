@@ -29,6 +29,8 @@ class S2THubInterface(nn.Module):
         self.cfg = cfg
         self.task = task
         self.model = model
+        if torch.cuda.is_available():
+            self.model.cuda()
         self.model.eval()
         self.generator = self.task.build_generator([self.model], self.cfg.generation)
 
@@ -57,6 +59,8 @@ class S2THubInterface(nn.Module):
 
         src_lengths = torch.Tensor([feat.shape[1]]).long()
         src_tokens = torch.from_numpy(feat)  # 1 x T (x D)
+        if torch.cuda.is_available():
+            src_tokens = utils.move_to_cuda(src_tokens)
         if input_type == "standardized_waveform":
             with torch.no_grad():
                 src_tokens = F.layer_norm(src_tokens, src_tokens.shape)
