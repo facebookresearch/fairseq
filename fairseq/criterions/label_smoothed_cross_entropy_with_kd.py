@@ -301,7 +301,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             extra['nll_loss_student'] = nll_loss.sum()
             extra['nll_loss_teacher'] = nll_loss_teacher.sum()
             loss = golden_loss.sum() + \
-                   self.alpha * self.kd_temp * self.kd_temp * extra['kd_loss'] + \
+                   self.alpha * (self.kd_temp ** 2) * extra['kd_loss'] + \
                    self.beta * extra.get('cos_sim_loss', 0)
 
         elif self.kd_strategy == 'batch_level':
