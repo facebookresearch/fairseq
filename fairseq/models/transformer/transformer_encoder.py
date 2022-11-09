@@ -202,9 +202,12 @@ class TransformerEncoderBase(FairseqEncoder):
         """
         # compute padding mask
         encoder_padding_mask = src_tokens.eq(self.padding_idx)
-        has_pads: Tensor = (
+        has_pads = (
             torch.tensor(src_tokens.device.type == "xla") or encoder_padding_mask.any()
         )
+        # Torchscript doesn't handle bool Tensor correctly, so we need to work around.
+        if torch.jit.is_scripting():
+            has_pads = torch.tensor(1) if has_pads else torch.tensor(0)
 
         x, encoder_embedding = self.forward_embedding(src_tokens, token_embeddings)
 
