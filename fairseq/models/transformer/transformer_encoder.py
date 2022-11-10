@@ -88,22 +88,23 @@ class TransformerEncoderBase(FairseqEncoder):
         else:
             self.quant_noise = None
 
+        self.recurrent_stacking = cfg.encoder.recurrent_stacking
+
         if self.encoder_layerdrop > 0.0:
             self.layers = LayerDropModuleList(p=self.encoder_layerdrop)
         else:
             self.layers = nn.ModuleList([])
+        
         self.layers.extend(
-            [self.build_encoder_layer(cfg) for i in range(cfg.encoder.layers)]
+            [self.build_encoder_layer(cfg)]*self.recurrent_stacking if self.recurrent_stacking is None else [self.build_encoder_layer(cfg) for _ in range(cfg.encoder.layers)]
         )
+
         self.num_layers = len(self.layers)
 
         if cfg.encoder.normalize_before:
             self.layer_norm = LayerNorm(embed_dim, export=cfg.export)
         else:
             self.layer_norm = None
-
-        self.recurrent_stacking = cfg.encoder.recurrent_stacking
-        assert (self.recurrent_stacking > 1 and self.num_layers == 1) or (self.recurrent_stacking == 1 and self.num_layers > 1), "use a single layer when you have recurrent stacking and avoid recurrent stacking when you have multiple layers"
 
     def build_encoder_layer(self, cfg):
         layer = transformer_layer.TransformerEncoderLayerBase(
@@ -230,21 +231,20 @@ class TransformerEncoderBase(FairseqEncoder):
 
         # encoder layers
         for layer in self.layers:
-            for _ in range(self.recurrent_stacking):
-                lr = layer(
-                    x, encoder_padding_mask=encoder_padding_mask if has_pads else None
-                )
+            lr = layer(
+                x, encoder_padding_mask=encoder_padding_mask if has_pads else None
+            )
 
-                if isinstance(lr, tuple) and len(lr) == 2:
-                    x, fc_result = lr
-                else:
-                    x = lr
-                    fc_result = None
+            if isinstance(lr, tuple) and len(lr) == 2:
+                x, fc_result = lr
+            else:
+                x = lr
+                fc_result = None
 
-                if return_all_hiddens and not torch.jit.is_scripting():
-                    assert encoder_states is not None
-                    encoder_states.append(x)
-                    fc_results.append(fc_result)
+            if return_all_hiddens and not torch.jit.is_scripting():
+                assert encoder_states is not None
+                encoder_states.append(x)
+                fc_results.append(fc_result)
 
         if self.layer_norm is not None:
             x = self.layer_norm(x)

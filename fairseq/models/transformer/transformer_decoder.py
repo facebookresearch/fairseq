@@ -110,17 +110,17 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             self.layernorm_embedding = None
 
         self.cross_self_attention = cfg.cross_self_attention
+        self.recurrent_stacking = cfg.decoder.recurrent_stacking
 
         if self.decoder_layerdrop > 0.0:
             self.layers = LayerDropModuleList(p=self.decoder_layerdrop)
         else:
             self.layers = nn.ModuleList([])
+
         self.layers.extend(
-            [
-                self.build_decoder_layer(cfg, no_encoder_attn)
-                for _ in range(cfg.decoder.layers)
-            ]
+            [self.build_decoder_layer(cfg, no_encoder_attn)]*self.recurrent_stacking if self.recurrent_stacking is None else [self.build_decoder_layer(cfg, no_encoder_attn) for _ in range(cfg.decoder.layers)]
         )
+
         self.num_layers = len(self.layers)
 
         if cfg.decoder.normalize_before and not cfg.no_decoder_final_norm:
@@ -138,9 +138,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         self.output_projection = output_projection
         if self.output_projection is None:
             self.build_output_projection(cfg, dictionary, embed_tokens)
-        
-        self.recurrent_stacking = cfg.decoder.recurrent_stacking
-        assert (self.recurrent_stacking > 1 and self.num_layers == 1) or (self.recurrent_stacking == 1 and self.num_layers > 1), "use a single layer when you have recurrent stacking and avoid recurrent stacking when you have multiple layers"
+    
         
     def build_output_projection(self, cfg, dictionary, embed_tokens):
         if cfg.adaptive_softmax_cutoff is not None:
@@ -335,26 +333,28 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         inner_states: List[Optional[Tensor]] = [x]
 
         for idx, layer in enumerate(self.layers):
-            for _ in range(self.recurrent_stacking):
-                if incremental_state is None and not full_context_alignment:
-                    self_attn_mask = self.buffered_future_mask(x)
-                else:
-                    self_attn_mask = None
+            if incremental_state is None and not full_context_alignment:
+                self_attn_mask = self.buffered_future_mask(x)
+            else:
+                self_attn_mask = None
+        
+            x, layer_attn, _ = layer(
+                x,
+                enc,
+                padding_mask,
+                incremental_state,
+                self_attn_mask=self_attn_mask,
+                self_attn_padding_mask=self_attn_padding_mask,
+                need_attn=bool((idx == alignment_layer)),
+                need_head_weights=bool((idx == alignment_layer)),
+            )
             
-                x, layer_attn, _ = layer(
-                    x,
-                    enc,
-                    padding_mask,
-                    incremental_state,
-                    self_attn_mask=self_attn_mask,
-                    self_attn_padding_mask=self_attn_padding_mask,
-                    need_attn=bool((idx == alignment_layer)),
-                    need_head_weights=bool((idx == alignment_layer)),
-                )
+            if incremental_state is not None:
+                print(incremental_state.keys(), incremental_state.items())
 
-                inner_states.append(x)
-                if layer_attn is not None and idx == alignment_layer:
-                    attn = layer_attn.float().to(x)
+            inner_states.append(x)
+            if layer_attn is not None and idx == alignment_layer:
+                attn = layer_attn.float().to(x)
 
         if attn is not None:
             if alignment_heads is not None:

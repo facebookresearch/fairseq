@@ -25,7 +25,7 @@ _NAME_PARSER = r"(decoder|encoder|quant_noise)_(.*)"
 @dataclass
 class EncDecBaseConfig(FairseqDataclass):
     recurrent_stacking: Optional[int] = field(
-        default=1,
+        default=None,
         metadata={"help": "number of recurrent stackings for the encoder and decoder layers"}
     )
     embed_path: Optional[str] = field(
