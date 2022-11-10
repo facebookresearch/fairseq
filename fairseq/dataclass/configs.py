@@ -250,6 +250,10 @@ class CommonConfig(FairseqDataclass):
             "help": "path to run plasma_store, defaults to /tmp/plasma. Paths outside /tmp tend to fail."
         },
     )
+    run_sanity_val_steps: bool = field(
+        default=False,
+        metadata={"help": "whether to run one validation sanity epoch"}
+    )
 
 
 @dataclass

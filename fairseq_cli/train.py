@@ -328,10 +328,17 @@ def train(
     trainer.begin_epoch(epoch_itr.epoch)
 
     valid_subsets = cfg.dataset.valid_subset.split(",")
-    should_stop = False
+    should_stop, end_of_epoch = False, False
     num_updates = trainer.get_num_updates()
     logger.info("Start iterating over samples")
     for i, samples in enumerate(progress):
+        # run one validation sanity check epoch
+        if cfg.common.run_sanity_val_steps and not i:
+            logger.info("running one sanity check validation epoch")
+            valid_losses, should_stop = validate_and_save(
+                cfg, trainer, task, epoch_itr, valid_subsets, end_of_epoch, True
+            )
+
         with metrics.aggregate("train_inner"), torch.autograd.profiler.record_function(
             "train_step-%d" % i
         ):
@@ -350,7 +357,7 @@ def train(
 
         end_of_epoch = not itr.has_next()
         valid_losses, should_stop = validate_and_save(
-            cfg, trainer, task, epoch_itr, valid_subsets, end_of_epoch
+            cfg, trainer, task, epoch_itr, valid_subsets, end_of_epoch, False
         )
 
         if should_stop:
@@ -386,6 +393,7 @@ def validate_and_save(
     epoch_itr,
     valid_subsets: List[str],
     end_of_epoch: bool,
+    flag: bool
 ) -> Tuple[List[Optional[float]], bool]:
     num_updates = trainer.get_num_updates()
     max_update = cfg.optimization.max_update or math.inf
@@ -423,8 +431,8 @@ def validate_and_save(
         )
     )
     do_validate = (
-        (
-            (not end_of_epoch and do_save)  # validate during mid-epoch saves
+        (   flag
+            or (not end_of_epoch and do_save)  # validate during mid-epoch saves
             or (end_of_epoch and epoch_itr.epoch % cfg.dataset.validate_interval == 0)
             or should_stop
             or (

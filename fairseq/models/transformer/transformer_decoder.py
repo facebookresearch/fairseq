@@ -118,7 +118,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             self.layers = nn.ModuleList([])
 
         self.layers.extend(
-            [self.build_decoder_layer(cfg, no_encoder_attn)]*self.recurrent_stacking if self.recurrent_stacking is None else [self.build_decoder_layer(cfg, no_encoder_attn) for _ in range(cfg.decoder.layers)]
+            [self.build_decoder_layer(cfg, no_encoder_attn)]*self.recurrent_stacking if self.recurrent_stacking is not None else [self.build_decoder_layer(cfg, no_encoder_attn) for _ in range(cfg.decoder.layers)]
         )
 
         self.num_layers = len(self.layers)
@@ -349,9 +349,6 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
                 need_head_weights=bool((idx == alignment_layer)),
             )
             
-            if incremental_state is not None:
-                print(incremental_state.keys(), incremental_state.items())
-
             inner_states.append(x)
             if layer_attn is not None and idx == alignment_layer:
                 attn = layer_attn.float().to(x)
