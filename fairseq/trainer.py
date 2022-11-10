@@ -1128,7 +1128,7 @@ class Trainer(object):
             if self.perform_distillation:
                 teacher_output = self.teacher_model(**sample["net_input"])
                 sample["teacher_output"] = teacher_output
-                sample["teacher_encoder_output"] = self.teacher_model.get_encoder_out()
+                sample["teacher_encoder_output"] = self.teacher_model.get_encoder_output()
 
             try:                
                 _loss, sample_size, logging_output = self.task.valid_step(
