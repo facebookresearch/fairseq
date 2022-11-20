@@ -42,7 +42,7 @@ class KDLabelSmoothedCrossEntropyCriterionConfig(FairseqDataclass):
         metadata={"help": "teacher/student model temperature for distillation"}
     )
     alpha: Optional[float] = field(
-        default=1,
+        default=0,
         metadata={"help": "weightage for KD loss, 0 means pure training without KD"}
     )
     beta: Optional[float] = field(
@@ -300,7 +300,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             extra['kd_loss'] = kd_loss.sum()
             extra['nll_loss_student'] = nll_loss.sum()
             extra['nll_loss_teacher'] = nll_loss_teacher.sum()
-            loss = golden_loss.sum() + \
+            loss = (1 - self.alpha - self.beta) * golden_loss.sum() + \
                    self.alpha * (self.kd_temp ** 2) * extra['kd_loss'] + \
                    self.beta * extra.get('cos_sim_loss', 0)
 
@@ -316,7 +316,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             extra['kd_loss'] = kd_loss[KD_mask].sum()
             extra['nll_loss_student'] = nll_loss.sum()
             extra['nll_loss_teacher'] = nll_loss_teacher.sum()
-            loss = golden_loss.sum() + \
+            loss = (1 - self.alpha - self.beta) * golden_loss.sum() + \
                    self.alpha * (self.kd_temp ** 2) * extra['kd_loss'] + \
                    self.beta * extra.get('cos_sim_loss', 0)
             
@@ -333,7 +333,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             extra['kd_loss'] = kd_loss[KD_mask].sum()
             extra['nll_loss_student'] = nll_loss.sum()
             extra['nll_loss_teacher'] = nll_loss_teacher.sum()
-            loss = golden_loss.sum() + \
+            loss = (1 - self.alpha - self.beta) * golden_loss.sum() + \
                    self.alpha * (self.kd_temp ** 2) * extra['kd_loss'] + \
                    self.beta * extra.get('cos_sim_loss', 0)
 
@@ -363,7 +363,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             extra['kd_loss'] = total_kd_loss
             extra['nll_loss_student'] = nll_loss.sum()
             extra['nll_loss_teacher'] = nll_loss_teacher.sum()
-            loss = golden_loss.sum() + \
+            loss = (1 - self.alpha - self.beta) * golden_loss.sum() + \
                    self.alpha * (self.kd_temp ** 2) * extra['kd_loss'] + \
                    self.beta * extra.get('cos_sim_loss', 0)
 
