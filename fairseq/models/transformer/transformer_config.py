@@ -138,7 +138,7 @@ class TransformerConfig(FairseqDataclass):
             "help": "if true then the source and target embedding table is "
             "merged into one table. This is going to make the model smaller but "
             "it might hurt performance."
-        }
+        },
     )
     no_token_positional_embeddings: bool = field(
         default=False,

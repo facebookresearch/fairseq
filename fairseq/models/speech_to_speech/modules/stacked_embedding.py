@@ -6,18 +6,7 @@
 import torch
 from torch import nn
 
-from fairseq.models import FairseqEncoder
 from fairseq.models.transformer import Linear
-
-
-class CTCDecoder(FairseqEncoder):
-    def __init__(self, dictionary, in_dim):
-        super().__init__(dictionary)
-        self.proj = nn.Linear(in_dim, len(dictionary))
-
-    def forward(self, src_tokens, src_lengths=None, **kwargs):
-        encoder_out = self.proj(src_tokens)
-        return {"encoder_out": encoder_out}
 
 
 class StackedEmbedding(nn.Embedding):

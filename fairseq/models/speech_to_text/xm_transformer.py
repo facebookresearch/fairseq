@@ -17,15 +17,28 @@ from fairseq.data.data_utils import lengths_to_padding_mask
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderDecoderModel,
+    FairseqEncoderModel,
+    FairseqLanguageModel,
     register_model,
     register_model_architecture,
 )
+from fairseq.models.speech_to_speech.modules.ctc_decoder import CTCDecoder
 from fairseq.models.speech_to_text.hub_interface import S2THubInterface
-from fairseq.models.transformer import Embedding, TransformerDecoder
+from fairseq.models.transformer import (
+    Embedding,
+    TransformerDecoder,
+    TransformerModelBase,
+)
 from fairseq.models.wav2vec import Wav2VecEncoder
 from fairseq.modules.layer_norm import LayerNorm
 
 logger = logging.getLogger(__name__)
+
+
+def build_embedding(dictionary, embed_dim):
+    num_embeddings = len(dictionary)
+    padding_idx = dictionary.pad()
+    return Embedding(num_embeddings, embed_dim, padding_idx)
 
 
 class Conv1dAdaptor(nn.Module):
@@ -156,100 +169,88 @@ def add_wav2vec_asr_args(parser):
         metavar="D",
         help="dropout probability after activation in FFN inside wav2vec 2.0 model",
     )
-
     parser.add_argument(
         "--mask-length", type=int, help="repeat the mask indices multiple times"
     )
-
     parser.add_argument(
         "--mask-prob", type=float, help="probability of replacing a token with mask"
     )
-
     parser.add_argument(
         "--mask-selection",
         type=str,
         choices=["static", "uniform", "normal", "poisson"],
         help="how to choose masks",
     )
-
     parser.add_argument(
         "--mask-other",
         type=float,
         help="stdev of the mask length in case of 'normal' selection strategy",
     )
-
     parser.add_argument(
         "--no-mask-overlap",
         action="store_true",
         help="whether to allow masks to overlap",
     )
-
     parser.add_argument(
         "--mask-channel-length", type=int, help="repeat the mask indices multiple times"
     )
-
     parser.add_argument(
         "--mask-channel-prob",
         type=float,
         help="probability of replacing a token with mask",
     )
-
     parser.add_argument(
         "--mask-channel-selection",
         type=str,
         choices=["static", "uniform", "normal", "poisson"],
         help="how to choose masks",
     )
-
     parser.add_argument(
         "--mask-channel-other",
         type=float,
         help="stdev of the mask length in case of 'normal' selection strategy",
     )
-
     parser.add_argument(
         "--no-mask-channel-overlap",
         action="store_true",
         help="whether to allow masks to overlap",
     )
-
     parser.add_argument(
         "--freeze-finetune-updates",
-        default=0,
         type=int,
+        metavar="N",
         help="dont finetune wav2vec for this many updates",
     )
-
     parser.add_argument(
         "--feature-grad-mult",
-        default=None,
         type=float,
+        metavar="D",
         help="reset feature grad mult in wav2vec 2.0 to this",
     )
-
     parser.add_argument(
         "--layerdrop",
-        default=0.0,
         type=float,
+        metavar="D",
         help="probability of dropping a layer in wav2vec 2.0",
     )
     parser.add_argument(
         "--max-positions",
         type=int,
+        metavar="N",
         help="Max input positions to be used in the conformer encoder in wav2vec 2.0",
     )
-
     parser.add_argument("--encoder-proj", action="store_true")
-
     parser.add_argument("--w2v-args", default=None)
-
     parser.add_argument(
         "--remove-weight-norm",
         action="store_true",
         help="if set, then the weight-norm (in one pos_conv layer) is removed from the model",
     )
     parser.add_argument(
-        "--encoder-embed-dim", type=int, metavar="N", help="encoder embedding dimension to be used when w2v_path is None and no encoder_proj is set"
+        "--encoder-embed-dim",
+        type=int,
+        metavar="N",
+        help="encoder embedding dimension to be used when w2v_path is None and no encoder_proj is set",
     )
 
 
@@ -296,6 +297,7 @@ class Wav2VecEncoderWithAdaptor(FairseqEncoder):
 
     @classmethod
     def add_args(cls, parser):
+        """Add model-specific arguments to the parser."""
         add_wav2vec_asr_args(parser)
         parser.add_argument(
             "--normalize",
@@ -432,9 +434,22 @@ def add_decoder_args(parser):
     parser.add_argument(
         "--layernorm-embedding", action="store_true", help="add layernorm to embedding"
     )
-    parser.add_argument("--decoder-layerdrop", type=float, metavar="D")
-    parser.add_argument("--decoder-learned-pos", action="store_true")
-    parser.add_argument("--share-decoder-input-output-embed", action="store_true")
+    parser.add_argument(
+        "--decoder-layerdrop",
+        type=float,
+        metavar="D",
+        help="layerdrop probability for decoder",
+    )
+    parser.add_argument(
+        "--decoder-learned-pos",
+        action="store_true",
+        help="learn positional embedding in decoder",
+    )
+    parser.add_argument(
+        "--share-decoder-input-output-embed",
+        action="store_true",
+        help="share decoder input and output embeddings",
+    )
     parser.add_argument(
         "--no-scale-embedding",
         action="store_true",
@@ -497,8 +512,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             "xm_transformer_s2ut_800m-es-en-st-asr-bt_h1_2022",
             "xm_transformer_s2ut_800m-en-es-st_plus_asr",
             "xm_transformer_s2ut_800m-hk-en-h1_2022",
-            "xm_transformer_s2ut_800m-en-hk-h1_2022"
-
+            "xm_transformer_s2ut_800m-en-hk-h1_2022",
         ]
         return {i: f"{base_url}/{i}.tar.gz" for i in model_ids}
 
@@ -510,6 +524,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         data_name_or_path=".",
         config_yaml="config.yaml",
         task="speech_to_text",
+        generation_args=None,
         **kwargs,
     ):
         from fairseq import hub_utils
@@ -521,6 +536,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             archive_map=cls.hub_models(),
             config_yaml=config_yaml,
             task=task,
+            generation_args=generation_args,
             **kwargs,
         )
         return S2THubInterface(x["args"], x["task"], x["models"][0])
@@ -535,7 +551,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         add_decoder_args(parser)
         parser.add_argument("--checkpoint-activations", action="store_true")
         parser.add_argument("--offload-activations", action="store_true")
-        parser.add_argument("--min-params-to-wrap", type=int)
+        parser.add_argument("--min-params-to-wrap", type=int, metavar="N")
 
     @classmethod
     def maybe_load_pretrained(cls, component, checkpoint: Optional[str] = None):
@@ -556,7 +572,9 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             if args.w2v_path:
                 state = checkpoint_utils.load_checkpoint_to_cpu(args.w2v_path)
                 if state.get("cfg") is not None:
-                    encoder_embed_dim = state["cfg"]._content["model"]["encoder_embed_dim"]
+                    encoder_embed_dim = state["cfg"]._content["model"][
+                        "encoder_embed_dim"
+                    ]
                 elif state.get("args") is not None:
                     encoder_embed_dim = state["args"].encoder_embed_dim
                 else:
@@ -606,6 +624,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         _args.dropout = args.decoder_dropout
         _args.attention_dropout = args.decoder_attention_dropout
         _args.activation_dropout = args.decoder_activation_dropout
+        _args.layerdrop = _args.decoder_layerdrop
 
         decoder = TransformerDecoder(_args, task.target_dictionary, embed_tokens)
         decoder = cls.maybe_load_pretrained(
@@ -622,15 +641,10 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
 
         # make sure all arguments are present in older models
         base_architecture(args)
-        if getattr(args, "load_pretrained_decoder_from", None):
+        if getattr(args, "load_pretrained_decoder_from", None) is not None:
             ckpt = torch.load(getattr(args, "load_pretrained_decoder_from", None))
             decoder_args_dict = cls.get_decoder_args_from_checkpoint(ckpt["cfg"])
             args = cls.override_decoder_args(args, decoder_args_dict)
-
-        def build_embedding(dictionary, embed_dim):
-            num_embeddings = len(dictionary)
-            padding_idx = dictionary.pad()
-            return Embedding(num_embeddings, embed_dim, padding_idx)
 
         decoder_embed_tokens = build_embedding(
             task.target_dictionary, args.decoder_embed_dim
@@ -638,7 +652,70 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
 
         encoder = cls.build_encoder(args)
         decoder = cls.build_decoder(args, task, decoder_embed_tokens)
-        return cls(encoder, decoder)
+        base_model = cls(encoder, decoder)
+
+        # set up multitask decoders
+        base_model.multitask_decoders = {}
+        for i, (task_name, task_obj) in enumerate(task.multitask_tasks.items()):
+            # dummy auxiliary decoder
+            if task_obj.args.get_loss_weight(0) == 0:
+                continue
+
+            task_decoder = cls.build_multitask_decoder(
+                args, task_obj.args, task_obj.target_dictionary, args.decoder_embed_dim
+            )
+
+            setattr(base_model, f"{task_name}_decoder", task_decoder)
+            decoder_model_cls = (
+                FairseqEncoderModel
+                if task_obj.args.decoder_type == "ctc"
+                else FairseqLanguageModel
+            )
+            base_model.multitask_decoders[task_name] = decoder_model_cls(
+                getattr(base_model, f"{task_name}_decoder")
+            )
+        return base_model
+
+    @classmethod
+    def build_multitask_decoder(
+        cls,
+        args,
+        mtl_args,
+        tgt_dict,
+        in_dim,
+        is_first_pass_decoder=False,
+    ):
+        decoder_args = mtl_args.decoder_args
+        decoder_args.encoder_embed_dim = in_dim
+        if mtl_args.decoder_type == "transformer":
+            if is_first_pass_decoder:
+                task_decoder = cls.build_text_decoder(args, tgt_dict)
+            else:
+                from fairseq.models.speech_to_speech import (
+                    base_multitask_text_transformer_decoder_arch,
+                )
+
+                base_multitask_text_transformer_decoder_arch(decoder_args)  # 2L
+                task_decoder = TransformerDecoder(
+                    decoder_args,
+                    tgt_dict,
+                    embed_tokens=TransformerModelBase.build_embedding(
+                        decoder_args,
+                        tgt_dict,
+                        decoder_args.decoder_embed_dim,
+                    ),
+                )
+        elif mtl_args.decoder_type == "ctc":
+            task_decoder = CTCDecoder(
+                dictionary=tgt_dict,
+                in_dim=in_dim,
+            )
+        else:
+            raise NotImplementedError(
+                "currently only support multitask decoder_type 'transformer', 'ctc'"
+            )
+
+        return task_decoder
 
     def get_normalized_probs(
         self,
@@ -648,7 +725,14 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
     ):
         return self.get_normalized_probs_scriptable(net_output, log_probs, sample)
 
-    def forward(self, src_tokens, src_lengths, prev_output_tokens, **kwargs):
+    def forward(
+        self,
+        src_tokens,
+        src_lengths,
+        prev_output_tokens,
+        return_all_hiddens=False,
+        **kwargs,
+    ):
         """
         The forward method inherited from the base class has a **kwargs
         argument in its input, which is not supported in torchscript. This
@@ -660,6 +744,12 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         decoder_out = self.decoder(
             prev_output_tokens=prev_output_tokens, encoder_out=encoder_out
         )
+        if return_all_hiddens:
+            decoder_out[-1]["encoder_states"] = encoder_out["encoder_out"]
+            # NOTE: from the top layer
+            decoder_out[-1]["encoder_padding_mask"] = encoder_out[
+                "encoder_padding_mask"
+            ]
         return decoder_out
 
     def upgrade_state_dict(self, state_dict):
