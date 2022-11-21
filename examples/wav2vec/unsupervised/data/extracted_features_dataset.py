@@ -70,6 +70,8 @@ class ExtractedFeaturesDataset(FairseqDataset):
                     if lbl is not None:
                         self.labels.append(lbl)
                 offset += length
+                else:
+                    skipped += 1
 
         self.sizes = np.asarray(self.sizes)
         self.offsets = np.asarray(self.offsets)
