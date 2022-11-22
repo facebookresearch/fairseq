@@ -47,6 +47,7 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
         super().__init__(encoder, decoder)
         self.cfg = cfg
         self.supports_align_args = True
+        self.additional_params = {"alpha": 0}
 
     def get_encoder_output(self):
         return self.encoder_out

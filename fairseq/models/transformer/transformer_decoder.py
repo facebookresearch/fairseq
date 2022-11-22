@@ -138,7 +138,6 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         self.output_projection = output_projection
         if self.output_projection is None:
             self.build_output_projection(cfg, dictionary, embed_tokens)
-    
         
     def build_output_projection(self, cfg, dictionary, embed_tokens):
         if cfg.adaptive_softmax_cutoff is not None:
@@ -305,6 +304,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         # Prevent torchscript exporting issue for dynamic quant embedding
         prev_output_tokens = prev_output_tokens.contiguous()
         # embed tokens and positions
+        
         x = self.embed_scale * self.embed_tokens(prev_output_tokens)
 
         if self.quant_noise is not None:

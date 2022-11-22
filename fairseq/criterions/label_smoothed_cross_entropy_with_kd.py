@@ -10,25 +10,17 @@ import torch
 from typing import Optional
 import torch.nn.functional as F
 from fairseq import metrics, utils
-from fairseq.criterions import FairseqCriterion, register_criterion
-from fairseq.dataclass import FairseqDataclass
-from omegaconf import II
+from fairseq.criterions import register_criterion
+
+from fairseq.criterions.label_smoothed_cross_entropy import (
+    LabelSmoothedCrossEntropyCriterion,
+    LabelSmoothedCrossEntropyCriterionConfig,
+    label_smoothed_nll_loss,
+)
 
 
 @dataclass
-class KDLabelSmoothedCrossEntropyCriterionConfig(FairseqDataclass):
-    label_smoothing: float = field(
-        default=0.0,
-        metadata={"help": "epsilon for label smoothing, 0 means no label smoothing"},
-    )
-    report_accuracy: bool = field(
-        default=False,
-        metadata={"help": "report accuracy metric"},
-    )
-    ignore_prefix_size: int = field(
-        default=0,
-        metadata={"help": "Ignore first N tokens"},
-    )
+class KDLabelSmoothedCrossEntropyCriterionConfig(LabelSmoothedCrossEntropyCriterionConfig):
     kd_rate: Optional[float] = field(
         default=None,
         metadata={"help": "the hyperparameter `tau` to control the number of words to get distillation knowledge"}
@@ -61,33 +53,13 @@ class KDLabelSmoothedCrossEntropyCriterionConfig(FairseqDataclass):
         default=False,
         metadata={"help": "add encoder cosine similarity loss while performing kd"}
     )
-    sentence_avg: bool = II("optimization.sentence_avg")
 
-
-def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=None, reduce=True):
-    if target.dim() == lprobs.dim() - 1:
-        target = target.unsqueeze(-1)
-    nll_loss = -lprobs.gather(dim=-1, index=target)
-    smooth_loss = -lprobs.sum(dim=-1, keepdim=True)
-    if ignore_index is not None:
-        pad_mask = target.eq(ignore_index)
-        nll_loss.masked_fill_(pad_mask, 0.0)
-        smooth_loss.masked_fill_(pad_mask, 0.0)
-    else:
-        nll_loss = nll_loss.squeeze(-1)
-        smooth_loss = smooth_loss.squeeze(-1)
-    if reduce:
-        nll_loss = nll_loss.sum()
-        smooth_loss = smooth_loss.sum()
-    eps_i = epsilon / (lprobs.size(-1) - 1)
-    loss = (1.0 - epsilon - eps_i) * nll_loss + eps_i * smooth_loss
-    return loss, nll_loss
 
 
 @register_criterion(
     "label_smoothed_cross_entropy_with_kd", dataclass=KDLabelSmoothedCrossEntropyCriterionConfig
 )
-class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
+class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
     def __init__(
         self,
         task,
@@ -95,18 +67,23 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         label_smoothing,
         kd_rate,
         kd_queue_size,
-        kd_temp,
-        alpha,
-        beta,
-        use_adaptive_kd_rates,
-        kd_queue_sampling_temp,
-        use_encoder_cosine_similarity_loss,
+        kd_temp=1,
+        alpha=0.5,
+        beta=0,
+        use_adaptive_kd_rates=False,
+        kd_queue_sampling_temp=1.5,
+        use_encoder_cosine_similarity_loss=False,
         ignore_prefix_size=0,
         report_accuracy=False,
     ):
-        super().__init__(task)
+        super().__init__(
+            task,
+            sentence_avg,
+            label_smoothing,
+            ignore_prefix_size=ignore_prefix_size,
+            report_accuracy=report_accuracy,
+        )
         self.sentence_avg = sentence_avg
-        self.eps = label_smoothing
         self.ignore_prefix_size = ignore_prefix_size
         self.report_accuracy = report_accuracy
         
@@ -169,7 +146,7 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         self.queue[id] = torch.cat((self.queue[id], tensor))
 
 
-    def forward(self, model, sample, reduce=True):
+    def forward(self, model, sample, update_num=None, reduce=True):
         """Compute the loss for the given sample.
 
         Returns a tuple with three elements:
@@ -209,16 +186,6 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             logging_output["n_correct"] = utils.item(n_correct.data)
             logging_output["total"] = utils.item(total.data)
         return loss, sample_size, logging_output
-
-
-    def get_lprobs_and_target(self, model, net_output, sample):
-        lprobs = model.get_normalized_probs(net_output, log_probs=True)
-        target = model.get_targets(sample, net_output)
-        if self.ignore_prefix_size > 0:
-            # lprobs: B x T x C
-            lprobs = lprobs[:, self.ignore_prefix_size :, :].contiguous()
-            target = target[:, self.ignore_prefix_size :].contiguous()
-        return lprobs.view(-1, lprobs.size(-1)), target.view(-1)
 
 
     def encoder_cosine_similarity_loss(self, teacher_encoder_output, student_encoder_output):
@@ -372,16 +339,6 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         return loss, extra
 
 
-    def compute_accuracy(self, model, net_output, sample):
-        lprobs, target = self.get_lprobs_and_target(model, net_output, sample)
-        mask = target.ne(self.padding_idx)
-        n_correct = torch.sum(
-            lprobs.argmax(1).masked_select(mask).eq(target.masked_select(mask))
-        )
-        total = torch.sum(mask)
-        return n_correct, total
-
-
     @staticmethod
     def reduce_metrics(logging_outputs) -> None:
         """Aggregate logging outputs from data parallel training."""
@@ -441,11 +398,11 @@ class KDLabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             )
 
 
-    @staticmethod
-    def logging_outputs_can_be_summed() -> bool:
-        """
-        Whether the logging outputs returned by `forward` can be summed
-        across workers prior to calling `reduce_metrics`. Setting this
-        to True will improves distributed training speed.
-        """
-        return True
+    # @staticmethod
+    # def logging_outputs_can_be_summed() -> bool:
+    #     """
+    #     Whether the logging outputs returned by `forward` can be summed
+    #     across workers prior to calling `reduce_metrics`. Setting this
+    #     to True will improves distributed training speed.
+    #     """
+    #     return True

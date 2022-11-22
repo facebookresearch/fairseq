@@ -174,7 +174,7 @@ def main(cfg: FairseqConfig) -> None:
         import torch_xla.core.xla_model as xm
         xm.rendezvous("load_checkpoint")  # wait for all workers
 
-    if (cfg.task._name == "translation") and (cfg.criterion._name == "label_smoothed_cross_entropy_with_kd"):
+    if (cfg.task._name == "translation_with_kd") and (cfg.criterion._name == "label_smoothed_cross_entropy_with_kd"):
         # build teacher model here
         teacher_models = load_model_ensemble(
             [cfg.task.teacher_checkpoint_path],
@@ -333,11 +333,12 @@ def train(
     logger.info("Start iterating over samples")
     for i, samples in enumerate(progress):
         # run one validation sanity check epoch
-        if cfg.common.run_sanity_val_steps and not i:
+        if cfg.common.run_sanity_val_steps:
             logger.info("running one sanity check validation epoch")
             valid_losses, should_stop = validate_and_save(
-                cfg, trainer, task, epoch_itr, valid_subsets, end_of_epoch, True
+                cfg, trainer, task, epoch_itr, valid_subsets, end_of_epoch
             )
+            cfg.common.run_sanity_val_steps = False
 
         with metrics.aggregate("train_inner"), torch.autograd.profiler.record_function(
             "train_step-%d" % i
@@ -357,7 +358,7 @@ def train(
 
         end_of_epoch = not itr.has_next()
         valid_losses, should_stop = validate_and_save(
-            cfg, trainer, task, epoch_itr, valid_subsets, end_of_epoch, False
+            cfg, trainer, task, epoch_itr, valid_subsets, end_of_epoch
         )
 
         if should_stop:
@@ -392,8 +393,7 @@ def validate_and_save(
     task: tasks.FairseqTask,
     epoch_itr,
     valid_subsets: List[str],
-    end_of_epoch: bool,
-    flag: bool
+    end_of_epoch: bool
 ) -> Tuple[List[Optional[float]], bool]:
     num_updates = trainer.get_num_updates()
     max_update = cfg.optimization.max_update or math.inf
@@ -431,7 +431,7 @@ def validate_and_save(
         )
     )
     do_validate = (
-        (   flag
+        (   cfg.common.run_sanity_val_steps
             or (not end_of_epoch and do_save)  # validate during mid-epoch saves
             or (end_of_epoch and epoch_itr.epoch % cfg.dataset.validate_interval == 0)
             or should_stop
