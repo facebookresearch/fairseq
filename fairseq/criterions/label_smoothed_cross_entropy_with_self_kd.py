@@ -6,9 +6,11 @@
 from dataclasses import dataclass, field
 
 import torch
+from time import sleep
 
 from fairseq import utils
 from fairseq.criterions import register_criterion
+import torch.nn.functional as F
 from fairseq.criterions.label_smoothed_cross_entropy import (
     LabelSmoothedCrossEntropyCriterion,
     LabelSmoothedCrossEntropyCriterionConfig,
@@ -25,6 +27,10 @@ class SelfKDLabelSmoothedCrossEntropyCriterionConfig(LabelSmoothedCrossEntropyCr
     eta: float = field(
         default=1e-6,
         metadata={"help": "increment for alpha"}
+    )
+    nn: int = field(
+        default=128,
+        metadata={"help": "nearest neighbors to be considered for sigma computation"}
     )
 
 
@@ -89,15 +95,23 @@ class SelfKDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterio
             ignore_index=self.padding_idx,
             reduce=False
         )
-        if update_num > self.K:
-            w_t = model.decoder.embed_scale * model.decoder.embed_tokens(target)
-            w_n = model.decoder.embed_scale * model.decoder.embed_tokens(lprobs.argmax(dim=-1))
-
+        if update_num > self.K:   
+            y_p = lprobs.argmax(dim=-1)
+            diff = model.decoder.get_embeddings_for_self_kd(target) - \
+                   model.decoder.get_embeddings_for_self_kd(y_p)
+            
             ## Yet to implement sigma ##
-
+            b = model.decoder.embed_tokens.weight.data
+            b_norm = torch.linalg.norm(b, dim=-1)
+            e_v = torch.index_select(b, 0, y_p)
+            e_v_norm = torch.linalg.norm(e_v, dim=-1)
+            dot_prod = e_v.matmul(b.transpose(1, 0))/(e_v_norm.outer(b_norm) + 1e-8)
+            sigma = dot_prod.topk(k=128, largest=True, dim=-1)[0][:, 1:].mean()
+            ## Yet to implement sigma ##
+            
             q_n = torch.minimum(
                 torch.full(loss.size(), 0.5, device="cuda"), 
-                torch.exp(-2*torch.norm(w_t-w_n, dim=-1, keepdim=True))
+                torch.exp(-sigma*diff.pow(2).sum(-1, keepdim=True))
             )
             p_n = lprobs.max(dim=-1, keepdim=True).values
             a = model.additional_params["alpha"]

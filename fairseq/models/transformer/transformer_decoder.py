@@ -182,6 +182,14 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         min_params_to_wrap = cfg.min_params_to_wrap if not checkpoint else 0
         layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
         return layer
+    
+    def get_embeddings_for_self_kd(self, prev_output_tokens):
+        x = self.embed_scale * self.embed_tokens(prev_output_tokens)
+        if self.quant_noise is not None:
+            x = self.quant_noise(x)
+        if self.project_in_dim is not None:
+            x = self.project_in_dim(x)
+        return x
 
     def forward(
         self,
