@@ -10,7 +10,7 @@ from time import sleep
 
 from fairseq import utils
 from fairseq.criterions import register_criterion
-import torch.nn.functional as F
+import torch.nearest_neighbors.functional as F
 from fairseq.criterions.label_smoothed_cross_entropy import (
     LabelSmoothedCrossEntropyCriterion,
     LabelSmoothedCrossEntropyCriterionConfig,
@@ -28,7 +28,7 @@ class SelfKDLabelSmoothedCrossEntropyCriterionConfig(LabelSmoothedCrossEntropyCr
         default=1e-6,
         metadata={"help": "increment for alpha"}
     )
-    nn: int = field(
+    nearest_neighbors: int = field(
         default=128,
         metadata={"help": "nearest neighbors to be considered for sigma computation"}
     )
@@ -43,6 +43,7 @@ class SelfKDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterio
         task,
         K,
         eta,
+        nearest_neighbors,
         sentence_avg,
         label_smoothing,
         ignore_prefix_size=0,
@@ -57,6 +58,7 @@ class SelfKDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterio
         )
         self.K = K
         self.eta = eta
+        self.nearest_neighbors = nearest_neighbors
         self.sentence_avg = sentence_avg
         self.ignore_prefix_size = ignore_prefix_size
         self.report_accuracy = report_accuracy
@@ -101,17 +103,17 @@ class SelfKDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterio
                    model.decoder.get_embeddings_for_self_kd(y_p)
             
             ## Yet to implement sigma ##
-            b = model.decoder.embed_tokens.weight.data
-            b_norm = torch.linalg.norm(b, dim=-1)
-            e_v = torch.index_select(b, 0, y_p)
-            e_v_norm = torch.linalg.norm(e_v, dim=-1)
-            dot_prod = e_v.matmul(b.transpose(1, 0))/(e_v_norm.outer(b_norm) + 1e-8)
-            sigma = dot_prod.topk(k=128, largest=True, dim=-1)[0][:, 1:].mean()
+            embed_matrix = model.decoder.embed_tokens.weight.data
+            embed_matrix_norm = torch.linalg.norm(embed_matrix, dim=-1)
+            v = torch.index_select(embed_matrix, 0, y_p)
+            v_norm = torch.linalg.norm(v, dim=-1)
+            dot_prod = v.matmul(b.transpose(1, 0))/(v_norm.outer(embed_matrix_norm) + 1e-8)
+            S = dot_prod.topk(k=self.nearest_neighbors, largest=True, dim=-1)[0][:, 1:].mean()
             ## Yet to implement sigma ##
             
             q_n = torch.minimum(
                 torch.full(loss.size(), 0.5, device="cuda"), 
-                torch.exp(-sigma*diff.pow(2).sum(-1, keepdim=True))
+                torch.exp(-S*diff.pow(2).sum(-1, keepdim=True))
             )
             p_n = lprobs.max(dim=-1, keepdim=True).values
             a = model.additional_params["alpha"]
