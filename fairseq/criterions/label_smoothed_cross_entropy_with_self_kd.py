@@ -28,9 +28,9 @@ class SelfKDLabelSmoothedCrossEntropyCriterionConfig(LabelSmoothedCrossEntropyCr
         default=1e-6,
         metadata={"help": "increment for alpha"}
     )
-    nearest_neighbors: int = field(
-        default=128,
-        metadata={"help": "nearest neighbors to be considered for sigma computation"}
+    sigma: int = field(
+        default=1e-4,
+        metadata={"help": "average of distance between corresponding word-embeddings"}
     )
 
 
@@ -43,7 +43,7 @@ class SelfKDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterio
         task,
         K,
         eta,
-        nearest_neighbors,
+        sigma,
         sentence_avg,
         label_smoothing,
         ignore_prefix_size=0,
@@ -58,7 +58,7 @@ class SelfKDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterio
         )
         self.K = K
         self.eta = eta
-        self.nearest_neighbors = nearest_neighbors
+        self.sigma = sigma
         self.sentence_avg = sentence_avg
         self.ignore_prefix_size = ignore_prefix_size
         self.report_accuracy = report_accuracy
@@ -71,7 +71,7 @@ class SelfKDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterio
         3) logging outputs to display while training
         """
         net_output = model(**sample["net_input"])
-        loss, nll_loss = self.compute_loss(model, net_output, sample, update_num, reduce=reduce)
+        loss, nll_loss = self.compute_loss(model, net_output, sample, update_num)
         sample_size = (
             sample["target"].size(0) if self.sentence_avg else sample["ntokens"]
         )
@@ -88,7 +88,7 @@ class SelfKDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterio
             logging_output["total"] = utils.item(total.data)
         return loss, sample_size, logging_output
 
-    def compute_loss(self, model, net_output, sample, update_num, reduce=True):
+    def compute_loss(self, model, net_output, sample, update_num):
         lprobs, target = self.get_lprobs_and_target(model, net_output, sample)
         loss, nll_loss = label_smoothed_nll_loss(
             lprobs,
@@ -102,18 +102,9 @@ class SelfKDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterio
             diff = model.decoder.get_embeddings_for_self_kd(target) - \
                    model.decoder.get_embeddings_for_self_kd(y_p)
             
-            ## Yet to implement sigma ##
-            embed_matrix = model.decoder.embed_tokens.weight.data
-            embed_matrix_norm = torch.linalg.norm(embed_matrix, dim=-1)
-            v = torch.index_select(embed_matrix, 0, y_p)
-            v_norm = torch.linalg.norm(v, dim=-1)
-            dot_prod = v.matmul(b.transpose(1, 0))/(v_norm.outer(embed_matrix_norm) + 1e-8)
-            S = dot_prod.topk(k=self.nearest_neighbors, largest=True, dim=-1)[0][:, 1:].mean()
-            ## Yet to implement sigma ##
-            
             q_n = torch.minimum(
                 torch.full(loss.size(), 0.5, device="cuda"), 
-                torch.exp(-S*diff.pow(2).sum(-1, keepdim=True))
+                torch.exp(-self.sigma*diff.pow(2).sum(-1, keepdim=True))
             )
             p_n = lprobs.max(dim=-1, keepdim=True).values
             a = model.additional_params["alpha"]
