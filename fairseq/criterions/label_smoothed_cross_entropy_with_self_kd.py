@@ -10,7 +10,7 @@ from time import sleep
 
 from fairseq import utils
 from fairseq.criterions import register_criterion
-import torch.nearest_neighbors.functional as F
+import torch.nn.functional as F
 from fairseq.criterions.label_smoothed_cross_entropy import (
     LabelSmoothedCrossEntropyCriterion,
     LabelSmoothedCrossEntropyCriterionConfig,
@@ -28,7 +28,7 @@ class SelfKDLabelSmoothedCrossEntropyCriterionConfig(LabelSmoothedCrossEntropyCr
         default=1e-6,
         metadata={"help": "increment for alpha"}
     )
-    sigma: int = field(
+    sigma: float = field(
         default=1e-4,
         metadata={"help": "average of distance between corresponding word-embeddings"}
     )
