@@ -103,6 +103,14 @@ def main(cfg: FairseqConfig) -> None:
     logger.info("model: {}".format(model.__class__.__name__))
     logger.info("criterion: {}".format(criterion.__class__.__name__))
     logger.info(
+        "num. model params: {:,} ".format(
+            sum(
+                p.numel() for p in model.parameters() if p.requires_grad
+            )
+        )
+    )
+
+    logger.info(
         "num. shared model params: {:,} (num. trained: {:,})".format(
             sum(
                 p.numel() for p in model.parameters() if not getattr(p, "expert", False)
@@ -193,6 +201,14 @@ def main(cfg: FairseqConfig) -> None:
                 'training' if trainer.teacher_model.training else 'evaluation'
             )
         )
+
+        logger.info(
+        "num. teacher params: {:,} ".format(
+            sum(
+                p.numel() for p in trainer.teacher_model.parameters() if p.requires_grad
+            )
+        )
+    )
         
     max_epoch = cfg.optimization.max_epoch or math.inf
     lr = trainer.get_lr()
