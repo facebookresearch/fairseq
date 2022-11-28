@@ -104,7 +104,6 @@ def make_batches(lines, cfg, task, max_positions, encode_fn):
             constraints=constraints,
         )
 
-
 def main(cfg: FairseqConfig):
     if isinstance(cfg, Namespace):
         cfg = convert_namespace_to_omegaconf(cfg)
@@ -190,6 +189,9 @@ def main(cfg: FairseqConfig):
     # (None if no unknown word replacement, empty if no path to align dictionary)
     align_dict = utils.load_align_dict(cfg.generation.replace_unk)
 
+    all_embeddings = None
+    encoder_states_save_path = cfg['interactive']['experimental_encoder_states_save_path']
+
     max_positions = utils.resolve_max_positions(
         task.max_positions(), *[model.max_positions() for model in models]
     )
@@ -204,6 +206,7 @@ def main(cfg: FairseqConfig):
     logger.info("NOTE: hypothesis and token scores are output in base 2")
     logger.info("Type the input sentence and press return:")
     start_id = 0
+
     for inputs in buffered_read(cfg.interactive.input, cfg.interactive.buffer_size):
         results = []
         for batch in make_batches(inputs, cfg, task, max_positions, encode_fn):
@@ -229,6 +232,22 @@ def main(cfg: FairseqConfig):
             )
             translate_time = time.time() - translate_start_time
             total_translate_time += translate_time
+
+            if encoder_states_save_path is not None:
+                # >>> save the encoder outputs
+                with torch.no_grad():
+                    encoder_out = model.encoder(
+                            src_tokens, 
+                            src_lengths=src_lengths, 
+                            return_all_hiddens=True
+                    )["encoder_out"][0].transpose(1, 0).mean(1)
+
+                    if all_embeddings is None:
+                        all_embeddings = encoder_out
+                    else:
+                        all_embeddings = torch.cat((all_embeddings, encoder_out), 0)
+                # <<< save the encoder outputs
+
             list_constraints = [[] for _ in range(bsz)]
             if cfg.generation.constraints:
                 list_constraints = [unpack_constraints(c) for c in constraints]
@@ -305,6 +324,10 @@ def main(cfg: FairseqConfig):
             time.time() - start_time, total_translate_time
         )
     )
+
+    if encoder_states_save_path is not None:
+        logging.info(f"Saving encoder states to {encoder_states_save_path}.pt")
+        torch.save(all_embeddings, f"{encoder_states_save_path}.pt")
 
 
 def cli_main():

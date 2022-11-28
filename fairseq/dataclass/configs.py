@@ -1098,6 +1098,10 @@ class InteractiveConfig(FairseqDataclass):
         default="-",
         metadata={"help": "file to read from; use - for stdin"},
     )
+    experimental_encoder_states_save_path: Optional[str] = field(
+        default="None",
+        metadata={"help": "path to save encoder states for further analysis (optional and experimental)"},
+    )
 
 
 @dataclass
