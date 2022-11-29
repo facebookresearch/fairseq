@@ -329,7 +329,7 @@ def main(cfg: FairseqConfig):
     if encoder_states_save_path is not None:
         if convert_encoder_states_to_numpy:
             logging.info(f"Saving encoder states in to {encoder_states_save_path}.npy")
-            all_embeddings = all_embeddings.detach().numpy()
+            all_embeddings = all_embeddings.detach().cpu().numpy()
             with open(f"{encoder_states_save_path}.npy", "wb") as f_out:
                 np.save(f_out, all_embeddings)
         else:
