@@ -1098,9 +1098,13 @@ class InteractiveConfig(FairseqDataclass):
         default="-",
         metadata={"help": "file to read from; use - for stdin"},
     )
-    experimental_encoder_states_save_path: Optional[str] = field(
+    path_to_save_encoder_states: Optional[str] = field(
         default="None",
         metadata={"help": "path to save encoder states for further analysis (optional and experimental)"},
+    )
+    convert_encoder_states_to_numpy: Optional[bool] = field(
+        default=False,
+        metadata={"help": "convert saved encoder states to numpy before saving, i.e. they will be saved in .npy format (optional and experimental)"}
     )
 
 

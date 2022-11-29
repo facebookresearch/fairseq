@@ -190,7 +190,8 @@ def main(cfg: FairseqConfig):
     align_dict = utils.load_align_dict(cfg.generation.replace_unk)
 
     all_embeddings = None
-    encoder_states_save_path = cfg['interactive']['experimental_encoder_states_save_path']
+    encoder_states_save_path = cfg['interactive']['path_to_save_encoder_states']
+    convert_encoder_states_to_numpy = cfg['interactive']['convert_encoder_states_to_numpy']
 
     max_positions = utils.resolve_max_positions(
         task.max_positions(), *[model.max_positions() for model in models]
@@ -326,8 +327,14 @@ def main(cfg: FairseqConfig):
     )
 
     if encoder_states_save_path is not None:
-        logging.info(f"Saving encoder states to {encoder_states_save_path}.pt")
-        torch.save(all_embeddings, f"{encoder_states_save_path}.pt")
+        if convert_encoder_states_to_numpy:
+            logging.info(f"Saving encoder states in to {encoder_states_save_path}.npy")
+            all_embeddings = all_embeddings.detach().numpy()
+            with open(f"{encoder_states_save_path}.npy", "wb") as f_out:
+                np.save(f_out, all_embeddings)
+        else:
+            logging.info(f"Saving encoder states to {encoder_states_save_path}.pt")
+            torch.save(all_embeddings, f"{encoder_states_save_path}.pt")
 
 
 def cli_main():
