@@ -228,6 +228,7 @@ def main(cfg: FairseqConfig):
                 generator, models, sample, constraints=constraints
             )
             translate_time = time.time() - translate_start_time
+            print("==translate_time==",translate_time)
             total_translate_time += translate_time
             list_constraints = [[] for _ in range(bsz)]
             if cfg.generation.constraints:

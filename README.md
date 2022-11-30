@@ -184,6 +184,53 @@ The [full documentation](https://fairseq.readthedocs.io/) contains instructions
 for getting started, training new models and extending fairseq with new model
 types and tasks.
 
+# OpenVINO Optimizer the S2T models
+
+Firstly, you should confirm the model file and dataset are already downloaded.
+And must install OpenVINO 2.0 (preferably >=2022.2 )in the system.
+
+* Step 1. Initalization OpenVINO environment variables
+```
+source <OPENVINO_INSTALL_PATH>/setupvars.sh
+```
+
+* Step 2. Install Fairseq
+```
+git clone https://github.com/pytorch/fairseq
+cd fairseq
+pip install --editable ./
+```
+
+* Step 3. Torch model export to onnx 
+We should adjust the contents in [fairseq/sequence_generator.py](fairseq/sequence_generator.py) 
+` +781 line "self.save_onnx = True" ` , `+782 line "self.openvino_engine = False"`
+The encoder.onnx and decoder.onnx will save in `models`
+```
+python fairseq_cli/interactive.py datasets/en/ --config-yaml config_st_en_de.yaml --task speech_to_text --path models/covost2_fr_en_st_transformer_s.pt --max-tokens 50000 --beam 1
+
+```
+
+* Step 4. Using Model Convert 
+Using `mo` convert `encoder.onnx` to `encoder.xml`
+                   `decoder.onnx` to `decoder.xml`
+```
+cd models
+# Convert encoder onnx to IR
+mo -m encoder.onnx --input "onnx::Transpose_0[-1,-1,-1],src_lengths[-1]"
+
+# Convert decoder onnx to IR
+mo -m decoder.onnx --input "prev_output_tokens[-1,-1],onnx::MatMul_1[-1,-1,-1]"
+```
+
+* Step 5. OpenVINO Inference S2T pipeline
+We should adjust the contents in [fairseq/sequence_generator.py](fairseq/sequence_generator.py) 
+` +781 line "self.save_onnx = False" ` , `+782 line "self.openvino_engine = True"`
+Use the converted the model to run OpenINO Inference S2T pipeline
+```
+python fairseq_cli/interactive.py datasets/en/ --config-yaml config_st_en_de.yaml --task speech_to_text --path models/covost2_fr_en_st_transformer_s.pt --max-tokens 50000 --beam 1
+```
+
+
 # Pre-trained models and examples
 
 We provide pre-trained models and pre-processed, binarized test sets for several tasks listed below,
