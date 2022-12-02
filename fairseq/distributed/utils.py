@@ -19,8 +19,9 @@ from typing import Any, Dict, List, Mapping, Optional
 
 import torch
 import torch.distributed as dist
-from fairseq.dataclass.configs import DistributedTrainingConfig, FairseqConfig
 from omegaconf import open_dict
+
+from fairseq.dataclass.configs import DistributedTrainingConfig, FairseqConfig
 
 try:
     import torch_xla.core.xla_model as xm
@@ -57,13 +58,24 @@ def infer_init_method(cfg: DistributedTrainingConfig, force_distributed=False):
     ):
         # support torch.distributed.launch
         _infer_torch_distributed_launch_init(cfg)
+    elif all(
+        key in os.environ
+        for key in [
+            "MASTER_ADDR",
+            "MASTER_PORT",
+            "OMPI_COMM_WORLD_SIZE",
+            "OMPI_COMM_WORLD_RANK",
+            "OMPI_COMM_WORLD_LOCAL_RANK",
+        ]
+    ):
+        # We support open-mpi rank assignment
+        _infer_ompi_init(cfg)
     elif cfg.distributed_port > 0:
         # we can determine the init method automatically for Slurm
         _infer_slurm_init(cfg, num_pipelines_per_node)
     elif cfg.distributed_world_size > 1 or force_distributed:
         # fallback for single node with multiple GPUs
         _infer_single_node_init(cfg)
-
     if cfg.pipeline_model_parallel:
         _pipeline_parallel_post_init(cfg, num_pipeline_devices, num_pipelines_per_node)
     elif not cfg.distributed_no_spawn:
@@ -135,6 +147,24 @@ def _infer_slurm_init(cfg: DistributedTrainingConfig, num_pipelines_per_node):
             raise e
         except FileNotFoundError:  # Slurm is not installed
             pass
+
+
+def _infer_ompi_init(cfg: DistributedTrainingConfig):
+
+    # OpenMPI doesn't specify a master address or port, so we need to pass them
+    host = os.environ["MASTER_ADDR"]
+    port = os.environ["MASTER_PORT"]
+
+    # Initialize distributed configuration to
+    cfg.distributed_init_method = f"tcp://{host}:{port}"
+    cfg.distributed_world_size = int(os.environ["OMPI_COMM_WORLD_SIZE"])
+    cfg.distributed_rank = int(os.environ["OMPI_COMM_WORLD_RANK"])
+
+    # Processes were created by OpenMPI
+    cfg.distributed_no_spawn = True
+
+    # Setup individual jobs
+    cfg.device_id = int(os.environ["OMPI_COMM_WORLD_LOCAL_RANK"])
 
 
 def _infer_single_node_init(cfg: DistributedTrainingConfig):
