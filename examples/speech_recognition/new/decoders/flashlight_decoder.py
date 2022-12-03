@@ -42,9 +42,9 @@ try:
     from flashlight.lib.text.dictionary import create_word_dict, load_words
 except ImportError:
     warnings.warn(
-        "flashlight python bindings are required to use this functionality. "
+        "Flashlight Text python bindings are required to use this functionality. "
         "Please install from "
-        "https://github.com/facebookresearch/flashlight/tree/master/bindings/python"
+        "https://github.com/flashlight/text/#readme"
     )
     LM = object
     LMState = object
