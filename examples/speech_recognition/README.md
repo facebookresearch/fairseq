@@ -34,8 +34,8 @@ sclite -r ${RES_DIR}/ref.word-checkpoint_last.pt-${SET}.txt -h ${RES_DIR}/hypo.w
 ```
 `Sum/Avg` row from first table of the report has WER
 
-## Using flashlight (previously called [wav2letter](https://github.com/facebookresearch/wav2letter)) components
-[flashlight](https://github.com/facebookresearch/flashlight) now has integration with fairseq. Currently this includes:
+## Using Flashlight (previously called [wav2letter](https://github.com/facebookresearch/wav2letter)) components
+[Flashlight Text](https://github.com/flashlight/text) and [Flashlight Sequence](https://github.com/flashlight/sequence) now have integration with fairseq. Currently this includes:
 
 * AutoSegmentationCriterion (ASG)
 * flashlight-style Conv/GLU model
