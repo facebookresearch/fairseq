@@ -79,7 +79,9 @@ python ./fairseq_cli/generate.py \
     --gen-subset $SUBSET \
     --config-yaml config.yaml \
     --scoring wer \
-    --beam 10 --lenpen 1.0 examples/speech_text_joint_to_text
+    --beam 10 --lenpen 1.0 examples/speech_text_joint_to_text \
+    --user-dir examples/speech_text_joint_to_text --load-speech-only \
+    --model-overrides {'load_pretrained_speech_text_decoder':'','load_pretrained_speech_text_encoder':''}
 ```
 
 ### Results and models
@@ -150,7 +152,9 @@ python fairseq_cli/generate.py \
     --gen-subset $SUBSET \
     --config-yaml config.yaml \
     --scoring sacrebleu \
-    --beam 10 --lenpen 1.0 examples/speech_text_joint_to_text
+    --beam 10 --lenpen 1.0 examples/speech_text_joint_to_text \
+    --user-dir examples/speech_text_joint_to_text --load-speech-only \
+    --model-overrides {'load_pretrained_speech_text_decoder':'','load_pretrained_speech_text_encoder':''}
 ```
 
 

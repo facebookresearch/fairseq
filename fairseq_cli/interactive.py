@@ -141,10 +141,9 @@ def main(cfg: FairseqConfig):
 
     # Load ensemble
     overrides = ast.literal_eval(cfg.common_eval.model_overrides)
-    overrides["pretrained_target_model_path"] = None
     logger.info("loading model(s) from {}".format(cfg.common_eval.path))
     models, _model_args = checkpoint_utils.load_model_ensemble(
-        [cfg.common_eval.path],
+        utils.split_paths(cfg.common_eval.path),
         arg_overrides=overrides,
         task=task,
         suffix=cfg.checkpoint.checkpoint_suffix,

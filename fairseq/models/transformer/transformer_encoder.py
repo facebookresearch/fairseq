@@ -8,23 +8,22 @@ from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
+from torch import Tensor
+
 from fairseq import utils
 from fairseq.distributed import fsdp_wrap
 from fairseq.models import FairseqEncoder
+from fairseq.models.transformer import TransformerConfig
 from fairseq.modules import (
     FairseqDropout,
     LayerDropModuleList,
     LayerNorm,
     PositionalEmbedding,
     SinusoidalPositionalEmbedding,
+    transformer_layer,
 )
-from fairseq.modules import transformer_layer
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
-from torch import Tensor
-from fairseq.models.transformer import (
-    TransformerConfig,
-)
 
 
 # rewrite name for backward compatibility in `make_generation_fast_`
@@ -46,19 +45,7 @@ class TransformerEncoderBase(FairseqEncoder):
         embed_tokens (torch.nn.Embedding): input embedding
     """
 
-    def __init__(
-        self,
-        cfg,
-        dictionary,
-        embed_tokens,
-        return_fc=False,
-        cross_dim=None,
-        self_attn=True,
-        ffn=True,
-        norm1=True,
-        norm2=True,
-        cross_resid=True,
-    ):
+    def __init__(self, cfg, dictionary, embed_tokens, return_fc=False):
         self.cfg = cfg
         super().__init__(dictionary)
         self.register_buffer("version", torch.Tensor([3]))
@@ -72,7 +59,6 @@ class TransformerEncoderBase(FairseqEncoder):
         embed_dim = embed_tokens.embedding_dim
         self.padding_idx = embed_tokens.padding_idx
         self.max_source_positions = cfg.max_source_positions
-        self.has_cross_states = cross_dim is not None and cross_dim > 0
 
         self.embed_tokens = embed_tokens
 
@@ -107,10 +93,7 @@ class TransformerEncoderBase(FairseqEncoder):
         else:
             self.layers = nn.ModuleList([])
         self.layers.extend(
-            [
-                self.build_encoder_layer(cfg, cross_dim, self_attn, ffn, norm1, norm2, cross_resid)
-                for i in range(cfg.encoder.layers)
-            ]
+            [self.build_encoder_layer(cfg) for i in range(cfg.encoder.layers)]
         )
         self.num_layers = len(self.layers)
 
@@ -119,25 +102,9 @@ class TransformerEncoderBase(FairseqEncoder):
         else:
             self.layer_norm = None
 
-    def build_encoder_layer(
-        self,
-        cfg,
-        cross_dim=None,
-        self_attn=True,
-        ffn=True,
-        norm1=True,
-        norm2=True,
-        cross_resid=True,
-    ):
+    def build_encoder_layer(self, cfg):
         layer = transformer_layer.TransformerEncoderLayerBase(
-            cfg,
-            return_fc=self.return_fc,
-            cross_dim=cross_dim,
-            self_attn=self_attn,
-            ffn=ffn,
-            norm1=norm1,
-            norm2=norm2,
-            cross_resid=cross_resid,
+            cfg, return_fc=self.return_fc
         )
         checkpoint = cfg.checkpoint_activations
         if checkpoint:
@@ -149,25 +116,15 @@ class TransformerEncoderBase(FairseqEncoder):
         layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
         return layer
 
-    def add_positions(
-        self,
-        src_tokens,
-        token_embedding,
-    ):
-        return token_embedding + self.embed_positions(src_tokens)
-
     def forward_embedding(
-        self,
-        src_tokens,
-        token_embedding: Optional[torch.Tensor] = None,
-        skip_positions: bool = False,
+        self, src_tokens, token_embedding: Optional[torch.Tensor] = None
     ):
         # embed tokens and positions
         if token_embedding is None:
             token_embedding = self.embed_tokens(src_tokens)
         x = embed = self.embed_scale * token_embedding
-        if self.embed_positions is not None and not skip_positions:
-            x = self.add_positions(src_tokens, embed)
+        if self.embed_positions is not None:
+            x = embed + self.embed_positions(src_tokens)
         if self.layernorm_embedding is not None:
             x = self.layernorm_embedding(x)
         x = self.dropout_module(x)
@@ -181,10 +138,6 @@ class TransformerEncoderBase(FairseqEncoder):
         src_lengths: Optional[torch.Tensor] = None,
         return_all_hiddens: bool = False,
         token_embeddings: Optional[torch.Tensor] = None,
-        cross_out=None,
-        cross_padding_mask=None,
-        skip_positions: bool = False,
-        alibi_bias=None,
     ):
         """
         Args:
@@ -210,14 +163,7 @@ class TransformerEncoderBase(FairseqEncoder):
                   Only populated if *return_all_hiddens* is True.
         """
         return self.forward_scriptable(
-            src_tokens,
-            src_lengths,
-            return_all_hiddens,
-            token_embeddings,
-            cross_out,
-            cross_padding_mask,
-            skip_positions,
-            alibi_bias=alibi_bias,
+            src_tokens, src_lengths, return_all_hiddens, token_embeddings
         )
 
     # TorchScript doesn't support super() method so that the scriptable Subclass
@@ -230,10 +176,6 @@ class TransformerEncoderBase(FairseqEncoder):
         src_lengths: Optional[torch.Tensor] = None,
         return_all_hiddens: bool = False,
         token_embeddings: Optional[torch.Tensor] = None,
-        cross_out: Optional[torch.Tensor] = None,
-        cross_padding_mask: Optional[torch.Tensor] = None,
-        skip_positions: bool = False,
-        alibi_bias=None,
     ):
         """
         Args:
@@ -258,40 +200,21 @@ class TransformerEncoderBase(FairseqEncoder):
                   hidden states of shape `(src_len, batch, embed_dim)`.
                   Only populated if *return_all_hiddens* is True.
         """
-        # TODO: src_lengths is not used anywhere
-        assert cross_out is None or self.has_cross_states
-
-        x, encoder_embedding = self.forward_embedding(
-            src_tokens, token_embeddings, skip_positions
-        )
-
-        return self.forward_layers(
-            src_tokens,
-            x,
-            encoder_embedding,
-            return_all_hiddens,
-            cross_out,
-            cross_padding_mask,
-            alibi_bias=alibi_bias,
-        )
-
-    def forward_layers(
-        self,
-        src_tokens,
-        x,
-        encoder_embedding: Optional[torch.Tensor] = None,
-        return_all_hiddens: bool = False,
-        cross_out: Optional[torch.Tensor] = None,
-        cross_padding_mask: Optional[torch.Tensor] = None,
-        alibi_bias=None,
-    ):
         # compute padding mask
         encoder_padding_mask = src_tokens.eq(self.padding_idx)
-        has_pads = src_tokens.device.type == "xla" or encoder_padding_mask.any()
+        has_pads = (
+            torch.tensor(src_tokens.device.type == "xla") or encoder_padding_mask.any()
+        )
+        # Torchscript doesn't handle bool Tensor correctly, so we need to work around.
+        if torch.jit.is_scripting():
+            has_pads = torch.tensor(1) if has_pads else torch.tensor(0)
+
+        x, encoder_embedding = self.forward_embedding(src_tokens, token_embeddings)
 
         # account for padding while computing the representation
-        if has_pads:
-            x = x * (1 - encoder_padding_mask.unsqueeze(-1).type_as(x))
+        x = x * (
+            1 - encoder_padding_mask.unsqueeze(-1).type_as(x) * has_pads.type_as(x)
+        )
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
@@ -305,11 +228,7 @@ class TransformerEncoderBase(FairseqEncoder):
         # encoder layers
         for layer in self.layers:
             lr = layer(
-                x,
-                encoder_padding_mask=encoder_padding_mask if has_pads else None,
-                cross_out=cross_out,
-                cross_padding_mask=cross_padding_mask,
-                alibi_bias=alibi_bias,
+                x, encoder_padding_mask=encoder_padding_mask if has_pads else None
             )
 
             if isinstance(lr, tuple) and len(lr) == 2:
@@ -436,49 +355,16 @@ class TransformerEncoderBase(FairseqEncoder):
 
 
 class TransformerEncoder(TransformerEncoderBase):
-    def __init__(
-        self,
-        args,
-        dictionary,
-        embed_tokens,
-        return_fc=False,
-        cross_dim=None,
-        self_attn=True,
-        ffn=True,
-        norm1=True,
-        norm2=True,
-        cross_resid=True,
-    ):
+    def __init__(self, args, dictionary, embed_tokens, return_fc=False):
         self.args = args
         super().__init__(
             TransformerConfig.from_namespace(args),
             dictionary,
             embed_tokens,
             return_fc=return_fc,
-            cross_dim=cross_dim,
-            self_attn=self_attn,
-            ffn=ffn,
-            norm1=norm1,
-            norm2=norm2,
-            cross_resid=cross_resid,
         )
 
-    def build_encoder_layer(
-        self,
-        args,
-        cross_dim=None,
-        self_attn=True,
-        ffn=True,
-        norm1=True,
-        norm2=True,
-        cross_resid=True,
-    ):
+    def build_encoder_layer(self, args):
         return super().build_encoder_layer(
             TransformerConfig.from_namespace(args),
-            cross_dim,
-            self_attn,
-            ffn,
-            norm1,
-            norm2,
-            cross_resid,
         )

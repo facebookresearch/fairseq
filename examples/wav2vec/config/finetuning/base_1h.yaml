@@ -6,7 +6,7 @@ common:
   log_interval: 200
 
 checkpoint:
-  save_interval: 100
+  save_interval: 50
   save_interval_updates: 1000
   keep_interval_updates: 1
   no_epoch_checkpoints: true
@@ -15,7 +15,7 @@ checkpoint:
 task:
   _name: audio_finetuning
   data: ???
-  normalize: true
+  normalize: false
   labels: ltr
 
 dataset:
@@ -23,7 +23,7 @@ dataset:
   max_tokens: 3200000
   skip_invalid_size_inputs_valid_test: true
   validate_after_updates: 10000
-  validate_interval: 100
+  validate_interval: 1000
   valid_subset: dev_other
 
 distributed_training:
@@ -33,14 +33,10 @@ distributed_training:
 criterion:
   _name: ctc
   zero_infinity: true
-  wer_kenlm_model: /checkpoint/abaevski/data/speech/libri/4-gram.bin
-  wer_lexicon: /checkpoint/abaevski/data/speech/libri/10h/wav2vec/raw/lexicon_ltr2.lst
-  wer_lm_weight: 2.0
-  wer_word_score: -1.0
 
 optimization:
   max_update: 13000
-  lr: [0.00003]
+  lr: [0.00005]
   sentence_avg: true
   update_freq: [4]
 
@@ -58,8 +54,7 @@ model:
   _name: wav2vec_ctc
   w2v_path: ???
   apply_mask: true
-  mask_prob: 0.55
-  mask_length: 5
+  mask_prob: 0.65
   mask_channel_prob: 0.25
   mask_channel_length: 64
   layerdrop: 0.1

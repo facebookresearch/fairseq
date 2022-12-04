@@ -1,8 +1,0 @@
-commit b6b7a14437cb6fb0f3379df6867550960b985b82
-Submitted batch job 33869362
-2020-12-17 11:13:54 | INFO | train_inner | epoch 001:      1 / 50000 loss=16.264, ppl=78675.2, wps=0, ups=0, wpb=1024, bsz=2, num_updates=1, lr=0.0003, gnorm=4.968, loss_scale=128, train_wall=0, wall=1
-2020-12-17 11:13:54 | INFO | train_inner | epoch 001:      2 / 50000 loss=14.191, ppl=18701.8, wps=6547.7, ups=6.39, wpb=1024, bsz=2, num_updates=2, lr=0.0003, gnorm=2.373, loss_scale=128, train_wall=0, wall=1
-2020-12-17 11:13:55 | INFO | train_inner | epoch 001:     10 / 50000 loss=9.331, ppl=644.03, wps=7457.3, ups=7.28, wpb=1024, bsz=2, num_updates=10, lr=0.0003, gnorm=2.461, loss_scale=128, train_wall=0, wall=2
-2020-12-17 11:13:55 | INFO | fairseq_cli.train | begin validation on "valid" subset
-2020-12-17 11:38:15 | INFO | valid | epoch 001 | valid on 'valid' subset | loss 9.189 | ppl 583.79 | wps 35091.7 | wpb 1024 | bsz 2 | num_updates 10
-2020-12-17 11:38:15 | INFO | train | epoch 001 | loss 11.87 | ppl 3743.49 | wps 6.3 | ups 0.01 | wpb 1024 | bsz 2 | num_updates 10 | lr 0.0003 | gnorm 3.892 | loss_scale 128 | train_wall 2 | wall 1461

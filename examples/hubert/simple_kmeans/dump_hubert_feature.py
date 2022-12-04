@@ -13,6 +13,7 @@ import torch
 import torch.nn.functional as F
 
 from feature_utils import get_path_iterator, dump_feature
+from fairseq.data.audio.audio_utils import get_features_or_waveform
 
 
 logging.basicConfig(
@@ -39,8 +40,7 @@ class HubertFeatureReader(object):
         logger.info(f" max_chunk = {self.max_chunk}")
 
     def read_audio(self, path, ref_len=None):
-        wav, sr = sf.read(path)
-        assert sr == self.task.cfg.sample_rate, sr
+        wav = get_features_or_waveform(path, need_waveform=True, use_sample_rate=self.task.cfg.sample_rate)
         if wav.ndim == 2:
             wav = wav.mean(-1)
         assert wav.ndim == 1, wav.ndim
@@ -49,7 +49,7 @@ class HubertFeatureReader(object):
         return wav
 
     def get_feats(self, path, ref_len=None):
-        x = self.read_audio(path, ref_len)
+        x = self.read_audio(path, ref_len=ref_len)
         with torch.no_grad():
             x = torch.from_numpy(x).float().cuda()
             if self.task.cfg.normalize:
@@ -58,7 +58,7 @@ class HubertFeatureReader(object):
 
             feat = []
             for start in range(0, x.size(1), self.max_chunk):
-                x_chunk = x[:, start: start + self.max_chunk]
+                x_chunk = x[:, start : start + self.max_chunk]
                 feat_chunk, _ = self.model.extract_features(
                     source=x_chunk,
                     padding_mask=None,

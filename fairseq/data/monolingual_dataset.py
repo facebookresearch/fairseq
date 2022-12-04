@@ -9,7 +9,7 @@ import torch
 from . import FairseqDataset, data_utils
 
 
-def collate(samples, pad_idx, eos_idx, fixed_pad_length=None, pad_to_bsz=None, target_in_input=False):
+def collate(samples, pad_idx, eos_idx, fixed_pad_length=None, pad_to_bsz=None):
     if len(samples) == 0:
         return {}
 
@@ -45,7 +45,7 @@ def collate(samples, pad_idx, eos_idx, fixed_pad_length=None, pad_to_bsz=None, t
     else:
         target = src_tokens
 
-    ret = {
+    return {
         "id": torch.LongTensor([s["id"] for s in samples]),
         "nsentences": len(samples),
         "ntokens": sum(len(s["source"]) for s in samples),
@@ -53,13 +53,8 @@ def collate(samples, pad_idx, eos_idx, fixed_pad_length=None, pad_to_bsz=None, t
             "src_tokens": src_tokens,
             "src_lengths": torch.LongTensor([s["source"].numel() for s in samples]),
         },
+        "target": target,
     }
-
-    if target_in_input:
-        ret["net_input"]["target"] = target
-    else:
-        ret["target"] = target
-    return ret
 
 
 class MonolingualDataset(FairseqDataset):
@@ -88,7 +83,6 @@ class MonolingualDataset(FairseqDataset):
         pad_to_bsz=None,
         src_lang_idx=None,
         tgt_lang_idx=None,
-        target_in_input=False,
     ):
         self.dataset = dataset
         self.sizes = np.array(sizes)
@@ -101,7 +95,6 @@ class MonolingualDataset(FairseqDataset):
         self.pad_to_bsz = pad_to_bsz
         self.src_lang_idx = src_lang_idx
         self.tgt_lang_idx = tgt_lang_idx
-        self.target_in_input = target_in_input
 
         assert targets is None or all(
             t in {"self", "future", "past"} for t in targets
@@ -230,7 +223,6 @@ class MonolingualDataset(FairseqDataset):
             self.vocab.eos(),
             self.fixed_pad_length,
             self.pad_to_bsz,
-            self.target_in_input,
         )
 
     def num_tokens(self, index):

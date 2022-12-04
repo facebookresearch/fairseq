@@ -7,14 +7,13 @@ from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
+from torch import Tensor
+
 from fairseq import utils
+from fairseq.models.transformer import TransformerConfig
 from fairseq.modules import LayerNorm, MultiheadAttention
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
-from torch import Tensor
-from fairseq.models.transformer import (
-    TransformerConfig,
-)
 
 
 class TransformerEncoderLayerBase(nn.Module):
@@ -29,49 +28,18 @@ class TransformerEncoderLayerBase(nn.Module):
     *cfg.encoder.normalize_before* to ``True``.
 
     Args:
-        args (argparse.Namespace): parsed command-line arguments
+        cfg (argparse.Namespace): parsed command-line arguments
     """
 
-    def __init__(
-        self,
-        cfg,
-        return_fc=False,
-        cross_dim=None,
-        self_attn=True,
-        ffn=True,
-        norm1=True,
-        norm2=True,
-        cross_resid=True,
-    ):
+    def __init__(self, cfg, return_fc=False):
         super().__init__()
         self.cfg = cfg
         self.return_fc = return_fc
-        self.cross_dim = cross_dim
-        self.cross_resid = cross_resid
         self.embed_dim = cfg.encoder.embed_dim
         self.quant_noise = cfg.quant_noise.pq
         self.quant_noise_block_size = cfg.quant_noise.pq_block_size
-
-        if self_attn:
-            self.self_attn = self.build_self_attention(self.embed_dim, cfg)
-            self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
-        else:
-            self.self_attn = None
-            self.self_attn_layer_norm = None
-
-        if cross_dim is not None and cross_dim > 0:
-            self.cross_attn = self.build_cross_attention(
-                self.embed_dim, self.cross_dim, cfg
-            )
-            self.cross_attn_layer_norm = (
-                LayerNorm(self.embed_dim, export=cfg.export)
-                if norm1
-                else None
-            )
-        else:
-            self.cross_attn = None
-            self.cross_attn_layer_norm = None
-
+        self.self_attn = self.build_self_attention(self.embed_dim, cfg)
+        self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
         self.dropout_module = FairseqDropout(
             cfg.dropout, module_name=self.__class__.__name__
         )
@@ -84,29 +52,20 @@ class TransformerEncoderLayerBase(nn.Module):
             float(activation_dropout_p), module_name=self.__class__.__name__
         )
         self.normalize_before = cfg.encoder.normalize_before
-
-        if ffn:
-            self.fc1 = self.build_fc1(
-                self.embed_dim,
-                cfg.encoder.ffn_embed_dim,
-                self.quant_noise,
-                self.quant_noise_block_size,
-            )
-            self.fc2 = self.build_fc2(
-                cfg.encoder.ffn_embed_dim,
-                self.embed_dim,
-                self.quant_noise,
-                self.quant_noise_block_size,
-            )
-        else:
-            self.fc1 = None
-            self.fc2 = None
-
-        self.final_layer_norm = (
-            LayerNorm(self.embed_dim, export=cfg.export)
-            if norm2
-            else None
+        self.fc1 = self.build_fc1(
+            self.embed_dim,
+            cfg.encoder.ffn_embed_dim,
+            self.quant_noise,
+            self.quant_noise_block_size,
         )
+        self.fc2 = self.build_fc2(
+            cfg.encoder.ffn_embed_dim,
+            self.embed_dim,
+            self.quant_noise,
+            self.quant_noise_block_size,
+        )
+
+        self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
         return quant_noise(
@@ -184,19 +143,6 @@ class TransformerEncoderLayerBase(nn.Module):
             xformers_att_config=cfg.encoder.xformers_att_config,
         )
 
-    def build_cross_attention(self, embed_dim, cross_dim, cfg):
-        return MultiheadAttention(
-            embed_dim,
-            cfg.encoder.attention_heads,
-            kdim=cross_dim,
-            vdim=cross_dim,
-            dropout=cfg.attention_dropout,
-            encoder_decoder_attention=True,
-            q_noise=self.quant_noise,
-            qn_block_size=self.quant_noise_block_size,
-            xformers_att_config=cfg.encoder.xformers_att_config,
-        )
-
     def residual_connection(self, x, residual):
         return residual + x
 
@@ -219,9 +165,6 @@ class TransformerEncoderLayerBase(nn.Module):
         x,
         encoder_padding_mask: Optional[Tensor],
         attn_mask: Optional[Tensor] = None,
-        cross_out=None,
-        cross_padding_mask=None,
-        alibi_bias=None,
     ):
         """
         Args:
@@ -248,58 +191,34 @@ class TransformerEncoderLayerBase(nn.Module):
                 attn_mask.to(torch.bool), -1e8 if x.dtype == torch.float32 else -1e4
             )
 
-        if self.self_attn is not None:
-            residual = x
-            if self.normalize_before:
-                x = self.self_attn_layer_norm(x)
-            x, _ = self.self_attn(
-                query=x,
-                key=x,
-                value=x,
-                key_padding_mask=encoder_padding_mask,
-                need_weights=False,
-                attn_mask=attn_mask,
-                alibi_bias=alibi_bias,
-            )
-            x = self.dropout_module(x)
-            x = self.residual_connection(x, residual)
-            if not self.normalize_before:
-                x = self.self_attn_layer_norm(x)
-
-        if self.cross_attn is not None:
-            assert cross_out is not None
-            residual = x
-            if self.normalize_before and self.cross_attn_layer_norm is not None:
-                x = self.cross_attn_layer_norm(x)
-            x, _ = self.cross_attn(
-                query=x,
-                key=cross_out,
-                value=cross_out,
-                key_padding_mask=cross_padding_mask,
-                static_kv=True,
-                need_weights=False,
-                need_head_weights=False,
-            )
-            x = self.dropout_module(x)
-            if self.cross_resid:
-                x = self.residual_connection(x, residual)
-            if not self.normalize_before and self.cross_attn_layer_norm is not None:
-                x = self.cross_attn_layer_norm(x)
+        residual = x
+        if self.normalize_before:
+            x = self.self_attn_layer_norm(x)
+        x, _ = self.self_attn(
+            query=x,
+            key=x,
+            value=x,
+            key_padding_mask=encoder_padding_mask,
+            need_weights=False,
+            attn_mask=attn_mask,
+        )
+        x = self.dropout_module(x)
+        x = self.residual_connection(x, residual)
+        if not self.normalize_before:
+            x = self.self_attn_layer_norm(x)
 
         residual = x
-        if self.normalize_before and self.final_layer_norm is not None:
+        if self.normalize_before:
             x = self.final_layer_norm(x)
-        if self.fc1 is not None:
-            x = self.activation_fn(self.fc1(x))
-            x = self.activation_dropout_module(x)
-            x = self.fc2(x)
+        x = self.activation_fn(self.fc1(x))
+        x = self.activation_dropout_module(x)
+        x = self.fc2(x)
 
         fc_result = x
 
         x = self.dropout_module(x)
-        if self.fc1 is not None:
-            x = self.residual_connection(x, residual)
-        if not self.normalize_before and self.final_layer_norm is not None:
+        x = self.residual_connection(x, residual)
+        if not self.normalize_before:
             x = self.final_layer_norm(x)
 
         if self.return_fc and not torch.jit.is_scripting():

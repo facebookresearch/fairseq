@@ -95,7 +95,7 @@ def eval_lm(
             }
         else:
             raise NotImplementedError(
-                "--post-process={post_process} is not implemented"
+                f"--post-process={post_process} is not implemented"
             )
         bpe_len = len(bpe_cont)
     else:

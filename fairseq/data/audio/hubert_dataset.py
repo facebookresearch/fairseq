@@ -15,6 +15,11 @@ import torch
 import torch.nn.functional as F
 from fairseq.data import data_utils
 from fairseq.data.fairseq_dataset import FairseqDataset
+from fairseq.data.audio.audio_utils import (
+    parse_path,
+    read_from_stored_zip,
+)
+import io
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +177,14 @@ class HubertDataset(FairseqDataset):
         import soundfile as sf
 
         wav_path = os.path.join(self.audio_root, self.audio_names[index])
-        wav, cur_sample_rate = sf.read(wav_path)
+        _path, slice_ptr = parse_path(wav_path)
+        if len(slice_ptr) == 0:
+            wav, cur_sample_rate = sf.read(_path)
+        else:
+            assert _path.endswith(".zip")
+            data = read_from_stored_zip(_path, slice_ptr[0], slice_ptr[1])
+            f = io.BytesIO(data)
+            wav, cur_sample_rate = sf.read(f)
         wav = torch.from_numpy(wav).float()
         wav = self.postprocess(wav, cur_sample_rate)
         return wav

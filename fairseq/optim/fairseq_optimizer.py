@@ -83,7 +83,6 @@ class FairseqOptimizer(object):
         allows us to resume training from a checkpoint using a new set of
         optimizer args.
         """
-
         self.optimizer.load_state_dict(state_dict)
 
         if optimizer_overrides is not None and len(optimizer_overrides) > 0:
