@@ -49,7 +49,6 @@ class D2vModalitiesConfig:
 @dataclass
 class Data2VecMultiConfig(FairseqDataclass):
 
-    cosine_loss_temp: float = 0
     loss_beta: float = field(
         default=0, metadata={"help": "beta for smooth l1 loss. 0 means use l2 loss"}
     )
@@ -59,8 +58,6 @@ class Data2VecMultiConfig(FairseqDataclass):
             "help": "scale the reconstruction loss by this constant. if None then scales by 1/sqrt(dim)"
         },
     )
-    mean_loss: bool = False
-    reconstruct_all: bool = False
 
     depth: int = 8
     start_drop_path_rate: float = 0
@@ -125,32 +122,16 @@ class Data2VecMultiConfig(FairseqDataclass):
 
     supported_modality: Optional[Modality] = None
     mae_init: bool = False
-    bert_init: bool = True  # does nothing, TODO: REMOVE
 
     seed: int = II("common.seed")
 
     skip_ema: bool = False
 
-    # -- experiments ---
     cls_loss: float = 0
-    alt_cls_targets: bool = False
     recon_loss: float = 0
-    recon_dim: int = 0
     d2v_loss: float = 1
 
-    qk_scale: Optional[float] = None
-    cosine_attention: bool = False
     decoder_group: bool = False
-    extra_tokens_group: bool = False
-
-    ######
-
-    shift_targets_down_updates: int = 0
-    shift_targets_down_scale: float = 1
-
-    modality_discrim_weight: float = 1
-    modality_discrim_ema: float = 0
-    modality_discrim_depth: int = 0
 
 
 @register_model("data2vec_multi", dataclass=Data2VecMultiConfig)
@@ -202,7 +183,6 @@ class Data2VecMultiModel(BaseFairseqModel):
                 cfg.num_heads if heads is None else heads,
                 cfg.mlp_ratio,
                 qkv_bias=True,
-                qk_scale=cfg.qk_scale,
                 drop=cfg.encoder_dropout,
                 attn_drop=cfg.attention_dropout,
                 mlp_drop=cfg.activation_dropout,
@@ -211,7 +191,6 @@ class Data2VecMultiModel(BaseFairseqModel):
                 norm_layer=make_layer_norm,
                 layer_norm_first=cfg.layer_norm_first,
                 ffn_targets=not cfg.end_of_block_targets,
-                cosine_attention=cfg.cosine_attention,
             )
 
         self.alibi_biases = {}
@@ -234,8 +213,6 @@ class Data2VecMultiModel(BaseFairseqModel):
         self.average_top_k_layers = cfg.average_top_k_layers
         self.loss_beta = cfg.loss_beta
         self.loss_scale = cfg.loss_scale
-        self.cosine_loss_temp = cfg.cosine_loss_temp
-        self.mean_loss = cfg.mean_loss
 
         self.dropout_input = nn.Dropout(cfg.dropout_input)
 
@@ -268,46 +245,14 @@ class Data2VecMultiModel(BaseFairseqModel):
                 self.shared_decoder.apply(self._init_weights)
 
             self.recon_proj = None
-            if cfg.recon_loss > 0 and cfg.recon_dim > 0:
-                self.recon_proj = nn.Linear(cfg.embed_dim, cfg.recon_dim)
-
-            def make_discriminator(depth, ema_decay, classes):
-                if depth == 0:
-                    return None, None
-
-                d = []
-                for _ in range(1, depth):
-                    d.extend([nn.Linear(cfg.embed_dim, cfg.embed_dim), nn.GELU()])
-
-                d.append(nn.Linear(cfg.embed_dim, classes))
-                discrim = nn.Sequential(*d)
-
-                ema = EMAModule(
-                    discrim,
-                    EMAModuleConfig(
-                        ema_decay=ema_decay,
-                        ema_fp32=True,
-                        log_norms=False,
-                        add_missing_params=False,
-                    ),
-                    copy_model=True,
-                )
-
-                return discrim, ema
-
-            self.modality_discrim, self.modality_discrim_ema = make_discriminator(
-                cfg.modality_discrim_depth,
-                cfg.modality_discrim_ema,
-                len(self.modalities),
-            )
+            if cfg.recon_loss > 0:
+                self.recon_proj = nn.Linear(cfg.embed_dim, cfg.embed_dim)
 
         for pn, p in self.named_parameters():
             if len(p.shape) == 1 or pn.endswith(".bias") or "alibi_scale" in pn:
                 p.optim_overrides = {"optimizer": {"weight_decay_scale": 0}}
             if cfg.decoder_group and "decoder" in pn:
                 p.param_group = "decoder"
-            if cfg.extra_tokens_group and "extra_tokens" in pn:
-                p.param_group = "extra_tokens"
 
         self.num_updates = 0
 
@@ -520,7 +465,7 @@ class Data2VecMultiModel(BaseFairseqModel):
                 "x": x,
                 "padding_mask": masked_padding_mask,
                 "layer_results": layer_results,
-                "mask": encoder_mask
+                "mask": encoder_mask,
             }
 
         xs = []
@@ -633,31 +578,22 @@ class Data2VecMultiModel(BaseFairseqModel):
                 y.append(lr[:, extra_tokens:])
                 ema_x.append(ema_input[:, extra_tokens:])
 
-        if self.cfg.alt_cls_targets:
-            orig_targets = y[-1].float()
         y = self.make_targets(y, self.average_top_k_layers)
-        if not self.cfg.alt_cls_targets:
-            orig_targets = y
+        orig_targets = y
 
         if self.cfg.clone_batch > 1:
             y = y.repeat_interleave(self.cfg.clone_batch, 0)
 
-        if self.cfg.reconstruct_all:
-            xs = [x.reshape(-1, x.size(-1)) for x in xs]
-            y = y.reshape(-1, y.size(-1))
-            sample_size = y.size(0)
-            masked_b = None
+        masked = encoder_mask.mask.unsqueeze(-1)
+        masked_b = encoder_mask.mask.bool()
+        y = y[masked_b]
+
+        if xs[0].size(1) == masked_b.size(1):
+            xs = [x[masked_b] for x in xs]
         else:
-            masked = encoder_mask.mask.unsqueeze(-1)
-            masked_b = encoder_mask.mask.bool()
-            y = y[masked_b]
+            xs = [x.reshape(-1, x.size(-1)) for x in xs]
 
-            if xs[0].size(1) == masked_b.size(1):
-                xs = [x[masked_b] for x in xs]
-            else:
-                xs = [x.reshape(-1, x.size(-1)) for x in xs]
-
-            sample_size = masked.sum().long() if not self.mean_loss else 1
+        sample_size = masked.sum().long()
 
         result = {
             "losses": {},
@@ -697,54 +633,6 @@ class Data2VecMultiModel(BaseFairseqModel):
             result["losses"]["recon"] = (
                 self.d2v_loss(recon, target.float()) * self.cfg.recon_loss
             )
-
-        def move_ema(x, ema, name):
-            p = next(ema.model.parameters())
-            device = x.device
-            dtype = x.dtype
-            ema_device = p.device
-            ema_dtype = p.dtype
-
-            if ema_device != device or ema_dtype != dtype:
-                logger.info(
-                    f"adjusting {name} ema dtype to {dtype} and device to {device}"
-                )
-                ema.model = ema.model.to(dtype=dtype, device=device)
-
-                def to_device(d):
-                    for k, p in d.items():
-                        if isinstance(d[k], dict):
-                            to_device(d[k])
-                        else:
-                            d[k] = p.to(device=device)
-
-                to_device(ema.fp32_params)
-
-        if self.modality_discrim is not None:
-            move_ema(x, self.modality_discrim_ema, "modality discrim")
-
-            preds = self.modality_discrim_ema.model(orig_x)
-            preds = preds.view(-1, preds.size(-1))
-            targets = preds.new_full(preds.shape, fill_value=1 / preds.size(-1))
-
-            result["losses"]["modality_discrim_pred"] = F.cross_entropy(
-                preds, targets, reduction="sum"
-            ) * (self.cfg.modality_discrim_weight * sample_size / preds.size(0))
-
-            adv_preds = self.modality_discrim(orig_x.detach())
-            adv_preds = adv_preds.view(-1, adv_preds.size(-1))
-            if not hasattr(self, "modalities_str"):
-                self.modalities_str = [m.name for m in self.modalities]
-
-            adv_targets = adv_preds.new_full(
-                (preds.size(0),),
-                fill_value=self.modalities_str.index(mode),
-                dtype=torch.long,
-            )
-
-            result["losses"]["modality_discrim_adv"] = F.cross_entropy(
-                adv_preds, adv_targets, reduction="sum"
-            ) * (sample_size / adv_preds.size(0))
 
         if self.cfg.d2v_loss > 0:
             for i, x in enumerate(xs):
@@ -806,24 +694,19 @@ class Data2VecMultiModel(BaseFairseqModel):
         x = x.view(-1, x.size(-1)).float()
         y = y.view(-1, x.size(-1))
 
-        if self.cosine_loss_temp > 0:
-            reg_loss = (1 - torch.cosine_similarity(x, y, dim=-1)).div(
-                self.cosine_loss_temp
-            )
+        if self.loss_beta == 0:
+            loss = F.mse_loss(x, y, reduction="none")
         else:
-            if self.loss_beta == 0:
-                loss = F.mse_loss(x, y, reduction="none")
-            else:
-                loss = F.smooth_l1_loss(x, y, reduction="none", beta=self.loss_beta)
+            loss = F.smooth_l1_loss(x, y, reduction="none", beta=self.loss_beta)
 
-            if self.loss_scale is not None:
-                scale = self.loss_scale
-            else:
-                scale = 1 / math.sqrt(x.size(-1))
+        if self.loss_scale is not None:
+            scale = self.loss_scale
+        else:
+            scale = 1 / math.sqrt(x.size(-1))
 
-            reg_loss = loss * scale
+        reg_loss = loss * scale
 
-        return reg_loss if not self.mean_loss else reg_loss.mean(dim=0)
+        return reg_loss
 
     def make_targets(self, y, num_layers):
 
@@ -857,26 +740,10 @@ class Data2VecMultiModel(BaseFairseqModel):
                     for tl in target_layer_results
                 ]
 
-        if self.cfg.shift_targets_down_updates > 0:
-            e = self.cfg.shift_targets_down_updates
-            c = max(0, self.cfg.shift_targets_down_updates - self.num_updates)
-            weights = (
-                F.normalize(
-                    torch.linspace(e, c, num_layers),
-                    dim=0,
-                )
-                .mul_(self.cfg.shift_targets_down_scale)
-                .softmax(0)
-            )
-
-            y = target_layer_results[0].float().mul_(weights[0])
-            for w, tl in zip(weights[1:], target_layer_results[1:]):
-                y.add_(tl.float().mul_(w))
-        else:
-            y = target_layer_results[0].float()
-            for tl in target_layer_results[1:]:
-                y.add_(tl.float())
-            y = y.div_(len(target_layer_results))
+        y = target_layer_results[0].float()
+        for tl in target_layer_results[1:]:
+            y.add_(tl.float())
+        y = y.div_(len(target_layer_results))
 
         if self.cfg.layer_norm_targets:
             y = F.layer_norm(y, y.shape[-1:])
