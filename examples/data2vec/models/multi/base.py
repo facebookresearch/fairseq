@@ -35,9 +35,6 @@ class D2vModalityConfig:
     num_extra_tokens: int = 0
     init_extra_token_zero: bool = True
 
-    mask_from_extra: bool = False
-    mask_from_extra_detached: bool = False
-
     mask_noise_std: float = 0.01
     mask_prob_min: Optional[float] = None
     mask_prob: float = 0.7
@@ -69,11 +66,6 @@ class D2vModalityConfig:
     model_depth: int = II("model.depth")
 
     decoder: Optional[D2vDecoderConfig] = None
-
-    # deprecated - not used and remove later
-    max_alibi_scale: float = 0.0
-    max_alibi_grad: float = 0.0
-    max_alibi_val: float = 0.0
 
 
 MaskSeed = namedtuple("MaskSeed", ["seed", "update", "ids"])
@@ -173,18 +165,11 @@ class ModalitySpecificEncoder(nn.Module):
         if mask_info is not None:
             num_masked = mask_info.ids_restore.shape[1] - x.shape[1] + num_extra
 
-            if self.modality_cfg.mask_from_extra and num_extra > 0:
-                mask_tokens = x[:, :num_extra]
-                if self.modality_cfg.mask_from_extra_detached:
-                    mask_tokens = mask_tokens.detach()
-                mask_tokens = mask_tokens.sum(dim=1, keepdim=True)
-                mask_tokens = mask_tokens.expand(-1, num_masked, -1)
-            else:
-                mask_tokens = x.new_empty(
-                    x.size(0),
-                    num_masked,
-                    x.size(-1),
-                ).normal_(0, self.modality_cfg.mask_noise_std)
+            mask_tokens = x.new_empty(
+                x.size(0),
+                num_masked,
+                x.size(-1),
+            ).normal_(0, self.modality_cfg.mask_noise_std)
 
             x_ = torch.cat([x[:, num_extra:], mask_tokens], dim=1)
             x = torch.gather(x_, dim=1, index=mask_info.ids_restore)
@@ -498,6 +483,7 @@ def get_annealed_rate(start, end, curr_step, total_steps):
     return end - r * pct_remaining
 
 
+# adapted from MAE
 def random_masking(x, mask_ratio, mask_seed: Optional[MaskSeed]):
     N, L, D = x.shape  # batch, length, dim
     len_keep = int(L * (1 - mask_ratio))

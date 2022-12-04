@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import numpy as np
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Optional
-from fairseq.models.wav2vec import ConvFeatureExtractionModel, MlpFeatureExtractionModel
+from fairseq.models.wav2vec import ConvFeatureExtractionModel
 from fairseq.modules import (
     LayerNorm,
     SamePad,
@@ -47,11 +47,6 @@ class D2vAudioConfig(D2vModalityConfig):
     )
     conv_pos_pre_ln: bool = False
 
-    mlp_encoder: bool = False
-    mlp_n_in: int = 320
-    mlp_dim: Optional[int] = None
-    mlp_layers: int = 9
-
 
 class AudioEncoder(ModalitySpecificEncoder):
 
@@ -68,38 +63,22 @@ class AudioEncoder(ModalitySpecificEncoder):
         task: Optional[FairseqTask],
     ):
 
-        if modality_cfg.mlp_encoder:
-            self.feature_enc_layers = modality_cfg.mlp_layers
-            local_encoder = MlpFeatureExtractionModel(
-                n_in=modality_cfg.mlp_n_in,
-                n_out=modality_cfg.mlp_dim or embed_dim,
-                n_layers=self.feature_enc_layers,
-                layer_norm=modality_cfg.extractor_mode == "layer_norm",
-            )
-            if modality_cfg.mlp_dim is not None and modality_cfg.mlp_dim != embed_dim:
-                project_features = nn.Sequential(
-                    nn.LayerNorm(modality_cfg.mlp_dim),
-                    nn.Linear(modality_cfg.mlp_dim, embed_dim),
-                )
-            else:
-                project_features = nn.Identity()
-        else:
-            self.feature_enc_layers = eval(modality_cfg.feature_encoder_spec)
-            feature_embed_dim = self.feature_enc_layers[-1][0]
+        self.feature_enc_layers = eval(modality_cfg.feature_encoder_spec)
+        feature_embed_dim = self.feature_enc_layers[-1][0]
 
-            local_encoder = ConvFeatureExtractionModel(
-                conv_layers=self.feature_enc_layers,
-                dropout=0.0,
-                mode=modality_cfg.extractor_mode,
-                conv_bias=False,
-                affine_norms=True,
-            )
+        local_encoder = ConvFeatureExtractionModel(
+            conv_layers=self.feature_enc_layers,
+            dropout=0.0,
+            mode=modality_cfg.extractor_mode,
+            conv_bias=False,
+            affine_norms=True,
+        )
 
-            project_features = nn.Sequential(
-                TransposeLast(),
-                nn.LayerNorm(feature_embed_dim),
-                nn.Linear(feature_embed_dim, embed_dim),
-            )
+        project_features = nn.Sequential(
+            TransposeLast(),
+            nn.LayerNorm(feature_embed_dim),
+            nn.Linear(feature_embed_dim, embed_dim),
+        )
 
         num_pos_layers = modality_cfg.conv_pos_depth
         k = max(3, modality_cfg.conv_pos_width // num_pos_layers)
@@ -142,7 +121,11 @@ class AudioEncoder(ModalitySpecificEncoder):
             modality_cfg.prenet_dropout,
         )
 
-        decoder = Decoder1d(modality_cfg.decoder, embed_dim) if modality_cfg.decoder is not None else None
+        decoder = (
+            Decoder1d(modality_cfg.decoder, embed_dim)
+            if modality_cfg.decoder is not None
+            else None
+        )
 
         alibi_bias_fn = partial(get_alibi_bias, alibi_biases=alibi_biases)
 

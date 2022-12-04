@@ -29,8 +29,6 @@ class D2vTextConfig(D2vModalityConfig):
     layernorm_embedding: bool = True
     no_token_positional_embeddings: bool = False
 
-    downsample: int = 0
-
 
 class TextEncoder(ModalitySpecificEncoder):
 
@@ -48,7 +46,6 @@ class TextEncoder(ModalitySpecificEncoder):
     ):
         self.pad_idx = task.source_dictionary.pad()
         self.vocab_size = len(task.source_dictionary)
-        self.downsample = modality_cfg.downsample
 
         local_encoder = TextLocalEncoder(
             vocab_size=self.vocab_size,
@@ -60,7 +57,6 @@ class TextEncoder(ModalitySpecificEncoder):
             dropout=modality_cfg.dropout,
             no_token_positional_embeddings=modality_cfg.no_token_positional_embeddings,
             learned_pos=modality_cfg.learned_pos,
-            downsample=self.downsample,
         )
         dpr = np.linspace(
             modality_cfg.start_drop_path_rate,
@@ -131,7 +127,6 @@ class TextLocalEncoder(nn.Module):
         dropout,
         no_token_positional_embeddings,
         learned_pos,
-        downsample=0,
     ):
         super().__init__()
         self.pad_idx = pad_idx
@@ -155,24 +150,10 @@ class TextLocalEncoder(nn.Module):
         if layernorm_embedding:
             self.layernorm_embedding = LayerNorm(embed_dim)
 
-        self.downsample_conv = None
-        if downsample > 1:
-            self.downsample_conv = nn.Sequential(
-                TransposeLast(),
-                nn.Conv1d(
-                    embed_dim, embed_dim, kernel_size=downsample, stride=downsample
-                ),
-                TransposeLast(),
-                LayerNorm(embed_dim),
-            )
-
     def forward(self, src_tokens):
         x = self.embed_scale * self.embed_tokens(src_tokens)
         if self.embed_positions is not None:
             x = x + self.embed_positions(src_tokens)
-
-        if self.downsample_conv is not None:
-            x = self.downsample_conv(x)
 
         if self.layernorm_embedding is not None:
             x = self.layernorm_embedding(x)

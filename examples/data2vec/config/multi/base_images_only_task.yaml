@@ -113,5 +113,4 @@ model:
         decoder_groups: 16
         decoder_kernel: 3
         decoder_layers: 6
-        final_layer_norm: false
         input_dropout: 0

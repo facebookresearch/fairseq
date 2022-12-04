@@ -118,7 +118,6 @@ model:
         decoder_groups: 1
         decoder_kernel: 9
         decoder_layers: 5
-        final_layer_norm: false
         decoder_residual: false
         projection_layers: 2
         projection_ratio: 2.0

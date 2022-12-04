@@ -27,16 +27,9 @@ class D2vDecoderConfig:
     add_positions_masked: bool = False
     add_positions_all: bool = False
 
-    final_layer_norm: bool = False
-    tanh_scale: float = 0
-    project_first_residual: bool = False
     decoder_residual: bool = True
     projection_layers: int = 1
     projection_ratio: float = 2.0
-
-    residual_scale: float = 1.0
-    remove_residual_noise: bool = False
-    post_residual_ln: bool = False
 
 
 class FixedPositionalEncoder(nn.Module):
@@ -108,9 +101,6 @@ class DecoderBase(nn.Module):
         super().__init__()
 
         self.decoder_cfg = cfg
-        self.residual_scale = cfg.residual_scale
-        self.post_residual_ln = cfg.post_residual_ln
-        self.remove_residual_noise = cfg.remove_residual_noise
 
     def reset_parameters(self):
         for mod in self.proj.modules():
@@ -125,23 +115,7 @@ class DecoderBase(nn.Module):
         ):
             return x
 
-        if i == 0 and self.remove_residual_noise:
-            rshape = residual.shape
-            residual = residual.view(residual.size(0), residual.size(1), -1).transpose(
-                1, 2
-            )
-            residual = residual * (1 - mask_info.mask.unsqueeze(-1))
-            residual = residual.transpose(1, 2).reshape(rshape)
-
-        if self.residual_scale:
-            residual = residual * self.residual_scale
-
         ret = x + residual
-
-        if self.decoder_cfg.post_residual_ln:
-            ret = ret.transpose(1, 2)
-            ret = F.layer_norm(ret.float(), ret.shape[-1:]).type_as(ret)
-            ret = ret.transpose(1, 2)
 
         return ret
 
@@ -175,16 +149,8 @@ class Decoder1d(DecoderBase):
             ]
         )
 
-        self.first_resid_proj = None
-        if cfg.project_first_residual:
-            self.first_resid_proj = nn.Linear(input_dim, cfg.decoder_dim)
-
-        self.tanh_scale = cfg.tanh_scale
-
         projs = []
         curr_dim = cfg.decoder_dim
-        if cfg.final_layer_norm:
-            projs.append(LayerNorm(curr_dim))
         for i in range(cfg.projection_layers - 1):
             next_dim = int(curr_dim * cfg.projection_ratio) if i == 0 else curr_dim
             projs.append(nn.Linear(curr_dim, next_dim))
@@ -198,17 +164,9 @@ class Decoder1d(DecoderBase):
 
     def forward(self, x, mask_info):
 
-        if self.tanh_scale > 0:
-            x = self.tanh_scale * F.tanh(x)
-
-        residual = None
-        if self.first_resid_proj is not None:
-            residual = self.first_resid_proj(x).transpose(1, 2)
-
         x = x.transpose(1, 2)
 
-        if residual is None:
-            residual = x
+        residual = x
 
         for i, layer in enumerate(self.blocks):
             x = layer(x)
@@ -252,34 +210,14 @@ class Decoder2d(DecoderBase):
             ]
         )
 
-        self.first_resid_proj = None
-        if cfg.project_first_residual:
-            self.first_resid_proj = nn.Linear(input_dim, cfg.decoder_dim)
-
-        self.tanh_scale = cfg.tanh_scale
-
         self.proj = nn.Linear(cfg.decoder_dim, input_dim)
-        if cfg.final_layer_norm:
-            self.proj = nn.Sequential(LayerNorm(cfg.decoder_dim), self.proj)
 
     def forward(self, x, mask_info):
         B, T, C = x.shape
 
-        if self.tanh_scale > 0:
-            x = self.tanh_scale * F.tanh(x)
-
-        residual = None
-        if self.first_resid_proj is not None:
-            residual = (
-                self.first_resid_proj(x)
-                .transpose(1, 2)
-                .reshape(B, self.decoder_cfg.decoder_dim, self.h_size, self.w_size)
-            )
-
         x = x.transpose(1, 2).reshape(B, C, self.h_size, self.w_size)
 
-        if residual is None:
-            residual = x
+        residual = x
 
         for i, layer in enumerate(self.blocks):
             x = layer(x)
@@ -304,8 +242,6 @@ class TransformerDecoder(nn.Module):
         self.encoder = encoder
 
         self.proj = nn.Linear(cfg.decoder_dim, input_dim)
-        if cfg.final_layer_norm:
-            self.proj = nn.Sequential(LayerNorm(cfg.decoder_dim), self.proj)
 
     def reset_parameters(self):
         from fairseq.modules.transformer_sentence_encoder import init_bert_params
@@ -638,8 +574,6 @@ class EncDecTransformerDecoder(nn.Module):
         )
 
         self.proj = nn.Linear(cfg.decoder_dim, input_dim)
-        if cfg.final_layer_norm:
-            self.proj = nn.Sequential(LayerNorm(cfg.decoder_dim), self.proj)
 
     def reset_parameters(self):
         from fairseq.modules.transformer_sentence_encoder import init_bert_params
@@ -653,119 +587,3 @@ class EncDecTransformerDecoder(nn.Module):
 
         x = self.proj(x)
         return x
-
-
-class CMlp(nn.Module):
-    # taken from https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/vision_transformer.py
-    def __init__(
-        self,
-        in_features,
-        hidden_features=None,
-        out_features=None,
-        act_layer=nn.GELU,
-        drop=0.0,
-    ):
-        super().__init__()
-        out_features = out_features or in_features
-        hidden_features = hidden_features or in_features
-        self.fc1 = nn.Conv2d(in_features, hidden_features, 1)
-        self.act = act_layer()
-        self.fc2 = nn.Conv2d(hidden_features, out_features, 1)
-        self.drop = nn.Dropout(drop)
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = self.act(x)
-        x = self.drop(x)
-        x = self.fc2(x)
-        x = self.drop(x)
-        return x
-
-
-class CBlock(nn.Module):
-    # taken from https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/vision_transformer.py
-    def __init__(
-        self,
-        dim,
-        num_heads,
-        mlp_ratio=4.0,
-        qkv_bias=False,
-        qk_scale=None,
-        drop=0.0,
-        attn_drop=0.0,
-        drop_path=0.0,
-        act_layer=nn.GELU,
-        norm_layer=nn.LayerNorm,
-    ):
-        super().__init__()
-        self.norm1 = nn.LayerNorm(dim)
-        self.conv1 = nn.Conv2d(dim, dim, 1)
-        self.conv2 = nn.Conv2d(dim, dim, 1)
-        self.attn = nn.Conv2d(dim, dim, 5, padding=2, groups=dim)
-        #        self.attn = nn.Conv2d(dim, dim, 13, padding=6, groups=dim)
-        # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
-        from timm.models.vision_transformer import DropPath
-
-        self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
-        self.norm2 = nn.LayerNorm(dim)
-        mlp_hidden_dim = int(dim * mlp_ratio)
-        self.mlp = CMlp(
-            in_features=dim,
-            hidden_features=mlp_hidden_dim,
-            act_layer=act_layer,
-            drop=drop,
-        )
-
-    def forward(self, x, mask=None):
-        if mask is not None:
-            x = x + self.drop_path(
-                self.conv2(
-                    self.attn(
-                        mask
-                        * self.conv1(
-                            self.norm1(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
-                        )
-                    )
-                )
-            )
-        else:
-            x = x + self.drop_path(
-                self.conv2(
-                    self.attn(
-                        self.conv1(
-                            self.norm1(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
-                        )
-                    )
-                )
-            )
-        x = x + self.drop_path(
-            self.mlp(self.norm2(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2))
-        )
-        return x
-
-class ConvMAEPatchEmbed(nn.Module):
-    """ Image to Patch Embedding
-    """
-    def __init__(self, img_size=224, patch_size=16, in_chans=3, embed_dim=768):
-        super().__init__()
-
-        from timm.models.layers import to_2tuple
-
-        img_size = to_2tuple(img_size)
-        patch_size = to_2tuple(patch_size)
-        num_patches = (img_size[1] // patch_size[1]) * (img_size[0] // patch_size[0])
-        self.img_size = img_size
-        self.patch_size = patch_size
-        self.num_patches = num_patches
-
-        self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
-        self.norm = nn.LayerNorm(embed_dim)
-        self.act = nn.GELU()
-    def forward(self, x):
-        B, C, H, W = x.shape
-        # FIXME look at relaxing size constraints
-        assert H == self.img_size[0] and W == self.img_size[1], \
-            f"Input image size ({H}*{W}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
-        x = self.proj(x)
-        x = self.norm(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
-        return self.act(x)

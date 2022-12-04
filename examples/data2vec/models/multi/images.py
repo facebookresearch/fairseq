@@ -18,17 +18,13 @@ from .base import (
     ModalitySpecificEncoder,
     get_alibi_bias,
     MaskSeed,
-    MaskInfo,
 )
 from .modules import (
     BlockEncoder,
     Decoder2d,
     FixedPositionalEncoder,
-    D2vDecoderConfig,
     TransformerDecoder,
     EncDecTransformerDecoder,
-    CBlock,
-    ConvMAEPatchEmbed,
 )
 from ...tasks.multimodal import Modality
 
@@ -42,24 +38,13 @@ class D2vImageConfig(D2vModalityConfig):
     patch_size: int = 16
     embed_dim: int = 768
 
-    fix_masks: bool = False
-    exact_mask_pct: bool = False
-
-    unmask_focal: bool = False
-    focal_length: int = 1
-
     alibi_dims: int = 2
     alibi_distance: str = "manhattan"
 
     fixed_positions: bool = True
-    conv_pos_cfg: Optional[D2vDecoderConfig] = None
 
     transformer_decoder: bool = False
     enc_dec_transformer: bool = False
-
-    conv_mae: bool = False
-    conv_mae_multiscale: bool = True
-    conv_mae_masking: bool = True
 
 
 class ImageEncoder(ModalitySpecificEncoder):
@@ -81,25 +66,17 @@ class ImageEncoder(ModalitySpecificEncoder):
         patch_size = to_2tuple(modality_cfg.patch_size)
         num_patches = (img_size[1] // patch_size[1]) * (img_size[0] // patch_size[0])
 
-        if modality_cfg.conv_mae:
-            local_encoder = ConvMAEPatchEmbed(
-                modality_cfg.input_size,
-                modality_cfg.patch_size,
-                modality_cfg.in_chans,
-                modality_cfg.embed_dim,
-            )
-        else:
-            local_encoder = PatchEmbed(
-                modality_cfg.input_size,
-                modality_cfg.patch_size,
-                modality_cfg.in_chans,
-                modality_cfg.embed_dim,
-            )
+        local_encoder = PatchEmbed(
+            modality_cfg.input_size,
+            modality_cfg.patch_size,
+            modality_cfg.in_chans,
+            modality_cfg.embed_dim,
+        )
 
         w = local_encoder.proj.weight.data
         torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
 
-        if modality_cfg.embed_dim != embed_dim and not modality_cfg.conv_mae:
+        if modality_cfg.embed_dim != embed_dim:
             local_encoder = nn.Sequential(
                 local_encoder,
                 nn.Linear(modality_cfg.embed_dim, embed_dim),
@@ -107,15 +84,11 @@ class ImageEncoder(ModalitySpecificEncoder):
 
         project_features = nn.Identity()
 
-        if modality_cfg.conv_mae:
-            pos_embed = nn.Parameter(torch.zeros(1, 14 * 14, 768), requires_grad=False)
-            side_n = 14
-        else:
-            pos_embed = nn.Parameter(
-                torch.zeros(1, num_patches, embed_dim), requires_grad=False
-            )
+        pos_embed = nn.Parameter(
+            torch.zeros(1, num_patches, embed_dim), requires_grad=False
+        )
 
-            side_n = int(num_patches ** 0.5)
+        side_n = int(num_patches ** 0.5)
 
         emb = get_2d_sincos_pos_embed(
             pos_embed.shape[-1],
@@ -125,11 +98,6 @@ class ImageEncoder(ModalitySpecificEncoder):
         pos_embed.data.copy_(torch.from_numpy(emb).float().unsqueeze(0))
         fixed_positional_encoder = (
             FixedPositionalEncoder(pos_embed) if modality_cfg.fixed_positions else None
-        )
-        relative_positional_encoder = (
-            Decoder2d(modality_cfg.conv_pos_cfg, embed_dim, side_n, side_n)
-            if modality_cfg.conv_pos_cfg is not None
-            else None
         )
 
         dpr = np.linspace(
@@ -182,65 +150,11 @@ class ImageEncoder(ModalitySpecificEncoder):
             local_encoder=local_encoder,
             project_features=project_features,
             fixed_positional_encoder=fixed_positional_encoder,
-            relative_positional_encoder=relative_positional_encoder,
+            relative_positional_encoder=None,
             context_encoder=context_encoder,
             decoder=decoder,
             get_alibi_bias=alibi_bias_fn,
         )
-
-        if modality_cfg.conv_mae:
-            assert modality_cfg.patch_size == 4
-            assert modality_cfg.embed_dim == 256
-            assert modality_cfg.num_extra_tokens == 0
-
-            self.patch_embed2 = ConvMAEPatchEmbed(
-                img_size=56, patch_size=2, in_chans=256, embed_dim=384
-            )
-            w = self.patch_embed2.proj.weight.data
-            torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
-            self.patch_embed3 = ConvMAEPatchEmbed(
-                img_size=28, patch_size=2, in_chans=384, embed_dim=768
-            )
-            w = self.patch_embed3.proj.weight.data
-            torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
-
-            self.blocks1 = nn.ModuleList(
-                [
-                    CBlock(
-                        dim=modality_cfg.embed_dim,
-                        num_heads=12,
-                        mlp_ratio=4,
-                        qkv_bias=True,
-                        qk_scale=None,
-                        norm_layer=norm_layer,
-                    )
-                    for _ in range(2)
-                ]
-            )
-            self.blocks2 = nn.ModuleList(
-                [
-                    CBlock(
-                        dim=384,
-                        num_heads=12,
-                        mlp_ratio=4,
-                        qkv_bias=True,
-                        qk_scale=None,
-                        norm_layer=norm_layer,
-                    )
-                    for _ in range(2)
-                ]
-            )
-            self.norm = norm_layer(768)
-
-            self.patch_embed4 = nn.Linear(768, 768)
-
-            if modality_cfg.conv_mae_multiscale:
-                self.stage1_output_decode = nn.Conv2d(
-                    modality_cfg.embed_dim, 768, 4, stride=4
-                )
-                self.stage2_output_decode = nn.Conv2d(384, 768, 2, stride=2)
-            else:
-                self.stage1_output_decode = self.stage2_output_decode = None
 
     def reset_parameters(self):
         super().reset_parameters()
@@ -268,11 +182,11 @@ class ImageEncoder(ModalitySpecificEncoder):
         imgs: (N, 3, H, W)
         """
         p = self.modality_cfg.patch_size
-        h = w = int(x.shape[1] ** .5)
+        h = w = int(x.shape[1] ** 0.5)
         assert h * w == x.shape[1]
 
         x = x.reshape(shape=(x.shape[0], h, w, p, p, 3))
-        x = torch.einsum('nhwpqc->nchpwq', x)
+        x = torch.einsum("nhwpqc->nchpwq", x)
         imgs = x.reshape(shape=(x.shape[0], 3, h * p, h * p))
         return imgs
 
@@ -294,91 +208,22 @@ class ImageEncoder(ModalitySpecificEncoder):
         if precomputed_mask is not None:
             mask = precomputed_mask
         else:
+            from fairseq.data.data_utils import compute_block_mask_2d
+
             if shape is not None:
                 B, L, D = shape
             else:
                 B, L, D = x.shape
 
-            bsz = B
-            d = int(L ** 0.5)
-            mask_prob = self.modality_cfg.mask_prob
-
-            if (
-                self.modality_cfg.mask_prob_min is not None
-                and self.modality_cfg.mask_prob_min >= 0
-                and self.modality_cfg.mask_prob_min < mask_prob
-            ):
-                mask_prob = np.random.uniform(
-                    self.modality_cfg.mask_prob_min, mask_prob
-                )
-
-            if self.modality_cfg.inverse_mask:
-                mask_prob = 1 - mask_prob
-
-            mask = torch.zeros((bsz, d, d))
-            mask_inds = torch.randint(
-                0,
-                d * d,
-                size=(
-                    bsz,
-                    int(d ** 2 * (mask_prob / mlen ** 2)),
-                ),
+            mask = compute_block_mask_2d(
+                shape=(B, L),
+                mask_prob=self.modality_cfg.mask_prob,
+                mask_length=self.modality_cfg.mask_length,
+                mask_prob_adjust=self.modality_cfg.mask_prob_adjust,
+                inverse_mask=self.modality_cfg.inverse_mask,
+                require_same_masks=True,
+                mask_dropout=self.modality_cfg.mask_dropout,
             )
-            mask.view(bsz, -1).scatter_(1, mask_inds, 1)
-            centers = mask.nonzero(as_tuple=True)
-
-            inds = ([], [], [])
-
-            offset = mlen // 2
-            for i in range(mlen):
-                for j in range(mlen):
-                    k1 = i - offset
-                    k2 = j - offset
-                    inds[0].append(centers[0])
-                    inds[1].append(centers[1] + k1)
-                    inds[2].append(centers[2] + k2)
-
-            i0 = torch.cat(inds[0])
-            i1 = torch.cat(inds[1]).clamp_(min=0, max=d - 1)
-            i2 = torch.cat(inds[2]).clamp_(min=0, max=d - 1)
-
-            mask[(i0, i1, i2)] = 1
-
-            mask = mask.view(bsz, -1)
-
-            if self.modality_cfg.fix_masks:
-                n_masks = mask.sum(dim=-1)
-
-                if self.modality_cfg.exact_mask_pct:
-                    target_len = int(L * mask_prob)
-                else:
-                    add_mask = self.modality_cfg.add_masks
-                    if add_mask and self.modality_cfg.remove_masks:
-                        target_len = (n_masks.max() + n_masks.min()) / 2
-                    else:
-                        if self.modality_cfg.inverse_mask:
-                            add_mask = not add_mask
-
-                        if add_mask:
-                            target_len = n_masks.max()
-                        else:
-                            target_len = n_masks.min()
-
-                for n, m in zip(n_masks, mask):
-                    if n > target_len:
-                        to_unmask = torch.multinomial(
-                            m, int(n - target_len), replacement=False
-                        )
-                        m[to_unmask] = 0
-                    elif n < target_len:
-                        to_mask = torch.multinomial(
-                            (1 - m), int(target_len - n), replacement=False
-                        )
-                        m[to_mask] = 1
-
-            mask = mask.to(x.device)
-            if self.modality_cfg.inverse_mask:
-                mask = 1 - mask
 
         mask_info = self.make_maskinfo(x, mask, shape)
         if apply:
@@ -409,176 +254,3 @@ class ImageEncoder(ModalitySpecificEncoder):
         q = pos[mask].view(x.size(0), -1, x.size(-1))
 
         return q, kv
-
-    def contextualized_features(
-        self,
-        x,
-        padding_mask,
-        mask,
-        remove_masked,
-        clone_batch: int = 1,
-        mask_seeds: Optional[torch.Tensor] = None,
-        precomputed_mask=None,
-    ):
-        if not self.modality_cfg.conv_mae:
-            return super(ImageEncoder, self).contextualized_features(
-                x,
-                padding_mask,
-                mask,
-                remove_masked,
-                clone_batch,
-                mask_seeds,
-                precomputed_mask,
-            )
-
-        assert padding_mask is None
-
-        local_features = x
-        if mask and clone_batch == 1:
-            local_features = local_features.clone()
-
-        orig_B, orig_T, _, _ = x.shape
-
-        bin_mask1 = bin_mask2 = None
-
-        mask_info = None
-        if mask:
-            if clone_batch > 1:
-                x = x.repeat_interleave(clone_batch, 0)
-
-            if self.modality_cfg.conv_mae_masking or self.modality_cfg.mask_length == 1:
-                mask_info = self.convmae_random_masking(x, self.modality_cfg.mask_prob)
-            else:
-                _, mask_info = self.compute_mask(
-                    x,
-                    padding_mask,
-                    mask_seed=mask_seeds,
-                    apply=False,
-                    shape=(x.shape[0], self.patch_embed3.num_patches, 768),
-                )
-
-            bin_mask1 = 1 - mask_info.mask.reshape(-1, 14, 14).unsqueeze(-1).repeat(
-                1, 1, 1, 16
-            ).reshape(-1, 14, 14, 4, 4).permute(0, 1, 3, 2, 4).reshape(
-                x.shape[0], 56, 56
-            ).unsqueeze(
-                1
-            )
-            bin_mask2 = 1 - mask_info.mask.reshape(-1, 14, 14).unsqueeze(-1).repeat(
-                1, 1, 1, 4
-            ).reshape(-1, 14, 14, 2, 2).permute(0, 1, 3, 2, 4).reshape(
-                x.shape[0], 28, 28
-            ).unsqueeze(
-                1
-            )
-
-        for blk in self.blocks1:
-            x = blk(x, bin_mask1)
-
-        stage1_embed = None
-        if self.stage1_output_decode is not None:
-            stage1_embed = self.stage1_output_decode(x).flatten(2).permute(0, 2, 1)
-
-        x = self.patch_embed2(x)
-        for blk in self.blocks2:
-            x = blk(x, bin_mask2)
-
-        stage2_embed = None
-        if self.stage2_output_decode is not None:
-            stage2_embed = self.stage2_output_decode(x).flatten(2).permute(0, 2, 1)
-        x = self.patch_embed3(x)
-
-        x = x.flatten(2).permute(0, 2, 1)
-
-        x = self.patch_embed4(x)
-
-        x = x + self.fixed_positional_encoder(x, None)
-
-        if mask:
-            x = torch.gather(
-                x,
-                dim=1,
-                index=mask_info.ids_keep.unsqueeze(-1).repeat(1, 1, x.shape[-1]),
-            )
-            if stage1_embed is None:
-                stage1_embed = 0
-            else:
-                stage1_embed = torch.gather(
-                    stage1_embed,
-                    dim=1,
-                    index=mask_info.ids_keep.unsqueeze(-1).repeat(
-                        1, 1, stage1_embed.shape[-1]
-                    ),
-                )
-            if stage2_embed is None:
-                stage2_embed = 0
-            else:
-                stage2_embed = torch.gather(
-                    stage2_embed,
-                    dim=1,
-                    index=mask_info.ids_keep.unsqueeze(-1).repeat(
-                        1, 1, stage2_embed.shape[-1]
-                    ),
-                )
-
-        x = self.context_encoder(
-            x,
-            padding_mask,
-            None,
-            None,
-        )
-
-        if mask:
-            x = x + stage1_embed + stage2_embed
-            x = self.norm(x)
-
-        return {
-            "x": x,
-            "local_features": local_features,
-            "padding_mask": None,
-            "alibi_bias": None,
-            "alibi_scale": None,
-            "encoder_mask": mask_info,
-        }
-
-    def convmae_random_masking(self, x, mask_ratio):
-        """
-        Perform per-sample random masking by per-sample shuffling.
-        Per-sample shuffling is done by argsort random noise.
-        x: [N, L, D], sequence
-        """
-        N = x.shape[0]
-        L = self.patch_embed3.num_patches
-        #        N, L, D = x.shape  # batch, length, dim
-        len_keep = int(L * (1 - mask_ratio))
-
-        noise = torch.rand(N, L, device=x.device)  # noise in [0, 1]
-
-        # sort noise for each sample
-        ids_shuffle = torch.argsort(
-            noise, dim=1
-        )  # ascend: small is keep, large is remove
-        ids_restore = ids_shuffle.argsort(dim=1)
-
-        # keep the first subset
-        ids_keep = ids_shuffle[:, :len_keep]
-        #        x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
-
-        # generate the binary mask: 0 is keep, 1 is remove
-        mask = torch.ones([N, L], device=x.device, dtype=x.dtype)
-        mask[:, :len_keep] = 0
-        # unshuffle to get the binary mask
-        mask = torch.gather(mask, dim=1, index=ids_restore)
-
-        return MaskInfo(
-            x_unmasked=None,
-            mask=mask,
-            ids_restore=ids_restore.unsqueeze(-1).expand(-1, -1, 768),
-            ids_keep=ids_keep,
-        )
-
-    def remove_pretraining_modules(self, keep_decoder=False):
-        super().remove_pretraining_modules(keep_decoder=keep_decoder)
-        if not keep_decoder:
-            self.norm = None
-        self.stage1_output_decode = self.stage2_output_decode = None
