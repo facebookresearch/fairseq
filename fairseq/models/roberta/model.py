@@ -258,6 +258,14 @@ class RobertaModel(FairseqEncoderModel):
             x = self.classification_heads[classification_head_name](x)
         return x, extra
 
+    def remove_pretraining_modules(self, last_layer=None):
+        self.classification_heads = nn.ModuleDict()
+        self.lm_head = None
+        if last_layer is not None:
+            self.encoder.layers = nn.ModuleList(
+                l for i, l in enumerate(self.encoder.layers) if i <= last_layer
+            )
+
     def _get_adaptive_head_loss(self):
         norm_loss = 0
         scaling = float(self.args.mha_reg_scale_factor)
@@ -463,7 +471,11 @@ class RobertaModel(FairseqEncoderModel):
                     state_dict["encoder.lm_head." + k] = v
 
             for k in list(state_dict.keys()):
-                if k.startswith("encoder.regression_head") or k == "encoder._ema":
+                if (
+                    k.startswith("encoder.regression_head")
+                    or k == "encoder._ema"
+                    or k.startswith("encoder.decoder")
+                ):
                     del state_dict[k]
 
 
@@ -567,7 +579,7 @@ class RobertaEncoder(FairseqEncoder):
         return nn.Embedding(vocab_size, embedding_dim, padding_idx)
 
     def build_encoder(self, args, dictionary, embed_tokens):
-        encoder = TransformerEncoder(args, dictionary, embed_tokens)
+        encoder = TransformerEncoder(args, dictionary, embed_tokens, return_fc=True)
         encoder.apply(init_bert_params)
         return encoder
 
@@ -614,7 +626,8 @@ class RobertaEncoder(FairseqEncoder):
         # T x B x C -> B x T x C
         features = encoder_out["encoder_out"][0].transpose(0, 1)
         inner_states = encoder_out["encoder_states"] if return_all_hiddens else None
-        return features, {"inner_states": inner_states}
+        fc_states = encoder_out["fc_results"] if return_all_hiddens else None
+        return features, {"inner_states": inner_states, "fc_states": fc_states}
 
     def output_layer(self, features, masked_tokens=None, **unused):
         return self.lm_head(features, masked_tokens)

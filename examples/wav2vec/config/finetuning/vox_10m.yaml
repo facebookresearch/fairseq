@@ -28,17 +28,22 @@ dataset:
 
 distributed_training:
   ddp_backend: legacy_ddp
-  distributed_world_size: 4
+  distributed_world_size: 8
 
 criterion:
   _name: ctc
   zero_infinity: true
+  post_process: letter
+  wer_kenlm_model: /checkpoint/abaevski/data/speech/libri/4-gram.bin
+  wer_lexicon: /checkpoint/abaevski/data/speech/libri/10h/wav2vec/raw/lexicon_ltr2.lst
+  wer_lm_weight: 2.0
+  wer_word_score: -1.0
 
 optimization:
   max_update: 13000
   lr: [0.0001]
   sentence_avg: true
-  update_freq: [5]
+  update_freq: [3]
 
 optimizer:
   _name: adam
@@ -55,6 +60,7 @@ model:
   w2v_path: ???
   apply_mask: true
   mask_prob: 0.65
+  mask_length: 10
   mask_channel_prob: 0.25
   mask_channel_length: 64
   layerdrop: 0.1

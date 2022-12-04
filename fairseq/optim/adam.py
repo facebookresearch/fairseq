@@ -40,6 +40,8 @@ class FairseqAdamConfig(FairseqDataclass):
     tpu: bool = II("common.tpu")
     lr: List[float] = II("optimization.lr")
 
+    min_decay_val: float = 0
+
 
 @register_optimizer("adam", dataclass=FairseqAdamConfig)
 class FairseqAdam(FairseqOptimizer):
@@ -57,6 +59,7 @@ class FairseqAdam(FairseqOptimizer):
             not getattr(cfg, "use_old_adam", False)
             and fused_adam_cls is not None
             and torch.cuda.is_available()
+            and cfg.min_decay_val == 0
         )
         if getattr(cfg, "tpu", False):
             if self.cfg.fp16_adam_stats:
@@ -84,7 +87,7 @@ class FairseqAdam(FairseqOptimizer):
         resume training using a different set of optimizer args, e.g., with a
         different learning rate.
         """
-        return {
+        ocfg = {
             "lr": self.cfg.lr[0]
             if isinstance(self.cfg.lr, Collection)
             else self.cfg.lr,
@@ -94,6 +97,11 @@ class FairseqAdam(FairseqOptimizer):
             "eps": self.cfg.adam_eps,
             "weight_decay": self.cfg.weight_decay,
         }
+
+        if self.cfg.min_decay_val > 0:
+            ocfg["min_decay_val"] = self.cfg.min_decay_val
+
+        return ocfg
 
     def average_params(self):
         """Reduce Params is only used during BMUF distributed training."""
@@ -142,11 +150,14 @@ class Adam(torch.optim.Optimizer):
         eps=1e-8,
         weight_decay=0,
         amsgrad=False,
+        min_decay_val: float = 0,
     ):
         defaults = dict(
             lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, amsgrad=amsgrad
         )
         super(Adam, self).__init__(params, defaults)
+
+        self.min_decay_val = min_decay_val
 
     @property
     def supports_memory_efficient_fp16(self):
@@ -211,9 +222,9 @@ class Adam(torch.optim.Optimizer):
 
                 state["step"] += 1
 
-                # Decay the first and second moment running average coefficient
                 exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+
                 if amsgrad:
                     # Maintains the maximum of all 2nd moment running avg. till now
                     torch.max(max_exp_avg_sq, exp_avg_sq, out=max_exp_avg_sq)
@@ -227,6 +238,9 @@ class Adam(torch.optim.Optimizer):
                 step_size = group["lr"] * math.sqrt(bias_correction2) / bias_correction1
 
                 if group["weight_decay"] != 0:
+                    if self.min_decay_val > 0:
+                        m = (p_data_fp32 >= self.min_decay_val).type_as(p_data_fp32)
+                        p_data_fp32.add_(p_data_fp32 * m, alpha=-group["weight_decay"] * group["lr"])
                     p_data_fp32.add_(
                         p_data_fp32, alpha=-group["weight_decay"] * group["lr"]
                     )

@@ -20,9 +20,9 @@ except ImportError:
     _xformers_available = False
 
 from fairseq import utils
+from fairseq.incremental_decoding_utils import with_incremental_state
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
-from fairseq.models.fairseq_incremental_decoder import FairseqIncrementalDecoder
 
 
 # TODO: move this into xformers?
@@ -60,7 +60,8 @@ def _mask_for_xformers(mask: Tensor, to_dtype: Optional[torch.dtype] = None):
     return mask
 
 
-class MultiheadAttention(FairseqIncrementalDecoder):
+@with_incremental_state
+class MultiheadAttention(nn.Module):
     """Multi-headed attention.
 
     See "Attention Is All You Need" for more details.
@@ -78,7 +79,6 @@ class MultiheadAttention(FairseqIncrementalDecoder):
         add_zero_attn=False,
         self_attention=False,
         encoder_decoder_attention=False,
-        dictionary=None,
         q_noise=0.0,
         qn_block_size=8,
         # TODO: pass in config rather than string.
@@ -90,8 +90,12 @@ class MultiheadAttention(FairseqIncrementalDecoder):
         xformers_blocksparse_blocksize: Optional[
             int
         ] = 16,  # This should be part of the config
+        debug=0,
+        qkv_single_proj: bool = False,
     ):
-        super().__init__(dictionary)
+        super().__init__()
+
+        self.debug = debug
 
         xformers_att_config = utils.eval_str_dict(xformers_att_config)
         self.use_xformers = xformers_att_config is not None
@@ -111,7 +115,7 @@ class MultiheadAttention(FairseqIncrementalDecoder):
         assert (
             self.head_dim * num_heads == self.embed_dim
         ), "embed_dim must be divisible by num_heads"
-        self.scaling = self.head_dim**-0.5
+        self.scaling = self.head_dim ** -0.5
 
         self.self_attention = self_attention
         self.encoder_decoder_attention = encoder_decoder_attention
@@ -120,15 +124,21 @@ class MultiheadAttention(FairseqIncrementalDecoder):
             "Self-attention requires query, key and " "value to be of the same size"
         )
 
-        self.k_proj = quant_noise(
-            nn.Linear(self.kdim, embed_dim, bias=bias), q_noise, qn_block_size
-        )
-        self.v_proj = quant_noise(
-            nn.Linear(self.vdim, embed_dim, bias=bias), q_noise, qn_block_size
-        )
-        self.q_proj = quant_noise(
-            nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
-        )
+        self.qkv_proj = None
+
+        if qkv_single_proj:
+            assert self.qkv_same_dim
+            self.qkv_proj = nn.Linear(embed_dim, embed_dim*3, bias=bias)
+        else:
+            self.k_proj = quant_noise(
+                nn.Linear(self.kdim, embed_dim, bias=bias), q_noise, qn_block_size
+            )
+            self.v_proj = quant_noise(
+                nn.Linear(self.vdim, embed_dim, bias=bias), q_noise, qn_block_size
+            )
+            self.q_proj = quant_noise(
+                nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
+            )
 
         self.out_proj = quant_noise(
             nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
@@ -160,7 +170,6 @@ class MultiheadAttention(FairseqIncrementalDecoder):
 
         self.onnx_trace = False
         self.skip_embed_dim_check = False
-        self.init_incremental_state()
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
@@ -169,9 +178,14 @@ class MultiheadAttention(FairseqIncrementalDecoder):
         if self.qkv_same_dim:
             # Empirically observed the convergence to be much better with
             # the scaled initialization
-            nn.init.xavier_uniform_(self.k_proj.weight, gain=1 / math.sqrt(2))
-            nn.init.xavier_uniform_(self.v_proj.weight, gain=1 / math.sqrt(2))
-            nn.init.xavier_uniform_(self.q_proj.weight, gain=1 / math.sqrt(2))
+            if self.qkv_proj is not None:
+                nn.init.xavier_uniform_(self.qkv_proj.weight)
+                if self.qkv_proj.bias is not None:
+                    nn.init.constant_(self.qkv_proj.bias, 0)
+            else:
+                nn.init.xavier_uniform_(self.k_proj.weight, gain=1 / math.sqrt(2))
+                nn.init.xavier_uniform_(self.v_proj.weight, gain=1 / math.sqrt(2))
+                nn.init.xavier_uniform_(self.q_proj.weight, gain=1 / math.sqrt(2))
         else:
             nn.init.xavier_uniform_(self.k_proj.weight)
             nn.init.xavier_uniform_(self.v_proj.weight)
@@ -390,9 +404,12 @@ class MultiheadAttention(FairseqIncrementalDecoder):
         elif self.encoder_decoder_attention:
             value = key
 
-        q = self.q_proj(query)
-        k = self.k_proj(key)
-        v = self.v_proj(value)
+        if self.qkv_proj is not None:
+            q, k, v = self.qkv_proj(query).chunk(3, dim=-1)
+        else:
+            q = self.q_proj(query)
+            k = self.k_proj(key)
+            v = self.v_proj(value)
 
         if self.bias_k is not None:
             assert self.bias_v is not None
@@ -468,7 +485,7 @@ class MultiheadAttention(FairseqIncrementalDecoder):
 
     def forward(
         self,
-        query: Tensor,
+        query,
         key: Optional[Tensor],
         value: Optional[Tensor],
         key_padding_mask: Optional[Tensor] = None,
@@ -478,6 +495,7 @@ class MultiheadAttention(FairseqIncrementalDecoder):
         attn_mask: Optional[Tensor] = None,
         before_softmax: bool = False,
         need_head_weights: bool = False,
+        alibi_bias=None,
     ) -> Tuple[Tensor, Optional[Tensor]]:
         """Input shape: Time x Batch x Channel
 
@@ -527,6 +545,8 @@ class MultiheadAttention(FairseqIncrementalDecoder):
             # Since pruning will break the dimension check and it is not easy to modify the pytorch API,
             # it is preferred to bypass the pytorch MHA when we need to skip embed_dim_check
             and not self.skip_embed_dim_check
+            and alibi_bias is not None
+            and False
         ):
             assert key is not None and value is not None
 
@@ -536,6 +556,17 @@ class MultiheadAttention(FairseqIncrementalDecoder):
                 )
 
             else:
+                if self.qkv_proj is not None:
+                    qb, kb, vb = self.qkv_proj.bias.chunk(3, dim=-1)
+                    qw, kw, vw = self.qkv_proj.weight.chunk(3, dim=-1)
+                else:
+                    qb, kb, vb = self.q_proj.bias, self.k_proj.bias, self.v_proj.bias
+                    qw, kw, vw = (
+                        self.q_proj.weight,
+                        self.k_proj.weight,
+                        self.v_proj.weight,
+                    )
+
                 return F.multi_head_attention_forward(
                     query,
                     key,
@@ -543,7 +574,7 @@ class MultiheadAttention(FairseqIncrementalDecoder):
                     self.embed_dim,
                     self.num_heads,
                     torch.empty([0]),
-                    torch.cat((self.q_proj.bias, self.k_proj.bias, self.v_proj.bias)),
+                    torch.cat((qb, kb, vb)),
                     self.bias_k,
                     self.bias_v,
                     self.add_zero_attn,
@@ -555,9 +586,9 @@ class MultiheadAttention(FairseqIncrementalDecoder):
                     need_weights,
                     attn_mask,
                     use_separate_proj_weight=True,
-                    q_proj_weight=self.q_proj.weight,
-                    k_proj_weight=self.k_proj.weight,
-                    v_proj_weight=self.v_proj.weight,
+                    q_proj_weight=qw,
+                    k_proj_weight=kw,
+                    v_proj_weight=vw,
                 )
 
         if incremental_state is not None:
@@ -571,7 +602,12 @@ class MultiheadAttention(FairseqIncrementalDecoder):
         else:
             saved_state = None
 
-        if self.self_attention:
+        if self.debug == 2:
+            query = torch.tanh(query)
+
+        if self.qkv_proj is not None:
+            q, k, v = self.qkv_proj(query).chunk(3, dim=-1)
+        elif self.self_attention:
             q = self.q_proj(query)
             k = self.k_proj(query)
             v = self.v_proj(query)
@@ -599,7 +635,12 @@ class MultiheadAttention(FairseqIncrementalDecoder):
             q = self.q_proj(query)
             k = self.k_proj(key)
             v = self.v_proj(value)
-        q *= self.scaling
+        q = q * self.scaling
+
+        if self.debug == 1:
+            q = torch.tanh(q)
+            k = torch.tanh(k)
+            v = torch.tanh(v)
 
         if self.bias_k is not None:
             assert self.bias_v is not None
@@ -710,6 +751,9 @@ class MultiheadAttention(FairseqIncrementalDecoder):
                 attn_mask = attn_mask.repeat(attn_weights.size(0), 1, 1)
             attn_weights += attn_mask
 
+        if alibi_bias is not None:
+            attn_weights += alibi_bias
+
         if key_padding_mask is not None:
             # don't attend to padding symbols
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
@@ -733,14 +777,19 @@ class MultiheadAttention(FairseqIncrementalDecoder):
         if before_softmax:
             return attn_weights, v
 
+        if self.debug == 3:
+            pass
+            # dropout_items
+
         attn_weights_float = utils.softmax(
             attn_weights, dim=-1, onnx_trace=self.onnx_trace
         )
         attn_weights = attn_weights_float.type_as(attn_weights)
-        attn_probs = self.dropout_module(attn_weights)
+        attn_probs = (
+            self.dropout_module(attn_weights) if self.debug != 3 else attn_weights
+        )
 
         assert v is not None
-        attn: Optional[Tensor] = None
         if self.encoder_decoder_attention and bsz != kv_bsz:
             attn = torch.einsum(
                 "bxhts,bhsd->bxhtd",
@@ -829,7 +878,7 @@ class MultiheadAttention(FairseqIncrementalDecoder):
     @torch.jit.export
     def reorder_incremental_state(
         self,
-        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        incremental_state: Dict[str, Dict[str, Optional[Tensor]]],
         new_order: Tensor,
     ):
         """Reorder buffered internal state (for incremental generation)."""
@@ -870,7 +919,7 @@ class MultiheadAttention(FairseqIncrementalDecoder):
 
     def _set_input_buffer(
         self,
-        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        incremental_state: Dict[str, Dict[str, Optional[Tensor]]],
         buffer: Dict[str, Optional[Tensor]],
     ):
         return self.set_incremental_state(incremental_state, "attn_state", buffer)

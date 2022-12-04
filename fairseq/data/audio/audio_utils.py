@@ -6,14 +6,11 @@
 
 import mmap
 from pathlib import Path
-import io
 from typing import BinaryIO, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-
-from fairseq.data.audio.waveform_transforms import CompositeAudioWaveformTransform
 
 SF_AUDIO_FILE_EXTENSIONS = {".wav", ".flac", ".ogg"}
 FEATURE_OR_SF_AUDIO_FILE_EXTENSIONS = {".npy", ".wav", ".flac", ".ogg"}
@@ -75,7 +72,6 @@ def get_waveform(
     always_2d: bool = True,
     output_sample_rate: Optional[int] = None,
     normalize_volume: bool = False,
-    waveform_transforms: Optional[CompositeAudioWaveformTransform] = None,
 ) -> Tuple[np.ndarray, int]:
     """Get the waveform and sample rate of a 16-bit WAV/FLAC/OGG Vorbis audio.
 
@@ -116,97 +112,9 @@ def get_waveform(
 
     if not normalization:
         waveform *= 2**15  # denormalized to 16-bit signed integers
-
-    if waveform_transforms is not None:
-        waveform, sample_rate = waveform_transforms(waveform, sample_rate)
-
     if not always_2d:
         waveform = waveform.squeeze(axis=0)
-
     return waveform, sample_rate
-
-
-def get_features_from_npy_or_audio(path, waveform_transforms=None):
-    ext = Path(path).suffix
-    if ext not in FEATURE_OR_SF_AUDIO_FILE_EXTENSIONS:
-        raise ValueError(f'Unsupported file format for "{path}"')
-    return (
-        np.load(path)
-        if ext == ".npy"
-        else get_fbank(path, waveform_transforms=waveform_transforms)
-    )
-
-
-def get_features_or_waveform_from_stored_zip(
-    path,
-    byte_offset,
-    byte_size,
-    need_waveform=False,
-    use_sample_rate=None,
-    waveform_transforms=None,
-):
-    assert path.endswith(".zip")
-    data = read_from_stored_zip(path, byte_offset, byte_size)
-    f = io.BytesIO(data)
-    if is_npy_data(data):
-        features_or_waveform = np.load(f)
-    elif is_sf_audio_data(data):
-        features_or_waveform = (
-            get_waveform(
-                f,
-                always_2d=False,
-                output_sample_rate=use_sample_rate,
-                waveform_transforms=waveform_transforms,
-            )[0]
-            if need_waveform
-            else get_fbank(f, waveform_transforms=waveform_transforms)
-        )
-    else:
-        raise ValueError(f'Unknown file format for "{path}"')
-    return features_or_waveform
-
-
-def get_features_or_waveform(
-    path: str, need_waveform=False, use_sample_rate=None, waveform_transforms=None
-):
-    """Get speech features from .npy file or waveform from .wav/.flac file.
-    The file may be inside an uncompressed ZIP file and is accessed via byte
-    offset and length.
-
-    Args:
-        path (str): File path in the format of "<.npy/.wav/.flac path>" or
-        "<zip path>:<byte offset>:<byte length>".
-        need_waveform (bool): return waveform instead of features.
-        use_sample_rate (int): change sample rate for the input wave file
-
-    Returns:
-        features_or_waveform (numpy.ndarray): speech features or waveform.
-    """
-    _path, slice_ptr = parse_path(path)
-    if len(slice_ptr) == 0:
-        if need_waveform:
-            return get_waveform(
-                _path,
-                always_2d=False,
-                output_sample_rate=use_sample_rate,
-                waveform_transforms=waveform_transforms,
-            )[0]
-        return get_features_from_npy_or_audio(
-            _path, waveform_transforms=waveform_transforms
-        )
-    elif len(slice_ptr) == 2:
-        features_or_waveform = get_features_or_waveform_from_stored_zip(
-            _path,
-            slice_ptr[0],
-            slice_ptr[1],
-            need_waveform=need_waveform,
-            use_sample_rate=use_sample_rate,
-            waveform_transforms=waveform_transforms,
-        )
-    else:
-        raise ValueError(f"Invalid path: {path}")
-
-    return features_or_waveform
 
 
 def _get_kaldi_fbank(
@@ -249,16 +157,12 @@ def _get_torchaudio_fbank(
         return None
 
 
-def get_fbank(
-    path_or_fp: Union[str, BinaryIO], n_bins=80, waveform_transforms=None
-) -> np.ndarray:
+def get_fbank(path_or_fp: Union[str, BinaryIO], n_bins=80) -> np.ndarray:
     """Get mel-filter bank features via PyKaldi or TorchAudio. Prefer PyKaldi
     (faster CPP implementation) to TorchAudio (Python implementation). Note that
     Kaldi/TorchAudio requires 16-bit signed integers as inputs and hence the
     waveform should not be normalized."""
-    waveform, sample_rate = get_waveform(
-        path_or_fp, normalization=False, waveform_transforms=waveform_transforms
-    )
+    waveform, sample_rate = get_waveform(path_or_fp, normalization=False)
 
     features = _get_kaldi_fbank(waveform, sample_rate, n_bins)
     if features is None:

@@ -1,0 +1,4 @@
+# @package _global_
+
+model:
+  conv_feature_layers: '[(512,10,5)]+[(512,3,2)]*3+[(512,3,3)]+[(512,2,2)]*2'

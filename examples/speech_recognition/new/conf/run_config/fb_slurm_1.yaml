@@ -1,0 +1,28 @@
+# @package _global_
+
+hydra:
+  job:
+    config:
+      override_dirname:
+        kv_sep: ':'
+        item_sep: '/'
+        exclude_keys:
+          - run_config
+          - distributed_training.distributed_port
+          - common_eval.path
+  sweep:
+    dir: /checkpoint/abaevski/asr/d2v2/decoding/${env:PREFIX}/${hydra.job.config_name}_${hydra.launcher.gpus_per_node}/${hydra.job.override_dirname}
+#    subdir: ${hydra.job.override_dirname}
+  launcher:
+    cpus_per_task: 16
+    gpus_per_node: 1
+    tasks_per_node: 1
+    nodes: 1
+    partition: devlab,learnlab
+    mem_gb: 100
+    timeout_min: 2000
+    max_num_timeout: 10
+    name: ${env:PREFIX}_${hydra.job.config_name}
+    submitit_folder: ${hydra.sweep.dir}/%j
+    constraint: volta32gb
+    exclude: learnfair7598

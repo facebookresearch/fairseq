@@ -1,0 +1,14 @@
+PYTHONPATH=.:./examples PREFIX=wallclock_speech python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/audio/pretraining --config-name base_librispeech \
+   common.user_dir=/data/home/arbabu/d2v_working_rc/fairseq-py/examples/data2vec  distributed_training.distributed_world_size=1 task.data=/fsx-wav2vec/abaevski/data/librispeech
+
+
+
+PYTHONPATH=.:./examples PREFIX=wallclock_speech nohup python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/audio/pretraining --config-name base_librispeech \
+   common.user_dir=/data/home/arbabu/d2v_working_rc/fairseq-py/examples/data2vec task.data=/fsx-wav2vec/abaevski/data/librispeech \
+   hydra/launcher=submitit_slurm \
+   +run_config=slurm_2_aws_arbabu distributed_training.distributed_port=$[${RANDOM}%30000+30000] hydra.launcher.partition=wav2vec hydra.launcher.nodes=2&
+
+
+PYTHONPATH=.:./examples PREFIX=wallclock_speech nohup python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/multi --config-name base_audio_only_task \
+   hydra/launcher=submitit_slurm +run_config=slurm_2_aws distributed_training.distributed_port=$[${RANDOM}%30000+30000] optimization.max_update=400000 distributed_training.distributed_world_size=16 task.data=/fsx-wav2vec/abaevski/data/librispeech \
+   common.user_dir=/data/home/arbabu/d2v_working_rc/fairseq-py/examples/data2vec hydra.launcher.partition=wav2vec &

@@ -1,0 +1,91 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: json
+  log_interval: 200
+  tensorboard_logdir: tb
+  min_loss_scale: 1e-6
+  user_dir: /private/home/abaevski/fairseq-py/examples/data2vec
+
+checkpoint:
+  save_interval: 1
+  save_interval_updates: 25000
+  keep_interval_updates: 1
+  no_epoch_checkpoints: true
+
+task:
+  _name: audio_pretraining
+  data: /private/home/abaevski/data/audioset
+  max_sample_size: 320000
+  min_sample_size: 32000
+  normalize: true
+
+dataset:
+  num_workers: 6
+  max_tokens: 3400000
+  skip_invalid_size_inputs_valid_test: true
+  validate_interval: 5
+  required_batch_size_multiple: 1
+  disable_validation: true
+
+distributed_training:
+  distributed_world_size: 24
+  ddp_backend: legacy_ddp
+
+criterion:
+  _name: model
+  log_keys:
+    - ema_decay
+    - target_var
+    - pred_var
+#    - avg_self_attn
+#    - weights
+
+optimization:
+  max_update: 200000
+  lr: [0.0005]
+
+optimizer:
+  _name: adam
+  adam_betas: (0.9,0.98)
+  adam_eps: 1e-06
+  weight_decay: 0.01
+
+lr_scheduler:
+  _name: cosine
+  warmup_updates: 10000
+
+model:
+  _name: data2vec_audio
+  extractor_mode: layer_norm
+  encoder_layerdrop: 0.05
+  dropout_input: 0.0
+  dropout_features: 0.0
+  feature_grad_mult: 1.0
+  encoder_embed_dim: 768
+
+  mask_prob: 0.65
+  mask_length: 10
+
+  loss_beta: 0
+  loss_scale: null
+
+  instance_norm_target_layer: true
+  layer_norm_targets: true
+  average_top_k_layers: 12
+
+  self_attn_norm_type: deepnorm
+  final_norm_type: deepnorm
+
+  pos_conv_depth: 5
+  conv_pos: 95
+
+  ema_decay: 0.999
+  ema_end_decay: 0.9999
+  ema_anneal_end_step: 30000
+  ema_transformer_only: true
+  ema_layers_only: false
+
+  require_same_masks: true
+  mask_dropout: 0

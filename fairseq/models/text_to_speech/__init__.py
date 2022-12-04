@@ -6,4 +6,3 @@
 from .tacotron2 import *  # noqa
 from .tts_transformer import *  # noqa
 from .fastspeech2 import *  # noqa
-from .vocoder import *  # noqa

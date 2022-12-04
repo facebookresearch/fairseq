@@ -35,8 +35,9 @@ def setup_task(cfg: FairseqDataclass, **kwargs):
         task_name = getattr(cfg, "_name", None)
 
         if task_name and task_name in TASK_DATACLASS_REGISTRY:
+            remove_missing = "from_checkpoint" in kwargs and kwargs["from_checkpoint"]
             dc = TASK_DATACLASS_REGISTRY[task_name]
-            cfg = merge_with_parent(dc(), cfg)
+            cfg = merge_with_parent(dc(), cfg, remove_missing=remove_missing)
             task = TASK_REGISTRY[task_name]
 
     assert (

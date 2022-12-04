@@ -104,6 +104,7 @@ class LanguageModelingConfig(FairseqDataclass):
     tpu: bool = II("common.tpu")
     use_plasma_view: bool = II("common.use_plasma_view")
     plasma_path: str = II("common.plasma_path")
+    target_in_input: bool = False
 
 
 @register_task("language_modeling", dataclass=LanguageModelingConfig)
@@ -264,6 +265,7 @@ class LanguageModelingTask(LegacyFairseqTask):
             add_bos_token=self.args.add_bos_token,
             fixed_pad_length=fixed_pad_length,
             pad_to_bsz=pad_to_bsz,
+            target_in_input=self.args.target_in_input,
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, **kwargs):

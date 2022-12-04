@@ -1,0 +1,28 @@
+
+# @package _global_
+
+hydra:
+  job:
+    config:
+      override_dirname:
+        kv_sep: '_'
+        item_sep: '/'
+        exclude_keys:
+          - run_config
+          - distributed_training.distributed_port
+  sweep:
+    dir: /checkpoint/${env:USER}/roberta_ft/${env:PREFIX}/${hydra.job.config_name}/${env:SUFFIX}
+    subdir: ${hydra.job.num}
+  launcher:
+    submitit_folder: ${hydra.sweep.dir}/submitit
+    timeout_min: 1000
+    cpus_per_task: 8
+    gpus_per_node: 1
+    tasks_per_node: 1
+    mem_gb: 60
+    nodes: 1
+    name: ${env:PREFIX}_${hydra.job.config_name}
+    partition: devlab,learnlab,learnfair,scavenge
+    constraint: volta32gb
+    max_num_timeout: 30
+    exclude: learnfair1381,learnfair5192,learnfair2304

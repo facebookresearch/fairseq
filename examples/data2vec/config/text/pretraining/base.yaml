@@ -17,18 +17,19 @@ distributed_training:
 task:
   _name: masked_lm
   data: ???
-  sample_break_mode: complete_doc
-  tokens_per_sample: 512
+  sample_break_mode: none
+  tokens_per_sample: 1024
   include_target_tokens: true
   random_token_prob: 0
   leave_unmasked_prob: 0
-  mask_prob: 0.35
-  mask_multiple_length: 4
+  mask_prob: 0.1
+  mask_multiple_length: 1
 
 criterion: model
 
 dataset:
-  max_tokens: 8192
+#  max_tokens: 8192
+  batch_size: 16
   ignore_unused_valid_subsets: true
   skip_invalid_size_inputs_valid_test: true
 
@@ -50,8 +51,8 @@ optimization:
 
 model:
   _name: data2vec_text
-  head_layers: 2
-  average_top_k_layers: 10
+  head_layers: 1
+  average_top_k_layers: 12
   layer_norm_target_layer: true
   loss_scale: 1
   ema_decay: 0.999
@@ -66,7 +67,7 @@ model:
     layernorm_embedding: true
     activation_fn: gelu
     no_scale_embedding: true
-    max_source_positions: 512
+    max_source_positions: 1024
     encoder:
       embed_dim: 768
       ffn_embed_dim: 3072

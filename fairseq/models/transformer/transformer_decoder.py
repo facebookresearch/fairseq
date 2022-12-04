@@ -42,7 +42,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
     is a :class:`TransformerDecoderLayer`.
 
     Args:
-        cfg (argparse.Namespace): parsed command-line arguments
+        args (argparse.Namespace): parsed command-line arguments
         dictionary (~fairseq.data.Dictionary): decoding dictionary
         embed_tokens (torch.nn.Embedding): output embedding
         no_encoder_attn (bool, optional): whether to attend to encoder outputs
@@ -302,8 +302,6 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             if positions is not None:
                 positions = positions[:, -1:]
 
-        # Prevent torchscript exporting issue for dynamic quant embedding
-        prev_output_tokens = prev_output_tokens.contiguous()
         # embed tokens and positions
         x = self.embed_scale * self.embed_tokens(prev_output_tokens)
 

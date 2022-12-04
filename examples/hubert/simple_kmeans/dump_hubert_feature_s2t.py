@@ -12,7 +12,10 @@ import sys
 
 from dump_hubert_feature import HubertFeatureReader
 from feature_utils import get_shard_range, dump_feature
-from fairseq.data.audio.audio_utils import get_features_or_waveform
+from fairseq.data.audio.audio_utils import get_waveform
+from fairseq.data.audio.speech_to_text_dataset import (
+    read_from_uncompressed_zip,
+)
 
 
 logging.basicConfig(
@@ -26,9 +29,14 @@ logger = logging.getLogger("dump_hubert_feature_s2t")
 
 class HubertFeatureReaderS2T(HubertFeatureReader):
     def read_audio(self, path, ref_len=None):
-        wav = get_features_or_waveform(
-            path, need_waveform=True, use_sample_rate=self.task.cfg.sample_rate
-        )
+        path, *extra = path.split(":")
+        assert len(extra) == 2
+        assert path.endswith(".zip")
+
+        data = read_from_uncompressed_zip(path, int(extra[0]), int(extra[1]))
+        f = io.BytesIO(data)
+        wav, sr = get_waveform(f)
+        assert sr == self.task.cfg.sample_rate, sr
         if wav.ndim == 2:
             wav = wav.mean(-1)
         assert wav.ndim == 1, wav.ndim
@@ -37,7 +45,7 @@ class HubertFeatureReaderS2T(HubertFeatureReader):
         return wav
 
 
-def get_path_iterator(root, tsv, nshard, rank, audio_col_name):
+def get_path_iterator(root, tsv, nshard, rank):
     with open(tsv) as f:
         reader = csv.DictReader(
             f,
@@ -47,32 +55,22 @@ def get_path_iterator(root, tsv, nshard, rank, audio_col_name):
             lineterminator="\n",
             quoting=csv.QUOTE_NONE,
         )
-        subpaths = [op.join(root, e[audio_col_name]) for e in reader]
+        subpaths = [op.join(root, e["audio"]) for e in reader]
         start, end = get_shard_range(len(subpaths), nshard, rank)
         subpaths = subpaths[start:end]
-
         def iterate():
             for subpath in subpaths:
                 yield op.join(root, subpath), None
-
     return iterate, len(subpaths)
 
 
 def main(
-    root,
-    tsv_path,
-    ckpt_path,
-    layer,
-    nshard,
-    rank,
-    feat_dir,
-    split,
-    max_chunk,
-    audio_col_name,
+    root, tsv_path, ckpt_path, layer, nshard, rank, feat_dir, split, max_chunk
 ):
     reader = HubertFeatureReaderS2T(ckpt_path, layer, max_chunk)
-    generator, num = get_path_iterator(root, tsv_path, nshard, rank, audio_col_name)
+    generator, num = get_path_iterator(root, tsv_path, nshard, rank)
     dump_feature(reader, generator, num, split, nshard, rank, feat_dir)
+
 
 
 if __name__ == "__main__":
@@ -87,7 +85,6 @@ if __name__ == "__main__":
     parser.add_argument("rank", type=int)
     parser.add_argument("feat_dir")
     parser.add_argument("split")
-    parser.add_argument("--audio_col_name", type=str, default="audio")
     parser.add_argument("--max_chunk", type=int, default=1600000)
     args = parser.parse_args()
     logger.info(args)

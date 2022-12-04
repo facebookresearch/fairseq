@@ -12,17 +12,21 @@ from torch import Tensor
 
 from fairseq import checkpoint_utils, utils
 from fairseq.models import (
-    FairseqEncoderDecoderModel,
     FairseqEncoderModel,
+    FairseqEncoderDecoderModel,
     FairseqLanguageModel,
     register_model,
     register_model_architecture,
 )
-from fairseq.models.speech_to_speech.modules.ctc_decoder import CTCDecoder
-from fairseq.models.speech_to_speech.modules.stacked_embedding import StackedEmbedding
 from fairseq.models.speech_to_text import S2TTransformerEncoder
+from fairseq.models.speech_to_speech.modules import CTCDecoder, StackedEmbedding
 from fairseq.models.text_to_speech import TTSTransformerDecoder
-from fairseq.models.transformer import Linear, TransformerDecoder, TransformerModelBase
+from fairseq.models.transformer import (
+    Linear,
+    TransformerDecoder,
+    TransformerModelBase,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +241,7 @@ class S2STransformerMultitaskModelBase(FairseqEncoderDecoderModel):
 @register_model("s2ut_transformer")
 class S2UTTransformerModel(S2STransformerMultitaskModelBase):
     """
-    Direct speech-to-speech translation model with Transformer encoder + Transformer discrete unit decoder
+    Direct speech-to-speech translation model with S2T Transformer encoder + Transformer discrete unit decoder
     https://arxiv.org/abs/2107.05604
     """
 
@@ -247,27 +251,14 @@ class S2UTTransformerModel(S2STransformerMultitaskModelBase):
         parser.add_argument(
             "--conv-kernel-sizes",
             type=str,
-            metavar="STR",
-            help="kernel sizes of Conv1d (s2t_transformer) subsampling layers",
+            metavar="N",
+            help="kernel sizes of Conv1d subsampling layers",
         )
         parser.add_argument(
             "--conv-channels",
             type=int,
             metavar="N",
-            help="# of channels in Conv1d (s2t_transformer) subsampling layers",
-        )
-        parser.add_argument(
-            "--conv-out-channels",
-            type=int,
-            metavar="N",
-            help="# of channels in Conv2d (convtransformer) subsampling layers",
-        )
-        parser.add_argument(
-            "--conv-version",
-            type=str,
-            default="s2t_transformer",
-            choices=["s2t_transformer", "convtransformer"],
-            help="version of frontend convolutional layers",
+            help="# of channels in Conv1d subsampling layers",
         )
         # Transformer
         parser.add_argument(
@@ -435,21 +426,14 @@ class S2SpecTTransformerModel(S2STransformerMultitaskModelBase):
         parser.add_argument(
             "--conv-kernel-sizes",
             type=str,
-            metavar="STR",
-            help="kernel sizes of Conv1d (s2t_transformer) subsampling layers",
+            metavar="N",
+            help="kernel sizes of Conv1d subsampling layers",
         )
         parser.add_argument(
             "--conv-channels",
             type=int,
             metavar="N",
-            help="# of channels in Conv1d (s2t_transformer) subsampling layers",
-        )
-        parser.add_argument(
-            "--conv-version",
-            type=str,
-            default="s2t_transformer",
-            choices=["s2t_transformer", "convtransformer"],
-            help="version of frontend convolutional layers",
+            help="# of channels in Conv1d subsampling layers",
         )
         # Transformer
         parser.add_argument(
@@ -620,11 +604,8 @@ def base_s2st_transformer_encoder_architecture(args):
     args.encoder_freezing_updates = getattr(args, "encoder_freezing_updates", 0)
 
     # Convolutional subsampler
-    args.input_channels = getattr(args, "input_channels", 1)
-    args.conv_kernel_sizes = getattr(args, "conv_kernel_sizes", "5,5")  # for Conv1d
-    args.conv_channels = getattr(args, "conv_channels", 1024)  # for Conv1d
-    args.conv_out_channels = getattr(args, "conv_out_channels", 256)  # for Conv2d
-    args.conv_version = getattr(args, "conv_version", "s2t_transformer")
+    args.conv_kernel_sizes = getattr(args, "conv_kernel_sizes", "5,5")
+    args.conv_channels = getattr(args, "conv_channels", 1024)
     # Transformer
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 2048)

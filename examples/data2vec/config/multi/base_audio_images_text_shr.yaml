@@ -1,0 +1,159 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: json
+  log_interval: 200
+  tensorboard_logdir: tb
+  min_loss_scale: 1e-6
+  fp16_no_flatten_grads: true
+  user_dir: ${env:PWD}/examples/data2vec
+
+checkpoint:
+  save_interval: 1
+  save_interval_updates: 25000
+  keep_interval_updates: 1
+  no_epoch_checkpoints: true
+
+task:
+  _name: multimodal_pretraining
+  audio_ratio: 20
+  image_ratio: 5
+  text_ratio: 1
+  audio:
+    data: /private/home/abaevski/data/librispeech/full
+    max_sample_size: 250000
+    min_sample_size: 32000
+    normalize: true
+  image:
+    data: /datasets01/imagenet_full_size/061417
+    local_cache_path: /scratch/cache_abaevski/imagenet
+    key: source
+  text:
+    data: /datasets01/bookwiki_CC-NEWS_openwebtext_stories-mmap2-bin/121219/bookwiki_CC-NEWS_openwebtext_stories-mmap2-bin
+    sample_break_mode: none
+    tokens_per_sample: 512
+    include_target_tokens: true
+    random_token_prob: 0
+    leave_unmasked_prob: 0
+    mask_prob: 0.25
+    mask_multiple_length: 2
+    include_index: True
+    skip_masking: True
+    d2v2_multi: True
+
+dataset:
+  num_workers: 8
+  batch_size: 4
+  skip_invalid_size_inputs_valid_test: true
+  validate_interval: 5
+  required_batch_size_multiple: 1
+  disable_validation: true
+
+distributed_training:
+  distributed_world_size: 64
+  ddp_backend: legacy_ddp
+
+criterion:
+  _name: model
+  log_keys:
+    - ema_decay
+    - target_var_TEXT
+    - pred_var_TEXT
+    - target_var_IMAGE
+    - pred_var_IMAGE
+    - target_var_AUDIO
+    - pred_var_AUDIO
+    - model_norm
+    - ema_norm
+    - masked_pct
+
+optimization:
+  max_update: 200000
+  lr: [0.0003]
+  clip_norm: 1
+  debug_param_names: true
+
+optimizer:
+  _name: composite
+  dynamic_groups: true
+  groups:
+    default:
+      lr_float: 1e-4
+      optimizer:
+        _name: adam
+        adam_betas: [0.9,0.95]
+        weight_decay: 0.05
+      lr_scheduler:
+        _name: cosine
+        warmup_updates: 24000
+
+lr_scheduler: pass_through
+
+model:
+  _name: data2vec_multi
+
+  depth: 8
+  embed_dim: 768
+  clone_batch: 8
+
+  layer_norm_first: true
+
+  ema_decay: 0.9995
+  ema_end_decay: 0.99999
+  ema_anneal_end_step: 75000
+
+  average_top_k_layers: 8
+  instance_norm_target_layer: true
+  layer_norm_target_layer: false
+  layer_norm_targets: false
+  end_of_block_targets: false
+
+  encoder_dropout: 0
+  post_mlp_drop: 0
+  attention_dropout: 0
+  activation_dropout: 0
+
+  ema_encoder_only: false
+
+  shared_decoder:
+    input_dropout: 0.1
+    decoder_dim: 768
+    decoder_groups: 1
+    decoder_kernel: 9
+    decoder_layers: 5
+    final_layer_norm: false
+
+  modalities:
+    audio:
+      conv_pos_depth: 5
+      conv_pos_width: 95
+      conv_pos_groups: 16
+      prenet_depth: 4
+      mask_prob: 0.7
+      mask_length: 5
+      mask_noise_std: 0.01
+      mask_dropout: 0
+      add_masks: false
+      ema_local_encoder: false
+      use_alibi_encoder: true
+      prenet_layerdrop: 0
+      prenet_dropout: 0.1
+      learned_alibi_scale: true
+      learned_alibi_scale_per_head: true
+      decoder: null
+    image:
+      mask_prob: 0.8
+      mask_length: 1
+      mask_noise_std: 0.01
+      prenet_depth: 4
+      ema_local_encoder: true
+      num_extra_tokens: 1
+      use_alibi_encoder: false
+      decoder: null
+    text:
+      mask_prob: 0.25
+      mask_length: 2
+      mask_noise_std: 0.01
+      prenet_depth: 4
+      decoder: null

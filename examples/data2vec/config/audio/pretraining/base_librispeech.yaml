@@ -5,9 +5,10 @@ common:
   log_format: json
   log_interval: 200
   tensorboard_logdir: tb
+  min_loss_scale: 1e-6
 
 checkpoint:
-  save_interval: 5
+  save_interval: 1
   save_interval_updates: 25000
   keep_interval_updates: 1
   no_epoch_checkpoints: true
@@ -37,10 +38,12 @@ criterion:
     - ema_decay
     - target_var
     - pred_var
+    - avg_self_attn
+    - weights
 
 optimization:
   max_update: 400000
-  lr: [0.0005]
+  lr: [0.00075]
 
 optimizer:
   _name: adam
@@ -49,8 +52,8 @@ optimizer:
   weight_decay: 0.01
 
 lr_scheduler:
-  _name: tri_stage
-  phase_ratio: [0.03,0.9,0.07]
+  _name: cosine
+  warmup_updates: 10000
 
 model:
   _name: data2vec_audio
@@ -77,7 +80,7 @@ model:
   ema_end_decay: 0.9999
   ema_anneal_end_step: 30000
   ema_transformer_only: true
-  ema_layers_only: true
+  ema_layers_only: false
 
   require_same_masks: true
   mask_dropout: 0

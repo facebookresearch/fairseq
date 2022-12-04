@@ -1,0 +1,5 @@
+# @package _global_
+
+model:
+  _name: data2vec_text_classification
+  model_path: ???

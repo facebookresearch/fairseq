@@ -7,9 +7,13 @@ common:
 checkpoint:
   no_epoch_checkpoints: true
 
+distributed_training:
+  distributed_world_size: 16
+  ddp_backend: legacy_ddp
+
 task:
   _name: masked_lm
-  data: ???
+  data: /fsx-wav2vec/abaevski/data/nlp/bookwiki_aml-full-mmap2-bin
   sample_break_mode: complete
   tokens_per_sample: 512
 
@@ -18,6 +22,7 @@ criterion: masked_lm
 dataset:
   batch_size: 16
   ignore_unused_valid_subsets: true
+  skip_invalid_size_inputs_valid_test: true
 
 optimizer:
   _name: adam
@@ -32,8 +37,8 @@ lr_scheduler:
 optimization:
   clip_norm: 0
   lr: [0.0005]
-  max_update: 125000
-  update_freq: [16]
+  max_update: 1000000
+  update_freq: [1]
 
 model:
   _name: roberta
