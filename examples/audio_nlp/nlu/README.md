@@ -6,6 +6,8 @@ This page releases the code for reproducing the results in [STOP: A dataset for 
 
 The dataset can be downloaded here: [download link](https://dl.fbaipublicfiles.com/stop/stop.tar.gz)
 
+The low-resource splits can be downloaded here: [download link](http://dl.fbaipublicfiles.com/stop/low_resource_splits.tar.gz)
+
 ## Pretrained models end-to-end NLU Models
 
 | Speech Pretraining | ASR Pretraining | Test EM Accuracy | Tesst EM-Tree Accuracy | Link |
