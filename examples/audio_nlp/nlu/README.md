@@ -2,7 +2,7 @@
 
 End-to-end spoken language understanding (SLU) predicts intent directly from audio using a single model. It promises to improve the performance of assistant systems by leveraging acoustic information lost in the intermediate textual representation and preventing cascading errors from Automatic Speech Recognition (ASR). Further, having one unified model has efficiency advantages when deploying assistant systems on-device.
 
-This page releases the code for reproducing the results in [STOP: A dataset for Spoken Task Oriented Semantic Parsing](TODO)
+This page releases the code for reproducing the results in [STOP: A dataset for Spoken Task Oriented Semantic Parsing](https://arxiv.org/abs/2207.10643)
 
 The dataset can be downloaded here: [download link](https://dl.fbaipublicfiles.com/stop/stop.tar.gz)
 
