@@ -67,6 +67,10 @@ class EncDecBaseConfig(FairseqDataclass):
         default=None,
         metadata={"help": "bottleneck dimension of adapters"},
     )
+    adapter_activation_fn: Optional[str] = field(
+        default=None,
+        metadata={"help": "activation function for adapters"}
+    )
 
     adapter_lang_ids: Optional[List[str]] = field(
         default=None,
