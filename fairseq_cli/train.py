@@ -13,6 +13,7 @@ import math
 import os
 import sys
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from fairseq.modules.simple_adapter_block import SimpleAdapterBlock
 
 torch.autograd.set_detect_anomaly(True)
 
@@ -102,8 +103,34 @@ def main(cfg: FairseqConfig) -> None:
     logger.info("task: {}".format(task.__class__.__name__))
     logger.info("model: {}".format(model.__class__.__name__))
     logger.info("criterion: {}".format(criterion.__class__.__name__))
+
+    if getattr(cfg.model, "encoder_add_adapters", False) or \
+       getattr(cfg.model, "decoder_add_adapters", False):
+        logging.info("adapters detected in encoder/decoder")
+        if getattr(cfg.model, "encoder_finetune_adapter", "$$") != "$$":
+            logging.info(
+                "{} adapters in the encoder will be finetuned. Make sure {} data is only being fed for the training".format(
+                    cfg.model.encoder_finetune_adapter,
+                    cfg.model.encoder_finetune_adapter
+                )
+            )
+        if getattr(cfg.model, "decoder_finetune_adapter", "$$") != "$$":
+            logging.info(
+                "{} adapters in the decoder will be finetuned. Make sure {} data is only being fed for the training".format(
+                    cfg.model.decoder_finetune_adapter,
+                    cfg.model.decoder_finetune_adapter
+                )
+            )
+        logging.info("all parameters expect those of the adapters will be frozen during training")
+
+        for p in model.parameters():
+            p.requires_grad = False
+        for layer in model.modules():
+            if isinstance(layer, SimpleAdapterBlock):
+                p.requires_grad = True
+
     logger.info(
-        "num. model params: {:,} ".format(
+        "num. trainable model params: {:,} ".format(
             sum(
                 p.numel() for p in model.parameters() if p.requires_grad
             )

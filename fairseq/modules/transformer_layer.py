@@ -14,6 +14,7 @@ from fairseq.models.transformer import TransformerConfig
 from fairseq.modules import LayerNorm, MultiheadAttention
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
+from fairseq.modules.simple_adapter_block import SimpleAdapterBlock
 
 
 class TransformerEncoderLayerBase(nn.Module):
@@ -66,6 +67,21 @@ class TransformerEncoderLayerBase(nn.Module):
         )
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
+
+        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+        self.add_adapters = cfg.encoder.add_adapters
+        self.finetune_on_lang_id = cfg.encoder.finetune_adapter
+        if self.add_adapters:
+            self.adapter_block = SimpleAdapterBlock(
+                lang_ids=cfg.encoder.adapter_lang_ids,
+                in_dim=cfg.encoder.embed_dim,
+                hid_dim=cfg.encoder.adapter_bottleneck_dim,
+                normalize_before_adapter=cfg.encoder.normalize_before,
+                dropout=cfg.dropout
+            )
+        else:
+            self.adapter_block = None
+        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
         return quant_noise(
@@ -218,9 +234,15 @@ class TransformerEncoderLayerBase(nn.Module):
 
         x = self.dropout_module(x)
         x = self.residual_connection(x, residual)
+
+        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+        if self.add_adapters and self.finetune_on_lang_id is not None:
+            x = self.adapter_block(x, self.finetune_on_lang_id)
+        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+
         if not self.normalize_before:
             x = self.final_layer_norm(x)
-
+            
         if self.return_fc and not torch.jit.is_scripting():
             return x, fc_result
         return x
@@ -337,8 +359,23 @@ class TransformerDecoderLayerBase(nn.Module):
         )
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
-        self.need_attn = True
 
+        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+        self.add_adapters = cfg.decoder.add_adapters
+        self.finetune_on_lang_id = cfg.decoder.finetune_adapter
+        if self.add_adapters:
+            self.adapter_block = SimpleAdapterBlock(
+                lang_ids=cfg.decoder.adapter_lang_ids,
+                in_dim=cfg.decoder.embed_dim, 
+                hid_dim=cfg.decoder.adapter_bottleneck_dim,
+                normalize_before_adapter=cfg.decoder.normalize_before,
+                dropout=cfg.dropout
+            )
+        else:
+            self.adapter_block = None
+        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+
+        self.need_attn = True
         self.onnx_trace = False
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
@@ -512,6 +549,12 @@ class TransformerDecoderLayerBase(nn.Module):
         if self.w_resid is not None:
             residual = torch.mul(self.w_resid, residual)
         x = self.residual_connection(x, residual)
+
+        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+        if self.add_adapters and self.finetune_on_lang_id is not None:
+            x = self.adapter_block(x, self.finetune_on_lang_id)
+        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+
         if not self.normalize_before:
             x = self.final_layer_norm(x)
         if self.onnx_trace and incremental_state is not None:

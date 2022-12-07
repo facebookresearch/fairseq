@@ -6,7 +6,7 @@
 
 import re
 from dataclasses import dataclass, field, fields
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from omegaconf import II
 
@@ -56,6 +56,27 @@ class EncDecBaseConfig(FairseqDataclass):
     layers_to_keep: Optional[List[int]] = field(
         default=None, metadata={"help": "which layers to *keep* when pruning"}
     )
+
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+    add_adapters: Optional[bool] = field(
+        default=False,
+        metadata={"help": "add adapters to the transformer encoder/decoder layers"}
+    )
+
+    adapter_bottleneck_dim: Optional[int] = field(
+        default=None,
+        metadata={"help": "bottleneck dimension of adapters"},
+    )
+
+    adapter_lang_ids: Optional[List[str]] = field(
+        default=None,
+        metadata={"help": "list of lang_ids to be used as keys for the adapters"}
+    )
+    finetune_adapter: Optional[str] = field(
+        default=None,
+        metadata={"help": "finetunes adapter of only the specified language. Rest parameters are frozen"}
+    )
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
     xformers_att_config: Optional[str] = field(
         default=None,
