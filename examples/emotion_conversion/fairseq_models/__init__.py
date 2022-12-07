@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from fairseq import utils
 from fairseq.models import (
     FairseqMultiModel,
     register_model,
@@ -13,8 +14,8 @@ from fairseq.models.transformer import (
     base_architecture,
 )
 from fairseq.models.multilingual_transformer import (
-        MultilingualTransformerModel,
-        base_multilingual_architecture,
+    MultilingualTransformerModel,
+    base_multilingual_architecture,
 )
 from fairseq.utils import safe_hasattr
 from collections import OrderedDict
@@ -22,7 +23,6 @@ from collections import OrderedDict
 
 @register_model("multilingual_transformer_from_mbart")
 class MultilingualTransformerModelFromMbart(MultilingualTransformerModel):
-
     @classmethod
     def build_model(cls, args, task):
         """Build a new model instance."""
@@ -164,14 +164,25 @@ class MultilingualTransformerModelFromMbart(MultilingualTransformerModel):
                     # print(new_key)
                     if self_state_dict[new_key].shape == v.shape:
                         state_dict_subset[new_key] = v
-                    elif any(w in k for w in ["encoder.embed_tokens.weight", "decoder.embed_tokens.weight", "decoder.output_projection.weight"]):
+                    elif any(
+                        w in k
+                        for w in [
+                            "encoder.embed_tokens.weight",
+                            "decoder.embed_tokens.weight",
+                            "decoder.output_projection.weight",
+                        ]
+                    ):
                         # why vocab_size - 5? because there are `vocab_size` tokens from the language
                         # and 5 additional tokens in the denoising task: eos,bos,pad,unk,mask.
                         # but in the translation task there are only `vocab_size` + 4 (no mask).
-                        print(f"{k}: {self_state_dict[new_key].shape} != {v.shape}", end="", flush=True)
+                        print(
+                            f"{k}: {self_state_dict[new_key].shape} != {v.shape}",
+                            end="",
+                            flush=True,
+                        )
                         vocab_size = v.shape[0] - 5
                         state_dict_subset[new_key] = self_state_dict[new_key]
-                        state_dict_subset[new_key] = v[:vocab_size + 4]
+                        state_dict_subset[new_key] = v[: vocab_size + 4]
                         print(f" => fixed by using first {vocab_size + 4} dims")
                     else:
                         raise ValueError("unable to load model due to mimatched dims!")
@@ -200,7 +211,9 @@ def transformer_small(args):
     base_architecture(args)
 
 
-@register_model_architecture("multilingual_transformer_from_mbart", "multilingual_small")
+@register_model_architecture(
+    "multilingual_transformer_from_mbart", "multilingual_small"
+)
 def multilingual_small(args):
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 512)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 512)
