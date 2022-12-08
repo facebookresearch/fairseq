@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 -u
+    #!/usr/bin/env python3 -u
 # Copyright (c) Facebook, Inc. and its affiliates.
 #
 # This source code is licensed under the MIT license found in the
@@ -104,30 +104,39 @@ def main(cfg: FairseqConfig) -> None:
     logger.info("model: {}".format(model.__class__.__name__))
     logger.info("criterion: {}".format(criterion.__class__.__name__))
 
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+    flag = False
     if getattr(cfg.model, "encoder_add_adapters", False) or \
        getattr(cfg.model, "decoder_add_adapters", False):
         logging.info("adapters detected in encoder/decoder")
         if getattr(cfg.model, "encoder_finetune_adapter", "$$") != "$$":
+            flag = True
             logging.info(
-                "{} adapters in the encoder will be finetuned. Make sure {} data is only being fed for the training".format(
+                "{} adapters in the encoder will be finetuned. Make sure {} data is only being fed for the training. All parameters expect those of the adapters will be frozen during training".format(
                     cfg.model.encoder_finetune_adapter,
                     cfg.model.encoder_finetune_adapter
                 )
             )
         if getattr(cfg.model, "decoder_finetune_adapter", "$$") != "$$":
+            flag = True
             logging.info(
-                "{} adapters in the decoder will be finetuned. Make sure {} data is only being fed for the training".format(
+                "{} adapters in the decoder will be finetuned. Make sure {} data is only being fed for the training. All parameters expect those of the adapters will be frozen during training".format(
                     cfg.model.decoder_finetune_adapter,
                     cfg.model.decoder_finetune_adapter
                 )
             )
-        logging.info("all parameters expect those of the adapters will be frozen during training")
 
-        for p in model.parameters():
-            p.requires_grad = False
-        for layer in model.modules():
-            if isinstance(layer, SimpleAdapterBlock):
-                p.requires_grad = True
+        if flag:
+            for p in model.parameters():
+                p.requires_grad = False
+            for layer in model.modules():
+                if isinstance(layer, SimpleAdapterBlock):
+                    p.requires_grad = True
+        else:
+            for layer in model.modules():
+                if isinstance(layer, SimpleAdapterBlock):
+                    p.requires_grad = False
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
     logger.info(
         "num. trainable model params: {:,} ".format(

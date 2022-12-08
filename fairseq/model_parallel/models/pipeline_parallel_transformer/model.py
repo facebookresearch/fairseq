@@ -159,14 +159,24 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
                 module_count += 1
         self.model = None
         self.encoder = TransformerEncoder(
-            cfg.distributed_training, None, None, encoder_module_list
+            cfg.distributed_training, 
+            None, 
+            None, 
+            encoder_module_list
         )
+        if not getattr(cfg.interactive, "evaluate_with_encoder_adapter", "$$") != "$$":
+            for layer in self.encoder.layers:
+                layer.adapter_to_be_used = cfg.interactive.evaluate_with_encoder_adapter
+
         self.decoder = TransformerDecoder(
             cfg.distributed_training,
             None,
             None,
             decoder_module_list=decoder_module_list,
         )
+        if not getattr(cfg.interactive, "evaluate_with_decoder_adapter", "$$") != "$$":
+            for layer in self.decoder.layers:
+                layer.adapter_to_be_used = cfg.interactive.evaluate_with_decoder_adapter
 
     @staticmethod
     def add_args(parser):

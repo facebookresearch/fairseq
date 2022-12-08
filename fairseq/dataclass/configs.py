@@ -1098,8 +1098,18 @@ class InteractiveConfig(FairseqDataclass):
         default="-",
         metadata={"help": "file to read from; use - for stdin"},
     )
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+    evaluate_with_encoder_adapter: Optional[str] = field(
+        default=None,
+        metadata={"help": "use this language adapter in the encoder while evaluting"}
+    )
+    evaluate_with_decoder_adapter: Optional[str] = field(
+        default=None,
+        metadata={"help": "use this language adapter in the decoder while evaluting"}
+    )
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
     path_to_save_encoder_states: Optional[str] = field(
-        default="None",
+        default=None,
         metadata={"help": "path to save encoder states for further analysis (optional and experimental)"},
     )
     convert_encoder_states_to_numpy: Optional[bool] = field(

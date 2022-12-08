@@ -71,7 +71,6 @@ class EncDecBaseConfig(FairseqDataclass):
         default=None,
         metadata={"help": "activation function for adapters"}
     )
-
     adapter_lang_ids: Optional[List[str]] = field(
         default=None,
         metadata={"help": "list of lang_ids to be used as keys for the adapters"}

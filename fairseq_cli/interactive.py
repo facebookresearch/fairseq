@@ -190,8 +190,8 @@ def main(cfg: FairseqConfig):
     align_dict = utils.load_align_dict(cfg.generation.replace_unk)
 
     all_embeddings = None
-    encoder_states_save_path = cfg['interactive']['path_to_save_encoder_states']
-    convert_encoder_states_to_numpy = cfg['interactive']['convert_encoder_states_to_numpy']
+    encoder_states_save_path = cfg.interactive.path_to_save_encoder_states
+    convert_encoder_states_to_numpy = cfg.interactive.convert_encoder_states_to_numpy
 
     max_positions = utils.resolve_max_positions(
         task.max_positions(), *[model.max_positions() for model in models]

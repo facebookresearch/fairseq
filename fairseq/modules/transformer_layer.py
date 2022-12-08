@@ -70,7 +70,7 @@ class TransformerEncoderLayerBase(nn.Module):
 
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
         self.add_adapters = cfg.encoder.add_adapters
-        self.finetune_on_lang_id = cfg.encoder.finetune_adapter
+        self.adapter_to_be_used = cfg.encoder.finetune_adapter
         if self.add_adapters:
             self.adapter_block = SimpleAdapterBlock(
                 lang_ids=cfg.encoder.adapter_lang_ids,
@@ -237,8 +237,8 @@ class TransformerEncoderLayerBase(nn.Module):
         x = self.residual_connection(x, residual)
 
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-        if self.add_adapters and self.finetune_on_lang_id is not None:
-            x = self.adapter_block(x, self.finetune_on_lang_id)
+        if self.add_adapters and self.adapter_to_be_used is not None:
+            x = self.adapter_block(x, self.adapter_to_be_used)
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
         if not self.normalize_before:
@@ -363,7 +363,7 @@ class TransformerDecoderLayerBase(nn.Module):
 
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
         self.add_adapters = cfg.decoder.add_adapters
-        self.finetune_on_lang_id = cfg.decoder.finetune_adapter
+        self.adapter_to_be_used = cfg.decoder.finetune_adapter
         if self.add_adapters:
             self.adapter_block = SimpleAdapterBlock(
                 lang_ids=cfg.decoder.adapter_lang_ids,
@@ -553,8 +553,8 @@ class TransformerDecoderLayerBase(nn.Module):
         x = self.residual_connection(x, residual)
 
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-        if self.add_adapters and self.finetune_on_lang_id is not None:
-            x = self.adapter_block(x, self.finetune_on_lang_id)
+        if self.add_adapters and self.adapter_to_be_used is not None:
+            x = self.adapter_block(x, self.adapter_to_be_used)
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
         if not self.normalize_before:
