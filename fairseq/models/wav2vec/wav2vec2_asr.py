@@ -28,7 +28,7 @@ from fairseq.models import (
     FairseqIncrementalDecoder,
     register_model,
 )
-from fairseq.models.wav2vec.wav2vec2 import MASKING_DISTRIBUTION_CHOICES, PosEmb
+from fairseq.models.wav2vec.wav2vec2 import MASKING_DISTRIBUTION_CHOICES
 from fairseq.modules import LayerNorm, PositionalEmbedding, TransformerDecoderLayer
 from fairseq.tasks import FairseqTask
 
@@ -176,8 +176,6 @@ class Wav2Vec2AsrConfig(FairseqDataclass):
 
     zero_mask: bool = False
     load_ema: bool = False
-
-    pos_emb_overwrite: Optional[PosEmb] = None
 
     layer_decay: float = 1
 
@@ -393,9 +391,6 @@ class Wav2VecEncoder(FairseqEncoder):
             "learned_alibi_scale": cfg.update_alibi,
         }
 
-        if cfg.pos_emb_overwrite is not None:
-            arg_overrides["pos_emb_type"] = cfg.pos_emb_overwrite
-
         if cfg.w2v_args is None:
             state = checkpoint_utils.load_checkpoint_to_cpu(cfg.w2v_path, arg_overrides)
             w2v_args = state.get("cfg", None)
@@ -574,7 +569,7 @@ class Wav2VecEncoder(FairseqEncoder):
                         del state["model"][k]
 
             print(model)
-            model.load_state_dict(state["model"], strict=cfg.pos_emb_overwrite is None)
+            model.load_state_dict(state["model"], strict=True)
 
     def set_num_updates(self, num_updates):
         """Set the number of parameters updates."""

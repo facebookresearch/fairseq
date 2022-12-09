@@ -24,27 +24,27 @@ from fairseq.models import BaseFairseqModel, register_model
 
 from examples.data2vec.tasks.multimodal import Modality
 
-from examples.data2vec.models.data2vec2.modalities.base import (
+from examples.data2vec.models.modalities.base import (
     MaskSeed,
     D2vModalityConfig,
     ModalitySpecificEncoder,
     get_annealed_rate,
 )
-from examples.data2vec.models.data2vec2.modalities.modules import (
+from examples.data2vec.models.modalities.modules import (
     D2vDecoderConfig,
     AltBlock,
     Decoder1d,
 )
 
-from examples.data2vec.models.data2vec2.modalities.audio import (
+from examples.data2vec.models.modalities.audio import (
     D2vAudioConfig,
     AudioEncoder,
 )
-from examples.data2vec.models.data2vec2.modalities.images import (
+from examples.data2vec.models.modalities.images import (
     D2vImageConfig,
     ImageEncoder,
 )
-from examples.data2vec.models.data2vec2.modalities.text import (
+from examples.data2vec.models.modalities.text import (
     D2vTextConfig,
     TextEncoder,
 )
