@@ -2,15 +2,18 @@
 
 data2vec 2.0 improves the training efficiency of the original data2vec algorithm. We make the following improvements for efficiency considerations - similar to Masked Auto Encoders, we forward only the unmasked timesteps through the encoder, we use convolutional decoder and we use multimasking to amortize the compute overhead of the teacher model. You can find details in [Efficient Self-supervised Learning with Contextualized Target Representations for Vision, Speech and Language](https://ai.facebook.com/research/xyz)
 
+## Pretrained and finetuned models
 ### Vision
 | Model | Finetuning split | Link
 |---|---|---
-ViT-B | No fine-tuning | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xyz)
-ViT-B | Imagenet-1K  | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xyz)
-ViT-L | No fine-tuning | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xyz)
-ViT-L | Imagenet-1K  | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xyz)
-ViT-H | No fine-tuning | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xyz)
-ViT-H | Imagenet-1K  | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xyz)
+data2vec ViT-B | No fine-tuning | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xyz)
+data2vec ViT-B | Imagenet-1K  | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xyz)
+data2vec ViT-L | No fine-tuning | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xyz)
+data2vec ViT-L | Imagenet-1K  | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xyz)
+data2vec ViT-H | No fine-tuning | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xyz)
+data2vec ViT-H | Imagenet-1K  | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xyz)
+
+Vision models only are license under CC-BY-NC.
 ### Speech
 
 | Model | Finetuning split | Dataset | Link
@@ -36,33 +39,56 @@ data2vec Base | No fine-tuning | Books + Wiki | [download](https://dl.fbaipublic
 
 ### Vision
 
+Commands to pretrain different model configurations
 ```shell script
-$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/multi \
---config-name base_images_only_task task.data=/path/to/manifests
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/v2 \
+--config-name base_images_only_task task.data=/path/to/dir
 ```
 
 ```shell script
-$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/multi \
---config-name large_images_only_task task.data=/path/to/manifests
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/v2 \
+--config-name large_images_only_task task.data=/path/to/dir
+```
+
+```shell script
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/v2 \
+--config-name huge_images14_only_task task.data=/path/to/dir
+```
+
+Commands to finetune different model configurations
+
+```shell script
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/vision/finetuning \
+--config-name mae_imagenet_clean task.data=/path/to/dir model.model_path=/path/to/pretrained/model
+```
+
+```shell script
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/vision/finetuning \
+--config-name mae_imagenet_large_clean task.data=/path/to/dir model.model_path=/path/to/pretrained/model
+```
+
+```shell script
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/vision/finetuning \
+--config-name mae_imagenet_huge_clean task.data=/path/to/dir model.model_path=/path/to/pretrained/model
 ```
 
 ### Speech
 
 ```shell script
-$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/multi \
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/v2 \
 --config-name base_audio_only_task task.data=/path/to/manifests
 ```
 
 ```shell script
-$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/multi \
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/v2 \
 --config-name large_audio_only_task task.data=/path/to/manifests
 ```
 
 ### NLP
 
 ```shell script
-$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/multi \
---config-name base_text_only_task task.data=/path/to/manifests
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/v2 \
+--config-name base_text_only_task task.data=/path/to/file
 ```
 
 
