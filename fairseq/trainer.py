@@ -879,17 +879,6 @@ class Trainer(object):
                 if self.cuda:
                     torch.cuda.empty_cache()
 
-                # import gc
-                # for obj in gc.get_objects():
-                #     try:
-                #         if torch.is_tensor(obj):
-                #             logger.warning(f"{type(obj), obj.shape, obj.dtype, obj.device}")
-                #         elif  hasattr(obj, 'data') and torch.is_tensor(obj.data):
-                #             logger.warning(f"{type(obj), obj.data.shape, obj.data.dtype, obj.device}")
-                #     except Exception as e:
-                #         # logger.warning(f"excepted... {e}")
-                #         pass
-
                 if self.cfg.distributed_training.distributed_world_size == 1:
                     return None
 

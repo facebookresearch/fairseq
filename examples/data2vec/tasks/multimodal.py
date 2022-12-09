@@ -7,7 +7,6 @@
 
 import sys
 
-from enum import Enum, auto
 from dataclasses import dataclass
 from typing import Optional, List
 from omegaconf import II
@@ -19,17 +18,12 @@ from fairseq.tasks import FairseqTask, register_task
 from fairseq.tasks.audio_pretraining import AudioPretrainingConfig, AudioPretrainingTask
 from fairseq.tasks.masked_lm import MaskedLMConfig, MaskedLMTask
 from .mae_image_pretraining import MaeImagePretrainingConfig, MaeImagePretrainingTask
+from .modality import Modality
 
 from fairseq.data.audio.multi_modality_dataset import (
     MultiModalityDataset,
     ModalityDatasetItem,
 )
-
-
-class Modality(Enum):
-    AUDIO = auto()
-    IMAGE = auto()
-    TEXT = auto()
 
 
 @dataclass

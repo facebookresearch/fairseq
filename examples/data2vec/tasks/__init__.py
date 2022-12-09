@@ -6,9 +6,11 @@
 from .image_pretraining import ImagePretrainingTask, ImagePretrainingConfig
 from .image_classification import ImageClassificationTask, ImageClassificationConfig
 from .mae_image_pretraining import MaeImagePretrainingTask, MaeImagePretrainingConfig
+from .modality import Modality
 
 
 __all__ = [
+    "Modality",
     "ImageClassificationTask",
     "ImageClassificationConfig",
     "ImagePretrainingTask",

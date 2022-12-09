@@ -64,9 +64,7 @@ class ImagePretrainingTask(FairseqTask):
 
         return cls(cfg)
 
-    def load_dataset(
-        self, split: str, task_cfg: FairseqDataclass = None, **kwargs
-    ):
+    def load_dataset(self, split: str, task_cfg: FairseqDataclass = None, **kwargs):
         data_path = self.cfg.data
         cfg = task_cfg or self.cfg
 
