@@ -28,7 +28,7 @@ class TransformerEncoderLayerBase(nn.Module):
     *cfg.encoder.normalize_before* to ``True``.
 
     Args:
-        args (argparse.Namespace): parsed command-line arguments
+        cfg (argparse.Namespace): parsed command-line arguments
     """
 
     def __init__(self, cfg, return_fc=False):

@@ -3,21 +3,19 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from argparse import Namespace
 import logging
-from typing import Union, Tuple, Optional
+from argparse import Namespace
+from typing import Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from fairseq.data import encoders
-from fairseq.data.audio.audio_utils import (
-    get_waveform as get_wav,
-    convert_waveform as convert_wav,
-    get_fbank,
-)
 import fairseq.data.audio.feature_transforms.utterance_cmvn as utt_cmvn
+from fairseq.data import encoders
+from fairseq.data.audio.audio_utils import convert_waveform as convert_wav
+from fairseq.data.audio.audio_utils import get_fbank
+from fairseq.data.audio.audio_utils import get_waveform as get_wav
 from fairseq.data.audio.speech_to_text_dataset import SpeechToTextDataset
 
 logger = logging.getLogger(__name__)

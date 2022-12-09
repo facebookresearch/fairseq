@@ -7,10 +7,11 @@ import math
 from dataclasses import dataclass, field
 
 import torch
+from omegaconf import II
+
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import FairseqDataclass
-from omegaconf import II
 
 
 @dataclass

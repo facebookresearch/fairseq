@@ -12,11 +12,12 @@ import torch
 
 from fairseq.data import ConcatDataset, Dictionary
 from fairseq.data import data_utils as fairseq_data_utils
-from fairseq.data.audio.data_cfg import S2SDataConfig
 from fairseq.data.audio.audio_utils import get_features_or_waveform
+from fairseq.data.audio.data_cfg import S2SDataConfig
 from fairseq.data.audio.speech_to_text_dataset import (
     SpeechToTextDataset,
     SpeechToTextDatasetCreator,
+    TextTargetMultitaskData,
     _collate_frames,
 )
 
@@ -51,11 +52,11 @@ class SpeechToSpeechDataset(SpeechToTextDataset):
     ):
         tgt_texts = tgt_audio_paths if target_is_code else None
         super().__init__(
-            split,
-            is_train_split,
-            data_cfg,
-            src_audio_paths,
-            src_n_frames,
+            split=split,
+            is_train_split=is_train_split,
+            cfg=data_cfg,
+            audio_paths=src_audio_paths,
+            n_frames=src_n_frames,
             ids=ids,
             tgt_dict=tgt_dict,
             tgt_texts=tgt_texts,
@@ -231,60 +232,9 @@ class SpeechToSpeechDataset(SpeechToTextDataset):
         return out
 
 
-class TextTargetMultitaskData(object):
-    # mandatory columns
-    KEY_ID, KEY_TEXT = "id", "tgt_text"
-
-    def __init__(self, args, split, tgt_dict):
-        samples = SpeechToTextDatasetCreator._load_samples_from_tsv(args.data, split)
-        self.data = {s[self.KEY_ID]: s[self.KEY_TEXT] for s in samples}
-        self.dict = tgt_dict
-        self.append_eos = args.decoder_type != "ctc"
-
-    def get(self, sample_id):
-        if sample_id in self.data:
-            return self.dict.encode_line(
-                self.data[sample_id],
-                add_if_not_exist=False,
-                append_eos=self.append_eos,
-            )
-        else:
-            logger.warning(f"no target for {sample_id}")
-            return torch.IntTensor([])
-
-    def collater(self, samples: List[torch.Tensor]) -> torch.Tensor:
-        out = fairseq_data_utils.collate_tokens(
-            samples,
-            self.dict.pad(),
-            self.dict.eos(),
-            left_pad=False,
-            move_eos_to_beginning=False,
-        ).long()
-
-        prev_out = fairseq_data_utils.collate_tokens(
-            samples,
-            self.dict.pad(),
-            self.dict.eos(),
-            left_pad=False,
-            move_eos_to_beginning=True,
-        ).long()
-
-        target_lengths = torch.tensor([t.size(0) for t in samples], dtype=torch.long)
-        ntokens = sum(t.size(0) for t in samples)
-
-        output = {
-            "prev_output_tokens": prev_out,
-            "target": out,
-            "target_lengths": target_lengths,
-            "ntokens": ntokens,
-        }
-
-        return output
-
-
 class SpeechToSpeechMultitaskDataset(SpeechToSpeechDataset):
-    def __init__(self, *argv):
-        super().__init__(*argv)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.multitask_data = {}
 
     def add_multitask_dataset(self, task_name, task_data):
@@ -297,8 +247,9 @@ class SpeechToSpeechMultitaskDataset(SpeechToSpeechDataset):
 
         multitask_target = {}
         sample_id = self.ids[index]
+        tgt_lang = self.tgt_langs[index]
         for task_name, task_dataset in self.multitask_data.items():
-            multitask_target[task_name] = task_dataset.get(sample_id)
+            multitask_target[task_name] = task_dataset.get(sample_id, tgt_lang)
 
         return s2s_data, multitask_target
 
@@ -348,7 +299,7 @@ class SpeechToSpeechDatasetCreator(object):
         samples: List[Dict],
         data_cfg: S2SDataConfig,
         target_is_code: bool = False,
-        target_dictionary: Dictionary = None,
+        tgt_dict: Dictionary = None,
         n_frames_per_step: int = 1,
         multitask: Optional[Dict] = None,
     ) -> SpeechToSpeechDataset:
@@ -368,25 +319,25 @@ class SpeechToSpeechDatasetCreator(object):
         src_langs = [s.get(cls.KEY_SRC_LANG, cls.DEFAULT_LANG) for s in samples]
         tgt_langs = [s.get(cls.KEY_TGT_LANG, cls.DEFAULT_LANG) for s in samples]
 
-        has_multitask = len(multitask) > 0
+        has_multitask = multitask is not None and len(multitask.keys()) > 0
         dataset_cls = (
             SpeechToSpeechMultitaskDataset if has_multitask else SpeechToSpeechDataset
         )
 
         ds = dataset_cls(
-            split_name,
-            is_train_split,
-            data_cfg,
-            src_audio_paths,
-            src_n_frames,
-            tgt_audio_paths,
-            tgt_n_frames,
-            src_langs,
-            tgt_langs,
-            ids,
-            target_is_code,
-            target_dictionary,
-            n_frames_per_step,
+            split=split_name,
+            is_train_split=is_train_split,
+            data_cfg=data_cfg,
+            src_audio_paths=src_audio_paths,
+            src_n_frames=src_n_frames,
+            tgt_audio_paths=tgt_audio_paths,
+            tgt_n_frames=tgt_n_frames,
+            src_langs=src_langs,
+            tgt_langs=tgt_langs,
+            ids=ids,
+            target_is_code=target_is_code,
+            tgt_dict=tgt_dict,
+            n_frames_per_step=n_frames_per_step,
         )
 
         if has_multitask:
@@ -407,7 +358,7 @@ class SpeechToSpeechDatasetCreator(object):
         epoch: int,
         seed: int,
         target_is_code: bool = False,
-        target_dictionary: Dictionary = None,
+        tgt_dict: Dictionary = None,
         n_frames_per_step: int = 1,
         multitask: Optional[Dict] = None,
     ) -> SpeechToSpeechDataset:
@@ -415,14 +366,14 @@ class SpeechToSpeechDatasetCreator(object):
         for split in splits.split(","):
             samples = SpeechToTextDatasetCreator._load_samples_from_tsv(root, split)
             ds = cls._from_list(
-                split,
-                is_train_split,
-                samples,
-                data_cfg,
-                target_is_code,
-                target_dictionary,
-                n_frames_per_step,
-                multitask,
+                split_name=split,
+                is_train_split=is_train_split,
+                samples=samples,
+                data_cfg=data_cfg,
+                target_is_code=target_is_code,
+                tgt_dict=tgt_dict,
+                n_frames_per_step=n_frames_per_step,
+                multitask=multitask,
             )
             datasets.append(ds)
         return ConcatDataset(datasets) if len(datasets) > 1 else datasets[0]
