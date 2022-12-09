@@ -71,7 +71,6 @@ class AudioEncoder(ModalitySpecificEncoder):
             dropout=0.0,
             mode=modality_cfg.extractor_mode,
             conv_bias=False,
-            affine_norms=True,
         )
 
         project_features = nn.Sequential(
