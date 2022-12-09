@@ -48,6 +48,7 @@ criterion:
 optimization:
   max_update: 600000
   debug_param_names: true
+  clip_norm: 1
 
 optimizer:
   _name: composite

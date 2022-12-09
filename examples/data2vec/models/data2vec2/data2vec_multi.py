@@ -22,19 +22,32 @@ from fairseq.modules import EMAModule, EMAModuleConfig
 from fairseq.dataclass import FairseqDataclass
 from fairseq.models import BaseFairseqModel, register_model
 
-from ..tasks.multimodal import Modality
+from examples.data2vec.tasks.multimodal import Modality
 
-from .multi.base import (
+from examples.data2vec.models.data2vec2.modalities.base import (
     MaskSeed,
     D2vModalityConfig,
     ModalitySpecificEncoder,
     get_annealed_rate,
 )
-from .multi.modules import D2vDecoderConfig, AltBlock, Decoder1d
+from examples.data2vec.models.data2vec2.modalities.modules import (
+    D2vDecoderConfig,
+    AltBlock,
+    Decoder1d,
+)
 
-from .multi.audio import D2vAudioConfig, AudioEncoder
-from .multi.images import D2vImageConfig, ImageEncoder
-from .multi.text import D2vTextConfig, TextEncoder
+from examples.data2vec.models.data2vec2.modalities.audio import (
+    D2vAudioConfig,
+    AudioEncoder,
+)
+from examples.data2vec.models.data2vec2.modalities.images import (
+    D2vImageConfig,
+    ImageEncoder,
+)
+from examples.data2vec.models.data2vec2.modalities.text import (
+    D2vTextConfig,
+    TextEncoder,
+)
 
 logger = logging.getLogger(__name__)
 

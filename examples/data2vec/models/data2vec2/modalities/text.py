@@ -15,7 +15,7 @@ from fairseq.modules import PositionalEmbedding, FairseqDropout, LayerNorm
 from fairseq.tasks import FairseqTask
 from .base import D2vModalityConfig, ModalitySpecificEncoder, get_alibi_bias
 from .modules import BlockEncoder, Decoder1d, TransposeLast
-from ...tasks.multimodal import Modality
+from examples.data2vec.tasks.multimodal import Modality
 
 
 @dataclass
