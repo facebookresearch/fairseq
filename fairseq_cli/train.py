@@ -131,11 +131,13 @@ def main(cfg: FairseqConfig) -> None:
                 p.requires_grad = False
             for layer in model.modules():
                 if isinstance(layer, SimpleAdapterBlock):
-                    p.requires_grad = True
+                    for p in layer.parameters():
+                        p.requires_grad = True
         else:
             for layer in model.modules():
                 if isinstance(layer, SimpleAdapterBlock):
-                    p.requires_grad = False
+                    for p in layer.parameters():
+                        p.requires_grad = False
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
     logger.info(

@@ -5,7 +5,7 @@ class SimpleAdapterBlock(nn.Module):
     This is a simple adapater block and it does not use quant_noise/quant_noise_block_size as used in xmod
     """
     def __init__(
-        self, lang_ids, in_dim, hid_dim, activation_fn="silu", dropout=0.1, normalize_before_adapter=False
+        self, lang_ids, in_dim, red_factor=2, activation_fn="silu", dropout=0.1, normalize_before_adapter=False
     ):
         super().__init__()
 
@@ -19,9 +19,9 @@ class SimpleAdapterBlock(nn.Module):
 
         self.adapters = nn.ModuleDict({
             id: nn.Sequential(
-                nn.Linear(in_dim, hid_dim),
+                nn.Linear(in_dim, in_dim//red_factor),
                 activation_fn_module,
-                nn.Linear(hid_dim, in_dim)
+                nn.Linear(in_dim//red_factor, in_dim)
             ) for id in lang_ids
         })
         self.normalize_before_adapter = normalize_before_adapter

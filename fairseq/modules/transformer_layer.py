@@ -75,7 +75,7 @@ class TransformerEncoderLayerBase(nn.Module):
             self.adapter_block = SimpleAdapterBlock(
                 lang_ids=cfg.encoder.adapter_lang_ids,
                 in_dim=cfg.encoder.embed_dim,
-                hid_dim=cfg.encoder.adapter_bottleneck_dim,
+                red_factor=cfg.encoder.adapter_reduction_factor,
                 activation_fn=cfg.encoder.adapter_activation_fn,
                 normalize_before_adapter=cfg.encoder.normalize_before,
                 dropout=cfg.dropout
@@ -368,7 +368,7 @@ class TransformerDecoderLayerBase(nn.Module):
             self.adapter_block = SimpleAdapterBlock(
                 lang_ids=cfg.decoder.adapter_lang_ids,
                 in_dim=cfg.decoder.embed_dim, 
-                hid_dim=cfg.decoder.adapter_bottleneck_dim,
+                red_factor=cfg.decoder.adapter_reduction_factor,
                 activation_fn=cfg.decoder.adapter_activation_fn,
                 normalize_before_adapter=cfg.decoder.normalize_before,
                 dropout=cfg.dropout

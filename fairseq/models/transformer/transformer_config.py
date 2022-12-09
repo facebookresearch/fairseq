@@ -63,9 +63,9 @@ class EncDecBaseConfig(FairseqDataclass):
         metadata={"help": "add adapters to the transformer encoder/decoder layers"}
     )
 
-    adapter_bottleneck_dim: Optional[int] = field(
+    adapter_reduction_factor: Optional[int] = field(
         default=None,
-        metadata={"help": "bottleneck dimension of adapters"},
+        metadata={"help": "reduction factor for bottleneck dimension of adapters"},
     )
     adapter_activation_fn: Optional[str] = field(
         default=None,
