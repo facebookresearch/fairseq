@@ -88,7 +88,7 @@ class MultiModalityDataset(ConcatDataset):
     def sizes(self):
         if len(self.datasets) == 1:
             return self.datasets[0].sizes
-        super().sizes
+        return super().sizes
 
     def ordered_indices(self):
         """

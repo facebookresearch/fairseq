@@ -28,9 +28,7 @@ class ModelCriterionConfig(FairseqDataclass):
         default_factory=list,
         metadata={"help": "additional output keys to log"},
     )
-    rescale: float = 1
     can_sum: bool = True
-    log_ppl: bool = False
 
 
 @register_criterion("model", dataclass=ModelCriterionConfig)
@@ -47,13 +45,11 @@ class ModelCriterion(FairseqCriterion):
     net_output dict can be logged via the log_keys parameter.
     """
 
-    def __init__(self, task, loss_weights=None, log_keys=None, rescale=1.0, can_sum=True, log_ppl=False):
+    def __init__(self, task, loss_weights=None, log_keys=None, can_sum=True):
         super().__init__(task)
         self.loss_weights = loss_weights
         self.log_keys = log_keys
         self.can_sum = can_sum
-        self.rescale = rescale
-        ModelCriterion._log_ppl = log_ppl
 
     def forward(self, model, sample, reduce=True):
         net_output = model(**sample["net_input"])
@@ -69,7 +65,7 @@ class ModelCriterion(FairseqCriterion):
 
         for lk, p in losses.items():
             try:
-                coef =  (1.0 if len(self.loss_weights) == 0 else self.loss_weights[lk]) / self.rescale
+                coef = 1.0 if len(self.loss_weights) == 0 else self.loss_weights[lk]
             except KeyError:
                 logger.error(
                     f"weight for loss {lk} is not in loss_weights ({self.loss_weights})"
@@ -84,9 +80,6 @@ class ModelCriterion(FairseqCriterion):
             sample_size = net_output["sample_size"]
         else:
             sample_size = loss.numel()
-
-        if self.rescale > 0:
-            sample_size = sample_size / self.rescale
 
         if reduce and loss.numel() > 1:
             loss = loss.sum()
@@ -172,20 +165,6 @@ class ModelCriterion(FairseqCriterion):
                 )
                 if meters["_total"].sum > 0
                 else float("nan"),
-            )
-
-
-        if ModelCriterion._log_ppl:
-            import math
-
-            if "loss_xentropy" in logging_outputs[0]:
-                loss_sum = utils.item(sum(log.get("loss_xentropy", 0) for log in logging_outputs))
-
-            metrics.log_scalar(
-                "rescaled_loss", loss_sum / sample_size / math.log(2), sample_size, round=3
-            )
-            metrics.log_derived(
-                "ppl", lambda meters: utils.get_perplexity(meters["rescaled_loss"].avg)
             )
 
     def logging_outputs_can_be_summed(self) -> bool:

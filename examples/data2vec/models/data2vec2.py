@@ -353,9 +353,6 @@ class Data2VecMultiModel(BaseFairseqModel):
             if self.ema.get_decay() < 1:
                 self.ema.step(self.blocks if self.cfg.ema_encoder_only else self)
 
-            if self.modality_discrim_ema is not None:
-                self.modality_discrim_ema.step(self.modality_discrim)
-
         self.num_updates = num_updates
 
     def state_dict(self, destination=None, prefix="", keep_vars=False):

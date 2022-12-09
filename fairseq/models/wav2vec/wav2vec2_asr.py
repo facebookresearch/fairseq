@@ -147,8 +147,6 @@ class Wav2Vec2AsrConfig(FairseqDataclass):
     )
     mask_channel_before: bool = False
     normalize: bool = II("task.normalize")
-    remove_alibi: bool = False
-    overwrite_alibi: Optional[float] = None
     update_alibi: bool = True
     data: str = II("task.data")
     # this holds the loaded wav2vec args
@@ -357,8 +355,6 @@ class Wav2VecEncoder(FairseqEncoder):
             "dropout_input": cfg.dropout_input,
             "attention_dropout": cfg.attention_dropout,
             "mask_length": cfg.mask_length,
-            "mask_warmup": 0,
-            "mask_prob_start": cfg.mask_prob,
             "mask_prob": cfg.mask_prob,
             "require_same_masks": getattr(cfg, "require_same_masks", True),
             "pct_holes": getattr(cfg, "mask_dropout", 0),
@@ -372,15 +368,15 @@ class Wav2VecEncoder(FairseqEncoder):
             "mask_channel_other": cfg.mask_channel_other,
             "no_mask_channel_overlap": cfg.no_mask_channel_overlap,
             "encoder_layerdrop": cfg.layerdrop,
-            "drop_path": cfg.drop_path,
             "feature_grad_mult": cfg.feature_grad_mult,
             "checkpoint_activations": cfg.checkpoint_activations,
             "offload_activations": cfg.offload_activations,
             "min_params_to_wrap": cfg.min_params_to_wrap,
-            "zero_mask": cfg.zero_mask,
             # d2v multi args
             "encoder_dropout": cfg.dropout,
+            "drop_path": cfg.drop_path,
             "mask_dropout": getattr(cfg, "mask_dropout", 0),
+            "zero_mask": cfg.zero_mask,
             "local_grad_mult": cfg.feature_grad_mult,
             "layerdrop": cfg.layerdrop,
             "prenet_layerdrop": cfg.layerdrop,
@@ -398,16 +394,6 @@ class Wav2VecEncoder(FairseqEncoder):
                 w2v_args = convert_namespace_to_omegaconf(state["args"])
             w2v_args.criterion = None
             w2v_args.lr_scheduler = None
-
-            if "mae_encoder_random_mask" in w2v_args.model and isinstance(
-                w2v_args.model.mae_encoder_random_mask, bool
-            ):
-                w2v_args.model.mae_encoder_random_mask = 0.0
-            if "mae_mask_pct_future" in w2v_args.model:
-                w2v_args.model.mae_mask_pct_future = 0.0
-
-            if "mae_mask_pct_future" in w2v_args.model:
-                w2v_args.model.mae_mask_pct_future = 0.0
 
             cfg.w2v_args = w2v_args
 
@@ -448,23 +434,6 @@ class Wav2VecEncoder(FairseqEncoder):
             else:
                 w2v_args.task.data = cfg.data
             task = tasks.setup_task(w2v_args.task, from_checkpoint=True)
-
-            if cfg.remove_alibi:
-                w2v_args.model["modalities"]["audio"]["use_alibi_encoder"] = False
-
-                if (
-                    state is not None
-                    and "modality_encoders.AUDIO.alibi_scale" in state["model"]
-                ):
-                    del state["model"]["modality_encoders.AUDIO.alibi_scale"]
-            elif cfg.overwrite_alibi is not None:
-                if (
-                    state is not None
-                    and "modality_encoders.AUDIO.alibi_scale" in state["model"]
-                ):
-                    state["model"]["modality_encoders.AUDIO.alibi_scale"].fill_(
-                        cfg.overwrite_alibi
-                    )
 
             model = task.build_model(w2v_args.model, from_checkpoint=True)
 
@@ -550,7 +519,7 @@ class Wav2VecEncoder(FairseqEncoder):
 
             model.load_state_dict(new_big_dict, strict=False)
         else:
-            to_delete = {"_ema", "target_proj", "prototypes", "proto_labels", "decoder"}
+            to_delete = {"_ema", "target_proj", "decoder"}
             for k in to_delete:
                 if k in state["model"]:
                     del state["model"][k]
@@ -735,6 +704,16 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 - the decoder's output of shape `(batch, tgt_len, vocab)`
                 - a dictionary with any model-specific outputs
         """
+
+        if type(prev_output_tokens) == list:
+            max_len = max((len(x) for x in prev_output_tokens))
+            tmp = torch.zeros(
+                [len(prev_output_tokens), max_len], device=prev_output_tokens[0].device
+            )
+            for (i, p) in enumerate(prev_output_tokens):
+                tmp[i, : len(p)] = p
+            prev_output_tokens = tmp
+
         prev_output_tokens = prev_output_tokens.long()
         x, extra = self.extract_features(
             prev_output_tokens, encoder_out, incremental_state

@@ -437,7 +437,6 @@ class DistributedTrainingConfig(FairseqDataclass):
     )
     fp16: bool = II("common.fp16")
     memory_efficient_fp16: bool = II("common.memory_efficient_fp16")
-    fsdp_mp: bool = False
     tpu: bool = II("common.tpu")
     # configuration for --ddp-backend=fully_sharded
     no_reshard_after_forward: bool = field(

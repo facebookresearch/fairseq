@@ -274,7 +274,7 @@ class FairseqTask(object):
         )
         logger.info(f"can_reuse_epoch_itr = {can_reuse_epoch_itr}")
         if can_reuse_epoch_itr and dataset in self.dataset_to_epoch_iter:
-            logger.info("reusing EpochBatchIterator for epoch {}".format(epoch))
+            logger.debug("reusing EpochBatchIterator for epoch {}".format(epoch))
             return self.dataset_to_epoch_iter[dataset]
 
         assert isinstance(dataset, FairseqDataset)

@@ -198,9 +198,6 @@ class MaskedLMTask(FairseqTask):
             split (str): name of the split (e.g., train, valid, test)
         """
         dataset = self._load_dataset_split(split, epoch, combine)
-        # if split == "train" and self.cfg.subsample_train != 1:
-        #     from fairseq.data.subsample_dataset import SubsampleDataset
-        #     dataset = SubsampleDataset(dataset, self.cfg.subsample_train)
 
         # create masked input and targets
         mask_whole_words = (
@@ -287,8 +284,6 @@ class MaskedLMTask(FairseqTask):
             sizes=[src_dataset.sizes],
         )
         return dataset
-
-
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, sort=True):
         src_dataset = RightPadDataset(
