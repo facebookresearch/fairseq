@@ -1,6 +1,6 @@
 # data2vec 2.0
 
-data2vec 2.0 improves the training efficiency of the original data2vec algorithm. We make the following improvements for efficiency considerations - similar to Masked Auto Encoders, we forward only the unmasked timesteps through the encoder, we use convolutional decoder and we use multimasking to amortize the compute overhead of the teacher model. You can find details in [Efficient Self-supervised Learning with Contextualized Target Representations for Vision, Speech and Language](https://ai.facebook.com/research/xyz)
+data2vec 2.0 improves the training efficiency of the original data2vec algorithm. We make the following improvements for efficiency considerations - we forward only the unmasked timesteps through the encoder, we use convolutional decoder and we use multimasking to amortize the compute overhead of the teacher model. You can find details in [Efficient Self-supervised Learning with Contextualized Target Representations for Vision, Speech and Language](https://ai.facebook.com/research/xyz)
 
 ## Pretrained and finetuned models
 ### Vision
@@ -33,6 +33,15 @@ Model | Fine-tuning data | Dataset | Link
 |---|---|---|---|
 data2vec Base | No fine-tuning | Books + Wiki | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/nlp_base.pt)
 
+## Data Preparation
+
+### Vision
+add details
+### Speech
+add details
+
+### NLP
+add details
 
 
 ## Commands to train different models using data2vec 2.0
