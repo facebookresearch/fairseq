@@ -189,6 +189,7 @@ def do_setup(package_data):
             "bitarray",
             "torchaudio>=0.8.0",
             "scikit-learn",
+            "packaging",
         ],
         extras_require={
             "dev": ["flake8", "pytest", "black==22.3.0"],
