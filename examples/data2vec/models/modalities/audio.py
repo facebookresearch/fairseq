@@ -159,42 +159,32 @@ class AudioEncoder(ModalitySpecificEncoder):
             return input_lengths.to(torch.long)
 
         if padding_mask is not None:
-            if self.modality_cfg.mlp_encoder:
-                mod = padding_mask.size(1) % self.modality_cfg.mlp_n_in
-                if mod > 0:
-                    padding_mask = F.pad(
-                        padding_mask, (0, self.modality_cfg.mlp_n_in - mod)
+            input_lengths = (1 - padding_mask.long()).sum(-1)
+            # apply conv formula to get real output_lengths
+            output_lengths = get_feat_extract_output_lengths(input_lengths)
+
+            if padding_mask.any():
+                padding_mask = torch.zeros(
+                    x.shape[:2], dtype=x.dtype, device=x.device
+                )
+
+                # these two operations makes sure that all values
+                # before the output lengths indices are attended to
+                padding_mask[
+                    (
+                        torch.arange(
+                            padding_mask.shape[0], device=padding_mask.device
+                        ),
+                        output_lengths - 1,
                     )
-                padding_mask = padding_mask.view(
-                    padding_mask.size(0), -1, self.modality_cfg.mlp_n_in
-                ).all(-1)
+                ] = 1
+                padding_mask = (
+                    1 - padding_mask.flip([-1]).cumsum(-1).flip([-1])
+                ).bool()
             else:
-                input_lengths = (1 - padding_mask.long()).sum(-1)
-                # apply conv formula to get real output_lengths
-                output_lengths = get_feat_extract_output_lengths(input_lengths)
-
-                if padding_mask.any():
-                    padding_mask = torch.zeros(
-                        x.shape[:2], dtype=x.dtype, device=x.device
-                    )
-
-                    # these two operations makes sure that all values
-                    # before the output lengths indices are attended to
-                    padding_mask[
-                        (
-                            torch.arange(
-                                padding_mask.shape[0], device=padding_mask.device
-                            ),
-                            output_lengths - 1,
-                        )
-                    ] = 1
-                    padding_mask = (
-                        1 - padding_mask.flip([-1]).cumsum(-1).flip([-1])
-                    ).bool()
-                else:
-                    padding_mask = torch.zeros(
-                        x.shape[:2], dtype=torch.bool, device=x.device
-                    )
+                padding_mask = torch.zeros(
+                    x.shape[:2], dtype=torch.bool, device=x.device
+                )
 
         return padding_mask
 
