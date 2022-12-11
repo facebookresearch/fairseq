@@ -27,7 +27,7 @@ data2vec Large | 960 hours | [Libri-light](https://github.com/facebookresearch/l
 
 Model | Fine-tuning data | Dataset | Link
 |---|---|---|---|
-data2vec Base | No fine-tuning | Books + Wiki | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/nlp_base.pt)
+data2vec Base | No fine-tuning | Books + Wiki | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/nlp_base.pt)
 
 ## Data Preparation
 
