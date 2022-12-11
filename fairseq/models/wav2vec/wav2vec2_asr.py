@@ -374,17 +374,17 @@ class Wav2VecEncoder(FairseqEncoder):
             "min_params_to_wrap": cfg.min_params_to_wrap,
             # d2v multi args
             "encoder_dropout": cfg.dropout,
-            "drop_path": cfg.drop_path,
+            "drop_path": getattr(cfg, "drop_path", 0),
             "mask_dropout": getattr(cfg, "mask_dropout", 0),
-            "zero_mask": cfg.zero_mask,
+            "zero_mask": getattr(cfg, "zero_mask", False),
             "local_grad_mult": cfg.feature_grad_mult,
             "layerdrop": cfg.layerdrop,
             "prenet_layerdrop": cfg.layerdrop,
             "prenet_dropout": cfg.dropout,
             "post_mlp_drop": cfg.dropout,
-            "encoder_zero_mask": cfg.zero_mask,
+            "encoder_zero_mask": getattr(cfg, "zero_mask", False),
             "inverse_mask": False,
-            "learned_alibi_scale": cfg.update_alibi,
+            "learned_alibi_scale": getattr(cfg, "update_alibi", True),
         }
 
         if cfg.w2v_args is None:
@@ -468,13 +468,14 @@ class Wav2VecEncoder(FairseqEncoder):
         if targ_d is not None:
             self.proj = Linear(d, targ_d)
 
-        if cfg.layer_decay < 1:
+        layer_decay = getattr(cfg, "layer_decay", 1)
+        if layer_decay < 1:
             mod_encs = list(model.modality_encoders.values())
             assert len(mod_encs) == 1, len(mod_encs)
             blocks = list(mod_encs[0].context_encoder.blocks) + list(model.blocks)
             num_layers = len(blocks) + 1
             layer_scales = list(
-                cfg.layer_decay ** (num_layers - i) for i in range(num_layers + 1)
+                layer_decay ** (num_layers - i) for i in range(num_layers + 1)
             )
 
             for i, b in enumerate(blocks):
