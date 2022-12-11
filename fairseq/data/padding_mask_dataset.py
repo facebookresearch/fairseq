@@ -8,6 +8,7 @@ import torch
 from fairseq.data import data_utils
 from . import BaseWrapperDataset
 
+
 class PaddingMaskDataset(BaseWrapperDataset):
     def __init__(self, dataset, left_pad, pad_length=None):
         super().__init__(dataset)

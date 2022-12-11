@@ -23,6 +23,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class EMAModuleConfig(FairseqDataclass):
     ema_decay: float = field(
@@ -34,6 +35,7 @@ class EMAModuleConfig(FairseqDataclass):
     )
     add_missing_params: bool = True
     log_norms: bool = False
+
 
 class EMAModule:
     """Exponential Moving Average of Fairseq Models"""

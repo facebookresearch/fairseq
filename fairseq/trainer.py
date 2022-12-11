@@ -288,7 +288,10 @@ class Trainer(object):
 
     def _build_optimizer(self):
 
-        if self.cfg.optimization.debug_param_names and self.cfg.common.fp16_no_flatten_grads:
+        if (
+            self.cfg.optimization.debug_param_names
+            and self.cfg.common.fp16_no_flatten_grads
+        ):
             params = []
             self.param_names = []
 
@@ -1010,7 +1013,9 @@ class Trainer(object):
                 f"NOTE: gradient overflow detected, ignoring gradient, {str(e)}"
             )
 
-            if hasattr(self, "param_names") and hasattr(self.optimizer, "fp32_optimizer"):
+            if hasattr(self, "param_names") and hasattr(
+                self.optimizer, "fp32_optimizer"
+            ):
                 for p, n in zip(self.optimizer.fp32_optimizer.params, self.param_names):
                     if torch.isinf(p.grad).any() or torch.isnan(p.grad).any():
                         logger.info(f"overflow in param {n}")
@@ -1281,7 +1286,7 @@ class Trainer(object):
             total_norm = distributed_utils.all_reduce(
                 total_norm, group=self.data_parallel_process_group
             )
-            return total_norm ** 0.5
+            return total_norm**0.5
 
         should_agg_norm = self.is_fsdp and (
             self.data_parallel_process_group is not None

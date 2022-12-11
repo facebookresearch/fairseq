@@ -604,7 +604,7 @@ def compute_block_mask_2d(
 
     B, L = shape
 
-    d = int(L ** 0.5)
+    d = int(L**0.5)
 
     if inverse_mask:
         mask_prob = 1 - mask_prob
@@ -637,7 +637,7 @@ def compute_block_mask_2d(
                 B,
                 int(
                     L
-                    * ((mask_prob + mask_prob_adjust) / mask_length ** 2)
+                    * ((mask_prob + mask_prob_adjust) / mask_length**2)
                     * (1 + mask_dropout)
                 ),
             ),

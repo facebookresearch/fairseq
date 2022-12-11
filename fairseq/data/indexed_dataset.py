@@ -547,6 +547,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
         # TODO: a quick fix. make it a child class of FairseqDataset instead?
         return True
 
+
 def get_indexed_dataset_to_local(path) -> str:
     local_index_path = PathManager.get_local_path(index_file_path(path))
     local_data_path = PathManager.get_local_path(data_file_path(path))

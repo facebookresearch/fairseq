@@ -179,7 +179,9 @@ class GumbelVectorQuantizer(nn.Module):
         result["temp"] = self.curr_temp
 
         if self.training:
-            x = F.gumbel_softmax(x.float(), tau=self.curr_temp, hard=self.hard).type_as(x)
+            x = F.gumbel_softmax(x.float(), tau=self.curr_temp, hard=self.hard).type_as(
+                x
+            )
         else:
             x = hard_x
 

@@ -167,11 +167,7 @@ class MaskTokensDataset(BaseWrapperDataset):
         try:
             mask[mask_idc] = True
         except:  # something wrong
-            print(
-                "Assigning mask indexes {} to mask {} failed!".format(
-                    mask_idc, mask
-                )
-            )
+            print("Assigning mask indexes {} to mask {} failed!".format(mask_idc, mask))
             raise
 
         # if self.return_masked_tokens:

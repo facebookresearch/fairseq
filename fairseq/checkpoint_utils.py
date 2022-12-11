@@ -134,7 +134,11 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
             )
         )
 
-    if not end_of_epoch and cfg.keep_interval_updates > 0 and trainer.should_save_checkpoint_on_current_rank:
+    if (
+        not end_of_epoch
+        and cfg.keep_interval_updates > 0
+        and trainer.should_save_checkpoint_on_current_rank
+    ):
         # remove old checkpoints; checkpoints are sorted in descending order
         if cfg.keep_interval_updates_pattern == -1:
             checkpoints = checkpoint_paths(

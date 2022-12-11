@@ -46,7 +46,7 @@ class RawAudioDataset(FairseqDataset):
         clone_batch: int = 1,
         expand_adjacent: bool = False,
         mask_dropout: float = 0,
-        non_overlapping: bool = False
+        non_overlapping: bool = False,
     ):
         super().__init__()
 

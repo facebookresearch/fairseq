@@ -136,7 +136,10 @@ class FairseqCompositeOptimizer(FairseqOptimizer):
                                 f"For group:{group}, config as well as override present for lr"
                             )
 
-                    if "weight_decay_scale" in overrides[group]["optimizer"] and "optimizer_config" in optimizer_config:
+                    if (
+                        "weight_decay_scale" in overrides[group]["optimizer"]
+                        and "optimizer_config" in optimizer_config
+                    ):
                         weight_decay_scale = overrides[group]["optimizer"][
                             "weight_decay_scale"
                         ]

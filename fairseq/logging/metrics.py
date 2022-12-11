@@ -150,6 +150,7 @@ def log_scalar_sum(
             agg.add_meter(key, SumMeter(round=round), priority)
         agg[key].update(value)
 
+
 def log_concat_tensor(
     key: str,
     value: torch.Tensor,

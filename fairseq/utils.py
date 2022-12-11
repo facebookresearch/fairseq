@@ -531,7 +531,7 @@ def get_perplexity(loss, round=2, base=2):
     if loss is None:
         return 0.0
     try:
-        return safe_round(base ** loss, round)
+        return safe_round(base**loss, round)
     except OverflowError:
         return float("inf")
 
@@ -840,6 +840,7 @@ def safe_getattr(obj, k, default=None):
 def safe_hasattr(obj, k):
     """Returns True if the given key exists and is not None."""
     return getattr(obj, k, None) is not None
+
 
 def hotreload_function(name=None):
     """

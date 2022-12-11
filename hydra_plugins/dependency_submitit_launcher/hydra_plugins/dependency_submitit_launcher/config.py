@@ -14,6 +14,7 @@ class DependencySubmititConf(SlurmQueueConf):
         "hydra_plugins.dependency_submitit_launcher.launcher.DependencySubmititLauncher"
     )
 
+
 ConfigStore.instance().store(
     group="hydra/launcher",
     name="dependency_submitit_slurm",

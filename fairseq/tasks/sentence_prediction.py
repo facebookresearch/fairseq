@@ -89,6 +89,7 @@ class SentencePredictionConfig(FairseqDataclass):
         metadata={"help": "prepare dataset for data2vec_multi"},
     )
 
+
 @register_task("sentence_prediction", dataclass=SentencePredictionConfig)
 class SentencePredictionTask(FairseqTask):
     """

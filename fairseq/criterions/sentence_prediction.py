@@ -71,9 +71,7 @@ class SentencePredictionCriterion(FairseqCriterion):
         self.classification_head_name = cfg.classification_head_name
         self.regression_target = cfg.regression_target
         self.keep_pred_and_targ = (
-            cfg.report_mcc
-            or cfg.report_acc_and_f1
-            or cfg.report_pearson_and_spearman
+            cfg.report_mcc or cfg.report_acc_and_f1 or cfg.report_pearson_and_spearman
         )
         self.report_mcc = cfg.report_mcc
         self.report_acc_and_f1 = cfg.report_acc_and_f1
@@ -147,7 +145,9 @@ class SentencePredictionCriterion(FairseqCriterion):
             else:
                 # remove offset `self.label_dict.nspecial` from OffsetTokensDataset
                 preds = self.label_dict.string(preds + self.label_dict.nspecial).split()
-                targets = self.label_dict.string(targets + self.label_dict.nspecial).split()
+                targets = self.label_dict.string(
+                    targets + self.label_dict.nspecial
+                ).split()
                 logging_output["pred"] = list(map(int, preds))
                 logging_output["targ"] = list(map(int, targets))
 
@@ -199,12 +199,12 @@ class SentencePredictionCriterion(FairseqCriterion):
             )
 
         # Metrics used by GLUE
-        pred = np.array(list(chain.from_iterable(
-            log.get("pred", []) for log in logging_outputs
-        )))
-        targ = np.array(list(chain.from_iterable(
-            log.get("targ", []) for log in logging_outputs
-        )))
+        pred = np.array(
+            list(chain.from_iterable(log.get("pred", []) for log in logging_outputs))
+        )
+        targ = np.array(
+            list(chain.from_iterable(log.get("targ", []) for log in logging_outputs))
+        )
         if len(pred):
             metrics.log_concat_tensor("pred", torch.from_numpy(pred), dim=0)
             metrics.log_concat_tensor("targ", torch.from_numpy(targ), dim=0)
@@ -215,9 +215,10 @@ class SentencePredictionCriterion(FairseqCriterion):
                         matthews_corrcoef(
                             meters["pred"].tensor.numpy(),
                             meters["targ"].tensor.numpy(),
-                        ) * 100,
+                        )
+                        * 100,
                         1,
-                    )
+                    ),
                 )
             if any("report_acc_and_f1" in log for log in logging_outputs):
                 metrics.log_derived(
@@ -226,9 +227,10 @@ class SentencePredictionCriterion(FairseqCriterion):
                         acc_and_f1(
                             meters["pred"].tensor.numpy(),
                             meters["targ"].tensor.numpy(),
-                        )["acc_and_f1"] * 100,
+                        )["acc_and_f1"]
+                        * 100,
                         1,
-                    )
+                    ),
                 )
                 metrics.log_derived(
                     "f1",
@@ -236,9 +238,10 @@ class SentencePredictionCriterion(FairseqCriterion):
                         acc_and_f1(
                             meters["pred"].tensor.numpy(),
                             meters["targ"].tensor.numpy(),
-                        )["f1"] * 100,
+                        )["f1"]
+                        * 100,
                         1,
-                    )
+                    ),
                 )
             if any("report_pearson_and_spearman" in log for log in logging_outputs):
                 metrics.log_derived(
@@ -247,9 +250,10 @@ class SentencePredictionCriterion(FairseqCriterion):
                         pearson_and_spearman(
                             meters["pred"].tensor.numpy(),
                             meters["targ"].tensor.numpy(),
-                        )["corr"] * 100,
+                        )["corr"]
+                        * 100,
                         1,
-                    )
+                    ),
                 )
                 metrics.log_derived(
                     "pearson",
@@ -257,9 +261,10 @@ class SentencePredictionCriterion(FairseqCriterion):
                         pearson_and_spearman(
                             meters["pred"].tensor.numpy(),
                             meters["targ"].tensor.numpy(),
-                        )["pearson"] * 100,
+                        )["pearson"]
+                        * 100,
                         1,
-                    )
+                    ),
                 )
                 metrics.log_derived(
                     "spearman",
@@ -267,12 +272,11 @@ class SentencePredictionCriterion(FairseqCriterion):
                         pearson_and_spearman(
                             meters["pred"].tensor.numpy(),
                             meters["targ"].tensor.numpy(),
-                        )["spearmanr"] * 100,
+                        )["spearmanr"]
+                        * 100,
                         1,
-                    )
+                    ),
                 )
-
-
 
     @staticmethod
     def logging_outputs_can_be_summed() -> bool:
