@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class D2vModalitiesConfig:
+class D2vModalitiesConfig(FairseqDataclass):
     audio: D2vAudioConfig = D2vAudioConfig()
     image: D2vImageConfig = D2vImageConfig()
     text: D2vTextConfig = D2vTextConfig()
@@ -769,13 +769,13 @@ class Data2VecMultiModel(BaseFairseqModel):
         if dist.is_initialized():
             zc = torch.tensor(y.size(0)).cuda()
             zs = y.sum(dim=0)
-            zss = (y ** 2).sum(dim=0)
+            zss = (y**2).sum(dim=0)
 
             dist.all_reduce(zc)
             dist.all_reduce(zs)
             dist.all_reduce(zss)
 
-            var = zss / (zc - 1) - (zs ** 2) / (zc * (zc - 1))
+            var = zss / (zc - 1) - (zs**2) / (zc * (zc - 1))
             return torch.sqrt(var + 1e-6).mean()
         else:
             return torch.sqrt(y.var(dim=0) + 1e-6).mean()

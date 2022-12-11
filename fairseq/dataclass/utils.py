@@ -498,8 +498,7 @@ def merge_with_parent(dc: FairseqDataclass, cfg: DictConfig, remove_missing=Fals
                     del src_keys[k]
                 elif OmegaConf.is_config(src_keys[k]):
                     tgt = getattr(target_cfg, k)
-                    if tgt is not None:
-                        print(k, tgt)
+                    if tgt is not None and (is_dataclass(tgt) or hasattr(tgt, "keys")):
                         remove_missing_rec(src_keys[k], tgt)
 
         with open_dict(cfg):

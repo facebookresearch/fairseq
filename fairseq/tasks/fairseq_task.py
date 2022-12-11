@@ -355,7 +355,7 @@ class FairseqTask(object):
         model = quantization_utils.quantize_model_scalar(model, cfg)
         return model
 
-    def build_criterion(self, cfg: DictConfig):
+    def build_criterion(self, cfg: DictConfig, from_checkpoint=False):
         """
         Build the :class:`~fairseq.criterions.FairseqCriterion` instance for
         this task.
@@ -368,7 +368,7 @@ class FairseqTask(object):
         """
         from fairseq import criterions
 
-        return criterions.build_criterion(cfg, self)
+        return criterions.build_criterion(cfg, self, from_checkpoint=from_checkpoint)
 
     def build_generator(
         self,

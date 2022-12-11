@@ -102,7 +102,7 @@ def validate(cfg):
     logger.info(saved_cfg)
 
     # Build criterion
-    criterion = task.build_criterion(saved_cfg.criterion)
+    criterion = task.build_criterion(saved_cfg.criterion, from_checkpoint=True)
     criterion.eval()
 
     for subset in cfg.dataset.valid_subset.split(","):
