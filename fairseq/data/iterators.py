@@ -164,7 +164,7 @@ class StreamingEpochBatchIterator(EpochBatchIterating):
         self.collate_fn = collate_fn
         self.epoch = max(epoch, 1)  # we use 1-based indexing for epochs
         self.num_workers = num_workers
-        self.persistent_workers = persistent_workers
+        self.persistent_workers = persistent_workers and num_workers > 0
         # This upper limit here is to prevent people from abusing this feature
         # in a shared computing environment.
         self.buffer_size = min(buffer_size, 20)
@@ -334,7 +334,7 @@ class EpochBatchIterator(EpochBatchIterating):
         self.num_shards = num_shards
         self.shard_id = shard_id
         self.num_workers = num_workers
-        self.persistent_workers = persistent_workers
+        self.persistent_workers = persistent_workers and num_workers > 0
         # This upper limit here is to prevent people from abusing this feature
         # in a shared computing environment.
         self.buffer_size = min(buffer_size, 20)

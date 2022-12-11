@@ -18,13 +18,9 @@ Vision models only are license under CC-BY-NC.
 
 | Model | Finetuning split | Dataset | Link
 |---|---|---|---
-data2vec Base | No fine-tuning | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xxx.pt)
-data2vec Base | 10 minutes | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xxx.pt)
-data2vec Base | 100 hours | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xxx.pt)
+data2vec Base | No fine-tuning | [Librispeech](http://www.openslr.org/12) | [download](/private/home/abaevski/models/d2v2/speech/base_libri.pt)
 data2vec Base | 960 hours | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xxx.pt)
 data2vec Large | No fine-tuning | [Libri-light](https://github.com/facebookresearch/libri-light) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xxx.pt)
-data2vec Large | 10 minutes | [Libri-light](https://github.com/facebookresearch/libri-light) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xxx.pt)
-data2vec Large | 100 hours | [Libri-light](https://github.com/facebookresearch/libri-light) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xxx.pt)
 data2vec Large | 960 hours | [Libri-light](https://github.com/facebookresearch/libri-light) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xxx.pt)
 
 ### NLP
