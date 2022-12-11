@@ -626,7 +626,10 @@ class TestTranslation(unittest.TestCase):
                 )
                 generate_main(data_dir, extra_flags=[])
 
-    @unittest.skipIf(version.parse(torch.__version__) > version.parse("1.8") , "skip for latest torch versions")
+    @unittest.skipIf(
+        version.parse(torch.__version__) > version.parse("1.8"),
+        "skip for latest torch versions",
+    )
     def test_transformer_pointer_generator(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory(
