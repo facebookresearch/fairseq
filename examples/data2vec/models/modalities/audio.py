@@ -6,7 +6,6 @@
 from functools import partial
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Optional
@@ -164,17 +163,13 @@ class AudioEncoder(ModalitySpecificEncoder):
             output_lengths = get_feat_extract_output_lengths(input_lengths)
 
             if padding_mask.any():
-                padding_mask = torch.zeros(
-                    x.shape[:2], dtype=x.dtype, device=x.device
-                )
+                padding_mask = torch.zeros(x.shape[:2], dtype=x.dtype, device=x.device)
 
                 # these two operations makes sure that all values
                 # before the output lengths indices are attended to
                 padding_mask[
                     (
-                        torch.arange(
-                            padding_mask.shape[0], device=padding_mask.device
-                        ),
+                        torch.arange(padding_mask.shape[0], device=padding_mask.device),
                         output_lengths - 1,
                     )
                 ] = 1
