@@ -6,12 +6,12 @@ data2vec 2.0 improves the training efficiency of the original data2vec algorithm
 ### Vision
 | Model | Finetuning split | Link
 |---|---|---
-data2vec ViT-B | No fine-tuning | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/base_imagenet.pt)
-data2vec ViT-B | Imagenet-1K  | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xyz)
-data2vec ViT-L | No fine-tuning | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xyz)
-data2vec ViT-L | Imagenet-1K  | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xyz)
-data2vec ViT-H | No fine-tuning | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xyz)
-data2vec ViT-H | Imagenet-1K  | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec/xyz)
+data2vec ViT-B | No fine-tuning | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/base_imagenet.pt)
+data2vec ViT-B | Imagenet-1K  | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/base_imagenet_ft.pt)
+data2vec ViT-L | No fine-tuning | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/large_imagenet.pt)
+data2vec ViT-L | Imagenet-1K  | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/large_imagenet_ft.pt)
+data2vec ViT-H | No fine-tuning | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/huge_imagenet.pt)
+data2vec ViT-H | Imagenet-1K  | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/huge_imagenet_ft.pt)
 
 Vision models only are license under CC-BY-NC.
 ### Speech
