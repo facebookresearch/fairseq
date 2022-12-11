@@ -29,15 +29,21 @@ Model | Fine-tuning data | Dataset | Link
 |---|---|---|---|
 data2vec Base | No fine-tuning | Books + Wiki | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/nlp_base.pt)
 
-## Data Preparation
+[//]: # (## Data Preparation)
 
-### Vision
-add details
-### Speech
-add details
+[//]: # ()
+[//]: # (### Vision)
 
-### NLP
-add details
+[//]: # (add details)
+
+[//]: # (### Speech)
+
+[//]: # (add details)
+
+[//]: # ()
+[//]: # (### NLP)
+
+[//]: # (add details)
 
 
 ## Commands to train different models using data2vec 2.0
@@ -88,6 +94,16 @@ $ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/v2 
 $ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/v2 \
 --config-name large_audio_only_task task.data=/path/to/manifests
 ```
+
+Finetuning:
+
+```shell script
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/wav2vec/config/finetuning --config-name vox_10h \
+task.data=/path/to/manifests model.w2v_path=/path/to/pretrained/model common.user_dir=examples/data2vec
+```
+
+Replace vox_10h with the right config depending on your model and fine-tuning split. 
+See examples/wav2vec/config/finetuning for all available configs.
 
 ### NLP
 
