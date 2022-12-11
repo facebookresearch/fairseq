@@ -213,7 +213,10 @@ class TestEMA(unittest.TestCase):
                 ).to(dtype),
             )
 
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CPU no longer supports Linear in half precision")
+    @pytest.mark.skipif(
+        not torch.cuda.is_available(),
+        reason="CPU no longer supports Linear in half precision",
+    )
     def test_ema_fp16(self):
         model = DummyModule().cuda().half()
         optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
