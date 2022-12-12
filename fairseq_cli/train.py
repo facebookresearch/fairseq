@@ -112,7 +112,7 @@ def main(cfg: FairseqConfig) -> None:
         if getattr(cfg.model, "encoder_finetune_adapter", "$$") != "$$":
             flag = True
             logging.info(
-                "{} adapters in the encoder will be finetuned. Make sure {} data is only being fed for the training. All parameters expect those of the adapters will be frozen during training".format(
+                "{} adapters in the encoder will be finetuned. Make sure {} data is only being fed to the encoder for the training. All parameters expect those of the adapters will be frozen during training".format(
                     cfg.model.encoder_finetune_adapter,
                     cfg.model.encoder_finetune_adapter
                 )
@@ -120,13 +120,15 @@ def main(cfg: FairseqConfig) -> None:
         if getattr(cfg.model, "decoder_finetune_adapter", "$$") != "$$":
             flag = True
             logging.info(
-                "{} adapters in the decoder will be finetuned. Make sure {} data is only being fed for the training. All parameters expect those of the adapters will be frozen during training".format(
+                "{} adapters in the decoder will be finetuned. Make sure {} data is only being fed to the decoder for the training. All parameters expect those of the adapters will be frozen during training".format(
                     cfg.model.decoder_finetune_adapter,
                     cfg.model.decoder_finetune_adapter
                 )
             )
 
         if flag:
+            # model is pre-trained with adapters. 
+            # Adapters will not be trained in this case.
             for p in model.parameters():
                 p.requires_grad = False
             for layer in model.modules():
@@ -134,6 +136,7 @@ def main(cfg: FairseqConfig) -> None:
                     for p in layer.parameters():
                         p.requires_grad = True
         else:
+            # all other modules other than adapters will not be trained in this case.
             for layer in model.modules():
                 if isinstance(layer, SimpleAdapterBlock):
                     for p in layer.parameters():
