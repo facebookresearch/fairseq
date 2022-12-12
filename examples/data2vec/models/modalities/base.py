@@ -17,7 +17,7 @@ from typing import Optional, Callable
 from fairseq.data.data_utils import compute_mask_indices
 from fairseq.modules import GradMultiply
 from fairseq.utils import index_put
-from examples.data2vec.tasks import Modality
+from examples.data2vec.data.modality import Modality
 from .modules import D2vDecoderConfig
 
 logger = logging.getLogger(__name__)

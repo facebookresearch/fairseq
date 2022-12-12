@@ -26,7 +26,7 @@ from .modules import (
     TransformerDecoder,
     EncDecTransformerDecoder,
 )
-from examples.data2vec.tasks.multimodal import Modality
+from examples.data2vec.data.modality import Modality
 
 
 @dataclass

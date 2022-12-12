@@ -23,7 +23,7 @@ from fairseq.dataclass import FairseqDataclass
 from fairseq.models import BaseFairseqModel, register_model
 from fairseq.models.roberta.model import RobertaClassificationHead
 
-from ..tasks.multimodal import Modality
+from examples.data2vec.data.modality import Modality
 
 
 logger = logging.getLogger(__name__)

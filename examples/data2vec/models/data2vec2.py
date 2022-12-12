@@ -22,7 +22,7 @@ from fairseq.modules import EMAModule, EMAModuleConfig
 from fairseq.dataclass import FairseqDataclass
 from fairseq.models import BaseFairseqModel, register_model
 
-from examples.data2vec.tasks import Modality
+from examples.data2vec.data.modality import Modality
 
 from examples.data2vec.models.modalities.base import (
     MaskSeed,

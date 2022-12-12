@@ -18,7 +18,7 @@ from fairseq.tasks import FairseqTask, register_task
 from fairseq.tasks.audio_pretraining import AudioPretrainingConfig, AudioPretrainingTask
 from fairseq.tasks.masked_lm import MaskedLMConfig, MaskedLMTask
 from .mae_image_pretraining import MaeImagePretrainingConfig, MaeImagePretrainingTask
-from .modality import Modality
+from examples.data2vec.data.modality import Modality
 
 from fairseq.data.audio.multi_modality_dataset import (
     MultiModalityDataset,
