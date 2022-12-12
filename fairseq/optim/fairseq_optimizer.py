@@ -101,11 +101,13 @@ class FairseqOptimizer(object):
 
     def multiply_grads(self, c):
         """Multiplies grads by a constant *c*."""
+        c = float(c)
+        params_with_grad = []
         for p in self.params:
             if p.grad is not None:
-                if torch.is_tensor(c):
-                    c = c.to(p.grad.device)
-                p.grad.data.mul_(c)
+                params_with_grad.append(p.grad.data)
+        # foreach reduces gpu kernel launch
+        torch._foreach_mul_(params_with_grad, c)
 
     def clip_grad_norm(self, max_norm, aggregate_norm_fn=None):
         """Clips gradient norm."""
