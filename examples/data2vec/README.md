@@ -107,11 +107,19 @@ See examples/wav2vec/config/finetuning for all available configs.
 
 ### NLP
 
+Commands to pretrain
 ```shell script
 $ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/v2 \
 --config-name base_text_only_task task.data=/path/to/file
 ```
 
+Commands to fine-tune all GLUE tasks
+```shell script
+$ task=cola  # choose from [cola|qnli|mrpc|rte|sst_2|mnli|qqp|sts_b]
+$ lr=1e-5    # sweep [1e-5|2e-5|4e-5|6e-5] for each task
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/v2/text_finetuning \
+--config-name $task task.data=/path/to/file model.model_path=/path/to/pretrained/model "optimization.lr=[${lr}]"
+```
 
 # data2vec
   

@@ -26,6 +26,8 @@ checkpoint:
 distributed_training:
   find_unused_parameters: true
   distributed_world_size: 1
+  nprocs_per_node: 1
+  distributed_port: -1
 
 criterion:
   _name: sentence_prediction
@@ -34,6 +36,7 @@ dataset:
   batch_size: 32
   required_batch_size_multiple: 1
   max_tokens: 4400
+  num_workers: 1
 
 optimizer:
   _name: adam
@@ -47,9 +50,10 @@ lr_scheduler:
 
 optimization:
   clip_norm: 0.0
-  lr: [1e-05]
+  lr: [2e-05]
   max_update: 33112
   max_epoch: 10
 
 model:
-  _name: ???
+  _name: data2vec_text_classification
+  model_path: ???
