@@ -184,10 +184,12 @@ def do_setup(package_data):
             "numpy>=1.21.3",
             "regex",
             "sacrebleu>=1.4.12",
-            "torch>=1.10",
+            "torch>=1.13",
             "tqdm",
             "bitarray",
             "torchaudio>=0.8.0",
+            "scikit-learn",
+            "packaging",
         ],
         extras_require={
             "dev": ["flake8", "pytest", "black==22.3.0"],

@@ -1,0 +1,80 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: json
+  log_interval: 200
+  user_dir: /data/home/abaevski/fairseq-py/examples/data2vec
+#  tensorboard_logdir: tb
+
+checkpoint:
+  save_interval: 100
+  save_interval_updates: 500
+  keep_interval_updates: 1
+  no_epoch_checkpoints: true
+  best_checkpoint_metric: wer
+
+task:
+  _name: audio_finetuning
+  data: /fsx-wav2vec/abaevski/data/libri/10m/wav2vec/raw
+  labels: ltr
+  normalize: true
+
+dataset:
+  num_workers: 6
+  max_tokens: 1000000
+  skip_invalid_size_inputs_valid_test: true
+  validate_after_updates: 10000
+  validate_interval: 100
+  valid_subset: dev_other
+  required_batch_size_multiple: 8
+
+distributed_training:
+  ddp_backend: legacy_ddp
+  distributed_world_size: 8
+
+criterion:
+  _name: ctc
+  zero_infinity: true
+  post_process: letter
+  wer_kenlm_model: /fsx-wav2vec/abaevski/data/libri/4-gram.bin
+    wer_lexicon: /fsx-wav2vec/abaevski/data/libri/10h/wav2vec/raw/lexicon_ltr2.lst
+  wer_lm_weight: 5
+  wer_word_score: -0.1
+  wer_sil_weight: -4.7
+
+optimization:
+  max_update: 13000
+  lr: [6e-5]
+#  lr: [1e-5]  # base 10h wer
+  sentence_avg: true
+  update_freq: [5]  # base 10h we -> 2/4
+
+optimizer:
+  _name: adam
+  adam_betas: (0.9,0.98)
+  adam_eps: 1e-08
+
+lr_scheduler:
+  _name: cosine
+  warmup_updates: 4000
+
+model:
+  _name: wav2vec_ctc
+  w2v_path: ???
+  apply_mask: true
+  mask_prob: 0.3
+  mask_length: 3
+#  mask_prob: 0.65  # base 10h wer
+  mask_channel_prob: 0.25
+#  mask_channel_prob: 0.6  # base 10h wer
+  mask_channel_length: 64
+  layerdrop: 0.1
+#  layerdrop: 0.05  # base 10h wer
+  activation_dropout: 0.1
+  feature_grad_mult: 0.0
+  freeze_finetune_updates: 10000
+  dropout: 0
+  final_dropout: 0
+  attention_dropout: 0
+  update_alibi: false

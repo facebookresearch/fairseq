@@ -72,6 +72,8 @@ class _FP16OptimizerMixin(object):
                 p32.grad = torch.zeros_like(p32.data)
                 if hasattr(p, "param_group"):
                     p32.param_group = p.param_group
+                if hasattr(p, "optim_overrides"):
+                    p32.optim_overrides = p.optim_overrides
                 fp32_params.append(p32)
             return fp32_params
 
@@ -193,6 +195,9 @@ class _FP16OptimizerMixin(object):
         grad_norm = self._multiply_factor * self.fp32_optimizer.clip_grad_norm(
             0, aggregate_norm_fn
         )
+
+        if torch.is_tensor(self._multiply_factor):
+            self._multiply_factor = self._multiply_factor.to(grad_norm.device)
 
         if self.scaler is not None:
             if grad_norm > max_norm > 0.0:
