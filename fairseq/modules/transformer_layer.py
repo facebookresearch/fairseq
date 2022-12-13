@@ -77,7 +77,7 @@ class TransformerEncoderLayerBase(nn.Module):
                 in_dim=cfg.encoder.embed_dim,
                 red_factor=cfg.encoder.adapter_reduction_factor,
                 activation_fn=cfg.encoder.adapter_activation_fn,
-                normalize_before_adapter=cfg.encoder.normalize_before,
+                normalize_before=cfg.encoder.normalize_before,
                 dropout=cfg.dropout
             )
         else:
@@ -370,7 +370,7 @@ class TransformerDecoderLayerBase(nn.Module):
                 in_dim=cfg.decoder.embed_dim, 
                 red_factor=cfg.decoder.adapter_reduction_factor,
                 activation_fn=cfg.decoder.adapter_activation_fn,
-                normalize_before_adapter=cfg.decoder.normalize_before,
+                normalize_before=cfg.decoder.normalize_before,
                 dropout=cfg.dropout
             )
         else:
@@ -552,13 +552,14 @@ class TransformerDecoderLayerBase(nn.Module):
             residual = torch.mul(self.w_resid, residual)
         x = self.residual_connection(x, residual)
 
+        if not self.normalize_before:
+            x = self.final_layer_norm(x)
+
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
         if self.add_adapters and self.adapter_to_be_used is not None:
             x = self.adapter_block(x, self.adapter_to_be_used)
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
-        if not self.normalize_before:
-            x = self.final_layer_norm(x)
         if self.onnx_trace and incremental_state is not None:
             saved_state = self.self_attn._get_input_buffer(incremental_state)
             assert saved_state is not None
