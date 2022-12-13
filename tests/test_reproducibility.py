@@ -98,7 +98,7 @@ class TestReproducibility(unittest.TestCase):
                 )
 
     def test_reproducibility(self):
-        self._test_reproducibility("test_reproducibility")
+        self._test_reproducibility("test_reproducibility", delta=0.011)
 
     @unittest.skipIf(not torch.cuda.is_available(), "test requires a GPU")
     def test_reproducibility_fp16(self):
