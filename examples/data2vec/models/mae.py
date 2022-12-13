@@ -21,7 +21,11 @@ from fairseq.dataclass import FairseqDataclass
 from fairseq.models import BaseFairseqModel, register_model
 from fairseq.models.wav2vec.wav2vec2 import TransformerSentenceEncoderLayer
 
-from apex.normalization import FusedLayerNorm
+try:
+    from apex.normalization import FusedLayerNorm
+except:
+    FusedLayerNorm = nn.LayerNorm
+
 import torch.nn.functional as F
 
 
