@@ -779,6 +779,16 @@ class CheckpointConfig(FairseqDataclass):
             "argparse_alias": "--save-async",
         },
     )
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+    load_checkpoint_liberally: bool = field(
+        default=True,
+        metadata={
+            "help": "leads the checkpoint in non-strict manner,"
+            "i.e., any architecture differences can be accomodated - "
+            "mainly helpful while training with adapters"
+        }
+    )
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
     model_parallel_size: int = II("common.model_parallel_size")
 
 

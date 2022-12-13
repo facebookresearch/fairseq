@@ -13,7 +13,6 @@ import math
 import os
 import sys
 from typing import Any, Callable, Dict, List, Optional, Tuple
-from fairseq.modules.simple_adapter_block import SimpleAdapterBlock
 
 torch.autograd.set_detect_anomaly(True)
 
@@ -112,35 +111,32 @@ def main(cfg: FairseqConfig) -> None:
         if getattr(cfg.model, "encoder_finetune_adapter", "$$") != "$$":
             flag = True
             logging.info(
-                "{} adapters in the encoder will be finetuned. Make sure {} data is only being fed to the encoder for the training. All parameters expect those of the adapters will be frozen during training".format(
+                "{} adapters in the encoder will be finetuned. Make sure {} data is only being fed to the encoder for the training.".format(
                     cfg.model.encoder_finetune_adapter,
                     cfg.model.encoder_finetune_adapter
                 )
             )
+            logging.info("All parameters expect those of the adapters will be frozen during training")
         if getattr(cfg.model, "decoder_finetune_adapter", "$$") != "$$":
             flag = True
             logging.info(
-                "{} adapters in the decoder will be finetuned. Make sure {} data is only being fed to the decoder for the training. All parameters expect those of the adapters will be frozen during training".format(
+                "{} adapters in the decoder will be finetuned. Make sure {} data is only being fed to the decoder for the training.".format(
                     cfg.model.decoder_finetune_adapter,
                     cfg.model.decoder_finetune_adapter
                 )
             )
+            logging.info("All parameters expect those of the adapters will be frozen during training")
 
-        if flag:
-            # model is pre-trained with adapters. 
-            # Adapters will not be trained in this case.
-            for p in model.parameters():
+    if flag:
+        for name, layer in model.named_modules():
+            for p in layer.parameters():
                 p.requires_grad = False
-            for layer in model.modules():
-                if isinstance(layer, SimpleAdapterBlock):
-                    for p in layer.parameters():
-                        p.requires_grad = True
-        else:
-            # all other modules other than adapters will not be trained in this case.
-            for layer in model.modules():
-                if isinstance(layer, SimpleAdapterBlock):
-                    for p in layer.parameters():
-                        p.requires_grad = False
+        for name, layer in model.named_modules():
+            if name.endswith(f"adapters.{getattr(cfg.model, 'encoder_finetune_adapter', '$$')}") or \
+               name.endswith(f"adapters.{getattr(cfg.model, 'decoder_finetune_adapter', '$$')}"):
+                logging.info(f"gradients for {name} will be active")
+                for p in layer.parameters():
+                    p.requires_grad = True
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
     logger.info(

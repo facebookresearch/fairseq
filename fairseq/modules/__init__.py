@@ -35,7 +35,7 @@ from .multihead_attention import MultiheadAttention
 from .positional_embedding import PositionalEmbedding
 from .same_pad import SamePad
 from .scalar_bias import ScalarBias
-from .simple_adapter_block import SimpleAdapterBlock
+from .simple_adapter_block import SimpleAdapter, SimpleAdapterBlock
 from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
 from .transformer_sentence_encoder_layer import TransformerSentenceEncoderLayer
 from .transformer_sentence_encoder import TransformerSentenceEncoder
@@ -92,6 +92,7 @@ __all__ = [
     "PositionalEmbedding",
     "SamePad",
     "ScalarBias",
+    "SimpleAdapter",
     "SimpleAdapterBlock",
     "SinusoidalPositionalEmbedding",
     "TransformerSentenceEncoderLayer",

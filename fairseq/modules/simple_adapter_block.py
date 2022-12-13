@@ -10,11 +10,10 @@ class SimpleAdapter(nn.Module):
 
         super().__init__()
 
-        self.activation_fn = {
+        self.act = {
             "relu": nn.ReLU(),
             "gelu": nn.GELU(),
             "silu": nn.SiLU(),
-            "prelu": nn.PReLU(),
             "leaky_relu": nn.LeakyReLU(),
         }[activation_fn]
 
@@ -23,17 +22,16 @@ class SimpleAdapter(nn.Module):
         self.normalize_before = normalize_before
         self.fc1 = nn.Linear(in_dim, in_dim//red_factor)
         self.fc2 = nn.Linear(in_dim//red_factor, in_dim)
-    
-    def residual_connection(self, x, residual):
-        return x + residual
 
     def forward(self, x):
         residual = x
         if self.normalize_before:
             x = self.layer_norm(x)
-        x = self.fc2(self.activation_fn(self.fc1(x)))
+        x = self.fc1(x)
+        x = self.act(x)
+        x = self.fc2(x)
         x = self.dropout(x)
-        x = self.residual_connection(x, residual)
+        x += residual
         if self.normalize_before:
             x = self.layer_norm(x)
         return x
@@ -51,10 +49,10 @@ class SimpleAdapterBlock(nn.Module):
         self.adapters = nn.ModuleDict({
             id: SimpleAdapter(
                 in_dim=in_dim,
+                dropout=dropout,
                 red_factor=red_factor,
                 activation_fn=activation_fn,
-                dropout=dropout,
-                normalize_before=normalize_before
+                normalize_before=normalize_before,
             ) for id in lang_ids
         })
 

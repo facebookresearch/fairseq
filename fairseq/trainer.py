@@ -56,6 +56,7 @@ class Trainer(object):
         self.task = task
         self.teacher_model = None
         self.perform_distillation = False
+        self.load_checkpoint_liberally = cfg.checkpoint.load_checkpoint_liberally
 
         # catalog shared parameters
         shared_params = _catalog_shared_params(model)
@@ -568,7 +569,9 @@ class Trainer(object):
                     logger.info(self.model)
 
                 self.model.load_state_dict(
-                    state["model"], strict=True, model_cfg=self.cfg.model
+                    state["model"], 
+                    model_cfg=self.cfg.model,
+                    strict=self.load_checkpoint_liberally
                 )
                 # save memory for later steps
                 del state["model"]
