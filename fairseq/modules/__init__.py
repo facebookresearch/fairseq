@@ -33,7 +33,7 @@ from .location_attention import LocationAttention
 from .lstm_cell_with_zoneout import LSTMCellWithZoneOut
 from .multihead_attention import MultiheadAttention
 from .positional_embedding import PositionalEmbedding
-from .same_pad import SamePad
+from .same_pad import SamePad, SamePad2d
 from .scalar_bias import ScalarBias
 from .simple_adapter_block import SimpleAdapter, SimpleAdapterBlock
 from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
@@ -91,6 +91,7 @@ __all__ = [
     "MultiheadAttention",
     "PositionalEmbedding",
     "SamePad",
+    "SamePad2d",
     "ScalarBias",
     "SimpleAdapter",
     "SimpleAdapterBlock",

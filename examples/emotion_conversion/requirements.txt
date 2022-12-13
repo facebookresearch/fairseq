@@ -1,0 +1,11 @@
+scipy
+einops
+amfm_decompy
+joblib
+numba
+decorator
+requests
+appdirs
+packaging
+six
+sklearn

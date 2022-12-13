@@ -205,10 +205,12 @@ def do_setup(package_data):
             "numpy>=1.21.3",
             "regex",
             "sacrebleu>=1.4.12",
-            "torch",
+            "torch>=1.13",
             "tqdm",
             "bitarray",
             "torchaudio>=0.8.0",
+            "scikit-learn",
+            "packaging",
         ],
         dependency_links=dependency_links,
         packages=find_packages(

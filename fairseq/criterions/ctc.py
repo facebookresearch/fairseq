@@ -53,6 +53,10 @@ class CtcCriterionConfig(FairseqDataclass):
         default=-1.0,
         metadata={"help": "lm word score to use with wer_kenlm_model"},
     )
+    wer_sil_weight: float = field(
+        default=0,
+        metadata={"help": "lm word score to use with wer_kenlm_model"},
+    )
 
     wer_args: Optional[str] = field(
         default=None,
@@ -96,6 +100,7 @@ class CtcCriterion(FairseqCriterion):
             dec_args.beam_threshold = min(50, len(task.target_dictionary))
             dec_args.lm_weight = cfg.wer_lm_weight
             dec_args.word_score = cfg.wer_word_score
+            dec_args.sil_weight = cfg.wer_sil_weight
             dec_args.unk_weight = -math.inf
             dec_args.sil_weight = 0
 
