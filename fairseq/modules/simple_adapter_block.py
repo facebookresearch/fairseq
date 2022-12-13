@@ -1,4 +1,5 @@
 import torch.nn as nn
+import torch.nn.functional as F
 
 class SimpleAdapter(nn.Module):
     """
@@ -11,10 +12,11 @@ class SimpleAdapter(nn.Module):
         super().__init__()
 
         self.act = {
-            "relu": nn.ReLU(),
-            "gelu": nn.GELU(),
-            "silu": nn.SiLU(),
-            "leaky_relu": nn.LeakyReLU(),
+            "relu": F.relu,
+            "gelu": F.gelu,
+            "silu": F.silu,
+            "mish": F.mish,
+            "leaky_relu": F.leaky_relu,
         }[activation_fn]
 
         self.layer_norm = nn.LayerNorm(in_dim)
