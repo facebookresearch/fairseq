@@ -236,13 +236,13 @@ class TransformerEncoderLayerBase(nn.Module):
         x = self.dropout_module(x)
         x = self.residual_connection(x, residual)
 
+        if not self.normalize_before:
+            x = self.final_layer_norm(x)
+
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
         if self.add_adapters and self.adapter_to_be_used is not None:
             x = self.adapter_block(x, self.adapter_to_be_used)
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-
-        if not self.normalize_before:
-            x = self.final_layer_norm(x)
             
         if self.return_fc and not torch.jit.is_scripting():
             return x, fc_result
