@@ -34,7 +34,7 @@ class SimpleAdapter(nn.Module):
         x = self.fc2(x)
         x = self.dropout(x)
         x += residual
-        if self.normalize_before:
+        if not self.normalize_before:
             x = self.layer_norm(x)
         return x
         
