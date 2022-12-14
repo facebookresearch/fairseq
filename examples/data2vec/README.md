@@ -1,3 +1,125 @@
+# data2vec 2.0
+
+data2vec 2.0 improves the training efficiency of the original data2vec algorithm. We make the following improvements for efficiency considerations - we forward only the unmasked timesteps through the encoder, we use convolutional decoder and we use multimasking to amortize the compute overhead of the teacher model. You can find details in [Efficient Self-supervised Learning with Contextualized Target Representations for Vision, Speech and Language](https://ai.facebook.com/research/xyz)
+
+## Pretrained and finetuned models
+### Vision
+| Model | Finetuning split | Link
+|---|---|---
+data2vec ViT-B | No fine-tuning | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/base_imagenet.pt)
+data2vec ViT-B | Imagenet-1K  | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/base_imagenet_ft.pt)
+data2vec ViT-L | No fine-tuning | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/large_imagenet.pt)
+data2vec ViT-L | Imagenet-1K  | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/large_imagenet_ft.pt)
+data2vec ViT-H | No fine-tuning | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/huge_imagenet.pt)
+data2vec ViT-H | Imagenet-1K  | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/huge_imagenet_ft.pt)
+
+Vision models only are license under CC-BY-NC.
+### Speech
+
+| Model | Finetuning split | Dataset | Link
+|---|---|---|---
+data2vec Base | No fine-tuning | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/base_libri.pt)
+data2vec Base | 960 hours | [Librispeech](http://www.openslr.org/12) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/base_libri_960h.pt)
+data2vec Large | No fine-tuning | [Libri-light](https://github.com/facebookresearch/libri-light) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/large_vox.pt)
+data2vec Large | 960 hours | [Libri-light](https://github.com/facebookresearch/libri-light) | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/large_vox_960h.pt)
+
+### NLP
+
+Model | Fine-tuning data | Dataset | Link
+|---|---|---|---|
+data2vec Base | No fine-tuning | Books + Wiki | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/nlp_base.pt)
+
+[//]: # (## Data Preparation)
+
+[//]: # ()
+[//]: # (### Vision)
+
+[//]: # (add details)
+
+[//]: # (### Speech)
+
+[//]: # (add details)
+
+[//]: # ()
+[//]: # (### NLP)
+
+[//]: # (add details)
+
+
+## Commands to train different models using data2vec 2.0
+
+### Vision
+
+Commands to pretrain different model configurations
+```shell script
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/v2 \
+--config-name base_images_only_task task.data=/path/to/dir
+```
+
+```shell script
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/v2 \
+--config-name large_images_only_task task.data=/path/to/dir
+```
+
+```shell script
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/v2 \
+--config-name huge_images14_only_task task.data=/path/to/dir
+```
+
+Commands to finetune different model configurations
+
+```shell script
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/vision/finetuning \
+--config-name mae_imagenet_clean task.data=/path/to/dir model.model_path=/path/to/pretrained/model
+```
+
+```shell script
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/vision/finetuning \
+--config-name mae_imagenet_large_clean task.data=/path/to/dir model.model_path=/path/to/pretrained/model
+```
+
+```shell script
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/vision/finetuning \
+--config-name mae_imagenet_huge_clean task.data=/path/to/dir model.model_path=/path/to/pretrained/model
+```
+
+### Speech
+
+```shell script
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/v2 \
+--config-name base_audio_only_task task.data=/path/to/manifests
+```
+
+```shell script
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/v2 \
+--config-name large_audio_only_task task.data=/path/to/manifests
+```
+
+Finetuning:
+
+```shell script
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/wav2vec/config/finetuning --config-name vox_10h \
+task.data=/path/to/manifests model.w2v_path=/path/to/pretrained/model common.user_dir=examples/data2vec
+```
+
+Replace vox_10h with the right config depending on your model and fine-tuning split. 
+See examples/wav2vec/config/finetuning for all available configs.
+
+### NLP
+
+Commands to pretrain
+```shell script
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/v2 \
+--config-name base_text_only_task task.data=/path/to/file
+```
+
+Commands to fine-tune all GLUE tasks
+```shell script
+$ task=cola  # choose from [cola|qnli|mrpc|rte|sst_2|mnli|qqp|sts_b]
+$ lr=1e-5    # sweep [1e-5|2e-5|4e-5|6e-5] for each task
+$ python fairseq_cli/hydra_train.py -m --config-dir examples/data2vec/config/v2/text_finetuning \
+--config-name $task task.data=/path/to/file model.model_path=/path/to/pretrained/model "optimization.lr=[${lr}]"
+```
 
 # data2vec
   

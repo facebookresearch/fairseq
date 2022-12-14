@@ -272,6 +272,7 @@ class FairseqTask(object):
             and not update_epoch_batch_itr
             and self.can_reuse_epoch_itr(dataset)
         )
+        logger.info(f"can_reuse_epoch_itr = {can_reuse_epoch_itr}")
         if can_reuse_epoch_itr and dataset in self.dataset_to_epoch_iter:
             logger.debug("reusing EpochBatchIterator for epoch {}".format(epoch))
             return self.dataset_to_epoch_iter[dataset]
@@ -281,26 +282,39 @@ class FairseqTask(object):
         # initialize the dataset with the correct starting epoch
         dataset.set_epoch(epoch)
 
-        # get indices ordered by example size
-        with data_utils.numpy_seed(seed):
-            indices = dataset.ordered_indices()
+        def make_batches(dataset, epoch):
+            logger.info(f"creating new batches for epoch {epoch}")
 
-        # filter examples that are too large
-        if max_positions is not None:
-            indices = self.filter_indices_by_size(
-                indices, dataset, max_positions, ignore_invalid_inputs
+            # get indices ordered by example size
+            with data_utils.numpy_seed(seed + epoch):
+                indices = dataset.ordered_indices()
+
+            # filter examples that are too large
+            if max_positions is not None:
+                indices = self.filter_indices_by_size(
+                    indices, dataset, max_positions, ignore_invalid_inputs
+                )
+
+            # create mini-batches with given size constraints
+            batches = dataset.batch_by_size(
+                indices,
+                max_tokens=max_tokens,
+                max_sentences=max_sentences,
+                required_batch_size_multiple=required_batch_size_multiple,
             )
-
-        # create mini-batches with given size constraints
-        batch_sampler = dataset.batch_by_size(
-            indices,
-            max_tokens=max_tokens,
-            max_sentences=max_sentences,
-            required_batch_size_multiple=required_batch_size_multiple,
-        )
+            return batches
 
         reuse_dataloader = getattr(self.cfg, "reuse_dataloader", True)
-        persistent_workers = getattr(self.cfg, "persistent_workers", False)
+        persistent_workers = getattr(self.cfg, "persistent_workers", True)
+        rebuild_batches = getattr(self.cfg, "rebuild_batches", False)
+        logger.info(f"reuse_dataloader = {reuse_dataloader}")
+        logger.info(f"rebuild_batches = {rebuild_batches}")
+
+        if rebuild_batches:
+            logger.info("batches will be rebuilt for each epoch")
+            batch_sampler = make_batches
+        else:
+            batch_sampler = make_batches(dataset, epoch)
 
         # return a reusable, sharded iterator
         epoch_iter = iterators.EpochBatchIterator(
@@ -341,7 +355,7 @@ class FairseqTask(object):
         model = quantization_utils.quantize_model_scalar(model, cfg)
         return model
 
-    def build_criterion(self, cfg: DictConfig):
+    def build_criterion(self, cfg: DictConfig, from_checkpoint=False):
         """
         Build the :class:`~fairseq.criterions.FairseqCriterion` instance for
         this task.
@@ -354,7 +368,7 @@ class FairseqTask(object):
         """
         from fairseq import criterions
 
-        return criterions.build_criterion(cfg, self)
+        return criterions.build_criterion(cfg, self, from_checkpoint=from_checkpoint)
 
     def build_generator(
         self,
@@ -614,13 +628,13 @@ class FairseqTask(object):
     def source_dictionary(self):
         """Return the source :class:`~fairseq.data.Dictionary` (if applicable
         for this task)."""
-        raise NotImplementedError
+        return None
 
     @property
     def target_dictionary(self):
         """Return the target :class:`~fairseq.data.Dictionary` (if applicable
         for this task)."""
-        raise NotImplementedError
+        return None
 
     def build_tokenizer(self, args):
         """Build the pre-tokenizer for this task."""

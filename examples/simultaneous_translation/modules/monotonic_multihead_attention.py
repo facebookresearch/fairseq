@@ -396,6 +396,7 @@ class MonotonicAttention(MultiheadAttention):
             "p_choose": p_choose,
             "alpha": alpha,
             "beta": beta,
+            "soft_energy": soft_energy,
         }
 
     def _get_monotonic_buffer(self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]):

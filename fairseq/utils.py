@@ -270,9 +270,9 @@ def strip_pad(tensor, pad):
     return tensor[tensor.ne(pad)]
 
 
-def buffered_arange(max):
+def buffered_arange(max, device="cpu"):
     if not hasattr(buffered_arange, "buf"):
-        buffered_arange.buf = torch.LongTensor()
+        buffered_arange.buf = torch.LongTensor().to(device)
     if max > buffered_arange.buf.numel():
         buffered_arange.buf.resize_(max)
         torch.arange(max, out=buffered_arange.buf)
