@@ -164,6 +164,15 @@ def main(cfg: FairseqConfig):
             model.cuda()
         model.prepare_for_inference_(cfg)
 
+        if getattr(cfg.interactive, "evaluate_with_encoder_adapter", "$$") != "$$":
+            for layer in model.encoder.layers:
+                layer.adapter_to_be_used = cfg.interactive.evaluate_with_encoder_adapter
+
+        if getattr(cfg.interactive, "evaluate_with_decoder_adapter", "$$") != "$$":
+            for layer in model.decoder.layers:
+                layer.adapter_to_be_used = cfg.interactive.evaluate_with_decoder_adapter
+
+
     # Initialize generator
     generator = task.build_generator(models, cfg.generation)
 
