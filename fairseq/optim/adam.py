@@ -5,7 +5,6 @@
 
 import logging
 import math
-from collections import defaultdict
 from collections.abc import Collection
 from dataclasses import dataclass, field
 from typing import Any, List
@@ -117,7 +116,7 @@ class Adam(torch.optim.Optimizer):
 
     It has been proposed in `Adam: A Method for Stochastic Optimization`_.
 
-    Arguments:
+    Args:
         params (iterable): iterable of parameters to optimize or dicts defining
             parameter groups
         lr (float, optional): learning rate (default: 1e-3)
@@ -143,15 +142,9 @@ class Adam(torch.optim.Optimizer):
         eps=1e-8,
         weight_decay=0,
         amsgrad=False,
-        adaptive_adam=False,
     ):
         defaults = dict(
-            lr=lr,
-            betas=betas,
-            eps=eps,
-            weight_decay=weight_decay,
-            amsgrad=amsgrad,
-            adaptive_adam=adaptive_adam,
+            lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, amsgrad=amsgrad
         )
         super(Adam, self).__init__(params, defaults)
 
@@ -166,7 +159,7 @@ class Adam(torch.optim.Optimizer):
     def step(self, closure=None):
         """Performs a single optimization step.
 
-        Arguments:
+        Args:
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
         """
@@ -175,17 +168,6 @@ class Adam(torch.optim.Optimizer):
             loss = closure()
 
         for group in self.param_groups:
-            grads = []
-            states = []
-            exp_avg = []
-            exp_avg_sq = []
-            max_exp_avg_sq = []
-            params_with_grad = []
-            p_data_fp32_list = []
-            p_data_fp32_weight_decay_list = []
-            amsgrad = group.get("amsgrad", False)
-            adaptive_adam = group.get("adaptive_adam", False)
-
             for p in group["params"]:
                 if p.grad is None:
                     continue
@@ -196,26 +178,12 @@ class Adam(torch.optim.Optimizer):
                     raise RuntimeError(
                         "Adam does not support sparse gradients, please consider SparseAdam instead"
                     )
-                grads.append(p.grad)
+                amsgrad = group.get("amsgrad", False)
+
                 p_data_fp32 = p.data
                 if p.data.dtype in {torch.float16, torch.bfloat16}:
                     p_data_fp32 = p_data_fp32.float()
-                params_with_grad.append(p)
-                p_data_fp32_list.append(p_data_fp32)
 
-                if (
-                    p_data_fp32.ndim == 2
-                    and group["weight_decay"] != 0
-                    and adaptive_adam
-                ):
-                    p_norm_fp32 = torch.sum(p_data_fp32**2, dim=1, keepdim=True)
-                    p_norm_ratio = p_norm_fp32 / p_norm_fp32.max()
-                    # adaptively change the scale of weight decay
-                    p_data_fp32_weight_decay_list.append(p_data_fp32 * p_norm_ratio)
-                elif group["weight_decay"] != 0:
-                    p_data_fp32_weight_decay_list.append(p_data_fp32)
-
-            for p, p_data_fp32 in zip(params_with_grad, p_data_fp32_list):
                 state = self.state[p]
 
                 # State initialization
@@ -236,73 +204,36 @@ class Adam(torch.optim.Optimizer):
                             p_data_fp32
                         )
 
-                exp_avg.append(state["exp_avg"])
-                exp_avg_sq.append(state["exp_avg_sq"])
+                exp_avg, exp_avg_sq = state["exp_avg"], state["exp_avg_sq"]
                 if amsgrad:
-                    max_exp_avg_sq.append(state["max_exp_avg_sq"])
+                    max_exp_avg_sq = state["max_exp_avg_sq"]
+                beta1, beta2 = group["betas"]
 
                 state["step"] += 1
-                states.append(state)
 
-            beta1, beta2 = group["betas"]
-            # Decay the first and second moment running average coefficient
-            torch._foreach_mul_(exp_avg, beta1)
-            torch._foreach_add_(exp_avg, grads, alpha=1 - beta1)
+                # Decay the first and second moment running average coefficient
+                exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
+                exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+                if amsgrad:
+                    # Maintains the maximum of all 2nd moment running avg. till now
+                    torch.max(max_exp_avg_sq, exp_avg_sq, out=max_exp_avg_sq)
+                    # Use the max. for normalizing running avg. of gradient
+                    denom = max_exp_avg_sq.sqrt().add_(group["eps"])
+                else:
+                    denom = exp_avg_sq.sqrt().add_(group["eps"])
 
-            torch._foreach_mul_(exp_avg_sq, beta2)
-            torch._foreach_addcmul_(exp_avg_sq, grads, grads, 1 - beta2)
-            if amsgrad:
-                # Maintains the maximum of all 2nd moment running avg. till now
-                max_exp_avg_sq = torch._foreach_maximum(max_exp_avg_sq, exp_avg_sq)
-                # Use the max. for normalizing running avg. of gradient
-                max_exp_avg_sq_sqrt = torch._foreach_sqrt(max_exp_avg_sq)
-                denom = torch._foreach_add(max_exp_avg_sq_sqrt, group["eps"])
-            else:
-                exp_avg_sq_sqrt = torch._foreach_sqrt(exp_avg_sq)
-                denom = torch._foreach_add(exp_avg_sq_sqrt, group["eps"])
+                bias_correction1 = 1 - beta1 ** state["step"]
+                bias_correction2 = 1 - beta2 ** state["step"]
+                step_size = group["lr"] * math.sqrt(bias_correction2) / bias_correction1
 
-            bias_correction1_list = [1 - beta1 ** state["step"] for state in states]
-            bias_correction2_list = [1 - beta2 ** state["step"] for state in states]
-            step_size = [
-                (group["lr"] * math.sqrt(bias_correction2) / bias_correction1) * -1
-                for bias_correction1, bias_correction2 in zip(
-                    bias_correction1_list, bias_correction2_list
-                )
-            ]
-            if group["weight_decay"] != 0:
-                torch._foreach_add_(
-                    p_data_fp32_list,
-                    p_data_fp32_weight_decay_list,
-                    alpha=-group["weight_decay"] * group["lr"],
-                )
+                if group["weight_decay"] != 0:
+                    p_data_fp32.add_(
+                        p_data_fp32, alpha=-group["weight_decay"] * group["lr"]
+                    )
 
-            torch._foreach_addcdiv_(p_data_fp32_list, exp_avg, denom, step_size)
-            for p, p_data_fp32 in zip(params_with_grad, p_data_fp32_list):
+                p_data_fp32.addcdiv_(exp_avg, denom, value=-step_size)
+
                 if p.data.dtype in {torch.float16, torch.bfloat16}:
                     p.data.copy_(p_data_fp32)
 
         return loss
-
-    def zero_grad(self, set_to_none: bool = False):
-        per_device_and_dtype_grads = defaultdict(lambda: defaultdict(list))
-        for group in self.param_groups:
-            for p in group["params"]:
-                if p.grad is not None:
-                    if set_to_none:
-                        p.grad = None
-                    else:
-                        if p.grad.grad_fn is not None:
-                            p.grad.detach_()
-                        else:
-                            p.grad.requires_grad_(False)
-
-                        if p.grad.is_sparse:
-                            p.grad.zero_()
-                        else:
-                            per_device_and_dtype_grads[p.grad.device][
-                                p.grad.dtype
-                            ].append(p.grad)
-
-            for _, per_dtype_grads in per_device_and_dtype_grads.items():
-                for grads in per_dtype_grads.values():
-                    torch._foreach_zero_(grads)
