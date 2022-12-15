@@ -167,7 +167,6 @@ def main(cfg: FairseqConfig):
         if getattr(cfg.interactive, "evaluate_with_encoder_adapter", "$$") != "$$":
             for layer in model.encoder.layers:
                 layer.adapter_to_be_used = cfg.interactive.evaluate_with_encoder_adapter
-
         if getattr(cfg.interactive, "evaluate_with_decoder_adapter", "$$") != "$$":
             for layer in model.decoder.layers:
                 layer.adapter_to_be_used = cfg.interactive.evaluate_with_decoder_adapter

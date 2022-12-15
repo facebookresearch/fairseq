@@ -14,7 +14,7 @@ from fairseq.models.transformer import TransformerConfig
 from fairseq.modules import LayerNorm, MultiheadAttention
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
-from fairseq.modules.simple_adapter_block import SimpleAdapterBlock
+from fairseq.modules.bottleneck_adapter_block import BottleneckAdapterBlock
 
 
 class TransformerEncoderLayerBase(nn.Module):
@@ -72,14 +72,7 @@ class TransformerEncoderLayerBase(nn.Module):
         self.add_adapters = cfg.encoder.add_adapters
         self.adapter_to_be_used = cfg.encoder.finetune_adapter
         if self.add_adapters:
-            self.adapter_block = SimpleAdapterBlock(
-                lang_ids=cfg.encoder.adapter_lang_ids,
-                in_dim=cfg.encoder.embed_dim,
-                red_factor=cfg.encoder.adapter_reduction_factor,
-                activation_fn=cfg.encoder.adapter_activation_fn,
-                normalize_before=cfg.encoder.normalize_before,
-                dropout=cfg.dropout
-            )
+            self.adapter_block = BottleneckAdapterBlock(cfg, encoder=True)
         else:
             self.adapter_block = None
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
@@ -365,14 +358,7 @@ class TransformerDecoderLayerBase(nn.Module):
         self.add_adapters = cfg.decoder.add_adapters
         self.adapter_to_be_used = cfg.decoder.finetune_adapter
         if self.add_adapters:
-            self.adapter_block = SimpleAdapterBlock(
-                lang_ids=cfg.decoder.adapter_lang_ids,
-                in_dim=cfg.decoder.embed_dim, 
-                red_factor=cfg.decoder.adapter_reduction_factor,
-                activation_fn=cfg.decoder.adapter_activation_fn,
-                normalize_before=cfg.decoder.normalize_before,
-                dropout=cfg.dropout
-            )
+            self.adapter_block = BottleneckAdapterBlock(cfg, encoder=False)
         else:
             self.adapter_block = None
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###

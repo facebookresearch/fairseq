@@ -96,9 +96,21 @@ class TransformerEncoderBase(FairseqEncoder):
             self.layers = nn.ModuleList([])
 
         if self.recurrent_stacking is not None:
+            if getattr(cfg, "adapter_reduction_factor_trend", []) == []:
+                raise ValueError("recurrent stacking is not compatible with varying reduction factor across layers")
             self.layers.extend([self.build_encoder_layer(cfg)]*self.recurrent_stacking)
         else:
-            self.layers.extend([self.build_encoder_layer(cfg) for _ in range(cfg.encoder.layers)])
+            ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+            self.trend = cfg.encoder.adapter_reduction_factor_trend
+            if self.trend is not None:
+                assert len(self.trend) == cfg.encoder.layers, \
+                    "mismatch between number of encoder layers and trend list"
+                for _, v in enumerate(self.trend):
+                    cfg.encoder.adapter_reduction_factor = v
+                    self.layers.append(self.build_encoder_layer(cfg))
+            else:
+                self.layers.extend([self.build_encoder_layer(cfg) for _ in range(cfg.encoder.layers)])
+            ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
         self.num_layers = len(self.layers)
 

@@ -36,7 +36,11 @@ class EncDecBaseConfig(FairseqDataclass):
     )
     factorized_embed_dim: Optional[int] = field(
         default=None,
-        metadata={"help": "hidden dimension for the factorized embeddings. If this argument is specified, regular embeddings will be skipped and factorized embeddings will be generated. Nevertheless, embed_dim parameter must be specified"}
+        metadata={
+            "help": "hidden dimension for the factorized embeddings."
+            "If this argument is specified, regular embeddings will be skipped and factorized embeddings will be generated"
+            "Nevertheless, embed_dim parameter must be specified"
+        }
     )
     ffn_embed_dim: int = field(
         default=2048, metadata={"help": "embedding dimension for FFN"}
@@ -56,37 +60,38 @@ class EncDecBaseConfig(FairseqDataclass):
     layers_to_keep: Optional[List[int]] = field(
         default=None, metadata={"help": "which layers to *keep* when pruning"}
     )
-
-    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-    add_adapters: Optional[bool] = field(
-        default=False,
-        metadata={"help": "add adapters to the transformer encoder/decoder layers"}
-    )
-
-    adapter_reduction_factor: Optional[int] = field(
-        default=None,
-        metadata={"help": "reduction factor for bottleneck dimension of adapters"},
-    )
-    adapter_activation_fn: Optional[str] = field(
-        default=None,
-        metadata={"help": "activation function for adapters"}
-    )
-    adapter_lang_ids: Optional[List[str]] = field(
-        default=None,
-        metadata={"help": "list of lang_ids to be used as keys for the adapters"}
-    )
-    finetune_adapter: Optional[str] = field(
-        default=None,
-        metadata={"help": "finetunes adapter of only the specified language. Rest parameters are frozen"}
-    )
-    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-
     xformers_att_config: Optional[str] = field(
         default=None,
         metadata={
             "help": "config for xFormers attention, defined in xformers.components.attention.AttentionConfig"
         },
     )
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+    add_adapters: Optional[bool] = field(
+        default=False,
+        metadata={"help": "add adapters to the transformer encoder/decoder layers"}
+    )
+    adapter_reduction_factor: Optional[int] = field(
+        default=None,
+        metadata={"help": "reduction factor for bottleneck dimension of adapters"},
+    )
+    adapter_lang_ids: Optional[List[str]] = field(
+        default=None,
+        metadata={"help": "list of lang_ids to be used as keys for the adapters"}
+    )
+    adapter_reduction_factor_trend: Optional[List[int]] = field(
+        default=None,
+        metadata={
+            "help": "adapter reduction trend as we move up the layers."
+            "Make sure the list argument has the same length as the number of layers"
+        }
+    )
+
+    finetune_adapter: Optional[str] = field(
+        default=None,
+        metadata={"help": "finetunes adapter of only the specified language. Rest parameters are frozen"}
+    )
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
 
 @dataclass
@@ -127,10 +132,6 @@ class QuantNoiseConfig(FairseqDataclass):
 
 @dataclass
 class TransformerConfig(FairseqDataclass):
-    use_factorized_embedding: bool = field(
-        default=False,
-        metadata={"help": "use factorized embeddings instead of regular embeddings. Factorized embeddings use lesser number of parameters"}
-    )
     activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
         default="relu",
         metadata={"help": "activation function to use"},

@@ -8,6 +8,7 @@ from .adaptive_input import AdaptiveInput
 from .adaptive_softmax import AdaptiveSoftmax
 from .base_layer import BaseLayer
 from .beamable_mm import BeamableMM
+from .bottleneck_adapter_block import BottleneckAdapter, BottleneckAdapterBlock
 from .character_token_embedder import CharacterTokenEmbedder
 from .conv_tbc import ConvTBC
 from .cross_entropy import cross_entropy
@@ -35,7 +36,6 @@ from .multihead_attention import MultiheadAttention
 from .positional_embedding import PositionalEmbedding
 from .same_pad import SamePad, SamePad2d
 from .scalar_bias import ScalarBias
-from .simple_adapter_block import SimpleAdapter, SimpleAdapterBlock
 from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
 from .transformer_sentence_encoder_layer import TransformerSentenceEncoderLayer
 from .transformer_sentence_encoder import TransformerSentenceEncoder
@@ -59,6 +59,8 @@ __all__ = [
     "AdaptiveSoftmax",
     "BaseLayer",
     "BeamableMM",
+    "BottleneckAdapter",
+    "BottleneckAdapterBlock",
     "CharacterTokenEmbedder",
     "ConvTBC",
     "cross_entropy",
@@ -93,8 +95,6 @@ __all__ = [
     "SamePad",
     "SamePad2d",
     "ScalarBias",
-    "SimpleAdapter",
-    "SimpleAdapterBlock",
     "SinusoidalPositionalEmbedding",
     "TransformerSentenceEncoderLayer",
     "TransformerSentenceEncoder",

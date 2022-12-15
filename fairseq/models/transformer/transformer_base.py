@@ -125,7 +125,7 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
 
-        if not cfg.use_factorized_embedding:
+        if getattr(cfg, "factorized_embed_dim", 0) == 0:
             emb = Embedding(num_embeddings, embed_dim, padding_idx)
             # if provided, load from preloaded dictionaries
             if path:

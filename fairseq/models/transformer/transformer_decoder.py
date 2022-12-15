@@ -118,9 +118,21 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             self.layers = nn.ModuleList([])
 
         if self.recurrent_stacking is not None:
+            if getattr(cfg, "adapter_reduction_factor_trend", []) == []:
+                raise ValueError("recurrent stacking is not compatible with varying reduction factor across layers")
             self.layers.extend([self.build_decoder_layer(cfg, no_encoder_attn)]*self.recurrent_stacking)
         else:
-            self.layers.extend([self.build_decoder_layer(cfg, no_encoder_attn) for _ in range(cfg.decoder.layers)])
+            ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+            self.trend = cfg.decoder.adapter_reduction_factor_trend
+            if self.trend is not None:
+                assert len(self.trend) == cfg.decoder.layers, \
+                    "mismatch between number of decoder layers and trend list"
+                for _, v in enumerate(self.trend):
+                    cfg.decoder.adapter_reduction_factor = v
+                    self.layers.append(self.build_decoder_layer(cfg, no_encoder_attn))
+            else:
+                self.layers.extend([self.build_decoder_layer(cfg, no_encoder_attn) for _ in range(cfg.decoder.layers)])
+            ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
         self.num_layers = len(self.layers)
 

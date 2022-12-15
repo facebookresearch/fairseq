@@ -104,39 +104,35 @@ def main(cfg: FairseqConfig) -> None:
     logger.info("criterion: {}".format(criterion.__class__.__name__))
 
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-    flag = False
     if getattr(cfg.model, "encoder_add_adapters", False) or \
        getattr(cfg.model, "decoder_add_adapters", False):
         logging.info("adapters detected in encoder/decoder")
         if getattr(cfg.model, "encoder_finetune_adapter", "$$") != "$$":
-            flag = True
             logging.info(
-                "{} adapters in the encoder will be finetuned. Make sure {} data is only being fed to the encoder for the training.".format(
-                    cfg.model.encoder_finetune_adapter,
+                "{0} adapters in the encoder will be finetuned. Make sure {0} data is only being fed to the encoder for the training.".format(
                     cfg.model.encoder_finetune_adapter
                 )
             )
             logging.info("All parameters expect those of the adapters will be frozen during training")
         if getattr(cfg.model, "decoder_finetune_adapter", "$$") != "$$":
-            flag = True
             logging.info(
-                "{} adapters in the decoder will be finetuned. Make sure {} data is only being fed to the decoder for the training.".format(
-                    cfg.model.decoder_finetune_adapter,
+                "{0} adapters in the decoder will be finetuned. Make sure {0} data is only being fed to the decoder for the training.".format(
                     cfg.model.decoder_finetune_adapter
                 )
             )
             logging.info("All parameters expect those of the adapters will be frozen during training")
 
-    if flag:
-        for name, layer in model.named_modules():
-            for p in layer.parameters():
-                p.requires_grad = False
-        for name, layer in model.named_modules():
-            if name.endswith(f"adapters.{getattr(cfg.model, 'encoder_finetune_adapter', '$$')}") or \
-               name.endswith(f"adapters.{getattr(cfg.model, 'decoder_finetune_adapter', '$$')}"):
-                logging.info(f"gradients for {name} will be active")
+        if getattr(cfg.model, "encoder_finetune_adapter", "$$") != "$$" or \
+           getattr(cfg.model, "decoder_finetune_adapter", "$$") != "$$":
+            for name, layer in model.named_modules():
                 for p in layer.parameters():
-                    p.requires_grad = True
+                    p.requires_grad = False
+            for name, layer in model.named_modules():
+                if name.endswith(f"adapters.{getattr(cfg.model, 'encoder_finetune_adapter', '$$')}") or \
+                   name.endswith(f"adapters.{getattr(cfg.model, 'decoder_finetune_adapter', '$$')}"):
+                    logging.info(f"gradients for {name} will be active")
+                    for p in layer.parameters():
+                        p.requires_grad = True
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
     logger.info(

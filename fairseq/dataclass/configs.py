@@ -1112,11 +1112,11 @@ class InteractiveConfig(FairseqDataclass):
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
     evaluate_with_encoder_adapter: Optional[str] = field(
         default=None,
-        metadata={"help": "use this language adapter in the encoder while evaluting"}
+        metadata={"help": "encoder language adapters to be used while evaluating"}
     )
     evaluate_with_decoder_adapter: Optional[str] = field(
         default=None,
-        metadata={"help": "use this language adapter in the decoder while evaluting"}
+        metadata={"help": "decoder language adapters to be used while evaluating"}
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
     path_to_save_encoder_states: Optional[str] = field(
