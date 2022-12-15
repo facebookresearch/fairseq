@@ -108,11 +108,12 @@ class FairseqOptimizer(object):
                 if p.grad.is_sparse:
                     p.grad.data.mul_(c.to(p.grad.device) if torch.is_tensor(c) else c)
                 else:
-                    per_device_and_dtype_grads[p.grad.device][p.grad.dtype].append(p.grad.data)
+                    per_device_and_dtype_grads[p.grad.device][p.grad.dtype].append(
+                        p.grad.data
+                    )
         for device, per_dtype_grads in per_device_and_dtype_grads.items():
             for grads in per_dtype_grads.values():
                 torch._foreach_mul_(grads, c.to(device) if torch.is_tensor(c) else c)
-
 
     def clip_grad_norm(self, max_norm, aggregate_norm_fn=None):
         """Clips gradient norm."""
