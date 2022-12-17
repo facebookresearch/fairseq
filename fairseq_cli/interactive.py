@@ -165,9 +165,19 @@ def main(cfg: FairseqConfig):
         model.prepare_for_inference_(cfg)
 
         if getattr(cfg.interactive, "evaluate_with_encoder_adapter", "$$") != "$$":
+            logging.info(
+                "using {} adapters in encoder".format(
+                    cfg.interactive.evaluate_with_encoder_adapter
+                )
+            )
             for layer in model.encoder.layers:
                 layer.adapter_to_be_used = cfg.interactive.evaluate_with_encoder_adapter
         if getattr(cfg.interactive, "evaluate_with_decoder_adapter", "$$") != "$$":
+            logging.info(
+                "using {} adapters in decoder".format(
+                    cfg.interactive.evaluate_with_decoder_adapter
+                )
+            )
             for layer in model.decoder.layers:
                 layer.adapter_to_be_used = cfg.interactive.evaluate_with_decoder_adapter
 

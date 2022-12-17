@@ -41,6 +41,7 @@ from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from fairseq.trainer import Trainer
 from fairseq.checkpoint_utils import load_model_ensemble
+from fairseq.modules.bottleneck_adapter_block import BottleneckAdapter
 
 
 def main(cfg: FairseqConfig) -> None:
@@ -128,8 +129,11 @@ def main(cfg: FairseqConfig) -> None:
                 for p in layer.parameters():
                     p.requires_grad = False
             for name, layer in model.named_modules():
-                if name.endswith(f"adapters.{getattr(cfg.model, 'encoder_finetune_adapter', '$$')}") or \
-                   name.endswith(f"adapters.{getattr(cfg.model, 'decoder_finetune_adapter', '$$')}"):
+                if isinstance(layer, BottleneckAdapter) and \
+                   (
+                    getattr(cfg.model, 'encoder_finetune_adapter', '$$') in name or \
+                    getattr(cfg.model, 'decoder_finetune_adapter', '$$') in name
+                   ):
                     logging.info(f"gradients for {name} will be active")
                     for p in layer.parameters():
                         p.requires_grad = True

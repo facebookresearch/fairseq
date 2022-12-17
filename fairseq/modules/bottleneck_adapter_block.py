@@ -68,7 +68,7 @@ class BottleneckAdapterBlock(nn.Module):
 
     def forward(self, x, lang_id):
         result = 0
-        for key, adapter in self.adapter.items():
-            if key in lang_id
+        for key, adapter in self.adapters.items():
+            if key in lang_id:
                 result += adapter(x)
         return result
