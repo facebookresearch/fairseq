@@ -6,6 +6,7 @@
 import torch
 from fairseq import utils
 from fairseq.dataclass.utils import gen_parser_from_dataclass
+from collections import defaultdict
 
 
 class FairseqOptimizer(object):
@@ -101,11 +102,18 @@ class FairseqOptimizer(object):
 
     def multiply_grads(self, c):
         """Multiplies grads by a constant *c*."""
+        per_device_and_dtype_grads = defaultdict(lambda: defaultdict(list))
         for p in self.params:
             if p.grad is not None:
-                if torch.is_tensor(c):
-                    c = c.to(p.grad.device)
-                p.grad.data.mul_(c)
+                if p.grad.is_sparse:
+                    p.grad.data.mul_(c.to(p.grad.device) if torch.is_tensor(c) else c)
+                else:
+                    per_device_and_dtype_grads[p.grad.device][p.grad.dtype].append(
+                        p.grad.data
+                    )
+        for device, per_dtype_grads in per_device_and_dtype_grads.items():
+            for grads in per_dtype_grads.values():
+                torch._foreach_mul_(grads, c.to(device) if torch.is_tensor(c) else c)
 
     def clip_grad_norm(self, max_norm, aggregate_norm_fn=None):
         """Clips gradient norm."""

@@ -392,8 +392,8 @@ def clip_grad_norm_(params, max_norm, aggregate_norm_fn=None) -> torch.Tensor:
     if max_norm > 0:
         max_norm = float(max_norm)
         clip_coef = (max_norm / (total_norm + 1e-6)).clamp_(max=1)
-        for g in grads + expert_grads:
-            g.mul_(clip_coef)
+        torch._foreach_mul_(grads + expert_grads, clip_coef)
+
     return total_norm
 
 
