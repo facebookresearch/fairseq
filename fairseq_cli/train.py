@@ -131,8 +131,8 @@ def main(cfg: FairseqConfig) -> None:
             for name, layer in model.named_modules():
                 if isinstance(layer, BottleneckAdapter) and \
                    (
-                    getattr(cfg.model, 'encoder_finetune_adapter', '$$') in name.split('.')[-1].split(':') or \
-                    getattr(cfg.model, 'decoder_finetune_adapter', '$$') in name.split('.')[-1].split(':')
+                    getattr(cfg.model, 'encoder_finetune_adapter', '$$') == name.split('.')[-1] or \
+                    getattr(cfg.model, 'decoder_finetune_adapter', '$$') == name.split('.')[-1]
                    ):
                     logging.info(f"gradients for {name} will be active")
                     for p in layer.parameters():

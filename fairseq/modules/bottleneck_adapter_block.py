@@ -67,8 +67,9 @@ class BottleneckAdapterBlock(nn.Module):
         self.adapters = nn.ModuleDict({id: BottleneckAdapter(cfg, encoder=encoder) for id in self.lang_ids})
 
     def forward(self, x, lang_id):
-        result = 0
-        for key, adapter in self.adapters.items():
-            if lang_id in key.split(':'):
-                result += adapter(x)
-        return result
+        # result = 0
+        # for key, adapter in self.adapters.items():
+        #     if lang_id in key.split(':'):
+        #         result += adapter(x)
+        # return result
+        return self.adapters[lang_id](x)
