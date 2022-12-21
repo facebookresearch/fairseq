@@ -18,7 +18,9 @@ modeling and other text generation tasks.
 
 # Disclaimer
 
-This is a modified version of Fairseq which specializes in performing Knowledge Distillation of Transformers and other seq2seq models.
+This is a modified version of Fairseq which specializes in performing Knowledge Distillation of Transformers and other seq2seq models. 
+
+**UPDATE**: Support of basic Bottleneck adapters in Transformer has been added.
 
 # Requirements and Installation
 
