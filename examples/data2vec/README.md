@@ -1,6 +1,6 @@
 # data2vec 2.0
 
-data2vec 2.0 improves the training efficiency of the original data2vec algorithm. We make the following improvements for efficiency considerations - we forward only the unmasked timesteps through the encoder, we use convolutional decoder and we use multimasking to amortize the compute overhead of the teacher model. You can find details in [Efficient Self-supervised Learning with Contextualized Target Representations for Vision, Speech and Language](https://ai.facebook.com/research/xyz)
+data2vec 2.0 improves the training efficiency of the original data2vec algorithm. We make the following improvements for efficiency considerations - we forward only the unmasked timesteps through the encoder, we use convolutional decoder and we use multimasking to amortize the compute overhead of the teacher model. You can find details in the paper [Efficient Self-supervised Learning with Contextualized Target Representations for Vision, Speech and Language](https://arxiv.org/abs/2212.07525) and our [blog post](https://ai.facebook.com/blog/ai-self-supervised-learning-data2vec/).
 
 ## Pretrained and finetuned models
 ### Vision
