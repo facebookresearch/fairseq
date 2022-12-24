@@ -72,7 +72,14 @@ class TransformerEncoderLayerBase(nn.Module):
         self.add_adapters = cfg.encoder.add_adapters
         self.adapter_to_be_used = cfg.encoder.finetune_adapter
         if self.add_adapters:
-            self.adapter_block = BottleneckAdapterBlock(cfg, encoder=True)
+            self.adapter_block = BottleneckAdapterBlock(
+                lang_ids=cfg.encoder.adapter_langs.split(','),
+                in_dim=self.embed_dim,
+                bottleneck_dim=cfg.encoder.adapter_bottleneck_dim,
+                activation=cfg.adapter_activation_fn,
+                dropout=cfg.adapter_dropout,
+                normalize_before=cfg.encoder.normalize_before
+            )
         else:
             self.adapter_block = None
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
@@ -358,7 +365,14 @@ class TransformerDecoderLayerBase(nn.Module):
         self.add_adapters = cfg.decoder.add_adapters
         self.adapter_to_be_used = cfg.decoder.finetune_adapter
         if self.add_adapters:
-            self.adapter_block = BottleneckAdapterBlock(cfg, encoder=False)
+            self.adapter_block = BottleneckAdapterBlock(
+            lang_ids=cfg.decoder.adapter_langs.split(','),
+            in_dim=self.embed_dim,
+            bottleneck_dim=cfg.decoder.adapter_bottleneck_dim,
+            activation=cfg.adapter_activation_fn,
+            dropout=cfg.adapter_dropout,
+            normalize_before=cfg.decoder.normalize_before
+        )
         else:
             self.adapter_block = None
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###

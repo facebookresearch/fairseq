@@ -42,6 +42,7 @@ from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from fairseq.trainer import Trainer
 from fairseq.checkpoint_utils import load_model_ensemble
 from fairseq.modules.bottleneck_adapter_block import BottleneckAdapter
+from fairseq.modules.hyper_adapter import HyperNetwork
 
 
 def main(cfg: FairseqConfig) -> None:
@@ -137,6 +138,20 @@ def main(cfg: FairseqConfig) -> None:
                     logging.info(f"gradients for {name} will be active")
                     for p in layer.parameters():
                         p.requires_grad = True
+
+    elif getattr(cfg.model, "encoder_add_hyperadapters", False) or \
+         getattr(cfg.model, "decoder_add_hyperadapters", False):
+        logging.info("hyper-networks detected in encoder/decoder")
+        logging.info("All parameters expect those of the hyper-networks will be frozen during training")
+        for name, layer in model.named_modules():
+            for p in layer.parameters():
+                p.requires_grad = False
+        for name, layer in model.named_modules():
+            if isinstance(layer, HyperNetwork):
+                logging.info(f"gradients for {name} will be active")
+                for p in layer.parameters():
+                    p.requires_grad = True
+
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
     logger.info(

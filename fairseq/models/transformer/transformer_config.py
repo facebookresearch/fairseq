@@ -66,30 +66,80 @@ class EncDecBaseConfig(FairseqDataclass):
             "help": "config for xFormers attention, defined in xformers.components.attention.AttentionConfig"
         },
     )
+
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
     add_adapters: Optional[bool] = field(
         default=False,
         metadata={"help": "add adapters to the transformer encoder/decoder layers"}
     )
-    adapter_reduction_factor: Optional[int] = field(
+    adapter_bottleneck_dim: Optional[int] = field(
         default=None,
         metadata={"help": "reduction factor for bottleneck dimension of adapters"},
     )
-    adapter_lang_ids: Optional[List[str]] = field(
+    adapter_langs: Optional[str] = field(
         default=None,
-        metadata={"help": "list of lang_ids to be used as keys for the adapters"}
+        metadata={"help": "list of lang_ids to be used as keys for the adapters (comma separated)"}
     )
-    adapter_reduction_factor_trend: Optional[List[int]] = field(
+    adapter_bottleneck_dim_trend: Optional[str] = field(
         default=None,
         metadata={
             "help": "adapter reduction trend as we move up the layers."
-            "Make sure the list argument has the same length as the number of layers"
+            "Make sure the list argument has the same length as the number of layers (comma separated)"
         }
     )
 
     finetune_adapter: Optional[str] = field(
         default=None,
         metadata={"help": "finetunes adapter of only the specified language. Rest parameters are frozen"}
+    )
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+    add_hyperadapters: Optional[bool] = field(
+        default=False,
+        metadata={"help": "add hyper-adapters to the transformer encoder/decoder"}
+    )
+    hyperadapter_lang_embedding_dim: Optional[int] = field(
+        default=None,
+        metadata={"help": "the size of the language embeddings"}
+    )
+    hyperadapter_layer_embedding_dim: Optional[int] = field(
+        default=None,
+        metadata={"help": "the size of the layer embeddings"}
+    )
+    hyperadapter_bottleneck_dim: Optional[int] = field(
+        default=None,
+        metadata={"help": "the bottleneck size of the (generated) hyper-adapters"}
+    )
+    hyperadapter_hidden_dim: Optional[int] = field(
+        default=None,
+        metadata={"help": "the size of the hidden layers of the hyper-network encoder"}
+    )
+    hyperadapter_num_hidden_layers: Optional[int] = field(
+        default=None,
+        metadata={"help": "the number of the hyper-network encoder layers"}
+    )
+    hyperadapter_generate_layernorm: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Whether to generate the input-specific LN parameters of each hyper-adapters."
+                    "If false, then we use non-trainable LN"
+        }
+    )
+    hyperadapter_language_embedding_tied: Optional[bool] = field(
+        default=False,
+        metadata={"help": "whether to tie the source and target language embedding"}
+    )
+    hyperadapter_init_method: Optional[str] = field(
+        default="hyper",
+        metadata={"help": "how to initialize the hyper-network projection layers"}
+    )
+    hyperadapter_inputs: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Which sources of information to use as input to the"
+                    "hyper-network when generating the encoder hyper-adapters. (comma separated)"
+        }
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
@@ -132,6 +182,38 @@ class QuantNoiseConfig(FairseqDataclass):
 
 @dataclass
 class TransformerConfig(FairseqDataclass):
+
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+    hyperadapter_langs: Optional[str] = field(
+        default=None,
+        metadata={"help": "list of all languages in the data (comma separated)"}
+    )
+    hyperadapter_src_lang: Optional[str] = field(
+        default=None,
+        metadata={"help": "src_lang id"}
+    )
+    hyperadapter_tgt_lang: Optional[str] = field(
+        default=None,
+        metadata={"help": "tgt_lang id"}
+    )
+    hyperadapter_activation_fn: Optional[str] = field(
+        default="relu",
+        metadata={"help": "activation function for hyperadapters"}
+    )
+    hyperadapter_dropout: float = field(
+        default=0,
+        metadata={"help": "dropout for the hyperadapters"}
+    )
+    adapter_activation_fn: Optional[str] = field(
+        default="relu",
+        metadata={"help": "activation function for adapters"}
+    )
+    adapter_dropout: float = field(
+        default=0,
+        metadata={"help": "dropout for the adapters"}
+    )
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+
     activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
         default="relu",
         metadata={"help": "activation function to use"},

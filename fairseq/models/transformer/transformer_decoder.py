@@ -23,6 +23,7 @@ from fairseq.modules import (
     PositionalEmbedding,
     SinusoidalPositionalEmbedding,
     transformer_layer,
+    HyperNetwork
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
@@ -118,17 +119,18 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             self.layers = nn.ModuleList([])
 
         if self.recurrent_stacking is not None:
-            if getattr(cfg, "adapter_reduction_factor_trend", []) != []:
-                raise ValueError("recurrent stacking is not compatible with varying reduction factor across layers")
+            if getattr(cfg, "adapter_bottleneck_dim_trend", []) != []:
+                raise ValueError("recurrent stacking is not compatible with varying bottleneck dimension across layers")
             self.layers.extend([self.build_decoder_layer(cfg, no_encoder_attn)]*self.recurrent_stacking)
         else:
             ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-            self.trend = cfg.decoder.adapter_reduction_factor_trend
+            self.trend = cfg.decoder.adapter_bottleneck_dim_trend
             if self.trend is not None:
+                self.trend = self.trend.split(',')
                 assert len(self.trend) == cfg.decoder.layers, \
                     "mismatch between number of decoder layers and trend list"
                 for _, v in enumerate(self.trend):
-                    cfg.decoder.adapter_reduction_factor = v
+                    cfg.decoder.adapter_bottleneck_dim = int(v)
                     self.layers.append(self.build_decoder_layer(cfg, no_encoder_attn))
             else:
                 self.layers.extend([self.build_decoder_layer(cfg, no_encoder_attn) for _ in range(cfg.decoder.layers)])
@@ -151,6 +153,32 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         self.output_projection = output_projection
         if self.output_projection is None:
             self.build_output_projection(cfg, dictionary, embed_tokens)
+
+        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+        self.add_hyperadapters = cfg.encoder.add_hyperadapters
+        if cfg.encoder.add_hyperadapters:
+            self.hyperadapter = HyperNetwork(
+                num_languages=len(cfg.hyperadapter_langs.split(',')),
+                num_layers=cfg.encoder.layers + cfg.decoder.layers,
+                lang_embedding_dim=cfg.decoder.hyperadapter_lang_embedding_dim,
+                layer_embedding_dim=cfg.decoder.hyperadapter_layer_embedding_dim,
+                mainnet_input_dim=embed_dim,
+                bottleneck_dim=cfg.decoder.hyperadapter_bottleneck_dim,
+                hidden_dim=cfg.decoder.hyperadapter_hidden_dim,
+                num_hidden_layers=cfg.decoder.hyperadapter_num_hidden_layers,
+                dropout=cfg.hyperadapter_dropout,
+                activation_fn=cfg.hyperadapter_activation_fn,
+                generate_layernorm=cfg.decoder.hyperadapter_generate_layernorm,
+                normalize_before=cfg.decoder.normalize_before,
+                language_embedding_tied=cfg.decoder.hyperadapter_language_embedding_tied,
+                init_method=cfg.decoder.hyperadapter_init_method
+            )
+            self.layer2id = {f"dec-{i}": i for i in range(cfg.decoder_layers)}
+            self.hyper_adapters_inputs = [int(x in cfg.decoder.hyperadapter_inputs.split(','))
+                                          for x in ["src", "tgt", "layer"]]
+        else:
+            self.hyperadapter = None
+        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
         
     def build_output_projection(self, cfg, dictionary, embed_tokens):
         if cfg.adaptive_softmax_cutoff is not None:
@@ -373,6 +401,14 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             inner_states.append(x)
             if layer_attn is not None and idx == alignment_layer:
                 attn = layer_attn.float().to(x)
+
+            if self.hyperadapter is not None:
+                # note that, src_lang_id and tgt_lang_id start from 1, and
+                # we assume that all src-tgt samples contain the same task/language
+                _src_lang_id = self.src_lang_id[0].squeeze()
+                _tgt_lang_id = self.tgt_lang_id[0].squeeze()
+                layer_id = torch.tensor(self.layer2id[f"dec-{idx}"], device=x.device)
+                x = self.hyperadapter(x, _src_lang_id, _tgt_lang_id, layer_id, self.hyper_adapters_inputs)
 
         if attn is not None:
             if alignment_heads is not None:

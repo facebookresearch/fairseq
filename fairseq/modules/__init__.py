@@ -24,6 +24,7 @@ from .fp32_instance_norm import Fp32InstanceNorm
 from .gelu import gelu, gelu_accurate
 from .grad_multiply import GradMultiply
 from .gumbel_vector_quantizer import GumbelVectorQuantizer
+from .hyper_adapter import HyperNetwork
 from .kmeans_vector_quantizer import KmeansVectorQuantizer
 from .layer_drop import LayerDropModuleList
 from .layer_norm import Fp32LayerNorm, LayerNorm
@@ -81,6 +82,7 @@ __all__ = [
     "gelu_accurate",
     "GradMultiply",
     "GumbelVectorQuantizer",
+    "HyperNetwork",
     "KmeansVectorQuantizer",
     "LayerDropModuleList",
     "LayerNorm",

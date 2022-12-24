@@ -47,7 +47,13 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
         super().__init__(encoder, decoder)
         self.cfg = cfg
         self.supports_align_args = True
-        self.additional_params = {"alpha": 0}
+        # self.additional_params = {"alpha": 0}
+
+        if cfg.hyperadapter_langs is not None:
+            self.lang2id = {l:i for (i, l) in enumerate(cfg.hyperadapter_langs.split(','))}
+            self.src_lang = cfg.hyperadapter_src_lang
+            self.tgt_lang = cfg.hyperadapter_tgt_lang
+
 
     def get_encoder_output(self):
         return self.encoder_out
@@ -173,6 +179,14 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
         Copied from the base class, but without ``**kwargs``,
         which are not supported by TorchScript.
         """
+
+        # some nonsense
+        if self.cfg.hyperadapter_langs is not None:
+            self.encoder.src_lang_id = src_tokens.new([self.lang2id[self.src_lang]]).repeat(src_tokens.size(0), 1)
+            self.encoder.tgt_lang_id = src_tokens.new([self.lang2id[self.tgt_lang]]).repeat(src_tokens.size(0), 1)
+            self.decoder.src_lang_id = src_tokens.new([self.lang2id[self.src_lang]]).repeat(src_tokens.size(0), 1)
+            self.decoder.tgt_lang_id = src_tokens.new([self.lang2id[self.tgt_lang]]).repeat(src_tokens.size(0), 1)
+
         encoder_out = self.encoder(
             src_tokens, 
             src_lengths=src_lengths, 
