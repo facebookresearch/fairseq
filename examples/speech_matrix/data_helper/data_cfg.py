@@ -139,3 +139,11 @@ manifest_key = "s2u_manifests"
 hubert_key = "hubert"
 vocoder_key = "vocoder"
 s2s_key = "s2s_models"
+trans_key = "transcriptions"
+# langs with transcriptions
+TRANS_SRC_LANGS = [
+    "cs", "de", "en", "es", "et", "fi",
+    "fr", "hu", "it", "lt", "nl", "pl",
+    "pt", "ro", "sl"
+]
+TRANS_TGT_LANGS = ["de", "en", "es", "fr", "nl"]
