@@ -164,22 +164,22 @@ def main(cfg: FairseqConfig):
             model.cuda()
         model.prepare_for_inference_(cfg)
 
-        if getattr(cfg.interactive, "adapter_src_lang", "$$") != "$$":
+        if getattr(cfg.interactive, "enc_adapter_lang", "$$") != "$$":
             logging.info(
                 "using {} adapters in encoder".format(
-                    cfg.interactive.adapter_src_lang
+                    cfg.interactive.enc_adapter_lang
                 )
             )
             for layer in model.encoder.layers:
-                layer.adapter_to_be_used = cfg.interactive.adapter_src_lang
-        if getattr(cfg.interactive, "adapter_tgt_lang", "$$") != "$$":
+                layer.adapter_to_be_used = cfg.interactive.enc_adapter_lang
+        if getattr(cfg.interactive, "dec_adapter", "$$") != "$$":
             logging.info(
                 "using {} adapters in decoder".format(
-                    cfg.interactive.adapter_tgt_lang
+                    cfg.interactive.dec_adapter
                 )
             )
             for layer in model.decoder.layers:
-                layer.adapter_to_be_used = cfg.interactive.adapter_tgt_lang
+                layer.adapter_to_be_used = cfg.interactive.dec_adapter
 
         
         if getattr(cfg.interactive, "hyperadapter_src_lang", "$$") != "$$" and \
