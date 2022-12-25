@@ -1110,13 +1110,21 @@ class InteractiveConfig(FairseqDataclass):
         metadata={"help": "file to read from; use - for stdin"},
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-    evaluate_with_encoder_adapter: Optional[str] = field(
+    adapter_src_lang: Optional[str] = field(
         default=None,
         metadata={"help": "encoder language adapters to be used while evaluating"}
     )
-    evaluate_with_decoder_adapter: Optional[str] = field(
+    adapter_tgt_lang: Optional[str] = field(
         default=None,
         metadata={"help": "decoder language adapters to be used while evaluating"}
+    )
+    hyperadapter_src_lang: Optional[str] = field(
+        default=None,
+        metadata={"help": "encoder language hyperadapters to be used while evaluating"}
+    )
+    hyperadapter_tgt_lang: Optional[str] = field(
+        default=None,
+        metadata={"help": "decoder language hyperadapters to be used while evaluating"}
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
     path_to_save_encoder_states: Optional[str] = field(
