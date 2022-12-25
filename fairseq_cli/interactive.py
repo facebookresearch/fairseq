@@ -182,7 +182,8 @@ def main(cfg: FairseqConfig):
                 layer.adapter_to_be_used = cfg.interactive.adapter_tgt_lang
 
         
-        if getattr(cfg.interactive, "hyperadapter_src_lang", "$$") != "$$":
+        if getattr(cfg.interactive, "hyperadapter_src_lang", "$$") != "$$" and \
+           getattr(cfg.interactive, "hyperadapter_tgt_lang", "$$") != "$$":
             logging.info(
                 "using {}-{} hyperadapter".format(
                     cfg.interactive.hyperadapter_src_lang,
