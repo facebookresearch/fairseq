@@ -173,9 +173,11 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
                 language_embedding_tied=cfg.decoder.hyperadapter_language_embedding_tied,
                 init_method=cfg.decoder.hyperadapter_init_method
             )
-            self.layer2id = {f"dec-{i}": i for i in range(cfg.decoder_layers)}
-            self.hyper_adapters_inputs = [int(x in cfg.decoder.hyperadapter_inputs.split(','))
-                                          for x in ["src", "tgt", "layer"]]
+            self.hyper_adapters_inputs = [int(x in cfg.decoder.hyperadapter_inputs.split(',')) for x in ["src", "tgt", "layer"]]
+            self.layer2id = {f"dec-{i}":i for i in range(cfg.decoder_layers)}
+            self.lang2id = {l:i for (i, l) in enumerate(cfg.hyperadapter_langs.split(','))}
+            self.src_lang = cfg.hyperadapter_src_lang
+            self.tgt_lang = cfg.hyperadapter_tgt_lang
         else:
             self.hyperadapter = None
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
@@ -405,10 +407,11 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             if self.hyperadapter is not None:
                 # note that, src_lang_id and tgt_lang_id start from 1, and
                 # we assume that all src-tgt samples contain the same task/language
-                _src_lang_id = self.src_lang_id[0].squeeze()
-                _tgt_lang_id = self.tgt_lang_id[0].squeeze()
+                BS = prev_output_tokens.size(0)
+                src_lang_id = torch.tensor([self.lang2id[self.src_lang]], device=x.device).repeat(BS, 1)[0].squeeze()
+                tgt_lang_id = torch.tensor([self.lang2id[self.tgt_lang]], device=x.device).repeat(BS, 1)[0].squeeze()
                 layer_id = torch.tensor(self.layer2id[f"dec-{idx}"], device=x.device)
-                x = self.hyperadapter(x, _src_lang_id, _tgt_lang_id, layer_id, self.hyper_adapters_inputs)
+                x = self.hyperadapter(x, src_lang_id, tgt_lang_id, layer_id, self.hyper_adapters_inputs)
 
         if attn is not None:
             if alignment_heads is not None:

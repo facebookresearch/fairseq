@@ -164,14 +164,14 @@ def main(cfg: FairseqConfig):
             model.cuda()
         model.prepare_for_inference_(cfg)
 
-        if getattr(cfg.interactive, "enc_adapter_lang", "$$") != "$$":
+        if getattr(cfg.interactive, "enc_adapter", "$$") != "$$":
             logging.info(
                 "using {} adapters in encoder".format(
-                    cfg.interactive.enc_adapter_lang
+                    cfg.interactive.enc_adapter
                 )
             )
             for layer in model.encoder.layers:
-                layer.adapter_to_be_used = cfg.interactive.enc_adapter_lang
+                layer.adapter_to_be_used = cfg.interactive.enc_adapter
         if getattr(cfg.interactive, "dec_adapter", "$$") != "$$":
             logging.info(
                 "using {} adapters in decoder".format(
@@ -190,8 +190,10 @@ def main(cfg: FairseqConfig):
                     cfg.interactive.hyperadapter_tgt_lang,
                 )
             )
-            model.src_lang = cfg.interactive.hyperadapter_src_lang
-            model.tgt_lang = cfg.interactive.hyperadapter_tgt_lang
+            model.set_src_tgt_langs(
+                cfg.interactive.hyperadapter_src_lang,
+                cfg.interactive.hyperadapter_tgt_lang
+            )
 
 
     # Initialize generator
