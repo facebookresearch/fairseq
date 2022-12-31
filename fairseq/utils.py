@@ -563,11 +563,11 @@ def get_activation_fn(activation: str) -> Callable:
     elif activation == "gelu_accurate":
         return gelu_accurate
     elif activation == "tanh":
-        return torch.tanh
+        return F.tanh
     elif activation == "linear":
         return lambda x: x
     elif activation == "swish":
-        return torch.nn.SiLU
+        return F.silu
     else:
         raise RuntimeError("--activation-fn {} not supported".format(activation))
 
