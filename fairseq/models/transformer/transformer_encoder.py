@@ -97,7 +97,7 @@ class TransformerEncoderBase(FairseqEncoder):
             self.layers = nn.ModuleList([])
 
         if self.recurrent_stacking is not None:
-            if getattr(cfg, "adapter_bottleneck_dim_trend", []) != []:
+            if getattr(cfg, "adapter_bottleneck_dim_trend", "$$") != "$$":
                 raise ValueError("recurrent stacking is not compatible with varying bottleneck dim across layers")
             self.layers.extend([self.build_encoder_layer(cfg)]*self.recurrent_stacking)
         else:

@@ -119,7 +119,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             self.layers = nn.ModuleList([])
 
         if self.recurrent_stacking is not None:
-            if getattr(cfg, "adapter_bottleneck_dim_trend", []) != []:
+            if getattr(cfg, "adapter_bottleneck_dim_trend", "$$") != "$$":
                 raise ValueError("recurrent stacking is not compatible with varying bottleneck dimension across layers")
             self.layers.extend([self.build_decoder_layer(cfg, no_encoder_attn)]*self.recurrent_stacking)
         else:
