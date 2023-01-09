@@ -14,7 +14,7 @@ class TestTimeWaitKS2T(FairseqAgentPipeline):
 
     def __init__(self, args) -> None:
 
-        fairseq_model = load_fairseq_model(args.checkpoint)
+        fairseq_model = load_fairseq_model(args.checkpoint, args.config_yaml)
 
         encoder = self.pipeline[0](fairseq_model.encoder, args)
         decoder = self.pipeline[1](fairseq_model.decoder, args)

@@ -13,6 +13,7 @@ from fairseq.models.streaming.modules.monotonic_transformer_decoder import (
 from fairseq.models.streaming.modules.fixed_pre_decision import (
     WaitKAttentionFixedStride,
 )
+from typing import Optional
 
 try:
     from simuleval.agents import GenericAgent
@@ -45,7 +46,7 @@ def test_time_waitk_agent(agent: GenericAgent):
     return TestTimeWaitKAgent
 
 
-def load_fairseq_model(filename: str):
+def load_fairseq_model(filename: str, config_yaml: Optional[str]):
     logger = logging.getLogger("fairseq.models.wav2vec.wav2vec2_asr")
     logger.disabled = True
     if not os.path.exists(filename):
@@ -53,6 +54,10 @@ def load_fairseq_model(filename: str):
 
     state = checkpoint_utils.load_checkpoint_to_cpu(filename)
 
+
+    if config_yaml is not None:
+        state["cfg"]["task"].data = os.path.dirname(config_yaml)  
+        state["cfg"]["task"].config = os.path.basename(config_yaml)  
 
     task = tasks.setup_task(state["cfg"]["task"])
 

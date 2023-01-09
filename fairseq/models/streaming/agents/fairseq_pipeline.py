@@ -26,6 +26,9 @@ class FairseqAgentPipeline(AgentPipeline):
         parser.add_argument(
             "--device", type=str, default="cuda:0", help="Device to run the model."
         )
+        parser.add_argument(
+            "--config-yaml", type=str, default=None, help="Path to config yaml"
+        )
     
     def pop(self) -> Segment:
         output_segment = super().pop()
