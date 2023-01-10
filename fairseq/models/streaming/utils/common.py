@@ -13,7 +13,9 @@ from fairseq.models.streaming.modules.monotonic_transformer_decoder import (
 from fairseq.models.streaming.modules.fixed_pre_decision import (
     WaitKAttentionFixedStride,
 )
+from fairseq.tasks.audio_pretraining import AudioPretrainingConfig
 from typing import Optional
+from omegaconf import OmegaConf
 
 try:
     from simuleval.agents import GenericAgent
@@ -46,7 +48,11 @@ def test_time_waitk_agent(agent: GenericAgent):
     return TestTimeWaitKAgent
 
 
-def load_fairseq_model(filename: str, config_yaml: Optional[str]):
+def load_fairseq_model(args):
+    filename = args.checkpoint
+    config_yaml = args.config_yaml
+    w2v_yaml = getattr(args, "wav2vec_yaml", None)
+
     logger = logging.getLogger("fairseq.models.wav2vec.wav2vec2_asr")
     logger.disabled = True
     if not os.path.exists(filename):
@@ -54,10 +60,17 @@ def load_fairseq_model(filename: str, config_yaml: Optional[str]):
 
     state = checkpoint_utils.load_checkpoint_to_cpu(filename)
 
-
     if config_yaml is not None:
         state["cfg"]["task"].data = os.path.dirname(config_yaml)  
         state["cfg"]["task"].config = os.path.basename(config_yaml)  
+
+    if  w2v_yaml is not None:
+        w2v_args = OmegaConf.create()
+        w2v_args.model = OmegaConf.load(w2v_yaml)
+        w2v_args.task = AudioPretrainingConfig(_name="audio_pretraining", data=state["cfg"]["task"].data)
+        state["cfg"].model.w2v_args = w2v_args
+
+
 
     task = tasks.setup_task(state["cfg"]["task"])
 

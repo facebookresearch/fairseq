@@ -1,5 +1,5 @@
 import torch
-from argparse import Namespace
+from argparse import Namespace, ArgumentParser
 
 try:
     from simuleval.agents import SpeechToSpeechAgent
@@ -33,6 +33,15 @@ class OfflineWav2VecEncoderAgent(SpeechToSpeechAgent):
         for conv_layer in conv_layers:
             length *= conv_layer[0].stride[0]
         return length
+    
+    @staticmethod
+    def add_args(parser: ArgumentParser):
+        parser.add_argument(
+            "--wav2vec-yaml",
+            default=None,
+            type=str,
+            help="Path to wav2vec config yaml",
+        )
 
     @torch.no_grad()
     def policy(self) -> Action:
