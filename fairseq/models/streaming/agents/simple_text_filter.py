@@ -24,6 +24,8 @@ class SimpleTextFilterAgent(TextToTextAgent):
             return ReadAction()
 
         if self.states.source[-1] in self.args.filtered_tokens:
+            if self.states.source_finished:
+                return WriteAction("", finished=True)
             return ReadAction()
         else:
             token = self.states.source[-1]
