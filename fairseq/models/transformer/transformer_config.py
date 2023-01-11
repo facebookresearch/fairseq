@@ -35,7 +35,7 @@ class EncDecBaseConfig(FairseqDataclass):
         default=512, metadata={"help": "embedding dimension"}
     )
     factorized_embed_dim: Optional[int] = field(
-        default=None,
+        default=0,
         metadata={
             "help": "hidden dimension for the factorized embeddings."
             "If this argument is specified, regular embeddings will be skipped and factorized embeddings will be generated"
@@ -87,7 +87,6 @@ class EncDecBaseConfig(FairseqDataclass):
             "Make sure the list argument has the same length as the number of layers (comma separated)"
         }
     )
-
     finetune_adapter: Optional[str] = field(
         default=None,
         metadata={"help": "finetunes adapter of only the specified language. Rest parameters are frozen"}
@@ -295,6 +294,12 @@ class TransformerConfig(FairseqDataclass):
     )
     no_scale_embedding: bool = field(
         default=False, metadata={"help": "if True, dont scale embeddings"}
+    )
+    use_stable_embedding: bool = field(
+        default=False, metadata={
+            "help": "use bnb StableEmbedding in place of vanilla Embedding"
+            "It is recommended to not scale the embeddings while employing StableEmbedding"
+        }
     )
     checkpoint_activations: bool = field(
         default=False,

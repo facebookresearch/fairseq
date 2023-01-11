@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
+from bitsandbytes.nn import StableEmbedding
 import logging
 
 from fairseq import utils
@@ -97,7 +98,7 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
                     "--share-all-embeddings not compatible with --decoder-embed-path"
                 )
             encoder_embed_tokens = cls.build_embedding(
-                cfg, src_dict, cfg.encoder.embed_dim, cfg.encoder.embed_path
+                cfg, src_dict, cfg.encoder.embed_dim, cfg.decoder.factorized_embed_dim, cfg.encoder.embed_path
             )
             decoder_embed_tokens = encoder_embed_tokens
             cfg.share_decoder_input_output_embed = True
@@ -127,25 +128,41 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
         return cls(cfg, encoder, decoder)
 
     @classmethod
-    def build_embedding(cls, cfg, dictionary, embed_dim, hid_dim, path=None):
+    def build_embedding(cls, cfg, dictionary, embed_dim, factorized_embed_dim, path=None):
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
 
-        if not getattr(cfg, "factorized_embed_dim", 0):
-            emb = Embedding(num_embeddings, embed_dim, padding_idx)
-            # if provided, load from preloaded dictionaries
-            if path:
-                embed_dict = utils.parse_embedding(path)
-                utils.load_embedding(embed_dict, dictionary, emb)
-        else:
-            emb = FactorizedEmbedding(
-                    num_embeddings, 
-                    embed_dim,
-                    hid_dim=hid_dim,
-                    padding_idx=padding_idx
+        if cfg.use_stable_embedding:
+            if cfg.factorized_embed_dim > 0:
+                raise ValueError(
+                    "factorized embedding is not compatible with stable embedding"
                 )
-            if path:
-                raise NotImplementedError
+            if not cfg.no_scale_embedding:
+                logger.warning(
+                    "It is recommended to pass --no-scale-embedding with --use-stable-embedding"
+                )
+            emb = StableEmbedding(
+                num_embeddings, 
+                embed_dim, 
+                padding_idx=padding_idx
+            )
+        elif factorized_embed_dim > 0:
+            emb = FactorizedEmbedding(
+                num_embeddings, 
+                embed_dim,
+                padding_idx=padding_idx,
+                hid_dim=factorized_embed_dim
+            )
+        else:
+            emb = Embedding(
+                num_embeddings, 
+                embed_dim, 
+                padding_idx=padding_idx
+            )
+            
+        if path:
+            embed_dict = utils.parse_embedding(path)
+            utils.load_embedding(embed_dict, dictionary, emb)
         return emb
 
     @classmethod

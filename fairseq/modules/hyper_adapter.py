@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from fairseq.modules import (
     FairseqDropout,
 )
-from fairseq.utils import get_activation_fn
+from fairseq import utils
 logger = logging.getLogger(__name__)
 
 
@@ -38,7 +38,7 @@ class ResidualBlock(nn.Module):
             normalize_before: apply pre-norm
         """
         super().__init__()
-        self.activation_fn = get_activation_fn(activation_fn)
+        self.activation_fn = utils.get_activation_fn(activation_fn)
         self.dropout_module = FairseqDropout(dropout)
         self.fc1 = Linear(hidden_dim, hidden_dim)
         self.fc2 = Linear(hidden_dim, hidden_dim)
@@ -86,7 +86,7 @@ class HyperNetworkEncoder(nn.Module):
         self.input_dim = input_dim
         self.output_dim = hidden_dim
         self.normalize_before = normalize_before
-        self.activation_fn = get_activation_fn(activation_fn)
+        self.activation_fn = utils.get_activation_fn(activation_fn)
         self.dropout_module = FairseqDropout(dropout)
         self.fc_input = Linear(input_dim, hidden_dim)
 
@@ -215,7 +215,7 @@ class HyperNetwork(nn.Module):
 
         # regularization, activations etc.
         self.dropout_module = FairseqDropout(dropout)
-        self.activation = get_activation_fn(activation_fn)
+        self.activation = utils.get_activation_fn(activation_fn)
 
         # apply custom weight initialization
         self.init_weights()

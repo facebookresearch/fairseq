@@ -1127,6 +1127,7 @@ class InteractiveConfig(FairseqDataclass):
         metadata={"help": "decoder language hyperadapters to be used while evaluating"}
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+
     path_to_save_encoder_states: Optional[str] = field(
         default=None,
         metadata={"help": "path to save encoder states for further analysis (optional and experimental)"},

@@ -1,5 +1,5 @@
 import torch.nn as nn
-from fairseq.utils import get_activation_fn
+from fairseq import utils
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
 
@@ -12,7 +12,7 @@ class BottleneckAdapter(nn.Module):
         super().__init__()
         self.in_dim = in_dim
         self.bottleneck_dim = bottleneck_dim
-        self.activation_fn = get_activation_fn(activation=activation)
+        self.activation_fn = utils.get_activation_fn(activation)
 
         self.layer_norm = nn.LayerNorm(self.in_dim)
         self.dropout_module = FairseqDropout(

@@ -34,7 +34,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("fairseq_cli.interactive")
 
-
 Batch = namedtuple("Batch", "ids src_tokens src_lengths constraints")
 Translation = namedtuple("Translation", "src_str hypos pos_scores alignments")
 
@@ -164,7 +163,7 @@ def main(cfg: FairseqConfig):
             model.cuda()
         model.prepare_for_inference_(cfg)
 
-        if getattr(cfg.interactive, "enc_adapter", "$$") != "$$":
+        if cfg.interactive.enc_adapter is not None:
             logging.info(
                 "using {} adapters in encoder".format(
                     cfg.interactive.enc_adapter
@@ -172,7 +171,7 @@ def main(cfg: FairseqConfig):
             )
             for layer in model.encoder.layers:
                 layer.adapter_to_be_used = cfg.interactive.enc_adapter
-        if getattr(cfg.interactive, "dec_adapter", "$$") != "$$":
+        if cfg.interactive.dec_adapter is not None:
             logging.info(
                 "using {} adapters in decoder".format(
                     cfg.interactive.dec_adapter
@@ -182,8 +181,8 @@ def main(cfg: FairseqConfig):
                 layer.adapter_to_be_used = cfg.interactive.dec_adapter
 
         
-        if getattr(cfg.interactive, "hyperadapter_src_lang", "$$") != "$$" and \
-           getattr(cfg.interactive, "hyperadapter_tgt_lang", "$$") != "$$":
+        if cfg.interactive.hyperadapter_src_lang is not None and \
+           cfg.interactive.hyperadapter_tgt_lang is not None:
             logging.info(
                 "using {}-{} hyperadapter".format(
                     cfg.interactive.hyperadapter_src_lang,
