@@ -6,6 +6,7 @@
 import logging
 from argparse import Namespace
 from pathlib import Path
+from typing import List
 
 from fairseq.data import Dictionary, encoders
 from fairseq.data.audio.audio_utils import get_features_or_waveform
@@ -14,6 +15,7 @@ from fairseq.data.audio.speech_to_text_dataset import (
     S2TDataConfig,
     SpeechToTextDataset,
     SpeechToTextDatasetCreator,
+    TextTargetMultitaskData,
 )
 from fairseq.tasks import LegacyFairseqTask, register_task
 
@@ -66,13 +68,32 @@ class SpeechToTextTask(LegacyFairseqTask):
             )
 
         self.multitask_tasks = {}
+        self.tgt_dict_mt = None
+        self.eos_token_mt = None
         if getattr(args, "multitask_config_yaml", None) is not None:
             multitask_cfg = MultitaskConfig(
                 Path(args.data) / args.multitask_config_yaml
             )
-            for task_name, task_config in multitask_cfg.get_all_tasks().items():
-                task_obj = DummyMultiTask(task_config, task_config.tgt_dict)
+            first_pass_task_idx = multitask_cfg.first_pass_decoder_task_index
+            for i, (task_name, task_config) in enumerate(
+                multitask_cfg.get_all_tasks().items()
+            ):
+                task_obj = DummyMultiTask(
+                    task_config,
+                    task_config.tgt_dict,
+                    first_pass=i == first_pass_task_idx,
+                )
                 self.multitask_tasks[task_name] = task_obj
+                if task_obj.is_first_pass_decoder:
+                    self.tgt_dict_mt = task_obj.target_dictionary
+                    if task_config.prepend_bos_and_append_tgt_lang_tag:
+                        self.eos_token_mt = task_config.eos_token
+                        assert not isinstance(self.eos_token_mt, List)
+
+                        if not self.eos_token_mt:
+                            raise Warning(
+                                "Please provide eos_token in --multitask-config-yaml to replace eos in sequence generator"
+                            )
 
     def _get_speaker_to_id(self):
         speaker_to_id = None
@@ -124,11 +145,16 @@ class SpeechToTextTask(LegacyFairseqTask):
             epoch=epoch,
             seed=self.args.seed,
             speaker_to_id=self.speaker_to_id,
+            multitask=self.multitask_tasks,
         )
 
     @property
     def target_dictionary(self):
         return self.tgt_dict
+
+    @property
+    def target_dictionary_mt(self):
+        return self.tgt_dict_mt
 
     @property
     def source_dictionary(self):
@@ -142,6 +168,51 @@ class SpeechToTextTask(LegacyFairseqTask):
         args.input_channels = self.data_cfg.input_channels
         args.speaker_to_id = self.speaker_to_id
         return super(SpeechToTextTask, self).build_model(args, from_checkpoint)
+
+    def build_generator_dual_decoder(
+        self,
+        models,
+        args,
+        extra_gen_cls_kwargs,
+    ):
+        from examples.speech_to_speech.unity.sequence_generator_multi_decoder import (
+            MultiDecoderSequenceGenerator,
+        )
+
+        lang_token_ids_aux = {
+            i
+            for s, i in self.tgt_dict_mt.indices.items()
+            if TextTargetMultitaskData.is_lang_tag(s)
+        }
+
+        extra_gen_cls_kwargs["symbols_to_strip_from_output"].update(lang_token_ids_aux)
+
+        eos_id_mt = (
+            self.tgt_dict_mt.index(self.eos_token_mt) if self.eos_token_mt else None
+        )
+        assert eos_id_mt != self.tgt_dict_mt.unk()
+        extra_gen_cls_kwargs["eos_mt"] = eos_id_mt
+
+        return MultiDecoderSequenceGenerator(
+            models,
+            self.target_dictionary,
+            self.target_dictionary_mt,
+            beam_size=max(1, getattr(args, "beam", 1)),
+            beam_size_mt=max(1, getattr(args, "beam_mt", 1)),
+            max_len_a=getattr(args, "max_len_a", 0),
+            max_len_b=getattr(args, "max_len_b", 200),
+            max_len_a_mt=getattr(args, "max_len_a_mt", 0),
+            max_len_b_mt=getattr(args, "max_len_b_mt", 0),
+            min_len=getattr(args, "min_len", 1),
+            normalize_scores=(not getattr(args, "unnormalized", False)),
+            len_penalty=getattr(args, "lenpen", 1),
+            len_penalty_mt=getattr(args, "lenpen_mt", 1),
+            unk_penalty=getattr(args, "unkpen", 0),
+            temperature=getattr(args, "temperature", 1.0),
+            match_source_len=getattr(args, "match_source_len", False),
+            no_repeat_ngram_size=getattr(args, "no_repeat_ngram_size", 0),
+            **extra_gen_cls_kwargs,
+        )
 
     def build_generator(
         self,
@@ -179,9 +250,21 @@ class SpeechToTextTask(LegacyFairseqTask):
         eos_id = self.tgt_dict.index(eos_token) if eos_token else None
         extra_gen_cls_kwargs["eos"] = eos_id
 
-        return super().build_generator(
-            models, args, seq_gen_cls=None, extra_gen_cls_kwargs=extra_gen_cls_kwargs
-        )
+        has_dual_decoder = getattr(models[0], "mt_task_name", None) is not None
+
+        if has_dual_decoder:
+            return self.build_generator_dual_decoder(
+                models,
+                args,
+                extra_gen_cls_kwargs=extra_gen_cls_kwargs,
+            )
+        else:
+            return super().build_generator(
+                models,
+                args,
+                seq_gen_cls=None,
+                extra_gen_cls_kwargs=extra_gen_cls_kwargs,
+            )
 
     def train_step(
         self, sample, model, criterion, optimizer, update_num, ignore_grad=False
@@ -225,13 +308,18 @@ class SpeechToTextTask(LegacyFairseqTask):
 
 
 class DummyMultiTask(LegacyFairseqTask):
-    def __init__(self, args, tgt_dict):
+    def __init__(self, args, tgt_dict, first_pass=False):
         super().__init__(args)
         self.tgt_dict = tgt_dict
+        self.first_pass = first_pass
 
     @property
     def target_dictionary(self):
         return self.tgt_dict
+
+    @property
+    def is_first_pass_decoder(self):
+        return self.first_pass
 
     def inference_step(
         self, generator, models, sample, prefix_tokens=None, constraints=None

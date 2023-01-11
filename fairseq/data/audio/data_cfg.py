@@ -257,6 +257,24 @@ class MultitaskConfig(object):
         assert name in self.config, f"multitask '{name}' does not exist!"
         return self.config[name]
 
+    @property
+    def first_pass_decoder_task_index(self):
+        """Return the task index of the first-pass text decoder.
+        If there are multiple 'is_first_pass_decoder: True' in the config file,
+            the last task is used for the first-pass decoder.
+        If there is no 'is_first_pass_decoder: True' in the config file,
+            the last task whose task_name includes 'target' and decoder_type is not ctc.
+        """
+        idx = -1
+        for i, (k, v) in enumerate(self.config.items()):
+            if v.is_first_pass_decoder:
+                idx = i
+        if idx < 0:
+            for i, (k, v) in enumerate(self.config.items()):
+                if k.startswith("target") and v.decoder_type == "transformer":
+                    idx = i
+        return idx
+
 
 class SingleTaskConfig(object):
     def __init__(self, name, config):
@@ -337,5 +355,33 @@ class SingleTaskConfig(object):
         return weight
 
     @property
+    def prepend_bos_and_append_tgt_lang_tag(self) -> bool:
+        """Prepend BOS and append target lang ID token to the target (e.g. mBART with language token pretraining)."""
+        return self.config.get("prepend_bos_and_append_tgt_lang_tag", False)
+
+    @property
+    def eos_token(self):
+        """EOS token during generation"""
+        return self.config.get("eos_token", "<eos>")
+
+    @property
     def rdrop_alpha(self):
-        return self.config.get("rdrop_alpha", None)
+        return self.config.get("rdrop_alpha", 0.0)
+
+    @property
+    def is_first_pass_decoder(self):
+        flag = self.config.get("is_first_pass_decoder", False)
+        if flag:
+            if self.decoder_type == "ctc":
+                raise ValueError(
+                    "First-pass decoder in the multi-decoder model must not be CTC."
+                )
+            if "target" not in self.task_name:
+                raise Warning(
+                    'The name of the first-pass decoder does not include "target".'
+                )
+        return flag
+
+    @property
+    def get_lang_tag_mapping(self):
+        return self.config.get("lang_tag_mapping", {})

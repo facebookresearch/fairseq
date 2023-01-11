@@ -334,7 +334,7 @@ class InfiniteLookbackTestCase(
                         self.model.decoder.layers[0].encoder_attn,
                         "chunk_size",
                         int(1e10)
-                    )
+                    ) or int(1e10)
                 )
 
                 self.assertTrue(

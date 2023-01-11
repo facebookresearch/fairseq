@@ -18,7 +18,8 @@ from fairseq.models import (
     register_model,
     register_model_architecture,
 )
-from fairseq.models.speech_to_speech.modules import CTCDecoder, StackedEmbedding
+from fairseq.models.speech_to_speech.modules.ctc_decoder import CTCDecoder
+from fairseq.models.speech_to_speech.modules.stacked_embedding import StackedEmbedding
 from fairseq.models.speech_to_text import S2TTransformerEncoder
 from fairseq.models.text_to_speech import TTSTransformerDecoder
 from fairseq.models.transformer import Linear, TransformerDecoder, TransformerModelBase
@@ -236,7 +237,7 @@ class S2STransformerMultitaskModelBase(FairseqEncoderDecoderModel):
 @register_model("s2ut_transformer")
 class S2UTTransformerModel(S2STransformerMultitaskModelBase):
     """
-    Direct speech-to-speech translation model with S2T Transformer encoder + Transformer discrete unit decoder
+    Direct speech-to-speech translation model with Transformer encoder + Transformer discrete unit decoder
     https://arxiv.org/abs/2107.05604
     """
 
@@ -246,7 +247,7 @@ class S2UTTransformerModel(S2STransformerMultitaskModelBase):
         parser.add_argument(
             "--conv-kernel-sizes",
             type=str,
-            metavar="N",
+            metavar="STR",
             help="kernel sizes of Conv1d (s2t_transformer) subsampling layers",
         )
         parser.add_argument(
@@ -434,7 +435,7 @@ class S2SpecTTransformerModel(S2STransformerMultitaskModelBase):
         parser.add_argument(
             "--conv-kernel-sizes",
             type=str,
-            metavar="N",
+            metavar="STR",
             help="kernel sizes of Conv1d (s2t_transformer) subsampling layers",
         )
         parser.add_argument(

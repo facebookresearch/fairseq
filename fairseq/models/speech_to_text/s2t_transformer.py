@@ -85,7 +85,7 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
         parser.add_argument(
             "--conv-kernel-sizes",
             type=str,
-            metavar="N",
+            metavar="STR",
             help="kernel sizes of Conv1d (s2t_transformer) subsampling layers",
         )
         parser.add_argument(

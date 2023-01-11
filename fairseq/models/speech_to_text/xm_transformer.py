@@ -17,11 +17,18 @@ from fairseq.data.data_utils import lengths_to_padding_mask
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderDecoderModel,
+    FairseqEncoderModel,
+    FairseqLanguageModel,
     register_model,
     register_model_architecture,
 )
+from fairseq.models.speech_to_speech.modules.ctc_decoder import CTCDecoder
 from fairseq.models.speech_to_text.hub_interface import S2THubInterface
-from fairseq.models.transformer import Embedding, TransformerDecoder
+from fairseq.models.transformer import (
+    Embedding,
+    TransformerDecoder,
+    TransformerModelBase,
+)
 from fairseq.models.wav2vec import Wav2VecEncoder
 from fairseq.modules.layer_norm import LayerNorm
 
@@ -290,6 +297,7 @@ class Wav2VecEncoderWithAdaptor(FairseqEncoder):
 
     @classmethod
     def add_args(cls, parser):
+        """Add model-specific arguments to the parser."""
         add_wav2vec_asr_args(parser)
         parser.add_argument(
             "--normalize",
@@ -616,6 +624,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         _args.dropout = args.decoder_dropout
         _args.attention_dropout = args.decoder_attention_dropout
         _args.activation_dropout = args.decoder_activation_dropout
+        _args.layerdrop = _args.decoder_layerdrop
 
         decoder = TransformerDecoder(_args, task.target_dictionary, embed_tokens)
         decoder = cls.maybe_load_pretrained(
@@ -632,7 +641,7 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
 
         # make sure all arguments are present in older models
         base_architecture(args)
-        if getattr(args, "load_pretrained_decoder_from", None):
+        if getattr(args, "load_pretrained_decoder_from", None) is not None:
             ckpt = torch.load(getattr(args, "load_pretrained_decoder_from", None))
             decoder_args_dict = cls.get_decoder_args_from_checkpoint(ckpt["cfg"])
             args = cls.override_decoder_args(args, decoder_args_dict)
@@ -643,7 +652,70 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
 
         encoder = cls.build_encoder(args)
         decoder = cls.build_decoder(args, task, decoder_embed_tokens)
-        return cls(encoder, decoder)
+        base_model = cls(encoder, decoder)
+
+        # set up multitask decoders
+        base_model.multitask_decoders = {}
+        for i, (task_name, task_obj) in enumerate(task.multitask_tasks.items()):
+            # dummy auxiliary decoder
+            if task_obj.args.get_loss_weight(0) == 0:
+                continue
+
+            task_decoder = cls.build_multitask_decoder(
+                args, task_obj.args, task_obj.target_dictionary, args.decoder_embed_dim
+            )
+
+            setattr(base_model, f"{task_name}_decoder", task_decoder)
+            decoder_model_cls = (
+                FairseqEncoderModel
+                if task_obj.args.decoder_type == "ctc"
+                else FairseqLanguageModel
+            )
+            base_model.multitask_decoders[task_name] = decoder_model_cls(
+                getattr(base_model, f"{task_name}_decoder")
+            )
+        return base_model
+
+    @classmethod
+    def build_multitask_decoder(
+        cls,
+        args,
+        mtl_args,
+        tgt_dict,
+        in_dim,
+        is_first_pass_decoder=False,
+    ):
+        decoder_args = mtl_args.decoder_args
+        decoder_args.encoder_embed_dim = in_dim
+        if mtl_args.decoder_type == "transformer":
+            if is_first_pass_decoder:
+                task_decoder = cls.build_text_decoder(args, tgt_dict)
+            else:
+                from fairseq.models.speech_to_speech import (
+                    base_multitask_text_transformer_decoder_arch,
+                )
+
+                base_multitask_text_transformer_decoder_arch(decoder_args)  # 2L
+                task_decoder = TransformerDecoder(
+                    decoder_args,
+                    tgt_dict,
+                    embed_tokens=TransformerModelBase.build_embedding(
+                        decoder_args,
+                        tgt_dict,
+                        decoder_args.decoder_embed_dim,
+                    ),
+                )
+        elif mtl_args.decoder_type == "ctc":
+            task_decoder = CTCDecoder(
+                dictionary=tgt_dict,
+                in_dim=in_dim,
+            )
+        else:
+            raise NotImplementedError(
+                "currently only support multitask decoder_type 'transformer', 'ctc'"
+            )
+
+        return task_decoder
 
     def get_normalized_probs(
         self,
@@ -653,7 +725,14 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
     ):
         return self.get_normalized_probs_scriptable(net_output, log_probs, sample)
 
-    def forward(self, src_tokens, src_lengths, prev_output_tokens, **kwargs):
+    def forward(
+        self,
+        src_tokens,
+        src_lengths,
+        prev_output_tokens,
+        return_all_hiddens=False,
+        **kwargs,
+    ):
         """
         The forward method inherited from the base class has a **kwargs
         argument in its input, which is not supported in torchscript. This
@@ -665,6 +744,12 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
         decoder_out = self.decoder(
             prev_output_tokens=prev_output_tokens, encoder_out=encoder_out
         )
+        if return_all_hiddens:
+            decoder_out[-1]["encoder_states"] = encoder_out["encoder_out"]
+            # NOTE: from the top layer
+            decoder_out[-1]["encoder_padding_mask"] = encoder_out[
+                "encoder_padding_mask"
+            ]
         return decoder_out
 
     def upgrade_state_dict(self, state_dict):

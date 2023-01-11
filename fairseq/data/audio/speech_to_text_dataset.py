@@ -391,6 +391,7 @@ class SpeechToTextDataset(FairseqDataset):
 class TextTargetMultitaskData(object):
     # mandatory columns
     KEY_ID, KEY_TEXT = "id", "tgt_text"
+    LANG_TAG_TEMPLATE = "<lang:{}>"
 
     def __init__(self, args, split, tgt_dict):
         samples = SpeechToTextDatasetCreator._load_samples_from_tsv(args.data, split)
@@ -399,6 +400,16 @@ class TextTargetMultitaskData(object):
         self.append_eos = args.decoder_type != "ctc"
         self.pre_tokenizer = self.build_tokenizer(args)
         self.bpe_tokenizer = self.build_bpe(args)
+        self.prepend_bos_and_append_tgt_lang_tag = (
+            args.prepend_bos_and_append_tgt_lang_tag
+        )
+        self.eos_token = args.eos_token
+        self.lang_tag_mapping = args.get_lang_tag_mapping
+
+    @classmethod
+    def is_lang_tag(cls, token):
+        pattern = cls.LANG_TAG_TEMPLATE.replace("{}", "(.*)")
+        return re.match(pattern, token)
 
     @classmethod
     def tokenize(cls, tokenizer, text: str):
@@ -408,6 +419,13 @@ class TextTargetMultitaskData(object):
         text = self.tokenize(self.pre_tokenizer, self.data[index])
         text = self.tokenize(self.bpe_tokenizer, text)
         return text
+
+    def get_lang_tag_idx(self, lang: str, dictionary: Dictionary):
+        lang_tag = self.LANG_TAG_TEMPLATE.format(lang)
+        lang_tag = self.lang_tag_mapping.get(lang_tag, lang_tag)
+        lang_tag_idx = dictionary.index(lang_tag)
+        assert lang_tag_idx != dictionary.unk(), (lang, lang_tag)
+        return lang_tag_idx
 
     def build_tokenizer(self, args):
         pre_tokenizer = args.config.get("pre_tokenizer")
@@ -425,14 +443,21 @@ class TextTargetMultitaskData(object):
         else:
             return None
 
-    def get(self, sample_id):
+    def get(self, sample_id, tgt_lang=None):
         if sample_id in self.data:
             tokenized = self.get_tokenized_tgt_text(sample_id)
-            return self.dict.encode_line(
+            target = self.dict.encode_line(
                 tokenized,
                 add_if_not_exist=False,
                 append_eos=self.append_eos,
             )
+            if self.prepend_bos_and_append_tgt_lang_tag:
+                bos = torch.LongTensor([self.dict.bos()])
+                lang_tag_idx = self.get_lang_tag_idx(tgt_lang, self.dict)
+                assert lang_tag_idx != self.dict.unk()
+                lang_tag_idx = torch.LongTensor([lang_tag_idx])
+                target = torch.cat((bos, target, lang_tag_idx), 0)
+            return target
         else:
             logger.warning(f"no target for {sample_id}")
             return torch.IntTensor([])
@@ -441,7 +466,7 @@ class TextTargetMultitaskData(object):
         out = fairseq_data_utils.collate_tokens(
             samples,
             self.dict.pad(),
-            eos_idx=self.dict.eos(),
+            eos_idx=None,
             left_pad=False,
             move_eos_to_beginning=False,
         ).long()
@@ -449,7 +474,7 @@ class TextTargetMultitaskData(object):
         prev_out = fairseq_data_utils.collate_tokens(
             samples,
             self.dict.pad(),
-            eos_idx=self.dict.eos(),
+            eos_idx=None,
             left_pad=False,
             move_eos_to_beginning=True,
         ).long()
@@ -551,7 +576,7 @@ class SpeechToTextDatasetCreator(object):
         src_langs = [s.get(cls.KEY_SRC_LANG, cls.DEFAULT_LANG) for s in samples]
         tgt_langs = [s.get(cls.KEY_TGT_LANG, cls.DEFAULT_LANG) for s in samples]
 
-        has_multitask = len(multitask) > 0
+        has_multitask = multitask is not None and len(multitask.keys()) > 0
         dataset_cls = (
             SpeechToTextMultitaskDataset if has_multitask else SpeechToTextDataset
         )

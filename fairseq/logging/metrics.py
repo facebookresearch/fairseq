@@ -151,6 +151,26 @@ def log_scalar_sum(
         agg[key].update(value)
 
 
+def log_concat_tensor(
+    key: str,
+    value: torch.Tensor,
+    priority: int = 10,
+    dim: int = 0,
+):
+    """Log a scalar value that is summed for reporting.
+
+    Args:
+        key (str): name of the field to log
+        value (float): value to log
+        priority (int): smaller values are logged earlier in the output
+        round (Optional[int]): number of digits to round to when displaying
+    """
+    for agg in get_active_aggregators():
+        if key not in agg:
+            agg.add_meter(key, ConcatTensorMeter(dim=dim), priority)
+        agg[key].update(value)
+
+
 def log_derived(key: str, fn: Callable[[MetersDict], float], priority: int = 20):
     """Log a scalar value derived from other meters.
 
