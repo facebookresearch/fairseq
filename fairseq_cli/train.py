@@ -105,18 +105,24 @@ def main(cfg: FairseqConfig) -> None:
     logger.info("model: {}".format(model.__class__.__name__))
     logger.info("criterion: {}".format(criterion.__class__.__name__))
 
+    add_encoder_adapters = getattr(cfg.model, "encoder_add_adapters", "$$") != "$$"
+    add_decoder_adapters = getattr(cfg.model, "decoder_add_adapters", "$$") != "$$"
+    finetune_encoder_adapter = getattr(cfg.model, "encoder_finetune_adapter", "$$") != "$$"
+    finetune_decoder_adapter = getattr(cfg.model, "decoder_finetune_adapter", "$$") != "$$"
+    add_encoder_hyperadapters = getattr(cfg.model, "encoder_add_hyperadapters", "$$") != "$$"
+    add_decoder_hyperadapters = getattr(cfg.model, "decoder_add_hyperadapters", "$$") != "$$"
+
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-    if cfg.model.encoder_add_adapters or \
-       cfg.model.decoder_add_adapters:
+    if add_encoder_adapters or add_decoder_adapters:
         logging.info("adapters detected in encoder/decoder")
-        if cfg.model.encoder_finetune_adapter is not None:
+        if finetune_encoder_adapter:
             logging.info(
                 "{0} adapters in the encoder will be finetuned. Make sure {0} data is only being fed to the encoder for the training.".format(
                     cfg.model.encoder_finetune_adapter
                 )
             )
             logging.info("All parameters expect those of the adapters will be frozen during training")
-        if cfg.model.decoder_finetune_adapter is not None:
+        if finetune_decoder_adapter:
             logging.info(
                 "{0} adapters in the decoder will be finetuned. Make sure {0} data is only being fed to the decoder for the training.".format(
                     cfg.model.decoder_finetune_adapter
@@ -124,8 +130,7 @@ def main(cfg: FairseqConfig) -> None:
             )
             logging.info("All parameters expect those of the adapters will be frozen during training")
 
-        if cfg.model.encoder_finetune_adapter is not None or \
-           cfg.model.decoder_finetune_adapter is not None:
+        if finetune_encoder_adapter or finetune_decoder_adapter:
             for name, layer in model.named_modules():
                 for p in layer.parameters():
                     p.requires_grad = False
@@ -139,8 +144,7 @@ def main(cfg: FairseqConfig) -> None:
                     for p in layer.parameters():
                         p.requires_grad = True
 
-    elif cfg.model.encoder_add_hyperadapters is not None or \
-         cfg.model.decoder_add_hyperadapters is not None:
+    elif add_encoder_hyperadapters or add_decoder_hyperadapters:
         logging.info("hyper-networks detected in encoder/decoder")
         logging.info("All parameters expect those of the hyper-networks will be frozen during training")
         for name, layer in model.named_modules():

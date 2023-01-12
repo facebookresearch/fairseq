@@ -9,7 +9,6 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from bitsandbytes.nn import StableEmbedding
 import logging
 
 from fairseq import utils
@@ -133,7 +132,10 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
         padding_idx = dictionary.pad()
 
         if cfg.use_stable_embedding:
-            if cfg.factorized_embed_dim > 0:
+            
+            from bitsandbytes.nn import StableEmbedding
+            
+            if factorized_embed_dim > 0:
                 raise ValueError(
                     "factorized embedding is not compatible with stable embedding"
                 )
