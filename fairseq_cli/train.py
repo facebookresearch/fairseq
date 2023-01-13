@@ -92,6 +92,38 @@ def main(cfg: FairseqConfig) -> None:
 
     assert cfg.criterion, "Please specify criterion to train a model"
 
+    # build teacher model here
+    if (cfg.task._name == "translation_with_kd") and (cfg.criterion._name == "label_smoothed_cross_entropy_with_kd"):
+        logging.info("Building teacher model")
+        teacher_model = load_model_ensemble(
+            [cfg.task.teacher_checkpoint_path],
+            task=task
+        )[0][0]
+
+        use_cuda = torch.cuda.is_available() and not cfg.common.cpu and not cfg.distributed_training.pipeline_model_parallel
+
+        if use_cuda :
+            teacher_model = teacher_model.cuda()
+        if cfg.common.fp16:
+            teacher_model = teacher_model.half()
+        
+        logger.info(
+            "loaded teacher {} from {} in {} mode with {} precision".format(
+                teacher_model.__class__.__name__,
+                cfg.task.teacher_checkpoint_path,
+                'training' if teacher_model.training else 'evaluation',
+                'half' if cfg.common.fp16 else 'full'
+            )
+        )
+
+        logger.info(
+            "num. teacher params: {:,} ".format(
+                sum(
+                    p.numel() for p in teacher_model.parameters() if p.requires_grad
+                )
+            )
+        )
+
     # Build model and criterion
     if cfg.distributed_training.ddp_backend == "fully_sharded":
         with fsdp_enable_wrap(cfg.distributed_training):
@@ -210,10 +242,14 @@ def main(cfg: FairseqConfig) -> None:
         quantizer = None
 
     # Build trainer
-    if cfg.common.model_parallel_size == 1:
-        trainer = Trainer(cfg, task, model, criterion, quantizer)
-    else:
-        trainer = MegatronTrainer(cfg, task, model, criterion)
+    trainer = Trainer(cfg, task, model, criterion, quantizer) if cfg.common.model_parallel_size == 1 else MegatronTrainer(cfg, task, model, criterion)
+    
+    # assign the teacher model (is present) to the trainer
+    # we had to build the teacher model first before the student and trainer
+    # to avoid over-writing the generator for beam-search of the student with that of the teacher
+    if (cfg.task._name == "translation_with_kd") and (cfg.criterion._name == "label_smoothed_cross_entropy_with_kd"):
+        trainer.assign_teacher_model(teacher_model)
+
     logger.info(
         "training on {} devices (GPUs/TPUs)".format(
             cfg.distributed_training.distributed_world_size
@@ -225,39 +261,6 @@ def main(cfg: FairseqConfig) -> None:
             cfg.dataset.batch_size,
         )
     )
-
-    if (cfg.task._name == "translation_with_kd") and (cfg.criterion._name == "label_smoothed_cross_entropy_with_kd"):
-        # build teacher model here
-        teacher_model = load_model_ensemble(
-            [cfg.task.teacher_checkpoint_path],
-            task=task
-        )[0][0]
-
-        use_cuda = torch.cuda.is_available() and not cfg.common.cpu and not cfg.distributed_training.pipeline_model_parallel
-
-        if use_cuda :
-            teacher_model = teacher_model.cuda()
-        if cfg.common.fp16:
-            teacher_model = teacher_model.half()
-        
-        trainer.assign_teacher_model(teacher_model)
-
-        logger.info(
-            "loaded teacher {} from {} in {} mode with {} precision".format(
-                trainer.teacher_model.__class__.__name__,
-                cfg.task.teacher_checkpoint_path,
-                'training' if trainer.teacher_model.training else 'evaluation',
-                'half' if cfg.task.teacher_fp16 else 'full'
-            )
-        )
-
-        logger.info(
-            "num. teacher params: {:,} ".format(
-                sum(
-                    p.numel() for p in trainer.teacher_model.parameters() if p.requires_grad
-                )
-            )
-        )
 
     # Load the latest checkpoint if one is available and restore the
     # corresponding train iterator
