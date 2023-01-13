@@ -289,6 +289,11 @@ class Trainer(object):
             self._build_optimizer()  # this will initialize self._lr_scheduler
         return self._lr_scheduler
 
+    def assign_teacher_model(self, teacher_model):
+        self.teacher_model = teacher_model
+        self.teacher_model.eval()
+        self.perform_distillation = True
+
     def _build_optimizer(self):
 
         if (

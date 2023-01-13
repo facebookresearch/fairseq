@@ -226,6 +226,39 @@ def main(cfg: FairseqConfig) -> None:
         )
     )
 
+    if (cfg.task._name == "translation_with_kd") and (cfg.criterion._name == "label_smoothed_cross_entropy_with_kd"):
+        # build teacher model here
+        teacher_model = load_model_ensemble(
+            [cfg.task.teacher_checkpoint_path],
+            task=task
+        )[0][0]
+
+        use_cuda = torch.cuda.is_available() and not cfg.common.cpu and not cfg.distributed_training.pipeline_model_parallel
+
+        if use_cuda :
+            teacher_model = teacher_model.cuda()
+        if cfg.task.teacher_fp16:
+            teacher_model = teacher_model.half()
+        
+        trainer.assign_teacher_model(teacher_model)
+
+        logger.info(
+            "loaded teacher {} from {} in {} mode with {} precision".format(
+                trainer.teacher_model.__class__.__name__,
+                cfg.task.teacher_checkpoint_path,
+                'training' if trainer.teacher_model.training else 'evaluation',
+                'half' if cfg.task.teacher_fp16 else 'full'
+            )
+        )
+
+        logger.info(
+            "num. teacher params: {:,} ".format(
+                sum(
+                    p.numel() for p in trainer.teacher_model.parameters() if p.requires_grad
+                )
+            )
+        )
+
     # Load the latest checkpoint if one is available and restore the
     # corresponding train iterator
     extra_state, epoch_itr = checkpoint_utils.load_checkpoint(
@@ -237,35 +270,7 @@ def main(cfg: FairseqConfig) -> None:
     if cfg.common.tpu:
         import torch_xla.core.xla_model as xm
         xm.rendezvous("load_checkpoint")  # wait for all workers
-
-    if (cfg.task._name == "translation_with_kd") and (cfg.criterion._name == "label_smoothed_cross_entropy_with_kd"):
-        # build teacher model here
-        teacher_models = load_model_ensemble(
-            [cfg.task.teacher_checkpoint_path],
-            task=task
-        )[0][0]
-
-        trainer.teacher_model = teacher_models.to(trainer.device)
-        trainer.teacher_model.eval()
-
-        trainer.perform_distillation = True
-
-        logger.info(
-            "loaded teacher model {} from {} in {} mode".format(
-                trainer.teacher_model,
-                cfg.task.teacher_checkpoint_path,
-                'training' if trainer.teacher_model.training else 'evaluation'
-            )
-        )
-
-        logger.info(
-        "num. teacher params: {:,} ".format(
-            sum(
-                p.numel() for p in trainer.teacher_model.parameters() if p.requires_grad
-            )
-        )
-    )
-        
+    
     max_epoch = cfg.optimization.max_epoch or math.inf
     lr = trainer.get_lr()
 
@@ -419,12 +424,12 @@ def train(
     logger.info("Start iterating over samples")
     for i, samples in enumerate(progress):
         # run one validation sanity check epoch
-        if cfg.common.run_sanity_val_steps:
+        if cfg.common.run_sanity_validation_steps:
             logger.info("running one sanity check validation epoch")
             valid_losses, should_stop = validate_and_save(
                 cfg, trainer, task, epoch_itr, valid_subsets, end_of_epoch
             )
-            cfg.common.run_sanity_val_steps = False
+            cfg.common.run_sanity_validation_steps = False
 
         with metrics.aggregate("train_inner"), torch.autograd.profiler.record_function(
             "train_step-%d" % i
@@ -517,7 +522,7 @@ def validate_and_save(
         )
     )
     do_validate = (
-        (   cfg.common.run_sanity_val_steps
+        (   cfg.common.run_sanity_validation_steps
             or (not end_of_epoch and do_save)  # validate during mid-epoch saves
             or (end_of_epoch and epoch_itr.epoch % cfg.dataset.validate_interval == 0)
             or should_stop
