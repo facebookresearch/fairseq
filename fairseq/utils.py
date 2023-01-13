@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-import bitsandbytes as bnb
 
 if TYPE_CHECKING:
     from fairseq.modules.multihead_attention import MultiheadAttention

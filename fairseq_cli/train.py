@@ -237,7 +237,7 @@ def main(cfg: FairseqConfig) -> None:
 
         if use_cuda :
             teacher_model = teacher_model.cuda()
-        if cfg.task.teacher_fp16:
+        if cfg.common.fp16:
             teacher_model = teacher_model.half()
         
         trainer.assign_teacher_model(teacher_model)

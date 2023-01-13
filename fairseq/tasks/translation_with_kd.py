@@ -20,9 +20,6 @@ class KDTranslationConfig(TranslationConfig):
     teacher_checkpoint_path: Optional[str] = field(
         default=None, metadata={"help": "teacher checkpoint path when performing distillation"}
     )
-    teacher_fp16: Optional[bool] = field(
-        default=False, metadata={"help": "run the teacher in fp16 mode. Helps speed up the training"}
-    )
 
 
 @register_task("translation_with_kd", dataclass=KDTranslationConfig)
