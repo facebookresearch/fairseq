@@ -95,10 +95,8 @@ def main(cfg: FairseqConfig) -> None:
     # build teacher model here
     if (cfg.task._name == "translation_with_kd") and (cfg.criterion._name == "label_smoothed_cross_entropy_with_kd"):
         logging.info("Building teacher model")
-        teacher_model = load_model_ensemble(
-            [cfg.task.teacher_checkpoint_path],
-            task=task
-        )[0][0]
+        
+        teacher_model = load_model_ensemble([cfg.task.teacher_checkpoint_path], task=task)[0][0]
 
         use_cuda = torch.cuda.is_available() and not cfg.common.cpu and not cfg.distributed_training.pipeline_model_parallel
 
@@ -108,11 +106,10 @@ def main(cfg: FairseqConfig) -> None:
             teacher_model = teacher_model.half()
         
         logger.info(
-            "loaded teacher {} from {} in {} mode with {} precision".format(
+            "loaded teacher {} from {} in {}-bit precision mode".format(
                 teacher_model.__class__.__name__,
                 cfg.task.teacher_checkpoint_path,
-                'training' if teacher_model.training else 'evaluation',
-                'half' if cfg.common.fp16 else 'full'
+                16 if cfg.common.fp16 else 32
             )
         )
 
