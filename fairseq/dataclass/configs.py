@@ -1128,13 +1128,9 @@ class InteractiveConfig(FairseqDataclass):
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
-    path_to_save_encoder_states: Optional[str] = field(
+    encoder_states_path: Optional[str] = field(
         default=None,
         metadata={"help": "path to save encoder states for further analysis (optional and experimental)"},
-    )
-    convert_encoder_states_to_numpy: Optional[bool] = field(
-        default=False,
-        metadata={"help": "convert saved encoder states to numpy before saving, i.e. they will be saved in .npy format (optional and experimental)"}
     )
 
 

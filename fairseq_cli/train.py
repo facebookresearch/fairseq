@@ -246,7 +246,7 @@ def main(cfg: FairseqConfig) -> None:
     # to avoid over-writing the generator for beam-search of the student with that of the teacher
     if (cfg.task._name == "translation_with_kd") and (cfg.criterion._name == "label_smoothed_cross_entropy_with_kd"):
         trainer.assign_teacher_model(teacher_model)
-
+    
     logger.info(
         "training on {} devices (GPUs/TPUs)".format(
             cfg.distributed_training.distributed_world_size
@@ -258,6 +258,9 @@ def main(cfg: FairseqConfig) -> None:
             cfg.dataset.batch_size,
         )
     )
+
+    if cfg.task._name == "translation_with_fisher_information":
+        task.populate_precision_matrices(model)
 
     # Load the latest checkpoint if one is available and restore the
     # corresponding train iterator
@@ -325,6 +328,10 @@ def main(cfg: FairseqConfig) -> None:
         )
         PathManager.async_close()
         logger.info("ioPath PathManager finished waiting.")
+
+    if cfg.task._name == "translation_with_fisher_information":
+        task.normalize_precision_matrices()
+        task.save_precision_matrices(f"{cfg.task.precision_matrices_path}_{'fp16' if cfg.common.fp16 else 'fp32'}.pt")
 
 
 def should_stop_early(cfg: DictConfig, valid_loss: float) -> bool:

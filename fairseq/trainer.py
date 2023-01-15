@@ -807,8 +807,15 @@ class Trainer(object):
     def train_step(self, samples, raise_oom=False):
         """Do forward, backward and parameter update."""
         self._set_seed()
-        self.model.train()
-        self.criterion.train()
+
+        if self.cfg.task._name == "translation_with_fisher_information":
+            self.model.eval()
+            self.criterion.eval()
+            self.model.zero_grad(set_to_none=True)
+        else:
+            self.model.train()
+            self.criterion.train()
+
         self.zero_grad()
 
         metrics.log_start_time("train_wall", priority=800, round=0)

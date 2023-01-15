@@ -221,8 +221,7 @@ def main(cfg: FairseqConfig):
     align_dict = utils.load_align_dict(cfg.generation.replace_unk)
 
     all_embeddings = None
-    encoder_states_save_path = cfg.interactive.path_to_save_encoder_states
-    convert_encoder_states_to_numpy = cfg.interactive.convert_encoder_states_to_numpy
+    encoder_states_path = cfg.interactive.encoder_states_path
 
     max_positions = utils.resolve_max_positions(
         task.max_positions(), *[model.max_positions() for model in models]
@@ -265,7 +264,7 @@ def main(cfg: FairseqConfig):
             translate_time = time.time() - translate_start_time
             total_translate_time += translate_time
 
-            if encoder_states_save_path is not None:
+            if encoder_states_path is not None:
                 # >>> save the encoder outputs
                 with torch.no_grad():
                     encoder_out = model.encoder(
@@ -357,15 +356,9 @@ def main(cfg: FairseqConfig):
         )
     )
 
-    if encoder_states_save_path is not None:
-        if convert_encoder_states_to_numpy:
-            logging.info(f"Saving encoder states in to {encoder_states_save_path}.npy")
-            all_embeddings = all_embeddings.detach().cpu().numpy()
-            with open(f"{encoder_states_save_path}.npy", "wb") as f_out:
-                np.save(f_out, all_embeddings)
-        else:
-            logging.info(f"Saving encoder states to {encoder_states_save_path}.pt")
-            torch.save(all_embeddings, f"{encoder_states_save_path}.pt")
+    if encoder_states_path is not None:
+        logging.info(f"Saving encoder states to {encoder_states_path}.pt")
+        torch.save(all_embeddings, f"{encoder_states_path}.pt")
 
 
 def cli_main():
