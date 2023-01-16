@@ -1,0 +1,112 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: json
+  log_interval: 200
+  tensorboard_logdir: tb
+  fp16_no_flatten_grads: true
+  user_dir: ${env:PWD}/examples/data2vec
+
+checkpoint:
+  no_epoch_checkpoints: true
+  save_interval_updates: 50000
+  keep_interval_updates: 1
+
+distributed_training:
+  distributed_world_size: 16
+  ddp_backend: legacy_ddp
+
+task:
+  _name: masked_lm
+  data: /fsx-wav2vec/abaevski/data/nlp/bookwiki_aml-full-mmap2-bin
+  sample_break_mode: none
+  tokens_per_sample: 512
+  include_target_tokens: true
+  random_token_prob: 0
+  leave_unmasked_prob: 0
+  include_index: True
+  skip_masking: True
+  d2v2_multi: True
+
+criterion:
+  _name: model
+  log_keys:
+    - ema_decay
+    - target_var
+    - pred_var
+    - model_norm
+    - ema_norm
+    - masked_pct
+
+dataset:
+  batch_size: 4
+  ignore_unused_valid_subsets: true
+  skip_invalid_size_inputs_valid_test: true
+  disable_validation: true
+
+optimization:
+  clip_norm: 1
+  lr: [0.0002]
+  max_update: 1000000
+  update_freq: [1]
+
+optimizer:
+  _name: composite
+  dynamic_groups: true
+  groups:
+    default:
+      lr_float: 0.0002
+      optimizer:
+        _name: adam
+        adam_betas: [0.9,0.98]
+        adam_eps: 1e-06
+        weight_decay: 0.01
+      lr_scheduler:
+        _name: cosine
+        warmup_updates: 4000
+
+lr_scheduler: pass_through
+
+model:
+  _name: data2vec_multi
+
+  loss_beta: 0
+  loss_scale: 1
+
+  depth: 12
+  embed_dim: 768
+  clone_batch: 8
+
+  ema_decay: 0.9999
+  ema_end_decay: 0.99999
+  ema_anneal_end_step: 100000
+  ema_encoder_only: true
+
+  average_top_k_layers: 12
+  layer_norm_target_layer: false
+  instance_norm_target_layer: true
+  batch_norm_target_layer: false
+  instance_norm_targets: false
+  layer_norm_targets: false
+
+  layerdrop: 0
+  norm_eps: 1e-5
+
+  supported_modality: TEXT
+
+  modalities:
+    text:
+      mask_prob: 0.48
+      mask_length: 1
+      mask_noise_std: 0.01
+      prenet_depth: 0
+      decoder:
+        input_dropout: 0.1
+        decoder_dim: 768
+        decoder_groups: 1
+        decoder_kernel: 9
+        decoder_layers: 5
+        decoder_residual: false
+        projection_layers: 2
+        projection_ratio: 2.0

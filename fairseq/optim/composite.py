@@ -13,6 +13,7 @@ from fairseq.dataclass import FairseqDataclass
 from fairseq.optim import FairseqOptimizer, register_optimizer, _build_optimizer
 from fairseq.optim.lr_scheduler import FairseqLRScheduler, build_lr_scheduler
 from omegaconf import II, open_dict
+import copy
 
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,12 @@ class CompositeOptimizerConfig(FairseqDataclass):
             "Configures a different optimizer and (optionally) lr scheduler for each parameter group"
         },
     )
+    dynamic_groups: bool = field(
+        default=False,
+        metadata={
+            "help": "create groups dynamically based on parameters, if set to False, all parameters needs to have group_names"
+        },
+    )
 
 
 @register_optimizer("composite", dataclass=CompositeOptimizerConfig)
@@ -54,31 +61,107 @@ class FairseqCompositeOptimizer(FairseqOptimizer):
             len(params) > 1
         ), "Composite optimizer only works when there are multiple parameter groups (try fp16_no_flatten_grads: true)"
 
+        def dict_hash(dictionary: Dict[str, Any]) -> str:
+            import hashlib
+            import json
+
+            dhash = hashlib.md5()
+            encoded = json.dumps(dictionary, sort_keys=True).encode()
+            dhash.update(encoded)
+            return dhash.hexdigest()
+
         groupped_params = defaultdict(list)
-        for p in params:
-            group = getattr(p, "param_group", "default")
-            groupped_params[group].append(p)
-
-        assert groupped_params.keys() == cfg.groups.keys(), (
-            f"Parameter groups {groupped_params.keys()} and optimizer groups {cfg.groups.keys()} are not the same! "
-            "Try setting 'param_group' on your parameters in the model."
-        )
-
-        for group, group_params in groupped_params.items():
-            group_cfg = cfg.groups[group]
-            with open_dict(group_cfg):
-                if group_cfg.lr_float is not None:
-                    group_cfg.optimizer.lr = [group_cfg.lr_float]
-                    group_cfg.lr_scheduler.lr = [group_cfg.lr_float]
+        overrides = defaultdict(dict)
+        if not cfg.dynamic_groups:
+            for p in params:
+                group = getattr(p, "param_group", "default")
+                override_config = getattr(p, "optim_overrides", None)
+                if override_config is not None and bool(override_config):
+                    overrides[group] = override_config
                 else:
-                    group_cfg.optimizer.lr = group_cfg.lr
-                    group_cfg.lr_scheduler.lr = group_cfg.lr
-            self.optimizers[group] = _build_optimizer(group_cfg.optimizer, group_params)
-            if group_cfg.lr_scheduler is not None:
-                self.lr_schedulers[group] = build_lr_scheduler(
-                    group_cfg.lr_scheduler, self.optimizers[group]
-                )
+                    assert (
+                        override_config == None or override_config == overrides[group]
+                    ), f"For group {group}, different overrides found {override_config} v/s {overrides[group]}"
+                groupped_params[group].append(p)
 
+            for p, params in groupped_params.items():
+                override_config = getattr(params[0], "optim_overrides", None)
+                if override_config is not None:
+                    for pp in params[1:]:
+                        assert override_config == getattr(
+                            pp, "optim_overrides", None
+                        ), f" {str(override_config)} != {str(getattr(pp, 'optim_overrides', None))}"
+        else:
+            for p in params:
+                group = getattr(p, "param_group", "default")
+                override_config = getattr(p, "optim_overrides", None)
+                if override_config is not None:
+                    override_config["group_name"] = group
+                    group_name = dict_hash(override_config)
+                    overrides[group_name] = override_config
+                else:
+                    group_name = group
+                groupped_params[group_name].append(p)
+
+        self.optimizers_config = {}
+        for group, group_params in groupped_params.items():
+            p_group = group
+            if group in overrides and "group_name" in overrides[group]:
+                p_group = overrides[group]["group_name"]
+            if group in cfg.groups:
+                group_cfg = cfg.groups[group]
+                optimizer_config = copy.deepcopy(group_cfg.optimizer)
+                scheduler_config = copy.deepcopy(group_cfg.lr_scheduler)
+                explicit_group_present = True
+            else:
+                group_cfg = cfg.groups[p_group]
+                optimizer_config = copy.deepcopy(group_cfg.optimizer)
+                scheduler_config = copy.deepcopy(group_cfg.lr_scheduler)
+                explicit_group_present = False
+
+            if getattr(group_cfg, "lr_float", None) is not None:
+                with open_dict(optimizer_config):
+                    optimizer_config.lr = [group_cfg.lr_float]
+
+            if group in overrides and "optimizer" in overrides[group]:
+                with open_dict(optimizer_config):
+                    if "lr_scale" in overrides[group]["optimizer"]:
+                        lr_scale = overrides[group]["optimizer"]["lr_scale"]
+                        optimizer_config.lr = [
+                            lr * lr_scale for lr in optimizer_config.lr
+                        ]
+
+                        if explicit_group_present:
+                            logger.info(
+                                f"For group:{group}, config as well as override present for lr"
+                            )
+
+                    if (
+                        "weight_decay_scale" in overrides[group]["optimizer"]
+                        and "optimizer_config" in optimizer_config
+                    ):
+                        weight_decay_scale = overrides[group]["optimizer"][
+                            "weight_decay_scale"
+                        ]
+                        optimizer_config.weight_decay = (
+                            optimizer_config.weight_decay * weight_decay_scale
+                        )
+                        if explicit_group_present:
+                            logger.info(
+                                f"For group:{group}, config as well as override present for weight_decay"
+                            )
+
+            with open_dict(scheduler_config):
+                scheduler_config.lr = optimizer_config.lr
+            self.optimizers[group] = _build_optimizer(optimizer_config, group_params)
+            self.optimizers_config[group] = optimizer_config
+            if scheduler_config is not None:
+                self.lr_schedulers[group] = build_lr_scheduler(
+                    scheduler_config, self.optimizers[group]
+                )
+        logger.info("Optimizers for different groups are as below")
+        for group in self.optimizers_config.keys():
+            logger.info(f"Group : {group}:{self.optimizers_config[group]}")
         if len(self.lr_schedulers) > 0:
             assert len(self.lr_schedulers) == len(self.optimizers), (
                 f"Please provide an lr scheduler for each optimizer to use pass_through scheduler. "
