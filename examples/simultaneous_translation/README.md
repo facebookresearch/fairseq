@@ -110,7 +110,7 @@ After the [Training](#training), collect necessary files and copy them in one di
 checkpoint.pt  config.yaml  dict.txt  s2t_agent.py  sentence.bpe.model  wav2vec_small.yaml
 ```
 
-You can download the prepared systems here [en-de](https://dl.fbaipublicfiles.com/simultaneous_translation/iwslt2023/baseline/en-de), [en-zh](https://dl.fbaipublicfiles.com/simultaneous_translation/iwslt2023/baseline/en-ze), [en-ja](https://dl.fbaipublicfiles.com/simultaneous_translation/iwslt2023/baseline/en-ja)
+You can download the prepared systems here [en-de](https://dl.fbaipublicfiles.com/simultaneous_translation/iwslt2023/baseline/en-de.tgz), [en-zh](https://dl.fbaipublicfiles.com/simultaneous_translation/iwslt2023/baseline/en-ze), [en-ja.tgz](https://dl.fbaipublicfiles.com/simultaneous_translation/iwslt2023/baseline/en-ja.tgz)
 
 Running the following commands to reproduce the baseline results.
 
