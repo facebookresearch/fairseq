@@ -100,8 +100,8 @@ After the [Training](#training), collect necessary files and copy them in one di
 - The sentencepiece model from`${MUSTC_ROOT}/en-${TARGET_LANG}/sentence.bpe.model` (only for en-de)
 - The config yaml file from `${MUSTC_ROOT}/en-${TARGET_LANG}/config.yaml`
 - The dictionary from `${MUSTC_ROOT}/en-${TARGET_LANG}/dict.txt`
-- A simultaneous S2T agent script from [s2t_agent.py (en)](), [s2t_agent.py (ja)](), [s2t_agent.py (zh)]()
-- A wav2vec config file from [wav2vec_small.yaml](./wav2vec_small.yaml).
+- A simultaneous S2T agent script from [s2t_agent.py (en-de)](./agents/s2t_agents_en-de.py), [s2t_agent.py (en-ja)](./agents/s2t_agents_en-ja.py) or [s2t_agent.py (en-zh)](./agents/s2t_agents_en-zh.py)
+- A wav2vec config file from [wav2vec_small.yaml](./wav2vec_small.yaml)
 
 `ls system` should give following output:
 
@@ -110,7 +110,7 @@ After the [Training](#training), collect necessary files and copy them in one di
 checkpoint.pt  config.yaml  dict.txt  s2t_agent.py  sentence.bpe.model  wav2vec_small.yaml
 ```
 
-You can download the prepared systems here [en-de](https://dl.fbaipublicfiles.com/simultaneous_translation/iwslt2023/baseline/en-de.tgz), [en-zh](https://dl.fbaipublicfiles.com/simultaneous_translation/iwslt2023/baseline/en-ze), [en-ja.tgz](https://dl.fbaipublicfiles.com/simultaneous_translation/iwslt2023/baseline/en-ja.tgz)
+You can download the prepared systems here [en-de](https://dl.fbaipublicfiles.com/simultaneous_translation/iwslt2023/baseline/en-de.tgz), [en-zh](https://dl.fbaipublicfiles.com/simultaneous_translation/iwslt2023/baseline/en-zh.tgz), [en-ja](https://dl.fbaipublicfiles.com/simultaneous_translation/iwslt2023/baseline/en-ja.tgz)
 
 Running the following commands to reproduce the baseline results.
 
