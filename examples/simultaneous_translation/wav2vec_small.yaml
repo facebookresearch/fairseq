@@ -1,0 +1,66 @@
+_name: wav2vec2
+extractor_mode: default
+encoder_layers: 12
+encoder_embed_dim: 768
+encoder_ffn_embed_dim: 3072
+encoder_attention_heads: 12
+activation_fn: gelu
+layer_type: transformer
+dropout: 0.1
+attention_dropout: 0.1
+activation_dropout: 0.0
+encoder_layerdrop: 0.05
+dropout_input: 0.1
+dropout_features: 0.1
+final_dim: 256
+layer_norm_first: false
+conv_feature_layers: "[(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512,2,2)] * 2"
+conv_bias: false
+logit_temp: 0.1
+quantize_targets: true
+quantize_input: false
+same_quantizer: false
+target_glu: false
+feature_grad_mult: 0.1
+quantizer_depth: 1
+quantizer_factor: 3
+latent_vars: 320
+latent_groups: 2
+latent_dim: 0
+mask_length: 10
+mask_prob: 0.65
+mask_selection: static
+mask_other: 0.0
+no_mask_overlap: false
+mask_min_space: 1
+require_same_masks: true
+mask_dropout: 0.0
+mask_channel_length: 10
+mask_channel_prob: 0.0
+mask_channel_before: false
+mask_channel_selection: static
+mask_channel_other: 0.0
+no_mask_channel_overlap: false
+mask_channel_min_space: 1
+num_negatives: 100
+negatives_from_everywhere: false
+cross_sample_negatives: 0
+codebook_negatives: 0
+conv_pos: 128
+conv_pos_groups: 16
+pos_conv_depth: 1
+latent_temp:
+  - 2.0
+  - 0.5
+  - 0.999995
+max_positions: 8000
+checkpoint_activations: false
+required_seq_len_multiple: 2
+crop_seq_to_multiple: 1
+depthwise_conv_kernel_size: 31
+attn_type: ""
+pos_enc_type: abs
+fp16: true
+fbank_features: 0
+fbank_stride: 2
+sample_every_k_steps: 0
