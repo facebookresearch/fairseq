@@ -277,6 +277,15 @@ def transformer_wmt_en_de_big_t2t(args):
     transformer_vaswani_wmt_en_de_big(args)
 
 
+@register_model_architecture("transformer", "transformer_1x_v0")
+def transformer_base_V0(args):
+    args.layernorm_embedding = getattr(args, "layernorm_embedding", True)
+    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", True)
+    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", True)
+    args.activation_fn = getattr(args, "activation_fn", "gelu")
+    base_architecture(args)
+
+
 @register_model_architecture("transformer", "transformer_2x")
 def transformer_big(args):
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 1024)
@@ -287,6 +296,15 @@ def transformer_big(args):
     args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 4096)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 16)
     base_architecture(args)
+
+
+@register_model_architecture("transformer", "transformer_2x_v0")
+def transformer_big_V0(args):
+    args.layernorm_embedding = getattr(args, "layernorm_embedding", True)
+    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", True)
+    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", True)
+    args.activation_fn = getattr(args, "activation_fn", "gelu")
+    transformer_big(args)
 
 
 @register_model_architecture("transformer", "transformer_4x")
@@ -301,9 +319,22 @@ def transformer_huge(args):
     base_architecture(args)
 
 
-@register_model_architecture("transformer", "transformer_4x_rs")
+@register_model_architecture("transformer", "transformer_4x_v0")
+def transformer_huge_V0(args):
+    args.layernorm_embedding = getattr(args, "layernorm_embedding", True)
+    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", True)
+    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", True)
+    args.activation_fn = getattr(args, "activation_fn", "gelu")
+    transformer_huge(args)
+
+
+@register_model_architecture("transformer", "transformer_4x_rs_v0")
 # pre-defining certain parameters for regularly used models
 def transformer_huge_rs(args):
     args.encoder_recurrent_stacking = getattr(args, "encoder_recurrent_stacking", 6)
     args.decoder_recurrent_stacking = getattr(args, "decoder_recurrent_stacking", 6)
+    args.layernorm_embedding = getattr(args, "layernorm_embedding", True)
+    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", True)
+    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", True)
+    args.activation_fn = getattr(args, "activation_fn", "gelu")
     transformer_huge(args)
