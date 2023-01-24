@@ -19,7 +19,7 @@ class FITranslationConfig(TranslationConfig):
     )
 
 
-@register_task("translation_with_fisher_information", dataclass=FITranslationConfig)
+@register_task("translation_capture_fisher_information", dataclass=FITranslationConfig)
 class FITranslationTask(TranslationTask):
     """
     Translate from one (source) language to another (target) language.
@@ -35,6 +35,7 @@ class FITranslationTask(TranslationTask):
 
     def __init__(self, cfg: FITranslationConfig, src_dict, tgt_dict):
         super().__init__(cfg, src_dict, tgt_dict)
+        self.path = cfg.precision_matrices_path
         self._precision_matrices = {}
 
     def populate_precision_matrices(self, model):
@@ -42,8 +43,8 @@ class FITranslationTask(TranslationTask):
             if p.requires_grad:
                 self._precision_matrices[n] = torch.zeros_like(p)
 
-    def save_precision_matrices(self, path):
-        torch.save(self._precision_matrices, path)
+    def save_precision_matrices(self):
+        torch.save(self._precision_matrices, self.path)
 
     def normalize_precision_matrices(self):
         n_samples = len(self.datasets["train"])
@@ -64,12 +65,12 @@ class FITranslationTask(TranslationTask):
         if ignore_grad:
             loss *= 0
         with torch.autograd.profiler.record_function("backward"):
-            loss.backward()
+            optimizer.backward(loss)
             loss.detach()
         # update the precision matrices
         for n, p in model.named_parameters():
             if p.requires_grad:
-                self._precision_matrices[n] += p.grad ** 2
+                self._precision_matrices[n] += (p.grad.data ** 2)
         return loss, sample_size, logging_output
 
     def optimizer_step(self, optimizer, model, update_num):

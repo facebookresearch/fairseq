@@ -331,7 +331,7 @@ def main(cfg: FairseqConfig) -> None:
 
     if cfg.task._name == "translation_with_fisher_information":
         task.normalize_precision_matrices()
-        task.save_precision_matrices(f"{cfg.task.precision_matrices_path}_{'fp16' if cfg.common.fp16 else 'fp32'}.pt")
+        task.save_precision_matrices()
 
 
 def should_stop_early(cfg: DictConfig, valid_loss: float) -> bool:
