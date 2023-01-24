@@ -40,9 +40,7 @@ class FITranslationTask2(TranslationTask):
     def _apply_fisher_masks(self, model):
         for n, p in model.named_parameters():
             if n in self._fisher_masks:
-                print(n, self._fisher_masks[n].sum(), p.grad.data.sum(), end=" ")
                 p.grad.data.masked_fill_(self._fisher_masks[n], 0.0)
-                print(p.grad.data.sum())
 
     def optimizer_step(self, optimizer, model, update_num):
         self._apply_fisher_masks(model)
