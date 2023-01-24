@@ -14,8 +14,8 @@ from fairseq.optim.amp_optimizer import AMPOptimizer
 
 @dataclass
 class FITranslationConfig(TranslationConfig):
-    precision_matrices_path: Optional[str] = field(
-        default="precision_matrices", metadata={"help": "path to save fischer information parameters"}
+    save_precision_matrices_to: Optional[str] = field(
+        default="precision_matrices.pt", metadata={"help": "path to save fischer information parameters"}
     )
 
 
@@ -35,7 +35,7 @@ class FITranslationTask(TranslationTask):
 
     def __init__(self, cfg: FITranslationConfig, src_dict, tgt_dict):
         super().__init__(cfg, src_dict, tgt_dict)
-        self.path = cfg.precision_matrices_path
+        self.path = cfg.save_precision_matrices_to
         self._precision_matrices = {}
 
     def populate_precision_matrices(self, model):
@@ -69,7 +69,7 @@ class FITranslationTask(TranslationTask):
             loss.detach()
         # update the precision matrices
         for n, p in model.named_parameters():
-            if p.requires_grad:
+            if n in self._precision_matrices:
                 self._precision_matrices[n] += (p.grad.data ** 2)
         return loss, sample_size, logging_output
 

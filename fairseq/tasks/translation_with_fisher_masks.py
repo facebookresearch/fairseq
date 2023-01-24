@@ -14,7 +14,7 @@ from fairseq.optim.amp_optimizer import AMPOptimizer
 
 @dataclass
 class FITranslationConfig2(TranslationConfig):
-    fisher_masks_path: Optional[str] = field(
+    load_fisher_masks_from: Optional[str] = field(
         default="masks", metadata={"help": "path to save fischer information parameters"}
     )
 
@@ -35,7 +35,7 @@ class FITranslationTask2(TranslationTask):
 
     def __init__(self, cfg: FITranslationConfig2, src_dict, tgt_dict):
         super().__init__(cfg, src_dict, tgt_dict)
-        self._fisher_masks = torch.load(cfg.fisher_masks_path)
+        self._fisher_masks = torch.load(cfg.load_fisher_masks_from)
 
     def _apply_fisher_masks(self, model):
         for n, p in model.named_parameters():

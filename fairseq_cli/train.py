@@ -259,7 +259,7 @@ def main(cfg: FairseqConfig) -> None:
         )
     )
 
-    if cfg.task._name == "translation_with_fisher_information":
+    if cfg.task._name == "translation_capture_fisher_information":
         task.populate_precision_matrices(model)
 
     # Load the latest checkpoint if one is available and restore the
