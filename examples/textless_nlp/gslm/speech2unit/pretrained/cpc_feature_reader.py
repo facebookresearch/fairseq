@@ -25,8 +25,12 @@ class CpcFeatureReader:
         self.norm_features = norm_features
         self.use_encoder_layer = use_encoder_layer
 
-    def read_audio(self, path, ref_len=None):
+    def read_audio(self, path, ref_len=None, channel_id=None):
         wav, sr = sf.read(path)
+        if channel_id is not None:
+            assert wav.ndim == 2, \
+                f"Expected stereo input when channel_id is given ({path})"
+            wav = wav[:, channel_id-1]
         if wav.ndim == 2:
             wav = wav.mean(-1)
         assert wav.ndim == 1, wav.ndim
@@ -35,8 +39,8 @@ class CpcFeatureReader:
             print(f"ref {ref_len} != read {len(wav)} ({path})")
         return wav
 
-    def get_feats(self, file_path, ref_len=None):
-        x = self.read_audio(file_path, ref_len)
+    def get_feats(self, file_path, ref_len=None, channel_id=None):
+        x = self.read_audio(file_path, ref_len, channel_id)
         # Inspired from CPC_audio feature_loader.py
         with torch.no_grad():
             x = torch.from_numpy(x).float().cuda()

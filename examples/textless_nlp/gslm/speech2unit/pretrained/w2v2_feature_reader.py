@@ -28,16 +28,20 @@ class Wav2VecFeatureReader:
         self.model = model
         self.layer = layer
 
-    def read_audio(self, fname):
+    def read_audio(self, fname, channel_id=None):
         wav, sr = sf.read(fname)
+        if channel_id is not None:
+            assert wav.ndim == 2, \
+                f"Expected stereo input when channel_id is given ({fname})"
+            wav = wav[:, channel_id-1]
         if wav.ndim == 2:
             wav = wav.mean(-1)
         assert wav.ndim == 1, wav.ndim
         assert sr == self.task.cfg.sample_rate, sr
         return wav
 
-    def get_feats(self, file_path):
-        x = self.read_audio(file_path)
+    def get_feats(self, file_path, channel_id=None):
+        x = self.read_audio(file_path, channel_id)
         with torch.no_grad():
             source = torch.from_numpy(x).view(1, -1).float().cuda()
             res = self.model(
