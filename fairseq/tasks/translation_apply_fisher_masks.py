@@ -19,7 +19,7 @@ class FITranslationConfig2(TranslationConfig):
     )
 
 
-@register_task("translation_with_fisher_masks", dataclass=FITranslationConfig2)
+@register_task("translation_apply_fisher_masks", dataclass=FITranslationConfig2)
 class FITranslationTask2(TranslationTask):
     """
     Translate from one (source) language to another (target) language.
