@@ -77,9 +77,8 @@ class CosineLRSchedule(FairseqLRScheduler):
             )
 
         self.max_lr = cfg.lr[0] if isinstance(cfg.lr, Collection) else cfg.lr
-        assert (
-            self.max_lr > cfg.min_lr
-        ), f"max_lr (={cfg.lr}) must be more than min_lr (={cfg.min_lr})"
+        if self.max_lr < cfg.min_lr:
+            cfg.min_lr = self.max_lr
 
         warmup_end_lr = self.max_lr
         if cfg.warmup_init_lr < 0:

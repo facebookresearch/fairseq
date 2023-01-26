@@ -551,7 +551,7 @@ class MultiheadAttention(FairseqIncrementalDecoder):
                     self.out_proj.weight,
                     self.out_proj.bias,
                     self.training or self.dropout_module.apply_during_inference,
-                    key_padding_mask,
+                    key_padding_mask.bool() if key_padding_mask is not None else None,
                     need_weights,
                     attn_mask,
                     use_separate_proj_weight=True,

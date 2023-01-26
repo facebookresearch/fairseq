@@ -1,0 +1,52 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: json
+  log_interval: 200
+  tensorboard_logdir: tb
+
+checkpoint:
+  save_interval: 5
+  save_interval_updates: 25000
+  keep_interval_updates: 1
+  no_epoch_checkpoints: true
+
+task:
+  _name: image_pretraining
+  data: /datasets01/imagenet_full_size/061417/
+
+dataset:
+  num_workers: 6
+  batch_size: 64
+  skip_invalid_size_inputs_valid_test: true
+  required_batch_size_multiple: 1
+  disable_validation: true
+
+distributed_training:
+  distributed_world_size: 16
+  ddp_backend: c10d
+
+criterion:
+  _name: model
+  log_keys:
+    - ema_decay
+    - target_var
+    - pred_var
+
+optimization:
+  max_update: 400000
+  lr: [0.0005]
+
+optimizer:
+  _name: adam
+  adam_betas: (0.9,0.98)
+  adam_eps: 1e-06
+  weight_decay: 0.01
+
+lr_scheduler:
+  _name: cosine
+  warmup_updates: 10000
+
+model:
+  _name: data2vec_vision

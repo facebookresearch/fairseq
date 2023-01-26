@@ -23,6 +23,7 @@ from fairseq.data import (
     PrependTokenDataset,
     RawLabelDataset,
     RightPadDataset,
+    RightPaddingMaskDataset,
     RollDataset,
     SortDataset,
     StripTokenDataset,
@@ -82,6 +83,11 @@ class SentencePredictionConfig(FairseqDataclass):
     regression_target: bool = II("criterion.regression_target")
     classification_head_name: str = II("criterion.classification_head_name")
     seed: int = II("common.seed")
+
+    d2v2_multi: bool = field(
+        default=False,
+        metadata={"help": "prepare dataset for data2vec_multi"},
+    )
 
 
 @register_task("sentence_prediction", dataclass=SentencePredictionConfig)
@@ -181,27 +187,38 @@ class SentencePredictionTask(FairseqTask):
             self.cfg.seed,
         )
 
-        dataset = {
-            "id": IdDataset(),
-            "net_input": {
+        if self.cfg.d2v2_multi:
+            net_input = {
+                "source": RightPadDataset(
+                    src_tokens,
+                    pad_idx=self.source_dictionary.pad(),
+                ),
+                "id": IdDataset(),
+                "padding_mask": RightPaddingMaskDataset(src_tokens),
+            }
+        else:
+            net_input = {
                 "src_tokens": RightPadDataset(
                     src_tokens,
                     pad_idx=self.source_dictionary.pad(),
                 ),
                 "src_lengths": NumelDataset(src_tokens, reduce=False),
-            },
+            }
+            if self.cfg.add_prev_output_tokens:
+                prev_tokens_dataset = RightPadDataset(
+                    RollDataset(src_tokens, 1),
+                    pad_idx=self.dictionary.pad(),
+                )
+                net_input.update(
+                    prev_output_tokens=prev_tokens_dataset,
+                )
+
+        dataset = {
+            "id": IdDataset(),
+            "net_input": net_input,
             "nsentences": NumSamplesDataset(),
             "ntokens": NumelDataset(src_tokens, reduce=True),
         }
-
-        if self.cfg.add_prev_output_tokens:
-            prev_tokens_dataset = RightPadDataset(
-                RollDataset(src_tokens, 1),
-                pad_idx=self.dictionary.pad(),
-            )
-            dataset["net_input"].update(
-                prev_output_tokens=prev_tokens_dataset,
-            )
 
         if not self.cfg.regression_target:
             label_dataset = make_dataset("label", self.label_dictionary)

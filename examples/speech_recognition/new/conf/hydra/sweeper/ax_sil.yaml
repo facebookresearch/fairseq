@@ -1,0 +1,29 @@
+# @package hydra.sweeper
+_target_: hydra_plugins.hydra_ax_sweeper.ax_sweeper.AxSweeper
+max_batch_size: null
+ax_config:
+  max_trials: 64
+  early_stop:
+    minimize: true
+    max_epochs_without_improvement: 10
+    epsilon: 0.025
+  experiment:
+    name: ${dataset.gen_subset}
+    objective_name: wer
+    minimize: true
+    parameter_constraints: null
+    outcome_constraints: null
+    status_quo: null
+  client:
+    verbose_logging: false
+    random_seed: null
+  params:
+    decoding.lmweight:
+      type: range
+      bounds: [0.0, 10.0]
+    decoding.wordscore:
+      type: range
+      bounds: [-10.0, 10.0]
+    decoding.silweight:
+      type: range
+      bounds: [ -10.0, 0.0 ]

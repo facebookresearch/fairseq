@@ -7,6 +7,7 @@
 import logging
 import os
 import sys
+import time
 import io
 
 import numpy as np
@@ -14,7 +15,7 @@ import torch
 import torch.nn.functional as F
 
 from .. import FairseqDataset
-from ..data_utils import compute_mask_indices, get_buckets, get_bucketed_sizes
+from ..data_utils import compute_block_mask_1d, get_buckets, get_bucketed_sizes
 from fairseq.data.audio.audio_utils import (
     parse_path,
     read_from_stored_zip,
@@ -35,8 +36,17 @@ class RawAudioDataset(FairseqDataset):
         shuffle=True,
         pad=False,
         normalize=False,
-        compute_mask_indices=False,
-        **mask_compute_kwargs,
+        compute_mask=False,
+        feature_encoder_spec: str = "None",
+        mask_prob: float = 0.75,
+        mask_prob_adjust: float = 0,
+        mask_length: int = 1,
+        inverse_mask: bool = False,
+        require_same_masks: bool = True,
+        clone_batch: int = 1,
+        expand_adjacent: bool = False,
+        mask_dropout: float = 0,
+        non_overlapping: bool = False,
     ):
         super().__init__()
 
@@ -49,12 +59,19 @@ class RawAudioDataset(FairseqDataset):
         self.pad = pad
         self.shuffle = shuffle
         self.normalize = normalize
-        self.compute_mask_indices = compute_mask_indices
-        if self.compute_mask_indices:
-            self.mask_compute_kwargs = mask_compute_kwargs
-            self._features_size_map = {}
-            self._C = mask_compute_kwargs["encoder_embed_dim"]
-            self._conv_feature_layers = eval(mask_compute_kwargs["conv_feature_layers"])
+
+        self.is_compute_mask = compute_mask
+        self.feature_encoder_spec = eval(feature_encoder_spec)
+        self._features_size_map = {}
+        self.mask_prob = mask_prob
+        self.mask_prob_adjust = mask_prob_adjust
+        self.mask_length = mask_length
+        self.inverse_mask = inverse_mask
+        self.require_same_masks = require_same_masks
+        self.clone_batch = clone_batch
+        self.expand_adjacent = expand_adjacent
+        self.mask_dropout = mask_dropout
+        self.non_overlapping = non_overlapping
 
     def __getitem__(self, index):
         raise NotImplementedError()
@@ -76,48 +93,21 @@ class RawAudioDataset(FairseqDataset):
                 feats = F.layer_norm(feats, feats.shape)
         return feats
 
-    def crop_to_max_size(self, wav, target_size):
-        size = len(wav)
+    def crop_to_max_size(self, t, target_size, dim=0):
+        size = t.size(dim)
         diff = size - target_size
         if diff <= 0:
-            return wav
+            return t
 
         start = np.random.randint(0, diff + 1)
         end = size - diff + start
-        return wav[start:end]
 
-    def _compute_mask_indices(self, dims, padding_mask):
-        B, T, C = dims
-        mask_indices, mask_channel_indices = None, None
-        if self.mask_compute_kwargs["mask_prob"] > 0:
-            mask_indices = compute_mask_indices(
-                (B, T),
-                padding_mask,
-                self.mask_compute_kwargs["mask_prob"],
-                self.mask_compute_kwargs["mask_length"],
-                self.mask_compute_kwargs["mask_selection"],
-                self.mask_compute_kwargs["mask_other"],
-                min_masks=2,
-                no_overlap=self.mask_compute_kwargs["no_mask_overlap"],
-                min_space=self.mask_compute_kwargs["mask_min_space"],
-            )
-            mask_indices = torch.from_numpy(mask_indices)
-        if self.mask_compute_kwargs["mask_channel_prob"] > 0:
-            mask_channel_indices = compute_mask_indices(
-                (B, C),
-                None,
-                self.mask_compute_kwargs["mask_channel_prob"],
-                self.mask_compute_kwargs["mask_channel_length"],
-                self.mask_compute_kwargs["mask_channel_selection"],
-                self.mask_compute_kwargs["mask_channel_other"],
-                no_overlap=self.mask_compute_kwargs["no_mask_channel_overlap"],
-                min_space=self.mask_compute_kwargs["mask_channel_min_space"],
-            )
-            mask_channel_indices = (
-                torch.from_numpy(mask_channel_indices).unsqueeze(1).expand(-1, T, -1)
-            )
+        slices = []
+        for d in range(dim):
+            slices.append(slice(None))
+        slices.append(slice(start, end))
 
-        return mask_indices, mask_channel_indices
+        return t[slices]
 
     @staticmethod
     def _bucket_tensor(tensor, num_pad, value):
@@ -166,33 +156,24 @@ class RawAudioDataset(FairseqDataset):
                 input["source"] = self._bucket_tensor(collated_sources, num_pad, 0)
                 input["padding_mask"] = self._bucket_tensor(padding_mask, num_pad, True)
 
-        if self.compute_mask_indices:
-            B = input["source"].size(0)
-            T = self._get_mask_indices_dims(input["source"].size(-1))
-            padding_mask_reshaped = input["padding_mask"].clone()
-            extra = padding_mask_reshaped.size(1) % T
-            if extra > 0:
-                padding_mask_reshaped = padding_mask_reshaped[:, :-extra]
-            padding_mask_reshaped = padding_mask_reshaped.view(
-                padding_mask_reshaped.size(0), T, -1
+        if "precomputed_mask" in samples[0]:
+            target_size = self._get_mask_indices_dims(target_size)
+            collated_mask = torch.cat(
+                [
+                    self.crop_to_max_size(s["precomputed_mask"], target_size, dim=1)
+                    for s in samples
+                ],
+                dim=0,
             )
-            padding_mask_reshaped = padding_mask_reshaped.all(-1)
-            input["padding_count"] = padding_mask_reshaped.sum(-1).max().item()
-            mask_indices, mask_channel_indices = self._compute_mask_indices(
-                (B, T, self._C),
-                padding_mask_reshaped,
-            )
-            input["mask_indices"] = mask_indices
-            input["mask_channel_indices"] = mask_channel_indices
-            out["sample_size"] = mask_indices.sum().item()
+            input["precomputed_mask"] = collated_mask
 
         out["net_input"] = input
         return out
 
     def _get_mask_indices_dims(self, size, padding=0, dilation=1):
-        if size not in self._features_size_map:
+        if size not in self.feature_encoder_spec:
             L_in = size
-            for (_, kernel_size, stride) in self._conv_feature_layers:
+            for (_, kernel_size, stride) in self.feature_encoder_spec:
                 L_out = L_in + 2 * padding - dilation * (kernel_size - 1) - 1
                 L_out = 1 + L_out // stride
                 L_in = L_out
@@ -244,6 +225,9 @@ class RawAudioDataset(FairseqDataset):
                 f"{self.buckets}"
             )
 
+    def filter_indices_by_size(self, indices, max_sizes):
+        return indices, []
+
 
 class FileAudioDataset(RawAudioDataset):
     def __init__(
@@ -256,7 +240,7 @@ class FileAudioDataset(RawAudioDataset):
         pad=False,
         normalize=False,
         num_buckets=0,
-        compute_mask_indices=False,
+        compute_mask=False,
         text_compression_level=TextCompressionLevel.none,
         **mask_compute_kwargs,
     ):
@@ -267,7 +251,7 @@ class FileAudioDataset(RawAudioDataset):
             shuffle=shuffle,
             pad=pad,
             normalize=normalize,
-            compute_mask_indices=compute_mask_indices,
+            compute_mask=compute_mask,
             **mask_compute_kwargs,
         )
 
@@ -319,11 +303,43 @@ class FileAudioDataset(RawAudioDataset):
             assert is_sf_audio_data(byte_data)
             path_or_fp = io.BytesIO(byte_data)
 
-        wav, curr_sample_rate = sf.read(path_or_fp, dtype="float32")
+        retry = 3
+        wav = None
+        for i in range(retry):
+            try:
+                wav, curr_sample_rate = sf.read(path_or_fp, dtype="float32")
+                break
+            except Exception as e:
+                logger.warning(
+                    f"Failed to read {path_or_fp}: {e}. Sleeping for {1 * i}"
+                )
+                time.sleep(1 * i)
+
+        if wav is None:
+            raise Exception(f"Failed to load {path_or_fp}")
 
         feats = torch.from_numpy(wav).float()
         feats = self.postprocess(feats, curr_sample_rate)
-        return {"id": index, "source": feats}
+
+        v = {"id": index, "source": feats}
+
+        if self.is_compute_mask:
+            T = self._get_mask_indices_dims(feats.size(-1))
+            mask = compute_block_mask_1d(
+                shape=(self.clone_batch, T),
+                mask_prob=self.mask_prob,
+                mask_length=self.mask_length,
+                mask_prob_adjust=self.mask_prob_adjust,
+                inverse_mask=self.inverse_mask,
+                require_same_masks=True,
+                expand_adjcent=self.expand_adjacent,
+                mask_dropout=self.mask_dropout,
+                non_overlapping=self.non_overlapping,
+            )
+
+            v["precomputed_mask"] = mask
+
+        return v
 
 
 class BinarizedAudioDataset(RawAudioDataset):
@@ -338,7 +354,7 @@ class BinarizedAudioDataset(RawAudioDataset):
         pad=False,
         normalize=False,
         num_buckets=0,
-        compute_mask_indices=False,
+        compute_mask=False,
         **mask_compute_kwargs,
     ):
         super().__init__(
@@ -348,7 +364,7 @@ class BinarizedAudioDataset(RawAudioDataset):
             shuffle=shuffle,
             pad=pad,
             normalize=normalize,
-            compute_mask_indices=compute_mask_indices,
+            compute_mask=compute_mask,
             **mask_compute_kwargs,
         )
 
@@ -390,4 +406,22 @@ class BinarizedAudioDataset(RawAudioDataset):
         wav, curr_sample_rate = sf.read(fname)
         feats = torch.from_numpy(wav).float()
         feats = self.postprocess(feats, curr_sample_rate)
-        return {"id": index, "source": feats}
+        v = {"id": index, "source": feats}
+
+        if self.is_compute_mask:
+            T = self._get_mask_indices_dims(feats.size(-1))
+            mask = compute_block_mask_1d(
+                shape=(self.clone_batch, T),
+                mask_prob=self.mask_prob,
+                mask_length=self.mask_length,
+                mask_prob_adjust=self.mask_prob_adjust,
+                inverse_mask=self.inverse_mask,
+                require_same_masks=True,
+                expand_adjcent=self.expand_adjacent,
+                mask_dropout=self.mask_dropout,
+                non_overlapping=self.non_overlapping,
+            )
+
+            v["precomputed_mask"] = mask
+
+        return v

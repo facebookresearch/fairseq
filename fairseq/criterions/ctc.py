@@ -7,18 +7,17 @@
 import math
 from argparse import Namespace
 from dataclasses import dataclass, field
+from omegaconf import II
 from typing import Optional
 
 import torch
 import torch.nn.functional as F
-from omegaconf import II
-
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
-from fairseq.data.data_utils import post_process
 from fairseq.dataclass import FairseqDataclass
-from fairseq.logging.meters import safe_round
+from fairseq.data.data_utils import post_process
 from fairseq.tasks import FairseqTask
+from fairseq.logging.meters import safe_round
 
 
 @dataclass
@@ -52,6 +51,10 @@ class CtcCriterionConfig(FairseqDataclass):
     )
     wer_word_score: float = field(
         default=-1.0,
+        metadata={"help": "lm word score to use with wer_kenlm_model"},
+    )
+    wer_sil_weight: float = field(
+        default=0,
         metadata={"help": "lm word score to use with wer_kenlm_model"},
     )
 
@@ -101,6 +104,7 @@ class CtcCriterion(FairseqCriterion):
             dec_args.beam_threshold = min(50, len(task.target_dictionary))
             dec_args.lm_weight = cfg.wer_lm_weight
             dec_args.word_score = cfg.wer_word_score
+            dec_args.sil_weight = cfg.wer_sil_weight
             dec_args.unk_weight = -math.inf
             dec_args.sil_weight = 0
 

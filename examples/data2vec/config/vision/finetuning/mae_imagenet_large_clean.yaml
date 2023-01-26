@@ -1,0 +1,68 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: json
+  log_interval: 200
+  tensorboard_logdir: tb
+  fp16_no_flatten_grads: true
+
+checkpoint:
+  save_interval: 1
+  save_interval_updates: 25000
+  keep_interval_updates: 1
+  no_epoch_checkpoints: true
+  best_checkpoint_metric: accuracy
+  maximize_best_checkpoint_metric: true
+
+task:
+  _name: mae_image_classification
+  data: /datasets01/imagenet_full_size/061417
+
+dataset:
+  num_workers: 6
+  batch_size: 32
+  skip_invalid_size_inputs_valid_test: true
+  required_batch_size_multiple: 2
+  valid_subset: val
+
+distributed_training:
+  distributed_world_size: 16
+  ddp_backend: c10d
+
+criterion:
+  _name: model
+  log_keys:
+    - correct
+
+optimization:
+  max_update: 125200
+  lr: [0.0005]
+  clip_norm: 4
+
+optimizer:
+  _name: composite
+  dynamic_groups: true
+  groups:
+    default:
+      lr_float: 0.0005
+      optimizer:
+        _name: adam
+        adam_betas: [0.9,0.95]
+        weight_decay: 0.05
+      lr_scheduler:
+        _name: cosine
+        warmup_updates: 16000
+        min_lr: 1e-7
+
+
+lr_scheduler: pass_through
+
+model:
+  _name: mae_image_classification
+  mixup: 0.7
+  mixup_prob: 0.9
+  layer_decay: 0.75
+  drop_path_rate: 0.2
+
+  model_path: ???

@@ -167,7 +167,6 @@ fairseq-validate $BIN_DATA_DIR \
     --max-tokens 6144
 ```
 
-
 ## Reference
 
 If you find our work useful in your research, please consider citing our paper:
