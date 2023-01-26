@@ -79,8 +79,7 @@ class MultichannelGeneratorHubInterface(GeneratorHubInterface):
 
         inference_step_args = inference_step_args or {}
         results = []
-        for batch in tqdm(self._build_batches(tokenized_sentences, skip_invalid_size_inputs),
-                            desc = "Generating..."):
+        for batch in tqdm(self._build_batches(tokenized_sentences, skip_invalid_size_inputs)):
             batch = utils.apply_to_sample(lambda t: t.to(self.device), batch)
             translations = self.task.inference_step(
                 generator, self.models, batch, **inference_step_args

@@ -82,14 +82,17 @@ def main(args):
     # Sample from the SpeechDLM model
     print(f"Generating {len(unit_sequences)} sequences with SpeechDLM model...\n"
           f"Generation args: sampling={(not args.beam_search)}, "
+          f"sampling_topk={args.sampling_topk}, sampling_topp={args.sampling_topp}, "
           f"beam={args.beam_size}, min_len={args.min_len}, "
           f"max_len_a={args.max_len_a}, max_len_b={args.max_len_b}, "
           f"temperature={args.temperature}, dur_temperature={args.dur_temperature}, "
           f"seed={args.seed}")
     generated_units = model.sample(
             unit_sequences,
-            sampling = (not args.beam_search),
-            beam = args.beam_size,
+            sampling=(not args.beam_search),
+            sampling_topk=args.sampling_topk,
+            sampling_topp=args.sampling_topp,
+            beam=args.beam_size,
             max_len_a=args.max_len_a,
             max_len_b=args.max_len_b,
             min_len=args.min_len,
@@ -167,6 +170,11 @@ def cli_main():
     parser.add_argument("--beam-size", type=int, default=5,
                         help="beam width (used in both sampling and beam search mode) "
                         "(default: 5)")
+    parser.add_argument("--sampling-topk", type=int, default=-1,
+                        help="only sample from top-k candidates (default: -1, non applied)")
+    parser.add_argument("--sampling-topp", type=float, default=-1.0,
+                        help="only sample among the smallest set of elements whose cumulative "
+                        "probability mass exceeds p (default: -1.0, non applied)")
     parser.add_argument("--max-len-a", type=int, default=0,
                         help="generate sequences of maximum length ax + b, "
                         "where x is the source length (default: 0)")

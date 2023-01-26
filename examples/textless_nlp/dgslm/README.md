@@ -21,10 +21,10 @@ We share the pre-trained model checkpoint for the best configuration in the pape
 | Pre-trained SpeechDLM model trained on Fisher dataset |
 |-----------------------------------------------|
 |[model checkpoint](https://dl.fbaipublicfiles.com/textless_nlp/dgslm/checkpoints/speech_dlm/speech_dlm_base.pt) - [dictionary 1](https://dl.fbaipublicfiles.com/textless_nlp/dgslm/checkpoints/speech_dlm/dict.unitA.txt) - [dictionary 2](https://dl.fbaipublicfiles.com/textless_nlp/dgslm/checkpoints/speech_dlm/dict.unitB.txt)|
-here , the two dictionary files correspond to the two channels (they actually have the same contents).
+the two dictionary files correspond to the two channels, and actually have the same content.
 
 ### Sample from a trained model
-To sample from a trained SpeechDLM model :
+You can sample from a trained SpeechDLM model interactively :
 ```python
 from fairseq.models.speech_dlm import SpeechDLM
 
@@ -57,7 +57,7 @@ generated_units = speech_dlm.sample(
 # >> 'unitB': '7 499 415 177 7 7 7 7 7 7 136 136 289 289 408 32 428 95 356 141 331 439 350 350 192 331 445 202 104 104 ...'}
 ```
 
-or run the `sample_speech_dlm.py` script :
+Or using the `sample_speech_dlm.py` script :
 ```bash
 python sample_speech_dlm.py \
     --in-file $INPUT_CODE_FILE --out-file $OUTPUT_FILE \
@@ -69,7 +69,7 @@ where each line of INPUT_CODE_FILE is a dictionary with keys `'audio', 'unitA', 
 {'audio': 'file_2', 'unitA': '5 5 ... 65 65', 'unitB': '6 35 ... 8 9'}
 ...
 ```
-This code file can be created with the script `create_input_code.py` using the outputs of the [hubert fisher scripts](hubert_fisher/)  :
+This code file can be created with the script `create_input_code.py` (using the outputs of `quantize_with_kmeans.py` [here](hubert_fisher/##-encode-audio-to-discrete-units)) :
 ```bash
 python examples/textless_nlp/dgslm/vocoder_hifigan/create_input_code.py \
     $CHANNEL1_UNITS $CHANNEL2_UNITS $OUTPUT_CODE_FILE
@@ -79,19 +79,25 @@ python examples/textless_nlp/dgslm/vocoder_hifigan/create_input_code.py \
 #### 1) Data preparation
 First, you need to prepare the raw dataset. For each `split` (train, valid), you need two files corresponding to two channels (namely `unitA` and `unitB` for example) containing the units from each channel separately. Make sure that 2 files have the same number of lines and each corresponding line has the same number of units.
 
-Here is an example of `split.unitA` :
+Here is an example of `.unitA` file :
 ```
 7 376 376 133 178
 486 486 486
 486 376
 ```
-and `split.unitB` :
+and the corresponding `.unitB` file :
 ```
 7 499 415 177 7
 7 7 136
 331 445
 ```
-These two files can be obtained using the example command [here](hubert_fisher/), with the `--hide-fname` option added.
+These two files can be obtained using the example command of [hubert fisher](hubert_fisher/), with the `--hide-fname` option added.
+
+The raw dataset directory should contain the following files :
+```
+train.unitA valid.unitA
+train.unitB valid.unitB
+```
 
 Next preprocess/binarize the data with `fairseq-preprocess`, but make sure to preprocess each channel separately, and **rename** the preprocessed files under the following format `${split}.${channel}.{bin, idx}`. Each channel also needs a separate dictionary file under the name `dict.${channel}.txt` .
 
@@ -123,7 +129,7 @@ for channel in unitA unitB; do
   done
 done
 ```
-The preprocessed dataset directory should contain the following files :
+Finally, the preprocessed (bin) dataset directory should contain the following files :
 ```
 dict.unitA.txt  train.unitA.idx train.unitA.bin valid.unitA.idx valid.unitA.bin
 dict.unitB.txt  train.unitB.idx train.unitB.bin valid.unitB.idx valid.unitB.bin

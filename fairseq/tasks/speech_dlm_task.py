@@ -489,8 +489,8 @@ class SpeechDLMTask(LegacyFairseqTask):
         sampling = getattr(args, "sampling", False)
         sampling_topk = getattr(args, "sampling_topk", -1)
         sampling_topp = getattr(args, "sampling_topp", -1.0)
-        assert sampling_topk < 0 or sampling, "--sampling-topk requires --sampling"
-        assert sampling_topp < 0 or sampling, "--sampling-topp requires --sampling"
+        assert sampling_topk < 0 or sampling, "--sampling-topk requires sampling (not beam search)"
+        assert sampling_topp < 0 or sampling, "--sampling-topp requires sampling (not beam search)"
 
         if sampling:
             search_strategy = multichannel_search.ContiguousMultichannelSampling(
@@ -508,7 +508,7 @@ class SpeechDLMTask(LegacyFairseqTask):
             self.target_dictionaries,
             beam_size=getattr(args, "beam", 5),
             max_len_a=getattr(args, "max_len_a", 0),
-            max_len_b=getattr(args, "max_len_b", 200),
+            max_len_b=getattr(args, "max_len_b", 500),
             min_len=getattr(args, "min_len", 1),
             normalize_scores=(not getattr(args, "unnormalized", False)),
             len_penalty=getattr(args, "lenpen", 1),
