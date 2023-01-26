@@ -12,6 +12,7 @@ import torch
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import FairseqDataclass
+from fairseq.logging.meters import safe_round
 
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ class ModelCriterionConfig(FairseqDataclass):
         default_factory=list,
         metadata={"help": "additional output keys to log"},
     )
+    can_sum: bool = True
 
 
 @register_criterion("model", dataclass=ModelCriterionConfig)
@@ -43,10 +45,11 @@ class ModelCriterion(FairseqCriterion):
     net_output dict can be logged via the log_keys parameter.
     """
 
-    def __init__(self, task, loss_weights=None, log_keys=None):
+    def __init__(self, task, loss_weights=None, log_keys=None, can_sum=True):
         super().__init__(task)
         self.loss_weights = loss_weights
         self.log_keys = log_keys
+        self.can_sum = can_sum
 
     def forward(self, model, sample, reduce=True):
         net_output = model(**sample["net_input"])
@@ -69,7 +72,7 @@ class ModelCriterion(FairseqCriterion):
                 )
                 raise
             if coef != 0 and p is not None:
-                scaled_losses[lk] = coef * p.float()
+                scaled_losses[lk] = coef * p.float().sum()
 
         loss = sum(scaled_losses.values())
 
@@ -93,6 +96,8 @@ class ModelCriterion(FairseqCriterion):
             if lk in net_output and net_output[lk] is not None:
                 if not torch.is_tensor(net_output[lk]) or net_output[lk].numel() == 1:
                     logging_output[lk] = float(net_output[lk])
+                elif lk.startswith("_"):
+                    logging_output[lk] = net_output[lk]
                 else:
                     for i, v in enumerate(net_output[lk]):
                         logging_output[f"{lk}_{i}"] = float(v)
@@ -124,6 +129,7 @@ class ModelCriterion(FairseqCriterion):
         metrics.log_scalar("loss", loss_sum / sample_size, sample_size, round=3)
         metrics.log_scalar("ntokens", ntokens)
         metrics.log_scalar("nsentences", nsentences)
+        metrics.log_scalar("sample_size", sample_size)
 
         builtin_keys = {
             "loss",
@@ -138,18 +144,33 @@ class ModelCriterion(FairseqCriterion):
         )
 
         for k in logging_outputs[0]:
-            if k not in builtin_keys:
+            if k not in builtin_keys and not k.startswith("_"):
                 val = sum(log.get(k, 0) for log in logging_outputs)
                 if k.startswith("loss_"):
                     metrics.log_scalar(k, val / sample_size, sample_size, round=3)
                 else:
                     metrics.log_scalar(k, val / world_size, round=3)
 
-    @staticmethod
-    def logging_outputs_can_be_summed() -> bool:
+        correct = sum(log.get("correct", 0) for log in logging_outputs)
+        total = sum(log.get("count", 0) for log in logging_outputs)
+
+        if total > 0:
+            metrics.log_scalar("_correct", correct)
+            metrics.log_scalar("_total", total)
+
+            metrics.log_derived(
+                "accuracy",
+                lambda meters: safe_round(
+                    meters["_correct"].sum / meters["_total"].sum, 5
+                )
+                if meters["_total"].sum > 0
+                else float("nan"),
+            )
+
+    def logging_outputs_can_be_summed(self) -> bool:
         """
         Whether the logging outputs returned by `forward` can be summed
         across workers prior to calling `reduce_metrics`. Setting this
         to True will improves distributed training speed.
         """
-        return True
+        return self.can_sum

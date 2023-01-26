@@ -1,0 +1,25 @@
+# @package _global_
+
+hydra:
+  job:
+    config:
+      override_dirname:
+        kv_sep: '_'
+        item_sep: '/'
+        exclude_keys:
+          - run_config
+          - distributed_training.distributed_port
+  sweep:
+    dir: /fsx-wav2vec/${env:USER}/roberta_ft/${env:PREFIX}/${hydra.job.config_name}/${env:SUFFIX}
+    subdir: ${hydra.job.num}
+  launcher:
+    submitit_folder: ${hydra.sweep.dir}/submitit
+    timeout_min: 1000
+    cpus_per_task: 8
+    gpus_per_node: 1
+    tasks_per_node: 1
+    mem_gb: 0
+    nodes: 1
+    name: ${env:PREFIX}_${hydra.job.config_name}
+    partition: learnfair,wav2vec
+    max_num_timeout: 30
