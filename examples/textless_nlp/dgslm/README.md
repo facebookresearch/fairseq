@@ -69,7 +69,7 @@ where each line of INPUT_CODE_FILE is a dictionary with keys `'audio', 'unitA', 
 {'audio': 'file_2', 'unitA': '5 5 ... 65 65', 'unitB': '6 35 ... 8 9'}
 ...
 ```
-This code file can be created with the script `create_input_code.py` (using the outputs of `quantize_with_kmeans.py` [here](hubert_fisher/##-encode-audio-to-discrete-units)) :
+This code file can be created with the script `create_input_code.py` (using the outputs of `quantize_with_kmeans.py` [here](hubert_fisher/#encode-audio-to-discrete-units)) :
 ```bash
 python examples/textless_nlp/dgslm/vocoder_hifigan/create_input_code.py \
     $CHANNEL1_UNITS $CHANNEL2_UNITS $OUTPUT_CODE_FILE
@@ -91,7 +91,7 @@ and the corresponding `.unitB` file :
 7 7 136
 331 445
 ```
-These two files can be obtained using the example command of [hubert fisher](hubert_fisher/), with the `--hide-fname` option added.
+These two files can be obtained using the [example command](hubert_fisher/#encode-audio-to-discrete-units) of hubert fisher, with the `--hide-fname` option added.
 
 The raw dataset directory should contain the following files :
 ```
