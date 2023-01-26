@@ -40,7 +40,11 @@ class MultichannelGeneratorHubInterface(GeneratorHubInterface):
             model.prepare_for_inference_(cfg)
 
     def sample(
-        self, sentences: List[Dict[str, str]], beam: int = 1, verbose: bool = False, **kwargs
+        self,
+        sentences: List[Dict[str, str]],
+        beam: int = 1,
+        verbose: bool = False,
+        **kwargs
     ) -> List[str]:
         if isinstance(sentences, dict):
             return self.sample([sentences], beam=beam, verbose=verbose, **kwargs)[0]
@@ -48,12 +52,10 @@ class MultichannelGeneratorHubInterface(GeneratorHubInterface):
         batched_hypos = self.generate(tokenized_sentences, beam, verbose, **kwargs)
         return [self.decode(hypos[0]["tokens"]) for hypos in batched_hypos]
 
-
     def score(self, sentences: List[Dict[str, str]], **kwargs):
         raise NotImplementedError(
-                "MultichannelGeneratorHubInterface doesn't support score() method"
-            )
-
+            "MultichannelGeneratorHubInterface doesn't support score() method"
+        )
 
     def generate(
         self,
@@ -79,7 +81,9 @@ class MultichannelGeneratorHubInterface(GeneratorHubInterface):
 
         inference_step_args = inference_step_args or {}
         results = []
-        for batch in tqdm(self._build_batches(tokenized_sentences, skip_invalid_size_inputs)):
+        for batch in tqdm(
+            self._build_batches(tokenized_sentences, skip_invalid_size_inputs)
+        ):
             batch = utils.apply_to_sample(lambda t: t.to(self.device), batch)
             translations = self.task.inference_step(
                 generator, self.models, batch, **inference_step_args
@@ -88,7 +92,10 @@ class MultichannelGeneratorHubInterface(GeneratorHubInterface):
                 # The output of the generator is supposed to be a tensor of size (bsz x max_len x n_channels)
                 # So we need to convert it to dictionary form
                 for i in range(len(hypos)):
-                    hypos[i]["tokens"] = {channel: hypos[i]["tokens"][...,j] for j, channel in enumerate(self.channels)}
+                    hypos[i]["tokens"] = {
+                        channel: hypos[i]["tokens"][..., j]
+                        for j, channel in enumerate(self.channels)
+                    }
                 results.append((id, hypos))
 
         # sort output to match input order
@@ -100,8 +107,10 @@ class MultichannelGeneratorHubInterface(GeneratorHubInterface):
                 return getattr(gen_args, name, getattr(self.cfg, name, default))
 
             for source_tokens, target_hypotheses in zip(tokenized_sentences, outputs):
-                src_str_with_unk = {channel: self.string(source_tokens[channel], channel)
-                                        for channel in source_tokens}
+                src_str_with_unk = {
+                    channel: self.string(source_tokens[channel], channel)
+                    for channel in source_tokens
+                }
                 logger.info("S\t{}".format(src_str_with_unk))
                 for hypo in target_hypotheses:
                     hypo_str = self.decode(hypo["tokens"])
@@ -110,20 +119,24 @@ class MultichannelGeneratorHubInterface(GeneratorHubInterface):
                     pos_scores = {}
                     for c, channel in enumerate(source_tokens):
                         pos_scores[channel] = " ".join(
-                                map(
-                                    lambda x: "{:.4f}".format(x),
-                                    hypo["positional_scores"][:, c].tolist(),
-                                )
+                            map(
+                                lambda x: "{:.4f}".format(x),
+                                hypo["positional_scores"][:, c].tolist(),
                             )
+                        )
                     logger.info("P\t{}".format(pos_scores))
 
         return outputs
 
     def encode(self, sentence: Dict[str, str]) -> Dict[str, torch.LongTensor]:
-        assert isinstance(sentence, dict), \
-            "Input sentence is expected to be a dictionary over channels"
-        assert set(sentence.keys()) == set(self.channels), \
-            "Mismatch between input sentence keys and model channels ({} vs {})".format(set(sentence.keys()), set(self.channels))
+        assert isinstance(
+            sentence, dict
+        ), "Input sentence is expected to be a dictionary over channels"
+        assert set(sentence.keys()) == set(
+            self.channels
+        ), "Mismatch between input sentence keys and model channels ({} vs {})".format(
+            set(sentence.keys()), set(self.channels)
+        )
         encoded_sentence = {}
         for channel in sentence:
             sentence_channel = sentence[channel]
@@ -132,15 +145,21 @@ class MultichannelGeneratorHubInterface(GeneratorHubInterface):
             sentence_channel = self.binarize(sentence_channel, channel)
             encoded_sentence[channel] = sentence_channel
         sentence_size = encoded_sentence[self.channels[0]].size()
-        assert all(encoded_sentence[channel].size() == sentence_size for channel in encoded_sentence), \
-            "Input tensors are expected to have the same size in all channels"
+        assert all(
+            encoded_sentence[channel].size() == sentence_size
+            for channel in encoded_sentence
+        ), "Input tensors are expected to have the same size in all channels"
         return encoded_sentence
 
     def decode(self, tokens: Dict[str, torch.LongTensor]) -> Dict[str, str]:
-        assert isinstance(tokens, dict), \
-            "Input tokens are expected to be a dictionary over channels"
-        assert set(tokens.keys()) == set(self.channels), \
-            "Mismatch between input tokens keys and model channels ({} vs {})".format(set(tokens.keys()), set(self.channels))
+        assert isinstance(
+            tokens, dict
+        ), "Input tokens are expected to be a dictionary over channels"
+        assert set(tokens.keys()) == set(
+            self.channels
+        ), "Mismatch between input tokens keys and model channels ({} vs {})".format(
+            set(tokens.keys()), set(self.channels)
+        )
         decoded_sentence = {}
         for channel in tokens:
             tokens_channel = tokens[channel]
@@ -151,13 +170,15 @@ class MultichannelGeneratorHubInterface(GeneratorHubInterface):
         return decoded_sentence
 
     def binarize(self, sentence: str, channel: str) -> torch.LongTensor:
-        return self.src_dicts[channel].encode_line(sentence, add_if_not_exist=False).long()
+        return (
+            self.src_dicts[channel].encode_line(sentence, add_if_not_exist=False).long()
+        )
 
     def string(self, tokens: torch.LongTensor, channel: str) -> str:
         return self.tgt_dicts[channel].string(tokens)
 
     def _build_batches(
-        self, tokens: List[Dict[str,List[int]]], skip_invalid_size_inputs: bool
+        self, tokens: List[Dict[str, List[int]]], skip_invalid_size_inputs: bool
     ) -> Iterator[Dict[str, Any]]:
         lengths = torch.LongTensor([next(iter(d.values())).numel() for d in tokens])
         batch_iterator = self.task.get_batch_iterator(
@@ -169,5 +190,3 @@ class MultichannelGeneratorHubInterface(GeneratorHubInterface):
             disable_iterator_cache=True,
         ).next_epoch_itr(shuffle=False)
         return batch_iterator
-
-

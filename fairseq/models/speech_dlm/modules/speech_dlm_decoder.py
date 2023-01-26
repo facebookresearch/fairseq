@@ -14,15 +14,16 @@ from fairseq.modules import (
     FairseqDropout,
     LayerDropModuleList,
     LayerNorm,
-    PositionalEmbedding
+    PositionalEmbedding,
 )
 from .speech_dlm_decoder_layer import (
     CrossChannelTransformerDecoderLayer,
-    StandardTransformerDecoderLayer
+    StandardTransformerDecoderLayer,
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 from torch import Tensor
+
 
 class CrossChannelTransformerDecoder(FairseqIncrementalDecoder):
     """
@@ -98,9 +99,10 @@ class CrossChannelTransformerDecoder(FairseqIncrementalDecoder):
 
         self.cross_self_attention = getattr(args, "cross_self_attention", False)
 
-        assert 0 <= args.decoder_cross_layers <= args.decoder_layers, \
-            "The number of cross-channel attention decoder layers must be non-negative" \
+        assert 0 <= args.decoder_cross_layers <= args.decoder_layers, (
+            "The number of cross-channel attention decoder layers must be non-negative"
             f"and not exceeds the number of decoder layers (found {args.decoder_cross_layers})"
+        )
 
         if self.decoder_layerdrop > 0.0:
             self.layers = LayerDropModuleList(p=self.decoder_layerdrop)
@@ -111,7 +113,7 @@ class CrossChannelTransformerDecoder(FairseqIncrementalDecoder):
                 self.build_decoder_layer(args, no_encoder_attn)
                 if i < args.decoder_layers - args.decoder_cross_layers
                 else self.build_cross_decoder_layer(args, no_encoder_attn)
-                    for i in range(args.decoder_layers)
+                for i in range(args.decoder_layers)
             ]
         )
         self.num_layers = len(self.layers)
@@ -131,10 +133,12 @@ class CrossChannelTransformerDecoder(FairseqIncrementalDecoder):
         )
 
         self.output_projection = None
-        self.is_cross_prediction = bool(float(args.main_and_cross_weights.split(',')[1]) != 0)
-        self.n_output_projections = \
-            1 if not self.is_cross_prediction \
-            else len(self.channels)
+        self.is_cross_prediction = bool(
+            float(args.main_and_cross_weights.split(",")[1]) != 0
+        )
+        self.n_output_projections = (
+            1 if not self.is_cross_prediction else len(self.channels)
+        )
 
         if self.share_input_output_embed:
             # Output projection is a list of projections
@@ -142,35 +146,47 @@ class CrossChannelTransformerDecoder(FairseqIncrementalDecoder):
             # then roll in a cicular way.
             # For example: if the main channel has index i
             # the second proj is for channel i+1 (mod N_channels), etc.
-            self.output_projection = nn.ModuleList([nn.Linear(
-                            embed_tokens.weight.shape[1], #embed_dim
-                            embed_tokens.weight.shape[0], #n_dictionaries
-                            bias=False,
-                        )
+            self.output_projection = nn.ModuleList(
+                [
+                    nn.Linear(
+                        embed_tokens.weight.shape[1],  # embed_dim
+                        embed_tokens.weight.shape[0],  # n_dictionaries
+                        bias=False,
+                    )
                     for _ in range(self.n_output_projections)
-                ])
+                ]
+            )
             # Only share the main-channel projection
             self.output_projection[0].weight = embed_tokens.weight
             for i in range(1, self.n_output_projections):
                 nn.init.normal_(
                     self.output_projection[i].weight,
                     mean=0,
-                    std=embed_tokens.weight.shape[1] ** -0.5
+                    std=embed_tokens.weight.shape[1] ** -0.5,
                 )
         else:
-            self.output_projection = nn.ModuleList([nn.Linear(
-                            self.output_embed_dim, len(dictionary), bias=False
-                        )
+            self.output_projection = nn.ModuleList(
+                [
+                    nn.Linear(self.output_embed_dim, len(dictionary), bias=False)
                     for _ in range(self.n_output_projections)
-                ])
+                ]
+            )
             for i in range(self.n_output_projections):
                 nn.init.normal_(
-                    self.output_projection[i].weight, mean=0, std=self.output_embed_dim ** -0.5
+                    self.output_projection[i].weight,
+                    mean=0,
+                    std=self.output_embed_dim**-0.5,
                 )
-        self.output_duration_prediction = None if str(args.duration_prediction).lower() == 'false' \
-            else nn.ModuleList([
-                nn.Linear(self.output_embed_dim, 1) for _ in range(self.n_output_projections)
-            ])
+        self.output_duration_prediction = (
+            None
+            if str(args.duration_prediction).lower() == "false"
+            else nn.ModuleList(
+                [
+                    nn.Linear(self.output_embed_dim, 1)
+                    for _ in range(self.n_output_projections)
+                ]
+            )
+        )
 
     def build_decoder_layer(self, args, no_encoder_attn=False):
         layer = StandardTransformerDecoderLayer(args, no_encoder_attn)
@@ -190,7 +206,9 @@ class CrossChannelTransformerDecoder(FairseqIncrementalDecoder):
         self,
         prev_output_tokens: Dict[str, Tensor],
         encoder_out: Optional[Dict[str, List[Tensor]]] = None,
-        incremental_state: Optional[List[Dict[str, Dict[str, Optional[Tensor]]]]] = None,
+        incremental_state: Optional[
+            List[Dict[str, Dict[str, Optional[Tensor]]]]
+        ] = None,
         features_only: bool = False,
         full_context_alignment: bool = False,
         alignment_layer: Optional[int] = None,
@@ -234,7 +252,9 @@ class CrossChannelTransformerDecoder(FairseqIncrementalDecoder):
         self,
         prev_output_tokens: Dict[str, Tensor],
         encoder_out: Optional[Dict[str, List[Tensor]]],
-        incremental_state: Optional[List[Dict[str, Dict[str, Optional[Tensor]]]]] = None,
+        incremental_state: Optional[
+            List[Dict[str, Dict[str, Optional[Tensor]]]]
+        ] = None,
         full_context_alignment: bool = False,
         alignment_layer: Optional[int] = None,
         alignment_heads: Optional[int] = None,
@@ -258,7 +278,9 @@ class CrossChannelTransformerDecoder(FairseqIncrementalDecoder):
         self,
         prev_output_tokens: Dict[str, Tensor],
         encoder_out: Optional[Dict[str, List[Tensor]]],
-        incremental_state: Optional[List[Dict[str, Dict[str, Optional[Tensor]]]]] = None,
+        incremental_state: Optional[
+            List[Dict[str, Dict[str, Optional[Tensor]]]]
+        ] = None,
         full_context_alignment: bool = False,
         alignment_layer: Optional[int] = None,
         alignment_heads: Optional[int] = None,
@@ -297,8 +319,9 @@ class CrossChannelTransformerDecoder(FairseqIncrementalDecoder):
             if self.embed_positions is not None:
                 positions = self.embed_positions(
                     prev_output_tokens[channel],
-                    incremental_state=incremental_state[i] \
-                        if incremental_state is not None else None
+                    incremental_state=incremental_state[i]
+                    if incremental_state is not None
+                    else None,
                 )
 
             if incremental_state is not None:
@@ -331,12 +354,19 @@ class CrossChannelTransformerDecoder(FairseqIncrementalDecoder):
             x_list.append(x)
 
         self_attn_padding_mask: Optional[Tensor] = None
-        if self.cross_self_attention or prev_output_tokens[self.channels[0]].eq(self.padding_idx).any():
-            self_attn_padding_mask = prev_output_tokens[self.channels[0]].eq(self.padding_idx)
+        if (
+            self.cross_self_attention
+            or prev_output_tokens[self.channels[0]].eq(self.padding_idx).any()
+        ):
+            self_attn_padding_mask = prev_output_tokens[self.channels[0]].eq(
+                self.padding_idx
+            )
 
         # decoder layers
         attn: Optional[Dict[Tensor]] = None
-        inner_states: List[Optional[Dict[str, Tensor]]] = [{channel: x_list[i] for i, channel in enumerate(self.channels)}]
+        inner_states: List[Optional[Dict[str, Tensor]]] = [
+            {channel: x_list[i] for i, channel in enumerate(self.channels)}
+        ]
         for idx, layer in enumerate(self.layers):
             if incremental_state is None and not full_context_alignment:
                 self_attn_mask = self.buffered_future_mask(x_list[0])
@@ -364,9 +394,16 @@ class CrossChannelTransformerDecoder(FairseqIncrementalDecoder):
                 need_head_weights=bool((idx == alignment_layer)),
             )
 
-            inner_states.append({channel: x_list[i] for i, channel in enumerate(self.channels)})
-            if idx == alignment_layer and all(layer_attn is not None for layer_attn in layer_attn_list):
-                attn = {channel: layer_attn_list[i].float().to(x_list[0]) for i, channel in enumerate(self.channels)}
+            inner_states.append(
+                {channel: x_list[i] for i, channel in enumerate(self.channels)}
+            )
+            if idx == alignment_layer and all(
+                layer_attn is not None for layer_attn in layer_attn_list
+            ):
+                attn = {
+                    channel: layer_attn_list[i].float().to(x_list[0])
+                    for i, channel in enumerate(self.channels)
+                }
         # change back from tensor to list
         if not isinstance(x_list, list):
             x_list = list(torch.unbind(x_list))
@@ -417,33 +454,46 @@ class CrossChannelTransformerDecoder(FairseqIncrementalDecoder):
         # project back to size of vocabulary
         if self.output_duration_prediction is None:
             if self.is_cross_prediction:
-                return {channel:
-                            {
-                                pred_channel: self.output_projection[j-i](features[channel])
-                                    for j, pred_channel in enumerate(self.channels)
-                                } for i, channel in enumerate(self.channels)}
+                return {
+                    channel: {
+                        pred_channel: self.output_projection[j - i](features[channel])
+                        for j, pred_channel in enumerate(self.channels)
+                    }
+                    for i, channel in enumerate(self.channels)
+                }
             else:
-                return {channel:
-                            {
-                                channel: self.output_projection[0](features[channel])
-                                } for i, channel in enumerate(self.channels)}
+                return {
+                    channel: {channel: self.output_projection[0](features[channel])}
+                    for i, channel in enumerate(self.channels)
+                }
         else:
             if self.is_cross_prediction:
-                return {channel:
-                            {
-                                pred_channel: {
-                                        'pred_token': self.output_projection[j-i](features[channel]),
-                                        'pred_duration': self.output_duration_prediction[j-i](features[channel])}
-                                    for j, pred_channel in enumerate(self.channels)
-                                } for i, channel in enumerate(self.channels)}
+                return {
+                    channel: {
+                        pred_channel: {
+                            "pred_token": self.output_projection[j - i](
+                                features[channel]
+                            ),
+                            "pred_duration": self.output_duration_prediction[j - i](
+                                features[channel]
+                            ),
+                        }
+                        for j, pred_channel in enumerate(self.channels)
+                    }
+                    for i, channel in enumerate(self.channels)
+                }
             else:
-                return {channel:
-                            {
-                                channel: {
-                                        'pred_token': self.output_projection[0](features[channel]),
-                                        'pred_duration': self.output_duration_prediction[0](features[channel])}
-                                } for i, channel in enumerate(self.channels)}
-
+                return {
+                    channel: {
+                        channel: {
+                            "pred_token": self.output_projection[0](features[channel]),
+                            "pred_duration": self.output_duration_prediction[0](
+                                features[channel]
+                            ),
+                        }
+                    }
+                    for i, channel in enumerate(self.channels)
+                }
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""
@@ -479,21 +529,24 @@ class CrossChannelTransformerDecoder(FairseqIncrementalDecoder):
             out_dict[channel] = {}
             for pred_channel in logits_dict[channel]:
                 if isinstance(logits_dict[channel][pred_channel], dict):
-                    pred_token_logits = logits_dict[channel][pred_channel]['pred_token']
+                    pred_token_logits = logits_dict[channel][pred_channel]["pred_token"]
                 else:
                     pred_token_logits = logits_dict[channel][pred_channel]
                 if log_probs:
                     out = utils.log_softmax(
-                        pred_token_logits,
-                        dim=-1, onnx_trace=self.onnx_trace)
+                        pred_token_logits, dim=-1, onnx_trace=self.onnx_trace
+                    )
                 else:
                     out = utils.softmax(
-                        pred_token_logits,
-                        dim=-1, onnx_trace=self.onnx_trace)
+                        pred_token_logits, dim=-1, onnx_trace=self.onnx_trace
+                    )
                 if isinstance(logits_dict[channel][pred_channel], dict):
                     out_dict[channel][pred_channel] = {
-                           'pred_token': out,
-                        'pred_duration': logits_dict[channel][pred_channel]['pred_duration'].float()} # move to float32 to avoid inf loss
+                        "pred_token": out,
+                        "pred_duration": logits_dict[channel][pred_channel][
+                            "pred_duration"
+                        ].float(),
+                    }  # move to float32 to avoid inf loss
                 else:
                     out_dict[channel][pred_channel] = out
         return out_dict
@@ -512,6 +565,8 @@ class CrossChannelTransformerDecoder(FairseqIncrementalDecoder):
         for module in self.modules():
             if hasattr(module, "reorder_incremental_state"):
                 for i, incremental_state_channel in enumerate(incremental_state):
-                    result = module.reorder_incremental_state(incremental_state_channel, new_order)
+                    result = module.reorder_incremental_state(
+                        incremental_state_channel, new_order
+                    )
                     if result is not None:
                         incremental_state[i] = result

@@ -36,8 +36,8 @@ class HubertFeatureReader:
         if channel_id is not None:
             assert wav.ndim == 2, \
                 f"Expected stereo input when channel_id is given ({path})"
-            assert channel_id in [1,2], \
-                f"channel_id is expected to be in [1,2]"
+            assert channel_id in [1, 2], \
+                "channel_id is expected to be in [1, 2]"
             wav = wav[:, channel_id-1]
         if wav.ndim == 2:
             wav = wav.mean(-1)
@@ -52,7 +52,7 @@ class HubertFeatureReader:
         with torch.no_grad():
             x = torch.from_numpy(x).float()
             if self.use_cuda:
-                x= x.cuda()
+                x = x.cuda()
             if self.task.cfg.normalize:
                 x = F.layer_norm(x, x.shape)
             x = x.view(1, -1)

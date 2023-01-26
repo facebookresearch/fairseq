@@ -54,7 +54,7 @@ def main():
 
     with open(args.channel1_units_file) as funit1, \
             open(args.channel2_units_file) as funit2, \
-                open(args.output_file, 'w') as fout:
+            open(args.output_file, 'w') as fout:
         for line1, line2 in zip(funit1, funit2):
             fname1, units1 = line1.strip().split('|')
             fname2, units2 = line2.strip().split('|')

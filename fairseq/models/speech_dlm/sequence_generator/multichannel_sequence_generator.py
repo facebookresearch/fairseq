@@ -38,7 +38,7 @@ class MultichannelSequenceGenerator(nn.Module):
         symbols_to_strip_from_output=None,
         lm_model=None,
         lm_weight=1.0,
-        duration_temperature=1.0
+        duration_temperature=1.0,
     ):
         """Generate multi-channel parallel units with the SpeechDLM model
         as described in the paper: https://arxiv.org/pdf/2203.16502.pdf;
@@ -85,7 +85,7 @@ class MultichannelSequenceGenerator(nn.Module):
         # the max beam size is the dictionary size - 1, since we never select pad
         max_possible_beam_size = 1
         for i in self.vocab_sizes:
-            max_possible_beam_size *= (i - 1)
+            max_possible_beam_size *= i - 1
         self.beam_size = min(beam_size, max_possible_beam_size)
         self.max_len_a = max_len_a
         self.max_len_b = max_len_b
@@ -97,9 +97,12 @@ class MultichannelSequenceGenerator(nn.Module):
         if isinstance(temperature, (int, float)):
             temperature = {channel: temperature for channel in self.channels}
         elif isinstance(temperature, ListConfig) or isinstance(temperature, list):
-            temperature = {channel: temperature[i] for i, channel in enumerate(self.channels)}
-        assert isinstance(temperature, DictConfig) or isinstance(temperature, dict), \
-            f"temperature: expected dict, but found {type(temperature)}"
+            temperature = {
+                channel: temperature[i] for i, channel in enumerate(self.channels)
+            }
+        assert isinstance(temperature, DictConfig) or isinstance(
+            temperature, dict
+        ), f"temperature: expected dict, but found {type(temperature)}"
         self.temperature = temperature
         self.match_source_len = match_source_len
 
@@ -129,8 +132,16 @@ class MultichannelSequenceGenerator(nn.Module):
         if self.lm_model is not None:
             self.lm_model.eval()
 
-        self.duration_prediction = bool(str(getattr(models[0].decoder.args, "duration_prediction", 'false')).lower() == 'true')
-        self.delayed_duration = bool(str(getattr(models[0].decoder.args, "delayed_duration_target", 'false')).lower() == 'true')
+        self.duration_prediction = bool(
+            str(getattr(models[0].decoder.args, "duration_prediction", "false")).lower()
+            == "true"
+        )
+        self.delayed_duration = bool(
+            str(
+                getattr(models[0].decoder.args, "delayed_duration_target", "false")
+            ).lower()
+            == "true"
+        )
         self.duration_temperature = duration_temperature
 
     def cuda(self):
@@ -140,7 +151,7 @@ class MultichannelSequenceGenerator(nn.Module):
     @torch.no_grad()
     def forward(
         self,
-        sample: Dict[str, Dict[str, Tensor]], # TODO: Modify this
+        sample: Dict[str, Dict[str, Tensor]],  # TODO: Modify this
         prefix_tokens: Optional[Dict[str, Tensor]] = None,
         bos_token: Optional[int] = None,
     ):
@@ -154,7 +165,6 @@ class MultichannelSequenceGenerator(nn.Module):
                 (default: self.eos)
         """
         return self._generate(sample, prefix_tokens, bos_token=bos_token)
-
 
     @torch.no_grad()
     def generate(self, models, sample: Dict[str, Dict[str, Tensor]], **kwargs):
@@ -203,7 +213,7 @@ class MultichannelSequenceGenerator(nn.Module):
                 [
                     torch.jit.annotate(
                         List[Dict[str, Dict[str, Optional[Tensor]]]],
-                        [{} for _ in range(self.n_channels)]
+                        [{} for _ in range(self.n_channels)],
                     )
                     for i in range(self.model.models_size)
                 ],
@@ -219,11 +229,17 @@ class MultichannelSequenceGenerator(nn.Module):
         net_input = sample["net_input"]
         # Convert from dict to tensor form
         # shape of src_tokens : (bsz x src_len x n_channels)
-        src_tokens = torch.stack([net_input["src_tokens"][channel] for channel in self.channels], dim = -1)
-        prefix_tokens = torch.stack([prefix_tokens[channel] for channel in self.channels], dim = -1)
+        src_tokens = torch.stack(
+            [net_input["src_tokens"][channel] for channel in self.channels], dim=-1
+        )
+        prefix_tokens = torch.stack(
+            [prefix_tokens[channel] for channel in self.channels], dim=-1
+        )
         # length of the source text being the character length except EndOfSentence and pad
         src_lengths = (
-            (src_tokens[...,0].ne(self.eos) & src_tokens[...,0].ne(self.pad)).long().sum(dim=1)
+            (src_tokens[..., 0].ne(self.eos) & src_tokens[..., 0].ne(self.pad))
+            .long()
+            .sum(dim=1)
         )
 
         # bsz: total number of sentences in beam
@@ -264,7 +280,9 @@ class MultichannelSequenceGenerator(nn.Module):
         # initialize buffers
         # cumulative scores of hypotheses
         scores = (
-            torch.zeros(bsz * beam_size, max_len + 1, self.n_channels).to(src_tokens).float()
+            torch.zeros(bsz * beam_size, max_len + 1, self.n_channels)
+            .to(src_tokens)
+            .float()
         )  # +1 for eos; pad is never chosen for scoring
         tokens = (
             torch.zeros(bsz * beam_size, max_len + 2, self.n_channels)
@@ -316,10 +334,7 @@ class MultichannelSequenceGenerator(nn.Module):
             original_batch_idxs = torch.arange(0, bsz).type_as(tokens)
 
         if self.duration_prediction:
-            dur_counter = (
-                torch.ones(bsz * beam_size, self.n_channels)
-                .to(src_tokens)
-            )
+            dur_counter = torch.ones(bsz * beam_size, self.n_channels).to(src_tokens)
             # save the indice where the dur_counter just copied from dur_pred
             dur_counter_jump_indices = None
 
@@ -340,7 +355,10 @@ class MultichannelSequenceGenerator(nn.Module):
                     encoder_outs, reorder_state
                 )
 
-            input_tokens = {channel: tokens[:, : step + 1, i] for i, channel in enumerate(self.channels)}
+            input_tokens = {
+                channel: tokens[:, : step + 1, i]
+                for i, channel in enumerate(self.channels)
+            }
 
             lprobs_dict, avg_attn_scores = self.model.forward_decoder(
                 input_tokens,
@@ -353,55 +371,74 @@ class MultichannelSequenceGenerator(nn.Module):
             if not self.duration_prediction:
                 lprobs_list = list(lprobs_dict.values())
             else:
-                lprobs_list = [net_output['pred_token'] for net_output in lprobs_dict.values()]
+                lprobs_list = [
+                    net_output["pred_token"] for net_output in lprobs_dict.values()
+                ]
 
                 # non-positive predicted durations
-                dur_preds = torch.stack(
-                    [net_output['pred_duration']
-                        for net_output in lprobs_dict.values()]
-                        ).squeeze(-1).T
+                dur_preds = (
+                    torch.stack(
+                        [
+                            net_output["pred_duration"]
+                            for net_output in lprobs_dict.values()
+                        ]
+                    )
+                    .squeeze(-1)
+                    .T
+                )
                 dur_preds = dur_preds / self.duration_temperature
                 dur_preds = dur_preds.round().long()
                 dur_preds[dur_preds < 1] = 1
 
                 # dur_preds & dur_counter needs to be modified when there isn't an edge
                 if step > 0:
-                    non_edge_indices = (tokens[:,step,:]==tokens[:,step-1,:])
+                    non_edge_indices = tokens[:, step, :] == tokens[:, step - 1, :]
                     if self.delayed_duration:
                         dur_preds[non_edge_indices] = 1
                     else:
                         if dur_counter_jump_indices is not None:
-                            dur_counter[dur_counter_jump_indices&non_edge_indices] = 2
+                            dur_counter[dur_counter_jump_indices & non_edge_indices] = 2
 
                 # update dur_counter
                 if step > 0:
                     if self.delayed_duration:
-                        dur_counter -= ((dur_counter==1) | (tokens[:,step,:]==tokens[:,step-1,:])).int()
-                        dur_counter[dur_counter<0] = 0
+                        dur_counter -= (
+                            (dur_counter == 1)
+                            | (tokens[:, step, :] == tokens[:, step - 1, :])
+                        ).int()
+                        dur_counter[dur_counter < 0] = 0
                     else:
-                        dur_counter -= (tokens[:,step,:]==tokens[:,step-1,:]).int()
-                        dur_counter[dur_counter<1] = 1
+                        dur_counter -= (
+                            tokens[:, step, :] == tokens[:, step - 1, :]
+                        ).int()
+                        dur_counter[dur_counter < 1] = 1
 
                 # whether to copy previous token (ie. if the counter is still on)
                 # and get get the new duration
                 if self.delayed_duration:
-                    dur_counter_jump_indices = (dur_counter==0)
-                    dur_counter[dur_counter_jump_indices] = dur_preds[dur_counter_jump_indices]
+                    dur_counter_jump_indices = dur_counter == 0
+                    dur_counter[dur_counter_jump_indices] = dur_preds[
+                        dur_counter_jump_indices
+                    ]
 
                 # whether to copy previous token in this step
-                copy_prev_token = (dur_counter != 1)
+                copy_prev_token = dur_counter != 1
                 if self.delayed_duration is False:
-                    dur_counter_jump_indices = (dur_counter==1)
-                    dur_counter[dur_counter_jump_indices] = dur_preds[dur_counter_jump_indices]
+                    dur_counter_jump_indices = dur_counter == 1
+                    dur_counter[dur_counter_jump_indices] = dur_preds[
+                        dur_counter_jump_indices
+                    ]
                 # else:
-                    # dur_counter[dur_counter==0] = dur_preds[dur_counter==0] - 1
-                    # copy_prev_token = (dur_counter > 0)
+                # dur_counter[dur_counter==0] = dur_preds[dur_counter==0] - 1
+                # copy_prev_token = (dur_counter > 0)
 
             if self.lm_model is not None:
                 assert False, "Currently not supported in multichannelLM case"
 
             for i in range(self.n_channels):
-                lprobs_list[i][lprobs_list[i] != lprobs_list[i]] = torch.tensor(-math.inf).to(lprobs_list[i])
+                lprobs_list[i][lprobs_list[i] != lprobs_list[i]] = torch.tensor(
+                    -math.inf
+                ).to(lprobs_list[i])
 
                 lprobs_list[i][:, self.pad] = -math.inf  # never select pad
                 lprobs_list[i][:, self.unk] -= self.unk_penalty  # apply unk penalty
@@ -411,7 +448,9 @@ class MultichannelSequenceGenerator(nn.Module):
                     lprobs_list[i][:, : self.eos] = -math.inf
                     lprobs_list[i][:, self.eos + 1 :] = -math.inf
                 else:
-                    lprobs_list[i][:, self.eos] = -math.inf # quick fix for short generation
+                    lprobs_list[i][
+                        :, self.eos
+                    ] = -math.inf  # quick fix for short generation
 
                 # handle prefix tokens (possibly with different lengths)
                 if (
@@ -419,12 +458,24 @@ class MultichannelSequenceGenerator(nn.Module):
                     and step < prefix_tokens.size(1)
                     and step < max_len
                 ):
-                    lprobs_list[i], tokens[...,i], scores[...,i] = self._prefix_tokens(
-                        step, lprobs_list[i], scores[...,i], tokens[...,i], prefix_tokens[...,i], beam_size
+                    (
+                        lprobs_list[i],
+                        tokens[..., i],
+                        scores[..., i],
+                    ) = self._prefix_tokens(
+                        step,
+                        lprobs_list[i],
+                        scores[..., i],
+                        tokens[..., i],
+                        prefix_tokens[..., i],
+                        beam_size,
                     )
                     if self.duration_prediction:
                         # Can copy previous token if the prefix token is padding or unk (1-channel conditionned case)
-                        can_copy_mask = (prefix_tokens[:, step, i].eq(self.pad)|prefix_tokens[:, step, i].eq(self.unk)).repeat_interleave(beam_size)
+                        can_copy_mask = (
+                            prefix_tokens[:, step, i].eq(self.pad)
+                            | prefix_tokens[:, step, i].eq(self.unk)
+                        ).repeat_interleave(beam_size)
                         copy_prev_token[:, i] &= can_copy_mask
                 elif step < self.min_len:
                     # minimum length constraint (does not apply if using prefix_tokens)
@@ -433,17 +484,17 @@ class MultichannelSequenceGenerator(nn.Module):
                 if self.duration_prediction:
                     if step < max_len:
                         for j in range(copy_prev_token.size(0)):
-                            if copy_prev_token[j,i]:
+                            if copy_prev_token[j, i]:
                                 prev_token = tokens[j, step, i]
-                                lprobs_list[i][j, : prev_token] = -math.inf
+                                lprobs_list[i][j, :prev_token] = -math.inf
                                 lprobs_list[i][j, prev_token + 1 :] = -math.inf
                                 # lprobs_list[i][j, prev_token] = 0.
                                 # dur_counter[j,i] -= 1
                             # else:
                             #     prev_token = tokens[j, step, i]
-                                # if not (lprobs_list[i][j,:].ne(-math.inf).nonzero() == prev_token).all():
-                                #     lprobs_list[i][j, prev_token] = -math.inf
-                                #     dur_counter[j,i] = 0.
+                            # if not (lprobs_list[i][j,:].ne(-math.inf).nonzero() == prev_token).all():
+                            #     lprobs_list[i][j, prev_token] = -math.inf
+                            #     dur_counter[j,i] = 0.
 
             # Record attention scores, only support avg_attn_scores is a Tensor
             if avg_attn_scores is not None:
@@ -466,12 +517,17 @@ class MultichannelSequenceGenerator(nn.Module):
 
             if self.repeat_ngram_blocker is not None:
                 for i in range(self.n_channels):
-                    lprobs_list[i] = self.repeat_ngram_blocker(tokens, lprobs_list[i], bsz, beam_size, step)
+                    lprobs_list[i] = self.repeat_ngram_blocker(
+                        tokens, lprobs_list[i], bsz, beam_size, step
+                    )
 
             # Shape: (batch, cand_size)
             cand_scores, cand_indices, cand_beams = self.search.step(
                 step,
-                [lprobs_list[i].view(bsz, -1, self.vocab_sizes[i]) for i in range(self.n_channels)],
+                [
+                    lprobs_list[i].view(bsz, -1, self.vocab_sizes[i])
+                    for i in range(self.n_channels)
+                ],
                 scores.view(bsz, beam_size, -1, self.n_channels)[:, :, :step, :],
                 tokens[:, : step + 1],
                 original_batch_idxs,
@@ -497,9 +553,15 @@ class MultichannelSequenceGenerator(nn.Module):
 
             finalized_sents: List[int] = []
             if eos_bbsz_idx.numel() > 0:
-                eos_scores = torch.stack([torch.masked_select(
-                    cand_scores[:, :beam_size, i], mask=eos_mask[:, :beam_size]
-                ) for i in range(self.n_channels)], dim =-1)
+                eos_scores = torch.stack(
+                    [
+                        torch.masked_select(
+                            cand_scores[:, :beam_size, i], mask=eos_mask[:, :beam_size]
+                        )
+                        for i in range(self.n_channels)
+                    ],
+                    dim=-1,
+                )
                 finalized_sents = self.finalize_hypos(
                     step,
                     eos_bbsz_idx,
@@ -552,10 +614,16 @@ class MultichannelSequenceGenerator(nn.Module):
                 src_lengths = src_lengths[batch_idxs]
                 cands_to_ignore = cands_to_ignore[batch_idxs]
 
-                scores = scores.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, -1, self.n_channels)
-                tokens = tokens.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, -1, self.n_channels)
+                scores = scores.view(bsz, -1)[batch_idxs].view(
+                    new_bsz * beam_size, -1, self.n_channels
+                )
+                tokens = tokens.view(bsz, -1)[batch_idxs].view(
+                    new_bsz * beam_size, -1, self.n_channels
+                )
                 if self.duration_prediction:
-                    dur_counter = dur_counter.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, self.n_channels)
+                    dur_counter = dur_counter.view(bsz, -1)[batch_idxs].view(
+                        new_bsz * beam_size, self.n_channels
+                    )
                 if attn is not None:
                     attn = attn.view(bsz, -1)[batch_idxs].view(
                         new_bsz * beam_size, attn.size(1), -1
@@ -610,17 +678,17 @@ class MultichannelSequenceGenerator(nn.Module):
             )
             # Select the next token for each of them
             for i in range(self.n_channels):
-                tokens.view(bsz, beam_size, -1, self.n_channels)[:, :, step + 1, i] = torch.gather(
-                    cand_indices[..., i], dim=1, index=active_hypos
-                )
+                tokens.view(bsz, beam_size, -1, self.n_channels)[
+                    :, :, step + 1, i
+                ] = torch.gather(cand_indices[..., i], dim=1, index=active_hypos)
             if step > 0:
                 scores[:, :step] = torch.index_select(
                     scores[:, :step], dim=0, index=active_bbsz_idx
                 )
             for i in range(self.n_channels):
-                scores.view(bsz, beam_size, -1, self.n_channels)[:, :, step, i] = torch.gather(
-                    cand_scores[..., i], dim=1, index=active_hypos
-                )
+                scores.view(bsz, beam_size, -1, self.n_channels)[
+                    :, :, step, i
+                ] = torch.gather(cand_scores[..., i], dim=1, index=active_hypos)
 
             if self.duration_prediction:
                 dur_counter = torch.index_select(
@@ -673,8 +741,8 @@ class MultichannelSequenceGenerator(nn.Module):
         if len(lprobs[unk_mask]) > 0:
             # otherwise it won't assign to lprobs,
             # see: https://discuss.pytorch.org/t/how-to-mask-and-assign-a-value-to-tensor/18437
-            copy_lprobs = lprobs[unk_mask][:,:]
-            copy_lprobs[:,self.eos] = -math.inf
+            copy_lprobs = lprobs[unk_mask][:, :]
+            copy_lprobs[:, self.eos] = -math.inf
             lprobs[unk_mask] = copy_lprobs
         # if prefix includes eos, then we should make sure tokens and
         # scores are the same across all beams
@@ -927,25 +995,33 @@ class MultichannelEnsembleModel(nn.Module):
                     decoder_out_divided_by_temperature = {
                         channel_src: {
                             channel_pred: {
-                                'pred_token': decoder_out[0][channel_src][channel_pred]['pred_token'][:, -1:, :].div_(temperature[channel_pred]),
-                                'pred_duration': decoder_out[0][channel_src][channel_pred]['pred_duration'][:, -1:, :],
+                                "pred_token": decoder_out[0][channel_src][channel_pred][
+                                    "pred_token"
+                                ][:, -1:, :].div_(temperature[channel_pred]),
+                                "pred_duration": decoder_out[0][channel_src][
+                                    channel_pred
+                                ]["pred_duration"][:, -1:, :],
                             }
-                                    for channel_pred in decoder_out[0][channel_src]
+                            for channel_pred in decoder_out[0][channel_src]
                         }
-                            for channel_src in decoder_out[0]
+                        for channel_src in decoder_out[0]
                     }
                 else:
                     decoder_out_divided_by_temperature = {
                         channel_src: {
-                            channel_pred: decoder_out[0][channel_src][channel_pred][:, -1:, :].div_(temperature[channel_pred])
-                                    for channel_pred in decoder_out[0][channel_src]
+                            channel_pred: decoder_out[0][channel_src][channel_pred][
+                                :, -1:, :
+                            ].div_(temperature[channel_pred])
+                            for channel_pred in decoder_out[0][channel_src]
                         }
-                            for channel_src in decoder_out[0]
+                        for channel_src in decoder_out[0]
                     }
             else:
                 decoder_out_divided_by_temperature = {
-                    channel: decoder_out[0][channel][:, -1:, :].div_(temperature[channel])
-                        for channel in decoder_out[0]
+                    channel: decoder_out[0][channel][:, -1:, :].div_(
+                        temperature[channel]
+                    )
+                    for channel in decoder_out[0]
                 }
             decoder_out_tuple = (
                 decoder_out_divided_by_temperature,
@@ -958,12 +1034,21 @@ class MultichannelEnsembleModel(nn.Module):
 
             if self.is_speech_dlm:
                 if self.is_duration_prediction:
-                    probs = {channel: {
-                                    'pred_token': probs[channel][channel]['pred_token'][:, -1, :],
-                                    'pred_duration': probs[channel][channel]['pred_duration'][:, -1, :],
-                                } for channel in probs}
+                    probs = {
+                        channel: {
+                            "pred_token": probs[channel][channel]["pred_token"][
+                                :, -1, :
+                            ],
+                            "pred_duration": probs[channel][channel]["pred_duration"][
+                                :, -1, :
+                            ],
+                        }
+                        for channel in probs
+                    }
                 else:
-                    probs = {channel: probs[channel][channel][:, -1, :] for channel in probs}
+                    probs = {
+                        channel: probs[channel][channel][:, -1, :] for channel in probs
+                    }
             else:
                 probs = {channel: probs[channel][:, -1, :] for channel in probs}
             if self.models_size == 1:
@@ -979,9 +1064,9 @@ class MultichannelEnsembleModel(nn.Module):
 
         avg_probs = {}
         for channel in log_probs:
-            avg_probs[channel] = torch.logsumexp(torch.stack(log_probs[channel], dim=0), dim=0) - math.log(
-                self.models_size
-            )
+            avg_probs[channel] = torch.logsumexp(
+                torch.stack(log_probs[channel], dim=0), dim=0
+            ) - math.log(self.models_size)
 
         if avg_attn is not None:
             avg_attn.div_(self.models_size)

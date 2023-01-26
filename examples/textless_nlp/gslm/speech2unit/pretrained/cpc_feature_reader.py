@@ -34,8 +34,8 @@ class CpcFeatureReader:
         if channel_id is not None:
             assert wav.ndim == 2, \
                 f"Expected stereo input when channel_id is given ({path})"
-            assert channel_id in [1,2], \
-                f"channel_id is expected to be in [1,2]"
+            assert channel_id in [1, 2], \
+                "channel_id is expected to be in [1, 2]"
             wav = wav[:, channel_id-1]
         if wav.ndim == 2:
             wav = wav.mean(-1)

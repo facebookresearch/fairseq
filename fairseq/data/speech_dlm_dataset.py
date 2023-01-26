@@ -47,54 +47,71 @@ class SpeechDLMDataset(FairseqDataset):
             (default: True).
     """
 
-    def __init__(self, datasets, targets=None, max_target_durations=None, shuffle=False):
+    def __init__(
+        self, datasets, targets=None, max_target_durations=None, shuffle=False
+    ):
         super().__init__()
         if isinstance(datasets, dict):
             datasets = OrderedDict(datasets)
-        assert isinstance(datasets, OrderedDict), \
-            "datasets is expected to be an instance of Dictionary or OrderedDict"
-        assert datasets, \
-            "datasets is None"
+        assert isinstance(
+            datasets, OrderedDict
+        ), "datasets is expected to be an instance of Dictionary or OrderedDict"
+        assert datasets, "datasets is None"
         for dataset in datasets.values():
-            assert isinstance(dataset, MonolingualDataset), \
-                "Each value of datasets is expected to be an instance of MonolingualDataset"
+            assert isinstance(
+                dataset, MonolingualDataset
+            ), "Each value of datasets is expected to be an instance of MonolingualDataset"
 
         self.datasets = datasets
         self.targets = targets
         if max_target_durations is not None and max_target_durations > 0:
             self.max_target_durations = max_target_durations
         else:
-            self.max_target_durations = float('inf')
+            self.max_target_durations = float("inf")
         self.sizes = next(iter(datasets.values())).sizes
         self.vocab = next(iter(datasets.values())).vocab
         self.length = len(next(iter(datasets.values())))
         self.shuffle = shuffle
 
         for channel, dataset in datasets.items():
-            assert len(dataset) == self.length, \
-                "[{}] length mismatch ({} vs {})".format(channel, len(dataset), self.length)
-            assert (dataset.sizes == self.sizes).all(), \
-                "[{}] sizes mismatch".format(channel)
+            assert (
+                len(dataset) == self.length
+            ), "[{}] length mismatch ({} vs {})".format(
+                channel, len(dataset), self.length
+            )
+            assert (dataset.sizes == self.sizes).all(), "[{}] sizes mismatch".format(
+                channel
+            )
 
-            assert dataset.vocab.pad() == self.vocab.pad(), \
-                'pad token is expected to be the same'
-            assert dataset.vocab.eos() == self.vocab.eos(), \
-                'eos token is expected to be the same'
-            assert dataset.vocab.bos() == self.vocab.bos(), \
-                'bos token is expected to be the same'
-            assert dataset.vocab.unk() == self.vocab.unk(), \
-                'unk token is expected to be the same'
+            assert (
+                dataset.vocab.pad() == self.vocab.pad()
+            ), "pad token is expected to be the same"
+            assert (
+                dataset.vocab.eos() == self.vocab.eos()
+            ), "eos token is expected to be the same"
+            assert (
+                dataset.vocab.bos() == self.vocab.bos()
+            ), "bos token is expected to be the same"
+            assert (
+                dataset.vocab.unk() == self.vocab.unk()
+            ), "unk token is expected to be the same"
 
     def __getitem__(self, index):
-        source = OrderedDict([(key, dataset[index]['source'])
-                                for (key, dataset) in self.datasets.items()])
+        source = OrderedDict(
+            [
+                (key, dataset[index]["source"])
+                for (key, dataset) in self.datasets.items()
+            ]
+        )
 
-        item = {"id": index,
-                "source": source,
-                "target_next": None,
-                "target_edge": None,
-                "target_duration": None,
-                "target_edge_indices": None}
+        item = {
+            "id": index,
+            "source": source,
+            "target_next": None,
+            "target_edge": None,
+            "target_duration": None,
+            "target_edge_indices": None,
+        }
 
         if self.targets is not None:
             for channel in self.datasets:
@@ -111,44 +128,49 @@ class SpeechDLMDataset(FairseqDataset):
 
     def _get_target(self, index, channel):
         """Get target in one of ['next', 'edge', 'duration']
-            - 'next' is the future unit
-            - 'edge' is the edge unit
-            - 'duration' is the duration of the edge unit
+        - 'next' is the future unit
+        - 'edge' is the edge unit
+        - 'duration' is the duration of the edge unit
         """
         if self.targets is not None:
             target = {}
             pad_idx = self.vocab.pad()
             max_dur = self.max_target_durations
-            future_target = self.datasets[channel][index]['target']
-            if 'edge' in self.targets or 'duration' in self.targets:
+            future_target = self.datasets[channel][index]["target"]
+            if "edge" in self.targets or "duration" in self.targets:
                 edge_units, edge_unit_counts = torch.unique_consecutive(
-                    future_target, return_counts=True)
-                padding_end = (edge_units[-1] == pad_idx)
+                    future_target, return_counts=True
+                )
+                padding_end = edge_units[-1] == pad_idx
                 if padding_end:
                     edge_units = edge_units[:-1]
                     edge_unit_counts = edge_unit_counts[:-1]
                 edge_indices = torch.cumsum(edge_unit_counts, 0)
                 edge_indices = torch.cat([torch.tensor([0]), edge_indices[:-1]])
-                target['edge_indices'] = edge_indices
+                target["edge_indices"] = edge_indices
 
             for t in self.targets:
-                if t == 'next':
+                if t == "next":
                     target[t] = future_target
-                elif t == 'edge':
+                elif t == "edge":
                     target[t] = edge_units
-                elif t == 'duration':
+                elif t == "duration":
                     # count the remaining duration of the last edge indices in the next sentence
                     if not padding_end and index < len(self.datasets[channel]) - 1:
                         i = 0
-                        next_sentence_target = self.datasets[channel][index+1]['target']
-                        while next_sentence_target[i] == edge_units[-1] and \
-                                edge_unit_counts[-1] + i < max_dur:
+                        next_sentence_target = self.datasets[channel][index + 1][
+                            "target"
+                        ]
+                        while (
+                            next_sentence_target[i] == edge_units[-1]
+                            and edge_unit_counts[-1] + i < max_dur
+                        ):
                             i += 1
                         edge_unit_counts[-1] += i
 
                     # cut off to the maximal threshold
                     if max_dur:
-                        edge_unit_counts[edge_unit_counts>max_dur] = max_dur
+                        edge_unit_counts[edge_unit_counts > max_dur] = max_dur
 
                     target[t] = edge_unit_counts
                 else:
@@ -209,23 +231,22 @@ class SpeechDLMDataset(FairseqDataset):
                 return None
             res = OrderedDict()
             for channel in samples[0][key]:
-                if key in ['source', 'target_next']:
+                if key in ["source", "target_next"]:
                     # fill batch of shape: (batch_size, max_size)
                     res[channel] = data_utils.collate_tokens(
-                                [s[key][channel] for s in samples],
-                                pad_idx,
-                                eos_idx,
-                                left_pad=False,
-                        )
-                elif key in ['target_edge', 'target_duration']:
+                        [s[key][channel] for s in samples],
+                        pad_idx,
+                        eos_idx,
+                        left_pad=False,
+                    )
+                elif key in ["target_edge", "target_duration"]:
                     # concatenate the edge units/duration
                     res[channel] = torch.cat([s[key][channel] for s in samples])
-                elif key == 'target_edge_indices':
+                elif key == "target_edge_indices":
                     # increase the edge indices to the indices in the flatten batch
-                    res[channel] = torch.cat([
-                            s[key][channel] + i * max_size
-                            for i, s in enumerate(samples)
-                        ])
+                    res[channel] = torch.cat(
+                        [s[key][channel] + i * max_size for i, s in enumerate(samples)]
+                    )
 
             return res
 
@@ -233,23 +254,26 @@ class SpeechDLMDataset(FairseqDataset):
         tgt_next = merge("target_next")
         tgt_edge = merge("target_edge")
         tgt_duration = merge("target_duration")
-        tgt_edge_indices = merge("target_edge_indices",
-                                 max_size=next(iter(src_tokens.values())).size(-1))
+        tgt_edge_indices = merge(
+            "target_edge_indices", max_size=next(iter(src_tokens.values())).size(-1)
+        )
         return {
-                "id": torch.LongTensor([s["id"] for s in samples]),
-                "nsentences": len(samples),
-                "ntokens": sum(len(item) for s in samples for item in s["source"].values()),
-                "net_input": {
-                    "src_tokens": src_tokens,
-                    "src_lengths": torch.LongTensor([next(iter(s["source"].values())).numel() for s in samples]),
-                },
-                "target": {
-                    "next": tgt_next,
-                    "edge": tgt_edge,
-                    "duration": tgt_duration,
-                    "edge_indices": tgt_edge_indices,
-                },
-            }
+            "id": torch.LongTensor([s["id"] for s in samples]),
+            "nsentences": len(samples),
+            "ntokens": sum(len(item) for s in samples for item in s["source"].values()),
+            "net_input": {
+                "src_tokens": src_tokens,
+                "src_lengths": torch.LongTensor(
+                    [next(iter(s["source"].values())).numel() for s in samples]
+                ),
+            },
+            "target": {
+                "next": tgt_next,
+                "edge": tgt_edge,
+                "duration": tgt_duration,
+                "edge_indices": tgt_edge_indices,
+            },
+        }
 
     def num_tokens(self, index):
         """Return the number of tokens in a sample. This value is used to

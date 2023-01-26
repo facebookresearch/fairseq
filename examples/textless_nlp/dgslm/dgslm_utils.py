@@ -14,6 +14,7 @@ from fairseq.models.text_to_speech.vocoder import CodeHiFiGANVocoder
 from examples.textless_nlp.gslm.speech2unit.pretrained.hubert_feature_reader import HubertFeatureReader
 from examples.hubert.simple_kmeans.dump_km_label import ApplyKmeans
 
+
 # Hubert tokenizer
 class HubertTokenizer:
     def __init__(
@@ -41,6 +42,7 @@ class HubertTokenizer:
         ]
         return codes
 
+
 # Vocoder
 class HifiganVocoder:
     def __init__(
@@ -66,7 +68,7 @@ class HifiganVocoder:
             inp = utils.move_to_cuda(inp)
         return self.vocoder(inp, pred_dur).detach().cpu().numpy()
 
-    def codes2wav(self, codes, speaker_ids=[0,4], pred_dur=False):
+    def codes2wav(self, codes, speaker_ids=[0, 4], pred_dur=False):
         if isinstance(codes, dict):
             codes = list(codes.values())
         assert len(codes) == 2

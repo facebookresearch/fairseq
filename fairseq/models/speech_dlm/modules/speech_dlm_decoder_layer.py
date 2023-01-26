@@ -160,7 +160,9 @@ class CrossChannelTransformerDecoderLayer(nn.Module):
         x_list_tensor: List[torch.Tensor],
         encoder_out: Optional[torch.Tensor] = None,
         encoder_padding_mask: Optional[torch.Tensor] = None,
-        incremental_state: Optional[List[Dict[str, Dict[str, Optional[Tensor]]]]] = None,
+        incremental_state: Optional[
+            List[Dict[str, Dict[str, Optional[Tensor]]]]
+        ] = None,
         prev_self_attn_state: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = None,
         prev_attn_state: Optional[List[torch.Tensor]] = None,
         self_attn_mask: Optional[torch.Tensor] = None,
@@ -225,7 +227,9 @@ class CrossChannelTransformerDecoderLayer(nn.Module):
                     saved_state["prev_key_padding_mask"] = prev_self_attn_state[i][0][2]
                 assert incremental_state is not None
                 self.self_attn._set_input_buffer(incremental_state[i], saved_state)
-            _self_attn_input_buffer = self.self_attn._get_input_buffer(incremental_state[i] if incremental_state is not None else None)
+            _self_attn_input_buffer = self.self_attn._get_input_buffer(
+                incremental_state[i] if incremental_state is not None else None
+            )
             if self.cross_self_attention and not (
                 incremental_state is not None
                 and _self_attn_input_buffer is not None
@@ -234,7 +238,11 @@ class CrossChannelTransformerDecoderLayer(nn.Module):
                 if self_attn_mask_orin is not None:
                     assert encoder_out is not None
                     self_attn_mask = torch.cat(
-                        (x.new_zeros(x.size(0), encoder_out.size(0)), self_attn_mask_orin), dim=1
+                        (
+                            x.new_zeros(x.size(0), encoder_out.size(0)),
+                            self_attn_mask_orin,
+                        ),
+                        dim=1,
                     )
                 if self_attn_padding_mask_orin is not None:
                     if encoder_padding_mask is None:
@@ -256,7 +264,8 @@ class CrossChannelTransformerDecoderLayer(nn.Module):
                 value=y,
                 key_padding_mask=self_attn_padding_mask,
                 incremental_state=incremental_state[i]
-                 if incremental_state is not None else None,
+                if incremental_state is not None
+                else None,
                 need_weights=False,
                 attn_mask=self_attn_mask,
             )
@@ -279,7 +288,9 @@ class CrossChannelTransformerDecoderLayer(nn.Module):
                     if len(prev_attn_state) >= 3:
                         saved_state["prev_key_padding_mask"] = prev_attn_state[2]
                     assert incremental_state is not None
-                    self.encoder_attn._set_input_buffer(incremental_state[i], saved_state)
+                    self.encoder_attn._set_input_buffer(
+                        incremental_state[i], saved_state
+                    )
 
                 x, attn = self.encoder_attn(
                     query=x,
@@ -287,7 +298,8 @@ class CrossChannelTransformerDecoderLayer(nn.Module):
                     value=encoder_out,
                     key_padding_mask=encoder_padding_mask,
                     incremental_state=incremental_state[i]
-                     if incremental_state is not None else None,
+                    if incremental_state is not None
+                    else None,
                     static_kv=True,
                     need_weights=need_attn or (not self.training and self.need_attn),
                     need_head_weights=need_head_weights,
@@ -317,14 +329,16 @@ class CrossChannelTransformerDecoderLayer(nn.Module):
                 if len(prev_self_attn_state[i][1]) >= 3:
                     saved_state["prev_key_padding_mask"] = prev_self_attn_state[i][1][2]
                 assert incremental_state is not None
-                self.cross_channel_attn._set_input_buffer(incremental_state[i], saved_state)
+                self.cross_channel_attn._set_input_buffer(
+                    incremental_state[i], saved_state
+                )
 
             # The cross attention is computed with the concatenation of attentions from other channels
             if len(x_list) > 1:
-                x_other = torch.cat([
-                    x_list[(i+j) % len(x_list)]
-                        for j in range(1, len(x_list))
-                    ], dim=0)
+                x_other = torch.cat(
+                    [x_list[(i + j) % len(x_list)] for j in range(1, len(x_list))],
+                    dim=0,
+                )
             else:
                 # Self-attention when having only one channel
                 x_other = x_list[i]
@@ -335,7 +349,8 @@ class CrossChannelTransformerDecoderLayer(nn.Module):
                 value=x_other,
                 key_padding_mask=self_attn_padding_mask_orin,
                 incremental_state=incremental_state[i]
-                 if incremental_state is not None else None,
+                if incremental_state is not None
+                else None,
                 need_weights=False,
                 attn_mask=self_attn_mask_orin,
             )
@@ -369,7 +384,9 @@ class CrossChannelTransformerDecoderLayer(nn.Module):
             for i in range(n_channels):
                 self_and_cross_attn_state = []
                 for self_attn_module in [self.self_attn, self.cross_channel_attn]:
-                    saved_state = self_attn_module._get_input_buffer(incremental_state[i])
+                    saved_state = self_attn_module._get_input_buffer(
+                        incremental_state[i]
+                    )
                     assert saved_state is not None
                     if self_attn_padding_mask is not None:
                         self_attn_module_state = [
@@ -378,7 +395,10 @@ class CrossChannelTransformerDecoderLayer(nn.Module):
                             saved_state["prev_key_padding_mask"],
                         ]
                     else:
-                        self_attn_module_state = [saved_state["prev_key"], saved_state["prev_value"]]
+                        self_attn_module_state = [
+                            saved_state["prev_key"],
+                            saved_state["prev_value"],
+                        ]
                     self_and_cross_attn_state.append(self_attn_module_state)
                 self_and_cross_attn_state_list.append(tuple(self_and_cross_attn_state))
             return x_list_tensor, attn_list, self_and_cross_attn_state_list
@@ -386,6 +406,7 @@ class CrossChannelTransformerDecoderLayer(nn.Module):
 
     def make_generation_fast_(self, need_attn: bool = False, **kwargs):
         self.need_attn = need_attn
+
 
 # Rewrite fairseq.modules.TransformerDecoderLayer
 # to be compatible with checkpoint_activations
@@ -519,7 +540,9 @@ class StandardTransformerDecoderLayer(nn.Module):
         x_list_tensor: List[torch.Tensor],
         encoder_out: Optional[torch.Tensor] = None,
         encoder_padding_mask: Optional[torch.Tensor] = None,
-        incremental_state: Optional[List[Dict[str, Dict[str, Optional[Tensor]]]]] = None,
+        incremental_state: Optional[
+            List[Dict[str, Dict[str, Optional[Tensor]]]]
+        ] = None,
         prev_self_attn_state: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = None,
         prev_attn_state: Optional[List[torch.Tensor]] = None,
         self_attn_mask: Optional[torch.Tensor] = None,
@@ -561,7 +584,7 @@ class StandardTransformerDecoderLayer(nn.Module):
 
         x_list = []
         attn_list = []
-        for i,x in enumerate(x_list_tensor):
+        for i, x in enumerate(x_list_tensor):
             residual = x
 
             if self.normalize_before:
@@ -577,7 +600,9 @@ class StandardTransformerDecoderLayer(nn.Module):
                     saved_state["prev_key_padding_mask"] = prev_self_attn_state[2]
                 assert incremental_state is not None
                 self.self_attn._set_input_buffer(incremental_state[i], saved_state)
-            _self_attn_input_buffer = self.self_attn._get_input_buffer(incremental_state)
+            _self_attn_input_buffer = self.self_attn._get_input_buffer(
+                incremental_state
+            )
             if self.cross_self_attention and not (
                 incremental_state is not None
                 and _self_attn_input_buffer is not None
@@ -586,7 +611,8 @@ class StandardTransformerDecoderLayer(nn.Module):
                 if self_attn_mask is not None:
                     assert encoder_out is not None
                     self_attn_mask = torch.cat(
-                        (x.new_zeros(x.size(0), encoder_out.size(0)), self_attn_mask), dim=1
+                        (x.new_zeros(x.size(0), encoder_out.size(0)), self_attn_mask),
+                        dim=1,
                     )
                 if self_attn_padding_mask is not None:
                     if encoder_padding_mask is None:
@@ -608,7 +634,8 @@ class StandardTransformerDecoderLayer(nn.Module):
                 value=y,
                 key_padding_mask=self_attn_padding_mask,
                 incremental_state=incremental_state[i]
-                     if incremental_state is not None else None,
+                if incremental_state is not None
+                else None,
                 need_weights=False,
                 attn_mask=self_attn_mask,
             )
@@ -638,7 +665,8 @@ class StandardTransformerDecoderLayer(nn.Module):
                     value=encoder_out,
                     key_padding_mask=encoder_padding_mask,
                     incremental_state=incremental_state[i]
-                     if incremental_state is not None else None,
+                    if incremental_state is not None
+                    else None,
                     static_kv=True,
                     need_weights=need_attn or (not self.training and self.need_attn),
                     need_head_weights=need_head_weights,
@@ -677,7 +705,10 @@ class StandardTransformerDecoderLayer(nn.Module):
                         saved_state["prev_key_padding_mask"],
                     ]
                 else:
-                    self_attn_state = [saved_state["prev_key"], saved_state["prev_value"]]
+                    self_attn_state = [
+                        saved_state["prev_key"],
+                        saved_state["prev_value"],
+                    ]
                 self_attn_state_list.append(self_attn_state)
             return x_list_tensor, attn_list, self_attn_state_list
         return x_list_tensor, attn_list, None

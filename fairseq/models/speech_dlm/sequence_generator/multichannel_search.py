@@ -98,12 +98,14 @@ class MultichannelSearch(nn.Module):
         """
         pass
 
+
 def unravel_index(index, shape):
     out = []
     for dim in reversed(shape):
         out.append(index % dim)
         index = index // dim
     return torch.stack(tuple(reversed(out)), dim=-1)
+
 
 def topk_sum(lprobs_list, k):
     """
@@ -125,9 +127,9 @@ def topk_sum(lprobs_list, k):
     lprobs_topk_indices_list = []
     for lprobs in lprobs_list:
         k_i = min(k, lprobs.size(-1))
-        topk_values, topk_indices = torch.topk(lprobs, k = k_i)
-        ## topk_values : (batch_size x beam_size x k_i)
-        ## topk_indices : (batch_size x beam_size x k_i)
+        topk_values, topk_indices = torch.topk(lprobs, k=k_i)
+        # topk_values : (batch_size x beam_size x k_i)
+        # topk_indices : (batch_size x beam_size x k_i)
         lprobs_topk_list.append(topk_values)
         lprobs_topk_indices_list.append(topk_indices)
 
@@ -135,18 +137,19 @@ def topk_sum(lprobs_list, k):
     sum_lprobs_topk = lprobs_topk_list[0]
     for i in range(1, len(lprobs_topk_list)):
         unsqueezed_lprobs = lprobs_topk_list[i]
-        for _ in range (i):
+        for _ in range(i):
             unsqueezed_lprobs = unsqueezed_lprobs.unsqueeze(-2)
         sum_lprobs_topk = sum_lprobs_topk.unsqueeze(-1) + unsqueezed_lprobs
-    ## sum_lprobs : (batch_size x beam_size x k_1 x ... x k_n)
+    # sum_lprobs : (batch_size x beam_size x k_1 x ... x k_n)
 
     # Get the top k sums and the (transformed indices)
     topk_sum_values, topk_sum_indices = torch.topk(
-        sum_lprobs_topk.view(sum_lprobs_topk.size(0), -1), k = k)
-    ## topk_sum_values : (batch_size x k)
-    ## topk_sum_indices : (batch_size x k)
+        sum_lprobs_topk.view(sum_lprobs_topk.size(0), -1), k=k
+    )
+    # topk_sum_values : (batch_size x k)
+    # topk_sum_indices : (batch_size x k)
     topk_sum_indices = unravel_index(topk_sum_indices, tuple(sum_lprobs_topk.shape[1:]))
-    ## topk_sum_indices : (batch_size x k x n+1)
+    # topk_sum_indices : (batch_size x k x n+1)
 
     # Convert the transformed indices to the true indices
     for i_batch in range(topk_sum_indices.size(0)):
@@ -154,14 +157,17 @@ def topk_sum(lprobs_list, k):
             i_beam, *transformed_vocab_indices = topk_sum_indices[i_batch, i_cand]
             true_vocab_indices = [i_beam]
             for j, transformed_vocab_j_idx in enumerate(transformed_vocab_indices):
-                true_vocab_j_idx = lprobs_topk_indices_list[j][i_batch, i_beam, transformed_vocab_j_idx]
+                true_vocab_j_idx = lprobs_topk_indices_list[j][
+                    i_batch, i_beam, transformed_vocab_j_idx
+                ]
                 true_vocab_indices.append(true_vocab_j_idx)
             topk_sum_indices[i_batch, i_cand] = torch.tensor(true_vocab_indices)
 
-    topk_sum_beams = topk_sum_indices[:,:,0]
-    topk_sum_indices = topk_sum_indices[:,:,1:]
+    topk_sum_beams = topk_sum_indices[:, :, 0]
+    topk_sum_indices = topk_sum_indices[:, :, 1:]
 
     return topk_sum_values, topk_sum_indices, topk_sum_beams
+
 
 class MultichannelBeamSearch(MultichannelSearch):
     def __init__(self, tgt_dicts):
@@ -173,8 +179,8 @@ class MultichannelBeamSearch(MultichannelSearch):
         self,
         step: int,
         lprobs,
-        scores: Optional[Dict[str,Tensor]],
-        prev_output_tokens: Optional[Dict[str,Tensor]] = None,
+        scores: Optional[Dict[str, Tensor]],
+        prev_output_tokens: Optional[Dict[str, Tensor]] = None,
         original_batch_idxs: Optional[Tensor] = None,
     ):
         channels = list(lprobs.keys())
@@ -190,23 +196,36 @@ class MultichannelBeamSearch(MultichannelSearch):
             # make probs contain cumulative scores for each hypothesis
             assert scores is not None
             for channel in channels:
-                lprobs_list.append(lprobs[channel] + scores[channel][:, :, step - 1].unsqueeze(-1))
+                lprobs_list.append(
+                    lprobs[channel] + scores[channel][:, :, step - 1].unsqueeze(-1)
+                )
 
-        topk_sum_values, topk_sum_indices, topk_sum_beams = topk_sum(lprobs_list, k=beam_size * 2)
+        topk_sum_values, topk_sum_indices, topk_sum_beams = topk_sum(
+            lprobs_list, k=beam_size * 2
+        )
 
         beams_buf = topk_sum_beams
         scores_buf = {}
         indices_buf = {}
         for i, channel in enumerate(channels):
-            indices_buf[channel] = topk_sum_indices[:,:,i]
-            scores_buf[channel] = torch.tensor([
-                lprobs_list[i][i_batch, i_beam, i_index]
-                    for i_batch in range(bsz)
-                        for i_beam, i_index in zip(beams_buf[i_batch], indices_buf[channel][i_batch])
-                        ]).view(bsz, -1).to(lprobs_list[i].device)
+            indices_buf[channel] = topk_sum_indices[:, :, i]
+            scores_buf[channel] = (
+                torch.tensor(
+                    [
+                        lprobs_list[i][i_batch, i_beam, i_index]
+                        for i_batch in range(bsz)
+                        for i_beam, i_index in zip(
+                            beams_buf[i_batch], indices_buf[channel][i_batch]
+                        )
+                    ]
+                )
+                .view(bsz, -1)
+                .to(lprobs_list[i].device)
+            )
 
         # At this point, beams_buf and indices_buf are single-dim and contain relative indices
         return scores_buf, indices_buf, beams_buf
+
 
 class ContiguousMultichannelBeamSearch(MultichannelSearch):
     def __init__(self, tgt_dicts):
@@ -237,16 +256,27 @@ class ContiguousMultichannelBeamSearch(MultichannelSearch):
             for i in range(n_channels):
                 lprobs_list.append(lprobs[i] + scores[:, :, step - 1, i].unsqueeze(-1))
 
-        topk_sum_values, topk_sum_indices, topk_sum_beams = topk_sum(lprobs_list, k=beam_size * 2)
+        topk_sum_values, topk_sum_indices, topk_sum_beams = topk_sum(
+            lprobs_list, k=beam_size * 2
+        )
 
         beams_buf = topk_sum_beams
         indices_buf = topk_sum_indices
-        scores_buf = torch.tensor([
-            lprobs_list[i][i_batch, i_beam, i_index]
-                for i in range(len(lprobs_list))
+        scores_buf = (
+            torch.tensor(
+                [
+                    lprobs_list[i][i_batch, i_beam, i_index]
+                    for i in range(len(lprobs_list))
                     for i_batch in range(bsz)
-                        for i_beam, i_index in zip(beams_buf[i_batch], indices_buf[i_batch, :, i])
-                        ]).view(len(lprobs_list), bsz, -1).permute(1,2,0).to(lprobs_list[0].device)
+                    for i_beam, i_index in zip(
+                        beams_buf[i_batch], indices_buf[i_batch, :, i]
+                    )
+                ]
+            )
+            .view(len(lprobs_list), bsz, -1)
+            .permute(1, 2, 0)
+            .to(lprobs_list[0].device)
+        )
 
         # At this point, beams_buf and indices_buf are single-dim and contain relative indices
         return scores_buf, indices_buf, beams_buf
@@ -332,7 +362,9 @@ class ContiguousMultichannelSampling(MultichannelSearch):
                 probs_i, top_indices_i = self._sample_topp(lprobs[i])
             elif self.sampling_topk > 0:
                 # only sample from top-k candidates
-                lprobs[i], top_indices_i = lprobs[i].topk(min(self.sampling_topk, lprobs[i].size(-1)))
+                lprobs[i], top_indices_i = lprobs[i].topk(
+                    min(self.sampling_topk, lprobs[i].size(-1))
+                )
                 probs_i = lprobs[i].exp_()
             else:
                 probs_i = lprobs[i].exp_()
@@ -345,17 +377,21 @@ class ContiguousMultichannelSampling(MultichannelSearch):
         indices_buf = []
         for i in range(n_channels):
             if step == 0:
-                indices_buf.append(torch.multinomial(
-                    probs[i].view(bsz, -1),
-                    beam_size,
-                    replacement=True,
-                ).view(bsz, beam_size))
+                indices_buf.append(
+                    torch.multinomial(
+                        probs[i].view(bsz, -1),
+                        beam_size,
+                        replacement=True,
+                    ).view(bsz, beam_size)
+                )
             else:
-                indices_buf.append(torch.multinomial(
-                    probs[i].view(bsz * beam_size, -1),
-                    1,
-                    replacement=True,
-                ).view(bsz, beam_size))
+                indices_buf.append(
+                    torch.multinomial(
+                        probs[i].view(bsz * beam_size, -1),
+                        1,
+                        replacement=True,
+                    ).view(bsz, beam_size)
+                )
 
         if step == 0:
             for i in range(n_channels):
@@ -365,7 +401,9 @@ class ContiguousMultichannelSampling(MultichannelSearch):
         # gather scores
         scores_buf = []
         for i in range(n_channels):
-            scores_buf.append(torch.gather(probs[i], dim=2, index=indices_buf[i].unsqueeze(-1)))
+            scores_buf.append(
+                torch.gather(probs[i], dim=2, index=indices_buf[i].unsqueeze(-1))
+            )
             scores_buf[i] = scores_buf[i].log_().view(bsz, -1)
 
         # remap indices if using top-k or top-P sampling
@@ -386,7 +424,7 @@ class ContiguousMultichannelSampling(MultichannelSearch):
                 scores_buf[i].add_(
                     torch.gather(scores[:, :, step - 1, i], dim=1, index=beams_buf)
                 )
-        scores_buf = torch.stack(scores_buf, dim = -1)
-        indices_buf = torch.stack(indices_buf, dim = -1)
+        scores_buf = torch.stack(scores_buf, dim=-1)
+        indices_buf = torch.stack(indices_buf, dim=-1)
 
         return scores_buf, indices_buf, beams_buf

@@ -52,7 +52,9 @@ class SpeechDLMConfig(FairseqDataclass):
         default=2048, metadata={"help": "decoder embedding dimension for FFN"}
     )
     decoder_layers: int = field(default=6, metadata={"help": "num decoder layers"})
-    decoder_cross_layers: int = field(default=-1, metadata={"help": "num self cross attention decoder layers"})
+    decoder_cross_layers: int = field(
+        default=-1, metadata={"help": "num self cross attention decoder layers"}
+    )
     decoder_attention_heads: int = field(
         default=8, metadata={"help": "num decoder attention heads"}
     )
@@ -127,6 +129,7 @@ class SpeechDLM(FairseqLanguageModel):
     """Spoken Unit-based Dialogue Language Model model (SpeechDLM) as described
     in the paper: https://arxiv.org/pdf/2203.16502.pdf
     """
+
     def __init__(self, decoder):
         super().__init__(decoder)
 
@@ -148,20 +151,25 @@ class SpeechDLM(FairseqLanguageModel):
             )
 
         # Assert all dictionary to be the same
-        assert all(task.source_dictionaries[channel]==task.source_dictionary
-                    for channel in task.channels), \
-            "Source dictionaries of all channels are expected to be the same!!!"
-        assert all(task.target_dictionaries[channel]==task.target_dictionary
-                    for channel in task.channels), \
-            "Target dictionaries of all channels are expected to be the same!!!"
+        assert all(
+            task.source_dictionaries[channel] == task.source_dictionary
+            for channel in task.channels
+        ), "Source dictionaries of all channels are expected to be the same!!!"
+        assert all(
+            task.target_dictionaries[channel] == task.target_dictionary
+            for channel in task.channels
+        ), "Target dictionaries of all channels are expected to be the same!!!"
         # Build the unit embeddings
         embed_tokens = cls.build_embedding(
             args, task.source_dictionary, args.decoder_input_dim
         )
 
         decoder = CrossChannelTransformerDecoder(
-            args, task.target_dictionary, embed_tokens,
-            channels=task.channels, no_encoder_attn=True
+            args,
+            task.target_dictionary,
+            embed_tokens,
+            channels=task.channels,
+            no_encoder_attn=True,
         )
         return cls(decoder)
 
@@ -211,9 +219,7 @@ class SpeechDLM(FairseqLanguageModel):
             **kwargs,
         )
         logger.info(x["args"])
-        return MultichannelGeneratorHubInterface(
-            x["args"], x["task"], x["models"]
-            )
+        return MultichannelGeneratorHubInterface(x["args"], x["task"], x["models"])
 
     @property
     def supported_targets(self):
@@ -272,4 +278,3 @@ def speech_dlm_big(args):
     args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 4096)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 16)
     base_lm_architecture(args)
-

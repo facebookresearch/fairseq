@@ -121,7 +121,7 @@ def cli_main():
         "--results-path",
         type=str,
         default=None,
-        help="Output directory. If not set, the audios will be stored following the 'audio' field specified in the input file.",
+        help="Output directory. If not set, the audios will be stored following the 'audio' field specified in the input file",
     )
     parser.add_argument("--channel1-spk", type=int, default=0, help="Speaker of the first channel",)
     parser.add_argument("--channel2-spk", type=int, default=4, help="Speaker of the second channel",)

@@ -3,9 +3,6 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-#TODOLIST:
-# handle source_dictionary and target_dictionary when using mode generate
-
 import logging
 import os
 from dataclasses import dataclass, field
@@ -14,7 +11,7 @@ from collections import OrderedDict
 
 import numpy as np
 import torch
-from fairseq import search, utils
+from fairseq import utils
 from fairseq.data import (
     AppendTokenDataset,
     Dictionary,
@@ -51,15 +48,15 @@ class SpeechDLMConfig(FairseqDataclass):
     channels: Optional[str] = field(
         default=None,
         metadata={
-            "help": 'comma-separated list of channels to load e.g., "km,vb-A,vb-B"'
-            '(default: load all possible channels in the data path)'
+            "help": 'comma-separated list of channels to load e.g., "unitA,unitB"'
+            "(default: load all possible channels in the data path)"
         },
     )
     channel_weights: Optional[str] = field(
         default=None,
         metadata={
-            "help": 'comma-separated list of weights for different losses'
-            '(default: None, which means all losses are treated equally)'
+            "help": "comma-separated list of weights for different losses"
+            "(default: None, which means all losses are treated equally)"
         },
     )
     sample_break_mode: SAMPLE_BREAK_MODE_CHOICES = field(
@@ -81,24 +78,33 @@ class SpeechDLMConfig(FairseqDataclass):
     )
     # str type is a workaround to put **default=True** here
     next_unit_prediction: str = field(
-        default='False',
-        metadata={"help": "Perform Next Unit Prediction, expected str input ('True' or 'False')"}
+        default="False",
+        metadata={
+            "help": "Perform Next Unit Prediction, expected str input ('True' or 'False')"
+        },
     )
     edge_unit_prediction: str = field(
-        default='True',
-        metadata={"help": "Perform Edge Unit Prediction, expected str input ('True' or 'False')"})
+        default="True",
+        metadata={
+            "help": "Perform Edge Unit Prediction, expected str input ('True' or 'False')"
+        },
+    )
     duration_prediction: str = field(
-        default='True',
-        metadata={"help": "Perform Duration Prediction, expected str input ('True' or 'False')"})
+        default="True",
+        metadata={
+            "help": "Perform Duration Prediction, expected str input ('True' or 'False')"
+        },
+    )
     delayed_duration_target: str = field(
-        default='True',
+        default="True",
         metadata={
             "help": "Perform Delayed Duration Prediction, expected str input ('True' or 'False')"
             "(default: 'True')"
-        }
+        },
     )
     max_target_durations: Optional[int] = field(
-        default=256, metadata={"help": "max duration considered (cut off to this value)"}
+        default=256,
+        metadata={"help": "max duration considered (cut off to this value)"},
     )
     add_bos_token: bool = field(
         default=False, metadata={"help": "prepend beginning of sentence token (<s>)"}
@@ -168,22 +174,37 @@ class SpeechDLMTask(LegacyFairseqTask):
         if args.channel_weights is not None:
             self.channel_weights = [float(w) for w in args.channel_weights.split(",")]
         else:
-            self.channel_weights = [1. for _ in self.channels]
-        assert len(self.channel_weights) == len(self.channels), \
-            "number of channel_weights must be the same as number of channels"
+            self.channel_weights = [1.0 for _ in self.channels]
+        assert len(self.channel_weights) == len(
+            self.channels
+        ), "number of channel_weights must be the same as number of channels"
 
-        assert str(args.next_unit_prediction).lower() in ['true', 'false'], \
-            f"Expected to be a string of boolean, found {args.next_unit_prediction}"
-        assert str(args.edge_unit_prediction).lower() in ['true', 'false'], \
-            f"Expected to be a string of boolean, found {args.edge_unit_prediction}"
-        assert str(args.duration_prediction).lower() in ['true', 'false'], \
-            f"Expected to be a string of boolean, found {args.duration_prediction}"
-        assert str(args.delayed_duration_target).lower() in ['true', 'false'], \
-            f"Expected to be a string of boolean, found {args.delayed_duration_target}"
-        self.next_unit_prediction = bool(str(args.next_unit_prediction).lower() == 'true')
-        self.edge_unit_prediction = bool(str(args.edge_unit_prediction).lower() == 'true')
-        self.duration_prediction = bool(str(args.duration_prediction).lower() == 'true')
-        self.delayed_duration_target = bool(str(args.delayed_duration_target).lower() == 'true')
+        assert str(args.next_unit_prediction).lower() in [
+            "true",
+            "false",
+        ], f"Expected to be a string of boolean, found {args.next_unit_prediction}"
+        assert str(args.edge_unit_prediction).lower() in [
+            "true",
+            "false",
+        ], f"Expected to be a string of boolean, found {args.edge_unit_prediction}"
+        assert str(args.duration_prediction).lower() in [
+            "true",
+            "false",
+        ], f"Expected to be a string of boolean, found {args.duration_prediction}"
+        assert str(args.delayed_duration_target).lower() in [
+            "true",
+            "false",
+        ], f"Expected to be a string of boolean, found {args.delayed_duration_target}"
+        self.next_unit_prediction = bool(
+            str(args.next_unit_prediction).lower() == "true"
+        )
+        self.edge_unit_prediction = bool(
+            str(args.edge_unit_prediction).lower() == "true"
+        )
+        self.duration_prediction = bool(str(args.duration_prediction).lower() == "true")
+        self.delayed_duration_target = bool(
+            str(args.delayed_duration_target).lower() == "true"
+        )
 
         self.max_target_durations = args.max_target_durations
 
@@ -202,7 +223,7 @@ class SpeechDLMTask(LegacyFairseqTask):
             sorted_channels = sorted(
                 name[5:-4]
                 for name in os.listdir(data_path)
-                if name[:5] == 'dict.' and name[-4:] == '.txt'
+                if name[:5] == "dict." and name[-4:] == ".txt"
             )
         else:
             sorted_channels = sorted(args.channels.split(","))
@@ -211,7 +232,9 @@ class SpeechDLMTask(LegacyFairseqTask):
         dicts = OrderedDict()
         output_dicts = OrderedDict()
         for channel in sorted_channels:
-            dictionary = Dictionary.load(os.path.join(data_path, "dict.{}.txt".format(channel)))
+            dictionary = Dictionary.load(
+                os.path.join(data_path, "dict.{}.txt".format(channel))
+            )
             logger.info("[{}] dictionary: {} types".format(channel, len(dictionary)))
             output_dictionary = dictionary
             if args.output_dictionary_size >= 0:
@@ -237,11 +260,11 @@ class SpeechDLMTask(LegacyFairseqTask):
         dicts, output_dicts = cls.setup_dictionary(args, **kwargs)
 
         targets = []
-        if str(getattr(args, "next_unit_prediction", 'false')).lower() == 'true':
+        if str(getattr(args, "next_unit_prediction", "false")).lower() == "true":
             targets.append("next")
-        if str(getattr(args, "edge_unit_prediction", 'false')).lower() == 'true':
+        if str(getattr(args, "edge_unit_prediction", "false")).lower() == "true":
             targets.append("edge")
-        if str(getattr(args, "duration_prediction", 'false')).lower() == 'true':
+        if str(getattr(args, "duration_prediction", "false")).lower() == "true":
             targets.append("duration")
         if len(targets) == 0:
             # standard language modeling
@@ -253,9 +276,7 @@ class SpeechDLMTask(LegacyFairseqTask):
         model = super().build_model(args)
         for target in self.targets:
             if target not in model.supported_targets:
-                raise ValueError(
-                    "Unsupported SpeechDLM target: {}".format(target)
-                )
+                raise ValueError("Unsupported SpeechDLM target: {}".format(target))
         return model
 
     def load_dataset(
@@ -273,15 +294,12 @@ class SpeechDLMTask(LegacyFairseqTask):
 
         channel_datasets = {}
         for channel in self.channels:
-            split_path = os.path.join(data_path, split+"."+channel)
+            split_path = os.path.join(data_path, split + "." + channel)
             dictionary = self.dicts[channel]
             output_dictionary = self.output_dicts[channel]
 
             dataset = data_utils.load_indexed_dataset(
-                split_path,
-                dictionary,
-                self.args.dataset_impl,
-                combine=combine
+                split_path, dictionary, self.args.dataset_impl, combine=combine
             )
 
             if dataset is None:
@@ -328,7 +346,8 @@ class SpeechDLMTask(LegacyFairseqTask):
             datasets=channel_datasets,
             targets=self.targets,
             max_target_durations=self.max_target_durations,
-            shuffle=True)
+            shuffle=True,
+        )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, **kwargs):
         """
@@ -359,7 +378,9 @@ class SpeechDLMTask(LegacyFairseqTask):
                     else self.source_dictionaries[channel].eos()
                 ),
             )
-            tgt_dataset = AppendTokenDataset(dataset, token=self.source_dictionaries[channel].pad())
+            tgt_dataset = AppendTokenDataset(
+                dataset, token=self.source_dictionaries[channel].pad()
+            )
 
             src_datasets[channel] = src_dataset
             tgt_datasets[channel] = tgt_dataset
@@ -368,22 +389,36 @@ class SpeechDLMTask(LegacyFairseqTask):
             {
                 "id": IdDataset(),
                 "net_input": {
-                    "src_tokens": OrderedDict([
-                        (channel, PadDataset(
+                    "src_tokens": OrderedDict(
+                        [
+                            (
+                                channel,
+                                PadDataset(
                                     src_datasets[channel],
                                     pad_idx=self.source_dictionaries[channel].pad(),
                                     left_pad=False,
-                                )) for channel in src_datasets
-                    ]),
-                    "src_lengths": NumelDataset(next(iter(src_datasets.values())), reduce=False),
+                                ),
+                            )
+                            for channel in src_datasets
+                        ]
+                    ),
+                    "src_lengths": NumelDataset(
+                        next(iter(src_datasets.values())), reduce=False
+                    ),
                 },
-                "target": OrderedDict([
-                    (channel, PadDataset(
+                "target": OrderedDict(
+                    [
+                        (
+                            channel,
+                            PadDataset(
                                 tgt_datasets[channel],
                                 pad_idx=self.source_dictionaries[channel].pad(),
-                                left_pad=False
-                            )) for channel in tgt_datasets
-                ]),
+                                left_pad=False,
+                            ),
+                        )
+                        for channel in tgt_datasets
+                    ]
+                ),
             },
             sizes=[np.array(src_lengths)],
         )
@@ -408,7 +443,9 @@ class SpeechDLMTask(LegacyFairseqTask):
                 prefix_tokens = {}
                 for channel in sample["net_input"]["src_tokens"]:
                     if sample["net_input"]["src_tokens"][channel].nelement():
-                        prefix_tokens_channel = sample["net_input"]["src_tokens"][channel]
+                        prefix_tokens_channel = sample["net_input"]["src_tokens"][
+                            channel
+                        ]
                         if prefix_tokens_channel[:, 0].eq(bos_token).all():
                             prefix_tokens_channel = prefix_tokens_channel[:, 1:]
                         prefix_tokens[channel] = prefix_tokens_channel
@@ -476,21 +513,23 @@ class SpeechDLMTask(LegacyFairseqTask):
         multichannel language model."""
         return self.output_dicts
 
-    def build_generator(
-        self, models, args, extra_gen_cls_kwargs=None
-    ):
+    def build_generator(self, models, args, extra_gen_cls_kwargs=None):
 
         from fairseq.models.speech_dlm.sequence_generator import (
             multichannel_search,
-            MultichannelSequenceGenerator
+            MultichannelSequenceGenerator,
         )
 
         # Choose search strategy. Defaults to Beam Search.
         sampling = getattr(args, "sampling", False)
         sampling_topk = getattr(args, "sampling_topk", -1)
         sampling_topp = getattr(args, "sampling_topp", -1.0)
-        assert sampling_topk < 0 or sampling, "--sampling-topk requires sampling (not beam search)"
-        assert sampling_topp < 0 or sampling, "--sampling-topp requires sampling (not beam search)"
+        assert (
+            sampling_topk < 0 or sampling
+        ), "--sampling-topk requires sampling (not beam search)"
+        assert (
+            sampling_topp < 0 or sampling
+        ), "--sampling-topp requires sampling (not beam search)"
 
         if sampling:
             search_strategy = multichannel_search.ContiguousMultichannelSampling(
@@ -517,6 +556,6 @@ class SpeechDLMTask(LegacyFairseqTask):
             match_source_len=getattr(args, "match_source_len", False),
             no_repeat_ngram_size=getattr(args, "no_repeat_ngram_size", 0),
             search_strategy=search_strategy,
-            duration_temperature=getattr(args, 'duration_temperature', 1.0),
+            duration_temperature=getattr(args, "duration_temperature", 1.0),
             **extra_gen_cls_kwargs,
         )
