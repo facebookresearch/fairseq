@@ -18,15 +18,25 @@ class CpcFeatureReader:
         norm_features=False,
         sample_rate=16000,
         max_chunk=64000,
+        use_cuda=True,
     ):
-        self.model = load_cpc_model(checkpoint_path, layer).eval().cuda()
+        self.model = load_cpc_model(checkpoint_path, layer).eval()
         self.sample_rate = sample_rate
         self.max_chunk = max_chunk
         self.norm_features = norm_features
         self.use_encoder_layer = use_encoder_layer
+        self.use_cuda = use_cuda
+        if self.use_cuda:
+            self.model.cuda()
 
-    def read_audio(self, path, ref_len=None):
+    def read_audio(self, path, ref_len=None, channel_id=None):
         wav, sr = sf.read(path)
+        if channel_id is not None:
+            assert wav.ndim == 2, \
+                f"Expected stereo input when channel_id is given ({path})"
+            assert channel_id in [1, 2], \
+                "channel_id is expected to be in [1, 2]"
+            wav = wav[:, channel_id-1]
         if wav.ndim == 2:
             wav = wav.mean(-1)
         assert wav.ndim == 1, wav.ndim
@@ -35,11 +45,13 @@ class CpcFeatureReader:
             print(f"ref {ref_len} != read {len(wav)} ({path})")
         return wav
 
-    def get_feats(self, file_path, ref_len=None):
-        x = self.read_audio(file_path, ref_len)
+    def get_feats(self, file_path, ref_len=None, channel_id=None):
+        x = self.read_audio(file_path, ref_len, channel_id)
         # Inspired from CPC_audio feature_loader.py
         with torch.no_grad():
-            x = torch.from_numpy(x).float().cuda()
+            x = torch.from_numpy(x).float()
+            if self.use_cuda:
+                x = x.cuda()
             x = x.view(1, 1, -1)
             size = x.size(2)
             feat = []
