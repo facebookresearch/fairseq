@@ -75,6 +75,16 @@ def get_parser():
     parser.add_argument(
         "--extension", type=str, default=".flac", help="Features file path"
     )
+    parser.add_argument(
+        "--channel_id",
+        choices=['1', '2'],
+        help="The audio channel to extract the units in case of stereo file.",
+        default=None,
+    )
+    parser.add_argument(
+        "--hide-fname", action='store_true',
+        help="Hide file names in the output file."
+    )
     return parser
 
 
@@ -92,6 +102,7 @@ def main(args, logger):
             manifest_path=args.manifest_path,
             sample_pct=1.0,
             flatten=False,
+            channel_id=int(args.channel_id) if args.channel_id else None,
         )
         logger.info(
             f"Features extracted for {len(features_batch)} utterances.\n"
@@ -113,8 +124,13 @@ def main(args, logger):
         for i, feats in enumerate(features_batch):
             pred = kmeans_model.predict(feats)
             pred_str = " ".join(str(p) for p in pred)
-            base_fname = os.path.basename(fnames[i]).rstrip(args.extension)
-            fout.write(f"{base_fname}|{pred_str}\n")
+            base_fname = os.path.basename(fnames[i]).rstrip('.'+args.extension.lstrip('.'))
+            if args.channel_id is not None:
+                base_fname = base_fname+f'-channel{args.channel_id}'
+            if not args.hide_fname:
+                fout.write(f"{base_fname}|{pred_str}\n")
+            else:
+                fout.write(f"{pred_str}\n")
 
 
 if __name__ == "__main__":
