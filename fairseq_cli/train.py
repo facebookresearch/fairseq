@@ -329,7 +329,7 @@ def main(cfg: FairseqConfig) -> None:
         PathManager.async_close()
         logger.info("ioPath PathManager finished waiting.")
 
-    if cfg.task._name == "translation_with_fisher_information":
+    if cfg.task._name == "translation_capture_fisher_information":
         task.normalize_precision_matrices()
         task.save_precision_matrices()
 
