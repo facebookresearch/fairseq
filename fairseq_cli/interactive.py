@@ -257,6 +257,7 @@ def main(cfg: FairseqConfig):
                     "src_lengths": src_lengths,
                 },
             }
+            
             translate_start_time = time.time()
             translations = task.inference_step(
                 generator, models, sample, constraints=constraints
