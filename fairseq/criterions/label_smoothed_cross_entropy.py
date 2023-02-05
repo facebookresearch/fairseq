@@ -27,6 +27,10 @@ class LabelSmoothedCrossEntropyCriterionConfig(FairseqDataclass):
         default=0,
         metadata={"help": "Ignore first N tokens"},
     )
+    softmax_tempering: float = field(
+        default=1,
+        metadata={"help": "Softmax Tempering coefficient"}
+    )
     sentence_avg: bool = II("optimization.sentence_avg")
 
 
@@ -59,12 +63,14 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         task,
         sentence_avg,
         label_smoothing,
+        softmax_tempering=1,
         ignore_prefix_size=0,
         report_accuracy=False,
     ):
         super().__init__(task)
         self.sentence_avg = sentence_avg
         self.eps = label_smoothing
+        self.softmax_tempering = softmax_tempering
         self.ignore_prefix_size = ignore_prefix_size
         self.report_accuracy = report_accuracy
 
@@ -94,6 +100,11 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         return loss, sample_size, logging_output
 
     def get_lprobs_and_target(self, model, net_output, sample):
+        if self.softmax_tempering > 1:
+            logits, encoder_dict = net_output
+            logits /= self.softmax_tempering
+            net_output = (logits, encoder_dict)
+            
         lprobs = model.get_normalized_probs(net_output, log_probs=True)
         target = model.get_targets(sample, net_output)
         if self.ignore_prefix_size > 0:
