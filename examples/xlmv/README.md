@@ -32,7 +32,7 @@ Vietnamese | Welsh | Western Frisian | Xhosa | Yiddish
 
 Model | Description | #params | vocab size | Download
 ---|---|---|---|---
-`xlmv.base` | XLM-R style model with a 1M token vocabulary | 826M | 250k | [xlmv.base.tar.gz](https://dl.fbaipublicfiles.com/fairseq/xlmv/xlmv.base.tar.gz)
+`xlmv.base` | XLM-R style model with a 1M token vocabulary | 826M | 902K | [xlmv.base.tar.gz](https://dl.fbaipublicfiles.com/fairseq/xlmv/xlmv.base.tar.gz)
 
 ## Results
 
