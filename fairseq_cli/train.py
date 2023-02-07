@@ -14,7 +14,7 @@ import os
 import sys
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-torch.autograd.set_detect_anomaly(True)
+torch.autograd.set_detect_anomaly(False)
 
 # We need to setup root logger before importing any fairseq libraries.
 logging.basicConfig(
