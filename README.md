@@ -104,6 +104,9 @@ NLLB project includes release of evaluation datasets like Flores-200, NLLB-MD an
 [NLLB-MD](https://github.com/facebookresearch/flores/tree/main/nllb_md) |
 [Toxicity-200](https://github.com/facebookresearch/flores/tree/main/toxicity)
 
+## Human Evaluations - (XSTS)
+(Added Jan - 2023) We open-source additional guidelines and training materials for conducting the human evaluation protocol we utilized (XSTS), as well the calibration utilized and the entire human translation evaluation set for NLLB-200 and it's published baseline [here](examples/nllb/human_XSTS_eval/README.md).
+
 ## Citation
 If you use NLLB in your work or any models/datasets/artifacts published in NLLB, please cite :
 
