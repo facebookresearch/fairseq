@@ -51,18 +51,21 @@ def infer_init_method(cfg: DistributedTrainingConfig, force_distributed=False):
     if cfg.pipeline_model_parallel:
         num_pipeline_devices, num_pipelines_per_node = _pipeline_parallel_pre_init(cfg)
 
+    if cfg.distributed_world_size == 1:
+        return
     if all(
         key in os.environ
         for key in ["MASTER_ADDR", "MASTER_PORT", "WORLD_SIZE", "RANK"]
     ):
         # support torch.distributed.launch
         _infer_torch_distributed_launch_init(cfg)
-    elif cfg.distributed_port > 0:
+    else:
         # we can determine the init method automatically for Slurm
-        _infer_slurm_init(cfg, num_pipelines_per_node)
-    elif cfg.distributed_world_size > 1 or force_distributed:
-        # fallback for single node with multiple GPUs
-        _infer_single_node_init(cfg)
+        if not _infer_slurm_init(cfg, num_pipelines_per_node):
+            if cfg.distributed_port <= 0 or force_distributed:
+                _infer_single_node_init(cfg)
+        elif cfg.distributed_port <= 0:
+            _infer_single_node_init(cfg)
 
     if cfg.pipeline_model_parallel:
         _pipeline_parallel_post_init(cfg, num_pipeline_devices, num_pipelines_per_node)
@@ -71,12 +74,21 @@ def infer_init_method(cfg: DistributedTrainingConfig, force_distributed=False):
             cfg.distributed_num_procs = min(
                 torch.cuda.device_count(), cfg.distributed_world_size
             )
+    else:
+        if cfg.device_id > 0:
+            logger.info(
+                "setting CUDA device={} on rank {}".format(
+                    cfg.device_id, cfg.distributed_rank
+                )
+            )
+            torch.cuda.set_device(cfg.device_id)
 
 
 def _infer_torch_distributed_launch_init(cfg: DistributedTrainingConfig):
     cfg.distributed_init_method = "env://"
     cfg.distributed_world_size = int(os.environ["WORLD_SIZE"])
     cfg.distributed_rank = int(os.environ["RANK"])
+    cfg.device_id = cfg.distributed_rank % torch.cuda.device_count()
     # processes are created by torch.distributed.launch
     cfg.distributed_no_spawn = True
 
@@ -127,22 +139,44 @@ def _infer_slurm_init(cfg: DistributedTrainingConfig, num_pipelines_per_node):
                 # number of pipelines across all nodes.
                 cfg.distributed_world_size = nnodes * num_pipelines_per_node
             else:
-                assert ntasks_per_node == cfg.distributed_world_size // nnodes
+                assert (
+                    ntasks_per_node == cfg.distributed_world_size // nnodes
+                ), f"{ntasks_per_node}, {cfg.distributed_world_size}, {nnodes}"
                 cfg.distributed_no_spawn = True
                 cfg.distributed_rank = int(os.environ.get("SLURM_PROCID"))
                 cfg.device_id = int(os.environ.get("SLURM_LOCALID"))
+            logger.info(f"Rank {cfg.distributed_rank}, device_id: {cfg.device_id}")
+            return True
         except subprocess.CalledProcessError as e:  # scontrol failed
             raise e
         except FileNotFoundError:  # Slurm is not installed
             pass
+
+    return False
 
 
 def _infer_single_node_init(cfg: DistributedTrainingConfig):
     assert (
         cfg.distributed_world_size <= torch.cuda.device_count()
     ), f"world size is {cfg.distributed_world_size} but have {torch.cuda.device_count()} available devices"
-    port = random.randint(10000, 20000)
-    cfg.distributed_init_method = "tcp://localhost:{port}".format(port=port)
+
+    if cfg.distributed_port <= 0:
+        jobid = os.environ.get("SLURM_JOB_ID")
+        task_id = os.environ.get("SLURM_ARRAY_TASK_ID")
+
+        if jobid is not None:
+            if task_id is not None:
+                jobid += str(task_id)
+            jobid = int(jobid)
+            rng = random.Random(jobid)
+            port = rng.randint(10000, 60000)
+        else:
+            port = random.randint(10000, 60000)
+
+        cfg.distributed_port = port
+    cfg.distributed_init_method = "tcp://localhost:{port}".format(
+        port=cfg.distributed_port
+    )
 
 
 def _pipeline_parallel_pre_init(cfg: DistributedTrainingConfig):
@@ -341,6 +375,7 @@ def call_main(cfg: FairseqConfig, main, **kwargs):
             start_rank = cfg.distributed_training.distributed_rank
             cfg.distributed_training.distributed_rank = None  # assign automatically
             kwargs["start_rank"] = start_rank
+
             torch.multiprocessing.spawn(
                 fn=distributed_main,
                 args=(main, cfg, kwargs),

@@ -1,0 +1,104 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: json
+  log_interval: 200
+  user_dir: /private/home/abaevski/fairseq-py/examples/data2vec
+#  tensorboard_logdir: tb
+
+checkpoint:
+  save_interval: 100
+  save_interval_updates: 1000
+  keep_interval_updates: 1
+  no_epoch_checkpoints: true
+  best_checkpoint_metric: wer
+
+task:
+  _name: audio_finetuning
+  data: /checkpoint/abaevski/data/speech/libri/1h/wav2vec/raw
+  labels: ltr
+  normalize: true
+
+dataset:
+  num_workers: 6
+  max_tokens: 640000
+  skip_invalid_size_inputs_valid_test: true
+  validate_after_updates: 10000
+  validate_interval: 100
+  valid_subset: dev_other
+  required_batch_size_multiple: 8
+
+distributed_training:
+  ddp_backend: legacy_ddp
+  distributed_world_size: 8
+
+criterion:
+  _name: ctc
+  zero_infinity: true
+  post_process: letter
+  wer_kenlm_model: /checkpoint/abaevski/data/speech/libri/4-gram.bin
+  wer_lexicon: /checkpoint/abaevski/data/speech/libri/10h/wav2vec/raw/lexicon_ltr2.lst
+  wer_lm_weight: 2.0
+  wer_word_score: -1.0
+
+optimization:
+  max_update: 13000
+  lr: [6e-5]
+#  lr: [1e-5]  # base 10h wer
+  sentence_avg: true
+  update_freq: [5]  # base 10h we -> 2/4
+
+optimizer:
+  _name: adam
+  adam_betas: (0.9,0.98)
+  adam_eps: 1e-08
+
+lr_scheduler:
+  _name: tri_stage
+  phase_ratio: [0.1, 0.4, 0.5]
+  final_lr_scale: 0.05
+
+model:
+  _name: wav2vec_ctc
+  w2v_path: ???
+  apply_mask: true
+  mask_prob: 0.65
+  mask_length: 10
+#  mask_prob: 0.65  # base 10h wer
+  mask_channel_prob: 0.25
+#  mask_channel_prob: 0.6  # base 10h wer
+  mask_channel_length: 64
+  layerdrop: 0.1
+#  layerdrop: 0.05  # base 10h wer
+  activation_dropout: 0.1
+  feature_grad_mult: 0.0
+  freeze_finetune_updates: 10000
+  dropout: 0
+  final_dropout: 0
+  attention_dropout: 0
+
+hydra:
+  job:
+    config:
+      override_dirname:
+        kv_sep: ':'
+        item_sep: '__'
+        exclude_keys:
+          - run_config
+          - distributed_training.distributed_port
+  sweep:
+    dir: /checkpoint/${env:USER}/${env:PREFIX}/${hydra.job.config_name}/${hydra.job.override_dirname}
+    subdir: ${hydra.job.num}
+  launcher:
+    submitit_folder: ${hydra.sweep.dir}
+    timeout_min: 3000
+    cpus_per_task: 10
+    gpus_per_node: 4
+    tasks_per_node: 4
+    mem_gb: 250
+    nodes: 1
+    name: ${env:PREFIX}_${hydra.job.config_name}
+    partition: devlab,learnlab,learnfair,scavenge
+    constraint: volta32gb
+    max_num_timeout: 30

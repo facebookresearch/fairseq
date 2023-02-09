@@ -126,13 +126,18 @@ class TestCombineValidSubsets(unittest.TestCase):
         return [x.message for x in logs.records]
 
     def test_combined(self):
-        flags = ["--combine-valid-subsets"]
+        flags = ["--combine-valid-subsets", "--required-batch-size-multiple", "1"]
         logs = self._train(flags)
         assert any(["valid1" in x for x in logs])  # loaded 100 examples from valid1
         assert not any(["valid1_ppl" in x for x in logs])  # metrics are combined
 
     def test_subsets(self):
-        flags = ["--valid-subset", "valid,valid1"]
+        flags = [
+            "--valid-subset",
+            "valid,valid1",
+            "--required-batch-size-multiple",
+            "1",
+        ]
         logs = self._train(flags)
         assert any(["valid_ppl" in x for x in logs])  # loaded 100 examples from valid1
         assert any(["valid1_ppl" in x for x in logs])  # metrics are combined
