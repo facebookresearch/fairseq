@@ -277,6 +277,18 @@ def transformer_wmt_en_de_big_t2t(args):
     transformer_vaswani_wmt_en_de_big(args)
 
 
+@register_model_architecture("transformer", "transformer_small")
+def transformer_small(args):
+    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 256)
+    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 1024)
+    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 4)
+    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", False)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 256)
+    args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 1024)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 4)
+    base_architecture(args)
+
+
 @register_model_architecture("transformer", "transformer_1x_v0")
 def transformer_base_V0(args):
     args.layernorm_embedding = getattr(args, "layernorm_embedding", True)
@@ -318,19 +330,8 @@ def transformer_huge(args):
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 16)
     base_architecture(args)
 
-
-@register_model_architecture("transformer", "transformer_4x_v0")
-def transformer_huge_V0(args):
-    args.layernorm_embedding = getattr(args, "layernorm_embedding", True)
-    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", True)
-    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", True)
-    args.activation_fn = getattr(args, "activation_fn", "gelu")
-    transformer_huge(args)
-
-
 @register_model_architecture("transformer", "transformer_4x_rs_v0")
-# pre-defining certain parameters for regularly used models
-def transformer_huge_rs(args):
+def transformer_huge_rs_V0(args):
     args.encoder_recurrent_stacking = getattr(args, "encoder_recurrent_stacking", 6)
     args.decoder_recurrent_stacking = getattr(args, "decoder_recurrent_stacking", 6)
     args.layernorm_embedding = getattr(args, "layernorm_embedding", True)
@@ -338,3 +339,14 @@ def transformer_huge_rs(args):
     args.encoder_normalize_before = getattr(args, "encoder_normalize_before", True)
     args.activation_fn = getattr(args, "activation_fn", "gelu")
     transformer_huge(args)
+
+@register_model_architecture("transformer", "transformer_9x")
+def transformer_xlarge(args):
+    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 2048)
+    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 8192)
+    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 16)
+    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", False)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 2048)
+    args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 8192)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 16)
+    base_architecture(args)
