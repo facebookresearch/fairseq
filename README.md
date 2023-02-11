@@ -20,7 +20,10 @@ modeling and other text generation tasks.
 
 This is a modified version of Fairseq which specializes in performing Knowledge Distillation of Transformers and other seq2seq models. 
 
-**UPDATE**: Support of basic Bottleneck adapters in Transformer has been added.
+**UPDATE 1**: Support of basic Bottleneck adapters in Transformer has been added.
+
+**UPDATE 2**: Default autograd anamoly detection has been disabled during training. This mitigates the issue of ```fp16``` gradient issues and gives a ```3x``` speedup.
+
 
 # Requirements and Installation
 
