@@ -330,14 +330,10 @@ def transformer_huge(args):
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 16)
     base_architecture(args)
 
-@register_model_architecture("transformer", "transformer_4x_rs_v0")
-def transformer_huge_rs_V0(args):
+@register_model_architecture("transformer", "transformer_4x_rs")
+def transformer_huge_rs(args):
     args.encoder_recurrent_stacking = getattr(args, "encoder_recurrent_stacking", 6)
     args.decoder_recurrent_stacking = getattr(args, "decoder_recurrent_stacking", 6)
-    args.layernorm_embedding = getattr(args, "layernorm_embedding", True)
-    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", True)
-    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", True)
-    args.activation_fn = getattr(args, "activation_fn", "gelu")
     transformer_huge(args)
 
 @register_model_architecture("transformer", "transformer_9x")
@@ -350,3 +346,9 @@ def transformer_xlarge(args):
     args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 8192)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 16)
     base_architecture(args)
+
+@register_model_architecture("transformer", "transformer_9x_rs")
+def transformer_xlarge_rs(args):
+    args.encoder_recurrent_stacking = getattr(args, "encoder_recurrent_stacking", 6)
+    args.decoder_recurrent_stacking = getattr(args, "decoder_recurrent_stacking", 6)
+    transformer_xlarge(args)
