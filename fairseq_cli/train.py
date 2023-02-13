@@ -14,9 +14,6 @@ import os
 import sys
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-# Disabling default anomaly detection mitigates the issue of fp16 crashes and gives a 3x speed up.
-torch.autograd.set_detect_anomaly(False)
-
 # We need to setup root logger before importing any fairseq libraries.
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
