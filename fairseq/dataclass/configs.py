@@ -1128,11 +1128,6 @@ class InteractiveConfig(FairseqDataclass):
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
-    encoder_states_path: Optional[str] = field(
-        default=None,
-        metadata={"help": "path to save encoder states for further analysis (optional and experimental)"},
-    )
-
 
 @dataclass
 class EMAConfig(FairseqDataclass):
