@@ -14,7 +14,7 @@ from sklearn.metrics import f1_score
 from sklearn.metrics import matthews_corrcoef as _matthews_corrcoef
 from scipy.stats import pearsonr, spearmanr
 
-from fairseq import metrics
+from fairseq.logging import metrics
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import FairseqDataclass
 from fairseq.logging.meters import safe_round

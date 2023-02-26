@@ -12,7 +12,7 @@ import os
 import numpy as np
 import torch
 
-from fairseq import metrics
+from fairseq.logging import metrics
 from fairseq.data import (
     ConcatDataset,
     ConcatSentencesDataset,
