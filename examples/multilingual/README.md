@@ -49,7 +49,7 @@ fairseq-train $path_2_data \
 ```
 
 ## Finetuning
-We can also finetune multilingual models from a monolingual pretrained models, e.g. [mMBART](https://github.com/pytorch/fairseq/tree/main/examples/mbart).
+We can also finetune multilingual models from a monolingual pretrained models, e.g. [mBART](https://github.com/pytorch/fairseq/tree/main/examples/mbart).
 ```bash
 lang_pairs=<language pairs to be trained, e.g. "en-cs,cs-en">
 path_2_data=<set to data path>
@@ -136,7 +136,7 @@ fairseq-generate $path_2_data \
   --task translation_multi_simple_epoch \
   --gen-subset test \
   --source-lang $source_lang \
-  --target-lang $target_lang
+  --target-lang $target_lang \
   --sacrebleu --remove-bpe 'sentencepiece'\
   --batch-size 32 \
   --encoder-langtok "src" \
