@@ -7,7 +7,7 @@ import torch
 from dataclasses import dataclass, field
 
 import torch.nn.functional as F
-from fairseq import metrics
+from fairseq.logging import metrics
 from fairseq.tasks import FairseqTask
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import FairseqDataclass

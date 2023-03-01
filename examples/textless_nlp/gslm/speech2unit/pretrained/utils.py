@@ -39,7 +39,7 @@ def get_feature_reader(feature_type):
 
 
 def get_feature_iterator(
-    feature_type, checkpoint_path, layer, manifest_path, sample_pct
+    feature_type, checkpoint_path, layer, manifest_path, sample_pct, channel_id
 ):
     feature_reader_cls = get_feature_reader(feature_type)
     with open(manifest_path, "r") as fp:
@@ -61,14 +61,14 @@ def get_feature_iterator(
 
         def iterate():
             for file_path in file_path_list:
-                feats = reader.get_feats(file_path)
+                feats = reader.get_feats(file_path, channel_id=channel_id)
                 yield feats.cpu().numpy()
 
     return iterate, num_files
 
 
 def get_features(
-    feature_type, checkpoint_path, layer, manifest_path, sample_pct, flatten
+    feature_type, checkpoint_path, layer, manifest_path, sample_pct, flatten, channel_id
 ):
     generator, num_files = get_feature_iterator(
         feature_type=feature_type,
@@ -76,6 +76,7 @@ def get_features(
         layer=layer,
         manifest_path=manifest_path,
         sample_pct=sample_pct,
+        channel_id=channel_id
     )
     iterator = generator()
 

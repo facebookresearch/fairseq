@@ -10,6 +10,8 @@ hydra:
   sweep:
     dir: /checkpoint/${env:USER}/${env:PREFIX}/${common_eval.results_path}
     subdir: ${dataset.gen_subset}
+common:
+    user_dir: /private/home/abaevski/fairseq-py/examples/data2vec
 common_eval:
   results_path: null
   path: null

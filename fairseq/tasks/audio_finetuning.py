@@ -100,6 +100,7 @@ class AudioFinetuningConfig(AudioPretrainingConfig):
             "adds 'prev_output_tokens' to input and appends eos to target"
         },
     )
+    rebuild_batches: bool = True
 
 
 @register_task("audio_finetuning", dataclass=AudioFinetuningConfig)

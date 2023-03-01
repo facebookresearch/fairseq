@@ -139,6 +139,36 @@ class SumMeter(Meter):
         return val
 
 
+class ConcatTensorMeter(Meter):
+    """Concatenates tensors"""
+
+    def __init__(self, dim=0):
+        super().__init__()
+        self.reset()
+        self.dim = dim
+
+    def reset(self):
+        self.tensor = None
+
+    def update(self, val):
+        if self.tensor is None:
+            self.tensor = val
+        else:
+            self.tensor = torch.cat([self.tensor, val], dim=self.dim)
+
+    def state_dict(self):
+        return {
+            "tensor": self.tensor,
+        }
+
+    def load_state_dict(self, state_dict):
+        self.tensor = state_dict["tensor"]
+
+    @property
+    def smoothed_value(self) -> float:
+        return []  # return a dummy value
+
+
 class TimeMeter(Meter):
     """Computes the average occurrence of some event per second"""
 

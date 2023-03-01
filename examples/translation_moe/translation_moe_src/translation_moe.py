@@ -7,7 +7,8 @@ from dataclasses import dataclass, field
 import torch
 from omegaconf import II
 
-from fairseq import metrics, utils
+from fairseq import utils
+from fairseq.logging import metrics
 from fairseq.dataclass import ChoiceEnum
 from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationConfig, TranslationTask

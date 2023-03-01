@@ -5,7 +5,8 @@ import logging
 import math
 from dataclasses import dataclass, field
 
-from fairseq import metrics, utils
+from fairseq import utils
+from fairseq.logging import metrics
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.criterions.ctc import CtcCriterion, CtcCriterionConfig
 from fairseq.criterions.label_smoothed_cross_entropy import (
