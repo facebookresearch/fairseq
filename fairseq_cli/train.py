@@ -144,14 +144,14 @@ def main(cfg: FairseqConfig) -> None:
         logging.info("adapters detected in encoder/decoder")
         if finetune_encoder_adapter:
             logging.info(
-                "{0} adapters in the encoder will be finetuned. Make sure {0} data is only being fed to the encoder for the training.".format(
+                "\'{0}\' adapters in the encoder will be finetuned. Make sure \'{0}\' data is only being fed to the encoder for the training.".format(
                     cfg.model.encoder_finetune_adapter
                 )
             )
             logging.info("All parameters expect those of the adapters will be frozen during training")
         if finetune_decoder_adapter:
             logging.info(
-                "{0} adapters in the decoder will be finetuned. Make sure {0} data is only being fed to the decoder for the training.".format(
+                "\'{0}\' adapters in the decoder will be finetuned. Make sure \'{0}\' data is only being fed to the decoder for the training.".format(
                     cfg.model.decoder_finetune_adapter
                 )
             )
