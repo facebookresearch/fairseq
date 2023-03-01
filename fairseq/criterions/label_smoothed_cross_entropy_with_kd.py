@@ -12,6 +12,8 @@ import torch.nn.functional as F
 from fairseq import metrics, utils
 from fairseq.criterions import register_criterion
 
+from collections import defaultdict 
+
 from fairseq.criterions.label_smoothed_cross_entropy import (
     LabelSmoothedCrossEntropyCriterion,
     LabelSmoothedCrossEntropyCriterionConfig,
@@ -37,10 +39,6 @@ class KDLabelSmoothedCrossEntropyCriterionConfig(LabelSmoothedCrossEntropyCriter
         default=0,
         metadata={"help": "weightage for KD loss, 0 means pure training without KD"}
     )
-    beta: Optional[float] = field(
-        default=0,
-        metadata={"help": "weightage for cosine similarity loss"}
-    )
     use_adaptive_kd_rates: bool = field(
         default=False,
         metadata={"help": "whether to use adaptive distil rate, i.e. different distil rates for different languages"}
@@ -48,10 +46,6 @@ class KDLabelSmoothedCrossEntropyCriterionConfig(LabelSmoothedCrossEntropyCriter
     kd_queue_sampling_temp: Optional[float] = field(
         default=None,
         metadata={"help": "temperature value for generating distil rates"}
-    )
-    use_encoder_cosine_similarity_loss: bool = field(
-        default=False,
-        metadata={"help": "add encoder cosine similarity loss while performing kd"}
     )
 
 
@@ -69,10 +63,8 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
         kd_queue_size,
         kd_temp=1,
         alpha=0.5,
-        beta=0,
         use_adaptive_kd_rates=False,
         kd_queue_sampling_temp=1.5,
-        use_encoder_cosine_similarity_loss=False,
         ignore_prefix_size=0,
         report_accuracy=False,
     ):
@@ -92,14 +84,13 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
         self.kd_temp = kd_temp
         self.kd_rate = kd_rate
         self.alpha = alpha
-        self.beta = beta
         self.kd_queue_size = kd_queue_size
         self.num_languages = len(self.task.src_lang_ids)
         self.use_adaptive_kd_rates = use_adaptive_kd_rates
         self.kd_queue_sampling_temp = kd_queue_sampling_temp
-        self.use_encoder_cosine_similarity_loss = use_encoder_cosine_similarity_loss
+        self.kd_lang_wise_count = defaultdict(int)
 
-        if self.kd_strategy == "global_multi_level":
+        if self.kd_strategy == "global_language_wise":
             self.queue = {}
             for id in self.task.src_lang_ids:
                 self.queue[id] = torch.cuda.FloatTensor([])
@@ -107,13 +98,13 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
             self.queue = torch.cuda.FloatTensor([])
 
     
-    def get_lang_kd_rates(self, indices, T=1):
+    def get_lang_kd_rates(self):
         if self.use_adaptive_kd_rates:
-            lens = torch.cuda.FloatTensor([len(v) for v in indices.values()])
-            lens_prob = F.softmax(1/(lens*T), dim=-1).tolist()
-            return lens_prob
+            lens = torch.cuda.FloatTensor(self.kd_lang_wise_count.values())
+            lens_prob = torch.pow(lens/lens.sum(), 1/self.kd_queue_sampling_temp)
+            return lens_prob.tolist()
         else:
-            return [self.kd_rate] * len(indices)
+            return [self.kd_rate] * len(self.kd_lang_wise_count)
 
 
     def get_lang_ids(self, tokens):
@@ -164,7 +155,8 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
             model, 
             net_output, 
             sample, 
-            teacher_output=teacher_output)
+            teacher_output=teacher_output
+        )
 
         sample_size = (
             sample["target"].size(0) if self.sentence_avg else sample["ntokens"]
@@ -176,9 +168,7 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
             'nsentences': sample['target'].size(0),
             'sample_size': sample_size,
             'kd_loss': extra['kd_loss'].data if extra.get('kd_loss', None) is not None else 0,
-            'cos_sim_loss': extra['cos_sim_loss'].data if extra.get('cos_sim_loss', None) is not None else 0,
-            'nll_loss_student': extra['nll_loss_student'].data if extra.get('nll_loss_student', None) is not None else loss.data,
-            'nll_loss_teacher': extra['nll_loss_teacher'].data if extra.get('nll_loss_teacher', None) is not None else 0
+            'nll_loss': extra['nll_loss'].data if extra.get('nll_loss', None) is not None else loss.data,
         }
         
         if self.report_accuracy:
@@ -188,31 +178,10 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
         return loss, sample_size, logging_output
 
 
-    def encoder_cosine_similarity_loss(self, teacher_encoder_output, student_encoder_output):
-        enc_pad_mask = teacher_encoder_output["encoder_padding_mask"][0].view(-1)
-
-        h_s = student_encoder_output["encoder_out"][0]
-        h_t = teacher_encoder_output["encoder_out"][0]
-
-        assert h_s.size(-1) == h_t.size(-1), f"student ({h_s.size(-1)}) and teacher ({h_t.size(-1)}) model are of different dimensions"
-
-        h_t = h_t.contiguous().view(-1, h_t.size(-1))
-        h_s = h_s.contiguous().view(-1, h_s.size(-1))
-
-        return F.cosine_embedding_loss(
-            h_s, h_t,
-            torch.ones(
-                h_s.size(0), 
-                device="cuda"
-            ),
-            reduction='none'
-        ).masked_fill_(enc_pad_mask, 0).sum()
-
-
     def compute_loss(self, model, net_output, sample, teacher_output=None):
         lprobs, target = self.get_lprobs_and_target(model, net_output, sample)
         pad_mask = target.eq(self.padding_idx).view(-1)
-        extra = dict()
+        extra = {}
 
         # get student logits
         student_logits = net_output[0]
@@ -234,28 +203,8 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
             ignore_index=self.padding_idx
         )
 
-        if teacher_lprobs is not None:
-            # compute preliminary lprobs, loss, nll_loss of teacher_model
-            teacher_lprobs = teacher_lprobs.view(-1, teacher_lprobs.size(-1))
-            _, nll_loss_teacher = label_smoothed_nll_loss(
-                teacher_lprobs, 
-                target, 
-                self.eps, 
-                reduce=False,
-                ignore_index=self.padding_idx
-            )
-
         nll_loss = nll_loss.view(-1)
-        nll_loss_teacher = nll_loss_teacher.view(-1)
         golden_loss = golden_loss.view(-1)
-
-        if self.use_encoder_cosine_similarity_loss:
-            # get the student and teacher encoder representations
-            teacher_encoder_output = sample.get("teacher_encoder_output", None)
-            student_encoder_output = model.get_encoder_output()
-            extra['cos_sim_loss'] = self.encoder_cosine_similarity_loss(
-                teacher_encoder_output, student_encoder_output
-            )
 
         kd_loss = F.cross_entropy(
             student_logits_T,
@@ -265,11 +214,8 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
 
         if self.kd_strategy == 'word_and_seq_level':
             extra['kd_loss'] = kd_loss.sum()
-            extra['nll_loss_student'] = nll_loss.sum()
-            extra['nll_loss_teacher'] = nll_loss_teacher.sum()
-            loss = (1 - self.alpha - self.beta) * golden_loss.sum() + \
-                   self.alpha * (self.kd_temp ** 2) * extra['kd_loss'] + \
-                   self.beta * extra.get('cos_sim_loss', 0)
+            extra['nll_loss'] = nll_loss.sum()
+            loss = (1 - self.alpha) * golden_loss.sum() + self.alpha * (self.kd_temp ** 2) * extra['kd_loss']
 
         elif self.kd_strategy == 'batch_level':
             loss_gate = nll_loss.topk(
@@ -281,11 +227,8 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
             )[0][-1]
             KD_mask = nll_loss >= loss_gate
             extra['kd_loss'] = kd_loss[KD_mask].sum()
-            extra['nll_loss_student'] = nll_loss.sum()
-            extra['nll_loss_teacher'] = nll_loss_teacher.sum()
-            loss = (1 - self.alpha - self.beta) * golden_loss.sum() + \
-                   self.alpha * (self.kd_temp ** 2) * extra['kd_loss'] + \
-                   self.beta * extra.get('cos_sim_loss', 0)
+            extra['nll_loss'] = nll_loss.sum()
+            loss = (1 - self.alpha) * golden_loss.sum() + self.alpha * (self.kd_temp ** 2) * extra['kd_loss']
             
         elif self.kd_strategy == 'global_level':
             self.push_to_FIFO_queue(nll_loss)
@@ -298,41 +241,43 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
             )[0][-1]
             KD_mask = nll_loss >= loss_gate # B * T
             extra['kd_loss'] = kd_loss[KD_mask].sum()
-            extra['nll_loss_student'] = nll_loss.sum()
-            extra['nll_loss_teacher'] = nll_loss_teacher.sum()
-            loss = (1 - self.alpha - self.beta) * golden_loss.sum() + \
-                   self.alpha * (self.kd_temp ** 2) * extra['kd_loss'] + \
-                   self.beta * extra.get('cos_sim_loss', 0)
+            extra['nll_loss'] = nll_loss.sum()
+            loss = (1 - self.alpha) * golden_loss.sum() + self.alpha * (self.kd_temp ** 2) * extra['kd_loss']
 
-        elif self.kd_strategy == "global_multi_level":
-            indices, total_kd_loss = dict(), 0
+        elif self.kd_strategy == "global_language_wise":
+            indices, kd_loss_ = defaultdict(list), 0
+            nll_loss_langwise, kd_loss_langwise = {}, {}
             inp_tokens = sample["net_input"]["src_tokens"]
-            for idx, val in enumerate(self.get_lang_ids(inp_tokens)):
-                indices.setdefault(val, []).append(idx)
-            nll_loss = nll_loss.view(inp_tokens.size(0), -1)
-            for key, val in indices.items():
-                nll_loss_lang = nll_loss.index_select(0, torch.cuda.LongTensor(val)).view(-1)
-                self.push_to_lang_FIFO_queue(key, nll_loss_lang)
-            kd_rates = self.get_lang_kd_rates(indices, self.kd_queue_sampling_temp)
+
+            for idx, lang_id in enumerate(self.get_lang_ids(inp_tokens)):
+                indices[lang_id].append(idx)
+                self.kd_lang_wise_count[lang_id] += 1
+
+            # nll_loss = nll_loss.view(inp_tokens.size(0), -1)
+
+            for lang_id, idx in indices.items():
+                idx = torch.cuda.LongTensor(idx)
+                nll_loss_lang = nll_loss.index_select(0, idx).view(-1)
+                kd_loss_lang = kd_loss.index_select(0, idx).view(-1)
+                nll_loss_langwise[lang_id] = nll_loss_lang
+                kd_loss_langwise[lang_id] = kd_loss_lang
+                self.push_to_lang_FIFO_queue(lang_id, nll_loss_lang)
+            kd_rates = self.get_lang_kd_rates()
             
-            for idx, kd_rate in zip(indices.keys(), kd_rates):
-                loss_gate = self.queue[idx].topk(
+            for (lang_id, kd_rate) in zip(indices.keys(), kd_rates):
+                loss_gate = self.queue[lang_id].topk(
                     math.ceil(
-                        self.queue[idx].size(0) * kd_rate
+                        self.queue[lang_id].size(0) * kd_rate
                     ), 
                     dim=0, 
                     largest=True
                 )[0][-1]
-                KD_mask = nll_loss_lang >= loss_gate
-                KD_indices = KD_mask.nonzero().view(-1)
-                total_kd_loss += kd_loss.gather(0, KD_indices).sum()
+                KD_mask = nll_loss_langwise[lang_id] >= loss_gate
+                kd_loss_ += kd_loss_langwise[lang_id][KD_mask].sum()
 
-            extra['kd_loss'] = total_kd_loss
-            extra['nll_loss_student'] = nll_loss.sum()
-            extra['nll_loss_teacher'] = nll_loss_teacher.sum()
-            loss = (1 - self.alpha - self.beta) * golden_loss.sum() + \
-                   self.alpha * (self.kd_temp ** 2) * extra['kd_loss'] + \
-                   self.beta * extra.get('cos_sim_loss', 0)
+            extra['kd_loss'] = kd_loss_
+            extra['nll_loss'] = nll_loss.sum()
+            loss = (1 - self.alpha) * golden_loss.sum() + self.alpha * (self.kd_temp ** 2) * extra['kd_loss']
 
         else:
             raise ValueError("unknown strategy or parameter mismatch")
@@ -344,12 +289,10 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
         """Aggregate logging outputs from data parallel training."""
         # sum metrics
         loss = sum(log.get('loss', 0) for log in logging_outputs)
-        nll_loss_student = sum(log.get('nll_loss_student', 0) for log in logging_outputs)
+        nll_loss = sum(log.get('nll_loss', 0) for log in logging_outputs)
         ntokens = sum(log.get('ntokens', 0) for log in logging_outputs)
         sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
-        nll_loss_teacher = sum(log.get('nll_loss_teacher', 0) for log in logging_outputs)
         kd_loss = sum(log.get('kd_loss', 0) for log in logging_outputs)
-        cos_sim_loss = sum(log.get('cos_sim_loss', 0) for log in logging_outputs)
         # log metrics
         metrics.log_scalar(
             'loss', 
@@ -359,22 +302,12 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
         )
         metrics.log_scalar(
             'nll_loss', 
-            nll_loss_student / ntokens / math.log(2), 
-            ntokens, 
-            round=3)
-        metrics.log_scalar(
-            'nll_loss_teacher', 
-            nll_loss_teacher / ntokens / math.log(2), 
+            nll_loss / ntokens / math.log(2), 
             ntokens, 
             round=3)
         metrics.log_scalar(
             'kd_loss', 
             kd_loss / ntokens / math.log(2), 
-            ntokens, 
-            round=3)
-        metrics.log_scalar(
-            'cos_sim_loss', 
-            cos_sim_loss / ntokens,
             ntokens, 
             round=3)
         metrics.log_derived(
@@ -396,13 +329,3 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
                 if meters["total"].sum > 0
                 else float("nan"),
             )
-
-
-    # @staticmethod
-    # def logging_outputs_can_be_summed() -> bool:
-    #     """
-    #     Whether the logging outputs returned by `forward` can be summed
-    #     across workers prior to calling `reduce_metrics`. Setting this
-    #     to True will improves distributed training speed.
-    #     """
-    #     return True
