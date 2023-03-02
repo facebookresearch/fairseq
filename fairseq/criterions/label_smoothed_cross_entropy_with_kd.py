@@ -192,8 +192,8 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
         # get teacher probs and lprobs
         teacher_logits = teacher_output[0]
         teacher_logits = teacher_logits.view(-1, teacher_logits.size(-1))
-        teacher_probs_T = F.softmax(teacher_logits/self.kd_temp, dim=-1)
-        teacher_lprobs = F.log_softmax(teacher_logits, dim=-1)
+        teacher_logits_T = teacher_logits/self.kd_temp
+        teacher_probs_T = F.softmax(teacher_logits, dim=-1)
 
         # compute preliminary loss and nll_loss of student_model
         golden_loss, nll_loss = label_smoothed_nll_loss(
@@ -276,6 +276,7 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
 
             extra['kd_loss'] = kd_loss_
             extra['nll_loss'] = nll_loss.sum()
+            
             loss = (1 - self.alpha) * golden_loss.sum() + self.alpha * (self.kd_temp ** 2) * extra['kd_loss']
 
         else:
