@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+import numpy as np
 from dataclasses import dataclass, field
 
 import torch
@@ -100,9 +101,9 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
     
     def get_lang_kd_rates(self):
         if self.use_adaptive_kd_rates:
-            lens = torch.cuda.FloatTensor(self.kd_lang_wise_count.values())
-            lens_prob = torch.pow(lens/lens.sum(), 1/self.kd_queue_sampling_temp)
-            return lens_prob.tolist()
+            lens = np.array(list(self.kd_lang_wise_count.values()))
+            lens_prob = np.power(lens/lens.sum(), 1/self.kd_queue_sampling_temp)
+            return lens_prob
         else:
             return [self.kd_rate] * len(self.kd_lang_wise_count)
 
@@ -252,8 +253,6 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
             for idx, lang_id in enumerate(self.get_lang_ids(inp_tokens)):
                 indices[lang_id].append(idx)
                 self.kd_lang_wise_count[lang_id] += 1
-
-            # nll_loss = nll_loss.view(inp_tokens.size(0), -1)
 
             for lang_id, idx in indices.items():
                 idx = torch.cuda.LongTensor(idx)
