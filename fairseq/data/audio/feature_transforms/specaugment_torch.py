@@ -138,7 +138,7 @@ def spec_augment(
 
 class SpecAugmentTransform(torch.nn.Module):
     """
-    Data augmentation for spectrogram (audio)
+    SpecAugment (https://arxiv.org/abs/1904.08779)
     Args
         warp_axis: Axis where the warp takes place (0->freq, 1->time)
         warp_param: Boundaries where warp takes place (W, N - W), (W in paper)
