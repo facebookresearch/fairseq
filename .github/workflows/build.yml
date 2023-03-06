@@ -14,15 +14,15 @@ jobs:
       max-parallel: 4
       matrix:
         platform: [ubuntu-latest, macos-latest]
-        python-version: [3.8, 3.9]
+        python-version: [3.8, 3.9, 3.10]
 
     runs-on: ${{ matrix.platform }}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
 

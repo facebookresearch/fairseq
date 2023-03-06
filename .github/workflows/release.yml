@@ -14,10 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout-repo-content
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: setup-python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: 3.8
 
@@ -76,7 +76,7 @@ jobs:
           ref: ${{ needs.get_next_version.outputs.branch_name }}
 
       - name: Install Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.8'
 
@@ -89,7 +89,7 @@ jobs:
           python3 -m pip install setuptools wheel twine torch
           python3 setup.py sdist
  
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           path: dist/*.tar.gz
 
@@ -107,7 +107,7 @@ jobs:
           ref: ${{ needs.get_next_version.outputs.branch_name }}
 
       - name: Install Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.8'
 
@@ -131,7 +131,7 @@ jobs:
           CIBW_ENVIRONMENT: "PIP_ONLY_BINARY=numpy"
           CIBW_SKIP: "*musllinux*"
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           path: dist
 
@@ -140,7 +140,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build_wheels, create_sdist, get_next_version]
     steps:
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         with:
           name: artifact
           path: dist
