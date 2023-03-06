@@ -11,7 +11,8 @@ from dataclasses import dataclass, field
 import torch
 import torch.nn.functional as F
 
-from fairseq import metrics, utils
+from fairseq import utils
+from fairseq.logging import metrics
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import FairseqDataclass
 from fairseq.data.data_utils import lengths_to_mask
