@@ -52,6 +52,9 @@ install_linux_dep: &install_linux_dep
           echo "Installing torch==$PYTORCH_VERSION and torchvision==$TORCHVISION_VERSION from $PYTORCH_INDEX"
           pip install -v --progress-bar off torch==$PYTORCH_VERSION torchvision==$TORCHVISION_VERSION -f $PYTORCH_INDEX
         fi
+        python -c 'import torch; print("PyTorch Version:", torch.__version__)'
+        python -c 'import torchvision; print("TorchVision Version:", torchvision.__version__)'
+        python -c 'import torch; print("CUDA:", torch.cuda.is_available())'
 
 install_repo: &install_repo
   - run:

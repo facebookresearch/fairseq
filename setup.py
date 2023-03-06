@@ -11,8 +11,8 @@ import sys
 from setuptools import Extension, find_packages, setup
 from torch.utils import cpp_extension
 
-if sys.version_info < (3, 6):
-    sys.exit("Sorry, Python >= 3.6 is required for fairseq.")
+if sys.version_info < (3, 8):
+    sys.exit("Sorry, Python >= 3.8 is required for fairseq.")
 
 
 def write_version_py():
@@ -169,9 +169,9 @@ def do_setup(package_data):
         classifiers=[
             "Intended Audience :: Science/Research",
             "License :: OSI Approved :: MIT License",
-            "Programming Language :: Python :: 3.6",
-            "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: 3.8",
+            "Programming Language :: Python :: 3.9",
+            "Programming Language :: Python :: 3.10",
             "Topic :: Scientific/Engineering :: Artificial Intelligence",
         ],
         long_description=readme,
@@ -179,9 +179,9 @@ def do_setup(package_data):
         install_requires=[
             "cffi",
             "cython",
-            "hydra-core>=1.0.7,<1.1",
+            "hydra-core>=1.2.0,<1.3.2",
             "omegaconf<2.1",
-            "numpy>=1.21.3",
+            "numpy>=1.23.5",
             "regex",
             "sacrebleu>=1.4.12",
             "torch>=1.13",
