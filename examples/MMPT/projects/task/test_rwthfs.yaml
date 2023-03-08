@@ -1,0 +1,20 @@
+includes: projects/task/test.yaml
+dataset:
+  meta_processor: RWTHFSMetaProcessor
+  video_processor: RWTHFSVideoProcessor
+  text_processor: TextProcessor
+  test_path: data/rwthfs/rwthfs_val.pkl
+  vfeat_dir: data/rwthfs/feat_s3d
+  aligner: DSAligner
+  num_iso_layer: 12
+model:
+  model_cls: MMFusionJoint
+  mm_encoder_cls: MMBertForJoint
+eval:
+  save_path: runs/task/rwthfs/eval
+fairseq:
+  # read code and find what is the checkpoint arg.
+  common_eval:
+    path: runs/task/rwthfs/checkpoint_last.pt
+metric: RetrievalMetric
+predictor: RetrievalPredictor

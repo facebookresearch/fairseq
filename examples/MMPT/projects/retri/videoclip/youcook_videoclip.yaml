@@ -18,7 +18,8 @@ fairseq:
     log_interval: 1000
     fp16: true
   dataset:
-    num_workers: 4
+    # num_workers: 4
+    num_workers: 2
     batch_size: 128
   optimization:
     lr:
@@ -31,7 +32,8 @@ fairseq:
     warmup_updates: 122
     weight_decay: 0.0
     ddp_backend: no_c10d
-    max_epoch: 10
+    # max_epoch: 10
+    max_epoch: 2
   checkpoint:
     restore_file: runs/retri/videoclip/checkpoint_best.pt
     reset_optimizer: true

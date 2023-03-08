@@ -48,4 +48,5 @@ task_group:
       - test_vttqa_videoclip.yaml
       - test_crosstask_videoclip.yaml
       - test_coin_videoclip.yaml
+      - test_rwthfs_zs.yaml
  

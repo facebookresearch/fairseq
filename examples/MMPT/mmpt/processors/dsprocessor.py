@@ -278,28 +278,28 @@ class YoucookMetaProcessor(MetaProcessor):
 
     def __init__(self, config):
         super().__init__(config)
-        vfeat_dir = config.vfeat_dir
-        print(self._get_split_path(config))
-        with open(self._get_split_path(config), "rb") as fd:
-            data = pickle.load(fd)
-            all_valid_video_ids = set(
-                [os.path.splitext(fn)[0] for fn in os.listdir(vfeat_dir)]
-            )
-            recs = []
-            video_ids = set()
-            valid_video_ids = set()
-            for rec in data:  # filter videos not available.
-                udl_idx = rec["id"].rindex("_")
-                video_id = rec["id"][:udl_idx]
-                video_ids.add(video_id)
-                if video_id in all_valid_video_ids:
-                    valid_video_ids.add(video_id)
-                    recs.append(rec)
-            print("total video_ids in .pkl", len(video_ids))
-            print("valid video_ids in .pkl", len(valid_video_ids))
-            print("please verify {train,val}_list.txt")
-            data = recs
-            self.data = data
+        # vfeat_dir = config.vfeat_dir
+        # print(self._get_split_path(config))
+        # with open(self._get_split_path(config), "rb") as fd:
+        #     data = pickle.load(fd)
+        #     all_valid_video_ids = set(
+        #         [os.path.splitext(fn)[0] for fn in os.listdir(vfeat_dir)]
+        #     )
+        #     recs = []
+        #     video_ids = set()
+        #     valid_video_ids = set()
+        #     for rec in data:  # filter videos not available.
+        #         udl_idx = rec["id"].rindex("_")
+        #         video_id = rec["id"][:udl_idx]
+        #         video_ids.add(video_id)
+        #         if video_id in all_valid_video_ids:
+        #             valid_video_ids.add(video_id)
+        #             recs.append(rec)
+        #     print("total video_ids in .pkl", len(video_ids))
+        #     print("valid video_ids in .pkl", len(valid_video_ids))
+        #     print("please verify {train,val}_list.txt")
+        #     data = recs
+        #     self.data = data
 
         with open(config.trainval_annotation) as fd:
             self.youcook_annotation = json.load(fd)["database"]
@@ -308,6 +308,18 @@ class YoucookMetaProcessor(MetaProcessor):
             self.use_annotation_caption = True
         else:
             self.use_annotation_caption = False
+
+        vfeat_dir = config.vfeat_dir
+        all_valid_video_ids = ['fn9anlEL4FI', '-dh_uGahzYo']
+        self.data = []
+
+        for id in all_valid_video_ids:
+            video_annotation = self.youcook_annotation[id]
+            for annotation in video_annotation['annotations']:
+                rec = {
+                    "id": f"{id}_{annotation['id']}",
+                }
+                self.data.append(rec)
 
     def __getitem__(self, idx):
         def _get_video_and_caption(rec):
@@ -324,6 +336,7 @@ class YoucookMetaProcessor(MetaProcessor):
 
         rec = self.data[idx]
         video_info, text_info = _get_video_and_caption(rec)
+        # print(video_info, text_info)
         return video_info, text_info
 
 
@@ -846,3 +859,30 @@ class DiDeMoAligner(DSAligner):
     def __call__(self, video_id, video_feature, text_feature):
         # print(video_feature.shape[0])
         return super().__call__(video_id, video_feature, text_feature)
+
+
+# -------------------- RWTH Fingerspelling -----------------------
+
+
+class RWTHFSMetaProcessor(MetaProcessor):
+    """RWTH German Fingerspelling Database
+    https://www-i6.informatik.rwth-aachen.de/aslr/fingerspelling.php
+    """
+
+    def __init__(self, config):
+        super().__init__(config)
+
+        
+
+    def __getitem__(self, idx):
+        
+        return video_info, text_info
+
+
+class RWTHFSVideoProcessor(VideoProcessor):
+    """video_fn is a tuple of (video_id, start, end) now."""
+
+    def __call__(self, video_fn):
+        video_id, start, end = video_fn
+        feat = np.load(os.path.join(self.vfeat_dir, video_id + ".npy"))
+        return feat[start:end]
