@@ -213,7 +213,7 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
             reduction='none'
         ).masked_fill_(pad_mask, 0).view(-1)
 
-        if self.kd_strategy == 'word_and_seq_level':
+        if self.kd_strategy == 'word_seq_level':
             extra['kd_loss'] = kd_loss.sum()
             extra['nll_loss'] = nll_loss.sum()
             loss = (1 - self.alpha) * golden_loss.sum() + self.alpha * (self.kd_temp ** 2) * extra['kd_loss']
