@@ -1,4 +1,6 @@
 dataset:
+  max_video_len: 32
+  max_len: 96
   video_processor: VideoProcessor
   bert_name: bert-base-uncased
   meta_processor: MSRVTTMetaProcessor
@@ -10,13 +12,11 @@ dataset:
   json_path: data/msrvtt/MSRVTT_data.json
   aligner: DSAligner
   num_iso_layer: 12
-  max_video_len: 32
-  max_len: 96
 fairseq:
   common:
+    fp16: true
     tensorboard_logdir: run
     log_interval: 1000
-    fp16: true
   dataset:
     num_workers: 4
     batch_size: 128

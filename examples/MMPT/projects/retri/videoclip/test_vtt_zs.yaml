@@ -1,6 +1,6 @@
-slurm_config: big
-task_type: local_predict
 dataset:
+  max_video_len: 32
+  max_len: 96
   split: test
   video_processor: VideoProcessor
   aligner: DSAligner
@@ -10,8 +10,8 @@ dataset:
   vfeat_dir: data/feat/feat_vtt_s3d
   text_processor: MSRVTTTextProcessor
   num_iso_layer: 12
-  max_video_len: 32
-  max_len: 96
+slurm_config: big
+task_type: local_predict
 fairseq:
   dataset:
     batch_size: 256

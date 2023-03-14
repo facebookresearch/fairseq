@@ -1,22 +1,22 @@
-slurm_config: big
-task_type: local_predict
 dataset:
+  max_video_len: 8
+  max_len: 32
   split: test
   video_processor: RWTHFSVideoProcessor
   aligner: DSAligner
   bert_name: bert-base-uncased
   meta_processor: RWTHFSMetaProcessor
-  test_path: data/rwthfs/rwthfs_val.pkl
-  trainval_annotation: data/rwthfs/rwthfsii_annotations_trainval.json
-  use_annotation_text: true
-  vfeat_dir: data/feat/feat_rwthfs_s3d
   text_processor: TextProcessor
-  num_iso_layer: 12
-  max_video_len: 32
-  max_len: 96
+  test_path: data/rwthfs/test.txt
+  val_path: data/rwthfs/val.txt
+  train_path: data/rwthfs/train.txt
+  gesture_id_path: data/rwthfs/gesture_ids.txt
+  vfeat_dir: data/feat/feat_rwthfs_s3d
+slurm_config: big
+task_type: local_predict
 fairseq:
   dataset:
-    batch_size: 256
+    batch_size: 35
     valid_subset: test
     num_workers: 2
   common_eval:
@@ -29,5 +29,5 @@ model:
   num_hidden_video_layers: 6
 eval:
   save_path: runs/retri/videoclip/rwthfs_zs/eval
-metric: RetrievalMetric
+metric: RWTHFSMetric
 predictor: RetrievalPredictor

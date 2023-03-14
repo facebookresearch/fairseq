@@ -5,6 +5,7 @@
 
 import numpy as np
 import json
+import statistics
 
 
 class Metric(object):
@@ -68,8 +69,50 @@ class RetrievalMetric(Metric):
             )
         )
         if "error" in metrics:
-            print(metrics["error"])
+            for err in metrics["error"]:
+                print(err)
 
+class RWTHFSMetric(RetrievalMetric):
+    """
+    video to text
+    """
+
+    def __init__(self, config, metric_names=["R1", "R5", "R10", "MR"]):
+        super().__init__(config, metric_names)
+        self.error = True
+
+    def compute_metrics(self, outputs, texts, **kwargs):
+        # return super().compute_metrics(outputs.T, texts, **kwargs)
+        x = outputs.T
+
+        r1 = []
+        r5 = []
+        r10 = []
+        mr = []
+        for i in range(x.shape[0]):
+            gold_text = texts[i]
+            row = list(x[i])
+            candidates = [(texts[idx], score) for idx, score in enumerate(row)]
+            candidates = list(sorted(candidates, key=lambda x: -x[1]))
+            hit_idx = [c[0] for c in candidates].index(gold_text)
+            r1.append(1 if hit_idx == 0 else 0)
+            r5.append(1 if hit_idx < 5 else 0)
+            r10.append(1 if hit_idx < 10 else 0)
+            mr.append(hit_idx)
+        metrics = {}
+        metrics["R1"] = statistics.mean(r1)
+        metrics["R5"] = statistics.mean(r5)
+        metrics["R10"] = statistics.mean(r10)
+        metrics["MR"] = statistics.median(mr) + 1
+
+        max_idx = np.argmax(outputs, axis=1)
+        if self.error:
+            # print top-20 errors.
+            error = []
+            for ex_idx in range(20):
+                error.append((texts[ex_idx], texts[max_idx[ex_idx]]))
+            metrics["error"] = error
+        return metrics
 
 class DiDeMoMetric(Metric):
     """

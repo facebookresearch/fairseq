@@ -872,17 +872,32 @@ class RWTHFSMetaProcessor(MetaProcessor):
     def __init__(self, config):
         super().__init__(config)
 
-        
+        vfeat_dir = config.vfeat_dir
+        split_path = self._get_split_path(config)
+
+        with open(split_path) as f:
+            video_ids = [line.rstrip('\n') for line in f]
+
+        self.data = video_ids
+        self.letter_to_id = {}
+        self.id_to_letter = {}
+
+        with open(config.gesture_id_path) as f:
+            for idx, line in enumerate(f):
+                letter = line.split(' = ')[1].rstrip('\n')
+                self.letter_to_id[letter] = idx + 1
+                self.id_to_letter[str(idx + 1)] = letter
 
     def __getitem__(self, idx):
-        
-        return video_info, text_info
+        video_id = self.data[idx]
+        signer_id, letter_id, seq_id, camera_id = video_id.split('_')
+        body_part = 'handshape' if camera_id == 'cam1' else 'whole body'
+        text_info = f'Fingerspell the letter {self.id_to_letter[letter_id]} in German Sign Language.'
+        # print(video_id, text_info)
+        return video_id, text_info
 
 
 class RWTHFSVideoProcessor(VideoProcessor):
-    """video_fn is a tuple of (video_id, start, end) now."""
-
-    def __call__(self, video_fn):
-        video_id, start, end = video_fn
+    def __call__(self, video_id):
         feat = np.load(os.path.join(self.vfeat_dir, video_id + ".npy"))
-        return feat[start:end]
+        return feat
