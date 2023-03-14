@@ -34,7 +34,7 @@ task_group:
     loss:
       loss_cls: MMContraLoss
   finetune:
-    task_list: [vtt_videoclip.yaml, youcook_videoclip.yaml, vttqa_videoclip.yaml, crosstask_videoclip.yaml, coin_videoclip.yaml]
+    task_list: [vtt_videoclip.yaml, youcook_videoclip.yaml, vttqa_videoclip.yaml, crosstask_videoclip.yaml, coin_videoclip.yaml, rwthfs_videoclip.yaml]
   test:
     task_list:
       - test_youcook_zs.yaml
@@ -49,4 +49,5 @@ task_group:
       - test_crosstask_videoclip.yaml
       - test_coin_videoclip.yaml
       - test_rwthfs_zs.yaml
+      - test_rwthfs_videoclip.yaml
  
