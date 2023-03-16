@@ -249,6 +249,25 @@ class CommonConfig(FairseqDataclass):
         default=False,
         metadata={"help": "Use MSFT Tutel if it's available for faster MoE impl"},
     )
+    deepspeed: bool = field(
+        default=False,
+        metadata={
+            "help": "enable DeepSpeed trainer"
+        },
+    )
+    ds_config: Optional[str] = field(
+        default="",
+        metadata={
+            "help": "path to ds_config.json, this is optional and will override auto-generated "
+            "values from the fairseq DeepSpeedTrainer"
+        }
+    )
+    zero: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": "ZeRO stage when using the DeepSpeed trainer"
+        }
+    )
 
 
 @dataclass
