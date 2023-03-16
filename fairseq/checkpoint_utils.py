@@ -143,8 +143,8 @@ def save_checkpoint(
         trainer.save_checkpoint(
             checkpoints[0],
             extra_state,
-            training_finished=training_finished,
-            async_callback_fn=async_callback_fn,
+            #training_finished=training_finished,
+            #async_callback_fn=async_callback_fn,
         )
 
         if cfg.synchronize_checkpoints_before_copy:
