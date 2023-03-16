@@ -35,6 +35,7 @@ class FairseqMMDataset(FairseqDataset):
         return len(self.mmdataset)
 
     def collater(self, samples):
+        # print('-------------------')
         if hasattr(self.mmdataset, "collator"):
             return self.mmdataset.collator(samples)
         if len(samples) == 0:

@@ -92,7 +92,7 @@ class RWTHFSMetric(RetrievalMetric):
         for i in range(x.shape[0]):
             gold_text = texts[i]
             row = list(x[i])
-            candidates = [(texts[idx], score) for idx, score in enumerate(row)]
+            candidates = list(set([(texts[idx], score) for idx, score in enumerate(row)]))
             candidates = list(sorted(candidates, key=lambda x: -x[1]))
             hit_idx = [c[0] for c in candidates].index(gold_text)
             r1.append(1 if hit_idx == 0 else 0)
@@ -107,9 +107,9 @@ class RWTHFSMetric(RetrievalMetric):
 
         max_idx = np.argmax(outputs, axis=1)
         if self.error:
-            # print top-20 errors.
+            # print top errors.
             error = []
-            for ex_idx in range(20):
+            for ex_idx in range(100):
                 error.append((texts[ex_idx], texts[max_idx[ex_idx]]))
             metrics["error"] = error
         return metrics

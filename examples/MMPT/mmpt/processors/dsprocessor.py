@@ -875,10 +875,6 @@ class RWTHFSMetaProcessor(MetaProcessor):
         vfeat_dir = config.vfeat_dir
         split_path = self._get_split_path(config)
 
-        with open(split_path) as f:
-            video_ids = [line.rstrip('\n') for line in f]
-
-        self.data = video_ids
         self.letter_to_id = {}
         self.id_to_letter = {}
 
@@ -887,6 +883,29 @@ class RWTHFSMetaProcessor(MetaProcessor):
                 letter = line.split(' = ')[1].rstrip('\n')
                 self.letter_to_id[letter] = idx + 1
                 self.id_to_letter[str(idx + 1)] = letter
+
+        if config.split == 'train':
+            self.data = []
+
+            video_ids = defaultdict(list)
+            with open(split_path) as f:
+                for line in f:
+                    video_id = line.rstrip('\n') 
+                    signer_id, letter_id, seq_id, camera_id = video_id.split('_')
+                    video_ids[self.id_to_letter[letter_id]].append(video_id)
+
+            length = []
+            for key, value in video_ids.items():
+                length.append(len(value))
+            max_length = max(length)
+
+            for i in range(max_length):
+                for key, value in video_ids.items():
+                    self.data.append(value[i % len(value)])
+        else:
+            with open(split_path) as f:
+                self.data = [line.rstrip('\n') for line in f]
+
 
     def __getitem__(self, idx):
         video_id = self.data[idx]

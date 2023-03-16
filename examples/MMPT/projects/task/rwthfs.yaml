@@ -19,10 +19,12 @@ model:
   text_encoder_cls: BertModel
   num_hidden_video_layers: 6
 loss:
-  loss_cls: T2VContraLoss
+  # loss_cls: V2TContraLoss
+  loss_cls: MMContraLoss
 fairseq:
   dataset:
     batch_size: 35
+    num_workers: 1
   optimization:
     max_epoch: 10
   checkpoint:
