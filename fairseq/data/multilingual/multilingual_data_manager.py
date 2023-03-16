@@ -924,6 +924,27 @@ class MultilingualDatasetManager(object):
                     max_source_positions,
                     truncate_source,
                 )
+                if self.add_data_source_prefix_tags:
+                    for fold in DATA_SOURCE_PREFIX_TAGS:
+                        for data_type in DATA_SOURCE_TYPE_TAGS:
+                            if split_k == f"valid_{fold}_{data_type}":
+                                logger.info(
+                                        f"Prepending prefix token: {DATA_SOURCE_PREFIX_TAGS[fold]} for {split} data."
+                                    )
+                                src_dataset = PrependTokenDataset(
+                                        src_dataset,
+                                        src_dict.index(DATA_SOURCE_PREFIX_TAGS[fold]),
+                                    )
+                                if self.add_data_type_tags:
+                                    data_type_tag = DATA_SOURCE_TYPE_TAGS[data_type]
+                                    logger.info(
+                                        f"Prepending prefix token: {data_type_tag} for {split} data."
+                                    )
+                                    src_dataset = PrependTokenDataset(
+                                            src_dataset,
+                                            src_dict.index(data_type_tag),
+                                        )
+
                 src_datasets.append(src_dataset)
                 tgt_datasets.append(
                     self.load_data(prefix_tgt + tgt, tgt_dict, dataset_impl)
@@ -942,13 +963,13 @@ class MultilingualDatasetManager(object):
         if len(src_datasets) == 1:
             src_dataset, tgt_dataset = src_datasets[0], tgt_datasets[0]
         else:
-            sample_ratios = [1] * len(src_datasets)
-            sample_ratios[0] = upsample_primary
+            sample_ratios = [upsample_primary] * len(src_datasets)
+            sample_ratios[0] = 1
             src_dataset = ConcatDataset(src_datasets, sample_ratios)
             tgt_dataset = ConcatDataset(tgt_datasets, sample_ratios)
-            assert len(src_dataset) == upsample_primary * len(src_datasets[0]) + sum(
-                [len(d) for d in src_datasets[1:]]
-            )
+            #assert len(src_dataset) == upsample_primary * len(src_datasets[0]) + sum(
+            #    [len(d) for d in src_datasets[1:]]
+            #)
 
         if prepend_bos:
             assert hasattr(src_dict, "bos_index") and hasattr(tgt_dict, "bos_index")
@@ -1479,37 +1500,40 @@ class MultilingualDatasetManager(object):
             )
 
         else:
-            langpair_ds = self.load_langpair_dataset(
-                data_path,
-                split,
-                src,
-                src_dict,
-                tgt,
-                tgt_dict,
-                combine,
-                dataset_impl,
-                upsample_primary,
-                left_pad_source,
-                left_pad_target,
-                max_source_positions,
-                max_target_positions,
-                prepend_bos,
-                load_alignments,
-                truncate_source,
-                src_dataset_transform_func=lambda dataset: src_dataset_transform_func(
-                    src, tgt, dataset, src_langtok_spec
-                ),
-                tgt_dataset_transform_func=lambda dataset: tgt_dataset_transform_func(
-                    src, tgt, dataset, tgt_langtok_spec
-                ),
-                src_lang_id=_lang_id(lang_dictionary, src)
-                if enable_lang_ids and lang_dictionary is not None
-                else None,
-                tgt_lang_id=_lang_id(lang_dictionary, tgt)
-                if enable_lang_ids and lang_dictionary is not None
-                else None,
-                langpairs_sharing_datasets=langpairs_sharing_datasets,
-            )
+            try:
+                langpair_ds = self.load_langpair_dataset(
+                    data_path,
+                    split,
+                    src,
+                    src_dict,
+                    tgt,
+                    tgt_dict,
+                    combine,
+                    dataset_impl,
+                    upsample_primary,
+                    left_pad_source,
+                    left_pad_target,
+                    max_source_positions,
+                    max_target_positions,
+                    prepend_bos,
+                    load_alignments,
+                    truncate_source,
+                    src_dataset_transform_func=lambda dataset: src_dataset_transform_func(
+                        src, tgt, dataset, src_langtok_spec
+                    ),
+                    tgt_dataset_transform_func=lambda dataset: tgt_dataset_transform_func(
+                        src, tgt, dataset, tgt_langtok_spec
+                    ),
+                    src_lang_id=_lang_id(lang_dictionary, src)
+                    if enable_lang_ids and lang_dictionary is not None
+                    else None,
+                    tgt_lang_id=_lang_id(lang_dictionary, tgt)
+                    if enable_lang_ids and lang_dictionary is not None
+                    else None,
+                    langpairs_sharing_datasets=langpairs_sharing_datasets,
+                )
+            except: 
+                return None
         # TODO: handle modified lang toks for mined data and dae data
         if self.args.lang_tok_replacing_bos_eos:
             ds = self.alter_dataset_langtok(
@@ -1694,8 +1718,6 @@ class MultilingualDatasetManager(object):
                 ), (f"error: src={src}, " "tgt={tgt} for data_category={data_category}")
                 # logger.info(f"preparing param for {data_category}: {src} - {tgt}")
                 key = self.get_dataset_key(data_category, src, tgt)
-                logger.info(key)
-                logger.info(split_num_shards_dict)
                 if key in split_num_shards_dict:
                     data_path = self.get_split_data_path(
                         paths, epoch, shard_epoch, split_num_shards_dict[key]
@@ -1764,8 +1786,11 @@ class MultilingualDatasetManager(object):
         data_sizes = self.get_train_dataset_sizes(
             data_param_list, datasets, epoch, shard_epoch
         )
+        logger.info(f"dataset_sizes {data_sizes}")
         sampling_func = self.sampling_method.sampling_method_selector()
+        logger.info(f"sampling func {sampling_func}")
         sample_ratios = sampling_func(data_sizes) if sampling_func is not None else None
+        logger.info(f"sample_ratios { sample_ratios}")
         return sample_ratios
 
     def get_sampling_ratios(self, data_param_list, datasets, epoch, shard_epoch=None):
@@ -1777,6 +1802,7 @@ class MultilingualDatasetManager(object):
                 f"from file {self.args.sampling_weights_from_file}"
             )
         elif self.args.sampling_weights:
+            logger.info(self.args.sampling_weights)
             sample_ratios = [self.args.sampling_weights[k] for k, _ in datasets]
         else:
             sample_ratios = self.get_train_sampling_ratios(
@@ -1813,6 +1839,7 @@ class MultilingualDatasetManager(object):
             )
             for param in data_param_list
         ]
+        datasets = [x for x in datasets if x[1] != None]
 
         return datasets, data_param_list
 

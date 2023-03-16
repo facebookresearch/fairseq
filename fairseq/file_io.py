@@ -10,8 +10,6 @@ import boto3
 import errno
 import json
 import logging
-import torch
-import subprocess
 import os
 import shutil
 from typing import List, Optional
@@ -76,14 +74,7 @@ class PathManager:
             return IOPathManager._copy(
                 src_path=src_path, dst_path=dst_path, overwrite=overwrite
             )
-        if os.path.isdir(src_path):
-            logging.info(f'rank={torch.distributed.get_rank()}, rsync -r {src_path} {dst_path}')
-            #XXX: assumes ckpt path is on a shared filesystem
-            if torch.distributed.get_rank() == 0:
-                results = subprocess.check_output(f'rsync -r {src_path} {dst_path}', shell=True)
-            return True
-        else:
-            return shutil.copyfile(src_path, dst_path)
+        return shutil.copyfile(src_path, dst_path)
 
     @staticmethod
     def symlink(src_path: str, dst_path: str):
@@ -98,7 +89,10 @@ class PathManager:
     def get_local_path(path: str, **kwargs) -> str:
         if (path.startswith("ml-platform-generic") or
                  path.startswith("roblox.analytics.users")) and IOPathManager:
-            return IOPathManager._get_local_path(path,  **kwargs)
+            try:
+                return IOPathManager._get_local_path(path,  **kwargs)
+            except:
+                raise ValueError(path)
         return path
 
     @staticmethod
