@@ -919,4 +919,9 @@ class RWTHFSMetaProcessor(MetaProcessor):
 class RWTHFSVideoProcessor(VideoProcessor):
     def __call__(self, video_id):
         feat = np.load(os.path.join(self.vfeat_dir, video_id + ".npy"))
+        feat_dim = 512
+        if feat.shape[1] > feat_dim:
+            # adapt feature dimension to 512 by average pooling
+            feat = feat.reshape(feat.shape[0], feat_dim, int(feat.shape[1] / feat_dim))
+            feat = np.average(feat, axis=2)
         return feat
