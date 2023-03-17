@@ -331,10 +331,10 @@ class DeepSpeedTrainer(Trainer):
                         f"loss={loss}")
                 del loss
                 
-                if self.cfg.common.exit_interval and self.train_step_count % self.cfg.common.exit_interval == 0:
-                    if torch.distributed.get_rank() == 0:
-                        logger.info("exiting early...")
-                    exit()
+                #if self.cfg.common.exit_interval and self.train_step_count % self.cfg.common.exit_interval == 0:
+                #    if torch.distributed.get_rank() == 0:
+                #        logger.info("exiting early...")
+                #    exit()
 
                 logging_outputs.append(logging_output)
                 sample_size += sample_size_i
