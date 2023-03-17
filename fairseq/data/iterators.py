@@ -486,6 +486,11 @@ class EpochBatchIterator(EpochBatchIterating):
         if self.num_workers > 0:
             os.environ["PYTHONWARNINGS"] = "ignore:semaphore_tracker:UserWarning"
 
+        sharing_strategy  = os.environ.get("TORCH_DATALOADER", None)
+        if sharing_strategy == "file_system":
+            def set_worker_sharing_strategy(worker_id: int) -> None:
+                torch.multiprocessing.set_sharing_strategy(sharing_strategy)
+
         # Create data loader
         itr = torch.utils.data.DataLoader(
             self.dataset,
@@ -494,6 +499,7 @@ class EpochBatchIterator(EpochBatchIterating):
             num_workers=self.num_workers,
             timeout=self.timeout,
             pin_memory=True,
+            worker_init_fn=set_worker_sharing_strategy if sharing_strategy else None,
         )
 
         # Wrap with a BufferedIterator if needed
