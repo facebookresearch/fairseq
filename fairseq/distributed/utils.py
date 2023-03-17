@@ -89,7 +89,11 @@ def infer_init_method(cfg: DistributedTrainingConfig, force_distributed=False):
 
 
 def _infer_torch_distributed_launch_init(cfg: DistributedTrainingConfig):
-    cfg.distributed_init_method = "env://"
+    host = os.environ["MASTER_ADDR"]
+    port = os.environ["MASTER_PORT"]
+
+    # Initialize distributed configuration to
+    cfg.distributed_init_method = f"tcp://{host}:{port}"
     cfg.distributed_world_size = int(os.environ["WORLD_SIZE"])
     cfg.distributed_rank = int(os.environ["RANK"])
     # processes are created by torch.distributed.launch
