@@ -20,8 +20,7 @@ from fairseq.modules import (
     LayerNorm,
     PositionalEmbedding,
     SinusoidalPositionalEmbedding,
-    transformer_layer,
-    HyperNetwork
+    transformer_layer
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
@@ -120,34 +119,6 @@ class TransformerEncoderBase(FairseqEncoder):
             self.layer_norm = LayerNorm(embed_dim, export=cfg.export)
         else:
             self.layer_norm = None
-
-        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-        self.add_hyperadapters = cfg.encoder.add_hyperadapters
-        if cfg.encoder.add_hyperadapters:
-            self.hyperadapter = HyperNetwork(
-                num_languages=len(cfg.hyperadapter_langs.split(',')),
-                num_layers=cfg.encoder.layers + cfg.decoder.layers,
-                lang_embedding_dim=cfg.encoder.hyperadapter_lang_embedding_dim,
-                layer_embedding_dim=cfg.encoder.hyperadapter_layer_embedding_dim,
-                mainnet_input_dim=embed_dim,
-                bottleneck_dim=cfg.encoder.hyperadapter_bottleneck_dim,
-                hidden_dim=cfg.encoder.hyperadapter_hidden_dim,
-                num_hidden_layers=cfg.encoder.hyperadapter_num_hidden_layers,
-                dropout=cfg.hyperadapter_dropout,
-                activation_fn=cfg.hyperadapter_activation_fn,
-                generate_layernorm=cfg.encoder.hyperadapter_generate_layernorm,
-                normalize_before=cfg.encoder.normalize_before,
-                language_embedding_tied=cfg.encoder.hyperadapter_language_embedding_tied,
-                init_method=cfg.encoder.hyperadapter_init_method
-            )
-            self.hyper_adapters_inputs = [int(x in cfg.encoder.hyperadapter_inputs.split(',')) for x in ["src", "tgt", "layer"]]
-            self.layer2id = {f"enc-{i}":i for i in range(cfg.encoder_layers)}
-            self.lang2id = {l:i for (i, l) in enumerate(cfg.hyperadapter_langs.split(','))}
-            self.src_lang = cfg.hyperadapter_src_lang
-            self.tgt_lang = cfg.hyperadapter_tgt_lang
-        else:
-            self.hyperadapter = None
-        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
     def build_encoder_layer(self, cfg):
         layer = transformer_layer.TransformerEncoderLayerBase(
@@ -283,15 +254,6 @@ class TransformerEncoderBase(FairseqEncoder):
             else:
                 x = lr
                 fc_result = None
-
-            if self.hyperadapter is not None:
-                # note that, src_lang_id and tgt_lang_id start from 1, and
-                # we assume all src-tgt samples contain the same task/language
-                BS = src_tokens.size(0)
-                src_lang_id = torch.tensor([self.lang2id[self.src_lang]], device=x.device).repeat(BS, 1)[0].squeeze()
-                tgt_lang_id = torch.tensor([self.lang2id[self.tgt_lang]], device=x.device).repeat(BS, 1)[0].squeeze()
-                layer_id = torch.tensor(self.layer2id[f"enc-{idx}"], device=x.device)
-                x = self.hyperadapter(x, src_lang_id, tgt_lang_id, layer_id, self.hyper_adapters_inputs)
 
             if return_all_hiddens and not torch.jit.is_scripting():
                 assert encoder_states is not None

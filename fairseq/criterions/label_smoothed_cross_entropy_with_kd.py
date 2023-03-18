@@ -102,7 +102,7 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
     def get_lang_kd_rates(self):
         if self.use_adaptive_kd_rates:
             lens = np.array(list(self.kd_lang_wise_count.values()))
-            lens_prob = np.power(lens/lens.sum(), 1/self.kd_queue_sampling_temp)
+            lens_prob = np.power(lens.max()/lens, self.kd_queue_sampling_temp)
             return lens_prob
         else:
             return [self.kd_rate] * len(self.kd_lang_wise_count)
@@ -262,6 +262,11 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
                 kd_loss_langwise[lang_id] = kd_loss_lang
                 self.push_to_lang_FIFO_queue(lang_id, nll_loss_lang)
             kd_rates = self.get_lang_kd_rates()
+
+            print("="*100)
+            print(self.kd_lang_wise_count)
+            print(kd_rates)
+            print("="*100)
             
             for (lang_id, kd_rate) in zip(indices.keys(), kd_rates):
                 loss_gate = self.queue[lang_id].topk(

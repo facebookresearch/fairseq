@@ -97,56 +97,6 @@ class EncDecBaseConfig(FairseqDataclass):
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
-    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-    add_hyperadapters: Optional[bool] = field(
-        default=False,
-        metadata={"help": "add hyper-adapters to the transformer encoder/decoder"}
-    )
-    hyperadapter_lang_embedding_dim: Optional[int] = field(
-        default=None,
-        metadata={"help": "the size of the language embeddings"}
-    )
-    hyperadapter_layer_embedding_dim: Optional[int] = field(
-        default=None,
-        metadata={"help": "the size of the layer embeddings"}
-    )
-    hyperadapter_bottleneck_dim: Optional[int] = field(
-        default=None,
-        metadata={"help": "the bottleneck size of the (generated) hyper-adapters"}
-    )
-    hyperadapter_hidden_dim: Optional[int] = field(
-        default=None,
-        metadata={"help": "the size of the hidden layers of the hyper-network encoder"}
-    )
-    hyperadapter_num_hidden_layers: Optional[int] = field(
-        default=None,
-        metadata={"help": "the number of the hyper-network encoder layers"}
-    )
-    hyperadapter_generate_layernorm: Optional[bool] = field(
-        default=False,
-        metadata={
-            "help": "Whether to generate the input-specific LN parameters of each hyper-adapters."
-                    "If false, then we use non-trainable LN"
-        }
-    )
-    hyperadapter_language_embedding_tied: Optional[bool] = field(
-        default=False,
-        metadata={"help": "whether to tie the source and target language embedding"}
-    )
-    hyperadapter_init_method: Optional[str] = field(
-        default="hyper",
-        metadata={"help": "how to initialize the hyper-network projection layers"}
-    )
-    hyperadapter_inputs: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "Which sources of information to use as input to the"
-                    "hyper-network when generating the encoder hyper-adapters. (comma separated)"
-        }
-    )
-    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-
-
 @dataclass
 class DecoderConfig(EncDecBaseConfig):
     input_dim: int = II("model.decoder.embed_dim")

@@ -22,8 +22,7 @@ from fairseq.modules import (
     LayerNorm,
     PositionalEmbedding,
     SinusoidalPositionalEmbedding,
-    transformer_layer,
-    HyperNetwork
+    transformer_layer
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
@@ -153,34 +152,6 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         self.output_projection = output_projection
         if self.output_projection is None:
             self.build_output_projection(cfg, dictionary, embed_tokens)
-
-        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-        self.add_hyperadapters = cfg.encoder.add_hyperadapters
-        if cfg.encoder.add_hyperadapters:
-            self.hyperadapter = HyperNetwork(
-                num_languages=len(cfg.hyperadapter_langs.split(',')),
-                num_layers=cfg.encoder.layers + cfg.decoder.layers,
-                lang_embedding_dim=cfg.decoder.hyperadapter_lang_embedding_dim,
-                layer_embedding_dim=cfg.decoder.hyperadapter_layer_embedding_dim,
-                mainnet_input_dim=embed_dim,
-                bottleneck_dim=cfg.decoder.hyperadapter_bottleneck_dim,
-                hidden_dim=cfg.decoder.hyperadapter_hidden_dim,
-                num_hidden_layers=cfg.decoder.hyperadapter_num_hidden_layers,
-                dropout=cfg.hyperadapter_dropout,
-                activation_fn=cfg.hyperadapter_activation_fn,
-                generate_layernorm=cfg.decoder.hyperadapter_generate_layernorm,
-                normalize_before=cfg.decoder.normalize_before,
-                language_embedding_tied=cfg.decoder.hyperadapter_language_embedding_tied,
-                init_method=cfg.decoder.hyperadapter_init_method
-            )
-            self.hyper_adapters_inputs = [int(x in cfg.decoder.hyperadapter_inputs.split(',')) for x in ["src", "tgt", "layer"]]
-            self.layer2id = {f"dec-{i}":i for i in range(cfg.decoder_layers)}
-            self.lang2id = {l:i for (i, l) in enumerate(cfg.hyperadapter_langs.split(','))}
-            self.src_lang = cfg.hyperadapter_src_lang
-            self.tgt_lang = cfg.hyperadapter_tgt_lang
-        else:
-            self.hyperadapter = None
-        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
         
     def build_output_projection(self, cfg, dictionary, embed_tokens):
         if cfg.adaptive_softmax_cutoff is not None:
@@ -403,15 +374,6 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             inner_states.append(x)
             if layer_attn is not None and idx == alignment_layer:
                 attn = layer_attn.float().to(x)
-
-            if self.hyperadapter is not None:
-                # note that, src_lang_id and tgt_lang_id start from 1, and
-                # we assume that all src-tgt samples contain the same task/language
-                BS = prev_output_tokens.size(0)
-                src_lang_id = torch.tensor([self.lang2id[self.src_lang]], device=x.device).repeat(BS, 1)[0].squeeze()
-                tgt_lang_id = torch.tensor([self.lang2id[self.tgt_lang]], device=x.device).repeat(BS, 1)[0].squeeze()
-                layer_id = torch.tensor(self.layer2id[f"dec-{idx}"], device=x.device)
-                x = self.hyperadapter(x, src_lang_id, tgt_lang_id, layer_id, self.hyper_adapters_inputs)
 
         if attn is not None:
             if alignment_heads is not None:

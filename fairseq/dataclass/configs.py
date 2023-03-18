@@ -1118,14 +1118,6 @@ class InteractiveConfig(FairseqDataclass):
         default=None,
         metadata={"help": "decoder language adapters to be used while evaluating"}
     )
-    hyperadapter_src_lang: Optional[str] = field(
-        default=None,
-        metadata={"help": "encoder language hyperadapters to be used while evaluating"}
-    )
-    hyperadapter_tgt_lang: Optional[str] = field(
-        default=None,
-        metadata={"help": "decoder language hyperadapters to be used while evaluating"}
-    )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
 
