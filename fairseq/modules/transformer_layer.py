@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from fairseq import distributed_utils as dist_utils
+from fairseq.distributed import utils as dist_utils
 from fairseq import utils
 from fairseq.modules import LayerNorm, MultiheadAttention, gelu
 from fairseq.modules.fairseq_dropout import FairseqDropout
