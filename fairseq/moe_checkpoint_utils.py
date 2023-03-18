@@ -14,7 +14,7 @@ import numpy as np
 import torch
 from fairscale.nn.data_parallel.fsdp_optim_utils import is_singleton_tensor
 
-from fairseq import distributed_utils
+from fairseq.distributed import utils as distributed_utils
 from fairseq.file_io import torch_load_cpu
 
 OPT_KEY = "last_optimizer_state"

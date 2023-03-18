@@ -18,7 +18,7 @@ from torch import Tensor
 from torch.cuda import Event as CudaEvent
 from torch.nn import Module, ModuleList
 
-from fairseq import distributed_utils
+from fairseq.distributed import utils as distributed_utils
 from fairseq.modules.linear import Linear
 
 if TYPE_CHECKING:

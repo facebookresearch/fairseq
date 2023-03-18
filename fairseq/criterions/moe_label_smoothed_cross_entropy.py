@@ -10,7 +10,7 @@ from typing import List, Optional
 
 import torch
 
-from fairseq import distributed_utils, metrics, utils
+from fairseq.distributed import utils as distributed_utils, metrics, utils
 from fairseq.criterions import FairseqCriterion, MoECriterionConfig, register_criterion
 from fairseq.logging.meters import GroupedAverageMeter
 from fairseq.modules.moe import MOELayer, MoE
