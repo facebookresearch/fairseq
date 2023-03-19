@@ -294,13 +294,15 @@ def distributed_init(cfg: FairseqConfig):
                     cfg.distributed_training.distributed_init_method,
                 )
             )
-            #dist.init_process_group(
-            #    backend=cfg.distributed_training.distributed_backend,
-            #    init_method=cfg.distributed_training.distributed_init_method,
-            #    world_size=cfg.distributed_training.distributed_world_size,
-            #    rank=cfg.distributed_training.distributed_rank,
-            #)
-            deepspeed.init_distributed(dist_backend=cfg.distributed_training.distributed_backend)
+            if os.environ.get("OMPI_COMM_WORLD_RANK") == None:
+                dist.init_process_group(
+                    backend=cfg.distributed_training.distributed_backend,
+                    init_method=cfg.distributed_training.distributed_init_method,
+                    world_size=cfg.distributed_training.distributed_world_size,
+                    rank=cfg.distributed_training.distributed_rank,
+                )
+            else:
+                deepspeed.init_distributed(dist_backend=cfg.distributed_training.distributed_backend)
             logger.info(
                 "initialized host {} as rank {}".format(
                     socket.gethostname(),
