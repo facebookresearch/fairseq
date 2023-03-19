@@ -76,8 +76,8 @@ class DeepSpeedTrainer(Trainer):
 
         
         #optimizer.param_groups[:] = list(param_groups) + optimizer.param_groups[1:]
-        os.environ['LOCAL_RANK'] = str(self.cfg.distributed_training.device_id)
-        os.environ['OMPI_COMM_WORLD_LOCAL_RANK'] = str(self.cfg.distributed_training.device_id)
+       # os.environ['LOCAL_RANK'] = str(self.cfg.distributed_training.device_id)
+       # os.environ['OMPI_COMM_WORLD_LOCAL_RANK'] = str(self.cfg.distributed_training.device_id)
         self.device = torch.device("cuda", self.cfg.distributed_training.device_id)
         self.model.to(device=self.device)
         
