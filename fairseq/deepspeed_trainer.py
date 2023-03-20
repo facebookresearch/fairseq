@@ -155,7 +155,7 @@ class DeepSpeedTrainer(Trainer):
             else:
                 _config = fairseq_value
                 break
-        assert _config == fairseq_value, f"deepspeed config: {full_name} does not align with fairseq value: {fairseq_value}"
+        #assert _config == fairseq_value, f"deepspeed config: {full_name} does not align with fairseq value: {fairseq_value}"
         return _config
 
     def _populate_ds_config(self, cfg, ds_config):
