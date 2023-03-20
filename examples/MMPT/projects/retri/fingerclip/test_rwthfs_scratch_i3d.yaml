@@ -1,0 +1,34 @@
+dataset:
+  max_video_len: 32
+  max_len: 96
+  split: test
+  video_processor: RWTHFSVideoProcessor
+  aligner: DSAligner
+  bert_name: bert-base-uncased
+  meta_processor: RWTHFSMetaProcessor
+  text_processor: TextProcessor
+  test_path: data/rwthfs/test.txt
+  val_path: data/rwthfs/val.txt
+  train_path: data/rwthfs/train.txt
+  gesture_id_path: data/rwthfs/gesture_ids.txt
+  vfeat_dir: /shares/volk.cl.uzh/zifjia/RWTH_Fingerspelling/i3d_feature
+slurm_config: big
+task_type: local_predict
+fairseq:
+  dataset:
+    batch_size: 256
+    valid_subset: test
+    num_workers: 2
+  common_eval:
+    path: runs/retri/rwthfs_i3d/checkpoint_best.pt
+model:
+  model_cls: MMFusionSeparate
+  mm_encoder_cls: null
+  video_encoder_cls: MMBertForEncoder
+  text_encoder_cls: BertModel
+  num_hidden_video_layers: 6
+  vfeat_dim: 1024
+eval:
+  save_path: runs/retri/rwthfs_i3d/eval
+metric: RWTHFSMetric
+predictor: RetrievalPredictor
