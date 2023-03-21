@@ -40,7 +40,6 @@ from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from fairseq.trainer import Trainer
 from fairseq.checkpoint_utils import load_model_ensemble
 from fairseq.modules.bottleneck_adapter_block import BottleneckAdapter
-from fairseq.modules.hyper_adapter import HyperNetwork
 
 
 def main(cfg: FairseqConfig) -> None:
