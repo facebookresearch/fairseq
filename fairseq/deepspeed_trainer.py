@@ -90,6 +90,7 @@ class DeepSpeedTrainer(Trainer):
             optimizer=optimizer._optimizer,
             config_params=self.ds_config
         )
+    
 
         self.zero_enabled = engine.zero_optimization_stage() > 0
 
@@ -100,12 +101,13 @@ class DeepSpeedTrainer(Trainer):
             engine.optimizer,
         )
         self._lr_scheduler.step_update(0)
-
+        optimizer.loss_scaler.raise_error_at_min_scale = False
         self._optimizer = optimizer
         self._wrapped_model = engine
         self.device = engine.device
         self._criterion.to(device=self.device)
         torch.distributed.barrier()
+        
 
         if getattr(self.cfg.common, "fp16_scale_window", None) is None:
             if len(self.cfg.optimization.update_freq) > 1:
