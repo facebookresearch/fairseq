@@ -100,6 +100,7 @@ class DeepSpeedTrainer(Trainer):
             self.cfg.lr_scheduler,
             engine.optimizer,
         )
+        optimizer.loss_scaler.raise_error_at_min_scale = False
         self._lr_scheduler.step_update(0)
         self._optimizer = optimizer
         self._wrapped_model = engine
@@ -129,8 +130,7 @@ class DeepSpeedTrainer(Trainer):
             scale_window=scale_window,
             tolerance=self.cfg.common.fp16_scale_tolerance,
             threshold=self.cfg.common.threshold_loss_scale,
-            min_loss_scale=self.cfg.common.min_loss_scale,
-            raise_error_at_min_scale = False
+            min_loss_scale=self.cfg.common.min_loss_scale
         )
 
     @property
