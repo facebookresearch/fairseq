@@ -72,12 +72,125 @@ class RetrievalMetric(Metric):
             for err in metrics["error"]:
                 print(err)
 
-class RWTHFSMetric(RetrievalMetric):
+
+class RWTHFSMetric(Metric):
+    """
+    text to video + video to text
+    """
+
+    def __init__(self, config):
+        self.t2v = RWTHFST2VMetric(config)
+        self.v2t = RWTHFSV2TMetric(config)
+
+    def best_metric(self, metric):
+        return 1 # hack
+
+    def compute_metrics(self, outputs, texts, **kwargs):
+        return {
+            't2v': self.t2v.compute_metrics(outputs, texts, **kwargs),
+            'v2t': self.v2t.compute_metrics(outputs, texts, **kwargs),
+        }
+
+    def print_computed_metrics(self, metrics):
+        print('text to video:')
+        self.t2v.print_computed_metrics(metrics['t2v'])
+        print('video to text:')
+        self.v2t.print_computed_metrics(metrics['v2t'])
+
+
+class RWTHFST2VMetric(RetrievalMetric):
+    """
+    text to video
+    """
+
+    def __init__(self, config, metric_names=["R1", "R5", "R10", "P1", "P5", 'P10', "MedianR", "MeanR"]):
+        super().__init__(config, metric_names)
+        self.error = True
+
+    def compute_metrics(self, outputs, texts, **kwargs):
+        # return super().compute_metrics(outputs, texts, **kwargs)
+
+        row_ids = [idx for idx, text in enumerate(texts) if text not in texts[:idx]]
+        texts_reduced = [texts[i] for i in row_ids]
+        x = outputs[row_ids, :]
+
+        mr = []
+        tp1 = 0
+        fn1 = 0
+        tp5 = 0
+        fn5 = 0
+        tp10 = 0
+        fn10 = 0
+        for i in range(x.shape[0]):
+            gold_text = texts_reduced[i]
+            row = list(x[i])
+            # id to text
+            candidates = [(texts[idx], score) for idx, score in enumerate(row)]
+            # sort by score
+            candidates = sorted(candidates, key=lambda x: -x[1])
+            # remove score
+            candidates = [c[0] for c in candidates]
+
+            positive = len([c for c in candidates if c == gold_text])
+            tp1_ = len([c for c in candidates[:1] if c == gold_text])
+            tp5_ = len([c for c in candidates[:5] if c == gold_text])
+            tp10_ = len([c for c in candidates[:10] if c == gold_text])
+
+            tp1 = tp1 + tp1_
+            tp5 = tp1 + tp5_
+            tp10 = tp10 + tp10_
+            fn1 = fn1 + (positive - tp1_)
+            fn5 = fn5 + (positive - tp5_)
+            fn10 = fn10 + (positive - tp10_)
+
+            hit_idx = candidates.index(gold_text)
+            mr.append(hit_idx)
+        metrics = {}
+        metrics["R1"] = tp1 / (tp1 + fn1)
+        metrics["R5"] = tp5 / (tp5 + fn5)
+        metrics["R10"] = tp10 / (tp10 + fn10)
+        metrics["P1"] = tp1 / x.shape[0]
+        metrics["P5"] = tp5 / (x.shape[0] * 5)
+        metrics["P10"] = tp10 / (x.shape[0] * 10)
+        metrics["MedianR"] = statistics.median(mr) + 1
+        metrics["MeanR"] = statistics.mean(mr) + 1
+
+        max_idx = np.argmax(x, axis=1)
+        if self.error:
+            # print top errors.
+            error = []
+            # for ex_idx in range(100):
+            for ex_idx in range(len(max_idx)):
+                error.append((texts_reduced[ex_idx], texts[max_idx[ex_idx]]))
+            error = list(sorted(error, key=lambda x: x[0] + x[1]))
+            metrics["error"] = error
+        return metrics
+
+    def print_computed_metrics(self, metrics):
+        r1 = metrics["R1"]
+        r5 = metrics["R5"]
+        r10 = metrics["R10"]
+        p1 = metrics["P1"]
+        p5 = metrics["P5"]
+        p10 = metrics["P10"]
+        medianR = metrics["MedianR"]
+        meanR = metrics["MeanR"]
+        print(
+            "R@1: {:.4f} - R@5: {:.4f} - R@10: {:.4f} - P@1: {:.4f} - P@5: {:.4f} - P@10: {:.4f} - Mean R: {:.4f} - Median R: {} ".format(
+                r1, r5, r10, p1, p5, p10, meanR, medianR
+            )
+        )
+        if "error" in metrics:
+            for err in metrics["error"]:
+                print(err)
+
+
+class RWTHFSV2TMetric(RetrievalMetric):
     """
     video to text
     """
 
-    def __init__(self, config, metric_names=["R1", "R5", "R10", "MR"]):
+    def __init__(self, config, metric_names=["R1", "R5", "R10", "MedianR", "MeanR"]):
         super().__init__(config, metric_names)
         self.error = True
 
@@ -85,34 +198,76 @@ class RWTHFSMetric(RetrievalMetric):
         # return super().compute_metrics(outputs.T, texts, **kwargs)
         x = outputs.T
 
-        r1 = []
-        r5 = []
-        r10 = []
         mr = []
+        tp1 = 0
+        fn1 = 0
+        tp5 = 0
+        fn5 = 0
+        tp10 = 0
+        fn10 = 0
         for i in range(x.shape[0]):
             gold_text = texts[i]
             row = list(x[i])
-            candidates = list(set([(texts[idx], score) for idx, score in enumerate(row)]))
+            # id to text
+            candidates = list([(texts[idx], score) for idx, score in enumerate(row)])
+            # sort by score
             candidates = list(sorted(candidates, key=lambda x: -x[1]))
-            hit_idx = [c[0] for c in candidates].index(gold_text)
-            r1.append(1 if hit_idx == 0 else 0)
-            r5.append(1 if hit_idx < 5 else 0)
-            r10.append(1 if hit_idx < 10 else 0)
+            # deduplicate
+            candidates = [
+                candidate for idx, candidate in enumerate(candidates)
+                if (idx == len(candidates) - 1) or (candidate[0] != candidates[idx + 1][0])
+            ]
+            # remove score
+            candidates = [c[0] for c in candidates]
+
+            if gold_text == candidates[0]:
+                tp1 = tp1 + 1
+            else:
+                fn1 = fn1 + 1
+            if gold_text in candidates[:5]:
+                tp5 = tp5 + 1
+            else:
+                fn5 = fn5 + 1
+            if gold_text in candidates[:10]:
+                tp10 = tp10 + 1
+            else:
+                fn10 = fn10 + 1
+
+            hit_idx = candidates.index(gold_text)
             mr.append(hit_idx)
         metrics = {}
-        metrics["R1"] = statistics.mean(r1)
-        metrics["R5"] = statistics.mean(r5)
-        metrics["R10"] = statistics.mean(r10)
-        metrics["MR"] = statistics.median(mr) + 1
+        metrics["R1"] = tp1 / (tp1 + fn1)
+        metrics["R5"] = tp5 / (tp5 + fn5)
+        metrics["R10"] = tp10 / (tp10 + fn10)
+        metrics["MedianR"] = statistics.median(mr) + 1
+        metrics["MeanR"] = statistics.mean(mr) + 1
 
-        max_idx = np.argmax(outputs, axis=1)
+        max_idx = np.argmax(x, axis=1)
         if self.error:
             # print top errors.
             error = []
-            for ex_idx in range(100):
+            # for ex_idx in range(100):
+            for ex_idx in range(len(max_idx)):
                 error.append((texts[ex_idx], texts[max_idx[ex_idx]]))
+            error = list(sorted(error, key=lambda x: x[0] + x[1]))
             metrics["error"] = error
         return metrics
+
+    def print_computed_metrics(self, metrics):
+        r1 = metrics["R1"]
+        r5 = metrics["R5"]
+        r10 = metrics["R10"]
+        medianR = metrics["MedianR"]
+        meanR = metrics["MeanR"]
+        print(
+            "R@1: {:.4f} - R@5: {:.4f} - R@10: {:.4f} - Mean R: {:.4f} - Median R: {} ".format(
+                r1, r5, r10, meanR, medianR
+            )
+        )
+        if "error" in metrics:
+            for err in metrics["error"]:
+                print(err)
+
 
 class DiDeMoMetric(Metric):
     """
