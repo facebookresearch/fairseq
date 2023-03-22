@@ -214,7 +214,10 @@ def delete_old_checkpoint_files(
 
         for old_chk in checkpoints[cfg.keep_interval_updates :]:
             if os.path.lexists(old_chk):
-                os.remove(old_chk)
+                try:
+                    os.remove(old_chk)
+                except IsADirectoryError:
+                    os.rmdir(old_chk)
             elif PathManager.exists(old_chk):
                 PathManager.rm(old_chk)
 
