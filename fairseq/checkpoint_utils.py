@@ -10,6 +10,7 @@ import contextlib
 import functools
 import inspect
 import logging
+import shutil
 import os
 import re
 import time
@@ -217,7 +218,7 @@ def delete_old_checkpoint_files(
                 try:
                     os.remove(old_chk)
                 except IsADirectoryError:
-                    os.rmdir(old_chk)
+                    shutil.rmtree(old_chk)
             elif PathManager.exists(old_chk):
                 PathManager.rm(old_chk)
 
