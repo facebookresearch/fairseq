@@ -180,21 +180,6 @@ def main(cfg: FairseqConfig):
             for layer in model.decoder.layers:
                 layer.adapter_to_be_used = cfg.interactive.dec_adapter
 
-        
-        if cfg.interactive.hyperadapter_src_lang is not None and \
-           cfg.interactive.hyperadapter_tgt_lang is not None:
-            logging.info(
-                "using {}-{} hyperadapter".format(
-                    cfg.interactive.hyperadapter_src_lang,
-                    cfg.interactive.hyperadapter_tgt_lang,
-                )
-            )
-            model.set_src_tgt_langs(
-                cfg.interactive.hyperadapter_src_lang,
-                cfg.interactive.hyperadapter_tgt_lang
-            )
-
-
     # Initialize generator
     generator = task.build_generator(models, cfg.generation)
 
