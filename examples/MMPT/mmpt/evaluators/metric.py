@@ -85,10 +85,10 @@ class RWTHFSMetric(Metric):
     def best_metric(self, metric):
         return 1 # hack
 
-    def compute_metrics(self, outputs, texts, **kwargs):
+    def compute_metrics(self, outputs, texts, video_ids, **kwargs):
         return {
-            't2v': self.t2v.compute_metrics(outputs, texts, **kwargs),
-            'v2t': self.v2t.compute_metrics(outputs, texts, **kwargs),
+            't2v': self.t2v.compute_metrics(outputs, texts, video_ids, **kwargs),
+            'v2t': self.v2t.compute_metrics(outputs, texts, video_ids, **kwargs),
         }
 
     def print_computed_metrics(self, metrics):
@@ -107,7 +107,7 @@ class RWTHFST2VMetric(RetrievalMetric):
         super().__init__(config, metric_names)
         self.error = True
 
-    def compute_metrics(self, outputs, texts, **kwargs):
+    def compute_metrics(self, outputs, texts, video_ids, **kwargs):
         # return super().compute_metrics(outputs, texts, **kwargs)
 
         row_ids = [idx for idx, text in enumerate(texts) if text not in texts[:idx]]
@@ -161,7 +161,7 @@ class RWTHFST2VMetric(RetrievalMetric):
             error = []
             # for ex_idx in range(100):
             for ex_idx in range(len(max_idx)):
-                error.append((texts_reduced[ex_idx], texts[max_idx[ex_idx]]))
+                error.append((texts_reduced[ex_idx], texts[max_idx[ex_idx]], video_ids[max_idx[ex_idx]]))
             error = list(sorted(error, key=lambda x: x[0] + x[1]))
             metrics["error"] = error
         return metrics
@@ -194,7 +194,7 @@ class RWTHFSV2TMetric(RetrievalMetric):
         super().__init__(config, metric_names)
         self.error = True
 
-    def compute_metrics(self, outputs, texts, **kwargs):
+    def compute_metrics(self, outputs, texts, video_ids, **kwargs):
         # return super().compute_metrics(outputs.T, texts, **kwargs)
         x = outputs.T
 
@@ -248,7 +248,7 @@ class RWTHFSV2TMetric(RetrievalMetric):
             error = []
             # for ex_idx in range(100):
             for ex_idx in range(len(max_idx)):
-                error.append((texts[ex_idx], texts[max_idx[ex_idx]]))
+                error.append((texts[ex_idx], texts[max_idx[ex_idx]], video_ids[ex_idx]))
             error = list(sorted(error, key=lambda x: x[0] + x[1]))
             metrics["error"] = error
         return metrics
