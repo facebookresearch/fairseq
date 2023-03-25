@@ -258,7 +258,9 @@ class TransformerEncoderLayerBase(nn.Module):
                     use_residual=cfg.use_residual, 
                     use_tutel = cfg.use_tutel_moe, 
                     drop_tokens = cfg.drop_tokens, 
-                    use_rts = cfg.use_rts
+                    use_rts = cfg.use_rts, 
+                    capacity_factor=cfg.capacity_factor, 
+                    eval_capacity_factor=cfg.eval_capacity_factor
                 )
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
