@@ -256,7 +256,9 @@ class TransformerEncoderLayerBase(nn.Module):
                     ep_size = cfg.eps_size, 
                     k = 1 if cfg.moe_top1_expert else 2, 
                     use_residual=cfg.use_residual, 
-                    use_tutel = cfg.use_tutel_moe
+                    use_tutel = cfg.use_tutel_moe, 
+                    drop_tokens = cfg.drop_tokens, 
+                    use_rts = cfg.use_rts
                 )
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)

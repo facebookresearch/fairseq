@@ -414,6 +414,14 @@ class TransformerConfig(FairseqDataclass):
         default = '', 
         metadata={"help" : "list of expert sizes"}
     )
+    drop_tokens: bool = field(
+        default=True, 
+        metadata= {'help': "whether to drop tokens on expert capacity"}
+    )
+    use_rts: bool = field(
+        default = True, 
+        metadata= {"help" : "use random token selection"}
+    )
 
     # We need to make this hierarchical dataclass like the flat namespace
     # __getattr__ and __setattr__ here allow backward compatibility
