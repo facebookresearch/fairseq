@@ -12,6 +12,12 @@ tasks = [
     # 'test_rwthfs_videoclip_i3d',
     'test_rwthfs_scratch_i3d',
 ]
+notes = [
+    'zero-shot VideoCLIP (S3D HowTo100M video feature)',
+    'fine-tune VideoCLIP (S3D HowTo100M video feature)',
+    'train from scratch (S3D HowTo100M video feature)',
+    'train from scratch (I3D BSL-1K video feature)',
+]
 
 results = {}
 for task in tasks:
@@ -50,6 +56,7 @@ for task in tasks:
 
 df = pd.DataFrame.from_dict(results, orient='index')
 df = df[['T2V_P@1', 'T2V_P@5', 'T2V_P@10', 'T2V_Median R', 'V2T_R@1', 'V2T_R@5', 'V2T_R@10', 'V2T_Median R']]
+df['notes'] = notes
 
 print(df)
 

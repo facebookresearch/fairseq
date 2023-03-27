@@ -1,5 +1,5 @@
-,T2V_P@1,T2V_P@5,T2V_P@10,T2V_Median R,V2T_R@1,V2T_R@5,V2T_R@10,V2T_Median R
-test_rwthfs_zs,0.0286,0.0057,0.0286,22,0.0231,0.1386,0.2772,18
-test_rwthfs_videoclip,0.4000,0.0857,0.3000,2,0.3135,0.7459,0.8944,2
-test_rwthfs_scratch,0.5429,0.1200,0.2829,1,0.2772,0.6898,0.8680,3
-test_rwthfs_scratch_i3d,0.7429,0.1543,0.4429,1,0.4653,0.8185,0.9406,2
+,T2V_P@1,T2V_P@5,T2V_P@10,T2V_Median R,V2T_R@1,V2T_R@5,V2T_R@10,V2T_Median R,notes
+test_rwthfs_zs,0.0286,0.0057,0.0286,22,0.0231,0.1386,0.2772,18,zero-shot VideoCLIP (S3D HowTo100M video feature)
+test_rwthfs_videoclip,0.4000,0.0857,0.3000,2,0.3135,0.7459,0.8944,2,fine-tune VideoCLIP (S3D HowTo100M video feature)
+test_rwthfs_scratch,0.5429,0.1200,0.2829,1,0.2772,0.6898,0.8680,3,train from scratch (S3D HowTo100M video feature)
+test_rwthfs_scratch_i3d,0.7429,0.1543,0.4429,1,0.4653,0.8185,0.9406,2,train from scratch (I3D BSL-1K video feature)
