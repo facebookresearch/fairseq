@@ -48,7 +48,7 @@ for task in tasks:
             metrics = line.split(' - ')
             for metric in metrics:
                 name, value = metric.split(': ')
-                result[f'{prefix}_{name}'] = value
+                result[f'{prefix} {name}'] = value
 
             prev_line = line
 
