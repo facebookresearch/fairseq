@@ -17,8 +17,8 @@ class MoE(DsMoE):
                  min_capacity=4,
                  use_residual=False,
                  noisy_gate_policy: typing.Optional[str] = None,
-                 drop_tokens: bool = True,
-                 use_rts=True,
+                 drop_tokens: bool = False,
+                 use_rts=False,
                  use_tutel: bool = False,
                  enable_expert_tensor_parallelism: bool = False):
         """Initialize an MoE layer.
