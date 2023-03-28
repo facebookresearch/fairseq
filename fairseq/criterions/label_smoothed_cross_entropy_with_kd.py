@@ -86,14 +86,14 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
         self.kd_rate = kd_rate
         self.alpha = alpha
         self.kd_queue_size = kd_queue_size
-        self.num_languages = len(self.task.src_lang_ids)
+        self.num_languages = len(self.task.lang_ids)
         self.use_adaptive_kd_rates = use_adaptive_kd_rates
         self.kd_queue_sampling_temp = kd_queue_sampling_temp
         self.kd_lang_wise_count = defaultdict(int)
 
         if self.kd_strategy == "global_language_wise":
             self.queue = {}
-            for id in self.task.src_lang_ids:
+            for id in self.task.lang_ids:
                 self.queue[id] = torch.cuda.FloatTensor([])
         else:
             self.queue = torch.cuda.FloatTensor([])
@@ -262,11 +262,6 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
                 kd_loss_langwise[lang_id] = kd_loss_lang
                 self.push_to_lang_FIFO_queue(lang_id, nll_loss_lang)
             kd_rates = self.get_lang_kd_rates()
-
-            print("="*100)
-            print(self.kd_lang_wise_count)
-            print(kd_rates)
-            print("="*100)
             
             for (lang_id, kd_rate) in zip(indices.keys(), kd_rates):
                 loss_gate = self.queue[lang_id].topk(

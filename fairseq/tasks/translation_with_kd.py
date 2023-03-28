@@ -40,8 +40,7 @@ class KDTranslationTask(TranslationTask):
         super().__init__(cfg, src_dict, tgt_dict)
         ## additional parameters
         self.kd_strategy = cfg.kd_strategy
-        self.src_lang_ids = [i for i in range(len(src_dict)) if src_dict[i].startswith("__src__")]
-
+        self.lang_ids = [i for i in range(len(src_dict)) if src_dict[i].startswith("__src__")]
 
     def train_step(
         self, sample, model, criterion, optimizer, update_num, ignore_grad=False
