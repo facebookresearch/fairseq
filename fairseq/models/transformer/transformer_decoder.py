@@ -142,9 +142,13 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         moe_freq = max(cfg.decoder_moe_freq, cfg.moe_freq)
         for i in range(cfg.decoder_layers):
             is_moe_layer = moe_freq != 0 and (i + 1) % moe_freq == 0
+            if is_moe_layer:
+                moe_idx = int(((i+1) / moe_freq) - 1)
+            else:
+                moe_idx = -1
             self.layers.append(
                 self.build_decoder_layer(
-                    cfg, no_encoder_attn=no_encoder_attn, is_moe_layer=is_moe_layer
+                    cfg, no_encoder_attn=no_encoder_attn, is_moe_layer=is_moe_layer, moe_idx = moe_idx
                 )
             )
 
@@ -249,8 +253,8 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         alibi = alibi.view(n_attention_heads, 1, max_seq_len)
         return alibi
 
-    def build_decoder_layer(self, cfg, no_encoder_attn=False, is_moe_layer=False):
-        layer = TransformerDecoderLayer(cfg, no_encoder_attn, is_moe_layer=is_moe_layer)
+    def build_decoder_layer(self, cfg, no_encoder_attn=False, is_moe_layer=False, moe_idx=-1):
+        layer = TransformerDecoderLayer(cfg, no_encoder_attn, is_moe_layer=is_moe_layer, moe_idx=moe_idx)
         checkpoint = cfg.checkpoint_activations
         if checkpoint:
             offload_to_cpu = cfg.offload_activations

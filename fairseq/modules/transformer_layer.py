@@ -143,7 +143,7 @@ class TransformerEncoderLayerBase(nn.Module):
         args (argparse.Namespace): parsed command-line arguments
     """
 
-    def __init__(self, cfg, return_fc=False, is_moe_layer=False):
+    def __init__(self, cfg, return_fc=False, is_moe_layer=False, moe_idx=-1):
         super().__init__()
         self.cfg = cfg
         self.return_fc = return_fc
@@ -245,7 +245,7 @@ class TransformerEncoderLayerBase(nn.Module):
                     )
             else:
                 if cfg.expert_list != '':
-                    num_experts = cfg.expert_list.split(',')
+                    num_experts = cfg.expert_list.split(',')[moe_idx]
                 else:
                     num_experts = cfg.moe_expert_count
                 fc3 = nn.Linear(self.embed_dim, self.embed_dim)
@@ -468,13 +468,14 @@ class TransformerEncoderLayerBase(nn.Module):
 
 # backward compatible with the legacy argparse format
 class TransformerEncoderLayer(TransformerEncoderLayerBase):
-    def __init__(self, args, return_fc=False, is_moe_layer=False):
+    def __init__(self, args, return_fc=False, is_moe_layer=False, moe_idx=-1):
         from fairseq.models.transformer import TransformerConfig
 
         super().__init__(
             TransformerConfig.from_namespace(args),
             return_fc=return_fc,
             is_moe_layer=is_moe_layer,
+            moe_idx=moe_idx
         )
         self.args = args
 
@@ -510,6 +511,7 @@ class TransformerDecoderLayerBase(nn.Module):
         add_bias_kv=False,
         add_zero_attn=False,
         is_moe_layer=False,
+        moe_idx=-1, 
     ):
         super().__init__()
         self.cfg = cfg
@@ -683,7 +685,7 @@ class TransformerDecoderLayerBase(nn.Module):
                     )
             else:
                 if cfg.expert_list != '':
-                    num_experts = cfg.expert_list.split(',')
+                    num_experts = cfg.expert_list.split(',')[moe_idx]
                 else:
                     num_experts = cfg.moe_expert_count
                 fc3 = nn.Linear(self.embed_dim, self.embed_dim)
@@ -975,6 +977,7 @@ class TransformerDecoderLayer(TransformerDecoderLayerBase):
         add_bias_kv=False,
         add_zero_attn=False,
         is_moe_layer=False,
+        moe_idx=-1, 
         encoder_embeddings: Optional[torch.Tensor] = None
     ):
         from fairseq.models.transformer import TransformerConfig
@@ -985,6 +988,7 @@ class TransformerDecoderLayer(TransformerDecoderLayerBase):
             add_bias_kv=add_bias_kv,
             add_zero_attn=add_zero_attn,
             is_moe_layer=is_moe_layer,
+            moe_idx, 
         )
         self.args = args
 

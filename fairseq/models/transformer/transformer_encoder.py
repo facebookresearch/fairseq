@@ -96,8 +96,12 @@ class TransformerEncoderBase(FairseqEncoder):
             self.layers = nn.ModuleList([])
         moe_freq = max(cfg.encoder_moe_freq, cfg.moe_freq)
         for i in range(cfg.encoder_layers):
-            is_moe_layer = moe_freq != 0 and (i + 1) % moe_freq == 0
-            self.layers.append(self.build_encoder_layer(cfg, is_moe_layer=is_moe_layer))
+            is_moe_layer = moe_freq != 0 and (i + 1) % moe_freq == 0  
+            if is_moe_layer:
+                moe_idx = int(((i+1) / moe_freq) - 1)
+            else:
+                moe_idx = -1
+            self.layers.append(self.build_encoder_layer(cfg, is_moe_layer=is_moe_layer, moe_idx = moe_idx))
         self.num_layers = len(self.layers)
 
         if cfg.encoder.normalize_before:
@@ -105,9 +109,9 @@ class TransformerEncoderBase(FairseqEncoder):
         else:
             self.layer_norm = None
 
-    def build_encoder_layer(self, cfg, is_moe_layer=False):
+    def build_encoder_layer(self, cfg, is_moe_layer=False, moe_idx = -1):
         layer = TransformerEncoderLayer(
-            cfg, return_fc=self.return_fc, is_moe_layer=is_moe_layer
+            cfg, return_fc=self.return_fc, is_moe_layer=is_moe_layer, moe_idx=moe_idx
         )
         checkpoint = cfg.checkpoint_activations
         if checkpoint:
