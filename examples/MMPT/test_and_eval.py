@@ -1,8 +1,13 @@
 from pathlib import Path
 import subprocess
+import argparse
 import yaml
 import pandas as pd
 
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-o', '--overwrite', required=False, action='store_true', help='whether to overwrite existing testing logs')
+args = parser.parse_args()
 
 tasks_path = 'projects/retri/fingerclip/'
 tasks = [
@@ -12,6 +17,7 @@ tasks = [
     # 'test_rwthfs_videoclip_i3d',
     'test_rwthfs_scratch_i3d_512',
     'test_rwthfs_scratch_i3d',
+    'test_rwthfs_scratch_hand',
 ]
 notes = [
     'zero-shot VideoCLIP (S3D HowTo100M video feature)',
@@ -19,6 +25,7 @@ notes = [
     'train from scratch (S3D HowTo100M video feature)',
     'train from scratch (I3D BSL-1K video feature, downsampled from 1024 to 512)',
     'train from scratch (I3D BSL-1K video feature)',
+    'train from scratch (pose hand feature)',
 ]
 
 results = {}
@@ -30,7 +37,7 @@ for task in tasks:
 
     print(command)
 
-    if not Path(log_path).is_file():
+    if args.overwrite or (not Path(log_path).is_file()):
         Path(log_path).parent.mkdir(exist_ok=True, parents=True)
         with open(log_path, 'w') as f:
             subprocess.run(command, shell=True, stdout=f)

@@ -137,7 +137,7 @@ class RWTHFST2VMetric(RetrievalMetric):
             tp10_ = len([c for c in candidates[:10] if c == gold_text])
 
             tp1 = tp1 + tp1_
-            tp5 = tp1 + tp5_
+            tp5 = tp5 + tp5_
             tp10 = tp10 + tp10_
             fn1 = fn1 + (positive - tp1_)
             fn5 = fn5 + (positive - tp5_)

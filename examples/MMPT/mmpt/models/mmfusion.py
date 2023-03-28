@@ -125,7 +125,7 @@ class MMFusion(nn.Module):
                 model_config.num_layers = config.model.num_hidden_video_layers
             else:
                 model_config.num_hidden_layers = config.model.num_hidden_video_layers
-            if hasattr(config.model, "vfeat_dim"):
+            if "vfeat_dim" in config.model:
                 model_config.input_dim = config.model.vfeat_dim
             self.video_encoder = video_encoder_cls.from_pretrained(
                 config.dataset.bert_name, config=model_config)

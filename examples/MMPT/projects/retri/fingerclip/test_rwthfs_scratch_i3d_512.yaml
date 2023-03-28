@@ -20,7 +20,7 @@ fairseq:
     valid_subset: test
     num_workers: 2
   common_eval:
-    path: runs/retri/rwthfs_i3d/checkpoint_best.pt
+    path: runs/retri/rwthfs_i3d_512/checkpoint_best.pt
 model:
   model_cls: MMFusionSeparate
   mm_encoder_cls: null

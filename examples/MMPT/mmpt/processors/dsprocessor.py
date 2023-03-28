@@ -13,6 +13,7 @@ import numpy as np
 import torch
 
 from collections import defaultdict
+from pose_format import Pose
 
 from .processor import (
     MetaProcessor,
@@ -920,10 +921,20 @@ class RWTHFSVideoProcessor(VideoProcessor):
     def __call__(self, video_id):
         feat = np.load(os.path.join(self.vfeat_dir, video_id + ".npy"))
         # pooling adapater (not needed when training from scratch)
-        # feat_dim = 512
-        # if feat.shape[1] > feat_dim:
-        #     # i3d feature is 1024
-        #     # adapt feature dimension to 512 by average pooling
-        #     feat = feat.reshape(feat.shape[0], feat_dim, int(feat.shape[1] / feat_dim))
-        #     feat = np.average(feat, axis=2)
+        feat_dim = 512
+        if feat.shape[1] > feat_dim and not self.vfeat_custom:
+            # i3d feature is 1024
+            # adapt feature dimension to 512 by average pooling
+            feat = feat.reshape(feat.shape[0], feat_dim, int(feat.shape[1] / feat_dim))
+            feat = np.average(feat, axis=2)
+        return feat
+
+
+class RWTHFSPoseProcessor(VideoProcessor):
+    def __call__(self, video_id):
+        buffer = open(os.path.join(self.vfeat_dir, video_id + ".pose"), "rb").read()
+        pose = Pose.read(buffer)
+        hand = pose.get_components(["LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"])
+        feat = hand.body.data
+        feat = feat.reshape(feat.shape[0], -1)
         return feat

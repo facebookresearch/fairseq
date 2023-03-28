@@ -70,6 +70,7 @@ class VideoProcessor(Processor):
 
     def __init__(self, config):
         self.vfeat_dir = config.vfeat_dir
+        self.vfeat_custom = "vfeat_custom" in config
 
     def __call__(self, video_fn):
         if isinstance(video_fn, tuple):
@@ -149,12 +150,14 @@ class Aligner(object):
                 full_caps.extend(text_feature["cap"][clip_idx])
         else:
             full_caps = text_feature
-        max_text_len = self.max_len - self.max_video_len - 3
+        # max_text_len = self.max_len - self.max_video_len - 3
+        max_text_len = self.max_len - 3
         full_caps = full_caps[:max_text_len]
         full_caps = (
             [self.cls_token_id, self.sep_token_id] + full_caps + [self.sep_token_id]
         )
-        text_pad_len = self.max_len - len(full_caps) - self.max_video_len
+        # text_pad_len = self.max_len - len(full_caps) - self.max_video_len
+        text_pad_len = self.max_len - len(full_caps)
         padded_full_caps = full_caps + [self.pad_token_id] * text_pad_len
         caps = torch.LongTensor(padded_full_caps)
         cmasks = torch.zeros((len(padded_full_caps),), dtype=torch.bool)

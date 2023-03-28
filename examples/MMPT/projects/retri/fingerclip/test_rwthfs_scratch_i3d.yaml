@@ -12,6 +12,7 @@ dataset:
   train_path: data/rwthfs/train.txt
   gesture_id_path: data/rwthfs/gesture_ids.txt
   vfeat_dir: /shares/volk.cl.uzh/zifjia/RWTH_Fingerspelling/i3d_feature
+  vfeat_custom: 1
 slurm_config: big
 task_type: local_predict
 fairseq:
