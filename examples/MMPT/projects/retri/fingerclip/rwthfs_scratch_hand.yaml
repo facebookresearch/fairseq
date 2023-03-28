@@ -46,3 +46,4 @@ model:
   vfeat_dim: 1024
 loss:
   loss_cls: MMContraLoss
+input_dim: 1024

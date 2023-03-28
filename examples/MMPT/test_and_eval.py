@@ -4,18 +4,20 @@ import yaml
 import pandas as pd
 
 
-tasks_path = 'projects/retri/videoclip/'
+tasks_path = 'projects/retri/fingerclip/'
 tasks = [
     'test_rwthfs_zs',
     'test_rwthfs_videoclip',   
     'test_rwthfs_scratch',  
     # 'test_rwthfs_videoclip_i3d',
+    'test_rwthfs_scratch_i3d_512',
     'test_rwthfs_scratch_i3d',
 ]
 notes = [
     'zero-shot VideoCLIP (S3D HowTo100M video feature)',
     'fine-tune VideoCLIP (S3D HowTo100M video feature)',
     'train from scratch (S3D HowTo100M video feature)',
+    'train from scratch (I3D BSL-1K video feature, downsampled from 1024 to 512)',
     'train from scratch (I3D BSL-1K video feature)',
 ]
 
@@ -29,6 +31,7 @@ for task in tasks:
     print(command)
 
     if not Path(log_path).is_file():
+        Path(log_path).parent.mkdir(exist_ok=True, parents=True)
         with open(log_path, 'w') as f:
             subprocess.run(command, shell=True, stdout=f)
 

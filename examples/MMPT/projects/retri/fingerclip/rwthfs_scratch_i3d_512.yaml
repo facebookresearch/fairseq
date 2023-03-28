@@ -35,7 +35,7 @@ fairseq:
     reset_optimizer: true
     reset_dataloader: true
     reset_meters: true
-    save_dir: runs/retri/rwthfs_i3d
+    save_dir: runs/retri/rwthfs_i3d_512
 task_type: sweep_small
 model:
   model_cls: MMFusionSeparate
@@ -43,6 +43,5 @@ model:
   video_encoder_cls: MMBertForEncoder
   text_encoder_cls: BertModel
   num_hidden_video_layers: 6
-  vfeat_dim: 1024
 loss:
   loss_cls: MMContraLoss
