@@ -275,31 +275,16 @@ def top1gating(logits: Tensor,
     return l_aux, combine_weights, dispatch_mask, exp_counts
 
 
-def top2gating(logits: Tensor, 
-               capacity_factor: float, 
-               min_capacity: int, 
-               second_expert_policy='sampling', 
-               eval_mode=False,
-               moe_eval_capacity_token_fraction=0.25,
-               batch_prioritized_routing=False,
-               moe_eval_capacity_length=None) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+def top2gating(logits: Tensor, capacity_factor: float, min_capacity: int, second_expert_policy: str == 'sampling') -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """Implements Top2Gating on logits."""
     metadata = {}
     # everything is in fp32 in this function
     gates = F.softmax(logits, dim=1)
     num_tokens = gates.shape[0]
     num_experts = gates.shape[1]
-    if moe_eval_capacity_token_fraction > 0.0 and eval_mode:
-        if moe_eval_capacity_length is None:
-            capacity = math.ceil(moe_eval_capacity_token_fraction * num_tokens)
-        else:
-            capacity = math.ceil(
-                moe_eval_capacity_token_fraction * moe_eval_capacity_length
-            )
-    else:
-        # capacity = 2S/E
-        capacity = 2 * math.ceil(num_tokens / num_experts)
 
+    capacity = _capacity(gates, torch.tensor(capacity_factor * 2), torch.tensor(min_capacity))
+    
     # Create a mask for 1st's expert per token
     indices1_s = torch.argmax(gates, dim=1)
     num_experts = int(gates.shape[1])
