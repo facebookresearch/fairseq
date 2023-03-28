@@ -692,7 +692,7 @@ class TransformerDecoderLayerBase(nn.Module):
                 self.moe_layer = MoE(
                     hidden_size = self.embed_dim,
                     expert = fc3, 
-                    num_experts = num_experts, 
+                    num_experts = int(num_experts), 
                     ep_size = cfg.eps_size, 
                     k = 1 if cfg.moe_top1_expert else 2, 
                     use_residual=cfg.use_residual, 
