@@ -988,7 +988,7 @@ class TransformerDecoderLayer(TransformerDecoderLayerBase):
             add_bias_kv=add_bias_kv,
             add_zero_attn=add_zero_attn,
             is_moe_layer=is_moe_layer,
-            moe_idx, 
+            moe_idx=moe_idx
         )
         self.args = args
 
