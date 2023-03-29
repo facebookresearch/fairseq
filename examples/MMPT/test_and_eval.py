@@ -27,8 +27,8 @@ notes = [
     'train from scratch (S3D HowTo100M video feature)',
     'train from scratch (I3D BSL-1K video feature, downsampled from 1024 to 512)',
     'train from scratch (I3D BSL-1K video feature)',
-    'train from scratch (pose both hand feature)',
     'train from scratch (pose dominant hand feature)',
+    'train from scratch (pose both hand feature)',
     'train from scratch (pose full body feature)',
 ]
 
