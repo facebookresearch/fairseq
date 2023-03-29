@@ -931,10 +931,15 @@ class RWTHFSVideoProcessor(VideoProcessor):
 
 
 class RWTHFSPoseProcessor(VideoProcessor):
+    def __init__(self, config):
+        super().__init__(config)
+        self.pose_components = config.pose_components
+
     def __call__(self, video_id):
         buffer = open(os.path.join(self.vfeat_dir, video_id + ".pose"), "rb").read()
         pose = Pose.read(buffer)
-        hand = pose.get_components(["LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"])
-        feat = hand.body.data
+        if self.pose_components:
+            pose = pose.get_components(self.pose_components)
+        feat = pose.body.data
         feat = feat.reshape(feat.shape[0], -1)
         return feat

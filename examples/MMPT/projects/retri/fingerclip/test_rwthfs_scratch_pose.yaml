@@ -12,7 +12,6 @@ dataset:
   train_path: data/rwthfs/train.txt
   gesture_id_path: data/rwthfs/gesture_ids.txt
   vfeat_dir: /shares/volk.cl.uzh/zifjia/RWTH_Fingerspelling/pose
-  pose_components: ["LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"]
 slurm_config: big
 task_type: local_predict
 fairseq:
@@ -21,15 +20,15 @@ fairseq:
     valid_subset: test
     num_workers: 2
   common_eval:
-    path: runs/retri/rwthfs_hand/checkpoint_best.pt
+    path: runs/retri/rwthfs_pose/checkpoint_best.pt
 model:
   model_cls: MMFusionSeparate
   mm_encoder_cls: null
   video_encoder_cls: MMBertForEncoder
   text_encoder_cls: BertModel
   num_hidden_video_layers: 6
-  vfeat_dim: 126
+  vfeat_dim: 1728
 eval:
-  save_path: runs/retri/rwthfs_hand/eval
+  save_path: runs/retri/rwthfs_pose/eval
 metric: RWTHFSMetric
 predictor: RetrievalPredictor
