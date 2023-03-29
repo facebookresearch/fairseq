@@ -248,7 +248,7 @@ class TransformerEncoderLayerBase(nn.Module):
                     num_experts = cfg.expert_list.split(',')[moe_idx]
                 else:
                     num_experts = cfg.moe_expert_count
-                fc3 = nn.Linear(self.embed_dim, ffn_dim)
+                fc3 = FeedForwardNetwork(cfg, self.embed_dim, ffn_dim, self.dropout_module)
                 self.moe_layer = MoE(
                     hidden_size = self.embed_dim,
                     expert = fc3, 
@@ -688,7 +688,7 @@ class TransformerDecoderLayerBase(nn.Module):
                     num_experts = cfg.expert_list.split(',')[moe_idx]
                 else:
                     num_experts = cfg.moe_expert_count
-                fc3 = nn.Linear(self.embed_dim, ffn_dim)
+                fc3 = FeedForwardNetwork(cfg, self.embed_dim, ffn_dim, self.dropout_module)
                 self.moe_layer = MoE(
                     hidden_size = self.embed_dim,
                     expert = fc3, 
