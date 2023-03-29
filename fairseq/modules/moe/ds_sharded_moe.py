@@ -292,7 +292,7 @@ def top2gating(logits: Tensor, capacity_factor: float, min_capacity: int, noisy_
 
     # Create a mask for 2nd's expert per token using Gumbel-max trick
     # https://timvieira.github.io/blog/post/2014/07/31/gumbel-max-trick/
-    if noisy_gate_policy == "sampling":
+    if noisy_gate_policy == "Rsample":
         # Create a mask for 2nd's expert per token using Gumbel-max trick
         # https://timvieira.github.io/blog/post/2014/07/31/gumbel-max-trick/
         logits_w_noise = logits + gumbel_rsample(logits.shape, device=logits.device)
