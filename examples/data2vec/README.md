@@ -25,9 +25,9 @@ data2vec Large | 960 hours | [Libri-light](https://github.com/facebookresearch/l
 
 ### NLP
 
-Model | Fine-tuning data | Dataset | Link
-|---|---|---|---|
-data2vec Base | No fine-tuning | Books + Wiki | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/nlp_base.pt)
+| Model | Fine-tuning data | Dataset | Link | Dict | BPE
+|---|---|---|---|---|---
+data2vec Base | No fine-tuning | Books + Wiki | [download](https://dl.fbaipublicfiles.com/fairseq/data2vec2/nlp_base.pt) | [dict](https://dl.fbaipublicfiles.com/fairseq/data2vec2/dict.txt) | [encoder](https://dl.fbaipublicfiles.com/fairseq/data2vec2/encoder.json) / [vocab](https://dl.fbaipublicfiles.com/fairseq/data2vec2/vocab.bpe)
 
 [//]: # (## Data Preparation)
 
