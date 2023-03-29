@@ -53,13 +53,6 @@ class MoE(torch.nn.Module):
         self.num_experts = num_experts
         self.num_local_experts = num_experts // self.ep_size
 
-        log_dist(
-            f'Creating MoE layer with num_experts: {num_experts} | num_local_experts: {self.num_local_experts} | expert_parallel_size: {self.ep_size}',
-            [0])
-
-        assert noisy_gate_policy is None or noisy_gate_policy in ['None', 'Jitter', 'RSample'], \
-            'Unsupported noisy_gate_policy: ' + noisy_gate_policy
-
         experts = Experts(expert, self.num_local_experts, self.expert_group_name)
         self.deepspeed_moe = MOELayer(TopKGate(hidden_size, num_experts, k, capacity_factor, eval_capacity_factor,
                                                min_capacity, noisy_gate_policy, drop_tokens, use_rts),
@@ -102,6 +95,6 @@ class MoE(torch.nn.Module):
             coef = self.coefficient(input[0])
             coef = torch.nn.functional.softmax(coef, dim=-1)
             output = output * coef[..., 0:1] + output_mlp * coef[..., 1:]
-        metadata = self.deepspeed_moe.exp_counts
-        metadata["moe_gate_loss" ] = self.deepspeed_moe.l_aux 
-        return output, metadata
+        self.metadata = self.deepspeed_moe.exp_counts
+        self.metadata["moe_gate_loss" ] = self.deepspeed_moe.l_aux 
+        return output, self.metadata
