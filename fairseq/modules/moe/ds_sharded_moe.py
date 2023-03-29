@@ -275,7 +275,7 @@ def top1gating(logits: Tensor,
     return l_aux, combine_weights, dispatch_mask, exp_counts
 
 
-def top2gating(logits: Tensor, capacity_factor: float, min_capacity: int, second_expert_policy: str == 'sampling') -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+def top2gating(logits: Tensor, capacity_factor: float, min_capacity: int, noisy_gate_policy: str) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """Implements Top2Gating on logits."""
     metadata = {}
     # everything is in fp32 in this function
@@ -292,7 +292,7 @@ def top2gating(logits: Tensor, capacity_factor: float, min_capacity: int, second
 
     # Create a mask for 2nd's expert per token using Gumbel-max trick
     # https://timvieira.github.io/blog/post/2014/07/31/gumbel-max-trick/
-    if second_expert_policy == "sampling":
+    if noisy_gate_policy == "sampling":
         # Create a mask for 2nd's expert per token using Gumbel-max trick
         # https://timvieira.github.io/blog/post/2014/07/31/gumbel-max-trick/
         logits_w_noise = logits + gumbel_rsample(logits.shape, device=logits.device)
@@ -461,7 +461,7 @@ class TopKGate(Module):
 
         else:
             gate_output = top2gating(logits, self.capacity_factor if self.training else self.eval_capacity_factor,
-                                     self.min_capacity)
+                                     self.min_capacity, self.noisy_gate_policy)
 
         if self.wall_clock_breakdown:
             self.timers('TopKGate').stop()

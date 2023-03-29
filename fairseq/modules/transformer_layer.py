@@ -696,7 +696,8 @@ class TransformerDecoderLayerBase(nn.Module):
                     ep_size = cfg.eps_size, 
                     k = 1 if cfg.moe_top1_expert else 2, 
                     use_residual=cfg.use_residual, 
-                    use_tutel = cfg.use_tutel_moe
+                    use_tutel = cfg.use_tutel_moe, 
+                    noisy_gate_policy=cfg.moe_second_expert_policy
                 )
                 
 
