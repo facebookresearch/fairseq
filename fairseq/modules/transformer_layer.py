@@ -245,7 +245,7 @@ class TransformerEncoderLayerBase(nn.Module):
                     )
             else:
                 if cfg.expert_list != '':
-                    num_experts = cfg.expert_list.split(',')[moe_idx]
+                    num_experts = int(cfg.expert_list.split(',')[moe_idx])
                 else:
                     num_experts = cfg.moe_expert_count
                 fc3 = FeedForwardNetwork(cfg, self.embed_dim, ffn_dim, self.dropout_module)
@@ -685,7 +685,7 @@ class TransformerDecoderLayerBase(nn.Module):
                     )
             else:
                 if cfg.expert_list != '':
-                    num_experts = cfg.expert_list.split(',')[moe_idx]
+                    num_experts = int(cfg.expert_list.split(',')[moe_idx])
                 else:
                     num_experts = cfg.moe_expert_count
                 fc3 = FeedForwardNetwork(cfg, self.embed_dim, ffn_dim, self.dropout_module)
