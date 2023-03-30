@@ -14,6 +14,7 @@ import torch
 
 from collections import defaultdict
 from pose_format import Pose
+from pose_format.utils.normalization_3d import PoseNormalizer
 
 from .processor import (
     MetaProcessor,
@@ -885,28 +886,36 @@ class RWTHFSMetaProcessor(MetaProcessor):
                 self.letter_to_id[letter] = idx + 1
                 self.id_to_letter[str(idx + 1)] = letter
 
-        if config.split == 'train':
-            self.data = []
+        with open(split_path) as f:
+            lines = []
+            for line in f:
+                video_id = line.rstrip('\n') 
+                signer_id, letter_id, seq_id, camera_id = video_id.split('_')
 
-            video_ids = defaultdict(list)
-            with open(split_path) as f:
-                for line in f:
-                    video_id = line.rstrip('\n') 
+                # FIXME: for now we do full body pose estimation for all videos, so exclude cam1 where only the hands are present
+                if config.video_processor == 'RWTHFSPoseProcessor' and camera_id == 'cam1':
+                    continue
+                
+                lines.append(video_id)
+
+            if config.split == 'train':
+                self.data = []
+
+                video_ids = defaultdict(list)
+                for video_id in lines:
                     signer_id, letter_id, seq_id, camera_id = video_id.split('_')
                     video_ids[self.id_to_letter[letter_id]].append(video_id)
 
-            length = []
-            for key, value in video_ids.items():
-                length.append(len(value))
-            max_length = max(length)
-
-            for i in range(max_length):
+                length = []
                 for key, value in video_ids.items():
-                    self.data.append(value[i % len(value)])
-        else:
-            with open(split_path) as f:
-                self.data = [line.rstrip('\n') for line in f]
+                    length.append(len(value))
+                max_length = max(length)
 
+                for i in range(max_length):
+                    for key, value in video_ids.items():
+                        self.data.append(value[i % len(value)])
+            else:
+                self.data = lines
 
     def __getitem__(self, idx):
         video_id = self.data[idx]
@@ -934,12 +943,80 @@ class RWTHFSPoseProcessor(VideoProcessor):
     def __init__(self, config):
         super().__init__(config)
         self.pose_components = config.pose_components
+        self.normalize_hand = config.normalize_hand
+        self.augment2d = config.augment2d
+        self.split = config.split
 
     def __call__(self, video_id):
         buffer = open(os.path.join(self.vfeat_dir, video_id + ".pose"), "rb").read()
         pose = Pose.read(buffer)
+
+        # normalize pose: the mean distance between the shoulders of each person equals 1
+        pose = pose.normalize(self.pose_normalization_info(pose.header))
+        pose = self.pose_hide_legs(pose)
+
+        # select components
         if self.pose_components:
             pose = pose.get_components(self.pose_components)
+            # 3D Hand Normalization
+            if self.pose_components == ['RIGHT_HAND_LANDMARKS'] and self.normalize_hand:
+                pose = self.hand_normalization(pose)
+        else:
+            pose = pose.get_components(["POSE_LANDMARKS", "FACE_LANDMARKS", "LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"])
+
+        # augmentation (training only)
+        if self.split == 'train' and self.augment2d:
+            pose = pose.augment2d()
+
         feat = pose.body.data
         feat = feat.reshape(feat.shape[0], -1)
+        
         return feat
+
+    def pose_normalization_info(self, pose_header):
+        if pose_header.components[0].name == "POSE_LANDMARKS":
+            return pose_header.normalization_info(p1=("POSE_LANDMARKS", "RIGHT_SHOULDER"),
+                                                p2=("POSE_LANDMARKS", "LEFT_SHOULDER"))
+
+        if pose_header.components[0].name == "BODY_135":
+            return pose_header.normalization_info(p1=("BODY_135", "RShoulder"), p2=("BODY_135", "LShoulder"))
+
+        if pose_header.components[0].name == "pose_keypoints_2d":
+            return pose_header.normalization_info(p1=("pose_keypoints_2d", "RShoulder"),
+                                                p2=("pose_keypoints_2d", "LShoulder"))
+
+        raise ValueError("Unknown pose header schema for normalization")
+
+    def hand_normalization(self, pose):
+        plane = pose.header.normalization_info(
+            p1=("RIGHT_HAND_LANDMARKS", "WRIST"),
+            p2=("RIGHT_HAND_LANDMARKS", "PINKY_MCP"),
+            p3=("RIGHT_HAND_LANDMARKS", "INDEX_FINGER_MCP")
+        )
+        line = pose.header.normalization_info(
+            p1=("RIGHT_HAND_LANDMARKS", "WRIST"),
+            p2=("RIGHT_HAND_LANDMARKS", "MIDDLE_FINGER_MCP")
+        )
+        normalizer = PoseNormalizer(plane=plane, line=line, size=100)
+        tensor = normalizer(pose.body.data)
+
+        pose.body.data = np.nan_to_num(tensor)
+        # pose.body.data = tensor
+        pose.focus()
+
+        return pose
+
+    def pose_hide_legs(self, pose):
+        if pose.header.components[0].name == "POSE_LANDMARKS":
+            point_names = ["KNEE", "ANKLE", "HEEL", "FOOT_INDEX"]
+            # pylint: disable=protected-access
+            points = [
+                pose.header._get_point_index("POSE_LANDMARKS", side + "_" + n)
+                for n in point_names
+                for side in ["LEFT", "RIGHT"]
+            ]
+            pose.body.confidence[:, :, points] = 0
+            pose.body.data[:, :, points, :] = 0
+            return pose
+        else:
+            raise ValueError("Unknown pose header schema for hiding legs")

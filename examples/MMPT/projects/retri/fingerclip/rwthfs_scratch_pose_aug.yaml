@@ -1,7 +1,7 @@
 dataset:
-  max_video_len: 32
+  max_video_len: 128
   max_len: 96
-  video_processor: RWTHFSVideoProcessor
+  video_processor: RWTHFSPoseProcessor
   bert_name: bert-base-uncased
   meta_processor: RWTHFSMetaProcessor
   text_processor: TextProcessor
@@ -9,8 +9,9 @@ dataset:
   val_path: data/rwthfs/val.txt
   train_path: data/rwthfs/train.txt
   gesture_id_path: data/rwthfs/gesture_ids.txt
-  vfeat_dir: /shares/volk.cl.uzh/zifjia/RWTH_Fingerspelling/i3d_feature
+  vfeat_dir: /shares/volk.cl.uzh/zifjia/RWTH_Fingerspelling/pose
   aligner: DSAligner
+  augment2d: true
 fairseq:
   common:
     fp16: true
@@ -36,7 +37,7 @@ fairseq:
     reset_optimizer: true
     reset_dataloader: true
     reset_meters: true
-    save_dir: runs/retri/rwthfs_i3d_512
+    save_dir: runs/retri/rwthfs_pose_aug
 task_type: sweep_small
 model:
   model_cls: MMFusionSeparate
@@ -44,5 +45,6 @@ model:
   video_encoder_cls: MMBertForEncoder
   text_encoder_cls: BertModel
   num_hidden_video_layers: 6
+  vfeat_dim: 1629
 loss:
   loss_cls: MMContraLoss

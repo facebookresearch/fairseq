@@ -33,6 +33,7 @@ fairseq:
     ddp_backend: no_c10d
     max_epoch: 25
   checkpoint:
+    no_epoch_checkpoints: true
     reset_optimizer: true
     reset_dataloader: true
     reset_meters: true

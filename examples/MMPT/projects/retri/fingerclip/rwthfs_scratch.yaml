@@ -32,10 +32,12 @@ fairseq:
     ddp_backend: no_c10d
     max_epoch: 25
   checkpoint:
+    no_epoch_checkpoints: true
     reset_optimizer: true
     reset_dataloader: true
     reset_meters: true
-    save_dir: runs/retri/rwthfs
+    save_dir: runs/retri/rwthfs_test
+    # save_dir: runs/retri/rwthfs
 task_type: sweep_small
 model:
   model_cls: MMFusionSeparate

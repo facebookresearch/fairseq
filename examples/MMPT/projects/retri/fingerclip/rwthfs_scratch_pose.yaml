@@ -32,6 +32,7 @@ fairseq:
     ddp_backend: no_c10d
     max_epoch: 25
   checkpoint:
+    no_epoch_checkpoints: true
     reset_optimizer: true
     reset_dataloader: true
     reset_meters: true
@@ -43,6 +44,6 @@ model:
   video_encoder_cls: MMBertForEncoder
   text_encoder_cls: BertModel
   num_hidden_video_layers: 6
-  vfeat_dim: 1728
+  vfeat_dim: 1629
 loss:
   loss_cls: MMContraLoss

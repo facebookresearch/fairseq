@@ -17,9 +17,12 @@ tasks = [
     # 'test_rwthfs_videoclip_i3d',
     'test_rwthfs_scratch_i3d_512',
     'test_rwthfs_scratch_i3d',
-    'test_rwthfs_scratch_hand_dominant',
-    'test_rwthfs_scratch_hand',
     'test_rwthfs_scratch_pose',
+    'test_rwthfs_scratch_pose_aug',
+    # 'test_rwthfs_scratch_hand',
+    'test_rwthfs_scratch_hand_dominant',
+    'test_rwthfs_scratch_hand_dominant_norm',
+    'test_rwthfs_scratch_hand_dominant_aug',
 ]
 notes = [
     'zero-shot VideoCLIP (S3D HowTo100M video feature)',
@@ -27,9 +30,12 @@ notes = [
     'train from scratch (S3D HowTo100M video feature)',
     'train from scratch (I3D BSL-1K video feature, downsampled from 1024 to 512)',
     'train from scratch (I3D BSL-1K video feature)',
-    'train from scratch (pose dominant hand feature)',
-    'train from scratch (pose both hand feature)',
     'train from scratch (pose full body feature)',
+    'train from scratch (pose full body feature with 2D aug.)',
+    # 'train from scratch (pose both hand feature)',
+    'train from scratch (pose dominant hand feature)',
+    'train from scratch (pose dominant hand feature with 3D norm.)',
+    'train from scratch (pose dominant hand feature with 2D aug.)',
 ]
 
 results = {}

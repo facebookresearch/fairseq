@@ -32,6 +32,7 @@ fairseq:
     ddp_backend: no_c10d
     max_epoch: 25
   checkpoint:
+    no_epoch_checkpoints: true
     restore_file: runs/retri/videoclip/checkpoint_best.pt
     reset_optimizer: true
     reset_dataloader: true
