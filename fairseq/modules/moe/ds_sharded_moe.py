@@ -186,11 +186,13 @@ def top1gating(logits: Tensor,
                use_rts: bool = True,
                use_tutel: bool = False) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """Implements Top1Gating on logits."""
+    metadata = {}
     if noisy_gate_policy == 'RSample':
         logits_w_noise = logits + gumbel_rsample(logits.shape, device=logits.device)
     # everything is in fp32 in this function
     gates = F.softmax(logits, dim=1)
-
+    num_tokens = gates.shape[0]
+    num_experts = gates.shape[1]
     capacity = _capacity(gates, torch.tensor(capacity_factor), torch.tensor(min_capacity))
 
     # Create a mask for 1st's expert per token
@@ -249,6 +251,26 @@ def top1gating(logits: Tensor,
     else:
         locations1 = torch.cumsum(mask1, dim=0) - 1
 
+        # for logging purposes
+    metadata["overflow_expert1"] = (
+        100 * torch.sum(mask1 * torch.ge(locations1, capacity)) / torch.sum(mask1)
+    )
+        # for logging (percent of tokens routed to each expert)
+    expert1_hist = (
+        100
+        * torch.histc(
+            (indices1_s.squeeze() + 1), bins=num_experts, min=1, max=num_experts
+        )
+        / num_tokens
+    )
+    metadata["unused_expert1_count"] = (expert1_hist == 0).sum()
+    expert1_hist = (
+        torch.sort(expert1_hist, dim=0, descending=True).values
+        + torch.finfo(torch.float32).tiny
+    )
+    sample_count = max(math.ceil(num_experts * SAMPLE_FRACTION), 1)
+    metadata["expert1_balance_top"] = expert1_hist[:sample_count].sum()
+
     if use_tutel:
         gates1_s = (gates * mask1).sum(dim=1)
         locations1_s = torch.sum(locations1 * mask1, dim=1)
@@ -272,7 +294,7 @@ def top1gating(logits: Tensor,
 
     dispatch_mask = combine_weights.bool()
 
-    return l_aux, combine_weights, dispatch_mask, exp_counts
+    return l_aux, combine_weights, dispatch_mask, metadata
 
 
 def top2gating(logits: Tensor, capacity_factor: float, min_capacity: int, noisy_gate_policy: str) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
