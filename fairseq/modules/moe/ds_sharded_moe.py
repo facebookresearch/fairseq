@@ -297,7 +297,7 @@ def top1gating(logits: Tensor,
     return l_aux, combine_weights, dispatch_mask, metadata
 
 
-def top2gating(logits: Tensor, capacity_factor: float, min_capacity: int, noisy_gate_policy: str) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+def top2gating(logits: Tensor, capacity_factor: float, min_capacity: int, noisy_gate_policy: str, drop_tokens: bool) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """Implements Top2Gating on logits."""
     metadata = {}
     # everything is in fp32 in this function
@@ -311,6 +311,7 @@ def top2gating(logits: Tensor, capacity_factor: float, min_capacity: int, noisy_
     indices1_s = torch.argmax(gates, dim=1)
     num_experts = int(gates.shape[1])
     mask1 = F.one_hot(indices1_s, num_classes=num_experts)
+
 
     # Create a mask for 2nd's expert per token using Gumbel-max trick
     # https://timvieira.github.io/blog/post/2014/07/31/gumbel-max-trick/
@@ -377,6 +378,12 @@ def top2gating(logits: Tensor, capacity_factor: float, min_capacity: int, noisy_
 
     # gating decisions
     exp_counts = torch.sum(mask1, dim=0).detach().to('cpu')
+
+    # if we don't want to drop any tokens
+    if not drop_tokens:
+        new_capacity = torch.max(exp_counts).to(logits.device)
+        dist.all_reduce(new_capacity, op=dist.ReduceOp.MAX, group=dist.get_world_group())
+        capacity = new_capacity
 
     # Compute l_aux
     me = torch.mean(gates, dim=0)
@@ -483,7 +490,7 @@ class TopKGate(Module):
 
         else:
             gate_output = top2gating(logits, self.capacity_factor if self.training else self.eval_capacity_factor,
-                                     self.min_capacity, self.noisy_gate_policy)
+                                     self.min_capacity, self.noisy_gate_policy, self.drop_tokens if not self.training else True)
 
         if self.wall_clock_breakdown:
             self.timers('TopKGate').stop()
