@@ -280,7 +280,7 @@ def top1gating(logits: Tensor,
             locations1_s,
         ], [
             gates1_s,
-        ], exp_counts
+        ],  metadata
 
     # Store the capacity location for each token
     locations1_s = torch.sum(locations1 * mask1, dim=1)

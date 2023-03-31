@@ -96,5 +96,5 @@ class MoE(torch.nn.Module):
             coef = torch.nn.functional.softmax(coef, dim=-1)
             output = output * coef[..., 0:1] + output_mlp * coef[..., 1:]
         self.metadata = self.deepspeed_moe.exp_counts
-        self.metadata["moe_gate_loss" ] = self.deepspeed_moe.l_aux 
+        self.metadata["moe_gate_loss"] = self.deepspeed_moe.l_aux 
         return output, self.metadata
