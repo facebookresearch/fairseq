@@ -237,9 +237,7 @@ class DeepSpeedTrainer(Trainer):
         if not reset_optimizer and not reset_lr_scheduler:
             self.lr_scheduler.load_state_dict(client_states["lr_scheduler_state"])
             self.set_num_updates(client_states["num_updates"])
-
-
-        self.scaler.loss_scale = client_states["loss_scale"]
+            self.scaler.loss_scale = client_states["loss_scale"]
 
         if extra_state is not None:
             itr_state = extra_state["train_iterator"]
