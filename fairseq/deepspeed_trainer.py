@@ -232,9 +232,10 @@ class DeepSpeedTrainer(Trainer):
         logger.info(f'[{torch.distributed.get_rank()}] ckpt client states={client_states}')
 
         #assert not utils.has_parameters(self.get_criterion()), "criterion w. params not supported yet"
-        #extra_state = client_states["extra_state"]
+        
 
         if not reset_optimizer and not reset_lr_scheduler:
+            extra_state = client_states["extra_state"]
             self.lr_scheduler.load_state_dict(client_states["lr_scheduler_state"])
             self.set_num_updates(client_states["num_updates"])
             self.scaler.loss_scale = client_states["loss_scale"]
