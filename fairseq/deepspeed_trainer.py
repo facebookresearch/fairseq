@@ -237,7 +237,7 @@ class DeepSpeedTrainer(Trainer):
         except Exception as e:
             logger.info(e)
             extra_state = None
-        if not reset_optimizer and not reset_lr_scheduler:
+        if not reset_lr_scheduler:
             #self.lr_scheduler.load_state_dict(client_states["lr_scheduler_state"])
             num_updates = client_states["optimizer_history"][0]["num_updates"]
             self.set_num_updates(num_updates)
