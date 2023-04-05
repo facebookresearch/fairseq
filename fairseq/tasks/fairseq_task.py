@@ -184,7 +184,7 @@ class FairseqTask(object):
         Returns:
             np.array: array of filtered sample indices
         """
-        indices, ignored = dataset.filter_indices_by_size(indices, max_positions)
+        indices, ignored = dataset.filter_indices_by_size(indices, int(max_positions * 0.7))
         if len(ignored) > 0:
             if not ignore_invalid_inputs:
                 raise Exception(
