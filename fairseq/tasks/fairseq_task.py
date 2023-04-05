@@ -185,9 +185,9 @@ class FairseqTask(object):
             np.array: array of filtered sample indices
         """
         try:
-            max_positions = int(int(max_positions) * 0.7)
+            max_positions = (int(max_positions[0] * 0.7), int(max_positions[0] * 0.7))
         except:
-            max_positions =716
+            max_positions = (716, 716)
         indices, ignored = dataset.filter_indices_by_size(indices, max_positions)
         if len(ignored) > 0:
             if not ignore_invalid_inputs:
