@@ -392,7 +392,8 @@ class DeepSpeedTrainer(Trainer):
                 self.scaler.check_overflow(overflow=overflow)
                 self.scaler.update()
         except FloatingPointError:
-            raise
+            logger.info(f"NOTE: minimum scale reached, ignoring any lowering")
+            overflow = True
         except OverflowError as e:
             logger.info(f"NOTE: gradient overflow detected, ignoring gradient, {str(e)}")
             overflow = True
