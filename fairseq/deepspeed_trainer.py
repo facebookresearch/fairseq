@@ -157,7 +157,7 @@ class DeepSpeedTrainer(Trainer):
                 _config = fairseq_value
                 break
         #assert _config == fairseq_value, f"deepspeed config: {full_name} does not align with fairseq value: {fairseq_value}"
-        return _config
+        return fairseq_value
 
     def _populate_ds_config(self, cfg, ds_config):
         # gradient accumulation steps
