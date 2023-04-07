@@ -1145,3 +1145,4 @@ class FairseqConfig(FairseqDataclass):
     bpe: Any = None
     tokenizer: Any = None
     ema: EMAConfig = field(default_factory=EMAConfig)
+    
