@@ -45,17 +45,16 @@ class DynamicLossScaler(object):
             # overflow has occured
             prev_scale = self.loss_scale
             iter_since_rescale = self._iter - self._last_rescale_iter
+            if iter_since_rescale == 0:
+                iter_since_rescale = 1
 
             self._last_overflow_iter = self._iter
             self._overflows_since_rescale += 1
-            try:
-                pct_overflow = self._overflows_since_rescale / float(iter_since_rescale)
-                if pct_overflow >= self.tolerance:
-                    self._decrease_loss_scale()
-                    self._last_rescale_iter = self._iter
-                    self._overflows_since_rescale = 0
-            except:
-                pct_overflow = 0
+            pct_overflow = self._overflows_since_rescale / float(iter_since_rescale)
+            if pct_overflow >= self.tolerance:
+                self._decrease_loss_scale()
+                self._last_rescale_iter = self._iter
+                self._overflows_since_rescale = 0
 
             if self.loss_scale <= self.min_loss_scale:
                 # Use FloatingPointError as an uncommon error that parent
