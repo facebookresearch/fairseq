@@ -23,7 +23,7 @@ def fsdp_wrap_expert(cfg, layer, min_num_params=0):
     #process_group = layer.moe_layer.expert_group
     #world_size = dist_utils.get_data_parallel_group().size()
     #pg_size = process_group.size()
-    num_experts = 8
+    num_experts = cfg.moe_expert_count
 
     #for i, expert in enumerate(layer.moe_layer.experts):
     #    layer.moe_layer.experts[i] = fsdp_wrap(
