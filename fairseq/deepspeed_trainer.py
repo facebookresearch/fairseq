@@ -176,10 +176,9 @@ class DeepSpeedTrainer(Trainer):
         bf16 = self._get_config(config=ds_config, full_name="bf16:enabled", fairseq_value=self.cfg.common.bf16)
 
         if "bf16" not in ds_config:
-            ds_config["bf"] = {}
+            ds_config["bf16"] = {}
         ds_config["bf16"] = bf16
 
-        #TODO: patch in fairseq bf16 config
 
         # gradient_clipping self.cfg.optimization.clip_norm
         ds_config["gradient_clipping"] = self._get_config(ds_config, "gradient_clipping", self.cfg.optimization.clip_norm)
