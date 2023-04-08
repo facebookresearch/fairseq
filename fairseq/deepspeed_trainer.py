@@ -177,7 +177,7 @@ class DeepSpeedTrainer(Trainer):
 
         if "bf16" not in ds_config:
             ds_config["bf16"] = {}
-        ds_config["bf16"] = bf16
+        ds_config["bf16"]["enabled"] = bf16
 
 
         # gradient_clipping self.cfg.optimization.clip_norm
