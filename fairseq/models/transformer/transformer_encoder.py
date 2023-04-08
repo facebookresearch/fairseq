@@ -120,7 +120,7 @@ class TransformerEncoderBase(FairseqEncoder):
         # if we are checkpointing, enforce that FSDP always wraps the
         # checkpointed layer, regardless of layer size
         min_params_to_wrap = cfg.min_params_to_wrap if not checkpoint else 0
-        if not is_moe_layer:
+        if not is_moe_layer or cfg.ddp_backend != "fully_sharded":
             layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
         else:
             layer = fsdp_wrap_expert(cfg, layer, min_num_params=min_params_to_wrap)
