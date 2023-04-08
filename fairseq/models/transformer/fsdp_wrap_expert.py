@@ -40,7 +40,7 @@ def fsdp_wrap_expert(cfg, layer, min_num_params=0):
     else:
         expert_normalization_term = num_experts
 
-    for p in layer.moe_layer.experts.parameters():
+    for p in layer.deepspeed_moe.experts.parameters():
         p.expert = True
         # Scale grads by world_size/pg_size so that grads match the equivalent replicated
         # world size expected within Trainer
