@@ -401,6 +401,7 @@ class DeepSpeedTrainer(Trainer):
         except OverflowError as e:
             logger.info(f"NOTE: gradient overflow detected, ignoring gradient, {str(e)}")
             overflow = True
+            self.zero_grad()
     
         logging_output = None
         if not overflow or self.cfg.distributed_training.ddp_backend == "slow_mo":
