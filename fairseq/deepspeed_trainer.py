@@ -173,6 +173,11 @@ class DeepSpeedTrainer(Trainer):
         if "fp16" not in ds_config:
             ds_config["fp16"] = {}
         ds_config["fp16"]["enabled"] = fp16
+        bf16 = self._get_config(config=ds_config, full_name="bf16:enabled", fairseq_value=self.cfg.common.bf16)
+
+        if "bf16" not in ds_config:
+            ds_config["bf"] = {}
+        ds_config["bf16"] = bf16
 
         #TODO: patch in fairseq bf16 config
 
