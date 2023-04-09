@@ -231,7 +231,7 @@ class DeepSpeedTrainer(Trainer):
                 print(self.cfg.model)
             dst.load_state_dict(src, strict=False, model_cfg=self.cfg.model)
 
-        load_path, client_states = self.model.load_checkpoint(load_dir=filename, load_optimizer_states=not reset_optimizer, load_module_only = reset_optimizer, custom_load_fn=load_model)
+        load_path, client_states = self.model.load_checkpoint(load_dir=filename, load_optimizer_states=False, load_module_only = True, custom_load_fn=load_model)
 
         logger.info(f'[{torch.distributed.get_rank()}] ckpt client states={client_states}')
 
@@ -241,6 +241,8 @@ class DeepSpeedTrainer(Trainer):
         except Exception as e:
             logger.info(e)
             extra_state = None
+        if reset_optimizer:
+            self._optimizer.initialize_optimizer_states()
         if not reset_lr_scheduler:
             #self.lr_scheduler.load_state_dict(client_states["lr_scheduler_state"])
             num_updates = client_states["optimizer_history"][0]["num_updates"]
