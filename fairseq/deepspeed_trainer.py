@@ -73,6 +73,7 @@ class DeepSpeedTrainer(Trainer):
         
         if self.cfg.common.amp:
             optimizer =  optim.AMPOptimizer.build_optimizer(self.cfg, param_groups, ds = True)
+            optimizer = optimizer._optimizer
         else:
             optimizer = optim.build_optimizer(self.cfg.optimizer, param_groups, ds = True)
 
@@ -89,7 +90,7 @@ class DeepSpeedTrainer(Trainer):
         
         engine, optimizer, _, _ = deepspeed.initialize(
             model=self.model,
-            optimizer=optimizer._optimizer,
+            optimizer=optimizer,
             config_params=self.ds_config
         )
     
