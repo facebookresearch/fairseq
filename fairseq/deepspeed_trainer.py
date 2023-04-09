@@ -76,7 +76,7 @@ class DeepSpeedTrainer(Trainer):
             optimizer = optimizer._optimizer
         else:
             optimizer = optim.build_optimizer(self.cfg.optimizer, param_groups, ds = True)
-
+            optimizer = optimizer.optimizer
         
         #optimizer.param_groups[:] = list(param_groups) + optimizer.param_groups[1:]
        # os.environ['LOCAL_RANK'] = str(self.cfg.distributed_training.device_id)
