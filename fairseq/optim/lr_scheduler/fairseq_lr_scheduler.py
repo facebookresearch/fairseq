@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import torch
 from argparse import Namespace
 
 from fairseq.dataclass.utils import gen_parser_from_dataclass
@@ -13,7 +14,7 @@ from deepspeed import DeepSpeedOptimizer
 class FairseqLRScheduler(object):
     def __init__(self, cfg, optimizer):
         super().__init__()
-        if optimizer is not None and not isinstance(optimizer, (FairseqOptimizer, DeepSpeedOptimizer)):
+        if optimizer is not None and not isinstance(optimizer, (FairseqOptimizer, DeepSpeedOptimizer, torch.optim.Optimizer)):
             raise ValueError(f"optimizer must be an instance of FairseqOptimizer or DeepSpeedOptimizer but found {type(optimizer)}")
         self.cfg = cfg
         self.optimizer = optimizer
