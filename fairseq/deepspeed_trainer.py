@@ -183,6 +183,11 @@ class DeepSpeedTrainer(Trainer):
             ds_config["bf16"] = {}
         ds_config["bf16"]["enabled"] = bf16
 
+        amp = self._get_config(config=ds_config, full_name="amp:enabled", fairseq_value=self.cfg.common.amp)
+
+        if "amp" not in ds_config:
+            ds_config["amp"] = {"opt_level" : "01"}
+        ds_config["amp"]["enabled"] = amp
 
         # gradient_clipping self.cfg.optimization.clip_norm
         ds_config["gradient_clipping"] = self._get_config(ds_config, "gradient_clipping", self.cfg.optimization.clip_norm)
