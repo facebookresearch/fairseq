@@ -73,10 +73,10 @@ class DeepSpeedTrainer(Trainer):
         
         if self.cfg.common.amp:
             optimizer =  optim.AMPOptimizer.build_optimizer(self.cfg, param_groups, ds = True)
-            #optimizer = optimizer.optimizer
+            ds_optimizer = optimizer.optimizer
         else:
             optimizer = optim.build_optimizer(self.cfg.optimizer, param_groups, ds = True)
-            optimizer = optimizer._optimizer
+            ds_optimizer = optimizer._optimizer
         
         #optimizer.param_groups[:] = list(param_groups) + optimizer.param_groups[1:]
        # os.environ['LOCAL_RANK'] = str(self.cfg.distributed_training.device_id)
@@ -90,7 +90,7 @@ class DeepSpeedTrainer(Trainer):
         
         engine, optimizer, _, _ = deepspeed.initialize(
             model=self.model,
-            optimizer=optimizer,
+            optimizer=ds_optimizer,
             config_params=self.ds_config
         )
     
@@ -101,9 +101,10 @@ class DeepSpeedTrainer(Trainer):
         # building the optimizer, so that the initial learning rate is set.
         self._lr_scheduler = lr_scheduler.build_lr_scheduler(
             self.cfg.lr_scheduler,
-            engine.optimizer,
+            engine.optimizer if self.cfg.common.fp16 else ds_optimizer
         )
-        optimizer.loss_scaler.raise_error_at_min_scale = False
+        if self.cfg.common.fp16:
+            optimizer.loss_scaler.raise_error_at_min_scale = False
         self._lr_scheduler.step_update(0)
         self._optimizer = optimizer
         self._wrapped_model = engine
@@ -174,6 +175,7 @@ class DeepSpeedTrainer(Trainer):
 
         # enable fp16
         fp16 = self._get_config(config=ds_config, full_name="fp16:enabled", fairseq_value=self.cfg.common.fp16)
+        self.fp16 = fp16
         if "fp16" not in ds_config:
             ds_config["fp16"] = {}
         ds_config["fp16"]["enabled"] = fp16
@@ -182,12 +184,10 @@ class DeepSpeedTrainer(Trainer):
         if "bf16" not in ds_config:
             ds_config["bf16"] = {}
         ds_config["bf16"]["enabled"] = bf16
+        
+        if "amp" not in ds_config and self.cfg.common.amp:
+            ds_config["amp"] = {"enabled": True, "opt_level": "O1"}
 
-        amp = self._get_config(config=ds_config, full_name="amp:enabled", fairseq_value=self.cfg.common.amp)
-
-        if "amp" not in ds_config:
-            ds_config["amp"] = {"opt_level" : "01"}
-        ds_config["amp"]["enabled"] = amp
 
         # gradient_clipping self.cfg.optimization.clip_norm
         ds_config["gradient_clipping"] = self._get_config(ds_config, "gradient_clipping", self.cfg.optimization.clip_norm)
@@ -313,7 +313,8 @@ class DeepSpeedTrainer(Trainer):
         for i, sample in enumerate(samples):
             sample, is_dummy_batch = self._prepare_sample(sample)
 
-            self.model.optimizer.override_loss_scale(self.scaler.loss_scale)
+            if self.fp16:
+                self.model.optimizer.override_loss_scale(self.scaler.loss_scale)
 
             try:
                 # forward and backward
@@ -404,9 +405,12 @@ class DeepSpeedTrainer(Trainer):
                     self.optimizer, model=self.model, update_num=self.get_num_updates()
                 )
                 # pass overflow flag from ds to fairseq
-                overflow = self.model.optimizer.overflow
-                self.scaler.check_overflow(overflow=overflow)
-                self.scaler.update()
+                if self.fp16:
+                    overflow = self.model.optimizer.overflow
+                    self.scaler.check_overflow(overflow=overflow)
+                    self.scaler.update()
+                else:
+                    overflow = False
         except FloatingPointError:
             logger.info(f"NOTE: minimum scale reached, ignoring any lowering")
             overflow = True

@@ -671,7 +671,7 @@ class MultilingualDatasetManager(object):
                 dicts[lang] = load_dictionary(
                     os.path.join(paths[0], "dict.{}.txt".format(lang))
                 )
-                logger.info("[{}] dictionary: {} types".format(lang, len(dicts[lang])))
+                #logger.info("[{}] dictionary: {} types".format(lang, len(dicts[lang])))
             if len(dicts) > 0:
                 dict0 = next(iter(dicts.values()))
                 assert dicts[lang].pad() == dict0.pad()
