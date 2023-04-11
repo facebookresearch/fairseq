@@ -73,7 +73,7 @@ class DeepSpeedTrainer(Trainer):
         
         if self.cfg.common.amp:
             amp_optimizer =  optim.AMPOptimizer.build_optimizer(self.cfg, param_groups, ds = True)
-            optimizer = optimizer.optimizer
+            optimizer = amp_optimizer.optimizer
         else:
             optimizer = optim.build_optimizer(self.cfg.optimizer, param_groups, ds = True)
             optimizer = optimizer._optimizer
@@ -106,8 +106,8 @@ class DeepSpeedTrainer(Trainer):
         if self.cfg.common.fp16:
             optimizer.loss_scaler.raise_error_at_min_scale = False
         self._lr_scheduler.step_update(0)
-        self._optimizer = optimizer
-        self._wrapped_model = engine
+        self._optimizer = optimizer if self.cfg.common.fp16 else amp_optimizer
+        self._wrapped_model = engine 
         self.device = engine.device
         self._criterion.to(device=self.device)
         torch.distributed.barrier()
@@ -339,7 +339,7 @@ class DeepSpeedTrainer(Trainer):
                         f"gas_boundary={self.model.is_gradient_accumulation_boundary()}, " \
                         f"train_step={self.train_step_count}, " \
                         f"lr={self.get_lr()}, " \
-                        f"loss_scale={self.model.optimizer.loss_scale}, " \
+                       # f"loss_scale={self.model.optimizer.loss_scale}, " \
                         f"loss={loss}")
                 del loss
                 
