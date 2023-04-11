@@ -88,7 +88,7 @@ class DeepSpeedTrainer(Trainer):
         #logger.info(optimizer.param_groups)
         
         
-        engine, _optimizer, _, _ = deepspeed.initialize(
+        engine, optimizer, _, _ = deepspeed.initialize(
             model=self.model,
             optimizer=optimizer,
             config_params=self.ds_config
@@ -106,7 +106,7 @@ class DeepSpeedTrainer(Trainer):
         if self.cfg.common.fp16:
             optimizer.loss_scaler.raise_error_at_min_scale = False
         self._lr_scheduler.step_update(0)
-        self._optimizer = _optimizer
+        self._optimizer = optimizer
         self._wrapped_model = engine
         self.device = engine.device
         self._criterion.to(device=self.device)
