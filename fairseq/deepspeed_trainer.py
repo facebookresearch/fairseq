@@ -72,11 +72,11 @@ class DeepSpeedTrainer(Trainer):
             #group.update(opt_settings)
         
         if self.cfg.common.amp:
-            optimizer =  optim.AMPOptimizer.build_optimizer(self.cfg, param_groups, ds = True)
-            ds_optimizer = optimizer.optimizer
+            amp_optimizer =  optim.AMPOptimizer.build_optimizer(self.cfg, param_groups, ds = True)
+            optimizer = optimizer.optimizer
         else:
             optimizer = optim.build_optimizer(self.cfg.optimizer, param_groups, ds = True)
-            ds_optimizer = optimizer._optimizer
+            optimizer = optimizer._optimizer
         
         #optimizer.param_groups[:] = list(param_groups) + optimizer.param_groups[1:]
        # os.environ['LOCAL_RANK'] = str(self.cfg.distributed_training.device_id)
@@ -88,9 +88,9 @@ class DeepSpeedTrainer(Trainer):
         #logger.info(optimizer.param_groups)
         
         
-        engine, optimizer, _, _ = deepspeed.initialize(
+        engine, _optimizer, _, _ = deepspeed.initialize(
             model=self.model,
-            optimizer=ds_optimizer,
+            optimizer=optimizer,
             config_params=self.ds_config
         )
     
@@ -101,12 +101,12 @@ class DeepSpeedTrainer(Trainer):
         # building the optimizer, so that the initial learning rate is set.
         self._lr_scheduler = lr_scheduler.build_lr_scheduler(
             self.cfg.lr_scheduler,
-            engine.optimizer if self.cfg.common.fp16 else ds_optimizer
+            engine.optimizer if self.cfg.common.fp16 else amp_optimizer
         )
         if self.cfg.common.fp16:
             optimizer.loss_scaler.raise_error_at_min_scale = False
         self._lr_scheduler.step_update(0)
-        self._optimizer = optimizer
+        self._optimizer = _optimizer
         self._wrapped_model = engine
         self.device = engine.device
         self._criterion.to(device=self.device)
