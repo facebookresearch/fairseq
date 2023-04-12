@@ -233,7 +233,7 @@ class DeepSpeedTrainer(Trainer):
         logger.info(f"Preparing to load checkpoint {filename}")
         if not os.path.isdir(filename):
             logger.info("No existing checkpoint found {}".format(filename))
-            raise ValueError
+            
 
         def load_model(src, dst):
             if torch.distributed.get_rank() == 0:
