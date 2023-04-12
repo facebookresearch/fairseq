@@ -185,8 +185,8 @@ class DeepSpeedTrainer(Trainer):
             ds_config["bf16"] = {}
         ds_config["bf16"]["enabled"] = bf16
         
-        if "amp" not in ds_config and self.cfg.common.amp:
-            ds_config["amp"] = {"enabled": True, "opt_level": "O1"}
+        #if "amp" not in ds_config and self.cfg.common.amp:
+        #    ds_config["amp"] = {"enabled": True, "opt_level": "O1"}
 
 
         # gradient_clipping self.cfg.optimization.clip_norm
