@@ -91,6 +91,7 @@ class DeepSpeedTrainer(Trainer):
         engine, optimizer, _, _ = deepspeed.initialize(
             model=self.model,
             optimizer=optimizer,
+            model_parameters = param_groups. 
             config_params=self.ds_config
         )
     
@@ -170,7 +171,11 @@ class DeepSpeedTrainer(Trainer):
         ds_config["gradient_accumulation_steps"] = self._get_config(ds_config, "gradient_accumulation_steps", self.cfg.optimization.update_freq[0])
 
         # train_micro_batch_size_per_gpu
-        micro_batch_size = self._get_config(ds_config, "train_micro_batch_size_per_gpu", int(self.cfg.dataset.max_tokens) / 20)
+        if self.cfg.dataset.max_tokens is not None:
+            micro_batch_size = self._get_config(ds_config, "train_micro_batch_size_per_gpu", int(self.cfg.dataset.max_tokens) / 20)
+        else:
+            micro_batch_size = self._get_config(ds_config, "train_micro_batch_size_per_gpu", int(self.cfg.dataset.batch_size))
+        
         ds_config["train_micro_batch_size_per_gpu"] = int(micro_batch_size)
 
         # enable fp16
