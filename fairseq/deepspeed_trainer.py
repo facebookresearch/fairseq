@@ -91,7 +91,7 @@ class DeepSpeedTrainer(Trainer):
         engine, optimizer, _, _ = deepspeed.initialize(
             model=self.model,
             optimizer=optimizer,
-            model_parameters = param_groups. 
+            model_parameters = param_groups,  
             config_params=self.ds_config
         )
     
