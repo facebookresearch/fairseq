@@ -858,11 +858,11 @@ class MultilingualDatasetManager(object):
                     tgt_datasets.append(
                         self.load_data(train_prefix + tgt, tgt_dict, dataset_impl)
                     )
-                    logger.info(
-                        "{} {} {}-{} {} examples".format(
-                            data_path, train_split, src, tgt, len(src_datasets[-1])
-                        )
-                    )
+                    #logger.info(
+                    #    "{} {} {}-{} {} examples".format(
+                    #        data_path, train_split, src, tgt, len(src_datasets[-1])
+                    #    )
+                    #)
         else:
             for k in itertools.count():
                 split_k = split + (str(k) if k > 0 else "")
@@ -949,11 +949,11 @@ class MultilingualDatasetManager(object):
                 tgt_datasets.append(
                     self.load_data(prefix_tgt + tgt, tgt_dict, dataset_impl)
                 )
-                logger.info(
-                    "{} {} {}-{} {} examples".format(
-                        data_path, split_k, src, tgt, len(src_datasets[-1])
-                    )
-                )
+                #logger.info(
+                #    "{} {} {}-{} {} examples".format(
+                #        data_path, split_k, src, tgt, len(src_datasets[-1])
+                #    )
+                #)
 
                 if not combine:
                     break
@@ -1407,9 +1407,9 @@ class MultilingualDatasetManager(object):
 
         src_langtok = self.get_encoder_langtok(src, tgt, src_langtok_spec)
         tgt_langtok = self.get_decoder_langtok(tgt, tgt_langtok_spec)
-        logger.info(
-            f"{data_category}:{src}-{tgt} src_langtok: {src_langtok}; tgt_langtok: {tgt_langtok}"
-        )
+        #logger.info(
+        #    f"{data_category}:{src}-{tgt} src_langtok: {src_langtok}; tgt_langtok: {tgt_langtok}"
+        #)
 
         if data_category == "mono_dae":
             langpair_ds = self.load_denoise_langpair_dataset(
@@ -1617,14 +1617,14 @@ class MultilingualDatasetManager(object):
             return self._num_shards_dict[split]
         num_shards_dict = {}
         data_paths, lang_pairs = self.get_data_paths_and_lang_pairs(split)
-        logger.info(f"datapath1: {data_paths}")
+        #logger.info(f"datapath1: {data_paths}")
         for data_category, paths in data_paths.items():
-            logger.info(data_category)
+            #logger.info(data_category)
             if data_category not in lang_pairs:
                 continue
             paths = utils.split_paths(paths)
             shards_dict = self._get_shard_num_dict(split, paths)
-            logger.info(shards_dict)
+            #logger.info(shards_dict)
             lang_dirs = [
                 lang_pair.split("-") for lang_pair in lang_pairs[data_category]
             ]
@@ -1669,7 +1669,7 @@ class MultilingualDatasetManager(object):
                             num_shards_dict[key] = shards_dict[f"{tgt}-eng_Latn"]
 
         self._num_shards_dict[split] = num_shards_dict
-        logger.info(f"[{split}] num of shards: {num_shards_dict}")
+        #logger.info(f"[{split}] num of shards: {num_shards_dict}")
         return num_shards_dict
 
     @classmethod
@@ -1686,10 +1686,10 @@ class MultilingualDatasetManager(object):
         # TODO: to extend with extra datasets and keys and loop over different shard data paths
         param_list = []
         data_paths, lang_pairs = self.get_data_paths_and_lang_pairs(split)
-        logger.info(f"data paths: {data_paths}")
-        logger.info(f"langtoks settings: {self.args.langtoks}")
+        #logger.info(f"data paths: {data_paths}")
+        #logger.info(f"langtoks settings: {self.args.langtoks}")
         split_num_shards_dict = self.get_split_num_data_shards(split)
-        logger.info(f"split shards dict :{split_num_shards_dict}")
+        #logger.info(f"split shards dict :{split_num_shards_dict}")
         for data_category, paths in data_paths.items():
             if data_category not in lang_pairs:
                 continue
@@ -1890,7 +1890,6 @@ class MultilingualDatasetManager(object):
                     or dataset_name.split(":")[1] in eval_lang_pairs
                 ):
                     splits.append(split_name)
-            logger.info(f"splits={splits}")
             if split in self.args.valid_subset:
                 self.args.valid_subset = self.args.valid_subset.replace(
                     split, ",".join(splits)
@@ -1932,7 +1931,6 @@ class MultilingualDatasetManager(object):
                     or dataset_name.split(":")[1] in eval_lang_pairs
                 ):
                     splits.append(split_name)
-            logger.info(f"splits={splits}")
             if split in self.args.valid_subset:
                 self.args.valid_subset = self.args.valid_subset.replace(
                     split, ",".join(splits)
