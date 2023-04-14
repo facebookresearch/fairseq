@@ -218,11 +218,15 @@ class SampledMultiDataset(FairseqDataset):
                 )
         else:
             ratios = sample_ratios / sample_ratios.sum()
+            logger.info("ratios")
             in_dataset_indices = get_in_dataset_indices(datasets, ratios)
+            logger.info("in_dataset_indices")
             virtual_sizes_per_dataset = [len(d) for d in in_dataset_indices]
-        
+            logger.info("virtual sizes")
         virtual_sizes_per_dataset = np.array(virtual_sizes_per_dataset, np.int64)
+        logger.info("virtual sizes 2")
         cumulative_sizes = np.cumsum(virtual_sizes_per_dataset)
+        logger.info("cumulative")
         assert sum(virtual_sizes_per_dataset) == virtual_size
         assert cumulative_sizes[-1] == virtual_size
         in_dataset_indices = np.hstack(in_dataset_indices)
