@@ -176,6 +176,7 @@ class SampledMultiDataset(FairseqDataset):
     def random_choice_in_dataset(self, rng, dataset, choice_size):
         if hasattr(dataset, "random_choice_in_dataset"):
             return dataset.random_choice_in_dataset(rng, choice_size)
+        logger.info("getting len")
         dataset_size = len(dataset)
         logger.info(f"dataset_size {dataset_size}, choice_size {choice_size}")
         return rng.choice(
