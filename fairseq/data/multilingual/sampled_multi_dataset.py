@@ -177,6 +177,7 @@ class SampledMultiDataset(FairseqDataset):
         if hasattr(dataset, "random_choice_in_dataset"):
             return dataset.random_choice_in_dataset(rng, choice_size)
         dataset_size = len(dataset)
+        logger.info(f"dataset_size {dataset_size}, choice_size {choice_size}")
         return rng.choice(
             dataset_size, choice_size, replace=(choice_size > dataset_size)
         )
@@ -197,12 +198,14 @@ class SampledMultiDataset(FairseqDataset):
 
         def get_in_dataset_indices(datasets, sample_ratios):
             counts = get_counts(sample_ratios)
+            logger.info("got counts")
             # uniformally sample desired counts for each dataset
             # if the desired counts are large, sample with replacement:
             indices = [
                 self.random_choice_in_dataset(rng, d, c)
                 for c, d in zip(counts, datasets)
             ]
+            logger.info("got indices")
             return indices
 
         
@@ -218,7 +221,6 @@ class SampledMultiDataset(FairseqDataset):
                 )
         else:
             ratios = sample_ratios / sample_ratios.sum()
-            logger.info("ratios")
             in_dataset_indices = get_in_dataset_indices(datasets, ratios)
             logger.info("in_dataset_indices")
             virtual_sizes_per_dataset = [len(d) for d in in_dataset_indices]
