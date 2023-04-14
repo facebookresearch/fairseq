@@ -186,7 +186,9 @@ class SampledMultiEpochDataset(SampledMultiDataset):
                 f"epoch={epoch}/shard_epoch={self.shard_epoch}"
             )
             super().set_epoch(epoch)
+            logger.info("set epoch")
             self._next_global_indices(epoch)
+            logger.info("next global indices")
         else:
             self._cur_epoch = epoch
 
@@ -196,6 +198,7 @@ class SampledMultiEpochDataset(SampledMultiDataset):
                 self._epoch_sizes,
             ]
         )
+        logger.info("cleaned")
         self._epoch_sizes = None
         self._current_epoch_start_index = index
 
