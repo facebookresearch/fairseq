@@ -413,28 +413,31 @@ class SampledMultiDataset(FairseqDataset):
                 self._cur_epoch,  # epoch index,
             ]
         )
+        logger.info("rng")
         self._clean_if_not_none(
             [self.cumulated_sizes, self.virtual_size_per_dataset, self._sizes]
         )
         self._sizes = None
-
+        logger.info("cleaned")
         indices, cumulated_sizes, virtual_size_per_dataset = self.get_virtual_indices(
             rng, self.datasets, self.sample_ratios, self.virtual_size
         )
+        logger.info("got_virtual")
         self._cur_indices = indices
         self.cumulated_sizes = cumulated_sizes
         self.virtual_size_per_dataset = virtual_size_per_dataset
 
-        raw_sizes = [len(d) for d in self.datasets]
+        #raw_sizes = [len(d) for d in self.datasets]
+        logger.info("raw_sizes")
         sampled_sizes = self.virtual_size_per_dataset
-        logger.info(
-            f"[{self.split}] Raw sizes: {str(dict(zip(self.keys, raw_sizes)))}; "
-            f"raw total size: {sum(raw_sizes)}"
-        )
-        logger.info(
-            f"[{self.split}] Resampled sizes: {str(dict(zip(self.keys, sampled_sizes)))}; "
-            f"resampled total size: {sum(sampled_sizes)}"
-        )
+        #logger.info(
+        #    f"[{self.split}] Raw sizes: {str(dict(zip(self.keys, raw_sizes)))}; "
+        #    f"raw total size: {sum(raw_sizes)}"
+        #)
+        #logger.info(
+        #    f"[{self.split}] Resampled sizes: {str(dict(zip(self.keys, sampled_sizes)))}; "
+        #    f"resampled total size: {sum(sampled_sizes)}"
+        #)
         if self.sample_ratios is not None:
             logger.info(
                 f"[{self.split}] Upsampling ratios: {str(dict(zip(self.keys, self.sample_ratios)))}"
