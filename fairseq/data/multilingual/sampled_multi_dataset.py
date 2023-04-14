@@ -195,7 +195,7 @@ class SampledMultiDataset(FairseqDataset):
                     counts[i] += 1
             return counts
 
-        def get_in_dataset_indices(datasets, sizes, sample_ratios):
+        def get_in_dataset_indices(datasets, sample_ratios):
             counts = get_counts(sample_ratios)
             # uniformally sample desired counts for each dataset
             # if the desired counts are large, sample with replacement:
@@ -205,24 +205,26 @@ class SampledMultiDataset(FairseqDataset):
             ]
             return indices
 
-        sizes = [len(d) for d in datasets]
+        
         if sample_ratios is None:
+            sizes = [len(d) for d in datasets]
             # default back to concating datasets
             in_dataset_indices = [list(range(s)) for s in sizes]
             virtual_sizes_per_dataset = sizes
+            if virtual_size < sum(sizes):
+                logger.warning(
+                    f"virtual data size ({virtual_size}) is less than real data size ({sum(sizes)})."
+                    " If virtual size << real data size, there could be data coverage issue."
+                )
         else:
             ratios = sample_ratios / sample_ratios.sum()
-            in_dataset_indices = get_in_dataset_indices(datasets, sizes, ratios)
+            in_dataset_indices = get_in_dataset_indices(datasets, ratios)
             virtual_sizes_per_dataset = [len(d) for d in in_dataset_indices]
+        
         virtual_sizes_per_dataset = np.array(virtual_sizes_per_dataset, np.int64)
         cumulative_sizes = np.cumsum(virtual_sizes_per_dataset)
         assert sum(virtual_sizes_per_dataset) == virtual_size
         assert cumulative_sizes[-1] == virtual_size
-        if virtual_size < sum(sizes):
-            logger.warning(
-                f"virtual data size ({virtual_size}) is less than real data size ({sum(sizes)})."
-                " If virtual size << real data size, there could be data coverage issue."
-            )
         in_dataset_indices = np.hstack(in_dataset_indices)
         return in_dataset_indices, cumulative_sizes, virtual_sizes_per_dataset
 
