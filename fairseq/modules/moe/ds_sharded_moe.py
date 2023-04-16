@@ -234,7 +234,10 @@ def top1gating(logits: Tensor,
     assert logits.shape[
         0] >= min_capacity, "No. of tokens (batch-size) should be greater than min_capacity. Either set min_capacity to 0 or increase your batch size."
 
-    top_idx = _top_idx(mask1_rand, capacity)
+    try:
+        top_idx = _top_idx(mask1_rand, capacity)
+    except:
+        raise ValueError(mask1_rand.shape, capacity.shape )
 
     new_mask1 = mask1 * torch.zeros_like(mask1).scatter_(0, top_idx, 1)
     mask1 = new_mask1
