@@ -205,8 +205,8 @@ def top1gating(logits: Tensor,
     mask1 = F.one_hot(indices1_s, num_classes=num_experts)
 
     # mask only used tokens
-    if used_token is not None:
-        mask1 = einsum("s,se->se", used_token, mask1)
+    #if used_token is not None:
+    #    mask1 = einsum("s,se->se", used_token, mask1)
 
     # gating decisions
     exp_counts = torch.sum(mask1, dim=0).detach().to('cpu')
