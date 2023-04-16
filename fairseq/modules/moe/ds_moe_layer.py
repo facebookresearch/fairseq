@@ -84,9 +84,9 @@ class MoE(torch.nn.Module):
         self.deepspeed_moe._set_ep_group(groups._get_expert_parallel_group(self.expert_group_name))
 
 
-    def forward(self, *input: Tensor, input_padding_mask=None, used_token = None, prefix_tokens=None, 
+    def forward(self, *input: Tensor, input_padding_mask=None, prefix_tokens=None, 
         encoder_embeddings: Optional[Tensor]=None, **kwargs: Any):
-        output = self.deepspeed_moe(input[0], used_token)
+        output = self.deepspeed_moe(input[0])
         if self.use_residual:
             # Residual MoE
             output_mlp = self.mlp(input[0])
