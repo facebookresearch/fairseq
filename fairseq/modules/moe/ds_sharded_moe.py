@@ -184,7 +184,8 @@ def top1gating(logits: Tensor,
                noisy_gate_policy: Optional[str] = None,
                drop_tokens: bool = True,
                use_rts: bool = True,
-               use_tutel: bool = False) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+               use_tutel: bool = False, 
+               training: bool = False) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """Implements Top1Gating on logits."""
     metadata = {}
     if noisy_gate_policy == 'RSample':
@@ -194,6 +195,8 @@ def top1gating(logits: Tensor,
     num_tokens = gates.shape[0]
     num_experts = gates.shape[1]
     capacity = _capacity(gates, torch.tensor(capacity_factor), torch.tensor(min_capacity))
+    if not training:
+        logger.info(capacity) 
 
     # Create a mask for 1st's expert per token
     # noisy gating
@@ -213,6 +216,8 @@ def top1gating(logits: Tensor,
         new_capacity = torch.max(exp_counts).to(logits.device)
         dist.all_reduce(new_capacity, op=dist.ReduceOp.MAX, group=dist.get_world_group())
         capacity = new_capacity
+        if not training:
+            logger.info(capacity) 
 
     # Compute l_aux
     me = torch.mean(gates, dim=0)
@@ -234,6 +239,10 @@ def top1gating(logits: Tensor,
     assert logits.shape[
         0] >= min_capacity, "No. of tokens (batch-size) should be greater than min_capacity. Either set min_capacity to 0 or increase your batch size."
 
+    if not training:
+        logger.info(capacity) 
+        logger.info(mask1_rand)
+    
     try:
         top_idx = _top_idx(mask1_rand, capacity)
     except:
@@ -489,7 +498,7 @@ class TopKGate(Module):
         if self.k == 1:
             gate_output = top1gating(logits, self.capacity_factor if self.training else self.eval_capacity_factor,
                                      self.min_capacity, used_token, self.noisy_gate_policy,
-                                     True, self.use_rts, use_tutel)
+                                     True, self.use_rts, use_tutel, self.training)
 
         else:
             gate_output = top2gating(logits, self.capacity_factor if self.training else self.eval_capacity_factor,
