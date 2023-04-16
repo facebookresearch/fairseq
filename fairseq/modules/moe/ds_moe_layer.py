@@ -86,7 +86,7 @@ class MoE(torch.nn.Module):
 
     def forward(self, *input: Tensor, input_padding_mask=None, used_token = None,  prefix_tokens=None, 
         encoder_embeddings: Optional[Tensor]=None, **kwargs: Any):
-        output = self.deepspeed_moe(input[0], used_token)
+        output = self.deepspeed_moe(input[0])
         if self.use_residual:
             # Residual MoE
             output_mlp = self.mlp(input[0])
