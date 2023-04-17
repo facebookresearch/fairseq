@@ -195,7 +195,7 @@ def top1gating(logits: Tensor,
     num_tokens = gates.shape[0]
     num_experts = gates.shape[1]
     capacity = _capacity(gates, torch.tensor(capacity_factor), torch.tensor(min_capacity))
-    logger.info(f"capacity1 {capacity.shape}")
+    logger.info(f"capacity1 {capacity}")
 
     # Create a mask for 1st's expert per token
     # noisy gating
@@ -216,7 +216,7 @@ def top1gating(logits: Tensor,
         dist.all_reduce(new_capacity, op=dist.ReduceOp.MAX, group=dist.get_world_group())
         capacity = new_capacity
         if not training:
-            logger.info(f"capacity 2: {capacity.shape}") 
+            logger.info(f"capacity 2: {capacity}") 
 
     # Compute l_aux
     me = torch.mean(gates, dim=0)
@@ -239,14 +239,14 @@ def top1gating(logits: Tensor,
         0] >= min_capacity, "No. of tokens (batch-size) should be greater than min_capacity. Either set min_capacity to 0 or increase your batch size."
 
     if not training:
-        logger.info(f"cap shape {capacity.shape}") 
+        logger.info(f"cap shape {capacity}") 
         logger.info(f"mask1_shape {mask1_rand.shape}")
     
     try:
         top_idx = _top_idx(mask1_rand, capacity)
-        logger.info(f"top_idx {top_idx}, mask1_rand {mask1_rand.shape}, capacity {capacity.shape}")
+        logger.info(f"top_idx {top_idx}, mask1_rand {mask1_rand.shape}, capacity {capacity}")
     except:
-        raise ValueError(mask1_rand.shape, capacity.shape )
+        raise ValueError(mask1_rand.shape, capacity )
 
     new_mask1 = mask1 * torch.zeros_like(mask1).scatter_(0, top_idx, 1)
     mask1 = new_mask1
