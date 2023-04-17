@@ -186,7 +186,6 @@ def top1gating(logits: Tensor,
                use_rts: bool = True, 
                use_tutel: bool = False) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """Implements Top1Gating on logits."""
-    training = False
     metadata = {}
     if noisy_gate_policy == 'RSample':
         logits_w_noise = logits + gumbel_rsample(logits.shape, device=logits.device)
@@ -195,7 +194,7 @@ def top1gating(logits: Tensor,
     num_tokens = gates.shape[0]
     num_experts = gates.shape[1]
     capacity = _capacity(gates, torch.tensor(capacity_factor), torch.tensor(min_capacity))
-    logger.info(f"capacity1 {capacity}")
+
 
     # Create a mask for 1st's expert per token
     # noisy gating
@@ -206,7 +205,6 @@ def top1gating(logits: Tensor,
     # mask only used tokens
     if used_token is not None:
         mask1 = einsum("s,se->se", used_token, mask1)
-        logger.info(f"used {used_token.shape}, mask1 {mask1.shape}")
     # gating decisions
     exp_counts = torch.sum(mask1, dim=0).detach().to('cpu')
 
@@ -215,8 +213,6 @@ def top1gating(logits: Tensor,
         new_capacity = torch.max(exp_counts).to(logits.device)
         dist.all_reduce(new_capacity, op=dist.ReduceOp.MAX, group=dist.get_world_group())
         capacity = new_capacity
-        if not training:
-            logger.info(f"capacity 2: {capacity}") 
 
     # Compute l_aux
     me = torch.mean(gates, dim=0)
@@ -238,14 +234,9 @@ def top1gating(logits: Tensor,
     assert logits.shape[
         0] >= min_capacity, "No. of tokens (batch-size) should be greater than min_capacity. Either set min_capacity to 0 or increase your batch size."
 
-    if not training:
-        logger.info(f"cap shape {capacity}") 
-        logger.info(f"mask1_shape {mask1_rand.shape}")
-    
     capacity = torch.minimum(torch.tensor(mask1_rand.shape[0]).to(capacity.device), capacity)
     try:
         top_idx = _top_idx(mask1_rand, capacity)
-        logger.info(f"top_idx {top_idx}, mask1_rand {mask1_rand.shape}, capacity {capacity}")
     except:
         raise ValueError(mask1_rand.shape, capacity )
 
