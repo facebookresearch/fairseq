@@ -218,7 +218,10 @@ def delete_old_checkpoint_files(
                 try:
                     os.remove(old_chk)
                 except IsADirectoryError:
-                    shutil.rmtree(old_chk)
+                    try;
+                        shutil.rmtree(old_chk)
+                    except: 
+                        exists = False
             elif PathManager.exists(old_chk):
                 PathManager.rm(old_chk)
 
