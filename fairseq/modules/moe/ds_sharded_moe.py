@@ -242,6 +242,7 @@ def top1gating(logits: Tensor,
         logger.info(f"cap shape {capacity}") 
         logger.info(f"mask1_shape {mask1_rand.shape}")
     
+    capacity = torch.minimum(mask1_rand.shape[0], capacity)
     try:
         top_idx = _top_idx(mask1_rand, capacity)
         logger.info(f"top_idx {top_idx}, mask1_rand {mask1_rand.shape}, capacity {capacity}")
