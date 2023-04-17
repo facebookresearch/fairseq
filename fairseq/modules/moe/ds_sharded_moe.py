@@ -183,10 +183,10 @@ def top1gating(logits: Tensor,
                used_token: Tensor = None,
                noisy_gate_policy: Optional[str] = None,
                drop_tokens: bool = True,
-               use_rts: bool = True,
-               use_tutel: bool = False, 
-               training: bool = False) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+               use_rts: bool = True, 
+               use_tutel: bool = False) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """Implements Top1Gating on logits."""
+    training = False
     metadata = {}
     if noisy_gate_policy == 'RSample':
         logits_w_noise = logits + gumbel_rsample(logits.shape, device=logits.device)
@@ -205,9 +205,9 @@ def top1gating(logits: Tensor,
     mask1 = F.one_hot(indices1_s, num_classes=num_experts)
 
     # mask only used tokens
-    #if used_token is not None:
-    #    mask1 = einsum("s,se->se", used_token, mask1)
-
+    if used_token is not None:
+        mask1 = einsum("s,se->se", used_token, mask1)
+        logger.info(f"{used_token}, {mask1}")
     # gating decisions
     exp_counts = torch.sum(mask1, dim=0).detach().to('cpu')
 
@@ -498,7 +498,7 @@ class TopKGate(Module):
         if self.k == 1:
             gate_output = top1gating(logits, self.capacity_factor if self.training else self.eval_capacity_factor,
                                      self.min_capacity, used_token, self.noisy_gate_policy,
-                                     True, self.use_rts, use_tutel, self.training)
+                                      self.drop_tokens if not self.training else True, self.use_rts, use_tutel)
 
         else:
             gate_output = top2gating(logits, self.capacity_factor if self.training else self.eval_capacity_factor,
