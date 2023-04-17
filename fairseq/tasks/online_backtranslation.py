@@ -20,7 +20,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import fairseq
-from fairseq import metrics, options, utils
+from fairseq import options, utils
+from fairseq.logging import metrics
 from fairseq.data import (
     FairseqDataset,
     LanguagePairDataset,
@@ -354,9 +355,9 @@ class OnlineBackTranslationTask(TranslationTask):
     def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
         raise NotImplementedError
 
-    def build_model(self, args):
+    def build_model(self, args, from_checkpoint=False):
         # torch.autograd.set_detect_anomaly(True)
-        model = super().build_model(args)
+        model = super().build_model(args, from_checkpoint)
 
         add_secial_tokens_to_dict_and_model(self.common_dict, model, self.mono_langs)
 

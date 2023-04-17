@@ -6,6 +6,7 @@
 import logging
 
 import torch.nn as nn
+
 from fairseq.model_parallel.modules import (
     ModelParallelTransformerDecoderLayer,
     ModelParallelTransformerEncoderLayer,
@@ -17,12 +18,11 @@ from fairseq.models.transformer import (
     TransformerModel,
 )
 
-
 try:
     from fairseq.model_parallel.megatron.mpu import (
+        VocabParallelEmbedding,
         copy_to_model_parallel_region,
         gather_from_model_parallel_region,
-        VocabParallelEmbedding,
     )
 
     has_megatron_submodule = True
@@ -52,7 +52,7 @@ class ModelParallelTransformerModel(TransformerModel):
         padding_idx = dictionary.pad()
 
         def _vocab_init(tensor, **kwargs):
-            nn.init.normal_(tensor, mean=0, std=num_embeddings ** -0.5)
+            nn.init.normal_(tensor, mean=0, std=num_embeddings**-0.5)
             nn.init.constant_(tensor[1], 0)
 
         emb = VocabParallelEmbedding(

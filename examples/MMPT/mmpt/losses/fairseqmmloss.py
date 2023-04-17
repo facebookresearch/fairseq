@@ -8,7 +8,7 @@ TODO (huxu): a general fairseq criterion for all your pre-defined losses.
 """
 
 from fairseq.criterions import FairseqCriterion, register_criterion
-from fairseq import metrics
+from fairseq.logging import metrics
 
 
 @register_criterion("mmloss")

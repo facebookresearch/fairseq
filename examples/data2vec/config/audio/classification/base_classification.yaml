@@ -1,0 +1,70 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: json
+  log_interval: 200
+  all_gather_list_size: 70000
+  tensorboard_logdir: tb
+  min_loss_scale: 1e-6
+
+checkpoint:
+  save_interval: 1
+  no_epoch_checkpoints: true
+  best_checkpoint_metric: mAP
+  maximize_best_checkpoint_metric: true
+
+task:
+  _name: audio_classification
+  data: ???
+  normalize: true
+  labels: lbl
+
+dataset:
+  num_workers: 6
+  max_tokens: 2560000
+  skip_invalid_size_inputs_valid_test: true
+  valid_subset: eval
+  validate_interval: 5
+
+distributed_training:
+  ddp_backend: legacy_ddp
+  distributed_world_size: 8
+
+criterion:
+  _name: model
+  can_sum: false
+  log_keys:
+    - _predictions
+    - _targets
+
+optimization:
+  max_update: 30000
+  lr: [0.00006] # scratch 53-5
+
+optimizer:
+  _name: adam
+  adam_betas: (0.9,0.98)
+  adam_eps: 1e-08
+
+lr_scheduler:
+  _name: cosine
+  warmup_updates: 5000
+
+model:
+  _name: audio_classification
+  model_path: ???
+  apply_mask: true
+  mask_prob: 0.6
+  mask_length: 5 # scratch 1
+  mask_channel_prob: 0
+  mask_channel_length: 64
+  layerdrop: 0.1
+  dropout: 0.1
+  activation_dropout: 0.1
+  attention_dropout: 0.2
+  feature_grad_mult: 0 # scratch 1
+  label_mixup: true
+  source_mixup: 0.5
+  prediction_mode: lin_softmax # scratch average_sigmoid
+

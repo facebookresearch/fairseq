@@ -7,6 +7,7 @@
 import argparse
 import importlib
 import os
+
 from contextlib import ExitStack
 
 from fairseq.dataclass import FairseqDataclass
@@ -52,7 +53,7 @@ __all__ = [
 ]
 
 
-def build_model(cfg: FairseqDataclass, task):
+def build_model(cfg: FairseqDataclass, task, from_checkpoint=False):
 
     model = None
     model_type = getattr(cfg, "_name", None) or getattr(cfg, "arch", None)
@@ -86,7 +87,7 @@ def build_model(cfg: FairseqDataclass, task):
         if isinstance(cfg, argparse.Namespace):
             cfg = dc.from_namespace(cfg)
         else:
-            cfg = merge_with_parent(dc(), cfg)
+            cfg = merge_with_parent(dc(), cfg, from_checkpoint)
     else:
         if model_type in ARCH_CONFIG_REGISTRY:
             with open_dict(cfg) if OmegaConf.is_config(cfg) else ExitStack():
@@ -98,9 +99,7 @@ def build_model(cfg: FairseqDataclass, task):
 
     assert model is not None, (
         f"Could not infer model type from {cfg}. "
-        "Available models: {}".format(
-            MODEL_DATACLASS_REGISTRY.keys()
-        )
+        "Available models: {}".format(MODEL_DATACLASS_REGISTRY.keys())
         + f" Requested model type: {model_type}"
     )
 
@@ -129,7 +128,8 @@ def register_model(name, dataclass=None):
 
     def register_model_cls(cls):
         if name in MODEL_REGISTRY:
-            raise ValueError("Cannot register duplicate model ({})".format(name))
+            return MODEL_REGISTRY[name]
+
         if not issubclass(cls, BaseFairseqModel):
             raise ValueError(
                 "Model ({}: {}) must extend BaseFairseqModel".format(name, cls.__name__)

@@ -1,0 +1,113 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: json
+  log_interval: 200
+  tensorboard_logdir: tb
+  min_loss_scale: 1e-6
+  fp16_no_flatten_grads: false
+  user_dir: ${env:PWD}/examples/data2vec
+
+checkpoint:
+  save_interval: 1
+  save_interval_updates: 25000
+  keep_interval_updates: 1
+  no_epoch_checkpoints: true
+
+task:
+  _name: audio_pretraining
+  data: /private/home/abaevski/data/librispeech/full
+  max_sample_size: 320000
+  min_sample_size: 32000
+  normalize: true
+  precompute_mask_config: {}
+
+dataset:
+  num_workers: 6
+  max_tokens: 1000000
+  skip_invalid_size_inputs_valid_test: true
+  validate_interval: 5
+  required_batch_size_multiple: 1
+  disable_validation: true
+
+distributed_training:
+  distributed_world_size: 8
+  ddp_backend: legacy_ddp
+
+criterion:
+  _name: model
+  log_keys:
+    - ema_decay
+    - target_var
+    - pred_var
+    - model_norm
+    - ema_norm
+    - masked_pct
+
+optimization:
+  max_update: 400000
+  lr: [0.00075]
+  debug_param_names: true
+
+optimizer:
+  _name: adam
+  adam_betas: [ 0.9,0.98 ]
+  adam_eps: 1e-06
+  weight_decay: 0.01
+
+lr_scheduler:
+  _name: cosine
+  warmup_updates: 8000
+
+model:
+  _name: data2vec_multi
+
+  loss_beta: 0
+  loss_scale: null
+
+  depth: 12
+  embed_dim: 768
+  clone_batch: 8
+
+  ema_decay: 0.999
+  ema_end_decay: 0.99999
+  ema_anneal_end_step: 75000
+  ema_encoder_only: false
+
+  average_top_k_layers: 8
+  instance_norm_target_layer: true
+  layer_norm_target_layer: false
+  layer_norm_targets: false
+
+  layerdrop: 0.05
+  norm_eps: 1e-5
+
+  supported_modality: AUDIO
+
+  modalities:
+    audio:
+      feature_encoder_spec: '[(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512,2,2)] + [(512,2,2)]'
+      conv_pos_depth: 5
+      conv_pos_width: 95
+      conv_pos_groups: 16
+      prenet_depth: 0
+      mask_prob: 0.5
+      mask_prob_adjust: 0.05
+      inverse_mask: false
+      mask_length: 5
+      mask_noise_std: 0.01
+      mask_dropout: 0
+      add_masks: false
+      ema_local_encoder: false
+      use_alibi_encoder: true
+      prenet_layerdrop: 0.05
+      prenet_dropout: 0.1
+      learned_alibi_scale: true
+      learned_alibi_scale_per_head: true
+      decoder:
+        input_dropout: 0.1
+        decoder_dim: 384
+        decoder_groups: 16
+        decoder_kernel: 7
+        decoder_layers: 4

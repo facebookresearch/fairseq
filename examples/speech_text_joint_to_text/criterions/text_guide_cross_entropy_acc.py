@@ -6,9 +6,10 @@ import math
 
 import torch
 import torch.nn.functional as F
+from fairseq import utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.criterions.label_smoothed_cross_entropy import label_smoothed_nll_loss
-from fairseq import metrics, utils
+from fairseq.logging import metrics
 
 
 @register_criterion("guided_label_smoothed_cross_entropy_with_accuracy")

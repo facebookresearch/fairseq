@@ -46,12 +46,18 @@ Follow the same usage as in [RoBERTa](https://github.com/pytorch/fairseq/tree/ma
 # Download roberta.base.shuffle.n1 model
 wget https://dl.fbaipublicfiles.com/unnatural_pretraining/roberta.base.shuffle.n1.tar.gz
 tar -xzvf roberta.base.shuffle.n1.tar.gz
+# Copy the dictionary files
+cd roberta.base.shuffle.n1.tar.gz
+wget -O dict.txt https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/dict.txt && wget -O encoder.json https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/encoder.json && wget -O vocab.bpe https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/vocab.bpe
+cd ..
 
 # Load the model in fairseq
-from fairseq.models.roberta import RoBERTaModel
-roberta = RoBERTaModel.from_pretrained('/path/to/roberta.base.shuffle.n1', checkpoint_file='model.pt')
+from fairseq.models.roberta import RobertaModel
+roberta = RobertaModel.from_pretrained('/path/to/roberta.base.shuffle.n1', checkpoint_file='model.pt')
 roberta.eval()  # disable dropout (or leave in train mode to finetune)
 ```
+
+We have also provided a [Google Colab](https://colab.research.google.com/drive/1IJDVfNVWdvRfLjphQKBGzmob84t-OXpm) notebook to demonstrate the loading of the model. The models were trained on top of Fairseq from the following commit: [62cff008ebeeed855093837507d5e6bf52065ee6](https://github.com/pytorch/fairseq/commit/62cff008ebeeed855093837507d5e6bf52065ee6).
 
 **Note**: The model trained without positional embeddings (`roberta.base.nopos`) is a modified `RoBERTa` model, where the positional embeddings are not used. Thus, the typical `from_pretrained` method on fairseq version of RoBERTa will not be able to load the above model weights. To do so, construct a new `RoBERTaModel` object by setting the flag `use_positional_embeddings` to `False` (or [in the latest code](https://github.com/pytorch/fairseq/blob/main/fairseq/models/roberta/model.py#L543), set `no_token_positional_embeddings` to `True`), and then load the individual weights.
 
@@ -82,3 +88,7 @@ We provide the trained fine-tuned models on MNLI here for each model above for q
       primaryClass={cs.CL}
 }
 ```
+
+## Contact
+
+For questions and comments, please reach out to Koustuv Sinha (koustuv.sinha@mail.mcgill.ca).

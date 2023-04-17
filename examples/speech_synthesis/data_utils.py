@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import io
 import os
 from pathlib import Path
 from typing import Optional, List, Dict
@@ -17,7 +18,9 @@ import numpy as np
 from tqdm import tqdm
 
 from examples.speech_to_text.data_utils import load_tsv_to_dicts
-from fairseq.data.audio.audio_utils import TTSSpectrogram, TTSMelScale
+from fairseq.data.audio.audio_utils import (
+    TTSSpectrogram, TTSMelScale, parse_path, read_from_stored_zip, is_npy_data
+)
 
 
 def trim_or_pad_to_target_length(
@@ -65,7 +68,7 @@ def extract_logmel_spectrogram(
     assert len(logmel_spec.shape) == 3 and logmel_spec.shape[0] == 1
     logmel_spec = logmel_spec.squeeze().t()  # D x T -> T x D
     if target_length is not None:
-        trim_or_pad_to_target_length(logmel_spec, target_length)
+        logmel_spec = trim_or_pad_to_target_length(logmel_spec, target_length)
 
     if output_path is not None:
         np.save(output_path.as_posix(), logmel_spec)
@@ -99,13 +102,20 @@ def extract_pitch(
         except ImportError:
             raise ImportError("Please install SciPy: pip install scipy")
         nonzero_ids = np.where(pitch != 0)[0]
-        interp_fn = interp1d(
-            nonzero_ids,
-            pitch[nonzero_ids],
-            fill_value=(pitch[nonzero_ids[0]], pitch[nonzero_ids[-1]]),
-            bounds_error=False,
-        )
-        pitch = interp_fn(np.arange(0, len(pitch)))
+        if len(nonzero_ids) == 0:
+            print((f"{output_path} has all empty values in the pitch contour"))
+            return
+        elif len(nonzero_ids) == 1:
+            print((f"{output_path} has only one non-zero values in the pitch contour"))
+            return
+        else:
+            interp_fn = interp1d(
+                nonzero_ids,
+                pitch[nonzero_ids],
+                fill_value=(pitch[nonzero_ids[0]], pitch[nonzero_ids[-1]]),
+                bounds_error=False,
+            )
+            pitch = interp_fn(np.arange(0, len(pitch)))
         d_cumsum = np.cumsum(np.concatenate([np.array([0]), phoneme_durations]))
         pitch = np.array(
             [
@@ -318,3 +328,17 @@ def get_unit_alignment(
         )
         for i in sample_ids
     }
+
+
+def get_feature_value_min_max(feature_paths: List[str]):
+    v_min, v_max = 1e-8, -1e-8
+    for p in tqdm(feature_paths):
+        _path, slice_ptr = parse_path(p)
+        assert len(slice_ptr) == 2
+        byte_data = read_from_stored_zip(_path, slice_ptr[0], slice_ptr[1])
+        assert is_npy_data(byte_data)
+        path_or_fp = io.BytesIO(byte_data)
+        features = np.load(path_or_fp).squeeze()
+        v_min = min(v_min, features.min().item())
+        v_max = max(v_max, features.max().item())
+    return v_min, v_max

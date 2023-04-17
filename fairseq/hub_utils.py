@@ -11,11 +11,11 @@ import os
 from typing import Any, Dict, Iterator, List
 
 import torch
-from fairseq import utils
-from fairseq.data import encoders
 from omegaconf import open_dict
 from torch import nn
 
+from fairseq import utils
+from fairseq.data import encoders
 
 logger = logging.getLogger(__name__)
 
@@ -70,10 +70,22 @@ def from_pretrained(
     if "user_dir" in kwargs:
         utils.import_user_module(argparse.Namespace(user_dir=kwargs["user_dir"]))
 
-    models, args, task = checkpoint_utils.load_model_ensemble_and_task(
-        [os.path.join(model_path, cpt) for cpt in checkpoint_file.split(os.pathsep)],
-        arg_overrides=kwargs,
-    )
+    model_path = [
+        os.path.join(model_path, cpt) for cpt in checkpoint_file.split(os.pathsep)
+    ]
+
+    if "is_vocoder" in kwargs:
+        args = {"data": kwargs["data"], "model_path": model_path}
+        task = None
+        models = None
+    else:
+        models, args, task = checkpoint_utils.load_model_ensemble_and_task(
+            model_path,
+            arg_overrides=kwargs,
+        )
+    if "generation_args" in kwargs and kwargs["generation_args"]:
+        for key in kwargs["generation_args"]:
+            setattr(args["generation"], key, kwargs["generation_args"][key])
 
     return {
         "args": args,
@@ -132,11 +144,22 @@ class GeneratorHubInterface(nn.Module):
         batched_hypos = self.generate(tokenized_sentences, beam, verbose, **kwargs)
         return [self.decode(hypos[0]["tokens"]) for hypos in batched_hypos]
 
-    def score(self, sentences: List[str], **kwargs):
+    def score(
+        self, sentences: List[str], replace_newline_with_eos: bool = False, **kwargs
+    ):
         if isinstance(sentences, str):
-            return self.score([sentences], **kwargs)[0]
+            return self.score(
+                [sentences], replace_newline_with_eos=replace_newline_with_eos, **kwargs
+            )[0]
+
+        def encode(sentence):
+            if replace_newline_with_eos:
+                return torch.cat([self.encode(line) for line in sentence.splitlines()])
+            else:
+                return self.encode(sentence)
+
         # NOTE: this doesn't support translation tasks currently
-        tokenized_sentences = [self.encode(sentence) for sentence in sentences]
+        tokenized_sentences = [encode(sentence) for sentence in sentences]
         return [
             hypos[0]
             for hypos in self.generate(

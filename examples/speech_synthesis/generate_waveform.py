@@ -3,7 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-
+import ast
 import logging
 import matplotlib.pyplot as plt
 import numpy as np
@@ -48,7 +48,7 @@ def postprocess_results(
         return None if x is None else x.detach().cpu().numpy()
 
     sample_ids = [dataset.ids[i] for i in sample["id"].tolist()]
-    texts = sample["src_texts"]
+    texts = sample["src_texts"] if "src_texts" in sample else [""] * len(hypos)
     attns = [to_np(hypo["attn"]) for hypo in hypos]
     eos_probs = [to_np(hypo.get("eos_prob", None)) for hypo in hypos]
     feat_preds = [to_np(hypo["feature"]) for hypo in hypos]
@@ -135,6 +135,7 @@ def main(args):
     models, saved_cfg, task = checkpoint_utils.load_model_ensemble_and_task(
         [args.path],
         task=task,
+        arg_overrides=ast.literal_eval(args.model_overrides),
     )
     model = models[0].cuda() if use_cuda else models[0]
     # use the original n_frames_per_step

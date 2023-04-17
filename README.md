@@ -2,10 +2,12 @@
   <img src="docs/fairseq_logo.png" width="150">
   <br />
   <br />
+  <a href="https://opensource.fb.com/support-ukraine"><img alt="Support Ukraine" src="https://img.shields.io/badge/Support-Ukraine-FFD500?style=flat&labelColor=005BBB" /></a>
   <a href="https://github.com/pytorch/fairseq/blob/main/LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
   <a href="https://github.com/pytorch/fairseq/releases"><img alt="Latest Release" src="https://img.shields.io/github/release/pytorch/fairseq.svg" /></a>
   <a href="https://github.com/pytorch/fairseq/actions?query=workflow:build"><img alt="Build Status" src="https://github.com/pytorch/fairseq/workflows/build/badge.svg" /></a>
   <a href="https://fairseq.readthedocs.io/en/latest/?badge=latest"><img alt="Documentation Status" src="https://readthedocs.org/projects/fairseq/badge/?version=latest" /></a>
+  <a href="https://app.circleci.com/pipelines/github/facebookresearch/fairseq/"><img alt="CicleCI Status" src="https://circleci.com/gh/facebookresearch/fairseq.svg?style=shield" /></a>
 </p>
 
 --------------------------------------------------------------------------------
@@ -68,6 +70,9 @@ We provide reference implementations of various sequence modeling papers:
 </p></details>
 
 ### What's New:
+* June 2022 [Released code for wav2vec-U 2.0 from Towards End-to-end Unsupervised Speech Recognition (Liu, et al., 2022)](examples/wav2vec/unsupervised/README.md)
+* May 2022 [Integration with xFormers](https://github.com/facebookresearch/xformers)
+* December 2021 [Released Direct speech-to-speech translation code](examples/speech_to_speech/README.md)
 * October 2021 [Released VideoCLIP and VLM models](examples/MMPT/README.md)
 * October 2021 [Released multilingual finetuned XLSR-53 model](examples/wav2vec/README.md)
 * September 2021 [`master` branch renamed to `main`](https://github.com/github/renaming).
@@ -142,8 +147,8 @@ and [RoBERTa](https://pytorch.org/hub/pytorch_fairseq_roberta/) for more example
 
 # Requirements and Installation
 
-* [PyTorch](http://pytorch.org/) version >= 1.5.0
-* Python version >= 3.6
+* [PyTorch](http://pytorch.org/) version >= 1.10.0
+* Python version >= 3.8
 * For training new models, you'll also need an NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
 * **To install fairseq** and develop locally:
 
@@ -189,6 +194,7 @@ as well as example training and evaluation commands.
 
 We also have more detailed READMEs to reproduce results from specific papers:
 
+* [XLS-R: Self-supervised Cross-lingual Speech Representation Learning at Scale (Babu et al., 2021)](examples/wav2vec/xlsr/README.md)
 * [Cross-lingual Retrieval for Iterative Self-Supervised Training (Tran et al., 2020)](examples/criss/README.md)
 * [wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations (Baevski et al., 2020)](examples/wav2vec/README.md)
 * [Unsupervised Quality Estimation for Neural Machine Translation (Fomicheva et al., 2020)](examples/unsupervised_quality_estimation/README.md)

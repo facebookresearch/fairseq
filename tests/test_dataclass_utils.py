@@ -41,7 +41,7 @@ class TestDataclassUtils(unittest.TestCase):
     def test_argparse_convert_basic(self):
         parser = ArgumentParser()
         gen_parser_from_dataclass(parser, A(), True)
-        args = parser.parse_args(["--num-layers", '10', "the/data/path"])
+        args = parser.parse_args(["--num-layers", "10", "the/data/path"])
         self.assertEqual(args.num_layers, 10)
         self.assertEqual(args.data, "the/data/path")
 

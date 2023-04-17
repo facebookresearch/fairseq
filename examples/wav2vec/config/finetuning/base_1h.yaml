@@ -6,8 +6,8 @@ common:
   log_interval: 200
 
 checkpoint:
-  save_interval: 1000
-  save_interval_updates: 50
+  save_interval: 50
+  save_interval_updates: 1000
   keep_interval_updates: 1
   no_epoch_checkpoints: true
   best_checkpoint_metric: wer

@@ -298,7 +298,6 @@ class NoisingDataset(torch.utils.data.Dataset):
         )
         self.sizes = src_dataset.sizes
 
-
     def __getitem__(self, index):
         """
         Returns a single noisy sample. Multiple samples are fed to the collater

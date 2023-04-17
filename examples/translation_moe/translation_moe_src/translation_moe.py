@@ -7,7 +7,8 @@ from dataclasses import dataclass, field
 import torch
 from omegaconf import II
 
-from fairseq import metrics, utils
+from fairseq import utils
+from fairseq.logging import metrics
 from fairseq.dataclass import ChoiceEnum
 from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationConfig, TranslationTask
@@ -101,7 +102,7 @@ class TranslationMoETask(TranslationTask):
 
         super().__init__(cfg, src_dict, tgt_dict)
 
-    def build_model(self, cfg):
+    def build_model(self, cfg, from_checkpoint=False):
         from fairseq import models
 
         model = models.build_model(cfg, self)

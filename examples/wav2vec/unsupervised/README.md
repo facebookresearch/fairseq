@@ -1,8 +1,8 @@
 # wav2vec Unsupervised  (wav2vec-U)
   
-Wav2vec Unsupervised (wav2vec-U) is a framework for building speech recognition systems without any labeled training data as described in [Unsupervised Speech Recognition (Baevski et al., 2021)](https://ai.facebook.com/research/publications/unsupervised-speech-recognition).  The model takes as input wav2vec 2.0 or XLSR representations (see [pretrained models](https://github.com/pytorch/fairseq/blob/main/examples/wav2vec)) as well as unlabeled speech and text data.
+Wav2vec Unsupervised (wav2vec-U) and the 2.0 version are frameworks for building speech recognition systems without any labeled training data as described in [Unsupervised Speech Recognition (Baevski et al., 2021)](https://ai.facebook.com/research/publications/unsupervised-speech-recognition) and [Towards End-to-end Unsupervised Speech Recognition (Liu, et al., 2022)](https://arxiv.org/abs/2204.02492).  The model takes as input wav2vec 2.0 or XLSR representations (see [pretrained models](https://github.com/pytorch/fairseq/blob/main/examples/wav2vec)) as well as unlabeled speech and text data.
   
-  The wav2vec-U training procedure consists of three consecutive main steps:
+  The training procedure consists of three consecutive main steps:
 * Preparation of speech representations and text data
 * Generative adversarial training (GAN)
 * Iterative self-training + Kaldi LM-decoding
@@ -33,13 +33,16 @@ python $FAIRSEQ_ROOT/examples/wav2vec/wav2vec_manifest.py /dir/to/save/audio/fil
 Next, we need to preprocess the audio data to better match phonemized text data:
 
 ```shell
+# wav2vec-U
 zsh scripts/prepare_audio.sh /dir/with/{train,test,valid}.tsv /output/dir /path/to/wav2vec2/model.pt 512 14
+# wav2vec-U 2.0
+zsh scripts/prepare_audio_v2.sh /dir/with/{train,test,valid}.tsv /output/dir /path/to/wav2vec2/model.pt 64 14
 ```
-Note that if you have splits different than train/valid/test, you will need to modify this script. The last two arguments are the PCA dimensionality and the 0-based index of the layer from which to extract representations.
+Note that if you have splits different than train/valid/test, you will need to modify this script. The thrid argument is the PCA dimensionality for wav2vec-U and the number of MFCC clusters for wav2vec-U 2.0. The last argument is the 0-based index of the layer from which to extract representations.
 
 Now we need to prepare text data:
 ```shell
-zsh scripts/prepare_text.sh language /path/to/text/file /output/dir 1000 espeak /path/to/fasttext/lid/model
+zsh scripts/prepare_text.sh language /path/to/text/file /output/dir 1000 espeak /path/to/fasttext/lid/model sil_prob
 ```
 
 The fourth argument is minimum number observations of phones to keep. If your text corpus is small, you might want to reduce this number.
@@ -47,6 +50,8 @@ The fourth argument is minimum number observations of phones to keep. If your te
 The fifth argument is which phonemizer to use. Supported values are [espeak](http://espeak.sourceforge.net/), [espeak-ng](https://github.com/espeak-ng/espeak-ng), and [G2P](https://github.com/Kyubyong/g2p) (english only).
 
 Pre-trained fasttext LID models can be downloaded [here](https://fasttext.cc/docs/en/language-identification.html).
+
+The last argument is the probability to introduce silence (`<SIL>`) between the word boundaries. We found the value `0.25`/`0.5` works in general for wav2vec-U and the 2.0  version respectively, but you might want to vary for languages that are never tested.
 
 ### Prepare TIMIT data
 TIMIT transcripts include silence. Therefore VAD is not used for audio preprocessing, and we do not wrap transcripts with silences or insert random silence in between words.
@@ -66,13 +71,22 @@ Launching GAN training on top of preprocessed features, with default hyperparame
 
 ```
 PREFIX=w2v_unsup_gan_xp
-TASK_DATA=/path/to/features/precompute_unfiltered_pca512_cls128_mean_pooled  
+
+# For wav2vec-U, audio features are pre-segmented
+CONFIG_NAME=w2vu
+TASK_DATA=/path/to/features/precompute_unfiltered_pca512_cls128_mean_pooled
+
+# For wav2vec-U 2.0, use raw audio features
+CONFIG_NAME=w2vu2
+TASK_DATA=/path/to/features/
+
+# Unpaired text input
 TEXT_DATA=/path/to/data/phones  # path to fairseq-preprocessed GAN data (phones dir)
 KENLM_PATH=/path/to/data/phones/kenlm.phn.o4.bin  # KenLM 4-gram phoneme language model (LM data = GAN data here)
 
 PYTHONPATH=$FAIRSEQ_ROOT PREFIX=$PREFIX fairseq-hydra-train \
     -m --config-dir config/gan \
-    --config-name w2vu \
+    --config-name $CONFIG_NAME \
     task.data=${TASK_DATA} \
     task.text_data=${TEXT_DATA} \
     task.kenlm_path=${KENLM_PATH} \
@@ -93,6 +107,8 @@ fairseq.dataset.gen_subset=valid results_path=/where/to/save/transcriptions
 ```
 
 The decoding without LM works best on the same adjacent-mean-pooled features that the gan was trained on, while decoding with LM works better on features before the adjacent timestep mean-pooling step (without the "_pooled" suffix).
+
+While the generator of wav2vec-U 2.0 is trained with an output frequency of 16hz, we found decoding at a higher frequency produces better results. This can be done by adding `decode_stride=1` or `2` to the argument.
 
 ## Iterative self-training + Kaldi LM-decoding
 After the GAN training provides a first unsupervised model, we can then progressively refine the quality of transcriptions using several iterations of semi-supervised learning. We perform two iterations: first, pseudo-label the training data with the unsupervised GAN model and train an HMM on the pseudo-labels. Second, we relabel the training data with the HMM and then fine-tune the original wav2vec 2.0 model using the HMM pseudo-labels with a CTC loss. Note that HMM models use phonemes as output, while wav2vec 2.0 use letter. Both are decoded using WFST decoders into words.

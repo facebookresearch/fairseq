@@ -12,14 +12,17 @@ from fairseq.modules.layer_norm import LayerNorm
 
 
 class BaseLayer(nn.Module):
-
     def __init__(self, args):
         super().__init__()
         self.num_workers = distributed_utils.get_data_parallel_world_size()
         expert_centroids = torch.empty(self.num_workers, args.decoder_embed_dim)
         torch.nn.init.orthogonal_(expert_centroids, gain=0.1)
-        self.register_parameter("expert_centroids", torch.nn.Parameter(expert_centroids))
-        self.expert_network = nn.Sequential(*([BaseSublayer(args) for _ in range(args.base_sublayers)]))
+        self.register_parameter(
+            "expert_centroids", torch.nn.Parameter(expert_centroids)
+        )
+        self.expert_network = nn.Sequential(
+            *([BaseSublayer(args) for _ in range(args.base_sublayers)])
+        )
         self.expert_id = distributed_utils.get_data_parallel_rank()
         self.shuffle = args.base_shuffle
         self.cpp = self.load_assignment()
@@ -39,20 +42,34 @@ class BaseLayer(nn.Module):
 
         with torch.no_grad():
             # Compute similarity of each token to each expert, for routing
-            token_expert_affinities = features.matmul(self.expert_centroids.transpose(0, 1))
+            token_expert_affinities = features.matmul(
+                self.expert_centroids.transpose(0, 1)
+            )
 
         # Compute which token goes to which expert
-        sort_by_expert, input_splits, output_splits = self.balanced_assignment(token_expert_affinities) \
-            if is_training else self.greedy_assignment(token_expert_affinities)
+        sort_by_expert, input_splits, output_splits = (
+            self.balanced_assignment(token_expert_affinities)
+            if is_training
+            else self.greedy_assignment(token_expert_affinities)
+        )
         # Swap these tokens for the right ones for our expert
-        routed_features = All2All.apply(features[sort_by_expert], output_splits, input_splits)
+        routed_features = All2All.apply(
+            features[sort_by_expert], output_splits, input_splits
+        )
 
         if routed_features.size(0) > 0:
             # Mix in the expert network based on how appropriate it is for these tokens
-            alpha = torch.sigmoid(routed_features.mv(self.expert_centroids[self.expert_id])).unsqueeze(1)
-            routed_features = alpha * self.expert_network(routed_features) + (1 - alpha) * routed_features
+            alpha = torch.sigmoid(
+                routed_features.mv(self.expert_centroids[self.expert_id])
+            ).unsqueeze(1)
+            routed_features = (
+                alpha * self.expert_network(routed_features)
+                + (1 - alpha) * routed_features
+            )
         # Return to original worker and ordering
-        result = All2All.apply(routed_features, input_splits, output_splits)[self.inverse_sort(sort_by_expert)]
+        result = All2All.apply(routed_features, input_splits, output_splits)[
+            self.inverse_sort(sort_by_expert)
+        ]
 
         if self.shuffle and is_training:
             # Undo shuffling
@@ -63,7 +80,9 @@ class BaseLayer(nn.Module):
 
     def inverse_sort(self, order):
         # Creates an index that undoes a sort: xs==xs[order][inverse_sort(order)]
-        return torch.empty_like(order).scatter_(0, order, torch.arange(0, order.size(0), device=order.device))
+        return torch.empty_like(order).scatter_(
+            0, order, torch.arange(0, order.size(0), device=order.device)
+        )
 
     def balanced_assignment(self, scores):
         ok = scores.isfinite()
@@ -79,7 +98,9 @@ class BaseLayer(nn.Module):
         worker2token = sort_ordering // k
 
         # Find how many tokens we're sending to each other worker (being careful for sending 0 tokens to some workers)
-        output_splits = torch.zeros((self.num_workers,), dtype=torch.long, device=scores.device)
+        output_splits = torch.zeros(
+            (self.num_workers,), dtype=torch.long, device=scores.device
+        )
         workers, counts = torch.unique_consecutive(token_to_workers, return_counts=True)
         output_splits[workers] = counts
         # Tell other workers how many tokens to expect from us
@@ -103,7 +124,7 @@ class BaseSublayer(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.activation_fn = utils.get_activation_fn(
-            activation=getattr(args, 'activation_fn', 'relu') or "relu"
+            activation=getattr(args, "activation_fn", "relu") or "relu"
         )
         self.norm = LayerNorm(args.decoder_embed_dim, export=False)
         self.ff1 = torch.nn.Linear(args.decoder_embed_dim, args.decoder_ffn_embed_dim)
@@ -121,15 +142,29 @@ class All2All(torch.autograd.Function):
         ctx.input_splits = input_splits
         ctx.output_splits = output_splits
 
-        ys = torch.empty_like(xs) if output_splits is None else \
-            xs.new_empty(size=[sum(output_splits)] + list(xs.size()[1:]))
-        torch.distributed.all_to_all_single(ys, xs, output_split_sizes=output_splits, input_split_sizes=input_splits)
+        ys = (
+            torch.empty_like(xs)
+            if output_splits is None
+            else xs.new_empty(size=[sum(output_splits)] + list(xs.size()[1:]))
+        )
+        torch.distributed.all_to_all_single(
+            ys, xs, output_split_sizes=output_splits, input_split_sizes=input_splits
+        )
         return ys
 
     @staticmethod
     def backward(ctx, grad_output):
-        result = torch.empty_like(grad_output) if ctx.input_splits is None else \
-            grad_output.new_empty(size=[sum(ctx.input_splits)] + list(grad_output.size()[1:]))
-        torch.distributed.all_to_all_single(result, grad_output,
-                                            output_split_sizes=ctx.input_splits, input_split_sizes=ctx.output_splits)
+        result = (
+            torch.empty_like(grad_output)
+            if ctx.input_splits is None
+            else grad_output.new_empty(
+                size=[sum(ctx.input_splits)] + list(grad_output.size()[1:])
+            )
+        )
+        torch.distributed.all_to_all_single(
+            result,
+            grad_output,
+            output_split_sizes=ctx.input_splits,
+            input_split_sizes=ctx.output_splits,
+        )
         return result, None, None

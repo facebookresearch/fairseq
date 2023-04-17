@@ -10,7 +10,8 @@ from collections import OrderedDict
 from argparse import ArgumentError
 
 import torch
-from fairseq import metrics, options, utils
+from fairseq import options, utils
+from fairseq.logging import metrics
 from fairseq.data import (
     Dictionary,
     LanguagePairDataset,
@@ -281,7 +282,7 @@ class MultilingualTranslationTask(LegacyFairseqTask):
             eval_key=lang_pair,
         )
 
-    def build_model(self, args):
+    def build_model(self, args, from_checkpoint=False):
         def check_args():
             messages = []
             if (
@@ -316,7 +317,7 @@ class MultilingualTranslationTask(LegacyFairseqTask):
 
         from fairseq import models
 
-        model = models.build_model(args, self)
+        model = models.build_model(args, self, from_checkpoint)
         if not isinstance(model, FairseqMultiModel):
             raise ValueError(
                 "MultilingualTranslationTask requires a FairseqMultiModel architecture"

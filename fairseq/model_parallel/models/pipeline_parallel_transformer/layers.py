@@ -9,6 +9,7 @@ from collections import namedtuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from fairseq import options, utils
 from fairseq.modules import (
     AdaptiveSoftmax,
@@ -16,7 +17,6 @@ from fairseq.modules import (
     MultiheadAttention,
     PositionalEmbedding,
 )
-
 
 EncoderOut = namedtuple(
     "TransformerEncoderOut",
@@ -30,7 +30,7 @@ EncoderOut = namedtuple(
 
 
 class TransformerEncoderEmbedding(nn.Module):
-    """ Encoder Embedding + Positional Embedding """
+    """Encoder Embedding + Positional Embedding"""
 
     def __init__(self, args, embed_tokens):
         super().__init__()
@@ -109,7 +109,7 @@ class TransformerEncoderLayerNorm(nn.Module):
 
 
 class TransformerDecoderEmbedding(nn.Module):
-    """ Decoder Embedding + Positional Embedding """
+    """Decoder Embedding + Positional Embedding"""
 
     def __init__(self, args, embed_tokens):
         super().__init__()
@@ -242,7 +242,7 @@ class TransformerDecoderOutputLayer(nn.Module):
                 torch.Tensor(len(dictionary), self.output_embed_dim)
             )
             nn.init.normal_(
-                self.embed_tokens, mean=0, std=self.output_embed_dim ** -0.5
+                self.embed_tokens, mean=0, std=self.output_embed_dim**-0.5
             )
 
         if args.decoder_normalize_before and not getattr(
@@ -587,7 +587,7 @@ class TransformerDecoderLayer(nn.Module):
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):
     m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
-    nn.init.normal_(m.weight, mean=0, std=embedding_dim ** -0.5)
+    nn.init.normal_(m.weight, mean=0, std=embedding_dim**-0.5)
     nn.init.constant_(m.weight[padding_idx], 0)
     return m
 
