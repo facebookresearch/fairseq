@@ -52,7 +52,6 @@ class MoE(torch.nn.Module):
         self.expert_group_name = f"ep_size_{self.ep_size}"
         self.num_experts = num_experts
         self.num_local_experts = num_experts // self.ep_size
-
         experts = Experts(expert, self.num_local_experts, self.expert_group_name)
         self.deepspeed_moe = MOELayer(TopKGate(hidden_size, num_experts, k, capacity_factor, eval_capacity_factor,
                                                min_capacity, noisy_gate_policy, drop_tokens, use_rts),
@@ -86,7 +85,7 @@ class MoE(torch.nn.Module):
 
     def forward(self, *input: Tensor, input_padding_mask=None, used_token = None,  prefix_tokens=None, 
         encoder_embeddings: Optional[Tensor]=None, **kwargs: Any):
-        output = self.deepspeed_moe(input[0])
+        output = self.deepspeed_moe(input[0], used_token)
         if self.use_residual:
             # Residual MoE
             output_mlp = self.mlp(input[0])

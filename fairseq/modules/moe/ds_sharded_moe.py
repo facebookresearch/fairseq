@@ -497,7 +497,7 @@ class TopKGate(Module):
 
         if self.k == 1:
             gate_output = top1gating(logits, self.capacity_factor if self.training else self.eval_capacity_factor,
-                                     self.min_capacity, used_token, self.noisy_gate_policy,
+                                     self.min_capacity, used_token, self.noisy_gate_policy if self.training else None,
                                       self.drop_tokens if not self.training else True, self.use_rts, use_tutel)
 
         else:
