@@ -468,28 +468,27 @@ class Trainer(object):
 
 
     def save_checkpoint(
-        self, filename, extra_state, training_finished=False, async_callback_fn=None
+        self, filename, extra_state, async_callback_fn=None
     ):
         """Save all training state in a checkpoint file."""
         # call state_dict on all ranks in case it needs internal communication
-        state_dicts = self.state_dict(filename)
-        for filename, state_dict in state_dicts.items():
+        #state_dicts = self.state_dict(filename)
+        #raise ValueError(state_dicts, filename)
+        if self.should_save_checkpoint_on_current_rank:
+
             logger.info(f"Saving checkpoint to {os.path.abspath(filename)}")
-            state_dict = utils.move_to_cpu(
-                state_dict,
-                # keep params in FP16 when training with --memory-efficient-fp16
-                cast_to_fp32=not self.cfg.common.memory_efficient_fp16,
-            )
-            #if state_dict is not None and "extra_state" in state_dict:
+            # call state_dict on all ranks in case it needs internal communication
+            state_dict = utils.move_to_cpu(self.state_dict())
             state_dict["extra_state"].update(extra_state)
-            if self.should_save_checkpoint_on_current_rank:
-                checkpoint_utils.torch_persistent_save(
-                    state_dict,
-                    filename,
-                    async_write=self.cfg.checkpoint.write_checkpoints_asynchronously,
-                    async_callback_fn=async_callback_fn,
-                )
+
+            checkpoint_utils.torch_persistent_save(
+                state_dict,
+                filename,
+                async_write=self.cfg.checkpoint.write_checkpoints_asynchronously,
+            )
             logger.info(f"Finished saving checkpoint to {os.path.abspath(filename)}")
+            return os.path.abspath(filename)
+        return None
 
     def load_checkpoint(
         self,
