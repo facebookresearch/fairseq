@@ -10,6 +10,24 @@ import torch
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 import queue
+from fairseq.dataclass import FairseqDataclass
+
+
+@dataclass
+class LabelSmoothedCrossEntropyCriterionConfig(FairseqDataclass):
+    label_smoothing: float = field(
+        default=0.0,
+        metadata={"help": "epsilon for label smoothing, 0 means no label smoothing"},
+    )
+    report_accuracy: bool = field(
+        default=False,
+        metadata={"help": "report accuracy metric"},
+    )
+    ignore_prefix_size: int = field(
+        default=0,
+        metadata={"help": "Ignore first N tokens"},
+    )
+    sentence_avg: bool = II("optimization.sentence_avg")
 
 def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=None, reduce=True):
     if target.dim() == lprobs.dim() - 1:
@@ -31,7 +49,7 @@ def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=None, reduce=T
     return loss, nll_loss
 
 
-@register_criterion('label_smoothed_cross_entropy')
+@register_criterion('label_smoothed_cross_entropy', dataclass=LabelSmoothedCrossEntropyCriterionConfig)
 class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
 
     def __init__(self, task, sentence_avg, label_smoothing):
@@ -44,13 +62,6 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         self.real_distil_rate = 0.0
         self.dict_count = None
 
-    @staticmethod
-    def add_args(parser):
-        """Add criterion-specific arguments to the parser."""
-        # fmt: off
-        parser.add_argument('--label-smoothing', default=0., type=float, metavar='D',
-                            help='epsilon for label smoothing, 0 means no label smoothing')
-        # fmt: on
     
     def push_to_FIFO_queue(self, tensor):
         tensor = tensor.detach().view(-1)
