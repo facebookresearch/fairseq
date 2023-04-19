@@ -154,6 +154,7 @@ class Trainer(object):
         self._wrapped_criterion = None
         self._wrapped_model = None
         self._ema = None
+        self.teacher_model = None
 
         # TODO(myleott): support tpu
         if self.cuda and self.data_parallel_world_size > 1:
