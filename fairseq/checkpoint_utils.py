@@ -218,7 +218,7 @@ def delete_old_checkpoint_files(
                 try:
                     os.remove(old_chk)
                 except IsADirectoryError:
-                    os.rmdir(old_chk)
+                    shutil.rmtree(old_chk)
                 except FileNotFoundError:
                     # With potentially multiple processes removing the same file, the
                     # file being missing is benign (missing_ok isn't available until
