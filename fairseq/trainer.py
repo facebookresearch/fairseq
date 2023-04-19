@@ -893,6 +893,8 @@ class Trainer(object):
                     return contextlib.ExitStack()  # dummy contextmanager
 
             try:
+                if self.teacher_model is not None:
+                    self.teacher_model.eval()
                 with maybe_no_sync():
                     # forward and backward
                     loss, sample_size_i, logging_output = self.task.train_step(
