@@ -245,7 +245,7 @@ class DeepSpeedTrainer(Trainer):
                 print(self.cfg.model)
             dst.load_state_dict(src, strict=False, model_cfg=self.cfg.model)
 
-        load_path, client_states = self.model.load_checkpoint(load_dir=filename, load_optimizer_states=False, load_module_only = True, custom_load_fn=load_model)
+        load_path, client_states = self.model.load_checkpoint(load_dir=filename, load_optimizer_states=not reset_optimizer,  custom_load_fn=load_model)
 
         logger.info(f'[{torch.distributed.get_rank()}] ckpt client states={client_states}')
 

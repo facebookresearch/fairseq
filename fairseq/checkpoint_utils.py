@@ -218,10 +218,12 @@ def delete_old_checkpoint_files(
                 try:
                     os.remove(old_chk)
                 except IsADirectoryError:
-                    try:
-                        shutil.rmtree(old_chk)
-                    except: 
-                        exists = False
+                    shutil.rmtree(old_chk, ignore_errors=True)
+                except FileNotFoundError:
+                    # With potentially multiple processes removing the same file, the
+                    # file being missing is benign (missing_ok isn't available until
+                    # Python 3.8).
+                    pass
             elif PathManager.exists(old_chk):
                 PathManager.rm(old_chk)
 
