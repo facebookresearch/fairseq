@@ -480,8 +480,8 @@ class Trainer(object):
                 # keep params in FP16 when training with --memory-efficient-fp16
                 cast_to_fp32=not self.cfg.common.memory_efficient_fp16,
             )
-            if state_dict is not None and "extra_state" in state_dict:
-                state_dict["extra_state"].update(extra_state)
+            #if state_dict is not None and "extra_state" in state_dict:
+            state_dict["extra_state"].update(extra_state)
             if self.should_save_checkpoint_on_current_rank:
                 checkpoint_utils.torch_persistent_save(
                     state_dict,
