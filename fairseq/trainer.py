@@ -472,7 +472,7 @@ class Trainer(object):
     ):
         """Save all training state in a checkpoint file."""
         # call state_dict on all ranks in case it needs internal communication
-        state_dicts = self.state_dict(filename, training_finished)
+        state_dicts = self.state_dict(filename)
         for filename, state_dict in state_dicts.items():
             logger.info(f"Saving checkpoint to {os.path.abspath(filename)}")
             state_dict = utils.move_to_cpu(
