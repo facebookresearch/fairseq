@@ -3,14 +3,15 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import queue
 import math
 import numpy as np 
 import torch.nn.functional as F
 import torch
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
-import queue
 from fairseq.dataclass import FairseqDataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
