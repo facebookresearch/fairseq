@@ -902,6 +902,7 @@ class Trainer(object):
                         optimizer=self.optimizer,
                         update_num=self.get_num_updates(),
                         ignore_grad=is_dummy_batch,
+                        teacher_model=self.teacher_model, 
                         **extra_kwargs,
                     )
                     del loss
