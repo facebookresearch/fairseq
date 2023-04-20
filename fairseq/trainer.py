@@ -154,6 +154,7 @@ class Trainer(object):
         self._wrapped_criterion = None
         self._wrapped_model = None
         self._ema = None
+        self.teacher_model = None
 
         # TODO(myleott): support tpu
         if self.cuda and self.data_parallel_world_size > 1:
@@ -467,27 +468,27 @@ class Trainer(object):
 
 
     def save_checkpoint(
-        self, filename, extra_state, training_finished=False, async_callback_fn=None
+        self, filename, extra_state, async_callback_fn=None
     ):
         """Save all training state in a checkpoint file."""
         # call state_dict on all ranks in case it needs internal communication
-        state_dicts = self.state_dict(filename, training_finished)
-        for filename, state_dict in state_dicts.items():
+        #state_dicts = self.state_dict(filename)
+        #raise ValueError(state_dicts, filename)
+        if self.should_save_checkpoint_on_current_rank:
+
             logger.info(f"Saving checkpoint to {os.path.abspath(filename)}")
-            state_dict = utils.move_to_cpu(
-                state_dict,
-                # keep params in FP16 when training with --memory-efficient-fp16
-                cast_to_fp32=not self.cfg.common.memory_efficient_fp16,
-            )
+            # call state_dict on all ranks in case it needs internal communication
+            state_dict = utils.move_to_cpu(self.state_dict())
             state_dict["extra_state"].update(extra_state)
-            if self.should_save_checkpoint_on_current_rank:
-                checkpoint_utils.torch_persistent_save(
-                    state_dict,
-                    filename,
-                    async_write=self.cfg.checkpoint.write_checkpoints_asynchronously,
-                    async_callback_fn=async_callback_fn,
-                )
+
+            checkpoint_utils.torch_persistent_save(
+                state_dict,
+                filename,
+                async_write=self.cfg.checkpoint.write_checkpoints_asynchronously,
+            )
             logger.info(f"Finished saving checkpoint to {os.path.abspath(filename)}")
+            return os.path.abspath(filename)
+        return None
 
     def load_checkpoint(
         self,
@@ -892,6 +893,8 @@ class Trainer(object):
                     return contextlib.ExitStack()  # dummy contextmanager
 
             try:
+                if self.teacher_model is not None:
+                    self.teacher_model.eval()
                 with maybe_no_sync():
                     # forward and backward
                     loss, sample_size_i, logging_output = self.task.train_step(
@@ -901,6 +904,7 @@ class Trainer(object):
                         optimizer=self.optimizer,
                         update_num=self.get_num_updates(),
                         ignore_grad=is_dummy_batch,
+                        teacher_model=self.teacher_model, 
                         **extra_kwargs,
                     )
                     del loss

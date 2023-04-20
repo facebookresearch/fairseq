@@ -52,6 +52,7 @@ class DeepSpeedTrainer(Trainer):
         logger.info(f"fairseq generated DeepSpeed config: {self.ds_config}")
 
         self._build_optimizer()
+        
 
     def _build_optimizer(self):
         ## get non-moe parameters
@@ -325,6 +326,8 @@ class DeepSpeedTrainer(Trainer):
                 self.model.optimizer.override_loss_scale(self.scaler.loss_scale)
 
             try:
+                if self.teacher_model is not None:
+                    self.teacher_model.eval()
                 # forward and backward
                 loss, sample_size_i, logging_output = self.task.train_step(
                     sample=sample,
@@ -333,6 +336,7 @@ class DeepSpeedTrainer(Trainer):
                     optimizer=self.optimizer,
                     update_num=self.get_num_updates(),
                     ignore_grad=is_dummy_batch,
+                    teacher_model=self.teacher_model,
                     **extra_kwargs,
                 )
                 self.train_step_count += 1
