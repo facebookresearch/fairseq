@@ -605,7 +605,7 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         metrics.log_scalar('nll_loss', nll_loss_sum / ntokens / math.log(2), ntokens, round=3)
         metrics.log_scalar('kd_loss_sum', kd_loss_sum / ntokens / math.log(2), round=4)
         metrics.log_derived('ppl', lambda meters: utils.get_perplexity(meters['nll_loss'].avg))
-        #metrics.log_scalar('distil_rate', real_distil_rate, round=4)
+        metrics.log_scalar('distil_rate', real_distil_rate, round=4)
         
 
     @staticmethod
