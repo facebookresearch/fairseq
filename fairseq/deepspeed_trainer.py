@@ -424,6 +424,8 @@ class DeepSpeedTrainer(Trainer):
             overflow = True
         except OverflowError as e:
             logger.info(f"NOTE: gradient overflow detected, ignoring gradient, {str(e)}")
+            logger.info(f"overflows {self.scaler._overflows_since_rescale}")
+            logger.info(f"iters since {self.scaler._iter - self.scaler._last_rescale_iter}")
             overflow = True
             self.zero_grad()
     
