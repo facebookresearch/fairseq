@@ -137,7 +137,7 @@ class MoELabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         self.cmr_gate_loss_p = cmr_gate_loss_p
         self.cmr_gate_loss_weight = cmr_gate_loss_wt
 
-    def forward(self, model, sample, reduce=True):
+    def forward(self, model, sample, reduce=True, teacher_model=None):
         """Compute the loss for the given sample.
         Returns a tuple with three elements:
         1) the loss
