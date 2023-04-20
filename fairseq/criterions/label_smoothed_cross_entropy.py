@@ -110,7 +110,7 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             'ntokens': sample['ntokens'],
             'nsentences': sample['target'].size(0),
             'sample_size': sample_size,
-            #'distil_rate': self.real_distil_rate,
+            'distil_rate': self.real_distil_rate,
             'gpu_nums':1,
             'KD_loss': extra_result['KD_loss'].data if extra_result.get('KD_loss', None) is not None else 0,  
             'nll_loss_distil': extra_result['nll_loss_distil'].data if extra_result.get('nll_loss_distil', None) is not None else 0,  
@@ -599,8 +599,8 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         sample_size = sum(log.get('sample_size', 0) for log in logging_outputs)
         #nll_loss_distil = sum(log.get('nll_loss_distil', 0) for log in logging_outputs)
         #distil_token_num = sum(log.get('distil_token_num', 0) for log in logging_outputs)
-        #GPU_nums = sum(log.get('gpu_nums', 0) for log in logging_outputs)
-        #real_distil_rate = sum(log.get('distil_rate', 0) for log in logging_outputs) / GPU_nums
+        GPU_nums = sum(log.get('gpu_nums', 0) for log in logging_outputs)
+        real_distil_rate = sum(log.get('distil_rate', 0) for log in logging_outputs) / GPU_nums
         metrics.log_scalar('loss', loss_sum / sample_size / math.log(2), sample_size, round=3)
         metrics.log_scalar('nll_loss', nll_loss_sum / ntokens / math.log(2), ntokens, round=3)
         metrics.log_scalar('kd_loss_sum', kd_loss_sum / ntokens / math.log(2), round=4)
