@@ -48,7 +48,7 @@ class DynamicLossScaler(object):
             self._last_overflow_iter = self._iter
             self._overflows_since_rescale += 1
             pct_overflow = self._overflows_since_rescale / float(iter_since_rescale)
-            if pct_overflow >= self.tolerance:
+            if pct_overflow >= self.tolerance and iter_since_rescale > 25:
                 self._decrease_loss_scale()
                 self._last_rescale_iter = self._iter
                 self._overflows_since_rescale = 0

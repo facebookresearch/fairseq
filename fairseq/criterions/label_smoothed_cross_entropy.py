@@ -61,7 +61,7 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         self.range_eps = 0.01
         self.queue = torch.cuda.FloatTensor([])
         self.teacher_loss_queue =  torch.cuda.FloatTensor([])
-        self.real_distil_rate = 0.0
+        self.distil_rate = task.args.distil_rate
         self.dict_count = None
 
     
@@ -103,6 +103,7 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
                                             teacher_output=teacher_output, 
                                             distil_strategy=self.task.args.distil_strategy,
                                             update_num=update_num)
+        
         sample_size = sample['target'].size(0) if self.sentence_avg else sample['ntokens']
         logging_output = {
             'loss': loss.data,
@@ -110,7 +111,7 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             'ntokens': sample['ntokens'],
             'nsentences': sample['target'].size(0),
             'sample_size': sample_size,
-            'distil_rate': self.real_distil_rate,
+            'distil_rate': self.distil_rate,
             'gpu_nums':1,
             'KD_loss': extra_result['KD_loss'].data if extra_result.get('KD_loss', None) is not None else 0,  
             'nll_loss_distil': extra_result['nll_loss_distil'].data if extra_result.get('nll_loss_distil', None) is not None else 0,  
