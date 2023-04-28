@@ -108,7 +108,7 @@ class DeepSpeedTrainer(Trainer):
         if self.cfg.common.fp16:
             optimizer.loss_scaler.raise_error_at_min_scale = False
         self._lr_scheduler.step_update(0)
-        self._optimizer = optimizer if self.cfg.common.fp16 else amp_optimizer
+        self._optimizer = optimizer if not self.cfg.common.amp else amp_optimizer
         self._wrapped_model = engine 
         self.device = engine.device
         self._criterion.to(device=self.device)
