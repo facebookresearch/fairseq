@@ -52,7 +52,7 @@ class DynamicLossScaler(object):
             self._overflows_since_rescale += 1
             pct_overflow = self._overflows_since_rescale / float(iter_since_rescale)
             if pct_overflow >= self.tolerance and iter_since_rescale > 5:
-                logger.info(f"pct overflow {self.pct_overflow}, tolerance {self.tolerance}, iters since {iter_since_rescale}")
+                logger.info(f"pct overflow {pct_overflow}, tolerance {self.tolerance}, iters since {iter_since_rescale}")
                 self._decrease_loss_scale()
                 self._last_rescale_iter = self._iter
                 self._overflows_since_rescale = 0
