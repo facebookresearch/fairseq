@@ -103,7 +103,7 @@ class DeepSpeedTrainer(Trainer):
         # building the optimizer, so that the initial learning rate is set.
         self._lr_scheduler = lr_scheduler.build_lr_scheduler(
             self.cfg.lr_scheduler,
-            engine.optimizer if self.cfg.common.fp16 else amp_optimizer
+            engine.optimizer if not self.cfg.common.amp else amp_optimizer
         )
         if self.cfg.common.fp16:
             optimizer.loss_scaler.raise_error_at_min_scale = False
