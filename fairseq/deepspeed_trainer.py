@@ -73,10 +73,10 @@ class DeepSpeedTrainer(Trainer):
             #group.update(opt_settings)
         
         if self.cfg.common.amp:
-            amp_optimizer =  optim.AMPOptimizer.build_optimizer(self.cfg, param_groups, ds = True)
-            optimizer = amp_optimizer.optimizer
+            _optimizer =  optim.AMPOptimizer.build_optimizer(self.cfg, param_groups, ds = True)
+            optimizer = _optimizer.optimizer
         else:
-            optimizer = optim.build_optimizer(self.cfg.optimizer, param_groups, ds = True)
+            _optimizer = optim.build_optimizer(self.cfg.optimizer, param_groups, ds = True)
             optimizer = optimizer._optimizer
         
         #optimizer.param_groups[:] = list(param_groups) + optimizer.param_groups[1:]
@@ -103,12 +103,12 @@ class DeepSpeedTrainer(Trainer):
         # building the optimizer, so that the initial learning rate is set.
         self._lr_scheduler = lr_scheduler.build_lr_scheduler(
             self.cfg.lr_scheduler,
-            engine.optimizer if not self.cfg.common.amp else amp_optimizer
+            engine.optimizer if self.cfg.fp6 else _optimizer
         )
         if self.cfg.common.fp16:
             optimizer.loss_scaler.raise_error_at_min_scale = False
         self._lr_scheduler.step_update(0)
-        self._optimizer = optimizer if not self.cfg.common.amp else amp_optimizer
+        self._optimizer = optimizer if self.cfg.fp6 else _optimizer
         self._wrapped_model = engine 
         self.device = engine.device
         self._criterion.to(device=self.device)
@@ -429,6 +429,7 @@ class DeepSpeedTrainer(Trainer):
         except OverflowError as e:
             logger.info(f"NOTE: gradient overflow detected, ignoring gradient, {str(e)}")
             overflow = True
+
             #self.zero_grad()
     
         logging_output = None
