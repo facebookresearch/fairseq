@@ -73,11 +73,11 @@ class DeepSpeedTrainer(Trainer):
             #group.update(opt_settings)
         
         if self.cfg.common.amp:
-            _optimizer =  optim.AMPOptimizer.build_optimizer(self.cfg, param_groups, ds = True)
-            optimizer = _optimizer.optimizer
+            optimizer =  optim.AMPOptimizer.build_optimizer(self.cfg, param_groups, ds = True)
+            #optimizer = _optimizer.optimizer
         else:
-            _optimizer = optim.build_optimizer(self.cfg.optimizer, param_groups, ds = True)
-            optimizer = _optimizer._optimizer
+            optimizer = optim.build_optimizer(self.cfg.optimizer, param_groups, ds = True)
+            #optimizer = _optimizer._optimizer
         
         #optimizer.param_groups[:] = list(param_groups) + optimizer.param_groups[1:]
        # os.environ['LOCAL_RANK'] = str(self.cfg.distributed_training.device_id)
@@ -85,7 +85,7 @@ class DeepSpeedTrainer(Trainer):
         self.device = torch.device("cuda", self.cfg.distributed_training.device_id)
         self.model.to(device=self.device)
         
-        #logger.info("pg2")
+
         #logger.info(optimizer.param_groups)
         
         
@@ -103,12 +103,12 @@ class DeepSpeedTrainer(Trainer):
         # building the optimizer, so that the initial learning rate is set.
         self._lr_scheduler = lr_scheduler.build_lr_scheduler(
             self.cfg.lr_scheduler,
-            engine.optimizer if self.cfg.fp16 else _optimizer
+            engine.optimizer #if self.cfg.fp16 else _optimizer
         )
         if self.cfg.common.fp16:
             optimizer.loss_scaler.raise_error_at_min_scale = False
         self._lr_scheduler.step_update(0)
-        self._optimizer = optimizer if self.cfg.fp16 else _optimizer
+        self._optimizer = optimizer # if self.cfg.fp16 else _optimizer
         self._wrapped_model = engine 
         self.device = engine.device
         self._criterion.to(device=self.device)
