@@ -84,19 +84,19 @@ class DeepSpeedTrainer(Trainer):
         self.device = torch.device("cuda", self.cfg.distributed_training.device_id)
         self.model.to(device=self.device)
         
+        
 
         #logger.info(optimizer.param_groups)
         
         
+        self.zero_enabled = self.zero_enabled = self.cfg.common.zero > 0
+
         engine, optimizer, _, _ = deepspeed.initialize(
             model=self.model,
-            optimizer=optimizer,
+            optimizer=optimizer._optimizer if self.zero_enabled else optimizer,
             model_parameters = param_groups,  
             config_params=self.ds_config
         )
-    
-
-        self.zero_enabled = engine.zero_optimization_stage() > 0
 
         # We should initialize the learning rate scheduler immediately after
         # building the optimizer, so that the initial learning rate is set.
