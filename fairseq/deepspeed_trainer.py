@@ -104,8 +104,8 @@ class DeepSpeedTrainer(Trainer):
             self.cfg.lr_scheduler,
             engine.optimizer #if self.cfg.fp16 else _optimizer
         )
-        if self.cfg.common.fp16:
-            optimizer.loss_scaler.raise_error_at_min_scale = False
+        #if self.cfg.common.fp16:
+        #    optimizer.loss_scaler.raise_error_at_min_scale = False
         self._lr_scheduler.step_update(0)
         self._optimizer = optimizer # if self.cfg.fp16 else _optimizer
         self._wrapped_model = engine 
