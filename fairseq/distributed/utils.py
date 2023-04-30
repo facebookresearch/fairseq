@@ -316,6 +316,8 @@ def distributed_init(cfg: FairseqConfig):
 
         cfg.distributed_training.distributed_rank = torch.distributed.get_rank()
     else:
+        logger.info(f"xla_size {xm.xrt_world_size()}")
+        logger.info(f"dist size {cfg.distributed_training.distributed_world_size}")
         assert xm.xrt_world_size() == cfg.distributed_training.distributed_world_size
         global _USE_XLA
         _USE_XLA = True
