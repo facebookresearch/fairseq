@@ -89,7 +89,7 @@ class DeepSpeedTrainer(Trainer):
         #logger.info(optimizer.param_groups)
         
         
-        self.zero_enabled = self.zero_enabled = self.cfg.common.zero > 0
+        self.zero_enabled = self.cfg.common.zero > 0
 
         engine, optimizer, _, _ = deepspeed.initialize(
             model=self.model,
