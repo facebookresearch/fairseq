@@ -9,7 +9,7 @@ from typing import Dict, Sequence
 
 import numpy as np
 
-from . import FairseqDataset, LanguagePairDataset
+from . import FairseqDataset, LanguagePairDataset, SampledMultiEpochDataset,
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +119,7 @@ class RoundRobinZipDatasets(FairseqDataset):
         """
 
         def _deep_until_language_pair(dataset):
-            if isinstance(dataset, LanguagePairDataset):
+            if isinstance(dataset, (LanguagePairDataset, SampledMultiEpochDataset):
                 return dataset
             if hasattr(dataset, "tgt_dataset"):
                 return _deep_until_language_pair(dataset.tgt_dataset)

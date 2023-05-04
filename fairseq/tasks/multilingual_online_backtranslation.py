@@ -21,7 +21,7 @@ from fairseq.data import (
     RoundRobinZipDatasets,
     TransformEosLangPairDataset,
     data_utils,
-    encoders,
+    encoders
 )
 from fairseq.tasks import register_task
 
@@ -29,8 +29,10 @@ from fairseq.data.multilingual.multilingual_data_manager import (
     MultilingualDatasetManager,
 )
 
+from fairseq.data.multilingual.sampling_method import SamplingMethod
 from fairseq.tasks.online_backtranslation import PiecewiseLinearFn
 from fairseq.tasks.translation_multi_simple_epoch import TranslationMultiSimpleEpochTask
+from fairseq.utils import FileContentsAction
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +50,15 @@ class MultilingualOnlineBackTranslationTask(TranslationMultiSimpleEpochTask):
         """Add task-specific arguments to the parser."""
         # fmt: off
         # Generic translation args
-        parser.add_argument('data', help='colon separated path to data directories list, \
-                            will be iterated upon during epochs in round-robin manner; \
-                            however, valid and test data are always in the first directory to \
-                            avoid the need for repeating them in all directories')
+        parser.add_argument('-s', '--source-lang', default=None, metavar='SRC',
+                            help='inference source language')
+        parser.add_argument('-t', '--target-lang', default=None, metavar='TARGET',
+                            help='inference target language')
+        parser.add_argument('--lang-pairs', default=None, metavar='PAIRS',
+                            help='comma-separated list of language pairs (in training order): en-de,en-fr,de-fr',
+                            action=FileContentsAction)
+        parser.add_argument('--keep-inference-langtok', action='store_true',
+                            help='keep language tokens in inference output (e.g. for analysis or debugging)')
         parser.add_argument('--mono-langs', metavar='MONO_LANGS',
                             help='monolingual languages for training')
         parser.add_argument('--num-batch-buckets', default=0, type=int, metavar='N',
@@ -95,13 +102,15 @@ class MultilingualOnlineBackTranslationTask(TranslationMultiSimpleEpochTask):
                                  'e.g., \'{"beam": 4, "lenpen": 0.6}\'')
         parser.add_argument('--eval-bleu-print-samples', action='store_true',
                             help='print sample generations during validation')
-        parser.add_argument('--pad-to-fixed-length', default=False, type=bool,
-                            help='pad batch to fixed sequence length')
+  
+        
+        SamplingMethod.add_arguments(parser)
+        MultilingualDatasetManager.add_args(parser)
         
 
     def __init__(self, args, langs, dicts, training):
         super().__init__(args, langs, dicts, training)
-        self.mono_langs = args.mono_langs 
+        self.mono_langs = args.mono_langs.split(",")
 
 
         self.SHOW_SAMPLES_INTERVAL = 1000
@@ -123,7 +132,7 @@ class MultilingualOnlineBackTranslationTask(TranslationMultiSimpleEpochTask):
                 self.data = [str(shard) for shard in shards]
                 logger.warning(f"Expanded data directory {old_data} to {self.data}")
 
-        self.dictionary = self.dicts[0]
+        self.dictionary = self.dicts["en"]
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -148,10 +157,29 @@ class MultilingualOnlineBackTranslationTask(TranslationMultiSimpleEpochTask):
 
         return cls(args, langs, dicts, training)
     
+    def load_dataset(self, split, epoch=1, combine=False, **kwargs) -> FairseqDataset:
+        """Load a given dataset split.
+
+        Args:
+            split (str): name of the split (e.g., train, valid, test)
+        """
+        data_path = self.data[0]
+        if split == "train":
+            dataset = self.load_train_dataset(data_path)
+        else:
+            # valid/test should always be the same.
+            dataset = super().load_dataset("valid")
+
+        self.datasets[split] = dataset
+        return dataset
+
 
     def load_train_dataset(self, data_path: str) -> FairseqDataset:
         """The training dataset is made of backtranslation dataset and denoising dataset."""
+        super().load_dataset("train")
+        
         data = []
+        data.append((f"all-MAIN", self.datasets["train"]))
         for lang in self.mono_langs:
             train_path = os.path.join(data_path, lang, "train")
             # TODO: could we do the BT using denoise sample ?
@@ -160,7 +188,7 @@ class MultilingualOnlineBackTranslationTask(TranslationMultiSimpleEpochTask):
             data.append(
                 (f"{lang}-DENOISE", self.load_denoise_dataset(train_path, lang))
             )
-
+        
         return RoundRobinZipDatasets(OrderedDict(data))
     
 
@@ -171,7 +199,7 @@ class MultilingualOnlineBackTranslationTask(TranslationMultiSimpleEpochTask):
         is done on the fly during training.
         """
         mono_dataset = data_utils.load_indexed_dataset(
-            data_path, self.dicts, self.args.dataset_impl
+            data_path, self.dictionary, self.args.dataset_impl
         )
         assert mono_dataset is not None, f"No dataset found for {lang}"
 
@@ -207,7 +235,7 @@ class MultilingualOnlineBackTranslationTask(TranslationMultiSimpleEpochTask):
     def _prepend_lang_bos_to_target(
         self, dataset: LanguagePairDataset, lang: str
     ) -> LanguagePairDataset:
-        bos = _lang_token_index(self.dicts[0], lang)
+        bos = _lang_token_index(self.dicts["en"], lang)
         return TransformEosLangPairDataset(
             dataset,
             src_eos=self.dictionary.eos(),
@@ -219,11 +247,11 @@ class MultilingualOnlineBackTranslationTask(TranslationMultiSimpleEpochTask):
     def load_denoise_dataset(self, data_path: str, lang: str) -> FairseqDataset:
         """Classic denoising dataset"""
         dataset = data_utils.load_indexed_dataset(
-            data_path, self.dicts[0], self.args.dataset_impl
+            data_path, self.dicts["en"], self.args.dataset_impl
         )
         noisy_dataset = NoisingDataset(
             dataset,
-            self.dicts[0],
+            self.dicts["en"],
             seed=1,
             max_word_shuffle_distance=self.args.max_word_shuffle_distance,
             word_dropout_prob=self.args.word_dropout_prob,
@@ -296,9 +324,11 @@ class MultilingualOnlineBackTranslationTask(TranslationMultiSimpleEpochTask):
           |--------------------------------------------------------|
 
         """
-        bos_token = _lang_token_index(self.dictionary, other_lang)
+        lang_token = _lang_token_index(self.dictionary, other_lang)
+        net_input = smp["net_input"]
+        prefix_tokens = torch.full((net_input['src_tokens'].shape[0], 1), lang_token, dtype=net_input["src_tokens"].dtype, device = net_input["src_tokens"].device )
         generated = self.sequence_generator.generate(
-            models=[], sample=smp, bos_token=bos_token
+            models=[], sample=smp, prefix_tokens= prefix_tokens, 
         )
 
         max_lngth = max([gn[0]["tokens"].size(0) for gn in generated])
@@ -312,9 +342,9 @@ class MultilingualOnlineBackTranslationTask(TranslationMultiSimpleEpochTask):
 
         for i, gn in enumerate(generated):
             tokens = gn[0]["tokens"]
-            tokens_size = tokens.size(0)
+            tokens_size = tokens.size(0) - 1
             padding_needed = max_lngth - tokens_size
-            tokens = torch.cat([tokens.new([bos_token]), tokens])
+            #tokens = torch.cat([tokens.new([lang_token]), tokens])
             tokens = F.pad(tokens, (0, padding_needed), value=self.dictionary.pad())
             n_src_tokens[i] = tokens
             n_src_lengths[i] = tokens_size + 1
@@ -350,7 +380,7 @@ class MultilingualOnlineBackTranslationTask(TranslationMultiSimpleEpochTask):
     
 
     def train_step(
-        self, sample, model, criterion, optimizer, update_num, ignore_grad=False
+        self, sample, model, criterion, optimizer, update_num, ignore_grad=False, teacher_model=None
     ):
 
         model.train()
@@ -358,14 +388,17 @@ class MultilingualOnlineBackTranslationTask(TranslationMultiSimpleEpochTask):
 
         agg_loss, agg_sample_size = 0.0, 0.0
         agg_logging_output: Dict[str, float] = defaultdict(float)
-
+        
+        logger.info(sample)
+        
         dataset_keys = self.datasets["train"].datasets.keys()
-
+    
         weights = {
             "BT": self.lambda_bt(update_num),
             "DENOISE": self.lambda_dae(update_num),
+            "MAIN": 1.0 
         }
-        log_keys = {"BT": "bt_", "DENOISE": "dae_"}
+        log_keys = {"BT": "bt_", "DENOISE": "dae_", "MAIN" : "main_"}
 
         for dataset_key in dataset_keys:
             smp = sample[dataset_key]
