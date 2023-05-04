@@ -1,3 +1,4 @@
+import os 
 import json 
 import logging 
 from pathlib import Path
@@ -375,8 +376,6 @@ class MultilingualOnlineBackTranslationTask(TranslationMultiSimpleEpochTask):
             if task_subtype == "BT":
                 with torch.autograd.profiler.record_function("backtranslation"):
                     model.eval()
-                    # TODO: Could we translate to several language at once ?
-                    # this would allow to share encoder_out and maximize GPU usage.
                     other_lang = self.get_other_lang(mono_lang)
                     self.backtranslate_sample(smp, mono_lang, other_lang)
                     self.display_samples_once_in_a_while(smp, mono_lang, other_lang)
