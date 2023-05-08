@@ -138,10 +138,22 @@ for lang in ['en', 'zh', 'hi']:
 # hi-1 0 0
 ```
 
-## Preprint
-[Few-shot Learning with Multilingual Language Models](https://arxiv.org/abs/2112.10668).
+## XStoryCloze
+
+We release XStoryCloze, a new multilingual dataset intended for few-shot evaluation, alongside this paper. XStoryCloze consists of the professionally translated version of the [English StoryCloze dataset](https://cs.rochester.edu/nlp/rocstories/) (Spring 2016 version) to 10 other languages. It is opensourced under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/legalcode), the same license as [the original English StoryCloze](https://cs.rochester.edu/nlp/rocstories/). You can download the dataset using [this link](https://dl.fbaipublicfiles.com/xstorycloze.zip). 
+
+Languages | ar | es | eu | hi | id | my | ru | sw | te | zh
+---|---|---|---|---|---|---|---|---|---
+Train size | 360 | 360 | 360 | 360 | 360 | 360 | 360 | 360 | 360 | 360  
+Eval size | 1511 | 1511 | 1511 | 1511 | 1511 | 1511 | 1511 | 1511 | 1511 | 1511
+
+Please refer to [the dataset doc](examples/xglm/XStoryCloze.md) for more information.
+
+
+## Publication
+[Few-shot Learning with Multilingual Generative Language Models](https://arxiv.org/abs/2112.10668).
 Xi Victoria Lin*, Todor Mihaylov, Mikel Artetxe, Tianlu Wang, Shuohui Chen, Daniel Simig, Myle Ott, Naman Goyal, Shruti Bhosale, Jingfei Du, Ramakanth Pasunuru, Sam Shleifer, Punit Singh Koura, Vishrav Chaudhary, Brian O'Horo, Jeff Wang, Luke Zettlemoyer, Zornitsa Kozareva, Mona Diab, Veselin Stoyanov, Xian Li* (* Equal Contribution).
-ArXiv 2021.
+EMNLP 2022.
 
 ## Citation
 ```

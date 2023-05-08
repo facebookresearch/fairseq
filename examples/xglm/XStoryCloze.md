@@ -1,4 +1,4 @@
-XStoryCloze consists of the professionally translated version of the [English StoryCloze dataset](https://cs.rochester.edu/nlp/rocstories/) (Spring 2016 version) to 10 non-English languages. This dataset is released by Meta AI.
+XStoryCloze consists of the professionally translated version of the [English StoryCloze dataset](https://cs.rochester.edu/nlp/rocstories/) (Spring 2016 version) to 10 other languages. This dataset is released by Meta AI.
 
 # Languages
 ru, zh (Simplified), es (Latin America), ar, hi, id, te, sw, eu, my.
@@ -7,19 +7,19 @@ ru, zh (Simplified), es (Latin America), ar, hi, id, te, sw, eu, my.
 This dataset is intended to be used for evaluating the zero- and few-shot learning capabilities of multlingual language models. We split the data for each language into train and test (360 vs. 1510 examples, respectively). The released data files for different languages maintain a line-by-line alignment.
 
 # Access English StoryCloze
-Please request the original English StoryCloze dataset through the [official channel](https://cs.rochester.edu/nlp/rocstories/). You can create a split of the en data following our data split scheme using the following commands:
+Please request the original English StoryCloze dataset through the [official website](https://cs.rochester.edu/nlp/rocstories/). You can create a split of the en data following our data split scheme using the following commands:
 ```
 head -361 spring2016.val.tsv > spring2016.val.en.tsv.split_20_80_train.tsv
 
-head -1 spring2016.val.tsv > spring2016.val.en.tsv.split_20_80_eval.tsv
-tail -1510 spring2016.val.tsv >> spring2016.val.en.tsv.split_20_80_eval.tsv
+head -1 spring2016.val.tsv > spring2016.val.en.tsv.split_20_80_eval.tsv   # TSV header
+tail -1511 spring2016.val.tsv >> spring2016.val.en.tsv.split_20_80_eval.tsv
 ```
 
 # Licence
 XStoryCloze is opensourced under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/legalcode), the same license as the original English StoryCloze.
 
 # Citation
-If you use XStoryCloze in your work, please cite
+We hope this dataset is helpful for the research and wider NLP community. If you use XStoryCloze in your work, please cite
 ```
 @article{DBLP:journals/corr/abs-2112-10668,
   author    = {Xi Victoria Lin and
