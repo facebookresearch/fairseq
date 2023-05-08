@@ -1,4 +1,4 @@
-XStoryCloze consists of professional translation of the [English StoryCloze dataset](https://cs.rochester.edu/nlp/rocstories/) (Spring 2016 version) to 10 other languages. This dataset is released by Meta AI alongside the paper [Few-shot Learning with Multilingual Generative Language Models. EMNLP 2022](https://arxiv.org/abs/2112.10668).
+XStoryCloze consists of professional translation of the validation split of the [English StoryCloze dataset](https://cs.rochester.edu/nlp/rocstories/) (Spring 2016 version) to 10 other languages. This dataset is released by Meta AI alongside the paper [Few-shot Learning with Multilingual Generative Language Models. EMNLP 2022](https://arxiv.org/abs/2112.10668).
 
 # Languages
 ru, zh (Simplified), es (Latin America), ar, hi, id, te, sw, eu, my.
