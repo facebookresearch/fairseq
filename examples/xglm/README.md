@@ -149,7 +149,7 @@ Language | ar | es | eu | hi | id | my | ru | sw | te | zh
 Train size | 360 | 360 | 360 | 360 | 360 | 360 | 360 | 360 | 360 | 360  
 Eval size | 1511 | 1511 | 1511 | 1511 | 1511 | 1511 | 1511 | 1511 | 1511 | 1511
 
-Please refer to [the dataset doc](examples/xglm/XStoryCloze.md) for more information.
+Please refer to [the dataset doc](XStoryCloze.md) for more information.
 
 
 ## Publication
