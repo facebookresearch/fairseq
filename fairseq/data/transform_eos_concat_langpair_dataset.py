@@ -28,11 +28,11 @@ class TransformEosConcatLangPairDataset(ConcatDataset):
         new_tgt_bos=None,
     ):
         super().__init__(datasets)
-        if new_src_eos is not None:
+        if new_src_eos is not None and new_src_eos != []:
             assert len(new_src_eos) == len(datasets)
         else:
             new_src_eos = []
-        if new_tgt_bos is not None:
+        if new_tgt_bos is not None and new_tgt_bos != []:
             assert len(new_tgt_bos) == len(datasets)
         else:
             new_tgt_bos = []

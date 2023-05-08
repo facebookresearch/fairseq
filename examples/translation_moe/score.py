@@ -17,8 +17,8 @@ import sys
 from itertools import chain
 
 import numpy as np
-from sacrebleu import compute_bleu, corpus_bleu as _corpus_bleu
-
+import sacrebleu
+from sacrebleu import corpus_bleu as _corpus_bleu
 
 def main():
     parser = argparse.ArgumentParser(sys.argv[0])
@@ -119,7 +119,7 @@ def sentence_bleu(hypothesis, reference):
     for i in range(1, 4):
         bleu.counts[i] += 1
         bleu.totals[i] += 1
-    bleu = compute_bleu(
+    bleu = sacrebleu.BLEU.compute_bleu(
         bleu.counts,
         bleu.totals,
         bleu.sys_len,

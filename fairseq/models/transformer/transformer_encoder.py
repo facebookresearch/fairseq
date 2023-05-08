@@ -8,23 +8,22 @@ from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
+from torch import Tensor
+
 from fairseq import utils
 from fairseq.distributed import fsdp_wrap
 from fairseq.models import FairseqEncoder
+from fairseq.models.transformer import TransformerConfig
 from fairseq.modules import (
     FairseqDropout,
     LayerDropModuleList,
     LayerNorm,
     PositionalEmbedding,
     SinusoidalPositionalEmbedding,
+    transformer_layer,
 )
-from fairseq.modules import transformer_layer
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
-from torch import Tensor
-from fairseq.models.transformer import (
-    TransformerConfig,
-)
 
 
 # rewrite name for backward compatibility in `make_generation_fast_`
@@ -312,6 +311,11 @@ class TransformerEncoderBase(FairseqEncoder):
             "src_tokens": src_tokens,  # B x T
             "src_lengths": src_lengths,  # B x 1
         }
+
+    @torch.jit.export
+    def _reorder_encoder_out(self, encoder_out: Dict[str, List[Tensor]], new_order):
+        """Dummy re-order function for beamable enc-dec attention"""
+        return encoder_out
 
     def max_positions(self):
         """Maximum input length supported by the encoder."""

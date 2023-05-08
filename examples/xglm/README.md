@@ -9,13 +9,13 @@ XGLM models are trained on a new multilingual corpus extracted from CommonCrawl 
 
 ## Pre-trained models
 
-Model | Layers | Model Dim | Languages | Download
----|---|---|---|---
-`XGLM 564M` | 24 | 1024 | trained on 30 languages|  [xglm.564M.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.564M.tar.gz)
-`XGLM 1.7B` | 24 | 2048 | trained on 30 languages|  [xglm.1.7B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.1.7B.tar.gz)
-`XGLM 2.9B` | 48 | 2048 | trained on 30 languages|  [xglm.2.9B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.2.9B.tar.gz)
-`XGLM 7.5B` | 32 | 4096 | trained on 30 languages|  [xglm.7.5B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.7.5B.tar.gz)
-`XGLM 4.5B` | 48 | 2048 | trained on 134 languages|  [xglm.4.5B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.4.5B.tar.gz)
+Model | Layers | Model Dim | FFN Dim | Languages | Download
+---|---|---|---|---|---
+`XGLM 564M` | 24 | 1024 | 4096 | trained on 30 languages|  [xglm.564M.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.564M.tar.gz)
+`XGLM 1.7B` | 24 | 2048 | 8192 | trained on 30 languages|  [xglm.1.7B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.1.7B.tar.gz)
+`XGLM 2.9B` | 48 | 2048 | 8192 | trained on 30 languages|  [xglm.2.9B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.2.9B.tar.gz)
+`XGLM 7.5B` | 32 | 4096 | 16384 | trained on 30 languages|  [xglm.7.5B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.7.5B.tar.gz)
+`XGLM 4.5B` | 48 | 2048 | 16384 | trained on 134 languages|  [xglm.4.5B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.4.5B.tar.gz)
 
 ## Pre-training Data Format
 Our models were pre-trained with data in the following format (i.e. paragraphs are separated with new lines and documents were separated with double new lines).
