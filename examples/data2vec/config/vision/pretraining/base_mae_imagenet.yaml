@@ -1,0 +1,64 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: json
+  log_interval: 200
+  tensorboard_logdir: tb
+  fp16_no_flatten_grads: true
+
+checkpoint:
+  save_interval: 5
+  save_interval_updates: 25000
+  keep_interval_updates: 1
+  no_epoch_checkpoints: true
+
+task:
+  _name: mae_image_pretraining
+  data: /datasets01/imagenet_full_size/061417/
+  rebuild_batches: true
+
+dataset:
+  num_workers: 6
+  batch_size: 64
+  skip_invalid_size_inputs_valid_test: true
+  required_batch_size_multiple: 1
+  disable_validation: true
+
+distributed_training:
+  distributed_world_size: 16
+  ddp_backend: c10d
+
+criterion:
+  _name: model
+
+optimization:
+  max_update: 375300
+  lr: [0.0006]
+
+optimizer:
+  _name: composite
+  groups:
+    with_decay:
+      lr_float: 6e-4
+      optimizer:
+        _name: adam
+        adam_betas: [0.9,0.95]
+        weight_decay: 0.05
+      lr_scheduler:
+        _name: cosine
+        warmup_updates: 50040
+    no_decay:
+      lr_float: 6e-4
+      optimizer:
+        _name: adam
+        adam_betas: [0.9,0.95]
+        weight_decay: 0
+      lr_scheduler:
+        _name: cosine
+        warmup_updates: 50040
+
+lr_scheduler: pass_through
+
+model:
+  _name: mae

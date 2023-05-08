@@ -142,11 +142,18 @@ class MultiDecoderSequenceGenerator(nn.Module):
         if "src_tokens" in net_input:
             src_tokens = net_input["src_tokens"]
             # length of the source text being the character length except EndOfSentence and pad
-            src_lengths = (
-                (src_tokens.ne(self.generator.eos) & src_tokens.ne(self.generator.pad))
-                .long()
-                .sum(dim=1)
-            )
+            # if src_lengths exists in net_input (speech_to_text dataset case), then use it
+            if "src_lengths" in net_input:
+                src_lengths = net_input["src_lengths"]
+            else:
+                src_lengths = (
+                    (
+                        src_tokens.ne(self.generator.eos)
+                        & src_tokens.ne(self.generator.pad)
+                    )
+                    .long()
+                    .sum(dim=1)
+                )
         else:
             raise Exception(
                 "expected src_tokens or source in net input. input keys: "

@@ -101,6 +101,7 @@ def test_mask_for_xformers():
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="blocksparse requires gpu")
+@pytest.mark.skip(reason="not part of latest xformers")
 @pytest.mark.parametrize("device", ["cuda"])
 @pytest.mark.parametrize("add_zero_attn", [False])
 @pytest.mark.parametrize("batch_size", [20])
