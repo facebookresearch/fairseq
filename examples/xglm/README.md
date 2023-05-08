@@ -140,7 +140,7 @@ for lang in ['en', 'zh', 'hi']:
 
 ## XStoryCloze
 
-We release XStoryCloze, a new multilingual dataset intended for few-shot evaluation, alongside this paper. XStoryCloze consists of the professionally translated version of the [English StoryCloze dataset](https://cs.rochester.edu/nlp/rocstories/) (Spring 2016 version) to 10 other languages. It is opensourced under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/legalcode), the same license as the English StoryCloze. You can download the dataset using [this link](https://dl.fbaipublicfiles.com/xstorycloze.zip). 
+We release XStoryCloze, a new multilingual dataset intended for few-shot evaluation, alongside this paper. XStoryCloze consists of professional translation of the [English StoryCloze dataset](https://cs.rochester.edu/nlp/rocstories/) (Spring 2016 version) to 10 other languages. It is opensourced under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/legalcode), the same license as the English StoryCloze. You can download the dataset using [this link](https://dl.fbaipublicfiles.com/xstorycloze.zip). 
 
 Language | ar | es | eu | hi | id | my | ru | sw | te | zh
 ---|---|---|---|---|---|---|---|---|---|---
