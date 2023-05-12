@@ -96,22 +96,9 @@ class TransformerEncoderBase(FairseqEncoder):
             self.layers = nn.ModuleList([])
 
         if self.recurrent_stacking is not None:
-            if getattr(cfg, "adapter_bottleneck_dim_trend", "$$") != "$$":
-                raise ValueError("recurrent stacking is not compatible with varying bottleneck dim across layers")
             self.layers.extend([self.build_encoder_layer(cfg)]*self.recurrent_stacking)
         else:
-            ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-            self.trend = cfg.encoder.adapter_bottleneck_dim_trend
-            if self.trend is not None:
-                self.trend = self.trend.split(',')
-                assert len(self.trend) == cfg.encoder.layers, \
-                    "mismatch between number of encoder layers and trend list"
-                for _, v in enumerate(self.trend):
-                    cfg.encoder.adapter_bottleneck_dim = int(v)
-                    self.layers.append(self.build_encoder_layer(cfg))
-            else:
-                self.layers.extend([self.build_encoder_layer(cfg) for _ in range(cfg.encoder.layers)])
-            ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+            self.layers.extend([self.build_encoder_layer(cfg) for _ in range(cfg.encoder.layers)])
 
         self.num_layers = len(self.layers)
 

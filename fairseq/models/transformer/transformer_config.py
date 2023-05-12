@@ -80,13 +80,6 @@ class EncDecBaseConfig(FairseqDataclass):
         default=None,
         metadata={"help": "list of lang_ids to be used as keys for the adapters (comma separated)"}
     )
-    adapter_bottleneck_dim_trend: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "adapter reduction trend as we move up the layers."
-            "Make sure the list argument has the same length as the number of layers (comma separated)"
-        }
-    )
     finetune_adapter: Optional[str] = field(
         default=None,
         metadata={"help": "finetunes adapter of only the specified language. Rest parameters are frozen"}
