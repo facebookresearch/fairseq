@@ -16,14 +16,98 @@ Fairseq(-py) is a sequence modeling toolkit that allows researchers and
 developers to train custom models for translation, summarization, language
 modeling and other text generation tasks.
 
-# Disclaimer
 
-This is a modified version of Fairseq which specializes in performing Knowledge Distillation of Transformers and other seq2seq models. 
+# Usage
+This clone of fairseq supports ```Knowledge Distillation```, ```Recurrent Stacking```, and ```Adapter tuning``` for ```Transformers``` and ```translation``` task. You can add the following flags to ```fairseq-train``` to use them:
 
-**UPDATE 1**: Support of basic Bottleneck adapters in Transformer has been added.
+- **Knowledge Distillation**: The original implementation was sourced from [LeslieOverfitting](https://github.com/LeslieOverfitting/selective_distillation). The total loss for KD is given by $\mathcal{L}_{total} = \alpha \mathcal{L}_{KD} + (1 - \alpha) \mathcal{L}_{NLL}$, where $\mathcal{L}_{KD}$ is the CrossEntropy between the student and teacher probability distributions at each timestep, and $\mathcal{L}_{NLL}$ is the Negative Log-likelihood loss between the prediction and target. Setting $\alpha = 1$, will yield pure Word-Level Distillation ([Hinton _et al_.](https://arxiv.org/abs/1503.02531), [Kim & Rush](https://aclanthology.org/D16-1139))
 
-**UPDATE 2**: Default autograd anamoly detection has been disabled during training. This mitigates the issue of ```fp16``` gradient issues and gives a ```3x``` speedup.
 
+```
+--task translation_with_kd \
+--kd-strategy word_seq_level \
+--teacher-checkpoint-path $teacher_ckpt \
+--criterion label_smoothed_cross_entropy_with_kd \
+--alpha 0.5
+```
+
+The training with Batch-Level and Global-Level KD ([Wang _et al_.](https://aclanthology.org/2021.acl-long.504)) can be done as follows:
+```
+--task translation_with_kd \
+--kd-strategy batch_level \
+--teacher-checkpoint-path $teacher_ckpt \
+--criterion label_smoothed_cross_entropy_with_kd \
+--alpha 0.5 \
+--kd-rate 0.5
+```
+and 
+```
+--task translation_with_kd \
+--kd-strategy global_level \
+--teacher-checkpoint-path $teacher_ckpt \
+--criterion label_smoothed_cross_entropy_with_kd \
+--alpha 0.5 \
+--kd-rate 0.5 \
+--kd-queue-size 1000000
+```
+Lastly, the Global-Language-wise selection approach ([Gumma _et al_.](https://arxiv.org/abs/2304.09388)) can used by:
+```
+--task translation_with_kd \
+--kd-strategy global_language_wise \
+--teacher-checkpoint-path $teacher_ckpt \
+--criterion label_smoothed_cross_entropy_with_kd \
+--alpha 0.5 \
+--kd-rate 0.5 \
+--kd-queue-size 1000000
+```
+Here, similar to Global-Level KD, each language has it's own Global FIFO queue, which makes it suitable for multilingual KD with imabalanced datasets. This technique requires language tags to be added to each translation pair similar to [Ramesh _et al_.](https://aclanthology.org/2022.tacl-1.9/). These tags will help the model break the batch into respective languages an d push them into the corresponding Global language queues. Note that, each FIFO language queue, irrespective of language abundance will be of same size, i.e. ```$kd_queue_sz```. I know this does not sound so good, and I am working on an alternative.
+
+
+- **Recurrent Stacking** ([Dabre & Fujita](https://ojs.aaai.org/index.php/AAAI/article/view/4590)): RS is an extreme parameter sharing technique in which all the layers in the encoder/decoder are shared. That is, implementation wise, only one layer exists in the module and rest $N-1$ are mere references to it. RS can be activated with the following flags:
+```
+--encoder-recurrent-stacking 6 \
+--decoder-recurrent-stacking 6
+```
+
+- **Adapter Tuning** ([Houlsby _et al_.](http://proceedings.mlr.press/v97/houlsby19a/houlsby19a.pdf), [Bapna & Firat](https://aclanthology.org/D19-1165/)): Small FFN blocks with a bottleneck hidden layer are added in the Transformer layer for additional parameterization. Depending on the type of adapter added, i.e. ```Houlsby``` or ```Bapna```, the modules are added  As of now, the adapter hidden layer supports ReLU, GELU and SiLU activations. Dropout is optional. Note that, all other parameters except these adapters will be frozen during training. The adapters can be activated using following flags:
+```
+--encoder-add-adapters \
+--encoder-adapter-bottleneck-dim 256 \
+--encoder-adapter-langs as,bn,gu,hi,kn,ml,mr,or,pa,ta,te \
+--encoder-finetune-adapter hi \
+--encoder-adapter-type bapna \
+--decoder-add-adapters \
+--decoder-adapter-bottleneck-dim 256 \
+--decoder-adapter-langs as,bn,gu,hi,kn,ml,mr,or,pa,ta,te \
+--decoder-finetune-adapter hi \
+--decoder-adapter-type bapna \
+--adapter-activation-fn gelu \
+--adapter-dropout 0.1 \
+--load-checkpoint-liberally
+```
+
+During evaluation, you can add the following flags to ```fairseq-interactive```
+```
+--encoder-adapter hi \
+--decoder-adapter hi
+```
+to use that specific adapter (```hi``` in this case).
+
+_Additional Information_: [Mundra _et al_.](https://arxiv.org/pdf/2305.07491.pdf) is a neat comprehensive analysis paper about the efficiency of Adapters, and good place to begin if you want to dive into Adapter tuning.
+
+
+- **Miscellaneous**:
+
+  - _Factorized Embedding Parameterization_ ([Lan _et al_.](https://iclr.cc/virtual_2020/poster_H1eA7AEtvS.html)): Similar to ALBERT, the large embeddings can be parameterized by adding an intermediate bottleneck layer, i.e. the instead of being a single $|V| \times d_m$ matrix, the Embedding consists of two pieces of sizes $|V| \times k$ and $k \times d_m$ respectively, where $k < d_m$. This helps curb the number of parameters in the the Embedding layer, which can one of the most bulky components. Factorized embeddings as can used as:
+  ```
+  --encoder-factorized-embed-dim 64 \
+  --decoder-factorized-embed-dim 64
+  ```
+
+  - _Sanity Validation steps_: Similar to Pytorch-Lightning Trainer, a full pass over the validation set can be run in the beginning of training to smoke out any bugs in the training/validation. It can be activated with the flag:
+  ```
+  --run-sanity-validation-steps
+  ```
 
 # Requirements and Installation
 
@@ -87,3 +171,7 @@ Please cite as:
   year = {2019},
 }
 ```
+
+# Final Note
+
+I will try my best to keep this repo sync'ed with upstream [fairseq](https://github.com/facebookresearch/fairseq) repository. This clone is very dynamic and can have broken stuff once in a while. So feel free to raise any issues or pull-requests to clear any bugs or introduce new features. BTW, I am trying to integrate ```torch.compile``` with ```fairseq```, and I get flooded with a bunch of warning and logging messages from ```torch._dynamo``` and ```torch._inductor```, so any leads on this will be really helpful!

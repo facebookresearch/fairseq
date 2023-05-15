@@ -74,7 +74,7 @@ class TransformerEncoderLayerBase(nn.Module):
         self.adapter_type = cfg.encoder.adapter_type
 
         if self.add_adapters:
-            if self.adapter_type == 'houlsby':
+            if self.adapter_type == 'bapna':
                 self.adapter_block1 = None
                 self.adapter_block2 = BottleneckAdapterBlock(
                     lang_ids=cfg.encoder.adapter_langs.split(','),
@@ -85,7 +85,7 @@ class TransformerEncoderLayerBase(nn.Module):
                     normalize_before=cfg.encoder.normalize_before
                 )
 
-            elif self.adapter_type == 'pfeiffer':
+            elif self.adapter_type == 'houlsby':
                 self.adapter_block1 = BottleneckAdapterBlock(
                     lang_ids=cfg.encoder.adapter_langs.split(','),
                     in_dim=self.embed_dim,
@@ -399,7 +399,7 @@ class TransformerDecoderLayerBase(nn.Module):
         self.adapter_type = cfg.decoder.adapter_type
 
         if self.add_adapters:
-            if self.adapter_type == 'houlsby':
+            if self.adapter_type == 'bapna':
                 self.adapter_block1 = None
                 self.adapter_block2 = None
                 self.adapter_block3 = BottleneckAdapterBlock(
@@ -411,7 +411,7 @@ class TransformerDecoderLayerBase(nn.Module):
                     normalize_before=cfg.decoder.normalize_before
                 )
 
-            elif self.adapter_type == 'pfeiffer':
+            elif self.adapter_type == 'houlsby':
                 self.adapter_block1 = BottleneckAdapterBlock(
                     lang_ids=cfg.decoder.adapter_langs.split(','),
                     in_dim=self.embed_dim,

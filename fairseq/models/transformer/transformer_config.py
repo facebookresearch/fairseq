@@ -86,7 +86,7 @@ class EncDecBaseConfig(FairseqDataclass):
     )
     adapter_type: Optional[str] = field(
         default=None,
-        metadata={"help": "type of adapter to be used (houlsby or pfeiffer)"}
+        metadata={"help": "type of adapter to be used (houlsby or bapna)"}
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
