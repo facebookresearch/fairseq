@@ -1,0 +1,3 @@
+#!/bin/bash
+lang="$1"
+PYTHONPATH=. PREFIX=INFER HYDRA_FULL_ERROR=1 python examples/speech_recognition/new/infer.py -m --config-dir examples/mms/asr/config/ --config-name infer_common decoding.type=viterbi dataset.max_tokens=4000000 distributed_training.distributed_world_size=1 "common_eval.path='/fsx-wav2vec/androstj/exps/wav2vec/mms/v4/finetune/xl1b_d5_dfls_0_0.3_u300k__ft_on_d5_127_dbeta1/ft_smax_adp_common.seed:1__dataset.max_tokens:2880000__optimization.lr:[0.001]__optimization.max_update:4000__merged_ckpt/checkpoints/checkpoint_last.pt'" task.data=/fsx-wav2vec/androstj/dataset/v4/fl/fseq dataset.gen_subset="${lang}:${lang}/dev" common_eval.post_process=none
