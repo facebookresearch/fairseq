@@ -11,8 +11,9 @@ import sys
 
 from argparse import Namespace
 from dataclasses import dataclass, field
-from typing import Optional
-from omegaconf import MISSING, II
+from typing import Optional, OrderedDict
+from fairseq.data.multi_corpus_dataset import MultiCorpusDataset
+from omegaconf import MISSING, II, OmegaConf
 
 from fairseq.data import BinarizedAudioDataset, FileAudioDataset, SubsampleDataset
 from fairseq.dataclass import FairseqDataclass, ChoiceEnum
@@ -44,6 +45,12 @@ class AudioPretrainingConfig(FairseqDataclass):
         default=None,
         metadata={"help": "extension of the label file to load, used for fine-tuning"},
     )
+    multi_corpus_keys: Optional[str] = field(
+        default=None,
+        metadata={"help": "Comma separated names for loading multi corpus datasets"})
+    multi_corpus_sampling_weights: Optional[str] = field(
+        default=None,
+        metadata={"help": "Comma separated string of sampling weights corresponding to the multi_corpus_keys"})
     binarized_dataset: bool = field(
         default=False,
         metadata={
@@ -121,7 +128,7 @@ class AudioPretrainingTask(FairseqTask):
             TextCompressionLevel, str(self.cfg.text_compression_level)
         )
 
-        compute_mask = task_cfg.precompute_mask_config is not None
+        compute_mask = getattr(task_cfg, "precompute_mask_config", None) is not None
         mask_args = {}
         if compute_mask:
             mask_args = task_cfg.precompute_mask_config
@@ -140,20 +147,59 @@ class AudioPretrainingTask(FairseqTask):
                 **mask_args,
             )
         else:
-            manifest_path = os.path.join(data_path, "{}.tsv".format(split))
+            if task_cfg.multi_corpus_keys is None:
+                manifest_path = os.path.join(data_path, "{}.tsv".format(split))                
 
-            self.datasets[split] = FileAudioDataset(
-                manifest_path=manifest_path,
-                sample_rate=task_cfg.get("sample_rate", self.cfg.sample_rate),
-                max_sample_size=self.cfg.max_sample_size,
-                min_sample_size=self.cfg.min_sample_size,
-                pad=task_cfg.labels is not None or task_cfg.enable_padding,
-                normalize=task_cfg.normalize,
-                num_buckets=self.cfg.num_batch_buckets or int(self.cfg.tpu),
-                text_compression_level=text_compression_level,
-                compute_mask=compute_mask,
-                **mask_args,
-            )
+                self.datasets[split] = FileAudioDataset(
+                    manifest_path=manifest_path,
+                    sample_rate=task_cfg.get("sample_rate", self.cfg.sample_rate),
+                    max_sample_size=self.cfg.max_sample_size,
+                    min_sample_size=self.cfg.min_sample_size,
+                    pad=task_cfg.labels is not None or task_cfg.enable_padding,
+                    normalize=task_cfg.normalize,
+                    num_buckets=self.cfg.num_batch_buckets or int(self.cfg.tpu),
+                    text_compression_level=text_compression_level,
+                    compute_mask=compute_mask,
+                    **mask_args,
+                )
+            else:
+                dataset_map = OrderedDict()
+                self.dataset_map = {}
+                multi_corpus_keys = [k.strip() for k in task_cfg.multi_corpus_keys.split(",")]
+                corpus_idx_map = {k: idx for idx, k in enumerate(multi_corpus_keys)}
+                data_keys = [k.split(":") for k in split.split(",")]
+
+                multi_corpus_sampling_weights = [float(val.strip()) for val in task_cfg.multi_corpus_sampling_weights.split(",")]
+                data_weights = []
+
+                for key, file_name in data_keys:
+                    
+                    k = key.strip()
+                    manifest_path = os.path.join(data_path, "{}.tsv".format(file_name.strip()))                
+
+                    # TODO: Remove duplication of code from the if block above
+                    dataset_map[k] = FileAudioDataset(
+                        manifest_path=manifest_path,
+                        sample_rate=task_cfg.get("sample_rate", self.cfg.sample_rate),
+                        max_sample_size=self.cfg.max_sample_size,
+                        min_sample_size=self.cfg.min_sample_size,
+                        pad=task_cfg.labels is not None or task_cfg.enable_padding,
+                        normalize=task_cfg.normalize,
+                        num_buckets=self.cfg.num_batch_buckets or int(self.cfg.tpu),
+                        text_compression_level=text_compression_level,
+                        compute_mask=compute_mask,
+                        corpus_key=corpus_idx_map[k],
+                        **mask_args,
+                    )
+
+                    data_weights.append(multi_corpus_sampling_weights[corpus_idx_map[k]])
+
+                self.dataset_map[split] = dataset_map
+                
+                if len(dataset_map) == 1:
+                    self.datasets[split] = list(dataset_map.values())[0]
+                else:
+                    self.datasets[split] = MultiCorpusDataset(dataset_map, distribution=data_weights, seed=0, sort_indices=True)
 
         if getattr(task_cfg, "subsample", 1) < 1:
             self.datasets[split] = SubsampleDataset(
