@@ -2,7 +2,7 @@
 
 The Massively Multilingual Speech (MMS) project expands speech technology from about 100 languages to over 1,000 by building a single multilingual speech recognition model supporting over 1,100 languages (more than 10 times as many as before), language identification models able to identify over [4,000 languages](https://dl.fbaipublicfiles.com/mms/misc/language_coverage_mms.html) (40 times more than before), pretrained models supporting over 1,400 languages, and text-to-speech models for over 1,100 languages. Our goal is to make it easier for people to access information and to use devices in their preferred language.  
 
-You can find details in the paper [Scaling Speech Technology to 1000+ languages](https://research.facebook.com/publications/scaling-speech-technology-to-1000-languages/) and the [blog post](https://ai.facebook.com/blog/multilingual-speech-recognition-model/).
+You can find details in the paper [Scaling Speech Technology to 1000+ languages](https://research.facebook.com/publications/scaling-speech-technology-to-1000-languages/) and the [blog post](https://ai.facebook.com/blog/multilingual-model-speech-recognition/).
 
 An overview of the languages covered by MMS can be found [here](https://dl.fbaipublicfiles.com/mms/misc/language_coverage_mms.html).
 
@@ -147,13 +147,13 @@ eng 1
 eng 1
 ```
 
-Download model and the corresponding dictionary file for the LID model. The following command assuming there is a file named `dict.lang.txt` in `/path/to/dict/l126/`. 
+Download model and the corresponding dictionary file for the LID model. 
 Use the following command to run inference - 
 ```shell script
 $  PYTHONPATH='.'  python3  examples/mms/lid/infer.py /path/to/dict/l126/ --path /path/to/models/mms1b_l126.pt \
   --task audio_classification  --infer-manifest /path/to/manifest.tsv --output-path <OUTDIR>
 ```
-`<OUTDIR>/predictions.txt` will contain the predictions from the model for the audio files in `manifest.tsv`. 
+The above command assumes there is a file named `dict.lang.txt` in `/path/to/dict/l126/`. `<OUTDIR>/predictions.txt` will contain the predictions from the model for the audio files in `manifest.tsv`. 
 
 
 # License
