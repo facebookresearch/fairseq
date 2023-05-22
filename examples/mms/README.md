@@ -156,6 +156,11 @@ $  PYTHONPATH='.'  python3  examples/mms/lid/infer.py /path/to/dict/l126/ --path
 The above command assumes there is a file named `dict.lang.txt` in `/path/to/dict/l126/`. `<OUTDIR>/predictions.txt` will contain the predictions from the model for the audio files in `manifest.tsv`. 
 
 
+## Forced Alignment Tooling
+
+We also developed an efficient forced alignment algorithm implemented on GPU which is able to process very long audio files. This algorithm is open sourced and we provide instructions on how to use it [here](data_prep). We also open source a multilingual alignment model trained on 31K hours of data in 1,130 languages, as well as text normalization scripts.
+
+
 # License
 
 The MMS code and model weights are released under the CC-BY-NC 4.0 license.
