@@ -14,7 +14,7 @@ An overview of the languages covered by MMS can be found [here](https://dl.fbaip
 MMS-300M | [download](https://dl.fbaipublicfiles.com/mms/pretraining/base_300m.pt)
 MMS-1B | [download](https://dl.fbaipublicfiles.com/mms/pretraining/base_1b.pt)
 
-Example commands to finetune the pretrained models can be found [here](https://github.com/fairinternal/fairseq-py/tree/mms_release/examples/wav2vec#fine-tune-a-pre-trained-model-with-ctc).
+Example commands to finetune the pretrained models can be found [here](https://github.com/facebookresearch/fairseq/tree/main/examples/wav2vec#fine-tune-a-pre-trained-model-with-ctc).
 
 ## Finetuned models
 ### ASR
