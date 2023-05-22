@@ -72,7 +72,10 @@ def generate():
         hps.data.filter_length // 2 + 1,
         hps.train.segment_size // hps.data.hop_length,
         **hps.model)
-    net_g.cuda()
+    torch_device = torch.device("cuda")
+    if torch.backends.mps.is_available() and torch.backends.mps.is_built():
+        torch_device = torch.device("mps")
+    net_g.to(torch_device)
     _ = net_g.eval()
 
     g_pth = f"{ckpt_dir}/G_100000.pth"
@@ -85,8 +88,8 @@ def generate():
     txt = text_mapper.filter_oov(txt)
     stn_tst = text_mapper.get_text(txt, hps)
     with torch.no_grad():
-        x_tst = stn_tst.unsqueeze(0).cuda()
-        x_tst_lengths = torch.LongTensor([stn_tst.size(0)]).cuda()
+        x_tst = stn_tst.unsqueeze(0).to(torch_device)
+        x_tst_lengths = torch.LongTensor([stn_tst.size(0)]).to(torch_device)
         hyp = net_g.infer(
             x_tst, x_tst_lengths, noise_scale=.667,
             noise_scale_w=0.8, length_scale=1.0
