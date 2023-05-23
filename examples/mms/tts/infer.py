@@ -80,7 +80,7 @@ def generate():
     parser.add_argument('--model-dir', type=str, help='model checkpoint dir')
     parser.add_argument('--wav', type=str, help='output wav path')
     parser.add_argument('--txt', type=str, help='input text')
-    parser.add_argument('--uroman-dir', type=str, help='uroman lib dir')
+    parser.add_argument('--uroman-dir', type=str, help='uroman lib dir (will download if not specified)')
     args = parser.parse_args()
     ckpt_dir, wav_path, txt = args.model_dir, args.wav, args.txt
 
