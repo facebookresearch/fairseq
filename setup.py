@@ -29,11 +29,12 @@ def write_version_py():
         version += "+" + sha[:7]
     except Exception:
         pass
-    version = "0.10.1"
+    version="0.10.1"
     # write version info to fairseq/version.py
     with open(os.path.join("fairseq", "version.py"), "w") as f:
         f.write('__version__ = "{}"\n'.format(version))
     return version
+
 
 
 version = write_version_py()

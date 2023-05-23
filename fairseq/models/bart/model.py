@@ -40,7 +40,8 @@ class BARTModel(TransformerModel):
         super().__init__(args, encoder, decoder)
 
         # We follow BERT's random weight initialization
-        self.apply(init_bert_params)
+        #self.apply(init_bert_params)
+        #This was removed for FSDP issues 
 
         self.classification_heads = nn.ModuleDict()
         if hasattr(self.encoder, "dictionary"):

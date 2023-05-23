@@ -7,7 +7,6 @@ import logging
 import os
 
 import numpy as np
-
 from fairseq.data import (
     AppendTokenDataset,
     ConcatDataset,
@@ -24,11 +23,12 @@ from fairseq.tasks import register_task
 
 from .denoising import DenoisingTask
 
+
 logger = logging.getLogger(__name__)
 
 
-@register_task("multilingual_denoising")
-class MultilingualDenoisingTask(DenoisingTask):
+@register_task("multilingual_denoising_universe")
+class MultilingualDenoisingUniverseTask(DenoisingTask):
     @staticmethod
     def add_args(parser):
         DenoisingTask.add_args(parser)
@@ -49,6 +49,13 @@ class MultilingualDenoisingTask(DenoisingTask):
             metavar="N",
             help="languages without spacing between words dont support whole word masking",
         )
+        parser.add_argument(
+            "--universe-dict", 
+            type=str, 
+            default="", 
+            help="text file with all universe id's listed"
+        )
+
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -74,6 +81,13 @@ class MultilingualDenoisingTask(DenoisingTask):
                 dictionary.add_symbol("[{}]".format(lang))
 
         logger.info("dictionary: {} types".format(len(dictionary)))
+
+        # Parse all the universe ids
+        with open(args.universe_dict, 'r') as univ_file:
+            universe_ids = univ_file.readlines()
+            for universe in universe_ids:
+                dictionary.add_symbol("[{}]".format(universe))
+
         if not hasattr(args, "shuffle_instance"):
             args.shuffle_instance = False
         return cls(args, dictionary)
@@ -90,11 +104,11 @@ class MultilingualDenoisingTask(DenoisingTask):
 
     def _get_sample_prob(self, dataset_lens):
         """
-        Get smoothed sampling probability by languages. This helps low resource
+        Get smoothed sampling porbability by languages. This helps low resource
         languages by upsampling them.
         """
         prob = dataset_lens / dataset_lens.sum()
-        smoothed_prob = prob**self.args.multilang_sampling_alpha
+        smoothed_prob = prob ** self.args.multilang_sampling_alpha
         smoothed_prob = smoothed_prob / smoothed_prob.sum()
         return smoothed_prob
 
@@ -119,13 +133,17 @@ class MultilingualDenoisingTask(DenoisingTask):
             )
         else:
             languages = self.langs.split(",")
-            dsets = []
             for name in languages:
                 p = os.path.join(data_path, name)
-                if os.path.exists(p): dsets += [name]
                 #assert os.path.exists(p), "data not found: {}".format(p)
 
+        if self.args.universe_dict != "ignore":
+            with open(self.args.universe_dict, 'r') as univ_file:
+                universes = [x.rstrip() for x in univ_file.readlines()]
+
+
         logger.info("Training on {0} languages: {1}".format(len(languages), languages))
+        logger.info("Training on {0} universes: {1}".format(len(universes), universes))
         logger.info(
             "Language to id mapping: ", {lang: id for id, lang in enumerate(languages)}
         )
@@ -133,61 +151,79 @@ class MultilingualDenoisingTask(DenoisingTask):
         mask_whole_words = get_whole_word_mask(self.args, self.dictionary)
         language_without_segmentations = self.args.no_whole_word_mask_langs.split(",")
         lang_datasets = []
-        for language in dsets:
-            split_path = os.path.join(data_path, language, split)
-            
-            dataset = data_utils.load_indexed_dataset(
-                split_path,
-                self.source_dictionary,
-                self.args.dataset_impl,
-                combine=combine,
-            )
-            
-            #if dataset is None:
-                #raise FileNotFoundError(
-                #    "Dataset not found: {} ({})".format(split, split_path)
-                #)
+        dsets = []
+        for language in languages:
+            loaded_datasets = []
+            for universe in universes:
+                split_path = os.path.join(data_path, universe, language, split)
+                #logger.info(os.path.join(data_path, universe, language))
+                #logger.info(os.path.exists(os.path.join(data_path, universe, language)))
+                if os.path.exists(os.path.join(data_path, universe, language)) == False:
+                    continue
+                try:
+                    logger.info(os.path.join(data_path, universe, language))
+                    dataset = data_utils.load_indexed_dataset(
+                        split_path,
+                        self.source_dictionary,
+                        self.args.dataset_impl,
+                        combine=combine,
+                    )
+                    #if dataset is None:
+                    #    raise FileNotFoundError(
+                    #        "Dataset not found: {} ({})".format(split, split_path)
+                    #    )
+                    end_token = (
+                        self.source_dictionary.index("[{}]".format(language))
+                        if self.args.add_lang_token
+                        else self.source_dictionary.eos()
+                    )
+                    
 
-            end_token = (
-                self.source_dictionary.index("[{}]".format(language))
-                if self.args.add_lang_token
-                else self.source_dictionary.eos()
-            )
+                    # create continuous blocks of tokens
+                    dataset = TokenBlockDataset(
+                        dataset,
+                        dataset.sizes,
+                        self.args.tokens_per_sample - 2,  # one less for <s>
+                        pad=self.source_dictionary.pad(),
+                        eos=end_token,
+                        break_mode=self.args.sample_break_mode,
+                    )
+                    logger.info("loaded {} blocks from: {}".format(len(dataset), split_path))
+                    if universe == '000000000':
+                        bos_token = self.source_dictionary.bos()
+                    else:
+                        bos_token = self.source_dictionary.index("[{}]".format(universe))
 
-            # create continuous blocks of tokens
-            dataset = TokenBlockDataset(
-                dataset,
-                dataset.sizes,
-                self.args.tokens_per_sample - 2,  # one less for <s>
-                pad=self.source_dictionary.pad(),
-                eos=end_token,
-                break_mode=self.args.sample_break_mode,
-            )
-            logger.info("loaded {} blocks from: {}".format(len(dataset), split_path))
+                    dataset = PrependTokenDataset(dataset, bos_token)
+                    dataset = AppendTokenDataset(dataset, end_token)
 
-            # prepend beginning-of-sentence token (<s>, equiv. to [CLS] in BERT)
-            dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())
-            dataset = AppendTokenDataset(dataset, end_token)
-
-            lang_mask_whole_words = (
-                mask_whole_words
-                if language not in language_without_segmentations
-                else None
-            )
-            lang_dataset = DenoisingDataset(
-                dataset,
-                dataset.sizes,
-                self.dictionary,
-                self.mask_idx,
-                lang_mask_whole_words,
-                shuffle=self.args.shuffle_instance,
-                seed=self.seed,
-                args=self.args,
-                eos=None
-                if not self.args.add_lang_token
-                else self.source_dictionary.index("[{}]".format(language)),
-            )
-            lang_datasets.append(lang_dataset)
+                    lang_mask_whole_words = (
+                        mask_whole_words
+                        if language not in language_without_segmentations
+                        else None
+                    )
+                    
+                    lang_universe_dataset = DenoisingDataset(
+                        dataset,
+                        dataset.sizes,
+                        self.dictionary,
+                        self.mask_idx,
+                        lang_mask_whole_words,
+                        shuffle=self.args.shuffle_instance,
+                        seed=self.seed,
+                        args=self.args,
+                        eos=None
+                        if not self.args.add_lang_token
+                        else self.source_dictionary.index("[{}]".format(language)),
+                    )
+                    loaded_datasets.append(lang_universe_dataset)
+                except Exception as e:
+                    print(e)
+                    logger.info(f"Failed to load universe {universe}")
+            if len(loaded_datasets) > 0:    
+                lang_dataset = ConcatDataset(loaded_datasets) 
+                lang_datasets.append(lang_dataset)
+                dsets.append(language)
 
         dataset_lengths = np.array(
             [len(d) for d in lang_datasets],

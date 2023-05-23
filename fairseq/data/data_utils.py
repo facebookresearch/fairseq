@@ -88,7 +88,6 @@ def load_indexed_dataset(
     """
     import fairseq.data.indexed_dataset as indexed_dataset
     from fairseq.data.concat_dataset import ConcatDataset
-
     datasets = []
     for k in itertools.count():
         path_k = path + (str(k) if k > 0 else "")
@@ -109,6 +108,7 @@ def load_indexed_dataset(
             fix_lua_indexing=True,
             dictionary=dictionary,
         )
+        #print(dataset)
         if dataset is None:
             break
         logger.info("loaded {:,} examples from: {}".format(len(dataset), path_k))

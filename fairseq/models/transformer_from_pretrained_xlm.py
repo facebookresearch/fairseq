@@ -41,7 +41,7 @@ class TransformerFromPretrainedXLMModel(TransformerModel):
         )
 
     @classmethod
-    def build_model(self, args, task, cls_dictionary=MaskedLMDictionary):
+    def build_model(self, args, task,  cls_dictionary=MaskedLMDictionary):
         assert hasattr(args, "pretrained_xlm_checkpoint"), (
             "You must specify a path for --pretrained-xlm-checkpoint to use "
             "--arch transformer_from_pretrained_xlm"
@@ -71,7 +71,7 @@ class TransformerFromPretrainedXLMModel(TransformerModel):
 
 
 def upgrade_state_dict_with_xlm_weights(
-    state_dict: Dict[str, Any], pretrained_xlm_checkpoint: str
+    state_dict: Dict[str, Any], pretrained_xlm_checkpoint: str, 
 ) -> Dict[str, Any]:
     """
     Load XLM weights into a Transformer encoder or decoder model.
