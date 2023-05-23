@@ -19,11 +19,13 @@ Example commands to finetune the pretrained models can be found [here](https://g
 ## Finetuned models
 ### ASR
 
-| Model | Languages | Dataset | Model | Supported languages |
-|---|---|---|---|---
-MMS-1B:FL102 | 102 | FLEURS | [download](https://dl.fbaipublicfiles.com/mms/asr/mms1b_fl102.pt) | [download](https://dl.fbaipublicfiles.com/mms/asr/mms1b_fl102_langs.html) 
-MMS-1B:L1107| 1107 | MMS-lab | [download](https://dl.fbaipublicfiles.com/mms/asr/mms1b_l1107.pt) | [download](https://dl.fbaipublicfiles.com/mms/asr/mms1b_l1107_langs.html) 
-MMS-1B-all| 1162 | MMS-lab + FLEURS <br>+ CV + VP + MLS |  [download](https://dl.fbaipublicfiles.com/mms/asr/mms1b_all.pt) | [download](https://dl.fbaipublicfiles.com/mms/asr/mms1b_all_langs.html)
+| Model | Languages | Dataset | Model | Dictionary* | Supported languages |
+|---|---|---|---|---|---
+MMS-1B:FL102 | 102 | FLEURS | [download](https://dl.fbaipublicfiles.com/mms/asr/mms1b_fl102.pt) | [download](https://dl.fbaipublicfiles.com/mms/asr/dict/mms1b_fl102/eng.txt) | [download](https://dl.fbaipublicfiles.com/mms/asr/mms1b_fl102_langs.html) 
+MMS-1B:L1107| 1107 | MMS-lab | [download](https://dl.fbaipublicfiles.com/mms/asr/mms1b_l1107.pt) | [download](https://dl.fbaipublicfiles.com/mms/asr/dict/mms1b_l1107/eng.txt)  | [download](https://dl.fbaipublicfiles.com/mms/asr/mms1b_l1107_langs.html) 
+MMS-1B-all| 1162 | MMS-lab + FLEURS <br>+ CV + VP + MLS |  [download](https://dl.fbaipublicfiles.com/mms/asr/mms1b_all.pt) | [download](https://dl.fbaipublicfiles.com/mms/asr/dict/mms1b_all/eng.txt) | [download](https://dl.fbaipublicfiles.com/mms/asr/mms1b_all_langs.html)
+
+\* In the `Dictionary` column, we provide the download link for token dictionary in English language. To download token dictionary for a different language supported by the model, modify the language code in the URL appropriately. For example, to get token dictionary of FL102 model for Hindi language, use [this](https://dl.fbaipublicfiles.com/mms/asr/dict/mms1b_fl102/hin.txt) link. 
 
 ### TTS
 1. Download the list of [iso codes](https://dl.fbaipublicfiles.com/mms/tts/all-tts-languages.html) of 1107 languages.
