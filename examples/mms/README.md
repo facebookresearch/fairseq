@@ -135,13 +135,13 @@ $ PYTHONPATH=$PYTHONPATH:/path/to/vits python examples/mms/tts/infer.py --model-
 ### LID
 
 
-Prepare two files in this format 
+Prepare two files in this format. Each manifest line contains <audio> and <number_of_sample>
 ```
 #/path/to/manifest.tsv
 /
-/path/to/audio1.wav
-/path/to/audio2.wav
-/path/to/audio3.wav
+/path/to/audio1.wav	180000
+/path/to/audio2.wav	240000
+/path/to/audio3.wav	160000
 
 # /path/to/manifest.lang
 eng 1
