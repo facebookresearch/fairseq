@@ -24,7 +24,7 @@ from scipy.io.wavfile import write
 
 class TextMapper(object):
     def __init__(self, vocab_file):
-        self.symbols = [x.replace("\n", "") for x in open(vocab_file).readlines()]
+        self.symbols = [x.replace("\n", "") for x in open(vocab_file, encoding="utf-8").readlines()]
         self.SPACE_ID = self.symbols.index(" ")
         self._symbol_to_id = {s: i for i, s in enumerate(self.symbols)}
         self._id_to_symbol = {i: s for i, s in enumerate(self.symbols)}
