@@ -53,7 +53,8 @@ wget https://dl.fbaipublicfiles.com/mms/tts/azj-script_latin.tar.gz # North Azer
 Run this command to transcribe one or more audio files:
 ```shell command
 cd /path/to/fairseq-py/
-python examples/mms/asr/infer/mms_infer.py --model "/path/to/asr/model" --lang lang_code --audio "/path/to/audio_1.wav" "/path/to/audio_1.wav"
+python examples/mms/asr/infer/mms_infer.py --model "/path/to/asr/model" --lang lang_code \
+  --audio "/path/to/audio_1.wav" "/path/to/audio_2.wav" "/path/to/audio_3.wav"
 ```
 
 For more advance configuration and calculate CER/WER, you could prepare manifest folder by creating a folder with this format: 
