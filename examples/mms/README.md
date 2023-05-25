@@ -6,16 +6,6 @@ You can find details in the paper [Scaling Speech Technology to 1000+ languages]
 
 An overview of the languages covered by MMS can be found [here](https://dl.fbaipublicfiles.com/mms/misc/language_coverage_mms.html).
 
-
-## Pretrained models
-
-| Model | Link
-|---|---
-MMS-300M | [download](https://dl.fbaipublicfiles.com/mms/pretraining/base_300m.pt)
-MMS-1B | [download](https://dl.fbaipublicfiles.com/mms/pretraining/base_1b.pt)
-
-Example commands to finetune the pretrained models can be found [here](https://github.com/facebookresearch/fairseq/tree/main/examples/wav2vec#fine-tune-a-pre-trained-model-with-ctc).
-
 ## Finetuned models
 ### ASR
 
@@ -56,7 +46,7 @@ cd /path/to/fairseq-py/
 python examples/mms/asr/infer/mms_infer.py --model "/path/to/asr/model" --lang lang_code \
   --audio "/path/to/audio_1.wav" "/path/to/audio_2.wav" "/path/to/audio_3.wav"
 ```
-We also provide an Ipython notebook example in inside `asr/tutorial` folder [ipynb](https://github.com/facebookresearch/fairseq/blob/androstj-patch-1/examples/mms/asr/tutorial/MMS_ASR_Inference_Colab.ipynb) or [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/facebookresearch/fairseq/blob/main/examples/mms/asr/tutorial/MMS_ASR_Inference_Colab.ipynb) 
+We also provide an Ipython notebook example inside `asr/tutorial` folder [ipynb](https://github.com/facebookresearch/fairseq/blob/main/examples/mms/asr/tutorial/MMS_ASR_Inference_Colab.ipynb) or [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/facebookresearch/fairseq/blob/main/examples/mms/asr/tutorial/MMS_ASR_Inference_Colab.ipynb) 
 
 
 For more advance configuration and calculate CER/WER, you could prepare manifest folder by creating a folder with this format: 
@@ -160,6 +150,17 @@ $  PYTHONPATH='.'  python3  examples/mms/lid/infer.py /path/to/dict/l126/ --path
 ```
 The above command assumes there is a file named `dict.lang.txt` in `/path/to/dict/l126/`. `<OUTDIR>/predictions.txt` will contain the predictions from the model for the audio files in `manifest.tsv`. 
 
+We also provide an Ipython notebook example inside `lid/tutorial` folder [ipynb](https://github.com/facebookresearch/fairseq/blob/main/examples/mms/lid/tutorial/MMS_LID_Inference_Colab.ipynb) or [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/facebookresearch/fairseq/blob/main/examples/mms/lid/tutorial/MMS_LID_Inference_Colab.ipynb) 
+  
+  
+## Pretrained models
+
+| Model | Link
+|---|---
+MMS-300M | [download](https://dl.fbaipublicfiles.com/mms/pretraining/base_300m.pt)
+MMS-1B | [download](https://dl.fbaipublicfiles.com/mms/pretraining/base_1b.pt)
+
+Example commands to finetune the pretrained models can be found [here](https://github.com/facebookresearch/fairseq/tree/main/examples/wav2vec#fine-tune-a-pre-trained-model-with-ctc).
 
 ## Forced Alignment Tooling
 
