@@ -56,6 +56,8 @@ cd /path/to/fairseq-py/
 python examples/mms/asr/infer/mms_infer.py --model "/path/to/asr/model" --lang lang_code \
   --audio "/path/to/audio_1.wav" "/path/to/audio_2.wav" "/path/to/audio_3.wav"
 ```
+We also provide an Ipython notebook example in inside `asr/tutorial` folder [ipynb](https://github.com/facebookresearch/fairseq/blob/androstj-patch-1/examples/mms/asr/tutorial/MMS_ASR_Inference_Colab.ipynb) or [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/facebookresearch/fairseq/blob/main/examples/mms/asr/tutorial/MMS_ASR_Inference_Colab.ipynb) 
+
 
 For more advance configuration and calculate CER/WER, you could prepare manifest folder by creating a folder with this format: 
 ```
