@@ -19,6 +19,7 @@ def parser():
     parser.add_argument("--audio", type=str, help="path to audio file", required=True, nargs='+')
     parser.add_argument("--lang", type=str, help="audio language", required=True)
     parser.add_argument("--format", type=str, choices=["none", "letter"], default="letter")
+    parser.add_argument("--extra-infer-args", type=str, default="")
     return parser.parse_args()
 
 def reorder_decode(hypos):
@@ -45,7 +46,7 @@ def process(args):
         with open(tmpdir / "dev.wrd", "w") as fw:
             fw.write("dummy dummy\n"*len(args.audio))
         cmd = f"""
-        PYTHONPATH=. PREFIX=INFER HYDRA_FULL_ERROR=1 python examples/speech_recognition/new/infer.py -m --config-dir examples/mms/asr/config/ --config-name infer_common decoding.type=viterbi dataset.max_tokens=1440000 distributed_training.distributed_world_size=1 "common_eval.path='{args.model}'" task.data={tmpdir} dataset.gen_subset="{args.lang}:dev" common_eval.post_process={args.format} decoding.results_path={tmpdir}
+        PYTHONPATH=. PREFIX=INFER HYDRA_FULL_ERROR=1 python examples/speech_recognition/new/infer.py -m --config-dir examples/mms/asr/config/ --config-name infer_common decoding.type=viterbi dataset.max_tokens=1440000 distributed_training.distributed_world_size=1 "common_eval.path='{args.model}'" task.data={tmpdir} dataset.gen_subset="{args.lang}:dev" common_eval.post_process={args.format} decoding.results_path={tmpdir} {args.extra_infer_args}
         """
         print(">>> loading model & running inference ...", file=sys.stderr)
         subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL,)
