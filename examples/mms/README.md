@@ -124,6 +124,8 @@ $ PYTHONPATH=$PYTHONPATH:/path/to/vits python examples/mms/tts/infer.py --model-
 ```
 `example.wav` contains synthesized audio for the language.
 
+We also provide an Ipython notebook example inside `tts/tutorial` folder [ipynb](https://github.com/facebookresearch/fairseq/blob/main/examples/mms/tts/tutorial/MMS_TTS_Inference_Colab.ipynb) or [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/facebookresearch/fairseq/blob/main/examples/mms/tts/tutorial/MMS_TTS_Inference_Colab.ipynb)
+
 
 ### LID
 
