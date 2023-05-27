@@ -14,23 +14,6 @@ import os
 import sys
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-
-import torch._dynamo as dynamo
-import torch._inductor as inductor
-
-print(torch.__version__)
-print(dynamo)
-print(inductor)
-
-# dynamo.config.verbose = False
-# dynamo.config.log_level = False
-# inductor.config.debug = False
-# inductor.config.trace.enabled = False
-
-dynamo.config.log_level = False
-dynamo.config.output_code = False
-dynamo.config.verbose = False
-
 # We need to setup root logger before importing any fairseq libraries.
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -141,9 +124,7 @@ def main(cfg: FairseqConfig) -> None:
             model = fsdp_wrap(task.build_model(cfg.model))
     else:
         model = task.build_model(cfg.model)
-    
-    logging.info("optimizing model with torch.compile")
-    model = torch.compile(model)
+
     criterion = task.build_criterion(cfg.criterion)
 
     logger.info(model)
