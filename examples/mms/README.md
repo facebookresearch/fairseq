@@ -25,6 +25,12 @@ MMS-1B-all| 1162 | MMS-lab + FLEURS <br>+ CV + VP + MLS |  [download](https://dl
 wget https://dl.fbaipublicfiles.com/mms/tts/eng.tar.gz # English (eng)
 wget https://dl.fbaipublicfiles.com/mms/tts/azj-script_latin.tar.gz # North Azerbaijani (azj-script_latin)
 ```
+The above command downloads generator only, which is enough to run TTS inference. If you want the full model checkpoint which also includes the discriminator (`D_100000.pth`) and the optimizer states, download as follows.
+```
+# Example (full checkpoint: generator + discriminator + optimizer):
+wget https://dl.fbaipublicfiles.com/mms/tts/full_model/eng.tar.gz # English (eng)
+```
+
 
 ### LID
 

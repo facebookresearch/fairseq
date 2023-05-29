@@ -91,12 +91,14 @@ def generate():
     parser.add_argument('--wav', type=str, help='output wav path')
     parser.add_argument('--txt', type=str, help='input text')
     parser.add_argument('--uroman-dir', type=str, default=None, help='uroman lib dir (will download if not specified)')
-    parser.add_argument('--lang', type=str, default=None, help='language iso code')
+    parser.add_argument('--lang', type=str, default=None, help='language iso code (required for Romanian)')
     args = parser.parse_args()
     ckpt_dir, wav_path, txt = args.model_dir, args.wav, args.txt
 
     if torch.cuda.is_available():
         device = torch.device("cuda")
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available() and torch.backends.mps.is_built():
+        device = torch.device("mps")
     else:
         device = torch.device("cpu")
 
