@@ -1165,7 +1165,7 @@ class TransformerEncoder(nn.Module):
 
 
 class ConformerEncoder(TransformerEncoder):
-    def build_encoder_layer(self, args):
+    def build_encoder_layer(self, args, *largs, **kwargs):
         layer = ConformerWav2Vec2EncoderLayer(
             embed_dim=self.embedding_dim,
             ffn_embed_dim=args.encoder_ffn_embed_dim,
