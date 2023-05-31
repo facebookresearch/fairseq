@@ -942,7 +942,7 @@ def make_conv_pos(e, k, g):
 
 
 class TransformerEncoder(nn.Module):
-    def build_encoder_layer(self, args: Wav2Vec2Config, layer_idx: int):
+    def build_encoder_layer(self, args: Wav2Vec2Config, **kwargs):
         if args.layer_type == "transformer":
             layer = TransformerSentenceEncoderLayer(
                 embedding_dim=self.embedding_dim,
@@ -972,7 +972,7 @@ class TransformerEncoder(nn.Module):
                 use_adp = True
             else:
                 adp_trf_idx = list(range(*[int(g) for g in args.adp_trf_idx.split(":")]))
-                if layer_idx in adp_trf_idx:
+                if kwargs.get("layer_idx", None) in adp_trf_idx:
                     use_adp = True
             if use_adp:
                 layer = TransformerSentenceEncoderWithAdapterLayer(
@@ -1050,7 +1050,7 @@ class TransformerEncoder(nn.Module):
             )
 
         self.layers = nn.ModuleList(
-            [self.build_encoder_layer(args, ii) for ii in range(args.encoder_layers)]
+            [self.build_encoder_layer(args, layer_idx=ii) for ii in range(args.encoder_layers)]
         )
         self.layer_norm_first = args.layer_norm_first
         self.layer_norm = LayerNorm(self.embedding_dim)
