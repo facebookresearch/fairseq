@@ -69,23 +69,36 @@ class TextMapper(object):
         text_norm = torch.LongTensor(text_norm)
         return text_norm
 
-    def filter_oov(self, text):
+    def filter_oov(self, text, lang=None):
+        text = self.preprocess_char(text, lang=lang)
         val_chars = self._symbol_to_id
         txt_filt = "".join(list(filter(lambda x: x in val_chars, text)))
         print(f"text after filtering OOV: {txt_filt}")
         return txt_filt
+
+    def preprocess_char(self, text, lang=None):
+        """
+        Special treatement of characters in certain languages
+        """
+        if lang == "ron":
+            text = text.replace("ț", "ţ")
+            print(f"{lang} (ț -> ţ): {text}")
+        return text
 
 def generate():
     parser = argparse.ArgumentParser(description='TTS inference')
     parser.add_argument('--model-dir', type=str, help='model checkpoint dir')
     parser.add_argument('--wav', type=str, help='output wav path')
     parser.add_argument('--txt', type=str, help='input text')
-    parser.add_argument('--uroman-dir', type=str, help='uroman lib dir (will download if not specified)')
+    parser.add_argument('--uroman-dir', type=str, default=None, help='uroman lib dir (will download if not specified)')
+    parser.add_argument('--lang', type=str, default=None, help='language iso code (required for Romanian)')
     args = parser.parse_args()
     ckpt_dir, wav_path, txt = args.model_dir, args.wav, args.txt
 
     if torch.cuda.is_available():
         device = torch.device("cuda")
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available() and torch.backends.mps.is_built():
+        device = torch.device("mps")
     else:
         device = torch.device("cpu")
 
@@ -122,7 +135,7 @@ def generate():
             txt = text_mapper.uromanize(txt, uroman_pl)
             print(f"uroman text: {txt}")
     txt = txt.lower()
-    txt = text_mapper.filter_oov(txt)
+    txt = text_mapper.filter_oov(txt, lang=args.lang)
     stn_tst = text_mapper.get_text(txt, hps)
     with torch.no_grad():
         x_tst = stn_tst.unsqueeze(0).to(device)
