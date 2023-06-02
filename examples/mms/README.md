@@ -92,7 +92,7 @@ with torch.no_grad():
 ids = torch.argmax(outputs, dim=-1)[0]
 transcription = processor.decode(ids)
 # 'wachambuzi wa soka wanamtaja mesi kama nyota hatari zaidi duniani'
-# => In English: "soccer analysts describe Messi as the most dangerous star in the world"
+# => In English: "soccer analysts describe Messi as the most dangerous player in the world"
 ```
 
 In the same way the language can be switched out for all other supported languages. Please have a look at:
