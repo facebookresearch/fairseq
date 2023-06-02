@@ -81,17 +81,18 @@ transcription = processor.decode(ids)
 We can now keep the same model in memory and simply switch out the language adapters by calling the convenient [`load_adapter()`]() function for the model and [`set_target_lang()`]() for the tokenizer. We pass the target language as an input - "fra" for French.
 
 ```py
-processor.tokenizer.set_target_lang("fra")
-model.load_adapter("fra")
+processor.tokenizer.set_target_lang("swh")
+model.load_adapter("swh")
 
-inputs = processor(fr_sample, sampling_rate=16_000, return_tensors="pt")
+inputs = processor(sw_sample, sampling_rate=16_000, return_tensors="pt")
 
 with torch.no_grad():
     outputs = model(**inputs).logits
 
 ids = torch.argmax(outputs, dim=-1)[0]
 transcription = processor.decode(ids)
-# "ce dernier est volé tout au long de l'histoire romaine"
+# 'wachambuzi wa soka wanamtaja mesi kama nyota hatari zaidi duniani'
+# => In English: "soccer analysts describe Messi as the most dangerous star in the world"
 ```
 
 In the same way the language can be switched out for all other supported languages. Please have a look at:
