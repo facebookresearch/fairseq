@@ -78,7 +78,7 @@ transcription = processor.decode(ids)
 # 'joe keton disapproved of films and buster also had reservations about the media'
 ```
 
-We can now keep the same model in memory and simply switch out the language adapters by calling the convenient [`load_adapter()`]() function for the model and [`set_target_lang()`]() for the tokenizer. We pass the target language as an input - "fra" for French.
+We can now keep the same model in memory and simply switch out the language adapters by calling the convenient [`load_adapter()`]() function for the model and [`set_target_lang()`]() for the tokenizer. We pass the target language as an input - "swh" for Swahili.
 
 ```py
 processor.tokenizer.set_target_lang("swh")
