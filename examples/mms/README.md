@@ -26,7 +26,7 @@ MMS-1B-all| 1162 | MMS-lab + FLEURS <br>+ CV + VP + MLS |  [download](https://dl
 
 First, we install transformers and some other libraries
 ```
-pip install torch accelerate torchaudio datasets
+pip install torch datasets[audio]
 pip install --upgrade transformers
 ````
 
@@ -48,7 +48,7 @@ stream_data = stream_data.cast_column("audio", Audio(sampling_rate=16000))
 en_sample = next(iter(stream_data))["audio"]["array"]
 
 # Swahili
-stream_data = load_dataset("mozilla-foundation/common_voice_13_0", "sw, split="test", streaming=True)
+stream_data = load_dataset("mozilla-foundation/common_voice_13_0", "sw", split="test", streaming=True)
 stream_data = stream_data.cast_column("audio", Audio(sampling_rate=16000))
 sw_sample = next(iter(stream_data))["audio"]["array"]
 ```
