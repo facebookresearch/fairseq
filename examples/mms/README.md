@@ -47,10 +47,10 @@ stream_data = load_dataset("mozilla-foundation/common_voice_13_0", "en", split="
 stream_data = stream_data.cast_column("audio", Audio(sampling_rate=16000))
 en_sample = next(iter(stream_data))["audio"]["array"]
 
-# French
-stream_data = load_dataset("mozilla-foundation/common_voice_13_0", "fr", split="test", streaming=True)
+# Swahili
+stream_data = load_dataset("mozilla-foundation/common_voice_13_0", "sw, split="test", streaming=True)
 stream_data = stream_data.cast_column("audio", Audio(sampling_rate=16000))
-fr_sample = next(iter(stream_data))["audio"]["array"]
+sw_sample = next(iter(stream_data))["audio"]["array"]
 ```
 
 Next, we load the model and processor
