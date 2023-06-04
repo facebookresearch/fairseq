@@ -6,6 +6,11 @@ You can find details in the paper [Scaling Speech Technology to 1000+ languages]
 
 An overview of the languages covered by MMS can be found [here](https://dl.fbaipublicfiles.com/mms/misc/language_coverage_mms.html).
 
+## 🤗 Transformers
+
+MMS has been added to Transformers. For more information, please refer to [Transformers' MMS docs](https://huggingface.co/docs/transformers/main/en/model_doc/mms).
+[Click here](https://huggingface.co/models?other=mms) to find all MMS checkpoints on the Hub.
+
 ## Finetuned models
 ### ASR
 
@@ -16,6 +21,84 @@ MMS-1B:L1107| 1107 | MMS-lab | [download](https://dl.fbaipublicfiles.com/mms/asr
 MMS-1B-all| 1162 | MMS-lab + FLEURS <br>+ CV + VP + MLS |  [download](https://dl.fbaipublicfiles.com/mms/asr/mms1b_all.pt) | [download](https://dl.fbaipublicfiles.com/mms/asr/dict/mms1b_all/eng.txt) | [download](https://dl.fbaipublicfiles.com/mms/asr/mms1b_all_langs.html)
 
 \* In the `Dictionary` column, we provide the download link for token dictionary in English language. To download token dictionary for a different language supported by the model, modify the language code in the URL appropriately. For example, to get token dictionary of FL102 model for Hindi language, use [this](https://dl.fbaipublicfiles.com/mms/asr/dict/mms1b_fl102/hin.txt) link. 
+
+**🤗 Transformers**
+
+First, we install transformers and some other libraries
+```
+pip install torch datasets[audio]
+pip install --upgrade transformers
+````
+
+**Note**: In order to use MMS you need to have at least `transformers >= 4.30` installed. If the `4.30` version
+is not yet available [on PyPI](https://pypi.org/project/transformers/) make sure to install `transformers` from 
+source:
+```
+pip install git+https://github.com/huggingface/transformers.git
+```
+
+Next, we load a couple of audio samples via `datasets`. Make sure that the audio data is sampled to 16000 kHz.
+
+```py
+from datasets import load_dataset, Audio
+
+# English
+stream_data = load_dataset("mozilla-foundation/common_voice_13_0", "en", split="test", streaming=True)
+stream_data = stream_data.cast_column("audio", Audio(sampling_rate=16000))
+en_sample = next(iter(stream_data))["audio"]["array"]
+
+# Swahili
+stream_data = load_dataset("mozilla-foundation/common_voice_13_0", "sw", split="test", streaming=True)
+stream_data = stream_data.cast_column("audio", Audio(sampling_rate=16000))
+sw_sample = next(iter(stream_data))["audio"]["array"]
+```
+
+Next, we load the model and processor
+
+```py
+from transformers import Wav2Vec2ForCTC, AutoProcessor
+import torch
+
+model_id = "facebook/mms-1b-all"
+
+processor = AutoProcessor.from_pretrained(model_id)
+model = Wav2Vec2ForCTC.from_pretrained(model_id)
+```
+
+Now we process the audio data, pass the processed audio data to the model and transcribe the model output, just like we usually do for Wav2Vec2 models such as [facebook/wav2vec2-base-960h](https://huggingface.co/facebook/wav2vec2-base-960h)
+
+```py
+inputs = processor(en_sample, sampling_rate=16_000, return_tensors="pt")
+
+with torch.no_grad():
+    outputs = model(**inputs).logits
+
+ids = torch.argmax(outputs, dim=-1)[0]
+transcription = processor.decode(ids)
+# 'joe keton disapproved of films and buster also had reservations about the media'
+```
+
+We can now keep the same model in memory and simply switch out the language adapters by calling the convenient [`load_adapter()`]() function for the model and [`set_target_lang()`]() for the tokenizer. We pass the target language as an input - "swh" for Swahili.
+
+```py
+processor.tokenizer.set_target_lang("swh")
+model.load_adapter("swh")
+
+inputs = processor(sw_sample, sampling_rate=16_000, return_tensors="pt")
+
+with torch.no_grad():
+    outputs = model(**inputs).logits
+
+ids = torch.argmax(outputs, dim=-1)[0]
+transcription = processor.decode(ids)
+# 'wachambuzi wa soka wanamtaja mesi kama nyota hatari zaidi duniani'
+# => In English: "soccer analysts describe Messi as the most dangerous player in the world"
+```
+
+In the same way the language can be switched out for all other supported languages. Please have a look at:
+```py
+processor.tokenizer.vocab.keys()
+```
 
 ### TTS
 1. Download the list of [iso codes](https://dl.fbaipublicfiles.com/mms/tts/all-tts-languages.html) of 1107 languages.
