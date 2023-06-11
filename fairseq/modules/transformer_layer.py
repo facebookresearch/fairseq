@@ -74,7 +74,7 @@ class TransformerEncoderLayerBase(nn.Module):
         self.adapter_type = cfg.encoder.adapter_type
 
         if self.add_adapters:
-            if self.adapter_type == 'bapna':
+            if self.adapter_type == 'pfeiffer':
                 self.adapter_block1 = None
                 self.adapter_block2 = BottleneckAdapterBlock(
                     lang_ids=cfg.encoder.adapter_langs.split(','),
@@ -82,9 +82,11 @@ class TransformerEncoderLayerBase(nn.Module):
                     bottleneck_dim=cfg.encoder.adapter_bottleneck_dim,
                     activation=cfg.adapter_activation_fn,
                     dropout=cfg.adapter_dropout,
-                    normalize_before=cfg.encoder.normalize_before
+                    ln_before=cfg.encoder.normalize_before,
+                    original_dropout=cfg.dropout
+                    original_ln_before=cfg.encoder.normalize_before,
+                    use_gating=cfg.encoder.use_gating
                 )
-
             elif self.adapter_type == 'houlsby':
                 self.adapter_block1 = BottleneckAdapterBlock(
                     lang_ids=cfg.encoder.adapter_langs.split(','),
@@ -92,7 +94,10 @@ class TransformerEncoderLayerBase(nn.Module):
                     bottleneck_dim=cfg.encoder.adapter_bottleneck_dim,
                     activation=cfg.adapter_activation_fn,
                     dropout=cfg.adapter_dropout,
-                    normalize_before=cfg.encoder.normalize_before
+                    ln_before=cfg.encoder.normalize_before,
+                    original_dropout=cfg.dropout
+                    original_ln_before=cfg.encoder.normalize_before,
+                    use_gating=cfg.encoder.use_gating
                 )
                 self.adapter_block2 = BottleneckAdapterBlock(
                     lang_ids=cfg.encoder.adapter_langs.split(','),
@@ -100,7 +105,10 @@ class TransformerEncoderLayerBase(nn.Module):
                     bottleneck_dim=cfg.encoder.adapter_bottleneck_dim,
                     activation=cfg.adapter_activation_fn,
                     dropout=cfg.adapter_dropout,
-                    normalize_before=cfg.encoder.normalize_before
+                    ln_before=cfg.encoder.normalize_before,
+                    original_dropout=cfg.dropout
+                    original_ln_before=cfg.encoder.normalize_before,
+                    use_gating=cfg.encoder.use_gating
                 )
         else:
             self.adapter_block1 = None
@@ -251,7 +259,7 @@ class TransformerEncoderLayerBase(nn.Module):
         if self.add_adapters and \
            self.adapter_to_be_used is not None and \
            self.adapter_block1 is not None:
-            x = self.adapter_block1(x, self.adapter_to_be_used)
+            x = self.adapter_block1(x, self.adapter_to_be_used, residual)
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
         residual = x
@@ -273,7 +281,7 @@ class TransformerEncoderLayerBase(nn.Module):
         if self.add_adapters and \
            self.adapter_to_be_used is not None and \
            self.adapter_block2 is not None:
-            x = self.adapter_block2(x, self.adapter_to_be_used)
+            x = self.adapter_block2(x, self.adapter_to_be_used, residual)
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
             
         if self.return_fc and not torch.jit.is_scripting():
@@ -399,7 +407,7 @@ class TransformerDecoderLayerBase(nn.Module):
         self.adapter_type = cfg.decoder.adapter_type
 
         if self.add_adapters:
-            if self.adapter_type == 'bapna':
+            if self.adapter_type == 'pfeiffer':
                 self.adapter_block1 = None
                 self.adapter_block2 = None
                 self.adapter_block3 = BottleneckAdapterBlock(
@@ -408,9 +416,11 @@ class TransformerDecoderLayerBase(nn.Module):
                     bottleneck_dim=cfg.decoder.adapter_bottleneck_dim,
                     activation=cfg.adapter_activation_fn,
                     dropout=cfg.adapter_dropout,
-                    normalize_before=cfg.decoder.normalize_before
+                    ln_before=cfg.decoder.normalize_before,
+                    original_dropout=cfg.dropout
+                    original_ln_before=cfg.decoder.normalize_before,
+                    use_gating=cfg.decoder.use_gating
                 )
-
             elif self.adapter_type == 'houlsby':
                 self.adapter_block1 = BottleneckAdapterBlock(
                     lang_ids=cfg.decoder.adapter_langs.split(','),
@@ -418,7 +428,10 @@ class TransformerDecoderLayerBase(nn.Module):
                     bottleneck_dim=cfg.decoder.adapter_bottleneck_dim,
                     activation=cfg.adapter_activation_fn,
                     dropout=cfg.adapter_dropout,
-                    normalize_before=cfg.decoder.normalize_before
+                    ln_before=cfg.decoder.normalize_before,
+                    original_dropout=cfg.dropout
+                    original_ln_before=cfg.decoder.normalize_before,
+                    use_gating=cfg.decoder.use_gating
                 )
                 self.adapter_block2 = BottleneckAdapterBlock(
                     lang_ids=cfg.decoder.adapter_langs.split(','),
@@ -426,7 +439,10 @@ class TransformerDecoderLayerBase(nn.Module):
                     bottleneck_dim=cfg.decoder.adapter_bottleneck_dim,
                     activation=cfg.adapter_activation_fn,
                     dropout=cfg.adapter_dropout,
-                    normalize_before=cfg.decoder.normalize_before
+                    ln_before=cfg.decoder.normalize_before,
+                    original_dropout=cfg.dropout
+                    original_ln_before=cfg.decoder.normalize_before,
+                    use_gating=cfg.decoder.use_gating
                 )
                 self.adapter_block3 = BottleneckAdapterBlock(
                     lang_ids=cfg.decoder.adapter_langs.split(','),
@@ -434,7 +450,10 @@ class TransformerDecoderLayerBase(nn.Module):
                     bottleneck_dim=cfg.decoder.adapter_bottleneck_dim,
                     activation=cfg.adapter_activation_fn,
                     dropout=cfg.adapter_dropout,
-                    normalize_before=cfg.decoder.normalize_before
+                    ln_before=cfg.decoder.normalize_before,
+                    original_dropout=cfg.dropout
+                    original_ln_before=cfg.decoder.normalize_before,
+                    use_gating=cfg.decoder.use_gating
                 )
         else:
             self.adapter_block1 = None
@@ -579,7 +598,7 @@ class TransformerDecoderLayerBase(nn.Module):
         if self.add_adapters and \
            self.adapter_to_be_used is not None and \
            self.adapter_block1 is not None:
-            x = self.adapter_block1(x, self.adapter_to_be_used)
+            x = self.adapter_block1(x, self.adapter_to_be_used, residual)
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
         if self.encoder_attn is not None and encoder_out is not None:
@@ -616,7 +635,7 @@ class TransformerDecoderLayerBase(nn.Module):
             if self.add_adapters and \
                self.adapter_to_be_used is not None and \
                self.adapter_block2 is not None:
-                x = self.adapter_block2(x, self.adapter_to_be_used)
+                x = self.adapter_block2(x, self.adapter_to_be_used, residual)
             ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
         residual = x
@@ -640,7 +659,7 @@ class TransformerDecoderLayerBase(nn.Module):
         if self.add_adapters and \
            self.adapter_to_be_used is not None and \
            self.adapter_block3 is not None:
-            x = self.adapter_block3(x, self.adapter_to_be_used)
+            x = self.adapter_block3(x, self.adapter_to_be_used, residual)
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
         if self.onnx_trace and incremental_state is not None:

@@ -74,19 +74,23 @@ class EncDecBaseConfig(FairseqDataclass):
     )
     adapter_bottleneck_dim: Optional[int] = field(
         default=None,
-        metadata={"help": "reduction factor for bottleneck dimension of adapters"},
+        metadata={"help": "bottleneck dimension for the adapters"},
     )
-    adapter_langs: Optional[str] = field(
+    adapter_ids: Optional[str] = field(
         default=None,
-        metadata={"help": "list of lang_ids to be used as keys for the adapters (comma separated)"}
+        metadata={"help": "list of ids to be used as keys for the adapters (comma separated)"}
     )
-    finetune_adapter: Optional[str] = field(
+    train_adapter: Optional[str] = field(
         default=None,
-        metadata={"help": "finetunes adapter of only the specified language. Rest parameters are frozen"}
+        metadata={"help": "trains the adapter of only that specific id. Rest parameters are frozen"}
     )
     adapter_type: Optional[str] = field(
         default=None,
-        metadata={"help": "type of adapter to be used (houlsby or bapna)"}
+        metadata={"help": "type of adapter to be used (houlsby | pfeiffer)"}
+    )
+    adapter_use_gating: Optional[bool] = field(
+        default=False,
+        metadata={"whether to use gating along with skip connection for the adapter"}
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
