@@ -166,22 +166,22 @@ def main(cfg: FairseqConfig):
             model.cuda()
         model.prepare_for_inference_(cfg)
         
-        if cfg.interactive.encoder_adapter is not None:
+        if cfg.interactive.activate_encoder_adapter is not None:
             logging.info(
                 "using {} adapters in encoder".format(
-                    cfg.interactive.encoder_adapter
+                    cfg.interactive.activate_encoder_adapter
                 )
             )
             for layer in model.encoder.layers:
-                layer.adapter_to_be_used = cfg.interactive.encoder_adapter
-        if cfg.interactive.decoder_adapter is not None:
+                layer.adapter_to_be_used = cfg.interactive.activate_encoder_adapter
+        if cfg.interactive.activate_decoder_adapter is not None:
             logging.info(
                 "using {} adapters in decoder".format(
-                    cfg.interactive.decoder_adapter
+                    cfg.interactive.activate_decoder_adapter
                 )
             )
             for layer in model.decoder.layers:
-                layer.adapter_to_be_used = cfg.interactive.decoder_adapter
+                layer.adapter_to_be_used = cfg.interactive.activate_decoder_adapter
 
     # Initialize generator
     generator = task.build_generator(models, cfg.generation)

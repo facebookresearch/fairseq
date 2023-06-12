@@ -566,7 +566,7 @@ def get_activation_fn(activation: str) -> Callable:
         return F.tanh
     elif activation == "linear":
         return lambda x: x
-    elif activation == "swish":
+    elif activation == "silu":
         return F.silu
     else:
         raise RuntimeError("--activation-fn {} not supported".format(activation))

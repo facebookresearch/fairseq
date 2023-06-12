@@ -37,7 +37,6 @@ The training with Batch-Level and Global-Level KD ([Wang _et al_.](https://aclan
 --kd-strategy batch_level \
 --teacher-checkpoint-path $teacher_ckpt \
 --criterion label_smoothed_cross_entropy_with_kd \
---alpha 0.5 \
 --kd-rate 0.5
 ```
 and 
@@ -46,7 +45,6 @@ and
 --kd-strategy global_level \
 --teacher-checkpoint-path $teacher_ckpt \
 --criterion label_smoothed_cross_entropy_with_kd \
---alpha 0.5 \
 --kd-rate 0.5 \
 --kd-queue-size 1000000
 ```
@@ -56,7 +54,6 @@ Lastly, the Global-Language-wise selection approach ([Gumma _et al_.](https://ar
 --kd-strategy global_language_wise \
 --teacher-checkpoint-path $teacher_ckpt \
 --criterion label_smoothed_cross_entropy_with_kd \
---alpha 0.5 \
 --kd-rate 0.5 \
 --kd-queue-size 1000000
 ```
@@ -69,27 +66,25 @@ Here, similar to Global-Level KD, each language has it's own Global FIFO queue, 
 --decoder-recurrent-stacking 6
 ```
 
-- **Adapter Tuning** ([Houlsby _et al_.](http://proceedings.mlr.press/v97/houlsby19a/houlsby19a.pdf), [Bapna & Firat](https://aclanthology.org/D19-1165/)): Small FFN blocks with a bottleneck hidden layer are added in the Transformer layer for additional parameterization. Depending on the type of adapter added, i.e. ```Houlsby``` or ```Bapna```, the modules are added  As of now, the adapter hidden layer supports ReLU, GELU and SiLU activations. Dropout is optional. Note that, all other parameters except these adapters will be frozen during training. The adapters can be activated using following flags:
+- **Adapter Tuning** ([Houlsby _et al_.](http://proceedings.mlr.press/v97/houlsby19a/houlsby19a.pdf), [Bapna & Firat](https://aclanthology.org/D19-1165/)): Small FFN blocks with a bottleneck hidden layer are added in the Transformer layer for additional parameterization. As of now, the adapter hidden layer supports ReLU, GELU, SiLU and Tanh activations. Note that, all other parameters except these adapters will be frozen during training. You can also you gating for the skip-connection inside the adapter using the flag ```--encoder-adapter-use-gating``` or ```--decoder-adapter-use-gating```. The adapters can be added and trained using following flags:
+
 ```
 --encoder-add-adapters \
---encoder-adapter-bottleneck-dim 256 \
---encoder-adapter-langs as,bn,gu,hi,kn,ml,mr,or,pa,ta,te \
---encoder-finetune-adapter hi \
---encoder-adapter-type bapna \
+--encoder-adapter-reduction-factor 2 \
+--encoder-adapter-ids as,bn,gu,hi,kn,ml,mr,or,pa,ta,te \
+--encoder-train-adapter hi \
 --decoder-add-adapters \
---decoder-adapter-bottleneck-dim 256 \
---decoder-adapter-langs as,bn,gu,hi,kn,ml,mr,or,pa,ta,te \
---decoder-finetune-adapter hi \
---decoder-adapter-type bapna \
+--decoder-adapter-reduction-factor 2 \
+--decoder-adapter-ids as,bn,gu,hi,kn,ml,mr,or,pa,ta,te \
+--decoder-train-adapter hi \
 --adapter-activation-fn gelu \
---adapter-dropout 0.1 \
 --load-checkpoint-liberally
 ```
 
 During evaluation, you can add the following flags to ```fairseq-interactive```
 ```
---encoder-adapter hi \
---decoder-adapter hi
+--activate-encoder-adapter hi \
+--activate-decoder-adapter hi
 ```
 to use that specific adapter (```hi``` in this case).
 

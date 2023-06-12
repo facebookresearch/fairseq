@@ -1110,11 +1110,11 @@ class InteractiveConfig(FairseqDataclass):
         metadata={"help": "file to read from; use - for stdin"},
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-    encoder_adapter: Optional[str] = field(
+    activate_encoder_adapter: Optional[str] = field(
         default=None,
         metadata={"help": "encoder language adapters to be used while evaluating"}
     )
-    decoder_adapter: Optional[str] = field(
+    activate_decoder_adapter: Optional[str] = field(
         default=None,
         metadata={"help": "decoder language adapters to be used while evaluating"}
     )

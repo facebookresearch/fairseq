@@ -72,9 +72,9 @@ class EncDecBaseConfig(FairseqDataclass):
         default=False,
         metadata={"help": "add adapters to the transformer encoder/decoder layers"}
     )
-    adapter_bottleneck_dim: Optional[int] = field(
+    adapter_reduction_factor: Optional[int] = field(
         default=None,
-        metadata={"help": "bottleneck dimension for the adapters"},
+        metadata={"help": "reduction factor for the adapters"},
     )
     adapter_ids: Optional[str] = field(
         default=None,
@@ -84,13 +84,9 @@ class EncDecBaseConfig(FairseqDataclass):
         default=None,
         metadata={"help": "trains the adapter of only that specific id. Rest parameters are frozen"}
     )
-    adapter_type: Optional[str] = field(
-        default=None,
-        metadata={"help": "type of adapter to be used (houlsby | pfeiffer)"}
-    )
     adapter_use_gating: Optional[bool] = field(
         default=False,
-        metadata={"whether to use gating along with skip connection for the adapter"}
+        metadata={"help": "whether to use gating along with skip connection for the adapter"}
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
@@ -134,33 +130,9 @@ class QuantNoiseConfig(FairseqDataclass):
 class TransformerConfig(FairseqDataclass):
 
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-    hyperadapter_langs: Optional[str] = field(
-        default=None,
-        metadata={"help": "list of all languages in the data (comma separated)"}
-    )
-    hyperadapter_src_lang: Optional[str] = field(
-        default=None,
-        metadata={"help": "src_lang id"}
-    )
-    hyperadapter_tgt_lang: Optional[str] = field(
-        default=None,
-        metadata={"help": "tgt_lang id"}
-    )
-    hyperadapter_activation_fn: Optional[str] = field(
-        default="relu",
-        metadata={"help": "activation function for hyperadapters"}
-    )
-    hyperadapter_dropout: float = field(
-        default=0,
-        metadata={"help": "dropout for the hyperadapters"}
-    )
     adapter_activation_fn: Optional[str] = field(
         default="relu",
         metadata={"help": "activation function for adapters"}
-    )
-    adapter_dropout: float = field(
-        default=0,
-        metadata={"help": "dropout for the adapters"}
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 

@@ -134,36 +134,36 @@ def main(cfg: FairseqConfig) -> None:
 
     add_encoder_adapters = getattr(cfg.model, "encoder_add_adapters", "$$") != "$$"
     add_decoder_adapters = getattr(cfg.model, "decoder_add_adapters", "$$") != "$$"
-    finetune_encoder_adapter = getattr(cfg.model, "encoder_finetune_adapter", "$$") != "$$"
-    finetune_decoder_adapter = getattr(cfg.model, "decoder_finetune_adapter", "$$") != "$$"
+    train_encoder_adapter = getattr(cfg.model, "encoder_train_adapter", "$$") != "$$"
+    train_decoder_adapter = getattr(cfg.model, "decoder_train_adapter", "$$") != "$$"
 
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
     if add_encoder_adapters or add_decoder_adapters:
         logging.info("adapters detected in encoder/decoder")
-        if finetune_encoder_adapter:
+        if train_encoder_adapter:
             logging.info(
-                "\'{0}\' adapters in the encoder will be finetuned. Make sure \'{0}\' data is only being fed to the encoder for the training.".format(
-                    cfg.model.encoder_finetune_adapter
+                "\'{0}\' adapters in the encoder will be trained. Make sure \'{0}\' data is only being fed to the encoder for the training.".format(
+                    cfg.model.encoder_train_adapter
                 )
             )
-            logging.info("All parameters expect those of the adapters will be frozen during training")
-        if finetune_decoder_adapter:
+        if train_decoder_adapter:
             logging.info(
-                "\'{0}\' adapters in the decoder will be finetuned. Make sure \'{0}\' data is only being fed to the decoder for the training.".format(
-                    cfg.model.decoder_finetune_adapter
+                "\'{0}\' adapters in the decoder will be trained. Make sure \'{0}\' data is only being fed to the decoder for the training.".format(
+                    cfg.model.decoder_train_adapter
                 )
             )
-            logging.info("All parameters expect those of the adapters will be frozen during training")
 
-        if finetune_encoder_adapter or finetune_decoder_adapter:
+        logging.info("all parameters except the adapters will be frozen")
+
+        if train_encoder_adapter or train_decoder_adapter:
             for name, layer in model.named_modules():
                 for p in layer.parameters():
                     p.requires_grad = False
             for name, layer in model.named_modules():
                 if isinstance(layer, BottleneckAdapter) and \
                    (
-                    cfg.model.encoder_finetune_adapter == name.split('.')[-1] or \
-                    cfg.model.decoder_finetune_adapter == name.split('.')[-1]
+                    cfg.model.encoder_train_adapter == name.split('.')[-1] or \
+                    cfg.model.decoder_train_adapter == name.split('.')[-1]
                    ):
                     logging.info(f"gradients for {name} will be active")
                     for p in layer.parameters():
@@ -243,9 +243,6 @@ def main(cfg: FairseqConfig) -> None:
         )
     )
 
-    if cfg.task._name == "translation_capture_fisher_information":
-        task.populate_precision_matrices(model)
-
     # Load the latest checkpoint if one is available and restore the
     # corresponding train iterator
     extra_state, epoch_itr = checkpoint_utils.load_checkpoint(
@@ -312,11 +309,6 @@ def main(cfg: FairseqConfig) -> None:
         )
         PathManager.async_close()
         logger.info("ioPath PathManager finished waiting.")
-
-    if cfg.task._name == "translation_capture_fisher_information":
-        task.normalize_precision_matrices()
-        task.save_precision_matrices()
-
 
 def should_stop_early(cfg: DictConfig, valid_loss: float) -> bool:
     # skip check if no validation was done in the current epoch

@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-import numpy as np
 from dataclasses import dataclass, field
 
 import torch
@@ -67,7 +66,6 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
         
         # new parameters
         self.kd_strategy = self.task.kd_strategy
-        self.kd_temp = kd_temp
         self.kd_rate = kd_rate
         self.alpha = alpha
         self.kd_queue_size = kd_queue_size
@@ -152,7 +150,7 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
         return loss, sample_size, logging_output
 
 
-    def compute_kd_loss(self, net_output, teacher_output):
+    def compute_kd_loss(self, net_output, teacher_output, pad_mask):
         # get student logits
         student_logits = net_output[0]
         student_logits = student_logits.view(-1, student_logits.size(-1))
@@ -188,7 +186,7 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
 
         nll_loss = nll_loss.view(-1)
         golden_loss = golden_loss.view(-1)
-        kd_loss = self.compute_kd_loss(net_output, teacher_output)
+        kd_loss = self.compute_kd_loss(net_output, teacher_output, pad_mask)
 
         if self.kd_strategy == 'word_seq_level':
             extra['kd_loss'] = kd_loss.sum()
