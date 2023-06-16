@@ -72,10 +72,12 @@ dev.ltr
 dev.uid
 
 # dev.tsv each line contains <audio>  <number_of_sample>
+# if user don't have this information, please run misc/get_sample_size.py
+
 $ cat dev.tsv
 /
-/path/to/audio_1  180000
-/path/to/audio_2  200000
+/path/to/audio_1.wav  180000
+/path/to/audio_2.wav  200000
 
 $ cat dev.ltr
 t h i s | i s | o n e |
