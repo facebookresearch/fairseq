@@ -643,7 +643,7 @@ class Trainer(object):
 
             if (
                 itr_state.get("version", 1) >= 2
-                and itr_state["iterations_in_epoch"] == 0
+                and itr_state.get("iterations_in_epoch", 1) == 0
             ):
                 # reset meters at start of epoch
                 reset_meters = True
