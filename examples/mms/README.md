@@ -170,7 +170,13 @@ $  PYTHONPATH='.'  python3  examples/mms/lid/infer.py /path/to/dict/l126/ --path
 The above command assumes there is a file named `dict.lang.txt` in `/path/to/dict/l126/`. `<OUTDIR>/predictions.txt` will contain the predictions from the model for the audio files in `manifest.tsv`. 
 
 We also provide an Ipython notebook example inside `lid/tutorial` folder [ipynb](https://github.com/facebookresearch/fairseq/blob/main/examples/mms/lid/tutorial/MMS_LID_Inference_Colab.ipynb) or [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/facebookresearch/fairseq/blob/main/examples/mms/lid/tutorial/MMS_LID_Inference_Colab.ipynb) 
-  
+
+## Fine-tuning
+
+### ASR
+
+MMS Adapter fine-tuning has been added to the official 🤗 Transformers examples [here](https://github.com/huggingface/transformers/tree/main/examples/pytorch/speech-recognition#connectionist-temporal-classification-with-adapters).
+For a more step-by-step explanation of how to fine-tune MMS, please have a look at the blog [**Fine-tuning MMS Adapter Models for Multi-Lingual ASR**](https://huggingface.co/blog/mms_adapters) on 🤗 blogs.
   
 ## Pretrained models
 
