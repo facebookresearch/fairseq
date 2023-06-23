@@ -21,7 +21,7 @@ We provide reference implementations of various sequence modeling papers:
 <details><summary>List of implemented papers</summary><p>
 
 * **Convolutional Neural Networks (CNN)**
-  + [Language Modeling with Gated Convolutional Networks (Dauphin et al., 2017)](examples/language_model/conv_lm/README.md)
+  + Language Modeling with Gated Convolutional Networks (Dauphin et al., 2017)
   + [Convolutional Sequence to Sequence Learning (Gehring et al., 2017)](examples/conv_seq2seq/README.md)
   + [Classical Structured Prediction Losses for Sequence to Sequence Learning (Edunov et al., 2018)](https://github.com/pytorch/fairseq/tree/classic_seqlevel)
   + [Hierarchical Neural Story Generation (Fan et al., 2018)](examples/stories/README.md)
