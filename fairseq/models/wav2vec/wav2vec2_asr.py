@@ -28,7 +28,7 @@ from fairseq.models import (
     FairseqIncrementalDecoder,
     register_model,
 )
-from fairseq.models.wav2vec.wav2vec2 import MASKING_DISTRIBUTION_CHOICES
+from fairseq.models.wav2vec.wav2vec2 import MASKING_DISTRIBUTION_CHOICES, LAYER_TYPE_CHOICES, AdapterFast
 from fairseq.modules import LayerNorm, PositionalEmbedding, TransformerDecoderLayer
 from fairseq.tasks import FairseqTask
 
@@ -177,6 +177,27 @@ class Wav2Vec2AsrConfig(FairseqDataclass):
 
     layer_decay: float = 1
 
+
+    layer_type: LAYER_TYPE_CHOICES = field(
+        default="transformer", metadata={"help": "layer type in encoder"}
+    )
+    # Adapter num
+    adp_num: int = field(
+        default=-1
+    )
+    adp_dim: int = field(
+        default=64
+    )
+    adp_act_fn: str = field(
+        default="relu"
+    )
+    adp_trf_idx: str = field(
+        default="all",
+    )
+
+    freeze_regex: Optional[str] = field(
+        default=None,
+    )
 
 @dataclass
 class Wav2Vec2CtcConfig(Wav2Vec2AsrConfig):
@@ -416,6 +437,14 @@ class Wav2VecEncoder(FairseqEncoder):
                 "Please check that --normalize is set or unset for both pre-training and here"
             )
 
+            with open_dict(w2v_args):
+                args_replacement = ["checkpoint_activations", "layer_type", 
+                    "adp_num", "adp_dim",
+                    "adp_act_fn", "adp_trf_idx"]
+                for _args in args_replacement:
+                    if hasattr(cfg, _args) and getattr(cfg, _args, None) is not None:
+                        w2v_args.model[_args] = getattr(cfg, _args, None)
+
             if hasattr(cfg, "checkpoint_activations") and cfg.checkpoint_activations:
                 with open_dict(w2v_args):
                     w2v_args.model.checkpoint_activations = cfg.checkpoint_activations
@@ -423,7 +452,6 @@ class Wav2VecEncoder(FairseqEncoder):
             w2v_args.task.data = cfg.data
             task = tasks.setup_task(w2v_args.task, from_checkpoint=True)
             model = task.build_model(w2v_args.model, from_checkpoint=True)
-
             model.remove_pretraining_modules()
             d = w2v_args.model.encoder_embed_dim
         else:
@@ -468,6 +496,9 @@ class Wav2VecEncoder(FairseqEncoder):
         if targ_d is not None:
             self.proj = Linear(d, targ_d)
 
+        if cfg.freeze_regex is not None:
+            self.freeze_regex(cfg.freeze_regex)
+
         layer_decay = getattr(cfg, "layer_decay", 1)
         if layer_decay < 1:
             mod_encs = list(model.modality_encoders.values())
@@ -490,6 +521,14 @@ class Wav2VecEncoder(FairseqEncoder):
 
                     optim_override["optimizer"]["lr_scale"] = layer_scales[lid]
                     p.optim_overrides = optim_override
+
+    def freeze_regex(self, pattern):
+        unfrozen_names = []
+        for name, param in self.named_parameters():
+            if re.fullmatch(pattern, name) is not None:
+                param.requires_grad_(False)
+            else:
+                unfrozen_names.append(name)
 
     def load_model_weights(self, state, model, cfg):
         if cfg.ddp_backend == "fully_sharded":
@@ -553,6 +592,8 @@ class Wav2VecEncoder(FairseqEncoder):
             "padding_mask": padding_mask,
             "mask": self.apply_mask and self.training,
         }
+        if "corpus_key" in kwargs:
+            w2v_args["corpus_key"] = kwargs["corpus_key"]
 
         if self.is_d2v_multi:
             w2v_args["mode"] = "AUDIO"
