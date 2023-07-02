@@ -441,7 +441,6 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
                 # fmt: off
                 if isinstance(module, TransformerEncoderEmbedding):
                     new_state_dict[f'model.partitions.{pid}.{mid}.embed_tokens.weight'] = state_dict['encoder.embed_tokens.weight']
-                    new_state_dict[f'model.partitions.{pid}.{mid}.embed_positions._float_tensor'] = state_dict['encoder.embed_positions._float_tensor']
                 if isinstance(module, TransformerEncoderLayer):
                     for suffix in encoder_key_suffixes:
                         new_state_dict[f'model.partitions.{pid}.{mid}.{suffix}'] = state_dict[f'encoder.layers.{encoder_layer_idx}.{suffix}']
@@ -456,7 +455,6 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
                         new_state_dict[f'model.partitions.{pid}.{mid}.layer_norm.bias'] = state_dict['encoder.layer_norm.bias']
                 if isinstance(module, TransformerDecoderEmbedding):
                     new_state_dict[f'model.partitions.{pid}.{mid}.embed_tokens.weight'] = state_dict['decoder.embed_tokens.weight']
-                    new_state_dict[f'model.partitions.{pid}.{mid}.embed_positions._float_tensor'] = state_dict['decoder.embed_positions._float_tensor']
                 if isinstance(module, TransformerDecoderOutputLayer):
                     new_state_dict[f'model.partitions.{pid}.{mid}.output_projection.weight'] = state_dict['decoder.output_projection.weight']
                 # fmt: on
@@ -741,14 +739,6 @@ class TransformerDecoder(FairseqDecoder):
 
     def upgrade_state_dict_named(self, state_dict, name):
         """Upgrade a (possibly old) state dict for new versions of fairseq."""
-        if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
-            weights_key = "{}.embed_positions.weights".format(name)
-            if weights_key in state_dict:
-                del state_dict[weights_key]
-            state_dict[
-                "{}.embed_positions._float_tensor".format(name)
-            ] = torch.FloatTensor(1)
-
         for i in range(len(self.layers)):
             # update layer norms
             layer_norm_map = {
