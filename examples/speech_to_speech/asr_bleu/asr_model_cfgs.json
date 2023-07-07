@@ -35,11 +35,11 @@
             "post_process": "collapse"
         }
     },
-    "zho": {
+    "cmn": {
         "oct22": {
             "model_path": "ydshieh/wav2vec2-large-xlsr-53-chinese-zh-cn-gpt",
             "model_type": "hf",
-            "lang": "zho",
+            "lang": "cmn",
             "post_process": "collapse"
         }
     },
@@ -51,11 +51,11 @@
             "post_process": "collapse"
         }
     },
-    "ara": {
+    "arb": {
         "oct22": {
             "model_path": "jonatasgrosman/wav2vec2-large-xlsr-53-arabic",
             "model_type": "hf",
-            "lang": "ara",
+            "lang": "arb",
             "post_process": "collapse"
         }
     },
@@ -171,11 +171,11 @@
             "post_process": "collapse"
         }
     },
-    "lav": {
+    "lvs": {
         "oct22": {
             "model_path": "reach-vb/wav2vec2-large-xls-r-1B-common_voice7-lv-ft",
             "model_type": "hf",
-            "lang": "lav",
+            "lang": "lvs",
             "post_process": "collapse"
         }
     },
