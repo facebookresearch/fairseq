@@ -8,7 +8,7 @@ from typing import Optional
 import torch
 
 from fairseq.tasks import register_task
-from fairseq.tasks.translation import TranslationConfig, TranslationTask
+from fairseq.tasks.translation import TranslationConfig, TranslationTask, EVAL_BLEU_ORDER
 from fairseq.optim.amp_optimizer import AMPOptimizer
 
 
@@ -43,15 +43,33 @@ class KDTranslationTask(TranslationTask):
         self.lang_ids = [i for i in range(len(src_dict)) if src_dict[i].startswith("__src__")]
 
     def train_step(
-        self, sample, model, criterion, optimizer, update_num, ignore_grad=False
+        self, sample, model, teacher_model, criterion, optimizer, update_num, ignore_grad=False
     ):
         model.train()
+        teacher_model.eval()
         model.set_num_updates(update_num)
         with torch.autograd.profiler.record_function("forward"):
             with torch.cuda.amp.autocast(enabled=(isinstance(optimizer, AMPOptimizer))):
-                loss, sample_size, logging_output = criterion(model, sample, update_num)
+                loss, sample_size, logging_output = criterion(model, teacher_model, sample, update_num)
         if ignore_grad:
             loss *= 0
         with torch.autograd.profiler.record_function("backward"):
             optimizer.backward(loss)
+        return loss, sample_size, logging_output
+
+    def valid_step(self, sample, model, teacher_model, criterion):
+        model.eval()
+        teacher_model.eval()
+        with torch.no_grad():
+            loss, sample_size, logging_output = criterion(model, teacher_model, sample)
+        if self.cfg.eval_bleu:
+            bleu = self._inference_with_bleu(self.sequence_generator, sample, model)
+            logging_output["_bleu_sys_len"] = bleu.sys_len
+            logging_output["_bleu_ref_len"] = bleu.ref_len
+            # we split counts into separate entries so that they can be
+            # summed efficiently across workers using fast-stat-sync
+            assert len(bleu.counts) == EVAL_BLEU_ORDER
+            for i in range(EVAL_BLEU_ORDER):
+                logging_output[f"_bleu_counts_{i}"] = bleu.counts[i]
+                logging_output[f"_bleu_totals_{i}"] = bleu.totals[i]
         return loss, sample_size, logging_output

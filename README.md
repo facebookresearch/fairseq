@@ -20,89 +20,42 @@ modeling and other text generation tasks.
 # Usage
 This clone of fairseq supports ```Knowledge Distillation```, ```Recurrent Stacking```, and ```Adapter tuning``` for ```Transformers``` and ```translation``` task. You can add the following flags to ```fairseq-train``` to use them:
 
-- **Knowledge Distillation**: The original implementation was sourced from [LeslieOverfitting](https://github.com/LeslieOverfitting/selective_distillation). The total loss for KD is given by $`\mathcal{L}`$ = $`\alpha` `\mathcal{L}_{KD}`$ + (1 - $`\alpha`$) $`\mathcal{L}_{NLL}`$, where $`\mathcal{L}_{KD}`$ is the CrossEntropy between the student and teacher probability distributions at each timestep, and $\mathcal{L}_{NLL}$ is the Negative Log-likelihood loss between the prediction and target. Setting $\alpha = 1$, will yield pure Word-Level Distillation ([Hinton _et al_.](https://arxiv.org/abs/1503.02531), [Kim & Rush](https://aclanthology.org/D16-1139))
+- **Knowledge Distillation**: The original implementation was sourced from [LeslieOverfitting](https://github.com/LeslieOverfitting/selective_distillation).
 
+  - Pure Word-Level Distillation ([Hinton _et al_.](https://arxiv.org/abs/1503.02531)) can be achieved by: 
+    - `--task translation_with_kd --kd-strategy word_level --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd `
+    - Note that, there no NLL Loss between the gold targets and predictions. The only loss is the KL-Divergence between the student and teacher distributions ($`\mathcal{L}`$ = $`\mathcal{L}_{KD}`$)
 
-```
---task translation_with_kd \
---kd-strategy word_seq_level \
---teacher-checkpoint-path $teacher_ckpt \
---criterion label_smoothed_cross_entropy_with_kd \
---alpha 0.5
-```
+  - [Kim & Rush](https://aclanthology.org/D16-1139) extend this idea and add a NLL Loss between the predictions and target and modify the loss as $`\mathcal{L}`$ = $`\mathcal{L}_{KD}`$ + $`\mathcal{L}_{NLL}`$. The same can be achieved with the following flags:
+    - `--task translation_with_kd --kd-strategy word_seq_level --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd `
 
-The training with Batch-Level and Global-Level KD ([Wang _et al_.](https://aclanthology.org/2021.acl-long.504)) can be done as follows:
-```
---task translation_with_kd \
---kd-strategy batch_level \
---teacher-checkpoint-path $teacher_ckpt \
---criterion label_smoothed_cross_entropy_with_kd \
---kd-rate 0.5
-```
-and 
-```
---task translation_with_kd \
---kd-strategy global_level \
---teacher-checkpoint-path $teacher_ckpt \
---criterion label_smoothed_cross_entropy_with_kd \
---kd-rate 0.5 \
---kd-queue-size 1000000
-```
-Lastly, the Global-Language-wise selection approach ([Gumma _et al_.](https://arxiv.org/abs/2304.09388)) can used by:
-```
---task translation_with_kd \
---kd-strategy global_language_wise \
---teacher-checkpoint-path $teacher_ckpt \
---criterion label_smoothed_cross_entropy_with_kd \
---kd-rate 0.5 \
---kd-queue-size 1000000
-```
+  - Training with Batch-Level and Global-Level KD ([Wang _et al_.](https://aclanthology.org/2021.acl-long.504)) can be done as follows:
+    - `--task translation_with_kd --kd-strategy batch_level --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd --kd-rate 0.5`
+    - `--task translation_with_kd --kd-strategy global_level --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd --kd-rate 0.5 --kd-queue-size 1000000`
+
+  - Lastly, the Global-Language-wise selection approach ([Gumma _et al_.](https://arxiv.org/abs/2304.09388)) can used by:
+    - `--task translation_with_kd --kd-strategy global_language_wise --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd --kd-rate 0.5 --kd-queue-size 1000000`
+
 Here, similar to Global-Level KD, each language has its own Global FIFO queue, which makes it suitable for multilingual KD with imbalanced datasets. This technique requires adding language tags to each translation pair, similar to [Ramesh _et al_.](https://aclanthology.org/2022.tacl-1.9/). These tags will help the model break the batch into respective languages and push them into the corresponding Global language queues. Note that each FIFO language queue, irrespective of language abundance, will be of the same size, i.e., ```$kd_queue_sz```. I know this does not sound so good, and I am working on an alternative.
 
+*UPDATE*: _Initially, the KD Loss was implemented as the CrossEntropy between student and teacher model distributions, but it was very unustable in mixed-precision training, and led to `inf` loss. Hence, the latest implementation uses KL-Divergence, which is much more stable and easy to compute in PyTorch_.
 
-- **Recurrent Stacking** ([Dabre & Fujita](https://ojs.aaai.org/index.php/AAAI/article/view/4590)): RS is an extreme parameter sharing technique in which all the layers in the encoder/decoder are shared. Implementation-wise, only one layer exists in the module, and the rest $N-1$ are mere references to it. RS can be activated with the following flags:
-```
---encoder-recurrent-stacking 6 \
---decoder-recurrent-stacking 6
-```
 
-- **Adapter Tuning** ([Houlsby _et al_.](http://proceedings.mlr.press/v97/houlsby19a/houlsby19a.pdf), [Bapna & Firat](https://aclanthology.org/D19-1165/)): Small FFN blocks with a bottleneck hidden layer are added in the Transformer layer for additional parameterization. The adapter hidden layer currently supports `ReLU`, `GELU`, `SiLU`, and `Tanh` activations. Note that all other parameters except these adapters will be frozen during training. Gating for the skip-connection inside the adapter can be enabled using the flags ```--encoder-adapter-use-gating``` or ```--decoder-adapter-use-gating```. The adapters can be added and trained using the following flags:
+- **Recurrent Stacking** ([Dabre & Fujita](https://ojs.aaai.org/index.php/AAAI/article/view/4590)): RS is an extreme parameter sharing technique in which all the layers in the encoder/decoder are shared. Implementation-wise, only one layer exists in the module, and the rest $N-1$ are mere references to it. RS can be activated with the following flags: `--encoder-recurrent-stacking 6 --decoder-recurrent-stacking 6`
 
-```
---encoder-add-adapters \
---encoder-adapter-reduction-factor 2 \
---encoder-adapter-ids as,bn,gu,hi,kn,ml,mr,or,pa,ta,te \
---encoder-train-adapter hi \
---decoder-add-adapters \
---decoder-adapter-reduction-factor 2 \
---decoder-adapter-ids as,bn,gu,hi,kn,ml,mr,or,pa,ta,te \
---decoder-train-adapter hi \
---adapter-activation-fn gelu \
---load-checkpoint-liberally
-```
+- **Adapter Tuning** ([Houlsby _et al_.](http://proceedings.mlr.press/v97/houlsby19a/houlsby19a.pdf), [Bapna & Firat](https://aclanthology.org/D19-1165/)): Small FFN blocks with a bottleneck hidden layer are added in the Transformer layer for additional parameterization. The adapter hidden layer currently supports `ReLU`, `GELU`, `SiLU`, and `Tanh` activations. Note that all other parameters except these adapters will be frozen during training. Gating for the skip-connection inside the adapter can be enabled using the flags ```--encoder-adapter-use-gating``` or ```--decoder-adapter-use-gating```. 
 
-During evaluation, you can add the following flags to ```fairseq-interactive```
-```
---activate-encoder-adapter hi \
---activate-decoder-adapter hi
-```
-to use that specific adapter (```hi``` in this case).
+  - The adapters can be added and trained using the following flags: `--encoder-add-adapters --encoder-adapter-reduction-factor 2 --encoder-adapter-ids as,bn,gu,hi,kn,ml,mr,or,pa,ta,te --encoder-train-adapter hi --decoder-add-adapters --decoder-adapter-reduction-factor 2 --decoder-adapter-ids as,bn,gu,hi,kn,ml,mr,or,pa,ta,te --decoder-train-adapter hi --adapter-activation-fn gelu --load-checkpoint-liberally`
+  - During evaluation, you can add the following flags to `fairseq-interactive`  to use that specific adapter (`hi` in this case): `--activate-encoder-adapter hi --activate-decoder-adapter hi`
 
-_Additional Information_: [Mundra _et al_.](https://arxiv.org/pdf/2305.07491.pdf) is a neat, comprehensive analysis paper about the efficiency of Adapters and a good place to begin if you want to dive into Adapter tuning.
+*Additional Information*: _[Mundra _et al_.](https://arxiv.org/pdf/2305.07491.pdf) is a neat, comprehensive analysis paper about the efficiency of Adapters and a good place to begin if you want to dive into Adapter tuning_.
 
 
 - **Miscellaneous**:
+  - _Factorized Embedding Parameterization_ ([Lan _et al_.](https://iclr.cc/virtual_2020/poster_H1eA7AEtvS.html)): Similar to ALBERT, the large embeddings can be parameterized by adding an intermediate bottleneck layer, i.e., the instead of being a single $|V| \times d_m$ matrix, the Embedding consists of two pieces of sizes $|V| \times k$ and $k \times d_m$ respectively, where $k < d_m$. This helps curb the number of parameters in the Embedding layer, which can one of the most bulky components. Factorized embeddings can be used as:`--encoder-factorized-embed-dim 64 --decoder-factorized-embed-dim 64`
 
-  - _Factorized Embedding Parameterization_ ([Lan _et al_.](https://iclr.cc/virtual_2020/poster_H1eA7AEtvS.html)): Similar to ALBERT, the large embeddings can be parameterized by adding an intermediate bottleneck layer, i.e., the instead of being a single $|V| \times d_m$ matrix, the Embedding consists of two pieces of sizes $|V| \times k$ and $k \times d_m$ respectively, where $k < d_m$. This helps curb the number of parameters in the Embedding layer, which can one of the most bulky components. Factorized embeddings can be used as:
-  ```
-  --encoder-factorized-embed-dim 64 \
-  --decoder-factorized-embed-dim 64
-  ```
+  - _Sanity Validation steps_: Similar to `Pytorch-Lightning Trainer`, a full pass over the validation set can be run at the beginning of training to eliminate any bugs in the training/validation. It can be activated with the flag: `--run-sanity-validation-steps`
 
-  - _Sanity Validation steps_: Similar to Pytorch-Lightning Trainer, a full pass over the validation set can be run at the beginning of training to eliminate any bugs in the training/validation. It can be activated with the flag:
-  ```
-  --run-sanity-validation-steps
-  ```
 
 # Requirements and Installation
 
@@ -151,7 +104,7 @@ types and tasks.
 
 # License
 
-fairseq(-py) is MIT-licensed.
+`fairseq(-py)` is MIT-licensed.
 The license applies to the pre-trained models as well.
 
 # Citation

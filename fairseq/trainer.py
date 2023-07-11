@@ -858,18 +858,28 @@ class Trainer(object):
                 with maybe_no_sync():
                     # forward and backward
                     if self.perform_distillation:
-                        with torch.no_grad():
-                            teacher_output = self.teacher_model(**sample["net_input"])
-                            sample["teacher_output"] = teacher_output
+                        # teacher model is required to generate the teacher_lprobs in the criterion
+                        loss, sample_size_i, logging_output = self.task.train_step(
+                            sample=sample,
+                            model=self.model,
+                            teacher_model=self.teacher_model,
+                            criterion=self.criterion,
+                            optimizer=self.optimizer,
+                            update_num=self.get_num_updates(),
+                            ignore_grad=is_dummy_batch
+                        )
+                    else:
+                        # general training (no distillation)
+                        # those criterion will not have a teacher model
+                        loss, sample_size_i, logging_output = self.task.train_step(
+                            sample=sample,
+                            model=self.model,
+                            criterion=self.criterion,
+                            optimizer=self.optimizer,
+                            update_num=self.get_num_updates(),
+                            ignore_grad=is_dummy_batch
+                        )
 
-                    loss, sample_size_i, logging_output = self.task.train_step(
-                        sample=sample,
-                        model=self.model,
-                        criterion=self.criterion,
-                        optimizer=self.optimizer,
-                        update_num=self.get_num_updates(),
-                        ignore_grad=is_dummy_batch
-                    )
                         
                     del loss
 
@@ -1022,6 +1032,7 @@ class Trainer(object):
                     self.task.train_step(
                         sample,
                         self.model,
+                        self.teacher_model,
                         self.criterion,
                         self.optimizer,
                         self.get_num_updates(),
@@ -1170,14 +1181,22 @@ class Trainer(object):
 
             sample, is_dummy_batch = self._prepare_sample(sample)
 
-            if self.perform_distillation:
-                teacher_output = self.teacher_model(**sample["net_input"])
-                sample["teacher_output"] = teacher_output
-
-            try:             
-                _loss, sample_size, logging_output = self.task.valid_step(
-                    sample, self.model, self.criterion, **extra_kwargs
-                )
+            try:     
+                if self.perform_distillation:        
+                    _loss, sample_size, logging_output = self.task.valid_step(
+                        sample=sample, 
+                        model=self.model, 
+                        teacher_model=self.teacher_model, 
+                        criterion=self.criterion, 
+                        **extra_kwargs
+                    )
+                else:
+                    _loss, sample_size, logging_output = self.task.valid_step(
+                        sample=sample, 
+                        model=self.model,
+                        teacher_model=self.criterion, 
+                        **extra_kwargs
+                    )
             except RuntimeError as e:
                 if "out of memory" in str(e):
                     self._log_oom(e)

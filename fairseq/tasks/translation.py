@@ -390,8 +390,8 @@ class TranslationTask(FairseqTask):
             # summed efficiently across workers using fast-stat-sync
             assert len(bleu.counts) == EVAL_BLEU_ORDER
             for i in range(EVAL_BLEU_ORDER):
-                logging_output["_bleu_counts_" + str(i)] = bleu.counts[i]
-                logging_output["_bleu_totals_" + str(i)] = bleu.totals[i]
+                logging_output[f"_bleu_counts_{i}"] = bleu.counts[i]
+                logging_output[f"_bleu_totals_{i}"] = bleu.totals[i]
         return loss, sample_size, logging_output
 
     def reduce_metrics(self, logging_outputs, criterion):
@@ -408,8 +408,8 @@ class TranslationTask(FairseqTask):
 
             counts, totals = [], []
             for i in range(EVAL_BLEU_ORDER):
-                counts.append(sum_logs("_bleu_counts_" + str(i)))
-                totals.append(sum_logs("_bleu_totals_" + str(i)))
+                counts.append(sum_logs(f"_bleu_counts_{i}"))
+                totals.append(sum_logs(f"_bleu_totals_{i}"))
 
             if max(totals) > 0:
                 # log counts as numpy arrays -- log_scalar will sum them correctly
