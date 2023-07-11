@@ -36,9 +36,9 @@ This clone of fairseq supports ```Knowledge Distillation```, ```Recurrent Stacki
   - Lastly, the Global-Language-wise selection approach ([Gumma _et al_.](https://arxiv.org/abs/2304.09388)) can used by:
     - `--task translation_with_kd --kd-strategy global_language_wise --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd --kd-rate 0.5 --kd-queue-size 1000000`
 
-Here, similar to Global-Level KD, each language has its own Global FIFO queue, which makes it suitable for multilingual KD with imbalanced datasets. This technique requires adding language tags to each translation pair, similar to [Ramesh _et al_.](https://aclanthology.org/2022.tacl-1.9/). These tags will help the model break the batch into respective languages and push them into the corresponding Global language queues. Note that each FIFO language queue, irrespective of language abundance, will be of the same size, i.e., ```$kd_queue_sz```. I know this does not sound so good, and I am working on an alternative.
+  - Here, similar to Global-Level KD, each language has its own Global FIFO queue, which makes it suitable for multilingual KD with imbalanced datasets. This technique requires adding language tags to each     translation pair, similar to [Ramesh _et al_.](https://aclanthology.org/2022.tacl-1.9/). These tags will help the model break the batch into respective languages and push them into the corresponding        Global language queues. Note that each FIFO language queue, irrespective of language abundance, will be of the same size, i.e., ```$kd_queue_sz```. I know this does not sound so good, and I am working      on an alternative.
 
-*UPDATE*: _Initially, the KD Loss was implemented as the CrossEntropy between student and teacher model distributions, but it was very unustable in mixed-precision training, and led to `inf` loss. Hence, the latest implementation uses KL-Divergence, which is much more stable and easy to compute in PyTorch_.
+  - *UPDATE*: _Initially, the KD Loss was implemented as the CrossEntropy between student and teacher model distributions, but it was very unustable in mixed-precision training, and led to `inf` loss. Hence, the latest implementation uses KL-Divergence, which is much more stable and easy to compute in PyTorch_.
 
 
 - **Recurrent Stacking** ([Dabre & Fujita](https://ojs.aaai.org/index.php/AAAI/article/view/4590)): RS is an extreme parameter sharing technique in which all the layers in the encoder/decoder are shared. Implementation-wise, only one layer exists in the module, and the rest $N-1$ are mere references to it. RS can be activated with the following flags: `--encoder-recurrent-stacking 6 --decoder-recurrent-stacking 6`
@@ -48,7 +48,7 @@ Here, similar to Global-Level KD, each language has its own Global FIFO queue, w
   - The adapters can be added and trained using the following flags: `--encoder-add-adapters --encoder-adapter-reduction-factor 2 --encoder-adapter-ids as,bn,gu,hi,kn,ml,mr,or,pa,ta,te --encoder-train-adapter hi --decoder-add-adapters --decoder-adapter-reduction-factor 2 --decoder-adapter-ids as,bn,gu,hi,kn,ml,mr,or,pa,ta,te --decoder-train-adapter hi --adapter-activation-fn gelu --load-checkpoint-liberally`
   - During evaluation, you can add the following flags to `fairseq-interactive`  to use that specific adapter (`hi` in this case): `--activate-encoder-adapter hi --activate-decoder-adapter hi`
 
-*Additional Information*: _[Mundra _et al_.](https://arxiv.org/pdf/2305.07491.pdf) is a neat, comprehensive analysis paper about the efficiency of Adapters and a good place to begin if you want to dive into Adapter tuning_.
+  - *Additional Information*: _[Mundra _et al_.](https://arxiv.org/pdf/2305.07491.pdf) is a neat, comprehensive analysis paper about the efficiency of Adapters and a good place to begin if you want to dive into Adapter tuning_.
 
 
 - **Miscellaneous**:
