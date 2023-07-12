@@ -136,6 +136,13 @@ class HubertAsrConfig(FairseqDataclass):
     )
     normalize: bool = II("task.normalize")
     data: str = II("task.data")
+    autoregressive: bool = field(
+        default=False,
+        metadata={
+            "help": "required for autoregressive decoders (like seq2seq models); "
+            "adds 'prev_output_tokens' to input and appends eos to target"
+        },
+    )
 
     # this holds the loaded hubert args
     w2v_args: Any = None
