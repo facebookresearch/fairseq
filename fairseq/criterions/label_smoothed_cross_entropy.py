@@ -94,8 +94,8 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             logging_output["total"] = utils.item(total.data)
         return loss, sample_size, logging_output
 
-    def get_lprobs_and_target(self, model, net_output, sample):            
-        lprobs = model.get_normalized_probs(net_output, log_probs=True)
+    def get_lprobs_and_target(self, model, net_output, sample, log_probs=True):            
+        lprobs = model.get_normalized_probs(net_output, log_probs=log_probs)
         target = model.get_targets(sample, net_output)
         if self.ignore_prefix_size > 0:
             # lprobs: B x T x C

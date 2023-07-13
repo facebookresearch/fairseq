@@ -101,7 +101,7 @@ def main(cfg: FairseqConfig) -> None:
             teacher_model = teacher_model.cuda()
         if cfg.common.fp16:
             teacher_model = teacher_model.half()
-        
+                    
         logger.info(
             "loaded teacher {} from {} in fp{}".format(
                 teacher_model.__class__.__name__,

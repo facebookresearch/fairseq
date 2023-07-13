@@ -31,7 +31,10 @@ class KDLabelSmoothedCrossEntropyCriterionConfig(LabelSmoothedCrossEntropyCriter
         default=None, 
         metadata={"help": "queue size for global_level, batch_level and global_multi_level selection"}
     )
-
+    kd_criterion: Optional[str] = field(
+        default='kl_div',
+        metadata={"help":  "criterion for KD [KL-Divergence, JS-Divergence, TVD]"}
+    )
 
 
 @register_criterion(
@@ -45,6 +48,7 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
         label_smoothing,
         kd_rate,
         kd_queue_size,
+        kd_criterion,
         ignore_prefix_size=0,
         report_accuracy=False,
     ):
@@ -61,6 +65,7 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
         
         # new parameters
         self.kd_rate = kd_rate
+        self.kd_criterion = kd_criterion
         self.kd_strategy = self.task.kd_strategy
         self.kd_queue_size = kd_queue_size
         self.num_languages = len(self.task.lang_ids)
@@ -169,14 +174,42 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
 
         nll_loss = nll_loss.view(-1)
         golden_loss = golden_loss.view(-1)
+
+        if self.kd_criterion == 'kl_div':
+            kd_loss = F.kl_div(
+                lprobs,
+                teacher_lprobs,
+                log_target=True,
+                reduction='none'
+            )
+        elif self.kd_criterion == 'js_div':
+            avg_lprobs = torch.log(
+                0.5 * (
+                    F.softmax(lprobs, dim=-1) + \
+                    F.softmax(teacher_lprobs, dim=-1)
+                )
+            )
+            kd_loss_1 = F.kl_div(
+                lprobs,
+                avg_lprobs,
+                log_target=True,
+                reduction='none'
+            )
+            kd_loss_2 = F.kl_div(
+                teacher_lprobs,
+                avg_lprobs,
+                log_target=True,
+                reduction='none'
+            )
+            kd_loss = 0.5 * (kd_loss_1 + kd_loss_2)
+        elif self.kd_criterion == 'tvd':
+            kd_loss = 0.5 * torch.abs(
+                F.softmax(lprobs, dim=-1) - \
+                F.softmax(teacher_lprobs, dim=-1)
+            )
+        else:
+            raise ValueError("Invalid KD criterion")
         
-        # compute KD loss 
-        kd_loss = F.kl_div(
-            lprobs,
-            teacher_lprobs,
-            log_target=True,
-            reduction='none'
-        )
 
         kd_loss = kd_loss.sum(dim=-1).masked_fill_(pad_mask, 0.0)
 
@@ -250,7 +283,7 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
             loss = golden_loss.sum() + extra['kd_loss']
 
         else:
-            raise ValueError("unknown strategy or parameter mismatch")
+            raise ValueError("Unknown strategy or parameter mismatch")
         return loss, extra
 
 
