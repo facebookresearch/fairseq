@@ -103,12 +103,14 @@ def main(cfg: FairseqConfig) -> None:
             teacher_model = teacher_model.half()
         
         logger.info(
-            "loaded teacher {} from {} in {}-bit precision mode".format(
+            "loaded teacher {} from {} in fp{}".format(
                 teacher_model.__class__.__name__,
                 cfg.task.teacher_checkpoint_path,
                 16 if cfg.common.fp16 else 32
             )
         )
+
+        logger.info(teacher_model)
 
         logger.info(
             "num. teacher params: {:,} ".format(
