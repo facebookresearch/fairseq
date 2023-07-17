@@ -9,7 +9,7 @@ from dataclasses import _MISSING_TYPE, dataclass, field
 from typing import Any, List, Optional
 
 import torch
-from omegaconf import II, MISSING
+from omegaconf import II, MISSING, OmegaConf
 
 from fairseq.dataclass.constants import (
     DATASET_IMPL_CHOICES,

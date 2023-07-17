@@ -12,6 +12,8 @@ import logging
 import math
 import os
 import sys
+import json
+from omegaconf import OmegaConf
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 # We need to setup root logger before importing any fairseq libraries.

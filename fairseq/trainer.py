@@ -1194,7 +1194,7 @@ class Trainer(object):
                     _loss, sample_size, logging_output = self.task.valid_step(
                         sample=sample, 
                         model=self.model,
-                        teacher_model=self.criterion, 
+                        criterion=self.criterion, 
                         **extra_kwargs
                     )
             except RuntimeError as e:
