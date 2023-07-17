@@ -76,6 +76,10 @@ def main(cfg: FairseqConfig) -> None:
     # Print args
     logger.info(cfg)
 
+    os.makedirs(cfg.checkpoint.save_dir, exist_ok=True)
+    with open(os.path.join(cfg.checkpoint.save_dir, 'config.json'), 'w') as f:
+        json.dump(cfg, f)
+
     if cfg.checkpoint.write_checkpoints_asynchronously:
         try:
             import iopath  # noqa: F401
