@@ -555,11 +555,6 @@ def get_activation_fn(activation: str) -> Callable:
         return relu_squared
     elif activation == "gelu":
         return gelu
-    elif activation == "gelu_fast":
-        deprecation_warning(
-            "--activation-fn=gelu_fast has been renamed to gelu_accurate"
-        )
-        return gelu_accurate
     elif activation == "gelu_accurate":
         return gelu_accurate
     elif activation == "tanh":
@@ -576,10 +571,13 @@ def get_available_activation_fns() -> List:
     return [
         "relu",
         "gelu",
-        "gelu_fast",  # deprecated
         "gelu_accurate",
         "tanh",
         "linear",
+        "glu",
+        "geglu",
+        "reglu",
+        "swiglu"
     ]
 
 

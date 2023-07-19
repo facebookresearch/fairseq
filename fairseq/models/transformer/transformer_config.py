@@ -134,6 +134,10 @@ class TransformerConfig(FairseqDataclass):
         default="relu",
         metadata={"help": "activation function for adapters"}
     )
+    replace_layernorm_with_rmsnorm: bool = field(
+        default=False,
+        metadata={'help': 'use RMSNorm instead of LayerNorm'}
+    )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
     activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(

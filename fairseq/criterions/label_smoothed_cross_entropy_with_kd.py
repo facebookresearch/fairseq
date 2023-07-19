@@ -20,6 +20,8 @@ from fairseq.criterions.label_smoothed_cross_entropy import (
     label_smoothed_nll_loss,
 )
 
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 
 @dataclass
 class KDLabelSmoothedCrossEntropyCriterionConfig(LabelSmoothedCrossEntropyCriterionConfig):
@@ -71,11 +73,11 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
         self.num_languages = len(self.task.lang_ids)
 
         if self.kd_strategy == "global_language_wise":
-            self.queue = {}
+            self.queue = {} 
             for id in self.task.lang_ids:
-                self.queue[id] = torch.cuda.FloatTensor([])
+                self.queue[id] = torch.tensor([], device=device)
         else:
-            self.queue = torch.cuda.FloatTensor([])
+            self.queue = torch.tensor([], device=device)
 
 
     def get_lang_ids(self, tokens):
