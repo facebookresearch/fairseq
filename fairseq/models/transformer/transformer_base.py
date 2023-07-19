@@ -131,24 +131,7 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
         num_embeddings = len(dictionary)
         padding_idx = dictionary.pad()
 
-        if cfg.use_stable_embedding:
-            
-            from bitsandbytes.nn import StableEmbedding
-            
-            if factorized_embed_dim > 0:
-                raise ValueError(
-                    "factorized embedding is not compatible with stable embedding"
-                )
-            if not cfg.no_scale_embedding:
-                logger.warning(
-                    "It is recommended to pass --no-scale-embedding with --use-stable-embedding"
-                )
-            emb = StableEmbedding(
-                num_embeddings, 
-                embed_dim, 
-                padding_idx=padding_idx
-            )
-        elif factorized_embed_dim > 0:
+        if factorized_embed_dim > 0:
             emb = FactorizedEmbedding(
                 num_embeddings, 
                 embed_dim,

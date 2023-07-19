@@ -218,12 +218,6 @@ class TransformerConfig(FairseqDataclass):
     no_scale_embedding: bool = field(
         default=False, metadata={"help": "if True, dont scale embeddings"}
     )
-    use_stable_embedding: bool = field(
-        default=False, metadata={
-            "help": "use bnb StableEmbedding in place of vanilla Embedding"
-            "It is recommended to not scale the embeddings while employing StableEmbedding"
-        }
-    )
     checkpoint_activations: bool = field(
         default=False,
         metadata={
