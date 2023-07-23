@@ -1100,7 +1100,7 @@ class InteractiveConfig(FairseqDataclass):
 @dataclass
 class EMAConfig(FairseqDataclass):
     store_ema: bool = field(
-        default=False, metadata={help: "store exponential moving average shadow model"}
+        default=False, metadata={"help": "store exponential moving average shadow model"}
     )
     ema_decay: float = field(
         default=0.9999, metadata={"help": "decay for exponential moving average model"}
