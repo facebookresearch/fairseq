@@ -1,4 +1,5 @@
 import torch.nn as nn
+from fairseq import utils
 
 
 class FactorizedEmbedding(nn.Module):
@@ -13,12 +14,21 @@ class FactorizedEmbedding(nn.Module):
         padding_idx: pad token index in the vocabulary
     """
 
-    def __init__(self, num_embeddings, embedding_dim, hid_dim=128, padding_idx=1):
+    def __init__(
+        self, 
+        num_embeddings,
+        embedding_dim,
+        hid_dim=128,
+        padding_idx=1,
+        activation='linear'
+    ):
         super().__init__()
         self.embedding_dim = embedding_dim
         self.padding_idx = padding_idx
-        self.em = nn.Embedding(num_embeddings, hid_dim, padding_idx=padding_idx)
-        self.fc = nn.Linear(hid_dim, embedding_dim)
+
+        self.up = nn.Linear(hid_dim, embedding_dim)
+        self.down = nn.Embedding(num_embeddings, hid_dim, padding_idx=padding_idx)
+        self.activation_fn = utils.get_activation_fn(activation=activation)
 
     def forward(self, x):
-        return self.fc(self.em(x))
+        return self.up(self.activation_fn(self.down(x)))

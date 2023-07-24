@@ -35,7 +35,7 @@ class EncDecBaseConfig(FairseqDataclass):
         default=512, metadata={"help": "embedding dimension"}
     )
     factorized_embed_dim: Optional[int] = field(
-        default=0,
+        default=None,
         metadata={
             "help": "hidden dimension for the factorized embeddings."
             "If this argument is specified, regular embeddings will be skipped and factorized embeddings will be generated"
@@ -130,9 +130,13 @@ class QuantNoiseConfig(FairseqDataclass):
 class TransformerConfig(FairseqDataclass):
 
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-    adapter_activation_fn: Optional[str] = field(
+    adapter_activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
         default="relu",
         metadata={"help": "activation function for adapters"}
+    )
+    factorized_embed_activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
+        default="linear",
+        metadata={"help": "activation function to use for the factorized embedding"},
     )
     replace_layernorm_with_rmsnorm: bool = field(
         default=False,
