@@ -115,7 +115,8 @@ class Pipeline(object):
                 config = recursive_config(config_file_path)
                 # overwrite it.
                 if overwrite_config:
-                    config = OmegaConf.merge(config, overwrite_config)
+                    # config = OmegaConf.merge(config, overwrite_config)
+                    config = OmegaConf.merge(overwrite_config, config) # allow custom max_video_len and max_len
                 overwrite_dir(config, self.run_dir, basedir=self.base_run_dir)
                 save_file_path = os.path.join(self.project_dir, config_file)
                 configs_to_save[save_file_path] = config

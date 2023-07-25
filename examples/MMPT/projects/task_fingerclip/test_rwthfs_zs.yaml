@@ -1,0 +1,6 @@
+includes: projects/task/test_rwthfs.yaml
+eval:
+  save_path: runs/retri/videoclip/rwthfs_zs/eval
+fairseq:
+  common_eval:
+    path: runs/retri/videoclip/checkpoint_best.pt

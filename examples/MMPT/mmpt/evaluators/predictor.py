@@ -126,6 +126,7 @@ class RetrievalPredictor(Predictor):
         """on-the-fly prediction on a single gpu."""
         full_scores = []
         texts = []
+        video_ids = []
         model.eval()
         model = model.cuda()
         with torch.no_grad():
@@ -147,18 +148,20 @@ class RetrievalPredictor(Predictor):
                     texts.append(
                         self.tokenizer.decode(_cap, skip_special_tokens=True)
                     )
+                video_ids.append(data["video_id"])
 
-        return self.finalize(full_scores, texts, output_file)
+        return self.finalize(full_scores, texts, video_ids, output_file)
 
     def __call__(self, sample, full_scores):
         scores = self._get_pooled_outputs(sample)
         self._append_scores(scores, full_scores)
 
-    def finalize(self, full_scores, texts, output_file=None):
+    def finalize(self, full_scores, texts, video_ids, output_file=None):
         outputs = self._aggregate_scores(full_scores)
         if output_file is not None:
             np.save(os.path.join(self.pred_dir, output_file + ".npy"), outputs)
-        return {"outputs": outputs, "texts": texts}
+        video_ids = [item for sublist in video_ids for item in sublist]
+        return {"outputs": outputs, "texts": texts, "video_ids": video_ids}
 
     def _get_pooled_outputs(self, outputs):
         if "pooled_video" in outputs:

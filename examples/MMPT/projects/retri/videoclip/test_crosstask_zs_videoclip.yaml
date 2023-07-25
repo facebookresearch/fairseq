@@ -1,6 +1,6 @@
-slurm_config: big
-task_type: local_predict
 dataset:
+  max_video_len: 32
+  max_len: 96
   split: test
   video_processor: CrossTaskVideoProcessor
   aligner: CrossTaskAligner
@@ -19,8 +19,8 @@ dataset:
   num_iso_layer: 12
   sliding_window: 16
   sliding_window_size: 32
-  max_video_len: 32
-  max_len: 96
+slurm_config: big
+task_type: local_predict
 fairseq:
   dataset:
     batch_size: 1

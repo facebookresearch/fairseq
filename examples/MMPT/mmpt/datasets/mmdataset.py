@@ -108,4 +108,10 @@ class MMDataset(Dataset):
                     print(key, "last", value[-1, :, :])
                 else:
                     print(key, value)
+                    # if key == 'vfeats':
+                    #     for i in range(10):
+                    #         print(value[i])
+                    #     print('...')
+                    #     for i in range(len(value) - 10, len(value) - 1):
+                    #         print(value[i])
         print("[end of one example]")

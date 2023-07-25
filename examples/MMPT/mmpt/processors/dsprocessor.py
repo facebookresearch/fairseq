@@ -13,6 +13,8 @@ import numpy as np
 import torch
 
 from collections import defaultdict
+from pose_format import Pose
+from pose_format.utils.normalization_3d import PoseNormalizer
 
 from .processor import (
     MetaProcessor,
@@ -278,28 +280,28 @@ class YoucookMetaProcessor(MetaProcessor):
 
     def __init__(self, config):
         super().__init__(config)
-        vfeat_dir = config.vfeat_dir
-        print(self._get_split_path(config))
-        with open(self._get_split_path(config), "rb") as fd:
-            data = pickle.load(fd)
-            all_valid_video_ids = set(
-                [os.path.splitext(fn)[0] for fn in os.listdir(vfeat_dir)]
-            )
-            recs = []
-            video_ids = set()
-            valid_video_ids = set()
-            for rec in data:  # filter videos not available.
-                udl_idx = rec["id"].rindex("_")
-                video_id = rec["id"][:udl_idx]
-                video_ids.add(video_id)
-                if video_id in all_valid_video_ids:
-                    valid_video_ids.add(video_id)
-                    recs.append(rec)
-            print("total video_ids in .pkl", len(video_ids))
-            print("valid video_ids in .pkl", len(valid_video_ids))
-            print("please verify {train,val}_list.txt")
-            data = recs
-            self.data = data
+        # vfeat_dir = config.vfeat_dir
+        # print(self._get_split_path(config))
+        # with open(self._get_split_path(config), "rb") as fd:
+        #     data = pickle.load(fd)
+        #     all_valid_video_ids = set(
+        #         [os.path.splitext(fn)[0] for fn in os.listdir(vfeat_dir)]
+        #     )
+        #     recs = []
+        #     video_ids = set()
+        #     valid_video_ids = set()
+        #     for rec in data:  # filter videos not available.
+        #         udl_idx = rec["id"].rindex("_")
+        #         video_id = rec["id"][:udl_idx]
+        #         video_ids.add(video_id)
+        #         if video_id in all_valid_video_ids:
+        #             valid_video_ids.add(video_id)
+        #             recs.append(rec)
+        #     print("total video_ids in .pkl", len(video_ids))
+        #     print("valid video_ids in .pkl", len(valid_video_ids))
+        #     print("please verify {train,val}_list.txt")
+        #     data = recs
+        #     self.data = data
 
         with open(config.trainval_annotation) as fd:
             self.youcook_annotation = json.load(fd)["database"]
@@ -308,6 +310,18 @@ class YoucookMetaProcessor(MetaProcessor):
             self.use_annotation_caption = True
         else:
             self.use_annotation_caption = False
+
+        vfeat_dir = config.vfeat_dir
+        all_valid_video_ids = ['fn9anlEL4FI', '-dh_uGahzYo']
+        self.data = []
+
+        for id in all_valid_video_ids:
+            video_annotation = self.youcook_annotation[id]
+            for annotation in video_annotation['annotations']:
+                rec = {
+                    "id": f"{id}_{annotation['id']}",
+                }
+                self.data.append(rec)
 
     def __getitem__(self, idx):
         def _get_video_and_caption(rec):
@@ -324,6 +338,7 @@ class YoucookMetaProcessor(MetaProcessor):
 
         rec = self.data[idx]
         video_info, text_info = _get_video_and_caption(rec)
+        # print(video_info, text_info)
         return video_info, text_info
 
 
@@ -846,3 +861,162 @@ class DiDeMoAligner(DSAligner):
     def __call__(self, video_id, video_feature, text_feature):
         # print(video_feature.shape[0])
         return super().__call__(video_id, video_feature, text_feature)
+
+
+# -------------------- RWTH Fingerspelling -----------------------
+
+
+class RWTHFSMetaProcessor(MetaProcessor):
+    """RWTH German Fingerspelling Database
+    https://www-i6.informatik.rwth-aachen.de/aslr/fingerspelling.php
+    """
+
+    def __init__(self, config):
+        super().__init__(config)
+
+        vfeat_dir = config.vfeat_dir
+        split_path = self._get_split_path(config)
+
+        self.letter_to_id = {}
+        self.id_to_letter = {}
+
+        with open(config.gesture_id_path) as f:
+            for idx, line in enumerate(f):
+                letter = line.split(' = ')[1].rstrip('\n')
+                self.letter_to_id[letter] = idx + 1
+                self.id_to_letter[str(idx + 1)] = letter
+
+        with open(split_path) as f:
+            lines = []
+            for line in f:
+                video_id = line.rstrip('\n') 
+                signer_id, letter_id, seq_id, camera_id = video_id.split('_')
+
+                # FIXME: for now we do full body pose estimation for all videos, so exclude cam1 where only the hands are present
+                if config.video_processor == 'RWTHFSPoseProcessor' and camera_id == 'cam1':
+                    continue
+                
+                lines.append(video_id)
+
+            if config.split == 'train':
+                self.data = []
+
+                video_ids = defaultdict(list)
+                for video_id in lines:
+                    signer_id, letter_id, seq_id, camera_id = video_id.split('_')
+                    video_ids[self.id_to_letter[letter_id]].append(video_id)
+
+                length = []
+                for key, value in video_ids.items():
+                    length.append(len(value))
+                max_length = max(length)
+
+                for i in range(max_length):
+                    for key, value in video_ids.items():
+                        self.data.append(value[i % len(value)])
+            else:
+                self.data = lines
+
+    def __getitem__(self, idx):
+        video_id = self.data[idx]
+        signer_id, letter_id, seq_id, camera_id = video_id.split('_')
+        body_part = 'handshape' if camera_id == 'cam1' else 'whole body'
+        text_info = f'Fingerspell the letter {self.id_to_letter[letter_id]} in German Sign Language.'
+        # print(video_id, text_info)
+        return video_id, text_info
+
+
+class RWTHFSVideoProcessor(VideoProcessor):
+    def __call__(self, video_id):
+        feat = np.load(os.path.join(self.vfeat_dir, video_id + ".npy"))
+        # pooling adapater (not needed when training from scratch)
+        feat_dim = 512
+        if feat.shape[1] > feat_dim and not self.vfeat_custom:
+            # i3d feature is 1024
+            # adapt feature dimension to 512 by average pooling
+            feat = feat.reshape(feat.shape[0], feat_dim, int(feat.shape[1] / feat_dim))
+            feat = np.average(feat, axis=2)
+        return feat
+
+
+class RWTHFSPoseProcessor(VideoProcessor):
+    def __init__(self, config):
+        super().__init__(config)
+        self.pose_components = config.pose_components
+        self.normalize_hand = config.normalize_hand
+        self.augment2d = config.augment2d
+        self.split = config.split
+
+    def __call__(self, video_id):
+        buffer = open(os.path.join(self.vfeat_dir, video_id + ".pose"), "rb").read()
+        pose = Pose.read(buffer)
+
+        # normalize pose: the mean distance between the shoulders of each person equals 1
+        pose = pose.normalize(self.pose_normalization_info(pose.header))
+        pose = self.pose_hide_legs(pose)
+
+        # select components
+        if self.pose_components:
+            pose = pose.get_components(self.pose_components)
+            # 3D Hand Normalization
+            if self.pose_components == ['RIGHT_HAND_LANDMARKS'] and self.normalize_hand:
+                pose = self.hand_normalization(pose)
+        else:
+            pose = pose.get_components(["POSE_LANDMARKS", "FACE_LANDMARKS", "LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"])
+
+        # augmentation (training only)
+        if self.split == 'train' and self.augment2d:
+            pose = pose.augment2d()
+
+        feat = pose.body.data
+        feat = feat.reshape(feat.shape[0], -1)
+        
+        return feat
+
+    def pose_normalization_info(self, pose_header):
+        if pose_header.components[0].name == "POSE_LANDMARKS":
+            return pose_header.normalization_info(p1=("POSE_LANDMARKS", "RIGHT_SHOULDER"),
+                                                p2=("POSE_LANDMARKS", "LEFT_SHOULDER"))
+
+        if pose_header.components[0].name == "BODY_135":
+            return pose_header.normalization_info(p1=("BODY_135", "RShoulder"), p2=("BODY_135", "LShoulder"))
+
+        if pose_header.components[0].name == "pose_keypoints_2d":
+            return pose_header.normalization_info(p1=("pose_keypoints_2d", "RShoulder"),
+                                                p2=("pose_keypoints_2d", "LShoulder"))
+
+        raise ValueError("Unknown pose header schema for normalization")
+
+    def hand_normalization(self, pose):
+        plane = pose.header.normalization_info(
+            p1=("RIGHT_HAND_LANDMARKS", "WRIST"),
+            p2=("RIGHT_HAND_LANDMARKS", "PINKY_MCP"),
+            p3=("RIGHT_HAND_LANDMARKS", "INDEX_FINGER_MCP")
+        )
+        line = pose.header.normalization_info(
+            p1=("RIGHT_HAND_LANDMARKS", "WRIST"),
+            p2=("RIGHT_HAND_LANDMARKS", "MIDDLE_FINGER_MCP")
+        )
+        normalizer = PoseNormalizer(plane=plane, line=line, size=100)
+        tensor = normalizer(pose.body.data)
+
+        pose.body.data = np.nan_to_num(tensor)
+        # pose.body.data = tensor
+        pose.focus()
+
+        return pose
+
+    def pose_hide_legs(self, pose):
+        if pose.header.components[0].name == "POSE_LANDMARKS":
+            point_names = ["KNEE", "ANKLE", "HEEL", "FOOT_INDEX"]
+            # pylint: disable=protected-access
+            points = [
+                pose.header._get_point_index("POSE_LANDMARKS", side + "_" + n)
+                for n in point_names
+                for side in ["LEFT", "RIGHT"]
+            ]
+            pose.body.confidence[:, :, points] = 0
+            pose.body.data[:, :, points, :] = 0
+            return pose
+        else:
+            raise ValueError("Unknown pose header schema for hiding legs")

@@ -1,0 +1,11 @@
+,T2V_P@1,T2V_P@5,T2V_P@10,T2V_Median R,V2T_R@1,V2T_R@5,V2T_R@10,V2T_Median R,notes
+test_rwthfs_zs,0.0286,0.0171,0.0286,22,0.0231,0.1386,0.2772,18,zero-shot VideoCLIP (S3D HowTo100M video feature)
+test_rwthfs_videoclip,0.4000,0.3600,0.3000,2,0.3135,0.7459,0.8944,2,fine-tune VideoCLIP (S3D HowTo100M video feature)
+test_rwthfs_scratch,0.5429,0.3543,0.2829,1,0.2772,0.6898,0.8680,3,train from scratch (S3D HowTo100M video feature)
+test_rwthfs_scratch_i3d_512,0.7429,0.5600,0.4429,1,0.4653,0.8185,0.9406,2,"train from scratch (I3D BSL-1K video feature, downsampled from 1024 to 512)"
+test_rwthfs_scratch_i3d,0.6286,0.4743,0.3743,1,0.3729,0.7756,0.9142,2,train from scratch (I3D BSL-1K video feature)
+test_rwthfs_scratch_pose,0.8857,0.6686,0.4171,1,0.6797,0.9739,1.0000,1,train from scratch (pose full body feature)
+test_rwthfs_scratch_pose_aug,0.8286,0.6400,0.4143,1,0.6732,0.9804,1.0000,1,train from scratch (pose full body feature with 2D aug.)
+test_rwthfs_scratch_hand_dominant,1.0000,0.7200,0.4200,1,0.8170,0.9869,1.0000,1,train from scratch (pose dominant hand feature)
+test_rwthfs_scratch_hand_dominant_norm,0.8000,0.5543,0.3429,1,0.6078,0.8889,0.9346,1,train from scratch (pose dominant hand feature with 3D norm.)
+test_rwthfs_scratch_hand_dominant_aug,0.9143,0.7429,0.4257,1,0.9346,1.0000,1.0000,1,train from scratch (pose dominant hand feature with 2D aug.)

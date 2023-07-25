@@ -1,0 +1,49 @@
+dataset:
+  max_video_len: 8
+  max_len: 32
+  video_processor: RWTHFSVideoProcessor
+  bert_name: bert-base-uncased
+  meta_processor: RWTHFSMetaProcessor
+  text_processor: TextProcessor
+  test_path: data/rwthfs/test.txt
+  val_path: data/rwthfs/val.txt
+  train_path: data/rwthfs/train.txt
+  gesture_id_path: data/rwthfs/gesture_ids.txt
+  vfeat_dir: data/feat/feat_rwthfs_s3d
+  aligner: DSAligner
+fairseq:
+  common:
+    fp16: true
+    tensorboard_logdir: run
+    log_interval: 1000
+  dataset:
+    num_workers: 1
+    batch_size: 35
+  optimization:
+    lr:
+    - 5.0e-05
+    clip_norm: 2.0
+    optimizer: adam
+    adam_betas: (0.9, 0.98)
+    lr_scheduler: polynomial_decay
+    total_num_update: 1000000
+    warmup_updates: 1000
+    weight_decay: 0.0
+    ddp_backend: no_c10d
+    max_epoch: 25
+  checkpoint:
+    no_epoch_checkpoints: true
+    reset_optimizer: true
+    reset_dataloader: true
+    reset_meters: true
+    save_dir: runs/retri/rwthfs_test
+    # save_dir: runs/retri/rwthfs
+task_type: sweep_small
+model:
+  model_cls: MMFusionSeparate
+  mm_encoder_cls: null
+  video_encoder_cls: MMBertForEncoder
+  text_encoder_cls: BertModel
+  num_hidden_video_layers: 6
+loss:
+  loss_cls: MMContraLoss

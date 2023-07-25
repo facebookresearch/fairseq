@@ -67,7 +67,7 @@ class LocalJob(BaseJob):
             config = load_config(config_file=self.yaml_file)
             for field in config.fairseq:
                 for key in config.fairseq[field]:
-                    if key in ["fp16", "reset_optimizer", "reset_dataloader", "reset_meters"]:  # a list of binary flag.
+                    if key in ["fp16", "reset_optimizer", "reset_dataloader", "reset_meters", "no_epoch_checkpoints"]:  # a list of binary flag.
                         param = ["--" + key.replace("_", "-")]
                     else:
                         if key == "lr":

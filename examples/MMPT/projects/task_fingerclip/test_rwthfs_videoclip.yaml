@@ -1,0 +1,9 @@
+includes: projects/task/test_rwthfs.yaml
+eval:
+  save_path: runs/retri/videoclip/rwthfs/eval
+fairseq:
+  # read code and find what is the checkpoint arg.
+  common_eval:
+    path: runs/retri/videoclip/rwthfs/checkpoint_best.pt
+  dataset:
+    batch_size: 256

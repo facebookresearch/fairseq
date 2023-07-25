@@ -87,8 +87,8 @@ def main(args):
         best_result = None
         best_metric = 0.
         for checkpoint, result in results:
-            print(checkpoint)
-            evaluator.metric.print_computed_metrics(result)
+            # print(checkpoint)
+            # evaluator.metric.print_computed_metrics(result)
             best_score = evaluator.metric.best_metric(result)
             if best_score > best_metric:
                 best_result = (checkpoint, result)

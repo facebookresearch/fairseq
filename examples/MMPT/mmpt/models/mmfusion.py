@@ -32,7 +32,7 @@ class MMPTModel(nn.Module):
     """An e2e wrapper of inference model.
     """
     @classmethod
-    def from_pretrained(cls, config, checkpoint="checkpoint_best.pt"):
+    def from_pretrained(cls, config, checkpoint="checkpoint_best.pt", video_encoder='S3D'):
         import os
         from ..utils import recursive_config
         from ..tasks import Task
@@ -40,11 +40,12 @@ class MMPTModel(nn.Module):
         mmtask = Task.config_task(config)
         checkpoint_path = os.path.join(config.eval.save_path, checkpoint)
         mmtask.build_model(checkpoint=checkpoint_path)
-        # TODO(huxu): make the video encoder configurable.
-        from ..processors.models.s3dg import S3D
-        video_encoder = S3D('pretrained_models/s3d_dict.npy', 512)
-        video_encoder.load_state_dict(
-            torch.load('pretrained_models/s3d_howto100m.pth'))
+        if video_encoder == 'S3D':
+            # TODO(huxu): make the video encoder configurable.
+            from ..processors.models.s3dg import S3D
+            video_encoder = S3D('pretrained_models/s3d_dict.npy', 512)
+            video_encoder.load_state_dict(
+                torch.load('pretrained_models/s3d_howto100m.pth'))
         from transformers import AutoTokenizer
         tokenizer = AutoTokenizer.from_pretrained(
             config.dataset.bert_name, use_fast=config.dataset.use_fast
@@ -67,10 +68,13 @@ class MMPTModel(nn.Module):
         bsz = video_frames.size(0)
         assert bsz == 1, "only bsz=1 is supported now."
         seq_len = video_frames.size(1)
-        video_frames = video_frames.view(-1, *video_frames.size()[2:])
-        vfeats = self.video_encoder(video_frames.permute(0, 4, 1, 2, 3))
-        vfeats = vfeats['video_embedding']
-        vfeats = vfeats.view(bsz, seq_len, vfeats.size(-1))
+        if self.video_encoder:
+            video_frames = video_frames.view(-1, *video_frames.size()[2:])
+            vfeats = self.video_encoder(video_frames.permute(0, 4, 1, 2, 3))
+            vfeats = vfeats['video_embedding']
+            vfeats = vfeats.view(bsz, seq_len, vfeats.size(-1))
+        else:
+            vfeats = video_frames
         padding = torch.zeros(
             bsz, self.max_video_len - seq_len, vfeats.size(-1))
         vfeats = torch.cat([vfeats, padding], dim=1)
@@ -125,6 +129,8 @@ class MMFusion(nn.Module):
                 model_config.num_layers = config.model.num_hidden_video_layers
             else:
                 model_config.num_hidden_layers = config.model.num_hidden_video_layers
+            if "vfeat_dim" in config.model:
+                model_config.input_dim = config.model.vfeat_dim
             self.video_encoder = video_encoder_cls.from_pretrained(
                 config.dataset.bert_name, config=model_config)
             # exact same NLP model from Huggingface.

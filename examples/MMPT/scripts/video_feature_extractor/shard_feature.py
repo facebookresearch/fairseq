@@ -8,6 +8,8 @@ import pickle
 
 from mmpt.utils import ShardedTensor
 
+splits = ["train", "val"]
+# splits = ["val"]
 
 class Shard(object):
     def __init__(
@@ -22,14 +24,14 @@ class Shard(object):
         self.tfeat_dir = tfeat_dir
         self.target_dir = target_dir
         self.video_ids = {}
-        for split, file_path in zip(["train", "val"], file_paths):
+        for split, file_path in zip(splits, file_paths):
             with open(file_path) as fr:
                 self.video_ids[split] = [
                     line.strip() for line in fr.readlines()]
         self.shard_size = shard_size
 
     def __call__(self, split="train"):
-        for split in ["train", "val"]:
+        for split in splits:
             meta = {}
             for shard_idx, shard_offset in enumerate(
                 range(0, len(self.video_ids[split]), self.shard_size)
@@ -60,5 +62,12 @@ if __name__ == "__main__":
         "data/feat/feat_how2_s3d_shard_small",
         ["data/how2/how2_s3d_train.lst", "data/how2/how2_s3d_val.lst"]
     )
+
+    # shard = Shard(
+    #     "data/feat/feat_youcook_s3d",
+    #     None,
+    #     "data/feat/feat_youcook_s3d_shard_small",
+    #     ["data/youcook/youcook_s3d_val.lst"]
+    # )
 
     shard()
