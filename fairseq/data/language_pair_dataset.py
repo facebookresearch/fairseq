@@ -118,8 +118,9 @@ def collate(
             "src_tokens": src_tokens,
             "src_lengths": src_lengths,
         },
-        "target": target,
+        "target": target
     }
+
     if prev_output_tokens is not None:
         batch["net_input"]["prev_output_tokens"] = prev_output_tokens.index_select(
             0, sort_order
@@ -161,7 +162,7 @@ def collate(
         for i, sample in enumerate(samples):
             constraints[i, 0 : lens[i]] = samples[i].get("constraints")
         batch["constraints"] = constraints.index_select(0, sort_order)
-
+    print
     return batch
 
 
@@ -242,11 +243,14 @@ class LanguagePairDataset(FairseqDataset):
 
         self.tgt_sizes = np.array(tgt_sizes) if tgt_sizes is not None else None
         print(len(tgt_sizes))
+        self.src_sizes = np.repeat(self.src_sizes, 2)
+    
         self.sizes = (
             np.vstack((self.src_sizes, self.tgt_sizes)).T
             if self.tgt_sizes is not None
             else self.src_sizes
         )
+        print('done')
         self.src_dict = src_dict
         self.tgt_dict = tgt_dict
         self.left_pad_source = left_pad_source
@@ -308,8 +312,8 @@ class LanguagePairDataset(FairseqDataset):
         # tgt_item = self.tgt[index] if self.tgt is not None and index < len(self.tgt) else None
         src_item = self.src[index] if index <len(self.src) else None
         # Get the first target language item
-        tgt_item_1 = self.tgt[index *2]
-        tgt_item_2 = self.tgt[index *2 +1]
+        tgt_item = self.tgt[index *2]
+        tgt_item_1 = self.tgt[index *2 +1]
         # tgt_item = [ ]
         # for i in range(2):
         #    tgt_item = self.tgt[index * 2 + i] if self.tgt is not None and index * 2 + i < len(self.tgt) else None
@@ -340,8 +344,8 @@ class LanguagePairDataset(FairseqDataset):
         example = {
             "id": index,
             "source": src_item,
+            "target": tgt_item_1,
             "target_1": tgt_item_1,
-            "target_2": tgt_item_2,
         }
     
         if self.align_dataset is not None:
