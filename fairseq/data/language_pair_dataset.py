@@ -231,14 +231,17 @@ class LanguagePairDataset(FairseqDataset):
             assert src_dict.pad() == tgt_dict.pad()
             assert src_dict.eos() == tgt_dict.eos()
             assert src_dict.unk() == tgt_dict.unk()
-        if tgt is not None:
-            assert len(src) == len(
-                tgt
-            ), "Source and target must contain the same number of examples"
+        # if tgt is not None:
+        #    assert len(src) * 2 == len(
+        #        tgt
+        #    ) , "Source and target must contain the same number of examples"
         self.src = src
         self.tgt = tgt
         self.src_sizes = np.array(src_sizes)
+        print(len(self.src_sizes))
+
         self.tgt_sizes = np.array(tgt_sizes) if tgt_sizes is not None else None
+        print(len(tgt_sizes))
         self.sizes = (
             np.vstack((self.src_sizes, self.tgt_sizes)).T
             if self.tgt_sizes is not None
@@ -302,8 +305,15 @@ class LanguagePairDataset(FairseqDataset):
         return self.buckets
 
     def __getitem__(self, index):
-        tgt_item = self.tgt[index] if self.tgt is not None else None
-        src_item = self.src[index]
+        # tgt_item = self.tgt[index] if self.tgt is not None and index < len(self.tgt) else None
+        src_item = self.src[index] if index <len(self.src) else None
+        # Get the first target language item
+        tgt_item_1 = self.tgt[index *2]
+        tgt_item_2 = self.tgt[index *2 +1]
+        # tgt_item = [ ]
+        # for i in range(2):
+        #    tgt_item = self.tgt[index * 2 + i] if self.tgt is not None and index * 2 + i < len(self.tgt) else None
+        #    tgt_item.append(tgt_item)
         # Append EOS to end of tgt sentence if it does not have an EOS and remove
         # EOS from end of src sentence if it exists. This is useful when we use
         # use existing datasets for opposite directions i.e., when we want to
@@ -330,8 +340,10 @@ class LanguagePairDataset(FairseqDataset):
         example = {
             "id": index,
             "source": src_item,
-            "target": tgt_item,
+            "target_1": tgt_item_1,
+            "target_2": tgt_item_2,
         }
+    
         if self.align_dataset is not None:
             example["alignment"] = self.align_dataset[index]
         if self.constraints is not None:
