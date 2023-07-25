@@ -49,3 +49,5 @@ model:
   vfeat_dim: 63
 loss:
   loss_cls: MMContraLoss
+eval:
+  save_path: runs/retri/rwthfs_hand_dominant_aug
