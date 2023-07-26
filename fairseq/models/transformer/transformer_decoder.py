@@ -135,6 +135,13 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             else None
         )
 
+        if cfg.decoder.output_activation_fn is not None:
+            self.project_out_activation_fn = utils.get_activation_fn(
+                cfg.decoder.output_activation_fn
+            )
+        else:
+            self.project_out_activation_fn = None
+
         self.adaptive_softmax = None
         self.output_projection = output_projection
         if self.output_projection is None:
@@ -152,6 +159,10 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
                 tie_proj=cfg.tie_adaptive_proj,
             )
         elif self.share_input_output_embed:
+            if self.cfg.decoder_factorized_embed_dim is not None:
+                raise ValueError(
+                    "--share-decoder-input-output-embed is not compatible with factorized embeddings"
+                )
             self.output_projection = nn.Linear(
                 self.embed_tokens.weight.shape[1],
                 self.embed_tokens.weight.shape[0],
@@ -165,6 +176,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             nn.init.normal_(
                 self.output_projection.weight, mean=0, std=self.output_embed_dim**-0.5
             )
+        
         num_base_layers = cfg.base_layers
         for i in range(num_base_layers):
             self.layers.insert(
@@ -183,14 +195,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         min_params_to_wrap = cfg.min_params_to_wrap if not checkpoint else 0
         layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
         return layer
-    
-    def get_embeddings_for_self_kd(self, prev_output_tokens):
-        x = self.embed_scale * self.embed_tokens(prev_output_tokens)
-        if self.quant_noise is not None:
-            x = self.quant_noise(x)
-        if self.project_in_dim is not None:
-            x = self.project_in_dim(x)
-        return x
+
 
     def forward(
         self,
@@ -233,6 +238,8 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         )
 
         if not features_only:
+            if self.project_out_activation_fn is not None:
+                x = self.project_out_activation_fn(x)
             x = self.output_layer(x)
         return x, extra
 

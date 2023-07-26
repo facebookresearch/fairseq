@@ -20,15 +20,16 @@ class FactorizedEmbedding(nn.Module):
         embedding_dim,
         hid_dim=128,
         padding_idx=1,
+        bias=False,
         activation='linear'
     ):
         super().__init__()
         self.embedding_dim = embedding_dim
         self.padding_idx = padding_idx
 
-        self.up = nn.Linear(hid_dim, embedding_dim)
-        self.down = nn.Embedding(num_embeddings, hid_dim, padding_idx=padding_idx)
+        self.up = nn.Linear(hid_dim, embedding_dim, bias=bias)
+        self.emb = nn.Embedding(num_embeddings, hid_dim, padding_idx=padding_idx)
         self.activation_fn = utils.get_activation_fn(activation=activation)
 
     def forward(self, x):
-        return self.up(self.activation_fn(self.down(x)))
+        return self.up(self.activation_fn(self.emb(x)))

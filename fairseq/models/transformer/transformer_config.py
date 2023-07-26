@@ -99,6 +99,12 @@ class DecoderConfig(EncDecBaseConfig):
             "help": "decoder output dimension (extra linear layer if different from decoder embed dim)"
         },
     )
+    output_activation_fn: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "activation for the decoder output layer mentioned above"
+        }
+    )
 
     def __post_init__(self):
         #  II doesn't work if we are just creating the object outside of hydra so fix that
@@ -106,6 +112,7 @@ class DecoderConfig(EncDecBaseConfig):
             self.input_dim = self.embed_dim
         if self.output_dim == II("model.decoder.embed_dim"):
             self.output_dim = self.embed_dim
+        
 
 
 @dataclass
