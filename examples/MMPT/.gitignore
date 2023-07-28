@@ -137,3 +137,5 @@ python_log
 slurm_snapshot_code
 lightning_logs
 demos
+
+slurm*.out

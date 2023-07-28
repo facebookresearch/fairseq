@@ -1,0 +1,53 @@
+dataset:
+  max_video_len: 128
+  max_len: 96
+  video_processor: ASLSignPoseProcessor
+  bert_name: bert-base-cased
+  meta_processor: ASLSignMetaProcessor
+  text_processor: TextProcessor
+  test_path: data/asl_signs/test.txt
+  val_path: data/asl_signs/val.txt
+  train_path: data/asl_signs/train.txt
+  # train_path: data/asl_signs/val.txt
+  metadata_path: /shares/volk.cl.uzh/zifjia/asl-signs/train.csv
+  vfeat_dir: /shares/volk.cl.uzh/zifjia/asl-signs/train_landmark_files
+  aligner: DSAligner
+  pose_components: ["pose", "left_hand", "right_hand"]
+fairseq:
+  common:
+    fp16: true
+    tensorboard_logdir: run
+    log_interval: 1000
+  dataset:
+    num_workers: 1
+    batch_size: 250
+  optimization:
+    lr:
+    - 5.0e-05
+    clip_norm: 2.0
+    optimizer: adam
+    adam_betas: (0.9, 0.98)
+    lr_scheduler: polynomial_decay
+    total_num_update: 1000000
+    warmup_updates: 100
+    weight_decay: 0.0
+    ddp_backend: no_c10d
+    max_epoch: 25
+  checkpoint:
+    no_epoch_checkpoints: true
+    reset_optimizer: true
+    reset_dataloader: true
+    reset_meters: true
+    save_dir: runs/retri/asl_signs_1
+task_type: sweep_small
+model:
+  model_cls: MMFusionSeparate
+  mm_encoder_cls: null
+  video_encoder_cls: MMBertForEncoder
+  text_encoder_cls: BertModel
+  num_hidden_video_layers: 6
+  vfeat_dim: 225
+loss:
+  loss_cls: MMContraLoss
+eval:
+  save_path: runs/retri/asl_signs_1
