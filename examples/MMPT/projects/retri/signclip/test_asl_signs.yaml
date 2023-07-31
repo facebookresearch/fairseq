@@ -10,8 +10,10 @@ dataset:
   # test_path: data/asl_signs/val.txt
   val_path: data/asl_signs/val.txt
   train_path: data/asl_signs/train.txt
-  metadata_path: /shares/volk.cl.uzh/zifjia/asl-signs/train.csv
-  vfeat_dir: /shares/volk.cl.uzh/zifjia/asl-signs/train_landmark_files
+  # metadata_path: /shares/volk.cl.uzh/zifjia/asl-signs/train.csv
+  # vfeat_dir: /shares/volk.cl.uzh/zifjia/asl-signs/train_landmark_files
+  metadata_path: /mnt/asl-signs/train.csv
+  vfeat_dir: /mnt/asl-signs/train_landmark_files
   aligner: DSAligner
   pose_components: ["pose", "left_hand", "right_hand"]
 slurm_config: big
