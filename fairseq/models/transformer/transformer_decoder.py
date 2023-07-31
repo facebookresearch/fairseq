@@ -22,7 +22,8 @@ from fairseq.modules import (
     LayerNorm,
     PositionalEmbedding,
     SinusoidalPositionalEmbedding,
-    transformer_layer
+    transformer_layer,
+    RMSNorm
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
@@ -105,7 +106,11 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             else None
         )
         if cfg.layernorm_embedding:
-            self.layernorm_embedding = LayerNorm(embed_dim, export=cfg.export)
+            self.layernorm_embedding = (
+                LayerNorm(self.embed_dim, export=cfg.export) 
+                if not cfg.replace_layernorm_with_rmsnorm 
+                else RMSNorm(self.embed_dim)
+            )
         else:
             self.layernorm_embedding = None
 
@@ -125,7 +130,11 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         self.num_layers = len(self.layers)
 
         if cfg.decoder.normalize_before and not cfg.no_decoder_final_norm:
-            self.layer_norm = LayerNorm(embed_dim, export=cfg.export)
+            self.layer_norm = (
+                LayerNorm(self.embed_dim, export=cfg.export) 
+                if not cfg.replace_layernorm_with_rmsnorm 
+                else RMSNorm(self.embed_dim)
+            )
         else:
             self.layer_norm = None
 

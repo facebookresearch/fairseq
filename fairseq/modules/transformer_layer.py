@@ -11,12 +11,15 @@ from torch import Tensor
 
 from fairseq import utils
 from fairseq.models.transformer import TransformerConfig
-from fairseq.modules import LayerNorm, MultiheadAttention
+from fairseq.modules import (
+    LayerNorm, 
+    MultiheadAttention,
+    GLUFFN,
+    RMSNorm,
+    BottleneckAdapterBlock
+)
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
-from fairseq.modules.glu import GLUFFN
-from fairseq.modules.rms_norm import RMSNorm
-from fairseq.modules.bottleneck_adapter_block import BottleneckAdapterBlock
 
 
 
@@ -43,7 +46,11 @@ class TransformerEncoderLayerBase(nn.Module):
         self.quant_noise = cfg.quant_noise.pq
         self.quant_noise_block_size = cfg.quant_noise.pq_block_size
         self.self_attn = self.build_self_attention(self.embed_dim, cfg)
-        self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export) if not cfg.replace_layernorm_with_rmsnorm else RMSNorm(self.embed_dim)
+        self.self_attn_layer_norm = (
+            LayerNorm(self.embed_dim, export=cfg.export) 
+            if not cfg.replace_layernorm_with_rmsnorm 
+            else RMSNorm(self.embed_dim)
+        )
         self.dropout_module = FairseqDropout(
             cfg.dropout, module_name=self.__class__.__name__
         )
@@ -55,9 +62,9 @@ class TransformerEncoderLayerBase(nn.Module):
             float(activation_dropout_p), module_name=self.__class__.__name__
         )
         self.normalize_before = cfg.encoder.normalize_before
-        self.swiglu = cfg.activation_fn == 'swiglu'
+        self.glu_type = cfg.activation_fn.endswith('glu')
 
-        if not self.swiglu:
+        if not self.glu_type:
             self.activation_fn = utils.get_activation_fn(
                 activation=cfg.activation_fn
             )
@@ -74,13 +81,17 @@ class TransformerEncoderLayerBase(nn.Module):
                 self.quant_noise_block_size,
             )
         else:
-            self.swiglu_ffn_module = GLUFFN(
+            self.glu_ffn_module = GLUFFN(
                 self.embed_dim,
                 cfg.encoder.ffn_embed_dim,
                 cfg.activation_fn
             )
 
-        self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export) if not cfg.replace_layernorm_with_rmsnorm else RMSNorm(self.embed_dim)
+        self.final_layer_norm = (
+            LayerNorm(self.embed_dim, export=cfg.export) 
+            if not cfg.replace_layernorm_with_rmsnorm 
+            else RMSNorm(self.embed_dim)
+        )
 
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
         self.add_adapters = cfg.encoder.add_adapters
@@ -95,7 +106,8 @@ class TransformerEncoderLayerBase(nn.Module):
                 activation=cfg.adapter_activation_fn,
                 dropout=cfg.dropout,
                 ln_before=cfg.encoder.normalize_before,
-                use_gating=cfg.encoder.adapter_use_gating
+                use_gating=cfg.encoder.adapter_use_gating,
+                replace_layernorm_with_rmsnorm=cfg.replace_layernorm_with_rmsnorm
             )
         else:
             self.adapter_block = None
@@ -246,12 +258,12 @@ class TransformerEncoderLayerBase(nn.Module):
         if self.normalize_before:
             x = self.final_layer_norm(x)
 
-        if not self.swiglu:
+        if not self.glu_type:
             x = self.activation_fn(self.fc1(x))
             x = self.activation_dropout_module(x)
             x = self.fc2(x)
         else:
-            x = self.swiglu_ffn_module(x)
+            x = self.glu_ffn_module(x)
 
         fc_result = x
 
@@ -343,19 +355,27 @@ class TransformerDecoderLayerBase(nn.Module):
             float(activation_dropout_p), module_name=self.__class__.__name__
         )
         self.normalize_before = cfg.decoder.normalize_before
-        self.swiglu = cfg.activation_fn == 'swiglu'
+        self.glu_type = cfg.activation_fn.endswith('glu')
 
-        self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export) if not cfg.replace_layernorm_with_rmsnorm else RMSNorm(self.embed_dim)
+        self.self_attn_layer_norm = (
+            LayerNorm(self.embed_dim, export=cfg.export) 
+            if not cfg.replace_layernorm_with_rmsnorm 
+            else RMSNorm(self.embed_dim)
+        )
 
         if no_encoder_attn:
             self.encoder_attn = None
             self.encoder_attn_layer_norm = None
         else:
             self.encoder_attn = self.build_encoder_attention(self.embed_dim, cfg)
-            self.encoder_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export) if not cfg.replace_layernorm_with_rmsnorm else RMSNorm(self.embed_dim)
+            self.encoder_attn_layer_norm = (
+                LayerNorm(self.embed_dim, export=cfg.export) 
+                if not cfg.replace_layernorm_with_rmsnorm 
+                else RMSNorm(self.embed_dim)
+            )
 
         self.ffn_layernorm = (
-            LayerNorm(cfg.decoder.ffn_embed_dim)
+            (LayerNorm(cfg.decoder.ffn_embed_dim) if not cfg.replace_layernorm_with_rmsnorm else RMSNorm(cfg.decoder.ffn_embed_dim))
             if utils.safe_getattr(cfg, "scale_fc", False)
             else None
         )
@@ -370,7 +390,7 @@ class TransformerDecoderLayerBase(nn.Module):
             else None
         )
 
-        if not self.swiglu:
+        if not self.glu_type:
             self.activation_fn = utils.get_activation_fn(
                 activation=cfg.activation_fn
             )
@@ -387,13 +407,17 @@ class TransformerDecoderLayerBase(nn.Module):
                 self.quant_noise_block_size,
             )
         else:
-            self.swiglu_ffn_module = GLUFFN(
+            self.glu_ffn_module = GLUFFN(
                 self.embed_dim, 
                 cfg.decoder.ffn_embed_dim,
                 cfg.activation_fn
             )
 
-        self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export) if not cfg.replace_layernorm_with_rmsnorm else RMSNorm(self.embed_dim)
+        self.final_layer_norm = (
+            LayerNorm(self.embed_dim, export=cfg.export) 
+            if not cfg.replace_layernorm_with_rmsnorm 
+            else RMSNorm(self.embed_dim)
+        )
 
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
         self.add_adapters = cfg.decoder.add_adapters
@@ -408,7 +432,8 @@ class TransformerDecoderLayerBase(nn.Module):
                 activation=cfg.adapter_activation_fn,
                 dropout=cfg.dropout,
                 ln_before=cfg.decoder.normalize_before,
-                use_gating=cfg.decoder.adapter_use_gating
+                use_gating=cfg.decoder.adapter_use_gating,
+                replace_layernorm_with_rmsnorm=cfg.replace_layernorm_with_rmsnorm
             )
         else:
             self.adapter_block = None
@@ -581,14 +606,14 @@ class TransformerDecoderLayerBase(nn.Module):
         if self.normalize_before:
             x = self.final_layer_norm(x)
 
-        if not self.swiglu:
+        if not self.glu_type:
             x = self.activation_fn(self.fc1(x))
             x = self.activation_dropout_module(x)
             if self.ffn_layernorm is not None:
                 x = self.ffn_layernorm(x)
             x = self.fc2(x)
         else:
-            x = self.swiglu_ffn_module(x)
+            x = self.glu_ffn_module(x)
 
         x = self.dropout_module(x)
         if self.w_resid is not None:
