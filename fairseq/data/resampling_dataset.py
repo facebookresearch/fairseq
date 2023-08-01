@@ -6,8 +6,8 @@
 import logging
 
 import numpy as np
-from fairseq.data import BaseWrapperDataset, plasma_utils
 
+from fairseq.data import BaseWrapperDataset, plasma_utils
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +125,7 @@ class ResamplingDataset(BaseWrapperDataset):
         rng = np.random.RandomState(
             [
                 42,  # magic number
-                self.seed % (2 ** 32),  # global seed
+                self.seed % (2**32),  # global seed
                 self._cur_epoch,  # epoch index
             ]
         )

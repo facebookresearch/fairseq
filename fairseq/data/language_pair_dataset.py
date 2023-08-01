@@ -114,7 +114,10 @@ def collate(
         "id": id,
         "nsentences": len(samples),
         "ntokens": ntokens,
-        "net_input": {"src_tokens": src_tokens, "src_lengths": src_lengths,},
+        "net_input": {
+            "src_tokens": src_tokens,
+            "src_lengths": src_lengths,
+        },
         "target": target,
     }
     if prev_output_tokens is not None:
@@ -467,5 +470,8 @@ class LanguagePairDataset(FairseqDataset):
             list: list of removed indices
         """
         return data_utils.filter_paired_dataset_indices_by_size(
-            self.src_sizes, self.tgt_sizes, indices, max_sizes,
+            self.src_sizes,
+            self.tgt_sizes,
+            indices,
+            max_sizes,
         )

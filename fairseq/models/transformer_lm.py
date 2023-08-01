@@ -7,6 +7,8 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
+from omegaconf import II
+
 from fairseq import options, utils
 from fairseq.dataclass import ChoiceEnum, FairseqDataclass
 from fairseq.models import (
@@ -15,12 +17,12 @@ from fairseq.models import (
     register_model_architecture,
 )
 from fairseq.models.transformer import (
-    DEFAULT_MIN_PARAMS_TO_WRAP, Embedding, TransformerDecoder
+    DEFAULT_MIN_PARAMS_TO_WRAP,
+    Embedding,
+    TransformerDecoder,
 )
 from fairseq.modules import AdaptiveInput, CharacterTokenEmbedder
 from fairseq.utils import safe_getattr, safe_hasattr
-from omegaconf import II
-
 
 DEFAULT_MAX_TARGET_POSITIONS = 1024
 
@@ -179,7 +181,7 @@ class TransformerLanguageModelConfig(FairseqDataclass):
                 "is set to 0 (i.e., always wrap) when --checkpoint-activations or "
                 "--offload-activations are passed."
             )
-        }
+        },
     )
     # config for "BASE Layers: Simplifying Training of Large, Sparse Models"
     base_layers: Optional[int] = field(
@@ -189,13 +191,34 @@ class TransformerLanguageModelConfig(FairseqDataclass):
         default=1, metadata={"help": "number of sublayers in each BASE layer"}
     )
     base_shuffle: Optional[int] = field(
-        default=1, metadata={"help": "shuffle tokens between workers before computing assignment"}
+        default=1,
+        metadata={"help": "shuffle tokens between workers before computing assignment"},
     )
     # NormFormer
-    scale_fc: Optional[bool] = field(default=False, metadata={"help": 'Insert LayerNorm between fully connected layers'})
-    scale_attn: Optional[bool] = field(default=False, metadata={"help": 'Insert LayerNorm after attention'})
-    scale_heads: Optional[bool] = field(default=False, metadata={"help": 'Learn a scale coefficient for each attention head'})
-    scale_resids: Optional[bool] = field(default=False, metadata={"help": 'Learn a scale coefficient for each residual connection'})
+    scale_fc: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Insert LayerNorm between fully connected layers"},
+    )
+    scale_attn: Optional[bool] = field(
+        default=False, metadata={"help": "Insert LayerNorm after attention"}
+    )
+    scale_heads: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Learn a scale coefficient for each attention head"},
+    )
+    scale_resids: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Learn a scale coefficient for each residual connection"},
+    )
+
+    # xFormers arguments
+    decoder_xformers_att_config: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "config for xFormers library attention, defined in xformers.components.attention.AttentionConfig",
+        },
+    )
+
     # options from other parts of the config
     add_bos_token: bool = II("task.add_bos_token")
     tokens_per_sample: int = II("task.tokens_per_sample")
@@ -345,7 +368,9 @@ def base_lm_architecture(args):
     args.decoder_output_dim = safe_getattr(
         args, "decoder_output_dim", args.decoder_embed_dim
     )
-    args.decoder_input_dim = safe_getattr(args, "decoder_input_dim", args.decoder_embed_dim)
+    args.decoder_input_dim = safe_getattr(
+        args, "decoder_input_dim", args.decoder_embed_dim
+    )
 
     # Model training is not stable without this
     args.decoder_normalize_before = True
@@ -362,10 +387,10 @@ def base_lm_architecture(args):
     args.layernorm_embedding = safe_getattr(args, "layernorm_embedding", False)
     args.checkpoint_activations = safe_getattr(args, "checkpoint_activations", False)
     args.offload_activations = safe_getattr(args, "offload_activations", False)
-    args.scale_fc = safe_getattr(args, 'scale_fc', False)
-    args.scale_attn = safe_getattr(args, 'scale_attn', False)
-    args.scale_heads = safe_getattr(args, 'scale_heads', False)
-    args.scale_resids = safe_getattr(args, 'scale_resids', False)
+    args.scale_fc = safe_getattr(args, "scale_fc", False)
+    args.scale_attn = safe_getattr(args, "scale_attn", False)
+    args.scale_heads = safe_getattr(args, "scale_heads", False)
+    args.scale_resids = safe_getattr(args, "scale_resids", False)
     if args.offload_activations:
         args.checkpoint_activations = True
 
@@ -387,7 +412,9 @@ def transformer_lm_baevski_wiki103(args):
     args.dropout = safe_getattr(args, "dropout", 0.3)
     args.adaptive_input = safe_getattr(args, "adaptive_input", True)
     args.tie_adaptive_weights = safe_getattr(args, "tie_adaptive_weights", True)
-    args.adaptive_input_cutoff = safe_getattr(args, "adaptive_input_cutoff", "20000,60000")
+    args.adaptive_input_cutoff = safe_getattr(
+        args, "adaptive_input_cutoff", "20000,60000"
+    )
     args.adaptive_softmax_cutoff = safe_getattr(
         args, "adaptive_softmax_cutoff", "20000,60000"
     )
@@ -469,10 +496,36 @@ def transformer_lm_gpt2_big(args):
     base_lm_architecture(args)
 
 
+@register_model_architecture("transformer_lm", "transformer_lm_gpt2_big_wide")
+def transformer_lm_gpt2_big_wide(args):
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 2048)
+    args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 8192)
+    args.decoder_layers = getattr(args, "decoder_layers", 24)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 32)
+    args.dropout = getattr(args, "dropout", 0.1)
+    args.attention_dropout = getattr(args, "attention_dropout", 0.1)
+    args.activation_fn = getattr(args, "activation_fn", "gelu")
+    base_lm_architecture(args)
+
+
+@register_model_architecture("transformer_lm", "transformer_lm_gpt2_bigger")
+def transformer_lm_gpt2_bigger(args):
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 2048)
+    args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 8192)
+    args.decoder_layers = getattr(args, "decoder_layers", 48)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 32)
+    args.dropout = getattr(args, "dropout", 0.1)
+    args.attention_dropout = getattr(args, "attention_dropout", 0.1)
+    args.activation_fn = getattr(args, "activation_fn", "gelu")
+    base_lm_architecture(args)
+
+
 def base_gpt3_architecture(args):
     args.decoder_input_dim = args.decoder_embed_dim
     args.decoder_output_dim = args.decoder_embed_dim
-    args.decoder_ffn_embed_dim = safe_getattr(args, "decoder_ffn_embed_dim", args.decoder_embed_dim * 4)
+    args.decoder_ffn_embed_dim = safe_getattr(
+        args, "decoder_ffn_embed_dim", args.decoder_embed_dim * 4
+    )
     # GPT-3 used learned positional embeddings, rather than sinusoidal
     args.decoder_learned_pos = safe_getattr(args, "decoder_learned_pos", True)
     args.dropout = safe_getattr(args, "dropout", 0.0)

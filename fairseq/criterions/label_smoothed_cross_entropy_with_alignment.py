@@ -5,7 +5,8 @@
 
 import math
 
-from fairseq import metrics, utils
+from fairseq import utils
+from fairseq.logging import metrics
 from fairseq.criterions import register_criterion
 
 from .label_smoothed_cross_entropy import (

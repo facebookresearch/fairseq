@@ -29,6 +29,7 @@ class ModalityDatasetItem(NamedTuple):
     max_tokens: Optional[int] = None
     max_sentences: Optional[int] = None
 
+
 # MultiModalityDataset: it concate multiple datasets with different modalities.
 # Compared with ConcatDataset it can 1) sample data given the ratios for different datasets
 # 2) it adds mode to indicate what type of the data samples come from.
@@ -87,14 +88,14 @@ class MultiModalityDataset(ConcatDataset):
     def sizes(self):
         if len(self.datasets) == 1:
             return self.datasets[0].sizes
-        super().sizes
+        return super().sizes
 
     def ordered_indices(self):
         """
         Returns indices sorted by length. So less padding is needed.
         """
         if len(self.datasets) == 1:
-            return self.datasets[0].ordered_indices()
+            return [self.datasets[0].ordered_indices()]
         indices_group = []
         for d_idx, ds in enumerate(self.datasets):
             sample_num = self.cumulative_sizes[d_idx]
@@ -110,6 +111,7 @@ class MultiModalityDataset(ConcatDataset):
             return
         with data_utils.numpy_seed(seed):
             indices = self.ordered_indices()
+
         for i, ds in enumerate(self.datasets):
             indices[i] = ds.filter_indices_by_size(
                 indices[i],
@@ -199,6 +201,8 @@ class LangPairMaskDataset(FairseqDataset):
         return self.dataset.sizes
 
     def get_batch_shapes(self):
+        if hasattr(self.dataset, "get_batch_shapes"):
+            return self.dataset.get_batch_shapes()
         return self.dataset.buckets
 
     def num_tokens_vec(self, indices):

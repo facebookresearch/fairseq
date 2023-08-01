@@ -130,6 +130,7 @@ def log_scalar(
             agg.add_meter(key, AverageMeter(round=round), priority)
         agg[key].update(value, weight)
 
+
 def log_scalar_sum(
     key: str,
     value: float,
@@ -147,6 +148,26 @@ def log_scalar_sum(
     for agg in get_active_aggregators():
         if key not in agg:
             agg.add_meter(key, SumMeter(round=round), priority)
+        agg[key].update(value)
+
+
+def log_concat_tensor(
+    key: str,
+    value: torch.Tensor,
+    priority: int = 10,
+    dim: int = 0,
+):
+    """Log a scalar value that is summed for reporting.
+
+    Args:
+        key (str): name of the field to log
+        value (float): value to log
+        priority (int): smaller values are logged earlier in the output
+        round (Optional[int]): number of digits to round to when displaying
+    """
+    for agg in get_active_aggregators():
+        if key not in agg:
+            agg.add_meter(key, ConcatTensorMeter(dim=dim), priority)
         agg[key].update(value)
 
 
@@ -309,6 +330,7 @@ def load_state_dict(state_dict):
 def xla_metrics_report():
     try:
         import torch_xla.debug.metrics as met
+
         print(met.metrics_report())
     except ImportError:
         return

@@ -9,7 +9,7 @@ from typing import Any, Optional
 import torch
 import torch.onnx.operators
 from fairseq import utils
-from torch import Tensor, nn
+from torch import nn, Tensor
 
 
 class SinusoidalPositionalEmbedding(nn.Module):
@@ -22,15 +22,22 @@ class SinusoidalPositionalEmbedding(nn.Module):
         super().__init__()
         self.embedding_dim = embedding_dim
         self.padding_idx = padding_idx if padding_idx is not None else 0
-        self.weights = SinusoidalPositionalEmbedding.get_embedding(
+        self.register_buffer("weights", SinusoidalPositionalEmbedding.get_embedding(
             init_size, embedding_dim, padding_idx
-        )
-        self.onnx_trace = False
-        self.register_buffer("_float_tensor", torch.FloatTensor(1))
+        ), persistent=False)
         self.max_positions = int(1e5)
+        self.onnx_trace = False
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
+
+    def _load_from_state_dict(self, state_dict, prefix, *args, **kwargs):
+        # Ignore some deprecated keys that were used in older versions
+        deprecated_keys = ["weights", "_float_tensor"]
+        for key in deprecated_keys:
+            if prefix + key in state_dict:
+                del state_dict[prefix + key]
+        super()._load_from_state_dict(state_dict, prefix, *args, **kwargs)
 
     @staticmethod
     def get_embedding(
@@ -68,12 +75,11 @@ class SinusoidalPositionalEmbedding(nn.Module):
         bspair = torch.onnx.operators.shape_as_tensor(input)
         bsz, seq_len = bspair[0], bspair[1]
         max_pos = self.padding_idx + 1 + seq_len
-        if self.weights is None or max_pos > self.weights.size(0):
-            # recompute/expand embeddings if needed
+        if max_pos > self.weights.size(0):
+            # expand embeddings if needed
             self.weights = SinusoidalPositionalEmbedding.get_embedding(
                 max_pos, self.embedding_dim, self.padding_idx
-            )
-        self.weights = self.weights.to(self._float_tensor)
+            ).to(self.weights)
 
         if incremental_state is not None:
             # positions is the same for every token when decoding a single step

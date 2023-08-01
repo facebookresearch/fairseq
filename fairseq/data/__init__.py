@@ -39,6 +39,11 @@ from .noising import NoisingDataset
 from .numel_dataset import NumelDataset
 from .num_samples_dataset import NumSamplesDataset
 from .offset_tokens_dataset import OffsetTokensDataset
+from .padding_mask_dataset import (
+    LeftPaddingMaskDataset,
+    PaddingMaskDataset,
+    RightPaddingMaskDataset,
+)
 from .pad_dataset import LeftPadDataset, PadDataset, RightPadDataset
 from .prepend_dataset import PrependDataset
 from .prepend_token_dataset import PrependTokenDataset
@@ -48,6 +53,7 @@ from .resampling_dataset import ResamplingDataset
 from .roll_dataset import RollDataset
 from .round_robin_zip_datasets import RoundRobinZipDatasets
 from .sort_dataset import SortDataset
+from .speech_dlm_dataset import SpeechDLMDataset
 from .strip_token_dataset import StripTokenDataset
 from .subsample_dataset import SubsampleDataset
 from .token_block_dataset import TokenBlockDataset
@@ -57,6 +63,7 @@ from .shorten_dataset import TruncateDataset, RandomCropDataset
 from .multilingual.sampled_multi_dataset import SampledMultiDataset
 from .multilingual.sampled_multi_epoch_dataset import SampledMultiEpochDataset
 from .fasta_dataset import FastaDataset, EncodedFastaDataset
+from .transform_eos_concat_langpair_dataset import TransformEosConcatLangPairDataset
 
 from .iterators import (
     CountingIterator,
@@ -118,11 +125,13 @@ __all__ = [
     "SampledMultiEpochDataset",
     "ShardedIterator",
     "SortDataset",
+    "SpeechDLMDataset",
     "StripTokenDataset",
     "SubsampleDataset",
     "TokenBlockDataset",
     "TransformEosDataset",
     "TransformEosLangPairDataset",
+    "TransformEosConcatLangPairDataset",
     "TruncateDataset",
     "TruncatedDictionary",
 ]

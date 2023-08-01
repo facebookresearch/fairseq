@@ -4,8 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 import os
-import random
-import string
 import typing as tp
 import unittest
 from collections import Counter
@@ -18,23 +16,7 @@ from fairseq.data.huffman import (
     HuffmanMMapIndexedDataset,
     HuffmanMMapIndexedDatasetBuilder,
 )
-
-POPULATION = string.ascii_letters + string.digits
-
-
-def make_sentence() -> tp.List[str]:
-    length = random.randint(10, 50)
-    return random.choices(
-        population=POPULATION, k=length, weights=range(1, len(POPULATION) + 1)
-    )
-
-
-def make_data(length=1000) -> tp.List[tp.List[str]]:
-    return (
-        [make_sentence() for _ in range(0, length)]
-        # add all the symbols at least once
-        + [list(string.ascii_letters), list(string.digits)]
-    )
+from tests.utils import POPULATION, make_data, sizes
 
 
 def make_counts(data: tp.List[tp.List[str]]) -> Counter:
@@ -110,10 +92,6 @@ def build_dataset(prefix, data, coder):
     with HuffmanMMapIndexedDatasetBuilder(prefix, coder) as builder:
         for sentence in data:
             builder.add_item(sentence)
-
-
-def sizes(data):
-    return [len(sentence) for sentence in data]
 
 
 class TestHuffmanDataset(unittest.TestCase):

@@ -8,15 +8,17 @@ hydra:
   run:
     dir: ${common_eval.results_path}/${dataset.gen_subset}
   sweep:
-    dir: ${common_eval.results_path}
+    dir: /checkpoint/${env:USER}/${env:PREFIX}/${common_eval.results_path}
     subdir: ${dataset.gen_subset}
+common:
+    user_dir: /private/home/abaevski/fairseq-py/examples/data2vec
 common_eval:
   results_path: null
   path: null
   post_process: letter
   quiet: true
 dataset:
-  max_tokens: 1000000
+  max_tokens: 3000000
   gen_subset: test
 distributed_training:
   distributed_world_size: 1

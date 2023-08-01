@@ -10,7 +10,8 @@ from argparse import Namespace
 from typing import Any, Callable, Dict, List
 
 import torch
-from fairseq import metrics, search, tokenizer, utils
+from fairseq import search, tokenizer, utils
+from fairseq.logging import metrics
 from fairseq.data import Dictionary, FairseqDataset, data_utils, encoders, iterators
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import gen_parser_from_dataclass
@@ -22,7 +23,6 @@ logger = logging.getLogger(__name__)
 
 
 class StatefulContainer(object):
-
     def __init__(self):
         self._state = dict()
         self._factories = dict()
@@ -135,7 +135,7 @@ class FairseqTask(object):
         split: str,
         combine: bool = False,
         task_cfg: FairseqDataclass = None,
-        **kwargs
+        **kwargs,
     ):
         """Load a given dataset split.
 
@@ -220,6 +220,9 @@ class FairseqTask(object):
         epoch=1,
         data_buffer_size=0,
         disable_iterator_cache=False,
+        skip_remainder_batch=False,
+        grouped_shuffling=False,
+        update_epoch_batch_itr=False,
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
@@ -252,13 +255,25 @@ class FairseqTask(object):
             disable_iterator_cache (bool, optional): don't cache the
                 EpochBatchIterator (ignores `FairseqTask::can_reuse_epoch_itr`)
                 (default: False).
+            skip_remainder_batch (bool, optional): if set, discard the last
+                batch in each training epoch, as the last batch is often smaller than
+                    local_batch_size * distributed_word_size (default: ``True``).
+            grouped_shuffling (bool, optional): group batches with each groups
+                containing num_shards batches and shuffle groups. Reduces difference
+                between sequence lengths among workers for batches sorted by length.
+            update_epoch_batch_itr (bool optional): if true then donot use the cached
+                batch iterator for the epoch
+
         Returns:
             ~fairseq.iterators.EpochBatchIterator: a batched iterator over the
                 given dataset split
         """
-        can_reuse_epoch_itr = not disable_iterator_cache and self.can_reuse_epoch_itr(
-            dataset
+        can_reuse_epoch_itr = (
+            not disable_iterator_cache
+            and not update_epoch_batch_itr
+            and self.can_reuse_epoch_itr(dataset)
         )
+        logger.info(f"can_reuse_epoch_itr = {can_reuse_epoch_itr}")
         if can_reuse_epoch_itr and dataset in self.dataset_to_epoch_iter:
             logger.debug("reusing EpochBatchIterator for epoch {}".format(epoch))
             return self.dataset_to_epoch_iter[dataset]
@@ -268,23 +283,39 @@ class FairseqTask(object):
         # initialize the dataset with the correct starting epoch
         dataset.set_epoch(epoch)
 
-        # get indices ordered by example size
-        with data_utils.numpy_seed(seed):
-            indices = dataset.ordered_indices()
+        def make_batches(dataset, epoch):
+            logger.info(f"creating new batches for epoch {epoch}")
 
-        # filter examples that are too large
-        if max_positions is not None:
-            indices = self.filter_indices_by_size(
-                indices, dataset, max_positions, ignore_invalid_inputs
+            # get indices ordered by example size
+            with data_utils.numpy_seed(seed + epoch):
+                indices = dataset.ordered_indices()
+
+            # filter examples that are too large
+            if max_positions is not None:
+                indices = self.filter_indices_by_size(
+                    indices, dataset, max_positions, ignore_invalid_inputs
+                )
+
+            # create mini-batches with given size constraints
+            batches = dataset.batch_by_size(
+                indices,
+                max_tokens=max_tokens,
+                max_sentences=max_sentences,
+                required_batch_size_multiple=required_batch_size_multiple,
             )
+            return batches
 
-        # create mini-batches with given size constraints
-        batch_sampler = dataset.batch_by_size(
-            indices,
-            max_tokens=max_tokens,
-            max_sentences=max_sentences,
-            required_batch_size_multiple=required_batch_size_multiple,
-        )
+        reuse_dataloader = getattr(self.cfg, "reuse_dataloader", True)
+        persistent_workers = getattr(self.cfg, "persistent_workers", True)
+        rebuild_batches = getattr(self.cfg, "rebuild_batches", False)
+        logger.info(f"reuse_dataloader = {reuse_dataloader}")
+        logger.info(f"rebuild_batches = {rebuild_batches}")
+
+        if rebuild_batches:
+            logger.info("batches will be rebuilt for each epoch")
+            batch_sampler = make_batches
+        else:
+            batch_sampler = make_batches(dataset, epoch)
 
         # return a reusable, sharded iterator
         epoch_iter = iterators.EpochBatchIterator(
@@ -297,6 +328,10 @@ class FairseqTask(object):
             num_workers=num_workers,
             epoch=epoch,
             buffer_size=data_buffer_size,
+            skip_remainder_batch=skip_remainder_batch,
+            grouped_shuffling=grouped_shuffling,
+            reuse_dataloader=reuse_dataloader,
+            persistent_workers=persistent_workers,
         )
 
         if can_reuse_epoch_itr:
@@ -304,7 +339,7 @@ class FairseqTask(object):
 
         return epoch_iter
 
-    def build_model(self, cfg: FairseqDataclass):
+    def build_model(self, cfg: FairseqDataclass, from_checkpoint=False):
         """
         Build the :class:`~fairseq.models.BaseFairseqModel` instance for this
         task.
@@ -317,11 +352,11 @@ class FairseqTask(object):
         """
         from fairseq import models, quantization_utils
 
-        model = models.build_model(cfg, self)
+        model = models.build_model(cfg, self, from_checkpoint)
         model = quantization_utils.quantize_model_scalar(model, cfg)
         return model
 
-    def build_criterion(self, cfg: DictConfig):
+    def build_criterion(self, cfg: DictConfig, from_checkpoint=False):
         """
         Build the :class:`~fairseq.criterions.FairseqCriterion` instance for
         this task.
@@ -334,10 +369,15 @@ class FairseqTask(object):
         """
         from fairseq import criterions
 
-        return criterions.build_criterion(cfg, self)
+        return criterions.build_criterion(cfg, self, from_checkpoint=from_checkpoint)
 
     def build_generator(
-        self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None, prefix_allowed_tokens_fn=None,
+        self,
+        models,
+        args,
+        seq_gen_cls=None,
+        extra_gen_cls_kwargs=None,
+        prefix_allowed_tokens_fn=None,
     ):
         """
         Build a :class:`~fairseq.SequenceGenerator` instance for this
@@ -589,13 +629,13 @@ class FairseqTask(object):
     def source_dictionary(self):
         """Return the source :class:`~fairseq.data.Dictionary` (if applicable
         for this task)."""
-        raise NotImplementedError
+        return None
 
     @property
     def target_dictionary(self):
         """Return the target :class:`~fairseq.data.Dictionary` (if applicable
         for this task)."""
-        raise NotImplementedError
+        return None
 
     def build_tokenizer(self, args):
         """Build the pre-tokenizer for this task."""
@@ -635,7 +675,7 @@ class LegacyFairseqTask(FairseqTask):
     def has_sharded_data(self, split):
         return os.pathsep in getattr(self.args, "data", "")
 
-    def build_model(self, args: Namespace):
+    def build_model(self, args: Namespace, from_checkpoint=False):
         """
         Build the :class:`~fairseq.models.BaseFairseqModel` instance for this
         task.
@@ -648,7 +688,7 @@ class LegacyFairseqTask(FairseqTask):
         """
         from fairseq import models, quantization_utils
 
-        model = models.build_model(args, self)
+        model = models.build_model(args, self, from_checkpoint)
         model = quantization_utils.quantize_model_scalar(model, args)
         return model
 

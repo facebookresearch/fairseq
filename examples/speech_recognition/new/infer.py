@@ -10,6 +10,7 @@ import logging
 import os
 import shutil
 import sys
+import re
 from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -101,6 +102,29 @@ class InferenceProcessor:
         self.task = tasks.setup_task(cfg.task)
 
         models, saved_cfg = self.load_model_ensemble()
+
+        ### LOAD ADAPTER ####
+        ckpt_obj = checkpoint_utils.load_checkpoint_to_cpu(self.cfg.common_eval.path)
+        if "adapter" in ckpt_obj:
+            target_lang = self.cfg.dataset.gen_subset.split(":")[0]
+            assert target_lang in ckpt_obj["adapter"]
+            
+            logger.info(f">>> LOADING ADAPTER: {target_lang}")
+            ft_obj = ckpt_obj["adapter"][target_lang]
+            ft_model = ft_obj["model"]
+            cdevice = models[0].w2v_encoder.proj.weight.device
+            cdtype = models[0].w2v_encoder.proj.weight.dtype
+            ft_proj_out, ft_proj_in = ft_model["w2v_encoder.proj.weight"].shape
+            ft_proj = torch.nn.Linear(ft_proj_in, ft_proj_out, bias=True)
+            ft_proj.to(device=cdevice, dtype=cdtype)
+            models[0].w2v_encoder.proj = ft_proj
+            with torch.no_grad():
+                for kk, vv in models[0].named_parameters():
+                    if kk in ft_model:
+                        vv.copy_(ft_model[kk])
+            self.task.load_state_dict(ft_obj["task_state"])
+            # overwrite gen_subset with master config
+            self.cfg.dataset.gen_subset = re.sub('^[\w-]+:', saved_cfg['task']['multi_corpus_keys']+":", self.cfg.dataset.gen_subset)
         self.models = models
         self.saved_cfg = saved_cfg
         self.tgt_dict = self.task.target_dictionary
@@ -334,8 +358,8 @@ class InferenceProcessor:
             self.num_sentences,
             self.gen_timer.n,
             self.gen_timer.sum,
-            self.num_sentences / self.gen_timer.sum,
-            1.0 / self.gen_timer.avg,
+            self.num_sentences / (self.gen_timer.sum + 1e-6),
+            1.0 / (self.gen_timer.avg + 1e-6),
         )
 
 
@@ -378,6 +402,8 @@ def main(cfg: InferConfig) -> float:
     if not cfg.common.cpu and not torch.cuda.is_available():
         raise ValueError("CUDA not found; set `cpu=True` to run without CUDA")
 
+    logger.info(cfg.common_eval.path)
+
     with InferenceProcessor(cfg) as processor:
         for sample in processor:
             processor.process_sample(sample)
@@ -419,6 +445,8 @@ def hydra_main(cfg: InferConfig) -> Union[float, Tuple[float, Optional[float]]]:
 
     if cfg.common.reset_logging:
         reset_logging()
+
+    utils.import_user_module(cfg.common)
 
     # logger.info("Config:\n%s", OmegaConf.to_yaml(cfg))
     wer = float("inf")

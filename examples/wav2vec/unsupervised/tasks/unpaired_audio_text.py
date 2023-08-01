@@ -54,6 +54,10 @@ class UnpairedAudioTextConfig(FairseqDataclass):
         default=None,
         metadata={"help": "extension of the label file to load, used for fine-tuning"},
     )
+    aux_target_postfix: Optional[str] = field(
+        default=None,
+        metadata={"help": "auxaliry target filename extension"},
+    )
     unfiltered: bool = field(
         default=False, metadata={"help": "load data with _unfiltered suffix"}
     )
@@ -302,6 +306,7 @@ class UnpairedAudioText(FairseqTask):
             label_dict=self.target_dictionary,
             shuffle=getattr(task_cfg, "shuffle", True),
             sort_by_length=task_cfg.sort_by_length,
+            aux_target_postfix=task_cfg.aux_target_postfix,
         )
 
         logger.info(f"split {split} has unpaired text? {has_unpaired_text}")
@@ -441,7 +446,7 @@ class UnpairedAudioText(FairseqTask):
                     / meters["nsentences"].sum,
                 )
 
-    def build_model(self, cfg: FairseqDataclass):
+    def build_model(self, cfg: FairseqDataclass, from_checkpoint=False):
         model = super().build_model(cfg)
 
         return model

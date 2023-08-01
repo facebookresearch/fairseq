@@ -5,7 +5,7 @@
 
 import unittest
 
-from fairseq.data import iterators
+from fairseq.data import iterators, ListDataset
 
 
 class TestIterators(unittest.TestCase):
@@ -131,6 +131,63 @@ class TestIterators(unittest.TestCase):
         self.assertEqual(next(itr), ref[0])
         self.assertFalse(itr.has_next())
         self.assertRaises(StopIteration, next, buffered_itr)
+
+    def test_epoch_batch_iterator_skip_remainder_batch(self):
+        reference = [1, 2, 3]
+        itr1 = _get_epoch_batch_itr(reference, 2, True)
+        self.assertEqual(len(itr1), 1)
+        itr2 = _get_epoch_batch_itr(reference, 2, False)
+        self.assertEqual(len(itr2), 2)
+        itr3 = _get_epoch_batch_itr(reference, 1, True)
+        self.assertEqual(len(itr3), 2)
+        itr4 = _get_epoch_batch_itr(reference, 1, False)
+        self.assertEqual(len(itr4), 3)
+        itr5 = _get_epoch_batch_itr(reference, 4, True)
+        self.assertEqual(len(itr5), 0)
+        self.assertFalse(itr5.has_next())
+        itr6 = _get_epoch_batch_itr(reference, 4, False)
+        self.assertEqual(len(itr6), 1)
+
+    def test_grouped_iterator_skip_remainder_batch(self):
+        reference = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        itr1 = _get_epoch_batch_itr(reference, 3, False)
+        grouped_itr1 = iterators.GroupedIterator(itr1, 2, True)
+        self.assertEqual(len(grouped_itr1), 1)
+
+        itr2 = _get_epoch_batch_itr(reference, 3, False)
+        grouped_itr2 = iterators.GroupedIterator(itr2, 2, False)
+        self.assertEqual(len(grouped_itr2), 2)
+
+        itr3 = _get_epoch_batch_itr(reference, 3, True)
+        grouped_itr3 = iterators.GroupedIterator(itr3, 2, True)
+        self.assertEqual(len(grouped_itr3), 1)
+
+        itr4 = _get_epoch_batch_itr(reference, 3, True)
+        grouped_itr4 = iterators.GroupedIterator(itr4, 2, False)
+        self.assertEqual(len(grouped_itr4), 1)
+
+        itr5 = _get_epoch_batch_itr(reference, 5, True)
+        grouped_itr5 = iterators.GroupedIterator(itr5, 2, True)
+        self.assertEqual(len(grouped_itr5), 0)
+
+        itr6 = _get_epoch_batch_itr(reference, 5, True)
+        grouped_itr6 = iterators.GroupedIterator(itr6, 2, False)
+        self.assertEqual(len(grouped_itr6), 1)
+
+
+def _get_epoch_batch_itr(ref, bsz, skip_remainder_batch):
+    dsz = len(ref)
+    indices = range(dsz)
+    starts = indices[::bsz]
+    batch_sampler = [indices[s : s + bsz] for s in starts]
+    dataset = ListDataset(ref)
+    itr = iterators.EpochBatchIterator(
+        dataset=dataset,
+        collate_fn=dataset.collater,
+        batch_sampler=batch_sampler,
+        skip_remainder_batch=skip_remainder_batch,
+    )
+    return itr.next_epoch_itr()
 
 
 if __name__ == "__main__":

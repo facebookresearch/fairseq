@@ -76,6 +76,18 @@ class FullyShardedDataParallel(FSDP):
             return super().load_state_dict(state_dict, strict=strict)
 
 
+class DummyProcessGroup:
+    def __init__(self, rank: int, size: int):
+        self._rank = rank
+        self._size = size
+
+    def rank(self) -> int:
+        return self._rank
+
+    def size(self) -> int:
+        return self._size
+
+
 @contextlib.contextmanager
 def fsdp_enable_wrap(cfg: DistributedTrainingConfig):
     try:
@@ -89,15 +101,13 @@ def fsdp_enable_wrap(cfg: DistributedTrainingConfig):
         assert cfg.fp16  # memory_efficient_fp16 should imply fp16
     group = dist_utils.get_data_parallel_group()
     if group is None and cfg.distributed_world_size == 1:
-        from fairscale.utils.testing import DummyProcessGroup
-
         group = DummyProcessGroup(rank=0, size=1)
     fsdp_config = {
         "process_group": group,
         "reshard_after_forward": not cfg.no_reshard_after_forward,
         "mixed_precision": cfg.fp16 and not cfg.memory_efficient_fp16,
         "fp32_reduce_scatter": cfg.fp32_reduce_scatter,
-        "flatten_parameters": True,
+        "flatten_parameters": not cfg.not_fsdp_flatten_parameters,
         "cpu_offload": cfg.cpu_offload,
         "compute_dtype": torch.float16 if cfg.fp16 else torch.float32,
         "bucket_cap_mb": cfg.bucket_cap_mb,

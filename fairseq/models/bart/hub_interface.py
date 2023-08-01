@@ -100,8 +100,8 @@ class BARTHubInterface(GeneratorHubInterface):
             raise NotImplementedError("prefix generation not implemented for BART")
         res = []
         for batch in self._build_batches(tokenized_sentences, skip_invalid_size_inputs):
-            src_tokens = batch['net_input']['src_tokens']
-            inference_step_args["prefix_tokens"] =src_tokens.new_full(
+            src_tokens = batch["net_input"]["src_tokens"]
+            inference_step_args["prefix_tokens"] = src_tokens.new_full(
                 (src_tokens.size(0), 1), fill_value=self.task.source_dictionary.bos()
             ).to(device=self.device)
             results = super().generate(
@@ -111,7 +111,7 @@ class BARTHubInterface(GeneratorHubInterface):
                 skip_invalid_size_inputs=skip_invalid_size_inputs,
                 **kwargs
             )
-            for id, hypos in zip(batch['id'].tolist(), results):
+            for id, hypos in zip(batch["id"].tolist(), results):
                 res.append((id, hypos))
         res = [hypos for _, hypos in sorted(res, key=lambda x: x[0])]
         return res
@@ -177,32 +177,35 @@ class BARTHubInterface(GeneratorHubInterface):
         match_source_len: bool = True,
         **generate_kwargs
     ):
-        masked_token = '<mask>'
+        masked_token = "<mask>"
         batch_tokens = []
         for masked_input in masked_inputs:
-            assert masked_token in masked_input, \
-                "please add one {} token for the input".format(masked_token)
+            assert (
+                masked_token in masked_input
+            ), "please add one {} token for the input".format(masked_token)
 
             text_spans = masked_input.split(masked_token)
-            text_spans_bpe = (' {0} '.format(masked_token)).join(
-                [self.bpe.encode(text_span.rstrip()) for text_span in text_spans]
-            ).strip()
+            text_spans_bpe = (
+                (" {0} ".format(masked_token))
+                .join([self.bpe.encode(text_span.rstrip()) for text_span in text_spans])
+                .strip()
+            )
             tokens = self.task.source_dictionary.encode_line(
-                '<s> ' + text_spans_bpe + ' </s>',
+                "<s> " + text_spans_bpe + " </s>",
                 append_eos=False,
                 add_if_not_exist=False,
             ).long()
             batch_tokens.append(tokens)
 
         # ensure beam size is at least as big as topk
-        generate_kwargs['beam'] = max(
+        generate_kwargs["beam"] = max(
             topk,
-            generate_kwargs.get('beam', -1),
+            generate_kwargs.get("beam", -1),
         )
-        generate_kwargs['match_source_len'] = match_source_len
+        generate_kwargs["match_source_len"] = match_source_len
         batch_hypos = self.generate(batch_tokens, **generate_kwargs)
 
         return [
-            [(self.decode(hypo['tokens']), hypo['score']) for hypo in hypos[:topk]]
+            [(self.decode(hypo["tokens"]), hypo["score"]) for hypo in hypos[:topk]]
             for hypos in batch_hypos
         ]

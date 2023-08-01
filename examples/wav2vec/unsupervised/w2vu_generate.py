@@ -68,6 +68,10 @@ class UnsupGenerateConfig(FairseqDataclass):
         default=None,
         metadata={"help": "path to language model (kenlm or fairseq)"},
     )
+    decode_stride: Optional[float] = field(
+        default=None,
+        metadata={"help": "changing the decoding frequency of the generator"},
+    )
     unit_lm: bool = field(
         default=False,
         metadata={"help": "whether to use unit lm"},
@@ -590,6 +594,9 @@ def main(cfg: UnsupGenerateConfig, model=None):
             "blank_weight": cfg.blank_weight,
             "blank_mode": cfg.blank_mode,
         }
+    
+    if cfg.decode_stride:
+        overrides["model"]["generator_stride"] = cfg.decode_stride
 
     if model is None:
         # Load ensemble
@@ -645,7 +652,7 @@ def main(cfg: UnsupGenerateConfig, model=None):
 
     lm_ppl = max(cfg.min_lm_ppl, lm_ppl)
 
-    if not cfg.unsupervised_tuning == 0:
+    if not cfg.unsupervised_tuning:
         weighted_score = wer
     else:
         weighted_score = math.log(lm_ppl) * (vt_diff or 1.0)

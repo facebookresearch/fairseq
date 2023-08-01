@@ -9,20 +9,24 @@ from fairseq import utils
 from fairseq.data import LanguagePairDataset
 from fairseq.dataclass import ChoiceEnum
 from fairseq.tasks import register_task
-from fairseq.tasks.translation import TranslationConfig, TranslationTask, load_langpair_dataset
+from fairseq.tasks.translation import (
+    TranslationConfig,
+    TranslationTask,
+    load_langpair_dataset,
+)
 from fairseq.utils import new_arange
 
 
 NOISE_CHOICES = ChoiceEnum(["random_delete", "random_mask", "no_noise", "full_mask"])
 
+
 @dataclass
 class TranslationLevenshteinConfig(TranslationConfig):
     noise: NOISE_CHOICES = field(
         default="random_delete",
-        metadata={
-            "help": "type of noise"
-        },
+        metadata={"help": "type of noise"},
     )
+
 
 @register_task("translation_lev", dataclass=TranslationLevenshteinConfig)
 class TranslationLevenshteinTask(TranslationTask):

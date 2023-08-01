@@ -10,7 +10,8 @@ from typing import List, Optional
 
 import torch
 import torch.nn.functional as F
-from fairseq import metrics, utils
+from fairseq import utils
+from fairseq.logging import metrics
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import FairseqDataclass
 
@@ -37,7 +38,14 @@ class HubertCriterionConfig(FairseqDataclass):
 
 @register_criterion("hubert", dataclass=HubertCriterionConfig)
 class HubertCriterion(FairseqCriterion):
-    def __init__(self, task, pred_masked_weight, pred_nomask_weight, loss_weights=None, log_keys=None):
+    def __init__(
+        self,
+        task,
+        pred_masked_weight,
+        pred_nomask_weight,
+        loss_weights=None,
+        log_keys=None,
+    ):
         super().__init__(task)
         self.pred_masked_weight = pred_masked_weight
         self.pred_nomask_weight = pred_nomask_weight
@@ -52,7 +60,7 @@ class HubertCriterion(FairseqCriterion):
         3) logging outputs to display while training
         """
         net_output = model(target_list=sample["target_list"], **sample["net_input"])
-        loss = 0.
+        loss = 0.0
         sample_size = 0
         logging_output = {}
         reduction = "sum" if reduce else "none"
@@ -89,7 +97,9 @@ class HubertCriterion(FairseqCriterion):
                 names = [names]
             if len(self.loss_weights) == 1 and len(extra_losses) != 1:
                 self.loss_weights = [self.loss_weights[0]] * len(extra_losses)
-            assert len(extra_losses) == len(self.loss_weights), f"{len(extra_losses)}, {len(self.loss_weights)}"
+            assert len(extra_losses) == len(
+                self.loss_weights
+            ), f"{len(extra_losses)}, {len(self.loss_weights)}"
             for p, n, coef in zip(extra_losses, names, self.loss_weights):
                 if coef != 0 and p is not None:
                     p = coef * p.float() * sample_size
@@ -140,12 +150,20 @@ class HubertCriterion(FairseqCriterion):
         ntokens = sum(log.get("ntokens", 0) for log in logging_outputs)
         sample_size = sum(log.get("sample_size", 0) for log in logging_outputs)
 
-        metrics.log_scalar("loss", loss_sum / sample_size / math.log(2), sample_size, round=3)
+        metrics.log_scalar(
+            "loss", loss_sum / sample_size / math.log(2), sample_size, round=3
+        )
         if sample_size != ntokens:
-            metrics.log_scalar("nll_loss", loss_sum / ntokens / math.log(2), ntokens, round=3)
-            metrics.log_derived("ppl", lambda meters: utils.get_perplexity(meters["nll_loss"].avg))
+            metrics.log_scalar(
+                "nll_loss", loss_sum / ntokens / math.log(2), ntokens, round=3
+            )
+            metrics.log_derived(
+                "ppl", lambda meters: utils.get_perplexity(meters["nll_loss"].avg)
+            )
         else:
-            metrics.log_derived("ppl", lambda meters: utils.get_perplexity(meters["loss"].avg))
+            metrics.log_derived(
+                "ppl", lambda meters: utils.get_perplexity(meters["loss"].avg)
+            )
 
         counts = {}
         for lk in logging_outputs[0].keys():

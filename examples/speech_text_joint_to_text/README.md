@@ -5,17 +5,16 @@ An extension of Fairseq s2t project with the speech to text task enhanced by the
 Examples of speech text joint training in fairseq
 - [English-to-German MuST-C model](docs/ende-mustc.md)
 - [IWSLT 2021 Multilingual Speech Translation](docs/iwslt2021.md)
-
+- [Speech Text Joint Pre-training ](docs/pre-training.md)
 ## Citation
 Please cite as:
 ```
-@inproceedings{Tang2021AGM,
-  title={A General Multi-Task Learning Framework to Leverage Text Data for Speech to Text Tasks},
-  author={Yun Tang and J. Pino and Changhan Wang and Xutai Ma and Dmitriy Genzel},
-  booktitle={ICASSP},
-  year={2021}
+@inproceedings{Tang2022UnifiedSP,
+  title={Unified Speech-Text Pre-training for Speech Translation and Recognition},
+  author={Yun Tang and Hongyu Gong and Ning Dong and Changhan Wang and Wei-Ning Hsu and Jiatao Gu and Alexei Baevski and Xian Li and Abdelrahman Mohamed and Michael Auli and Juan Miguel Pino},
+  booktitle={ACL},
+  year={2022}
 }
-
 @inproceedings{Tang2021IST,
   title = {Improving Speech Translation by Understanding and Learning from the Auxiliary Text Translation Task},
   author = {Yun Tang and Juan Pino and Xian Li and Changhan Wang and Dmitriy Genzel},
@@ -28,6 +27,12 @@ Please cite as:
   author = {Yun Tang and Hongyu Gong and Xian Li and Changhan Wang  and Juan Pino and  Holger Schwenk and  Naman Goyal},
   booktitle = {IWSLT},
   year = {2021},
+}
+@inproceedings{Tang2021AGM,
+  title={A General Multi-Task Learning Framework to Leverage Text Data for Speech to Text Tasks},
+  author={Yun Tang and J. Pino and Changhan Wang and Xutai Ma and Dmitriy Genzel},
+  booktitle={ICASSP},
+  year={2021}
 }
 
 @inproceedings{wang2020fairseqs2t,

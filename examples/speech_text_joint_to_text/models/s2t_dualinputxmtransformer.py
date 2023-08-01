@@ -14,10 +14,11 @@ from fairseq.models import (
     register_model_architecture,
     FairseqEncoder,
 )
-from fairseq.models.speech_to_text import XMTransformerModel, Wav2VecEncoderWithAdaptor
+from fairseq.models.speech_to_text import Wav2VecEncoderWithAdaptor
 from fairseq.models.speech_to_text.xm_transformer import (
     set_default_adaptor_args,
     set_default_w2v_encoder_args,
+    need_finetuning
 )
 from fairseq.models.transformer import TransformerEncoder, TransformerDecoder
 from fairseq.models.wav2vec import TransformerSentenceEncoderLayer
@@ -442,7 +443,7 @@ class DualInputXMTransformerModel(DualInputS2TTransformerModel):
             # Freeze pretrained models by default
             if safe_hasattr(
                 args, "finetune_w2v_params"
-            ) and XMTransformerModel.finetune_params(args.finetune_w2v_params, k):
+            ) and need_finetuning(args.finetune_w2v_params, k):
                 p.requires_grad = True
             else:
                 p.requires_grad = False
@@ -450,7 +451,7 @@ class DualInputXMTransformerModel(DualInputS2TTransformerModel):
             # Freeze pretrained models by default
             if safe_hasattr(
                 args, "finetune_mbart_encoder_params"
-            ) and XMTransformerModel.finetune_params(
+            ) and need_finetuning(
                 args.finetune_mbart_encoder_params, k
             ):
                 p.requires_grad = True
@@ -489,7 +490,7 @@ class DualInputXMTransformerModel(DualInputS2TTransformerModel):
             # Freeze pretrained models by default
             if safe_hasattr(
                 args, "finetune_mbart_decoder_params"
-            ) and XMTransformerModel.finetune_params(
+            ) and need_finetuning(
                 args.finetune_mbart_decoder_params, k
             ):
                 p.requires_grad = True

@@ -20,9 +20,16 @@ class LocationAttention(nn.Module):
     :param int conv_kernel_size: filter size of attention convolution
     """
 
-    def __init__(self, attn_dim, encoder_dim, decoder_dim,
-                 attn_state_kernel_size, conv_dim, conv_kernel_size,
-                 scaling=2.0):
+    def __init__(
+        self,
+        attn_dim,
+        encoder_dim,
+        decoder_dim,
+        attn_state_kernel_size,
+        conv_dim,
+        conv_kernel_size,
+        scaling=2.0,
+    ):
         super(LocationAttention, self).__init__()
         self.attn_dim = attn_dim
         self.decoder_dim = decoder_dim
@@ -30,9 +37,13 @@ class LocationAttention(nn.Module):
         self.proj_enc = nn.Linear(encoder_dim, attn_dim)
         self.proj_dec = nn.Linear(decoder_dim, attn_dim, bias=False)
         self.proj_attn = nn.Linear(conv_dim, attn_dim, bias=False)
-        self.conv = nn.Conv1d(attn_state_kernel_size, conv_dim,
-                              2 * conv_kernel_size + 1,
-                              padding=conv_kernel_size, bias=False)
+        self.conv = nn.Conv1d(
+            attn_state_kernel_size,
+            conv_dim,
+            2 * conv_kernel_size + 1,
+            padding=conv_kernel_size,
+            bias=False,
+        )
         self.proj_out = nn.Sequential(nn.Tanh(), nn.Linear(attn_dim, 1))
 
         self.proj_enc_out = None  # cache

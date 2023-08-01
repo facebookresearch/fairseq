@@ -208,6 +208,13 @@ def parse_args_and_arch(
     else:
         args.no_seed_provided = False
 
+    if getattr(args, "update_epoch_batch_itr", None) is None:
+        if hasattr(args, "grouped_shuffling"):
+            args.update_epoch_batch_itr = args.grouped_shuffling
+        else:
+            args.grouped_shuffling = False
+            args.update_epoch_batch_itr = False
+
     # Apply architecture configuration.
     if hasattr(args, "arch") and args.arch in ARCH_CONFIG_REGISTRY:
         ARCH_CONFIG_REGISTRY[args.arch](args)

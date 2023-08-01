@@ -41,7 +41,11 @@ sclite -r ${RES_DIR}/ref.word-checkpoint_last.pt-${SET}.txt -h ${RES_DIR}/hypo.w
 * flashlight-style Conv/GLU model
 * flashlight's beam search decoder
 
-To use these, follow the instructions on [this page](https://github.com/facebookresearch/flashlight/tree/master/bindings/python) to install python bindings.
+To use these, follow the instructions on [this page](https://github.com/flashlight/flashlight/tree/e16682fa32df30cbf675c8fe010f929c61e3b833/bindings/python) to install python bindings. **Flashlight v0.3.2** must be used to install the bindings. Running:
+```
+git clone --branch v0.3.2 https://github.com/flashlight/flashlight
+```
+will properly clone and check out this version.
 
 ## Training librispeech data (flashlight style, Conv/GLU + ASG loss)
 Training command:

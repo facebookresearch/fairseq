@@ -1,0 +1,15 @@
+# @package _global_
+hydra:
+  sweep:
+    dir: ${env:PWD}/tmp_dbg/${now:%H-%M-%S}
+
+distributed_training:
+  distributed_world_size: 1
+  nprocs_per_node: 1
+  distributed_port: -1
+  
+common:
+  log_interval: 1
+  
+dataset:
+  num_workers: 0
