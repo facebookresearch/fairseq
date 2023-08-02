@@ -12,9 +12,11 @@ args = parser.parse_args()
 tasks_path = 'projects/retri/signclip/'
 tasks = [
     'test_asl_signs',
+    'test_asl_signs_full',
 ]
 notes = [
     'pose without face',
+    'pose with full face',
 ]
 
 results = {}

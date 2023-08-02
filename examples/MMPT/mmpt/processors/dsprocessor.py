@@ -1081,13 +1081,59 @@ class ASLSignMetaProcessor(MetaProcessor):
 
 
 class ASLSignPoseProcessor(PoseProcessor):
+    NOSE = [
+        1,2,98,327
+    ]
+    LIP = [ 0, 
+        61, 185, 40, 39, 37, 267, 269, 270, 409,
+        291, 146, 91, 181, 84, 17, 314, 405, 321, 375,
+        78, 191, 80, 81, 82, 13, 312, 311, 310, 415,
+        95, 88, 178, 87, 14, 317, 402, 318, 324, 308,
+    ]
+    REYE = [
+        33, 7, 163, 144, 145, 153, 154, 155, 133,
+        246, 161, 160, 159, 158, 157, 173,
+    ]
+    LEYE = [
+        263, 249, 390, 373, 374, 380, 381, 382, 362,
+        466, 388, 387, 386, 385, 384, 398,
+    ]
+    FACE = NOSE + LIP + REYE + LEYE
+    FACE_FULL = np.arange(0, 468).tolist()
+
+    LHAND = np.arange(468, 489).tolist()
+    POSE = np.arange(489, 522).tolist()
+    RHAND = np.arange(522, 543).tolist()
+    BODY = LHAND + POSE + RHAND
+
     def __call__(self, video_id):
         pose_df = pq.read_table(os.path.join(self.vfeat_dir, video_id)).to_pandas()
-        pose_df = pose_df[pose_df['type'].isin(self.pose_components)]
-        # print(pose_df)
+        # pd.set_option('display.max_rows', None)
+        # print(pose_df[pose_df['frame'] == 18])
+        # exit()
+        # pose_df = pose_df[pose_df['type'].isin(self.pose_components)]
+
+        points = []
+        if "face" in self.pose_components:
+            points = points + self.FACE
+        if "face_full" in self.pose_components:
+            points = points + self.FACE_FULL
+        if "left_hand" in self.pose_components:
+            points = points + self.LHAND
+        if "pose" in self.pose_components:
+            points = points + self.POSE    
+        if "right_hand" in self.pose_components:
+            points = points + self.RHAND
 
         num_frames = len(pose_df['frame'].drop_duplicates())
-        pose_data = np.nan_to_num(pose_df[['x', 'y', 'z']].to_numpy()).reshape(num_frames, -1)
+        dimensions = ['x', 'y', 'z']
+
+        pose_data = pose_df[dimensions].to_numpy().reshape(num_frames, -1, len(dimensions))
+        pose_data = pose_data[:, points, :]
+        # print(pose_data)
         # print(pose_data.shape)
+        # exit()
+        pose_data = pose_data.reshape(num_frames, -1)
+        pose_data = np.nan_to_num(pose_data)
         
         return pose_data
