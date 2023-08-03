@@ -1098,7 +1098,7 @@ class ASLSignPoseProcessor(PoseProcessor):
         263, 249, 390, 373, 374, 380, 381, 382, 362,
         466, 388, 387, 386, 385, 384, 398,
     ]
-    FACE = NOSE + LIP + REYE + LEYE
+    FACE = sorted(NOSE + LIP + REYE + LEYE)
     FACE_FULL = np.arange(0, 468).tolist()
 
     LHAND = np.arange(468, 489).tolist()
@@ -1108,9 +1108,10 @@ class ASLSignPoseProcessor(PoseProcessor):
 
     def __call__(self, video_id):
         pose_df = pq.read_table(os.path.join(self.vfeat_dir, video_id)).to_pandas()
+
         # pd.set_option('display.max_rows', None)
         # print(pose_df[pose_df['frame'] == 18])
-        # exit()
+
         # pose_df = pose_df[pose_df['type'].isin(self.pose_components)]
 
         points = []
@@ -1130,9 +1131,7 @@ class ASLSignPoseProcessor(PoseProcessor):
 
         pose_data = pose_df[dimensions].to_numpy().reshape(num_frames, -1, len(dimensions))
         pose_data = pose_data[:, points, :]
-        # print(pose_data)
-        # print(pose_data.shape)
-        # exit()
+
         pose_data = pose_data.reshape(num_frames, -1)
         pose_data = np.nan_to_num(pose_data)
         

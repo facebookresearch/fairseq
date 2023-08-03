@@ -29,6 +29,27 @@ except ImportError:
     pass
 
 
+class VideoConv1D(nn.Module):
+    def __init__(self, config, kernel_size=17):
+        super().__init__()
+        self.num_layers = config.conv1d
+        input_dim = config.input_dim if hasattr(config, "input_dim") else 512
+        for i in range(self.num_layers):
+            setattr(self, f'conv1d_{i}', nn.Conv1d(input_dim, input_dim, kernel_size))
+        # self.conv1d = nn.Conv1d(input_dim, input_dim, kernel_size)
+
+    def forward(self, hidden_states):
+        hidden_states = torch.swapaxes(hidden_states, 1, 2)
+        print(hidden_states.shape)
+        for i in range(self.num_layers):
+            hidden_states = getattr(self, f'conv1d_{i}')(hidden_states)
+        # hidden_states = self.conv1d(hidden_states)
+        print(hidden_states.shape)
+        hidden_states = torch.swapaxes(hidden_states, 1, 2)
+        exit()
+        return hidden_states
+
+
 class VideoTokenMLP(nn.Module):
     def __init__(self, config):
         super().__init__()

@@ -13,10 +13,12 @@ tasks_path = 'projects/retri/signclip/'
 tasks = [
     'test_asl_signs',
     'test_asl_signs_full',
+    'test_asl_signs_face',
 ]
 notes = [
     'pose without face',
     'pose with full face',
+    'pose with selected face points (nose, lips, eyes)',
 ]
 
 results = {}
