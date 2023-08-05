@@ -213,6 +213,7 @@ class LanguagePairDataset(FairseqDataset):
         tgt=None,
         tgt_sizes=None,
         tgt_dict=None,
+        scores=None,
         left_pad_source=True,
         left_pad_target=False,
         shuffle=True,
@@ -250,7 +251,6 @@ class LanguagePairDataset(FairseqDataset):
             if self.tgt_sizes is not None
             else self.src_sizes
         )
-        print('done')
         self.src_dict = src_dict
         self.tgt_dict = tgt_dict
         self.left_pad_source = left_pad_source
@@ -298,8 +298,7 @@ class LanguagePairDataset(FairseqDataset):
             # the padded lengths (thanks to BucketPadLengthDataset)
             num_tokens = np.vectorize(self.num_tokens, otypes=[np.compat.long])
             self.bucketed_num_tokens = num_tokens(np.arange(len(self.src)))
-            self.buckets = [
-                (None, num_tokens) for num_tokens in np.unique(self.bucketed_num_tokens)
+            self.buckets = [   (None, num_tokens) for num_tokens in np.unique(self.bucketed_num_tokens)
             ]
         else:
             self.buckets = None
@@ -310,13 +309,16 @@ class LanguagePairDataset(FairseqDataset):
 
     def __getitem__(self, index):
         # tgt_item = self.tgt[index] if self.tgt is not None and index < len(self.tgt) else None
+        # index refers to the list index
         src_item = self.src[index] if index <len(self.src) else None
         # Get the first target language item
-        tgt_item = self.tgt[index *2]
-        tgt_item_1 = self.tgt[index *2 +1]
-        # tgt_item = [ ]
-        # for i in range(2):
-        #    tgt_item = self.tgt[index * 2 + i] if self.tgt is not None and index * 2 + i < len(self.tgt) else None
+        # tgt_item = self.tgt[index *2]
+        # tgt_item_1 = self.tgt[index *2 +1]
+        tgt_item = []
+        score_item = []
+        for i in range(16):
+            tgt_item.append(self.tgt[index * 16 + i]) 
+            score_item.append(self.scores[index * 16 + i])
         #    tgt_item.append(tgt_item)
         # Append EOS to end of tgt sentence if it does not have an EOS and remove
         # EOS from end of src sentence if it exists. This is useful when we use
@@ -344,8 +346,8 @@ class LanguagePairDataset(FairseqDataset):
         example = {
             "id": index,
             "source": src_item,
-            "target": tgt_item_1,
-            "target_1": tgt_item_1,
+            "target": tgt_item[0],
+            "score": score_item,
         }
         print(example)
     
