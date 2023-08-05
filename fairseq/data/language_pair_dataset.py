@@ -162,7 +162,7 @@ def collate(
         for i, sample in enumerate(samples):
             constraints[i, 0 : lens[i]] = samples[i].get("constraints")
         batch["constraints"] = constraints.index_select(0, sort_order)
-    print
+    
     return batch
 
 
@@ -243,7 +243,7 @@ class LanguagePairDataset(FairseqDataset):
 
         self.tgt_sizes = np.array(tgt_sizes) if tgt_sizes is not None else None
         print(len(tgt_sizes))
-        self.src_sizes = np.repeat(self.src_sizes, 2)
+        self.src_sizes = np.repeat(self.src_sizes, 16)
     
         self.sizes = (
             np.vstack((self.src_sizes, self.tgt_sizes)).T
@@ -347,6 +347,7 @@ class LanguagePairDataset(FairseqDataset):
             "target": tgt_item_1,
             "target_1": tgt_item_1,
         }
+        print(example)
     
         if self.align_dataset is not None:
             example["alignment"] = self.align_dataset[index]
