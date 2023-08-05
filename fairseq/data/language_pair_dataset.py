@@ -240,10 +240,10 @@ class LanguagePairDataset(FairseqDataset):
         self.src = src
         self.tgt = tgt
         self.src_sizes = np.array(src_sizes)
-        print(len(self.src_sizes))
+        
 
         self.tgt_sizes = np.array(tgt_sizes) if tgt_sizes is not None else None
-        print(len(tgt_sizes))
+        
         self.src_sizes = np.repeat(self.src_sizes, 16)
     
         self.sizes = (
