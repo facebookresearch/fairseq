@@ -14,11 +14,13 @@ tasks = [
     'test_asl_signs',
     'test_asl_signs_full',
     'test_asl_signs_face',
+    'test_asl_signs_face_conv',
 ]
 notes = [
     'pose without face',
     'pose with full face',
     'pose with selected face points (nose, lips, eyes)',
+    'pose with selected face points + 2xconv1d',
 ]
 
 results = {}

@@ -2,3 +2,4 @@
 test_asl_signs,0.9080,0.8408,0.7472,1.0,0.6079,0.8492,0.9066,1,pose without face
 test_asl_signs_full,0.9200,0.8424,0.7432,1.0,0.5856,0.8471,0.9058,1,pose with full face
 test_asl_signs_face,0.9400,0.8848,0.8020,1.0,0.6346,0.8768,0.9183,1,"pose with selected face points (nose, lips, eyes)"
+test_asl_signs_face_conv,0.8920,0.8232,0.7200,1.0,0.5560,0.8173,0.8793,1,pose with selected face points + 2xconv1d
