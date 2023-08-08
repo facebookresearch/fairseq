@@ -46,6 +46,7 @@ def collate_tokens(
     pad_to_bsz=None,
 ):
     """Convert a list of 1d tensors into a padded 2d tensor."""
+
     size = max(v.size(0) for v in values)
     size = size if pad_to_length is None else max(size, pad_to_length)
     if pad_to_multiple != 1 and size % pad_to_multiple != 0:
@@ -69,7 +70,11 @@ def collate_tokens(
     for i, v in enumerate(values):
         copy_tensor(v, res[i][size - len(v) :] if left_pad else res[i][: len(v)])
     return res
-
+def collate_score(values):
+    print(type(values))
+    int_values = [[float(item) for item in inner_list] for inner_list in values]
+    res = torch.tensor(int_values)
+    return res
 
 def load_indexed_dataset(
     path, dictionary=None, dataset_impl=None, combine=False, default="cached"
