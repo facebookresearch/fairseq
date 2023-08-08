@@ -25,9 +25,15 @@ def collate(
 ):
     if len(samples) == 0:
         return {}
+    
+
 
     def merge(key, left_pad, move_eos_to_beginning=False, pad_to_length=None):
-        return data_utils.collate_tokens(
+        if key == "score":
+            return data_utils.collate_score([s[key] for s in samples])
+        else:
+
+            return data_utils.collate_tokens(
             [s[key] for s in samples],
             pad_idx,
             eos_idx,
@@ -36,6 +42,7 @@ def collate(
             pad_to_length=pad_to_length,
             pad_to_multiple=pad_to_multiple,
         )
+  
 
     def check_alignment(alignment, src_len, tgt_len):
         if alignment is None or len(alignment) == 0:
@@ -109,6 +116,10 @@ def collate(
             )
     else:
         ntokens = src_lengths.sum().item()
+    score=None
+    if samples[0].get('score',None) is not None:
+        score = merge(key="score",left_pad = left_pad_source)
+    # figure out how to get the key like id nsentence,noken in the dictionary named batch
 
     batch = {
         "id": id,
@@ -118,8 +129,10 @@ def collate(
             "src_tokens": src_tokens,
             "src_lengths": src_lengths,
         },
-        "target": target
+        "target": target,
+        "score": score
     }
+
 
     if prev_output_tokens is not None:
         batch["net_input"]["prev_output_tokens"] = prev_output_tokens.index_select(
@@ -214,6 +227,7 @@ class LanguagePairDataset(FairseqDataset):
         tgt_sizes=None,
         tgt_dict=None,
         scores=None,
+        score_size=None,
         left_pad_source=True,
         left_pad_target=False,
         shuffle=True,
@@ -239,11 +253,12 @@ class LanguagePairDataset(FairseqDataset):
         #    ) , "Source and target must contain the same number of examples"
         self.src = src
         self.tgt = tgt
+        self.scores = scores
         self.src_sizes = np.array(src_sizes)
         
 
         self.tgt_sizes = np.array(tgt_sizes) if tgt_sizes is not None else None
-        
+        self.score_sizes = np.array(score_size)
         self.src_sizes = np.repeat(self.src_sizes, 16)
     
         self.sizes = (
@@ -311,6 +326,7 @@ class LanguagePairDataset(FairseqDataset):
         # tgt_item = self.tgt[index] if self.tgt is not None and index < len(self.tgt) else None
         # index refers to the list index
         src_item = self.src[index] if index <len(self.src) else None
+        
         # Get the first target language item
         # tgt_item = self.tgt[index *2]
         # tgt_item_1 = self.tgt[index *2 +1]
@@ -319,6 +335,7 @@ class LanguagePairDataset(FairseqDataset):
         for i in range(16):
             tgt_item.append(self.tgt[index * 16 + i]) 
             score_item.append(self.scores[index * 16 + i])
+    
         #    tgt_item.append(tgt_item)
         # Append EOS to end of tgt sentence if it does not have an EOS and remove
         # EOS from end of src sentence if it exists. This is useful when we use
@@ -349,7 +366,7 @@ class LanguagePairDataset(FairseqDataset):
             "target": tgt_item[0],
             "score": score_item,
         }
-        print(example)
+    
     
         if self.align_dataset is not None:
             example["alignment"] = self.align_dataset[index]
@@ -379,7 +396,7 @@ class LanguagePairDataset(FairseqDataset):
                   - `src_tokens` (LongTensor): a padded 2D Tensor of tokens in
                     the source sentence of shape `(bsz, src_len)`. Padding will
                     appear on the left if *left_pad_source* is ``True``.
-                  - `src_lengths` (LongTensor): 1D Tensor of the unpadded
+     <F2>             - `src_lengths` (LongTensor): 1D Tensor of the unpadded
                     lengths of each source sentence of shape `(bsz)`
                   - `prev_output_tokens` (LongTensor): a padded 2D Tensor of
                     tokens in the target sentence, shifted right by one
