@@ -71,7 +71,7 @@ def collate_tokens(
         copy_tensor(v, res[i][size - len(v) :] if left_pad else res[i][: len(v)])
     return res
 def collate_score(values):
-    print(type(values))
+    
     int_values = [[float(item) for item in inner_list] for inner_list in values]
     res = torch.tensor(int_values)
     return res

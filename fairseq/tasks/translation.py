@@ -297,6 +297,7 @@ def load_langpair_dataset(
 
 
 
+
         logger.info(
             "{} {} {}-{} {} examples".format(
                 data_path, split_k, src, tgt, len(src_datasets[-1])
@@ -354,7 +355,8 @@ def load_langpair_dataset(
         tgt_dataset,
         tgt_dataset_sizes,
         tgt_dict,
-        scores,
+        score,
+        score.sizes,
         left_pad_source=left_pad_source,
         left_pad_target=left_pad_target,
         align_dataset=align_dataset,

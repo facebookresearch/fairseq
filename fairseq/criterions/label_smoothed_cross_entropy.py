@@ -7,6 +7,7 @@ import math
 from dataclasses import dataclass, field
 
 import torch
+from torch import nn
 from fairseq import utils
 from fairseq.logging import metrics
 from fairseq.criterions import FairseqCriterion, register_criterion
@@ -49,7 +50,29 @@ def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=None, reduce=T
     eps_i = epsilon / (lprobs.size(-1) - 1)
     loss = (1.0 - epsilon - eps_i) * nll_loss + eps_i * smooth_loss
     return loss, nll_loss
-
+#
+def ranking_loss(score,no_cand=False,margin=0):
+    ones = torch.ones_like(score)
+    loss_func = torch.nn.MarginRankingLoss(0.0)
+    TotalLoss = loss_func(score, score, ones)
+    # candidate loss
+    n = score.size(1)
+    if not no_cand:
+        for i in range(1,n):
+            
+            pos_score = score[:,:-i]
+            
+            neg_score = score[:,i:]
+            
+            pos_score = pos_score.contiguous().view(-1)
+            
+            neg_score = neg_score.contiguous().view(-1)
+        
+            ones = torch.ones_like(pos_score)
+            loss_func = torch.nn.MarginRankingLoss(margin * i)
+            loss = loss_func(pos_score,neg_score,ones)
+            TotalLoss += loss
+    return TotalLoss
 
 @register_criterion(
     "label_smoothed_cross_entropy", dataclass=LabelSmoothedCrossEntropyCriterionConfig
@@ -78,6 +101,7 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         3) logging outputs to display while training
         """
         net_output = model(**sample["net_input"])
+        
         loss, nll_loss = self.compute_loss(model, net_output, sample, reduce=reduce)
         sample_size = (
             sample["target"].size(0) if self.sentence_avg else sample["ntokens"]
@@ -106,6 +130,10 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
 
     def compute_loss(self, model, net_output, sample, reduce=True):
         lprobs, target = self.get_lprobs_and_target(model, net_output, sample)
+        # Ranking Loss
+        
+        rankloss = ranking_loss(sample["score"])
+        
         loss, nll_loss = label_smoothed_nll_loss(
             lprobs,
             target,
@@ -113,8 +141,8 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             ignore_index=self.padding_idx,
             reduce=reduce,
         )
+        loss = 100 * rankloss + loss 
         return loss, nll_loss
-
     def compute_accuracy(self, model, net_output, sample):
         lprobs, target = self.get_lprobs_and_target(model, net_output, sample)
         mask = target.ne(self.padding_idx)
