@@ -145,10 +145,6 @@ class TransformerConfig(FairseqDataclass):
         default="linear",
         metadata={"help": "activation function to use for the factorized embedding"},
     )
-    replace_layernorm_with_rmsnorm: bool = field(
-        default=False,
-        metadata={'help': 'use RMSNorm instead of LayerNorm'}
-    )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
     activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
@@ -167,13 +163,13 @@ class TransformerConfig(FairseqDataclass):
         },
     )
     adaptive_input: bool = False
-    encoder: EncDecBaseConfig = EncDecBaseConfig()
+    encoder: EncDecBaseConfig = field(default=EncDecBaseConfig)
     # TODO should really be in the encoder config
     max_source_positions: int = field(
         default=DEFAULT_MAX_SOURCE_POSITIONS,
         metadata={"help": "Maximum input length supported by the encoder"},
     )
-    decoder: DecoderConfig = DecoderConfig()
+    decoder: DecoderConfig = field(default=DecoderConfig)
     # TODO should really be in the decoder config
     max_target_positions: int = field(
         default=DEFAULT_MAX_TARGET_POSITIONS,
@@ -253,7 +249,7 @@ class TransformerConfig(FairseqDataclass):
         default=False, metadata={"help": "perform cross+self-attention"}
     )
     # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
-    quant_noise: QuantNoiseConfig = field(default=QuantNoiseConfig())
+    quant_noise: QuantNoiseConfig = field(default=QuantNoiseConfig)
     min_params_to_wrap: int = field(
         default=DEFAULT_MIN_PARAMS_TO_WRAP,
         metadata={

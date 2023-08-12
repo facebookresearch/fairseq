@@ -22,7 +22,6 @@ from .fp32_batch_norm import Fp32BatchNorm
 from .fp32_group_norm import Fp32GroupNorm
 from .fp32_instance_norm import Fp32InstanceNorm
 from .gelu import gelu, gelu_accurate
-from .glu import GLU, ReGLU, GEGLU, SwiGLU, GLUFFN
 from .grad_multiply import GradMultiply
 from .gumbel_vector_quantizer import GumbelVectorQuantizer
 from .kmeans_vector_quantizer import KmeansVectorQuantizer
@@ -35,7 +34,6 @@ from .location_attention import LocationAttention
 from .lstm_cell_with_zoneout import LSTMCellWithZoneOut
 from .multihead_attention import MultiheadAttention
 from .positional_embedding import PositionalEmbedding
-from .rms_norm import RMSNorm
 from .same_pad import SamePad, SamePad2d
 from .scalar_bias import ScalarBias
 from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
@@ -79,9 +77,6 @@ __all__ = [
     "Fp32GroupNorm",
     "Fp32LayerNorm",
     "Fp32InstanceNorm",
-    "GLU",
-    "GEGLU",
-    "GLUFFN",
     "gelu",
     "gelu_accurate",
     "GradMultiply",
@@ -97,13 +92,10 @@ __all__ = [
     "LSTMCellWithZoneOut",
     "MultiheadAttention",
     "PositionalEmbedding",
-    "ReGLU",
-    "RMSNorm",
     "SamePad",
     "SamePad2d",
     "ScalarBias",
     "SinusoidalPositionalEmbedding",
-    "SwiGLU",
     "TransformerSentenceEncoderLayer",
     "TransformerSentenceEncoder",
     "TransformerDecoderLayer",

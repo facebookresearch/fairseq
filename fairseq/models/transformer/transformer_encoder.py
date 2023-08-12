@@ -20,9 +20,7 @@ from fairseq.modules import (
     LayerNorm,
     PositionalEmbedding,
     SinusoidalPositionalEmbedding,
-    transformer_layer,
-    RMSNorm
-
+    transformer_layer
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
@@ -76,14 +74,12 @@ class TransformerEncoderBase(FairseqEncoder):
             if not cfg.no_token_positional_embeddings
             else None
         )
-        if cfg.layernorm_embedding:
-            self.layernorm_embedding = (
-                LayerNorm(embed_dim, export=cfg.export) 
-                if not cfg.replace_layernorm_with_rmsnorm 
-                else RMSNorm(embed_dim)
-            )
-        else:
-            self.layernorm_embedding = None
+        
+        self.layernorm_embedding = (
+            LayerNorm(embed_dim, export=cfg.export)
+            if cfg.layernorm_embedding
+            else None
+        )
 
         if not cfg.adaptive_input and cfg.quant_noise.pq > 0:
             self.quant_noise = apply_quant_noise_(
@@ -96,10 +92,12 @@ class TransformerEncoderBase(FairseqEncoder):
 
         self.recurrent_stacking = cfg.encoder.recurrent_stacking
 
-        if self.encoder_layerdrop > 0.0:
-            self.layers = LayerDropModuleList(p=self.encoder_layerdrop)
-        else:
-            self.layers = nn.ModuleList([])
+        
+        self.layers = (
+            LayerDropModuleList(p=self.encoder_layerdrop)
+            if self.encoder_layerdrop > 0.0
+            else nn.ModuleList([])
+        )
 
         if self.recurrent_stacking is not None:
             self.layers.extend([self.build_encoder_layer(cfg)]*self.recurrent_stacking)
@@ -108,14 +106,11 @@ class TransformerEncoderBase(FairseqEncoder):
 
         self.num_layers = len(self.layers)
 
-        if cfg.encoder.normalize_before:
-            self.layer_norm = (
-                LayerNorm(embed_dim, export=cfg.export) 
-                if not cfg.replace_layernorm_with_rmsnorm 
-                else RMSNorm(embed_dim)
-            )
-        else:
-            self.layer_norm = None
+        self.layer_norm = (
+            LayerNorm(embed_dim, export=cfg.export)
+            if cfg.encoder.normalize_before
+            else None
+        )
 
     def build_encoder_layer(self, cfg):
         layer = transformer_layer.TransformerEncoderLayerBase(

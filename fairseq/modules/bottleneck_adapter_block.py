@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 from fairseq import utils
 from fairseq.modules.layer_norm import LayerNorm
-from fairseq.modules.rms_norm import RMSNorm
 from fairseq.modules.fairseq_dropout import FairseqDropout
 
 
@@ -17,8 +16,7 @@ class BottleneckAdapter(nn.Module):
         activation="relu", 
         dropout=0, 
         ln_before=False, 
-        use_gating=False,
-        replace_layernorm_with_rmsnorm=False
+        use_gating=False
     ):
         super().__init__()
         self.in_dim = in_dim
@@ -32,12 +30,8 @@ class BottleneckAdapter(nn.Module):
         self.up = nn.Linear(self.in_dim, self.bottleneck_dim)
         self.down = nn.Linear(self.bottleneck_dim, self.in_dim)
         self.activation_fn = utils.get_activation_fn(activation)
-        self.layer_norm = (
-            LayerNorm(self.in_dim, export=False) 
-            if not replace_layernorm_with_rmsnorm 
-            else RMSNorm(self.in_dim)
-        )
-
+        self.layer_norm = LayerNorm(self.in_dim, export=False) 
+        
         if self.use_gating:
             self.gate = nn.Linear(self.in_dim, 1)   
             

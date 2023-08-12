@@ -560,7 +560,7 @@ def get_activation_fn(activation: str) -> Callable:
     elif activation == "silu":
         return F.silu
     else:
-        raise RuntimeError("--activation-fn {} not supported".format(activation))
+        raise RuntimeError(f"--activation-fn {activation} not supported")
 
 
 def get_available_activation_fns() -> List:
@@ -570,10 +570,6 @@ def get_available_activation_fns() -> List:
         "tanh",
         "linear",
         "silu",
-        "glu",
-        "geglu",
-        "reglu",
-        "swiglu",
         "relu_squared",
         "gelu_accurate",
     ]
