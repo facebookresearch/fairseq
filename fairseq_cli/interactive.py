@@ -153,9 +153,6 @@ def main(cfg: FairseqConfig):
     src_dict = task.source_dictionary
     tgt_dict = task.target_dictionary
 
-    if cfg.interactive.save_encoder_output is not None:
-        full_encoder_out = None
-
     # Optimize ensemble for generation
     for model in models:
         if model is None:
@@ -165,6 +162,7 @@ def main(cfg: FairseqConfig):
         if use_cuda and not cfg.distributed_training.pipeline_model_parallel:
             model.cuda()
         model.prepare_for_inference_(cfg)
+
         
         if cfg.interactive.activate_encoder_adapter is not None:
             logging.info(
@@ -242,10 +240,6 @@ def main(cfg: FairseqConfig):
                     "src_lengths": src_lengths,
                 },
             }
-
-            if cfg.interactive.save_encoder_output is not None:
-                encoder_out = model.encoder(src_tokens, src_lengths)['encoder_out'][0].mean(0)
-                full_encoder_out = encoder_out if (full_encoder_out is None) else torch.cat((full_encoder_out, encoder_out), 0)
             
             translate_start_time = time.time()
             translations = task.inference_step(
@@ -324,9 +318,6 @@ def main(cfg: FairseqConfig):
 
         # update running id_ counter
         start_id += len(inputs)
-
-    if cfg.interactive.save_encoder_output is not None:
-        torch.save(full_encoder_out, os.path.abspath(cfg.interactive.save_encoder_output))
 
     logger.info(
         "Total time: {:.3f} seconds; translation time: {:.3f}".format(
