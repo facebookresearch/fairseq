@@ -49,6 +49,7 @@ class VideoTokenMLP(nn.Module):
     def __init__(self, config):
         super().__init__()
         input_dim = config.input_dim if hasattr(config, "input_dim") else 512
+        self.dropout = nn.Dropout(p=config.dropout) if hasattr(config, "dropout") else None
         self.linear1 = nn.Linear(input_dim, config.hidden_size)
         self.LayerNorm = nn.LayerNorm(config.hidden_size)
         self.activation = ACT2FN[config.hidden_act]
@@ -58,7 +59,11 @@ class VideoTokenMLP(nn.Module):
         hidden_states = self.linear1(hidden_states)
         hidden_states = self.activation(hidden_states)
         hidden_states = self.LayerNorm(hidden_states)
+        if self.dropout:
+            hidden_states = self.dropout(hidden_states)
         hidden_states = self.linear2(hidden_states)
+        if self.dropout:
+            hidden_states = self.dropout(hidden_states)
         return hidden_states
 
 
