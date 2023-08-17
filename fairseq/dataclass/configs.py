@@ -636,6 +636,7 @@ class OptimizationConfig(FairseqDataclass):
             " (default is to skip it)."
         },
     )
+    debug_param_names: bool = False
 
 
 @dataclass

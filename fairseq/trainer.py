@@ -30,7 +30,6 @@ from fairseq.nan_detector import NanDetector
 from fairseq.optim import lr_scheduler
 from fairseq.utils import safe_hasattr
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -288,12 +287,27 @@ class Trainer(object):
         return self._lr_scheduler
 
     def _build_optimizer(self):
-        params = list(
-            filter(
-                lambda p: p.requires_grad,
-                chain(self.model.parameters(), self.criterion.parameters()),
+
+        if (
+            self.cfg.optimization.debug_param_names
+            and self.cfg.common.fp16_no_flatten_grads
+        ):
+            params = []
+            self.param_names = []
+
+            for n, p in chain(
+                self.model.named_parameters(), self.criterion.named_parameters()
+            ):
+                if p.requires_grad:
+                    params.append(p)
+                    self.param_names.append(n)
+        else:
+            params = list(
+                filter(
+                    lambda p: p.requires_grad,
+                    chain(self.model.parameters(), self.criterion.parameters()),
+                )
             )
-        )
 
         if self.is_fsdp and self.cfg.common.fp16:
             # FullyShardedDataParallel always uses MemoryEfficientFP16 wrapper,
@@ -432,18 +446,21 @@ class Trainer(object):
 
     def save_checkpoint(self, filename, extra_state):
         """Save all training state in a checkpoint file."""
-
-        logger.info(f"Saving checkpoint to {os.path.abspath(filename)}")
-        # call state_dict on all ranks in case it needs internal communication
-        state_dict = utils.move_to_cpu(self.state_dict())
-        state_dict["extra_state"].update(extra_state)
         if self.should_save_checkpoint_on_current_rank:
+
+            logger.info(f"Saving checkpoint to {os.path.abspath(filename)}")
+            # call state_dict on all ranks in case it needs internal communication
+            state_dict = utils.move_to_cpu(self.state_dict())
+            state_dict["extra_state"].update(extra_state)
+
             checkpoint_utils.torch_persistent_save(
                 state_dict,
                 filename,
                 async_write=self.cfg.checkpoint.write_checkpoints_asynchronously,
             )
-        logger.info(f"Finished saving checkpoint to {os.path.abspath(filename)}")
+            logger.info(f"Finished saving checkpoint to {os.path.abspath(filename)}")
+            return os.path.abspath(filename)
+        return None
 
     def load_checkpoint(
         self,
@@ -793,6 +810,8 @@ class Trainer(object):
         if self.cfg.ema.store_ema and getattr(self.task, "uses_ema", False):
             extra_kwargs["ema_model"] = self.ema.get_model()
 
+        has_oom = False
+
         # forward and backward pass
         logging_outputs, sample_size, ooms = [], 0, 0
         for i, sample in enumerate(samples):  # delayed update loop
@@ -842,17 +861,9 @@ class Trainer(object):
             except RuntimeError as e:
                 if "out of memory" in str(e):
                     self._log_oom(e)
+                    has_oom = True
                     if raise_oom:
                         raise e
-                    logger.warning(
-                        "attempting to recover from OOM in forward/backward pass"
-                    )
-                    ooms += 1
-                    self.zero_grad()
-                    if self.cuda:
-                        torch.cuda.empty_cache()
-                    if self.cfg.distributed_training.distributed_world_size == 1:
-                        return None
                 else:
                     raise e
             except Exception:
@@ -861,6 +872,18 @@ class Trainer(object):
                     os.path.join(self.cfg.checkpoint.save_dir, "crash.pt"), {}
                 )
                 raise
+
+            if has_oom:
+                logger.warning(
+                    "attempting to recover from OOM in forward/backward pass"
+                )
+                ooms += 1
+                self.zero_grad()
+                if self.cuda:
+                    torch.cuda.empty_cache()
+
+                if self.cfg.distributed_training.distributed_world_size == 1:
+                    return None
 
             if self.tpu and i < len(samples) - 1:
                 # tpu-comment: every XLA operation before marking step is
@@ -989,6 +1012,14 @@ class Trainer(object):
             logger.info(
                 f"NOTE: gradient overflow detected, ignoring gradient, {str(e)}"
             )
+
+            if hasattr(self, "param_names") and hasattr(
+                self.optimizer, "fp32_optimizer"
+            ):
+                for p, n in zip(self.optimizer.fp32_optimizer.params, self.param_names):
+                    if torch.isinf(p.grad).any() or torch.isnan(p.grad).any():
+                        logger.info(f"overflow in param {n}")
+
             grad_norm = torch.tensor(0.0).cuda()
             self.zero_grad()
         except RuntimeError as e:

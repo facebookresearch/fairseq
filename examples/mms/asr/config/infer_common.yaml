@@ -1,0 +1,32 @@
+# @package _global_
+# defaults:
+#   - hydra/launcher: submitit_slurm
+
+# @package _group_
+
+task:
+  _name: audio_finetuning
+  data: null
+  labels: ltr
+common_eval:
+  path: null
+  post_process: letter
+  # model_overrides: "{'task':{'multi_corpus_keys':None}}"
+decoding:
+  type: viterbi
+  lexicon: null
+  unique_wer_file: false
+  results_path: null
+distributed_training:
+  ddp_backend: legacy_ddp
+  distributed_world_size: 1
+hydra:
+  run:
+    dir: ${common_eval.results_path}/${dataset.gen_subset}
+  sweep:
+    dir: /checkpoint/${env:USER}/${env:PREFIX}/${common_eval.results_path}
+    subdir: ${dataset.gen_subset}
+dataset:
+  max_tokens: 2_000_000
+  gen_subset: dev
+  required_batch_size_multiple: 1

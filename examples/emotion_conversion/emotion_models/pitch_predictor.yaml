@@ -1,0 +1,64 @@
+train_tsv: "<your-processed-data>/denoising/emov/train.tsv" 
+train_km:  "<your-processed-data>/denoising/emov/train.km" 
+valid_tsv: "<your-processed-data>/denoising/emov/valid.tsv" 
+valid_km:  "<your-processed-data>/denoising/emov/valid.km"
+
+n_tokens: 200
+batch_size: 64
+lr: 0.0001
+epochs: 1000
+
+substring: ""
+loss: "l2"
+spk: "parent_parent_name"
+gst: "emotion"
+
+f0_bins: 50
+f0_pred: "mean" # [argmax, mean]
+f0_smoothing: 0.1
+f0_norm: "mean"
+f0_log: false
+f0_bin_type: "adaptive" # [uniform, adaptive]
+
+spk2id:
+  bea: 0
+  jenie: 1
+  josh: 2
+  sam: 3
+
+gst2id:
+  amused: 0
+  angry: 1
+  disgusted: 2
+  neutral: 3
+  sleepy: 4
+
+optimizer:
+  _target_: torch.optim.Adam
+  lr: ${lr}
+
+model:
+  _target_: emotion_models.pitch_predictor.CnnPredictor
+  n_tokens: ${n_tokens}
+  emb_dim: 256
+  channels: 256
+  kernel: 5
+  dropout: 0.1
+  n_layers: 6
+  spk_emb: true
+  gst_emb: 8
+  n_bins: ${f0_bins}
+  f0_pred: ${f0_pred}
+  f0_log: ${f0_log}
+  f0_norm: ${f0_norm}
+
+hydra:
+  run:
+    dir: /checkpoint/felixkreuk/experiments/pitch_predictor/${hydra.job.override_dirname}
+  job:
+    config:
+      # configuration for the ${hydra.job.override_dirname} runtime variable
+      override_dirname:
+        kv_sep: '='
+        item_sep: ','
+        exclude_keys: ['train_tsv', 'train_km', 'valid_tsv', 'valid_km']

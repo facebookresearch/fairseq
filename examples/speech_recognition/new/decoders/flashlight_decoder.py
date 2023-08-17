@@ -40,6 +40,7 @@ try:
         Trie,
     )
     from flashlight.lib.text.dictionary import create_word_dict, load_words
+    from flashlight.lib.text.dictionary import Dictionary as flDictionary
 except ImportError:
     warnings.warn(
         "flashlight python bindings are required to use this functionality. "
@@ -102,8 +103,9 @@ class KenLMDecoder(BaseDecoder):
         else:
             assert self.unitlm, "Lexicon-free decoding requires unit LM"
 
-            d = {w: [[w]] for w in tgt_dict.symbols}
-            self.word_dict = create_word_dict(d)
+            self.word_dict = flDictionary()
+            for sym in tgt_dict.symbols:
+                self.word_dict.add_entry(sym, tgt_dict.index(sym))
             self.lm = KenLM(cfg.lmpath, self.word_dict)
             self.decoder_opts = LexiconFreeDecoderOptions(
                 beam_size=cfg.beam,

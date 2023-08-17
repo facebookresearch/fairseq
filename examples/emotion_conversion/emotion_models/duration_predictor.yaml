@@ -1,0 +1,48 @@
+train_tsv: "<your-processed-data>/denoising/emov/train.tsv" 
+train_km:  "<your-processed-data>/denoising/emov/train.km" 
+valid_tsv: "<your-processed-data>/denoising/emov/valid.tsv" 
+valid_km:  "<your-processed-data>/denoising/emov/valid.km"
+
+n_tokens: 200
+batch_size: 32
+lr: 0.0001
+epochs: 300
+model: "cnn"
+substring: ""
+
+rnn:
+  _target_: emotion_models.duration_predictor.RnnPredictor
+  n_tokens: ${n_tokens}
+  emb_dim: 128
+  rnn_hidden: 128
+  output_dim: 1
+  dropout: 0
+  n_layers: 1
+
+optimizer:
+  _target_: torch.optim.Adam
+  lr: ${lr}
+  betas: [0.9, 0.98]
+  eps: 0.000000001
+  weight_decay: 0
+
+cnn:
+  _target_: emotion_models.duration_predictor.CnnPredictor
+  n_tokens: ${n_tokens}
+  emb_dim: 128
+  channels: 256
+  kernel: 3
+  output_dim: 1
+  dropout: 0.5
+  n_layers: 1
+
+hydra:
+  run:
+    dir: /checkpoint/felixkreuk/experiments/duration_predictor/${hydra.job.override_dirname}
+  job:
+    config:
+      # configuration for the ${hydra.job.override_dirname} runtime variable
+      override_dirname:
+        kv_sep: '='
+        item_sep: ','
+        exclude_keys: ['train_tsv', 'train_km', 'valid_tsv', 'valid_km']

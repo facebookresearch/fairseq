@@ -156,7 +156,7 @@ class StreamingEpochBatchIterator(EpochBatchIterating):
         num_workers=0,
         buffer_size=0,
         timeout=0,
-        persistent_workers=False,
+        persistent_workers=True,
     ):
         assert isinstance(dataset, torch.utils.data.IterableDataset)
         self.dataset = dataset
@@ -164,11 +164,11 @@ class StreamingEpochBatchIterator(EpochBatchIterating):
         self.collate_fn = collate_fn
         self.epoch = max(epoch, 1)  # we use 1-based indexing for epochs
         self.num_workers = num_workers
+        self.persistent_workers = persistent_workers and num_workers > 0
         # This upper limit here is to prevent people from abusing this feature
         # in a shared computing environment.
         self.buffer_size = min(buffer_size, 20)
         self.timeout = timeout
-        self.persistent_workers = persistent_workers
 
         self._current_epoch_iterator = None
 
@@ -321,7 +321,7 @@ class EpochBatchIterator(EpochBatchIterating):
         skip_remainder_batch=False,
         grouped_shuffling=False,
         reuse_dataloader=False,
-        persistent_workers=False,
+        persistent_workers=True,
     ):
         assert isinstance(dataset, torch.utils.data.Dataset)
         self.dataset = dataset
@@ -334,6 +334,7 @@ class EpochBatchIterator(EpochBatchIterating):
         self.num_shards = num_shards
         self.shard_id = shard_id
         self.num_workers = num_workers
+        self.persistent_workers = persistent_workers and num_workers > 0
         # This upper limit here is to prevent people from abusing this feature
         # in a shared computing environment.
         self.buffer_size = min(buffer_size, 20)
@@ -350,7 +351,6 @@ class EpochBatchIterator(EpochBatchIterating):
 
         self.dataloader = None
         self.reuse_dataloader = reuse_dataloader
-        self.persistent_workers = persistent_workers
 
     @property
     def frozen_batches(self):
@@ -777,8 +777,6 @@ class GroupedEpochBatchIterator(EpochBatchIterator):
         mult_rate=1,
         buffer_size=0,
         skip_remainder_batch=False,
-        reuse_dataloader=False,
-        persistent_workers=False,
     ):
         super().__init__(
             dataset,
@@ -791,8 +789,6 @@ class GroupedEpochBatchIterator(EpochBatchIterator):
             epoch,
             buffer_size,
             skip_remainder_batch=skip_remainder_batch,
-            reuse_dataloader=reuse_dataloader,
-            persistent_workers=persistent_workers,
         )
         # level 0: sub-samplers 1: batch_idx 2: batches
         self._frozen_batches = tuple([tuple(sub_batch) for sub_batch in batch_samplers])

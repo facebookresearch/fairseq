@@ -70,6 +70,7 @@ We provide reference implementations of various sequence modeling papers:
 </p></details>
 
 ### What's New:
+* May 2023 [Released models for Scaling Speech Technology to 1,000+ Languages  (Pratap, et al., 2023)](examples/mms/README.md)
 * June 2022 [Released code for wav2vec-U 2.0 from Towards End-to-end Unsupervised Speech Recognition (Liu, et al., 2022)](examples/wav2vec/unsupervised/README.md)
 * May 2022 [Integration with xFormers](https://github.com/facebookresearch/xformers)
 * December 2021 [Released Direct speech-to-speech translation code](examples/speech_to_speech/README.md)
