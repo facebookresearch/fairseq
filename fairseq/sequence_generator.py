@@ -458,17 +458,17 @@ class SequenceGenerator(nn.Module):
                 )
 
                 finalized_sents = self.finalize_hypos(
-                    step,
-                    eos_bbsz_idx,
-                    eos_scores,
-                    tokens,
-                    scores,
-                    finalized,
-                    finished,
-                    beam_size,
-                    attn,
-                    src_lengths,
-                    max_len,
+                    step,          # 1
+                    eos_bbsz_idx,  # tensor([0])
+                    eos_scores,    # tensor([-2.9267])
+                    tokens,        # torch.Size([1, 202])
+                    scores,        # torch.Size([1, 201])
+                    finalized,     # [[]]
+                    finished,      # [False]
+                    beam_size,     # 1
+                    attn,          # torch.Size([1, 2, 202])
+                    src_lengths,   # tensor([2])
+                    max_len,       # 200
                 )
                 num_remaining_sent -= len(finalized_sents)
 
@@ -777,22 +777,23 @@ class EnsembleModel(nn.Module):
             for m in models
         ):
             self.has_incremental = True
-        
+
+        # self.has_incremental = False
         self.save_onnx = False
-        self.openvino_engine = True
+        self.openvino_engine = False
         
         self.FILE_PATH = sys.path[0]
-        if not os.path.exists(self.FILE_PATH+"/../models"):
-            os.makedirs(self.FILE_PATH+"/../models")
+        if not os.path.exists(self.FILE_PATH+"/../onnx_models"):
+            os.makedirs(self.FILE_PATH+"/../onnx_models")
             
         if self.openvino_engine:
             self.ie = Core()
-            self.encoder_model_path=self.FILE_PATH+"/../models/encoder.xml"
+            self.encoder_model_path=self.FILE_PATH+"/../onnx_models/encoder.xml"
             self.encoder_model = self.ie.read_model(model=self.encoder_model_path)
             self.encoder_compiled_model=self.ie.compile_model(model=self.encoder_model,device_name="CPU")
             self.encoder_request = self.encoder_compiled_model.create_infer_request()
             
-            self.decoder_model_path=self.FILE_PATH+"/../models/decoder.xml"
+            self.decoder_model_path=self.FILE_PATH+"/../onnx_models/decoder.xml"
             self.decoder_model = self.ie.read_model(model=self.decoder_model_path)
             self.decoder_compiled_model=self.ie.compile_model(model=self.decoder_model,device_name="CPU")
             self.decoder_request = self.decoder_compiled_model.create_infer_request()
@@ -827,38 +828,47 @@ class EnsembleModel(nn.Module):
     def OpenVINO_Inference_encoder(self,net_input):
         src_tokens = net_input["src_tokens"]
         src_lengths = net_input["src_lengths"]
-        output_layer=self.encoder_compiled_model.output(0)
-        self.encoder_request.infer((src_tokens,src_lengths))
-        encoder_result = self.encoder_request.get_output_tensor(output_layer.index).data
-        return encoder_result
+
+        output_keys = list(self.encoder_compiled_model.outputs)
+        encoder_result = self.encoder_request.infer((src_tokens))
+
+        enc = encoder_result[output_keys[0]]
+        encoder_padding_mask = encoder_result[output_keys[1]]
+        encoder_embedding = encoder_result[output_keys[2]]
+        src_lengths = encoder_result[output_keys[3]]
+
+        encoder_result_dict={'encoder_out': [torch.from_numpy(enc)],
+                             'encoder_padding_mask': [torch.from_numpy(encoder_padding_mask)], 
+                             'encoder_embedding':[torch.from_numpy(encoder_embedding)], 
+                             'encoder_states': [], 
+                             'fc_results':[],
+                             'src_tokens': [], 
+                             'src_lengths': [torch.from_numpy(src_lengths)]}
+        return encoder_result_dict
     
     def encoder_export_onnx(self,net_input):
         model = self.models[0]
         model.prepare_for_onnx_export_()
         model.eval()
-        torch.onnx.export(model.encoder,
-                    net_input,
-                    self.FILE_PATH+"/../models/encoder.onnx",
-                    opset_version=14,
-                    input_names=["onnx::Transpose_0","src_lengths"],
-                    dynamic_axes={'onnx::Transpose_0' : {0:"batch_size",
-                                                         1:"feature_len",
-                                                         2:"tmp_len"},
-                                  "src_lengths":{0:"src_lengths"}},
-                    operator_export_type=torch.onnx.OperatorExportTypes.ONNX_ATEN_FALLBACK,
+        torch.onnx.export(model.encoder, (net_input),
+                    self.FILE_PATH+"/../onnx_models/encoder.onnx",
+                    input_names=["src_tokens","src_lengths"],
+                    dynamic_axes={'src_tokens' : {0:"batch_size",
+                                                  1:"src_lengths"},
+                                  'src_lengths' : {0:"src_lengths"},
+                                  },
+                    operator_export_type=torch.onnx.OperatorExportTypes.ONNX,
+                    do_constant_folding=False,
+                    # opset_version=14,
                     verbose=True
                     )
-    
+        print("== Export Encoder onnx success ==")
+
     @torch.jit.export
     def forward_encoder_IR(self, net_input: Dict[str, Tensor]):
         if not self.has_encoder():
             return None
-        IR_encoder_result = self.OpenVINO_Inference_encoder(net_input)
-        encoder_result_dict={'encoder_out':[torch.from_numpy(IR_encoder_result)],
-                            'encoder_padding_mask': [], 
-                             'encoder_embedding': [], 
-                             'encoder_states': [], 
-                             'src_tokens': [], 'src_lengths': []}
+        encoder_result_dict = self.OpenVINO_Inference_encoder(net_input)
         return [encoder_result_dict]
 
     @torch.jit.export
@@ -875,28 +885,48 @@ class EnsembleModel(nn.Module):
         else:
             encoder_result = [model.encoder.forward_torchscript(net_input) for model in self.models]
             encoder_time = time.time() - encoder_start_time
-            print("==encoder_time==",encoder_time)
+            print("==torch encoder_time==",encoder_time)
         return encoder_result
 
     def decoder_export_onnx(self,model,tokens, encoder_out, incremental_states):
-        torch.onnx.export(model.decoder, 
-            (tokens,
-                encoder_out,
-                incremental_states),
-            self.FILE_PATH+"/../models/decoder.onnx",
-            input_names = ["prev_output_tokens","onnx::MatMul_1"],
-            dynamic_axes={'prev_output_tokens' : {1 : 'batch_size'}},
-            opset_version=14,
-            operator_export_type=torch.onnx.OperatorExportTypes.ONNX_ATEN_FALLBACK,
+        torch.onnx.export(model.decoder, (tokens, encoder_out, incremental_states),
+            self.FILE_PATH+"/../onnx_models/decoder.onnx",
+            input_names = ["tokens", "encoder_out", "encoder_padding_mask"],
+            dynamic_axes={'tokens' : {0 : "batch_size", 1: "seq_len"},
+                          "encoder_out" : {0 : "batch_size", 1: "seq_len"},
+                          "encoder_padding_mask": {0 : "batch_size", 1: "seq_len"}
+            },
+            # opset_version=14,
+            # operator_export_type=torch.onnx.OperatorExportTypes.ONNX_ATEN_FALLBACK,
             verbose=True
             )
+        print("== Export Decoder onnx success ==")
 
-    def OpenVINO_Inference_decoder(self,tokens,encoder_out,incremental_state):
-        encoder_out = encoder_out["encoder_out"][0].numpy()
-        output_layer=self.decoder_compiled_model.output(0)
-        self.decoder_request.infer((tokens,encoder_out))
-        decoder_result = self.decoder_request.get_output_tensor(output_layer.index).data
-        return (torch.from_numpy(decoder_result),None)
+    def OpenVINO_Inference_decoder(self,tokens,encoder_out,incremental_state=None):
+        enc = encoder_out["encoder_out"][0].numpy()
+        padding_mask = encoder_out["encoder_padding_mask"][0].numpy()
+        embedding = encoder_out["encoder_embedding"][0].numpy()
+        src_lengths = encoder_out["src_lengths"][0].numpy()
+
+        decoder_input = {"tokens":tokens,
+                "encoder_out":enc,
+                "encoder_padding_mask":padding_mask}
+
+        decoder_result = self.decoder_compiled_model(decoder_input)
+        output_keys = list(self.decoder_compiled_model.outputs)
+        x = decoder_result[output_keys[0]]
+        attn = decoder_result[output_keys[1]]
+        inner_states_0 = decoder_result[output_keys[2]]
+        inner_states_1 = decoder_result[output_keys[3]]
+        inner_states_2 = decoder_result[output_keys[4]]
+        inner_states_3 = decoder_result[output_keys[5]]
+        decoder_result_list = [torch.from_numpy(x),
+                            {"attn":[torch.from_numpy(attn)],
+                            "inner_states":[torch.from_numpy(inner_states_0), 
+                                            torch.from_numpy(inner_states_1), 
+                                            torch.from_numpy(inner_states_2), 
+                                            torch.from_numpy(inner_states_3)]}]
+        return decoder_result_list
     
     @torch.jit.export
     def forward_decoder(
@@ -909,11 +939,15 @@ class EnsembleModel(nn.Module):
         log_probs = []
         avg_attn: Optional[Tensor] = None
         encoder_out: Optional[Dict[str, List[Tensor]]] = None
+        decode_onnx_tag = 0
         for i, model in enumerate(self.models):
             if self.has_encoder():
                 encoder_out = encoder_outs[i]
             if self.save_onnx:
-                self.decoder_export_onnx(model,tokens,encoder_out,incremental_states[i])
+                if decode_onnx_tag == 1:
+                    self.decoder_export_onnx(model,tokens,encoder_out, incremental_states[i])
+                    self.save_onnx = False
+                decode_onnx_tag =+1
             # decode each model
             if self.has_incremental_states():
                 decoder_start_time = time.time()
@@ -931,10 +965,20 @@ class EnsembleModel(nn.Module):
                         incremental_state=incremental_states[i],
                     ) 
                     decoder_time = time.time() - decoder_start_time
-                    print("==decoder_time==",decoder_time)
+                    print("==torch decoder_time==",decoder_time)
             else:
                 if hasattr(model, "decoder"):
-                    decoder_out = model.decoder.forward(tokens, encoder_out=encoder_out)
+                    decoder_start_time = time.time()
+                    if self.openvino_engine:
+                        decoder_out = self.OpenVINO_Inference_decoder(
+                            tokens,
+                            encoder_out=encoder_out)
+                        decoder_time = time.time() - decoder_start_time
+                        print("==IR_decoder_time==",decoder_time)
+                    else:
+                        decoder_out = model.decoder.forward(tokens, encoder_out=encoder_out)
+                        decoder_time = time.time() - decoder_start_time
+                        print("==torch decoder_time==",decoder_time)
                 else:
                     decoder_out = model.forward(tokens)
 
