@@ -70,7 +70,6 @@ We provide reference implementations of various sequence modeling papers:
 </p></details>
 
 ### What's New:
-* May 2023 [Released models for Scaling Speech Technology to 1,000+ Languages  (Pratap, et al., 2023)](examples/mms/README.md)
 * June 2022 [Released code for wav2vec-U 2.0 from Towards End-to-end Unsupervised Speech Recognition (Liu, et al., 2022)](examples/wav2vec/unsupervised/README.md)
 * May 2022 [Integration with xFormers](https://github.com/facebookresearch/xformers)
 * December 2021 [Released Direct speech-to-speech translation code](examples/speech_to_speech/README.md)
@@ -211,26 +210,36 @@ python fairseq_cli/interactive.py datasets/en/ --config-yaml config_st_en_de.yam
 
 ```
 
+Also we make OpenVINO enable `translation` task, you can reference use following script to export target encoder and decoder onnx models
+```
+python fairseq_cli/interactive.py ./dict/ --task translation --path ./models/fairseq_ckpt.pt --beam 1 --source-lang en --target-lang hu
+```
+
 * Step 4. Using Model Convert 
 Using `mo` convert `encoder.onnx` to `encoder.xml`
                    `decoder.onnx` to `decoder.xml`
 ```
 cd models
 # Convert encoder onnx to IR
-mo -m encoder.onnx --input "onnx::Transpose_0[-1,-1,-1],src_lengths[-1]"
+mo -m encoder.onnx -o ./
 
 # Convert decoder onnx to IR
-mo -m decoder.onnx --input "prev_output_tokens[-1,-1],onnx::MatMul_1[-1,-1,-1]"
+mo -m decoder.onnx -o ./
 ```
 
 * Step 5. OpenVINO Inference S2T pipeline
 We should adjust the contents in [fairseq/sequence_generator.py](fairseq/sequence_generator.py) 
 ` +781 line "self.save_onnx = False" ` , `+782 line "self.openvino_engine = True"`
-Use the converted the model to run OpenINO Inference S2T pipeline
+
+Use the converted the model to run OpenINO Inference `S2T` pipeline
 ```
 python fairseq_cli/interactive.py datasets/en/ --config-yaml config_st_en_de.yaml --task speech_to_text --path models/covost2_fr_en_st_transformer_s.pt --max-tokens 50000 --beam 1
 ```
 
+Use the converted the model to run OpenINO Inference `translation` pipeline
+```
+python fairseq_cli/interactive.py ./dict --task translation --path ./models/fairseq_ckpt.pt --beam 1 --source-lang en --target-lang hu
+```
 
 # Pre-trained models and examples
 
