@@ -193,7 +193,9 @@ class HubertConfig(FairseqDataclass):
     )
     conv_pos_batch_norm: bool = field(
         default=False,
-        metadata={"help": "use batch norm instead of weight norm in conv pos (for bf16 models)"},
+        metadata={
+            "help": "use batch norm instead of weight norm in conv_pos (for bf16 models)"
+        },
     )
 
     latent_temp: Tuple[float, float, float] = field(

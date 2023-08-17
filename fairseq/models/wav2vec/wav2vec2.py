@@ -922,7 +922,7 @@ class ConvFeatureExtractionModel(nn.Module):
         return x
 
 
-def make_conv_pos(e, k, g, batch_norm = False):
+def make_conv_pos(e, k, g, is_batch_norm=False):
     pos_conv = nn.Conv1d(
         e,
         e,
@@ -935,7 +935,7 @@ def make_conv_pos(e, k, g, batch_norm = False):
     nn.init.normal_(pos_conv.weight, mean=0, std=std)
     nn.init.constant_(pos_conv.bias, 0)
 
-    if not batch_norm:
+    if not is_batch_norm:
         pos_conv = nn.utils.weight_norm(pos_conv, name="weight", dim=2)
         pos_conv = nn.Sequential(pos_conv, SamePad(k), nn.GELU())
     else:
@@ -1051,7 +1051,9 @@ class TransformerEncoder(nn.Module):
                 self.embedding_dim,
                 args.conv_pos,
                 args.conv_pos_groups,
-                batch_norm=args.conv_pos_batch_norm if hasattr(args, 'conv_pos_batch_norm') else False
+                is_batch_norm=args.conv_pos_batch_norm
+                if hasattr(args, "conv_pos_batch_norm")
+                else False,
             )
 
         self.layers = nn.ModuleList(
