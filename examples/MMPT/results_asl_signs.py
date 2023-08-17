@@ -15,12 +15,18 @@ tasks = [
     'test_asl_signs_full',
     'test_asl_signs_face',
     'test_asl_signs_face_conv',
+    'test_asl_signs_face_dropout_0.2',
+    'test_asl_signs_face_dropout_0.4',
+    'test_asl_signs_face_dropout_0.8',
 ]
 notes = [
     'pose without face',
     'pose with full face',
     'pose with selected face points (nose, lips, eyes)',
     'pose with selected face points + 2xconv1d',
+    'pose with selected face points + dropout=0.2',
+    'pose with selected face points + dropout=0.4',
+    'pose with selected face points + dropout=0.8',
 ]
 
 results = {}

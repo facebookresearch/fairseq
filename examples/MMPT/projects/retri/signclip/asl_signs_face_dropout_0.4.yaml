@@ -22,8 +22,8 @@ fairseq:
     log_interval: 1000
   dataset:
     num_workers: 1
-    batch_size: 250
-    # batch_size: 128
+    # batch_size: 250
+    batch_size: 128
   optimization:
     lr:
     - 5.0e-05
@@ -41,7 +41,7 @@ fairseq:
     reset_optimizer: true
     reset_dataloader: true
     reset_meters: true
-    save_dir: runs/retri/asl_signs_face_b
+    save_dir: runs/retri/asl_signs_face_dropout_0.4
 task_type: sweep_small
 model:
   model_cls: MMFusionSeparate
@@ -50,7 +50,8 @@ model:
   text_encoder_cls: BertModel
   num_hidden_video_layers: 6
   vfeat_dim: 453
+  dropout: 0.4
 loss:
   loss_cls: MMContraLoss
 eval:
-  save_path: runs/retri/asl_signs_face_b
+  save_path: runs/retri/asl_signs_face_dropout_0.4
