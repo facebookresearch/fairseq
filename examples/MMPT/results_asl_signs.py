@@ -18,6 +18,7 @@ tasks = [
     'test_asl_signs_face_dropout_0.2',
     'test_asl_signs_face_dropout_0.4',
     'test_asl_signs_face_dropout_0.8',
+    'test_asl_signs_face_b',
 ]
 notes = [
     'pose without face',
@@ -27,6 +28,7 @@ notes = [
     'pose with selected face points + dropout=0.2',
     'pose with selected face points + dropout=0.4',
     'pose with selected face points + dropout=0.8',
+    'increase batch size from 128 to 250',
 ]
 
 results = {}

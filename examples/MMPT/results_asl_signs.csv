@@ -6,3 +6,4 @@ test_asl_signs_face_conv,0.8920,0.8232,0.7200,1.0,0.5560,0.8173,0.8793,1,pose wi
 test_asl_signs_face_dropout_0.2,0.9160,0.8528,0.7480,1.0,0.5960,0.8550,0.9035,1,pose with selected face points + dropout=0.2
 test_asl_signs_face_dropout_0.4,0.9120,0.8568,0.7560,1.0,0.6094,0.8649,0.9100,1,pose with selected face points + dropout=0.4
 test_asl_signs_face_dropout_0.8,0.0040,0.0040,0.0040,191.5,0.0040,0.0193,0.0368,1586,pose with selected face points + dropout=0.8
+test_asl_signs_face_b,0.9400,0.8768,0.7896,1.0,0.6411,0.8662,0.9155,1,increase batch size from 128 to 250
