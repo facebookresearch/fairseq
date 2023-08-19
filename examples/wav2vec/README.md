@@ -187,13 +187,15 @@ Be sure to upper-case the language model vocab after downloading it.
 
 Letter dictionary for pre-trained models can be found [here](https://dl.fbaipublicfiles.com/fairseq/wav2vec/dict.ltr.txt).
 
+Lexicon for LibriSpeech KenLM can be found [here](https://dl.fbaipublicfiles.com/fairseq/wav2vec/librispeech_lexicon.lst).
+
 Next, run the evaluation command:
 
 ```shell script
 $subset=dev_other
 python examples/speech_recognition/infer.py /checkpoint/abaevski/data/speech/libri/10h/wav2vec/raw --task audio_finetuning \
 --nbest 1 --path /path/to/model --gen-subset $subset --results-path /path/to/save/results/for/sclite --w2l-decoder kenlm \
---lm-model /path/to/kenlm.bin --lm-weight 2 --word-score -1 --sil-weight 0 --criterion ctc --labels ltr --max-tokens 4000000 \
+--lm-model /path/to/kenlm.bin --lm-weight 2 --lexicon /path/to/lexicon.lst --word-score -1 --sil-weight 0 --criterion ctc --labels ltr --max-tokens 4000000 \
 --post-process letter
 ```
 
