@@ -101,7 +101,7 @@ def collate(
     src_lengths, sort_order = src_lengths.sort(descending=True)
     id = id.index_select(0, sort_order)
     src_tokens = src_tokens.index_select(0, sort_order)
-    print("src_token",src_tokens.size())
+    # print("src_token",src_tokens.size())
     
     prev_output_tokens = None
     candidate = None
@@ -135,7 +135,7 @@ def collate(
                 if pad_to_length is not None
                 else None,
             )
-            print(prev_output_tokens.size())
+           #  print(prev_output_tokens.size())
     else:
         ntokens = src_lengths.sum().item()
     
@@ -162,7 +162,7 @@ def collate(
         batch["net_input"]["prev_output_tokens"] = prev_output_tokens.index_select(
             0, sort_order
         )
-    print("language_pair done")
+    #  print("language_pair done")
     if samples[0].get("alignment", None) is not None:
         bsz, tgt_sz = batch["target"].shape
         src_sz = batch["net_input"]["src_tokens"].shape[1]

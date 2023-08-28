@@ -270,7 +270,7 @@ def load_langpair_dataset(
             prefix + src, src_dict, dataset_impl
         )
         
-        print('src done')
+        
         if truncate_source:
             src_dataset = AppendTokenDataset(
                 TruncateDataset(
@@ -280,7 +280,7 @@ def load_langpair_dataset(
                 src_dict.eos(),
             )
         src_datasets.append(src_dataset)
-        print(src_datasets) 
+        # print(src_datasets) 
         # 为什么打印出来的是一个内存地址
 
         tgt_dataset = data_utils.load_indexed_dataset(
@@ -288,12 +288,12 @@ def load_langpair_dataset(
         )
         if tgt_dataset is not None:
             tgt_datasets.append(tgt_dataset)
-        print('tgt done')
+        
         score = data_utils.load_indexed_dataset(
                 prefix, dictionary=None,dataset_impl=dataset_impl
         )
         scores.append(score)
-        print('score done')
+       #  print('score done')
 
 
 
