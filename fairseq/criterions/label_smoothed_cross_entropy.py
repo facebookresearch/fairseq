@@ -45,34 +45,39 @@ def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=None, reduce=T
         nll_loss = nll_loss.squeeze(-1)
         smooth_loss = smooth_loss.squeeze(-1)
     if reduce:
-        nll_loss = nll_loss.sum()
+        nll_loss = (nll_loss.sum()) / 16
         smooth_loss = smooth_loss.sum()
     eps_i = epsilon / (lprobs.size(-1) - 1)
-    loss = (1.0 - epsilon - eps_i) * nll_loss + eps_i * smooth_loss
+    loss = ((1.0 - epsilon - eps_i) * nll_loss + eps_i * smooth_loss) / 16
     return loss, nll_loss
 #
-def ranking_loss(score,no_cand=False,margin=0):
-    ones = torch.ones_like(score)
-    loss_func = torch.nn.MarginRankingLoss(0.0)
-    TotalLoss = loss_func(score, score, ones)
-    # candidate loss
-    n = score.size(1)
-    if not no_cand:
-        for i in range(1,n):
-            
-            pos_score = score[:,:-i]
-            
-            neg_score = score[:,i:]
-            
-            pos_score = pos_score.contiguous().view(-1)
-            
-            neg_score = neg_score.contiguous().view(-1)
-        
-            ones = torch.ones_like(pos_score)
-            loss_func = torch.nn.MarginRankingLoss(margin * i)
-            loss = loss_func(pos_score,neg_score,ones)
-            TotalLoss += loss
-    return TotalLoss
+def ranking_loss(lprobs,target,score):
+    if target.dim() == lprobs.dim() - 1:
+        target = target.unsqueeze(-1)
+    
+    
+    # turn model_score into 2D tensor by means in the last dimention
+    # model_score_4d = lprobs.gather(dim=-1, index=target).sum(dim=-1).mean(dim=-1)
+    model_score_4d_1 = lprobs.gather(dim = -1, index=target)
+    # print(f"model_score_size:{model_score_4d_1.shape}")
+    model_score_4d = model_score_4d_1.sum(dim=-1).mean(dim=-1)
+    # print(f"model_score_4d: {model_score_4d.shape}")
+    model_score = model_score_4d.view(model_score_4d.shape[0],-1)
+    # print(model_score.shape)
+    # caculate the difference between model_score and score
+
+    diff = model_score.unsqueeze(1) - model_score.unsqueeze(-1)
+
+    rw_diff = score.unsqueeze(1) - score.unsqueeze(-1)
+
+    # find the element that subject to (rw_diff>0 and diff < 0)
+
+    aval_1 = torch.bitwise_and(rw_diff > 0, diff < 0 )
+    # aval = aval_1[0]
+
+    return -diff[aval_1].sum()
+
+
 
 @register_criterion(
     "label_smoothed_cross_entropy", dataclass=LabelSmoothedCrossEntropyCriterionConfig
@@ -101,7 +106,10 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         3) logging outputs to display while training
         """
         net_output = model(**sample["net_input"])
+        # print(type(net_output))
         
+        
+        # print(len(net_output))
         loss, nll_loss = self.compute_loss(model, net_output, sample, reduce=reduce)
         sample_size = (
             sample["target"].size(0) if self.sentence_avg else sample["ntokens"]
@@ -121,18 +129,24 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
 
     def get_lprobs_and_target(self, model, net_output, sample):
         lprobs = model.get_normalized_probs(net_output, log_probs=True)
+        
+        print(f"lprobs_size :{lprobs.shape}")
         target = model.get_targets(sample, net_output)
+        print(f"target_szie :{target.shape}")
         if self.ignore_prefix_size > 0:
             # lprobs: B x T x C
             lprobs = lprobs[:, self.ignore_prefix_size :, :].contiguous()
             target = target[:, self.ignore_prefix_size :].contiguous()
-        return lprobs.view(-1, lprobs.size(-1)), target.view(-1)
+        # return lprobs.view(-1, lprobs.size(-1)), target.view(-1)
+        return lprobs, target
 
     def compute_loss(self, model, net_output, sample, reduce=True):
         lprobs, target = self.get_lprobs_and_target(model, net_output, sample)
+        # print(f"lprobs_size_final :{lprobs.shape}")
+        # print(f"target_szie_final :{target.shape}")
         # Ranking Loss
         
-        rankloss = ranking_loss(sample["score"])
+        rankloss = ranking_loss(lprobs,target,sample["score"])
         
         loss, nll_loss = label_smoothed_nll_loss(
             lprobs,
@@ -141,7 +155,7 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             ignore_index=self.padding_idx,
             reduce=reduce,
         )
-        loss = 100 * rankloss + loss 
+        loss = rankloss + loss 
         return loss, nll_loss
     def compute_accuracy(self, model, net_output, sample):
         lprobs, target = self.get_lprobs_and_target(model, net_output, sample)
