@@ -25,12 +25,27 @@ def collate(
 ):
     if len(samples) == 0:
         return {}
+
+
     
 
 
     def merge(key, left_pad, move_eos_to_beginning=False, pad_to_length=None):
         if key == "score":
             return data_utils.collate_score([s[key] for s in samples])
+        if key == "candidate":
+            
+            return data_utils.collate_candidate_tokens(
+            [s[key] for s in samples],
+            pad_idx,
+            eos_idx,
+            left_pad,
+            move_eos_to_beginning,
+            pad_to_length=pad_to_length,
+            pad_to_multiple=pad_to_multiple,
+        )
+
+
         else:
 
             return data_utils.collate_tokens(
@@ -72,11 +87,13 @@ def collate(
         return 1.0 / align_weights.float()
 
     id = torch.LongTensor([s["id"] for s in samples])
+
     src_tokens = merge(
         "source",
         left_pad=left_pad_source,
         pad_to_length=pad_to_length["source"] if pad_to_length is not None else None,
     )
+    
     # sort by descending source length
     src_lengths = torch.LongTensor(
         [s["source"].ne(pad_idx).long().sum() for s in samples]
@@ -84,38 +101,45 @@ def collate(
     src_lengths, sort_order = src_lengths.sort(descending=True)
     id = id.index_select(0, sort_order)
     src_tokens = src_tokens.index_select(0, sort_order)
-
+    print("src_token",src_tokens.size())
+    
     prev_output_tokens = None
-    target = None
-    if samples[0].get("target", None) is not None:
-        target = merge(
-            "target",
+    candidate = None
+    if samples[0].get("candidate", None) is not None:
+        candidate = merge(
+            "candidate",
             left_pad=left_pad_target,
-            pad_to_length=pad_to_length["target"]
+            pad_to_length=pad_to_length["candidate"]
             if pad_to_length is not None
             else None,
         )
-        target = target.index_select(0, sort_order)
-        tgt_lengths = torch.LongTensor(
-            [s["target"].ne(pad_idx).long().sum() for s in samples]
+        candidate  = candidate.index_select(0, sort_order)
+        
+       
+        candidate_lengths = torch.LongTensor(
+            [s["candidate"][0].ne(pad_idx).long().sum() for s in samples]
         ).index_select(0, sort_order)
-        ntokens = tgt_lengths.sum().item()
-
+        ntokens = candidate_lengths.sum().item()
+        
+       
         if samples[0].get("prev_output_tokens", None) is not None:
             prev_output_tokens = merge("prev_output_tokens", left_pad=left_pad_target)
         elif input_feeding:
             # we create a shifted version of targets for feeding the
             # previous output token(s) into the next decoder step
             prev_output_tokens = merge(
-                "target",
+                "candidate",
                 left_pad=left_pad_target,
                 move_eos_to_beginning=True,
-                pad_to_length=pad_to_length["target"]
+                pad_to_length=pad_to_length["candidate"]
                 if pad_to_length is not None
                 else None,
             )
+            print(prev_output_tokens.size())
     else:
         ntokens = src_lengths.sum().item()
+    
+
     score=None
     if samples[0].get('score',None) is not None:
         score = merge(key="score",left_pad = left_pad_source)
@@ -129,7 +153,7 @@ def collate(
             "src_tokens": src_tokens,
             "src_lengths": src_lengths,
         },
-        "target": target,
+        "target": candidate,
         "score": score
     }
 
@@ -138,7 +162,7 @@ def collate(
         batch["net_input"]["prev_output_tokens"] = prev_output_tokens.index_select(
             0, sort_order
         )
-
+    print("language_pair done")
     if samples[0].get("alignment", None) is not None:
         bsz, tgt_sz = batch["target"].shape
         src_sz = batch["net_input"]["src_tokens"].shape[1]
@@ -330,10 +354,10 @@ class LanguagePairDataset(FairseqDataset):
         # Get the first target language item
         # tgt_item = self.tgt[index *2]
         # tgt_item_1 = self.tgt[index *2 +1]
-        tgt_item = []
+        candidate_item = []
         score_item = []
         for i in range(16):
-            tgt_item.append(self.tgt[index * 16 + i]) 
+            candidate_item.append(self.tgt[index * 16 + i]) 
             score_item.append(self.scores[index * 16 + i])
     
         #    tgt_item.append(tgt_item)
@@ -363,10 +387,11 @@ class LanguagePairDataset(FairseqDataset):
         example = {
             "id": index,
             "source": src_item,
-            "target": tgt_item[0],
+            "candidate": candidate_item,
             "score": score_item,
         }
     
+        
     
         if self.align_dataset is not None:
             example["alignment"] = self.align_dataset[index]
