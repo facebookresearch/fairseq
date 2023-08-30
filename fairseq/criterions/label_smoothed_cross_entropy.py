@@ -130,9 +130,9 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
     def get_lprobs_and_target(self, model, net_output, sample):
         lprobs = model.get_normalized_probs(net_output, log_probs=True)
         
-        print(f"lprobs_size :{lprobs.shape}")
+        # print(f"lprobs_size :{lprobs.shape}")
         target = model.get_targets(sample, net_output)
-        print(f"target_szie :{target.shape}")
+        # print(f"target_szie :{target.shape}")
         if self.ignore_prefix_size > 0:
             # lprobs: B x T x C
             lprobs = lprobs[:, self.ignore_prefix_size :, :].contiguous()
