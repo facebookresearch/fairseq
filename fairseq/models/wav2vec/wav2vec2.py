@@ -922,7 +922,7 @@ class ConvFeatureExtractionModel(nn.Module):
         return x
 
 
-def make_conv_pos(e, k, g):
+def make_conv_pos(e, k, g, is_batch_norm=False):
     pos_conv = nn.Conv1d(
         e,
         e,
@@ -935,8 +935,12 @@ def make_conv_pos(e, k, g):
     nn.init.normal_(pos_conv.weight, mean=0, std=std)
     nn.init.constant_(pos_conv.bias, 0)
 
-    pos_conv = nn.utils.weight_norm(pos_conv, name="weight", dim=2)
-    pos_conv = nn.Sequential(pos_conv, SamePad(k), nn.GELU())
+    if not is_batch_norm:
+        pos_conv = nn.utils.weight_norm(pos_conv, name="weight", dim=2)
+        pos_conv = nn.Sequential(pos_conv, SamePad(k), nn.GELU())
+    else:
+        batch_norm = nn.BatchNorm1d(e)
+        pos_conv = nn.Sequential(batch_norm, pos_conv, SamePad(k), nn.GELU())
 
     return pos_conv
 
@@ -1047,6 +1051,9 @@ class TransformerEncoder(nn.Module):
                 self.embedding_dim,
                 args.conv_pos,
                 args.conv_pos_groups,
+                is_batch_norm=args.conv_pos_batch_norm
+                if hasattr(args, "conv_pos_batch_norm")
+                else False,
             )
 
         self.layers = nn.ModuleList(
@@ -1370,7 +1377,7 @@ class AdapterFast(nn.Module):
         and without using ModuleList orto speed up training throughput.
         """
         super().__init__()
-        
+
         self.adapter_num = adapter_num
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
@@ -1405,7 +1412,7 @@ class AdapterFast(nn.Module):
             fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.W_b[ii])
             bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
             nn.init.uniform_(self.b_b[ii], -bound, bound)
-        
+
         nn.init.ones_(self.ln_W)
         nn.init.zeros_(self.ln_b)
 
@@ -1418,7 +1425,7 @@ class AdapterFast(nn.Module):
         h = F.linear(h, self.W_b[ii], self.b_b[ii])
         outputs = h
         return outputs
-    
+
     def extra_repr(self):
         return ('adapter={}, input_dim={}, hidden_dim={}'.format(self.adapter_num, self.input_dim, self.hidden_dim))
 
