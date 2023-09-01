@@ -501,6 +501,10 @@ class WandBProgressBarWrapper(BaseProgressBar):
         """Log intermediate stats to tensorboard."""
         self._log_to_wandb(stats, tag, step)
         self.wrapped_bar.log(stats, tag=tag, step=step)
+    
+    def is_running_in_sagemaker():
+        return 'SM_TRAINING_ENV' in os.environ
+
 
     def print(self, stats, tag=None, step=None):
         """Print end-of-epoch stats."""
@@ -509,9 +513,12 @@ class WandBProgressBarWrapper(BaseProgressBar):
 
     def update_config(self, config):
         """Log latest configuration."""
-        if wandb is not None:
-            #wandb.config.update(config)
-        self.wrapped_bar.update_config(config)
+        if wandb is not None and not self.is_running_in_sagemaker():
+            wandb.config.update(config)
+            print("updating wandb config")
+            self.wrapped_bar.update_config(config)
+        else:
+            print("running in sagemaker , skipping update wandb config")
 
     def _log_to_wandb(self, stats, tag=None, step=None):
         if wandb is None:
