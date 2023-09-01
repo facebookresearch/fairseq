@@ -502,7 +502,7 @@ class WandBProgressBarWrapper(BaseProgressBar):
         self._log_to_wandb(stats, tag, step)
         self.wrapped_bar.log(stats, tag=tag, step=step)
     
-    def is_running_in_sagemaker():
+    def is_running_in_sagemaker(self):
         return 'SM_TRAINING_ENV' in os.environ
 
 
@@ -513,7 +513,7 @@ class WandBProgressBarWrapper(BaseProgressBar):
 
     def update_config(self, config):
         """Log latest configuration."""
-        if wandb is not None and not self.is_running_in_sagemaker():
+        if wandb is not None and not self.is_running_in_sagemaker(self):
             wandb.config.update(config)
             print("updating wandb config")
             self.wrapped_bar.update_config(config)
