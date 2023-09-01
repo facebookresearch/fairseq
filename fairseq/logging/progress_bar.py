@@ -513,7 +513,7 @@ class WandBProgressBarWrapper(BaseProgressBar):
 
     def update_config(self, config):
         """Log latest configuration."""
-        if wandb is not None and not self.is_running_in_sagemaker(self):
+        if wandb is not None and not self.is_running_in_sagemaker():
             wandb.config.update(config)
             print("updating wandb config")
             self.wrapped_bar.update_config(config)
