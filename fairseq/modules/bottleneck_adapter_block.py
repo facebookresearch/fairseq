@@ -5,36 +5,37 @@ from fairseq.modules.layer_norm import LayerNorm
 from fairseq.modules.fairseq_dropout import FairseqDropout
 
 
-
 class BottleneckAdapter(nn.Module):
     """
     A simple adapter piece specific to a language-pair
     """
-    def __init__(self, 
-        in_dim=512, 
-        reduction_factor=16, 
-        activation="relu", 
-        dropout=0, 
-        ln_before=False, 
-        use_gating=False
+
+    def __init__(
+        self,
+        in_dim=512,
+        reduction_factor=16,
+        activation="relu",
+        dropout=0,
+        ln_before=False,
+        use_gating=False,
     ):
         super().__init__()
         self.in_dim = in_dim
         self.bottleneck_dim = in_dim // reduction_factor
-        
+
         self.use_gating = use_gating
-        
+
         self.ln_before = ln_before
         self.dropout_module = FairseqDropout(p=dropout)
 
         self.up = nn.Linear(self.in_dim, self.bottleneck_dim)
         self.down = nn.Linear(self.bottleneck_dim, self.in_dim)
         self.activation_fn = utils.get_activation_fn(activation)
-        self.layer_norm = LayerNorm(self.in_dim, export=False) 
-        
+        self.layer_norm = LayerNorm(self.in_dim, export=False)
+
         if self.use_gating:
-            self.gate = nn.Linear(self.in_dim, 1)   
-            
+            self.gate = nn.Linear(self.in_dim, 1)
+
     def residual_connection(self, x, residual):
         return residual + x
 
@@ -52,40 +53,43 @@ class BottleneckAdapter(nn.Module):
 
         x = self.dropout_module(x)
         x = self.residual_connection(x, residual)
-        
+
         if not self.ln_before:
             x = self.layer_norm(x)
 
         return x
-        
-
 
 
 class BottleneckAdapterBlock(nn.Module):
     """
-    A simple adapter block which houses mulitple adapter pieces, 
+    A simple adapter block which houses mulitple adapter pieces,
     i.e. one per language-pair
     """
-    def __init__(self, 
-                 adapter_ids, 
-                 in_dim=512,
-                 reduction_factor=16,
-                 activation="relu",
-                 dropout=0,
-                 ln_before=False,
-                 use_gating=False):
 
+    def __init__(
+        self,
+        adapter_ids,
+        in_dim=512,
+        reduction_factor=16,
+        activation="relu",
+        dropout=0,
+        ln_before=False,
+        use_gating=False,
+    ):
         super().__init__()
-        self.adapters = nn.ModuleDict({
-            id_: BottleneckAdapter(
-                in_dim=in_dim,
-                reduction_factor=reduction_factor,
-                activation=activation,
-                dropout=dropout,
-                ln_before=ln_before,
-                use_gating=use_gating
-            ) for id_ in adapter_ids
-        })
+        self.adapters = nn.ModuleDict(
+            {
+                id_: BottleneckAdapter(
+                    in_dim=in_dim,
+                    reduction_factor=reduction_factor,
+                    activation=activation,
+                    dropout=dropout,
+                    ln_before=ln_before,
+                    use_gating=use_gating,
+                )
+                for id_ in adapter_ids
+            }
+        )
 
     def forward(self, x, adapter_id):
         return self.adapters[adapter_id](x)

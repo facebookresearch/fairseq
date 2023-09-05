@@ -22,7 +22,7 @@ from fairseq.modules import (
     LayerNorm,
     PositionalEmbedding,
     SinusoidalPositionalEmbedding,
-    transformer_layer
+    transformer_layer,
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
@@ -105,7 +105,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             else None
         )
         self.layernorm_embedding = (
-            LayerNorm(self.embed_dim, export=cfg.export) 
+            LayerNorm(self.embed_dim, export=cfg.export)
             if cfg.layernorm_embedding
             else None
         )
@@ -115,14 +115,22 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
 
         self.layers = (
             LayerDropModuleList(p=self.decoder_layerdrop)
-            if self.decoder_layerdrop > 0.0 
+            if self.decoder_layerdrop > 0.0
             else nn.ModuleList([])
         )
 
         if self.recurrent_stacking is not None:
-            self.layers.extend([self.build_decoder_layer(cfg, no_encoder_attn)]*self.recurrent_stacking)
+            self.layers.extend(
+                [self.build_decoder_layer(cfg, no_encoder_attn)]
+                * self.recurrent_stacking
+            )
         else:
-            self.layers.extend([self.build_decoder_layer(cfg, no_encoder_attn) for _ in range(cfg.decoder.layers)])
+            self.layers.extend(
+                [
+                    self.build_decoder_layer(cfg, no_encoder_attn)
+                    for _ in range(cfg.decoder.layers)
+                ]
+            )
 
         self.num_layers = len(self.layers)
 
@@ -148,7 +156,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         self.output_projection = output_projection
         if self.output_projection is None:
             self.build_output_projection(cfg, dictionary, embed_tokens)
-        
+
     def build_output_projection(self, cfg, dictionary, embed_tokens):
         if cfg.adaptive_softmax_cutoff is not None:
             self.adaptive_softmax = AdaptiveSoftmax(
@@ -178,7 +186,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             nn.init.normal_(
                 self.output_projection.weight, mean=0, std=self.output_embed_dim**-0.5
             )
-        
+
         num_base_layers = cfg.base_layers
         for i in range(num_base_layers):
             self.layers.insert(
@@ -197,7 +205,6 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         min_params_to_wrap = cfg.min_params_to_wrap if not checkpoint else 0
         layer = fsdp_wrap(layer, min_num_params=min_params_to_wrap)
         return layer
-
 
     def forward(
         self,
@@ -267,7 +274,8 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
     A scriptable subclass of this class has an extract_features method and calls
     super().extract_features, but super() is not supported in torchscript. A copy of
     this function is made to be used in the subclass instead.
-    """ 
+    """
+
     def extract_features_scriptable(
         self,
         prev_output_tokens,
@@ -322,7 +330,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         # Prevent torchscript exporting issue for dynamic quant embedding
         prev_output_tokens = prev_output_tokens.contiguous()
         # embed tokens and positions
-        
+
         x = self.embed_scale * self.embed_tokens(prev_output_tokens)
 
         if self.quant_noise is not None:
@@ -355,7 +363,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
                 self_attn_mask = self.buffered_future_mask(x)
             else:
                 self_attn_mask = None
-        
+
             x, layer_attn, _ = layer(
                 x,
                 enc,
@@ -366,7 +374,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
                 need_attn=bool((idx == alignment_layer)),
                 need_head_weights=bool((idx == alignment_layer)),
             )
-            
+
             inner_states.append(x)
             if layer_attn is not None and idx == alignment_layer:
                 attn = layer_attn.float().to(x)

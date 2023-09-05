@@ -6,7 +6,7 @@
 
 import re
 from dataclasses import dataclass, field, fields
-from typing import List, Optional, Any
+from typing import List, Optional
 
 from omegaconf import II
 
@@ -26,7 +26,9 @@ _NAME_PARSER = r"(decoder|encoder|quant_noise)_(.*)"
 class EncDecBaseConfig(FairseqDataclass):
     recurrent_stacking: Optional[int] = field(
         default=None,
-        metadata={"help": "number of recurrent stackings for the encoder and decoder layers"}
+        metadata={
+            "help": "number of recurrent stackings for the encoder and decoder layers"
+        },
     )
     embed_path: Optional[str] = field(
         default=None, metadata={"help": "path to pre-trained embedding"}
@@ -40,7 +42,7 @@ class EncDecBaseConfig(FairseqDataclass):
             "help": "hidden dimension for the factorized embeddings."
             "If this argument is specified, regular embeddings will be skipped and factorized embeddings will be generated"
             "Nevertheless, embed_dim parameter must be specified"
-        }
+        },
     )
     ffn_embed_dim: int = field(
         default=2048, metadata={"help": "embedding dimension for FFN"}
@@ -70,7 +72,7 @@ class EncDecBaseConfig(FairseqDataclass):
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
     add_adapters: Optional[bool] = field(
         default=False,
-        metadata={"help": "add adapters to the transformer encoder/decoder layers"}
+        metadata={"help": "add adapters to the transformer encoder/decoder layers"},
     )
     adapter_reduction_factor: Optional[int] = field(
         default=None,
@@ -78,17 +80,24 @@ class EncDecBaseConfig(FairseqDataclass):
     )
     adapter_ids: Optional[str] = field(
         default=None,
-        metadata={"help": "list of ids to be used as keys for the adapters (comma separated)"}
+        metadata={
+            "help": "list of ids to be used as keys for the adapters (comma separated)"
+        },
     )
     train_adapter: Optional[str] = field(
         default=None,
-        metadata={"help": "trains the adapter of only that specific id. Rest parameters are frozen"}
+        metadata={
+            "help": "trains the adapter of only that specific id. Rest parameters are frozen"
+        },
     )
     adapter_use_gating: Optional[bool] = field(
         default=False,
-        metadata={"help": "whether to use gating along with skip connection for the adapter"}
+        metadata={
+            "help": "whether to use gating along with skip connection for the adapter"
+        },
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+
 
 @dataclass
 class DecoderConfig(EncDecBaseConfig):
@@ -101,9 +110,7 @@ class DecoderConfig(EncDecBaseConfig):
     )
     output_activation_fn: Optional[str] = field(
         default=None,
-        metadata={
-            "help": "activation for the decoder output layer mentioned above"
-        }
+        metadata={"help": "activation for the decoder output layer mentioned above"},
     )
 
     def __post_init__(self):
@@ -112,7 +119,6 @@ class DecoderConfig(EncDecBaseConfig):
             self.input_dim = self.embed_dim
         if self.output_dim == II("model.decoder.embed_dim"):
             self.output_dim = self.embed_dim
-        
 
 
 @dataclass
@@ -135,13 +141,13 @@ class QuantNoiseConfig(FairseqDataclass):
 
 @dataclass
 class TransformerConfig(FairseqDataclass):
-
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
     adapter_activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
-        default="relu",
-        metadata={"help": "activation function for adapters"}
+        default="relu", metadata={"help": "activation function for adapters"}
     )
-    factorized_embed_activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
+    factorized_embed_activation_fn: ChoiceEnum(
+        utils.get_available_activation_fns()
+    ) = field(
         default="linear",
         metadata={"help": "activation function to use for the factorized embedding"},
     )

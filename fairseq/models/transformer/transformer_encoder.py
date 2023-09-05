@@ -20,7 +20,7 @@ from fairseq.modules import (
     LayerNorm,
     PositionalEmbedding,
     SinusoidalPositionalEmbedding,
-    transformer_layer
+    transformer_layer,
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
@@ -74,11 +74,9 @@ class TransformerEncoderBase(FairseqEncoder):
             if not cfg.no_token_positional_embeddings
             else None
         )
-        
+
         self.layernorm_embedding = (
-            LayerNorm(embed_dim, export=cfg.export)
-            if cfg.layernorm_embedding
-            else None
+            LayerNorm(embed_dim, export=cfg.export) if cfg.layernorm_embedding else None
         )
 
         if not cfg.adaptive_input and cfg.quant_noise.pq > 0:
@@ -92,7 +90,6 @@ class TransformerEncoderBase(FairseqEncoder):
 
         self.recurrent_stacking = cfg.encoder.recurrent_stacking
 
-        
         self.layers = (
             LayerDropModuleList(p=self.encoder_layerdrop)
             if self.encoder_layerdrop > 0.0
@@ -100,9 +97,13 @@ class TransformerEncoderBase(FairseqEncoder):
         )
 
         if self.recurrent_stacking is not None:
-            self.layers.extend([self.build_encoder_layer(cfg)]*self.recurrent_stacking)
+            self.layers.extend(
+                [self.build_encoder_layer(cfg)] * self.recurrent_stacking
+            )
         else:
-            self.layers.extend([self.build_encoder_layer(cfg) for _ in range(cfg.encoder.layers)])
+            self.layers.extend(
+                [self.build_encoder_layer(cfg) for _ in range(cfg.encoder.layers)]
+            )
 
         self.num_layers = len(self.layers)
 
@@ -220,7 +221,7 @@ class TransformerEncoderBase(FairseqEncoder):
             has_pads = torch.tensor(1) if has_pads else torch.tensor(0)
 
         x, encoder_embedding = self.forward_embedding(src_tokens, token_embeddings)
-        
+
         # account for padding while computing the representation
         x = x * (
             1 - encoder_padding_mask.unsqueeze(-1).type_as(x) * has_pads.type_as(x)

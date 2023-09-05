@@ -1,4 +1,4 @@
-    #!/usr/bin/env python3 -u
+#!/usr/bin/env python3 -u
 # Copyright (c) Facebook, Inc. and its affiliates.
 #
 # This source code is licensed under the MIT license found in the
@@ -13,6 +13,7 @@ import math
 import os
 import sys
 import json
+from tqdm import tqdm
 from omegaconf import OmegaConf
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -77,7 +78,7 @@ def main(cfg: FairseqConfig) -> None:
     logger.info(cfg)
 
     os.makedirs(cfg.checkpoint.save_dir, exist_ok=True)
-    with open(os.path.join(cfg.checkpoint.save_dir, 'config.json'), 'w') as f:
+    with open(os.path.join(cfg.checkpoint.save_dir, "config.json"), "w") as f:
         json.dump(str(cfg), f)
 
     if cfg.checkpoint.write_checkpoints_asynchronously:
@@ -96,23 +97,31 @@ def main(cfg: FairseqConfig) -> None:
     assert cfg.criterion, "Please specify criterion to train a model"
 
     # build teacher model here
-    if (cfg.task._name == "translation_with_kd") and (cfg.criterion._name == "label_smoothed_cross_entropy_with_kd"):
+    if (cfg.task._name == "translation_with_kd") and (
+        cfg.criterion._name == "label_smoothed_cross_entropy_with_kd"
+    ):
         logging.info("Building teacher model")
-        
-        teacher_model = load_model_ensemble([cfg.task.teacher_checkpoint_path], task=task)[0][0]
 
-        use_cuda = torch.cuda.is_available() and not cfg.common.cpu and not cfg.distributed_training.pipeline_model_parallel
+        teacher_model = load_model_ensemble(
+            [cfg.task.teacher_checkpoint_path], task=task
+        )[0][0]
 
-        if use_cuda :
+        use_cuda = (
+            torch.cuda.is_available()
+            and not cfg.common.cpu
+            and not cfg.distributed_training.pipeline_model_parallel
+        )
+
+        if use_cuda:
             teacher_model = teacher_model.cuda()
         if cfg.common.fp16:
             teacher_model = teacher_model.half()
-                    
+
         logger.info(
             "loaded teacher {} from {} in fp{}".format(
                 teacher_model.__class__.__name__,
                 cfg.task.teacher_checkpoint_path,
-                16 if cfg.common.fp16 else 32
+                16 if cfg.common.fp16 else 32,
             )
         )
 
@@ -120,9 +129,7 @@ def main(cfg: FairseqConfig) -> None:
 
         logger.info(
             "num. teacher params: {:,} ".format(
-                sum(
-                    p.numel() for p in teacher_model.parameters() if p.requires_grad
-                )
+                sum(p.numel() for p in teacher_model.parameters() if p.requires_grad)
             )
         )
 
@@ -145,18 +152,25 @@ def main(cfg: FairseqConfig) -> None:
     train_encoder_adapter = getattr(cfg.model, "encoder_train_adapter", "$$") != "$$"
     train_decoder_adapter = getattr(cfg.model, "decoder_train_adapter", "$$") != "$$"
 
+    encoder_selectively_train_embedding = (
+        getattr(cfg.model, "encoder_selectively_train_embedding", "$$") != "$$"
+    )
+    decoder_selectively_train_embedding = (
+        getattr(cfg.model, "decoder_selectively_train_embedding", "$$") != "$$"
+    )
+
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
     if add_encoder_adapters or add_decoder_adapters:
         logging.info("adapters detected in encoder/decoder")
         if train_encoder_adapter:
             logging.info(
-                "\'{0}\' adapters in the encoder will be trained. Make sure \'{0}\' data is only being fed to the encoder for the training.".format(
+                "'{0}' adapters in the encoder will be trained. Make sure '{0}' data is only being fed to the encoder for the training.".format(
                     cfg.model.encoder_train_adapter
                 )
             )
         if train_decoder_adapter:
             logging.info(
-                "\'{0}\' adapters in the decoder will be trained. Make sure \'{0}\' data is only being fed to the decoder for the training.".format(
+                "'{0}' adapters in the decoder will be trained. Make sure '{0}' data is only being fed to the decoder for the training.".format(
                     cfg.model.decoder_train_adapter
                 )
             )
@@ -168,11 +182,10 @@ def main(cfg: FairseqConfig) -> None:
                 for p in layer.parameters():
                     p.requires_grad = False
             for name, layer in model.named_modules():
-                if isinstance(layer, BottleneckAdapter) and \
-                   (
-                    cfg.model.encoder_train_adapter == name.split('.')[-1] or \
-                    cfg.model.decoder_train_adapter == name.split('.')[-1]
-                   ):
+                if isinstance(layer, BottleneckAdapter) and (
+                    cfg.model.encoder_train_adapter == name.split(".")[-1]
+                    or cfg.model.decoder_train_adapter == name.split(".")[-1]
+                ):
                     logging.info(f"gradients for {name} will be active")
                     for p in layer.parameters():
                         p.requires_grad = True
@@ -180,9 +193,7 @@ def main(cfg: FairseqConfig) -> None:
 
     logger.info(
         "num. trainable model params: {:,} ".format(
-            sum(
-                p.numel() for p in model.parameters() if p.requires_grad
-            )
+            sum(p.numel() for p in model.parameters() if p.requires_grad)
         )
     )
 
@@ -231,14 +242,20 @@ def main(cfg: FairseqConfig) -> None:
         quantizer = None
 
     # Build trainer
-    trainer = Trainer(cfg, task, model, criterion, quantizer) if cfg.common.model_parallel_size == 1 else MegatronTrainer(cfg, task, model, criterion)
-    
+    trainer = (
+        Trainer(cfg, task, model, criterion, quantizer)
+        if cfg.common.model_parallel_size == 1
+        else MegatronTrainer(cfg, task, model, criterion)
+    )
+
     # assign the teacher model (is present) to the trainer
     # we had to build the teacher model first before the student and trainer
     # to avoid over-writing the generator for beam-search of the student with that of the teacher
-    if (cfg.task._name == "translation_with_kd") and (cfg.criterion._name == "label_smoothed_cross_entropy_with_kd"):
+    if (cfg.task._name == "translation_with_kd") and (
+        cfg.criterion._name == "label_smoothed_cross_entropy_with_kd"
+    ):
         trainer.assign_teacher_model(teacher_model)
-    
+
     logger.info(
         "training on {} devices (GPUs/TPUs)".format(
             cfg.distributed_training.distributed_world_size
@@ -261,8 +278,9 @@ def main(cfg: FairseqConfig) -> None:
     )
     if cfg.common.tpu:
         import torch_xla.core.xla_model as xm
+
         xm.rendezvous("load_checkpoint")  # wait for all workers
-    
+
     max_epoch = cfg.optimization.max_epoch or math.inf
     lr = trainer.get_lr()
 
@@ -317,6 +335,7 @@ def main(cfg: FairseqConfig) -> None:
         )
         PathManager.async_close()
         logger.info("ioPath PathManager finished waiting.")
+
 
 def should_stop_early(cfg: DictConfig, valid_loss: float) -> bool:
     # skip check if no validation was done in the current epoch
@@ -475,7 +494,7 @@ def validate_and_save(
     task: tasks.FairseqTask,
     epoch_itr,
     valid_subsets: List[str],
-    end_of_epoch: bool
+    end_of_epoch: bool,
 ) -> Tuple[List[Optional[float]], bool]:
     num_updates = trainer.get_num_updates()
     max_update = cfg.optimization.max_update or math.inf
@@ -513,7 +532,8 @@ def validate_and_save(
         )
     )
     do_validate = (
-        (   cfg.common.run_sanity_validation_steps
+        (
+            cfg.common.run_sanity_validation_steps
             or (not end_of_epoch and do_save)  # validate during mid-epoch saves
             or (end_of_epoch and epoch_itr.epoch % cfg.dataset.validate_interval == 0)
             or should_stop

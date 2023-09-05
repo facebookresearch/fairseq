@@ -11,14 +11,9 @@ from torch import Tensor
 
 from fairseq import utils
 from fairseq.models.transformer import TransformerConfig
-from fairseq.modules import (
-    LayerNorm, 
-    MultiheadAttention,
-    BottleneckAdapterBlock
-)
+from fairseq.modules import LayerNorm, MultiheadAttention, BottleneckAdapterBlock
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
-
 
 
 class TransformerEncoderLayerBase(nn.Module):
@@ -44,8 +39,8 @@ class TransformerEncoderLayerBase(nn.Module):
         self.quant_noise = cfg.quant_noise.pq
         self.quant_noise_block_size = cfg.quant_noise.pq_block_size
         self.self_attn = self.build_self_attention(self.embed_dim, cfg)
-        self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export) 
-            
+        self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
+
         self.dropout_module = FairseqDropout(
             cfg.dropout, module_name=self.__class__.__name__
         )
@@ -58,9 +53,7 @@ class TransformerEncoderLayerBase(nn.Module):
         )
         self.normalize_before = cfg.encoder.normalize_before
 
-        self.activation_fn = utils.get_activation_fn(
-            activation=cfg.activation_fn
-        )
+        self.activation_fn = utils.get_activation_fn(activation=cfg.activation_fn)
         self.fc1 = self.build_fc1(
             self.embed_dim,
             cfg.encoder.ffn_embed_dim,
@@ -74,8 +67,8 @@ class TransformerEncoderLayerBase(nn.Module):
             self.quant_noise_block_size,
         )
 
-        self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export) 
-            
+        self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
+
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
         self.add_adapters = cfg.encoder.add_adapters
         self.adapter_to_be_used = cfg.encoder.train_adapter
@@ -83,13 +76,13 @@ class TransformerEncoderLayerBase(nn.Module):
         if self.add_adapters:
             # implements only pfeiffer adapters
             self.adapter_block = BottleneckAdapterBlock(
-                adapter_ids=cfg.encoder.adapter_ids.split(','),
+                adapter_ids=cfg.encoder.adapter_ids.split(","),
                 in_dim=self.embed_dim,
                 reduction_factor=cfg.encoder.adapter_reduction_factor,
                 activation=cfg.adapter_activation_fn,
                 dropout=cfg.dropout,
                 ln_before=cfg.encoder.normalize_before,
-                use_gating=cfg.encoder.adapter_use_gating
+                use_gating=cfg.encoder.adapter_use_gating,
             )
         else:
             self.adapter_block = None
@@ -222,7 +215,7 @@ class TransformerEncoderLayerBase(nn.Module):
         residual = x
         if self.normalize_before:
             x = self.self_attn_layer_norm(x)
-        
+
         x, _ = self.self_attn(
             query=x,
             key=x,
@@ -253,12 +246,14 @@ class TransformerEncoderLayerBase(nn.Module):
             x = self.final_layer_norm(x)
 
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-        if self.add_adapters and \
-           self.adapter_to_be_used is not None and \
-           self.adapter_block is not None:
+        if (
+            self.add_adapters
+            and self.adapter_to_be_used is not None
+            and self.adapter_block is not None
+        ):
             x = self.adapter_block(x, self.adapter_to_be_used)
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-            
+
         if self.return_fc and not torch.jit.is_scripting():
             return x, fc_result
         return x
@@ -335,15 +330,15 @@ class TransformerDecoderLayerBase(nn.Module):
         )
         self.normalize_before = cfg.decoder.normalize_before
 
-        self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export) 
+        self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
 
         if no_encoder_attn:
             self.encoder_attn = None
             self.encoder_attn_layer_norm = None
         else:
             self.encoder_attn = self.build_encoder_attention(self.embed_dim, cfg)
-            self.encoder_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export) 
-        
+            self.encoder_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
+
         self.ffn_layernorm = (
             LayerNorm(cfg.decoder.ffn_embed_dim)
             if utils.safe_getattr(cfg, "scale_fc", False)
@@ -360,9 +355,7 @@ class TransformerDecoderLayerBase(nn.Module):
             else None
         )
 
-        self.activation_fn = utils.get_activation_fn(
-            activation=cfg.activation_fn
-        )
+        self.activation_fn = utils.get_activation_fn(activation=cfg.activation_fn)
         self.fc1 = self.build_fc1(
             self.embed_dim,
             cfg.decoder.ffn_embed_dim,
@@ -376,7 +369,7 @@ class TransformerDecoderLayerBase(nn.Module):
             self.quant_noise_block_size,
         )
 
-        self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export) 
+        self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
 
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
         self.add_adapters = cfg.decoder.add_adapters
@@ -385,13 +378,13 @@ class TransformerDecoderLayerBase(nn.Module):
         if self.add_adapters:
             # implements only pfeiffer adapters
             self.adapter_block = BottleneckAdapterBlock(
-                adapter_ids=cfg.decoder.adapter_ids.split(','),
+                adapter_ids=cfg.decoder.adapter_ids.split(","),
                 in_dim=self.embed_dim,
                 reduction_factor=cfg.decoder.adapter_reduction_factor,
                 activation=cfg.adapter_activation_fn,
                 dropout=cfg.dropout,
                 ln_before=cfg.decoder.normalize_before,
-                use_gating=cfg.decoder.adapter_use_gating
+                use_gating=cfg.decoder.adapter_use_gating,
             )
         else:
             self.adapter_block = None
@@ -579,9 +572,11 @@ class TransformerDecoderLayerBase(nn.Module):
             x = self.final_layer_norm(x)
 
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-        if self.add_adapters and \
-           self.adapter_to_be_used is not None and \
-           self.adapter_block is not None:
+        if (
+            self.add_adapters
+            and self.adapter_to_be_used is not None
+            and self.adapter_block is not None
+        ):
             x = self.adapter_block(x, self.adapter_to_be_used)
         ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 

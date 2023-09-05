@@ -4,7 +4,7 @@ from fairseq import utils
 
 class FactorizedEmbedding(nn.Module):
     """
-    Factorized Embedding from "ALBERT: A Lite BERT for Self-supervised Learning of Language Representations" (Lan et al.,) 
+    Factorized Embedding from "ALBERT: A Lite BERT for Self-supervised Learning of Language Representations" (Lan et al.,)
     <https://arxiv.org/abs/1909.11942>
 
     Args:
@@ -15,13 +15,13 @@ class FactorizedEmbedding(nn.Module):
     """
 
     def __init__(
-        self, 
+        self,
         num_embeddings,
         embedding_dim,
         hid_dim=128,
         padding_idx=1,
         bias=False,
-        activation='linear'
+        activation="linear",
     ):
         super().__init__()
         self.embedding_dim = embedding_dim
