@@ -6,8 +6,8 @@ import json
 import argparse
 
 
-from text_normalization import text_normalize
-from align_utils import (
+from examples.mms.data_prep.text_normalization import text_normalize
+from examples.mms.data_prep.align_utils import (
     get_uroman_tokens,
     time_to_frame,
     load_model_dict,
