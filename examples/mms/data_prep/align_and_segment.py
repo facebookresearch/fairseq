@@ -6,8 +6,8 @@ import json
 import argparse
 
 
-from examples.mms.data_prep.text_normalization import text_normalize
-from examples.mms.data_prep.align_utils import (
+from text_normalization import text_normalize
+from align_utils import (
     get_uroman_tokens,
     time_to_frame,
     load_model_dict,
@@ -87,13 +87,12 @@ def get_alignments(
     blank = dictionary["<blank>"]
     
     targets = torch.tensor(token_indices, dtype=torch.int32).to(DEVICE)
-    input_lengths = torch.tensor(emissions.shape[0])
-    target_lengths = torch.tensor(targets.shape[0])
-
+    input_lengths = torch.tensor(emissions.shape[0]).unsqueeze(-1)
+    target_lengths = torch.tensor(targets.shape[0]).unsqueeze(-1)
     path, _ = F.forced_align(
-        emissions, targets, input_lengths, target_lengths, blank=blank
+        emissions.unsqueeze(0), targets.unsqueeze(0), input_lengths, target_lengths, blank=blank
     )
-    path = path.to("cpu").tolist()
+    path = path.squeeze().to("cpu").tolist()
     segments = merge_repeats(path, {v: k for k, v in dictionary.items()})
     return segments, stride
 
