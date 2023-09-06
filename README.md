@@ -18,7 +18,7 @@ modeling and other text generation tasks.
 
 
 # Usage
-This clone of fairseq supports ```Knowledge Distillation```, ```Recurrent Stacking```, and ```Adapter tuning``` for ```Transformers``` and ```translation``` task. You can add the following flags to ```fairseq-train``` to use them:
+This clone of fairseq supports `Knowledge Distillation`, `Recurrent Stacking`, and `Adapter tuning` for the `Transformer` model and the `translation` task. You can add the following flags to `fairseq-train` to use them:
 
 - **Knowledge Distillation**: The original implementation was sourced from [LeslieOverfitting](https://github.com/LeslieOverfitting/selective_distillation) and [MANGA-UOFA](https://github.com/MANGA-UOFA/fdistill)
 
@@ -33,8 +33,8 @@ This clone of fairseq supports ```Knowledge Distillation```, ```Recurrent Stacki
     - `--task translation_with_kd --kd-strategy batch_level --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd --kd-rate $kd_rate`
     - `--task translation_with_kd --kd-strategy global_level --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd --kd-rate $kd_rate --kd-queue-size $kd_queue_sz`
 
-  - Lastly, the Global-Language-wise selection approach ([Gumma _et al_.](https://arxiv.org/abs/2304.09388)) can used by:
-    - `--task translation_with_kd --kd-strategy global_language_wise --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd --kd-rate $kd_rate --kd-queue-size $kd_queue_sz`
+  - Lastly, the Global-Language-wise selection approach ([Gumma _et al_.](https://aclanthology.org/2023.eamt-1.11/)) can used by:
+    - `--task translation_with_kd --kd-strategy global_language_wise --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd --kd-rate $kd_rate --kd-queue-size $kd_queue_sz --kd-language-tags $language_tags` (note that the `$language_tags` should be a comma separated string of language tags)
 
   - Here, similar to Global-Level KD, each language has its own Global FIFO queue, which makes it suitable for multilingual KD with imbalanced datasets. This technique requires adding language tags to each translation pair, similar to [Ramesh _et al_.](https://aclanthology.org/2022.tacl-1.9/). These tags will help the model break the batch into respective languages and push them into the corresponding Global language queues. Note that each FIFO language queue, irrespective of language abundance, will be of the same size, i.e., ```$kd_queue_sz```. I know this does not sound so good, and I am working on an alternative.
 
