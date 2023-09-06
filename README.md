@@ -57,7 +57,7 @@ This clone of fairseq supports `Knowledge Distillation`, `Recurrent Stacking`, a
 
   - _Sanity Validation steps_: Similar to `Pytorch-Lightning Trainer`, a full pass over the validation set can be run at the beginning of training to eliminate any bugs in the training/validation. It can be activated with the flag: `--run-sanity-validation-steps`
 
-  - Added support for `Python 3.11` and dumped the version from `0.12.2` -> `0.12.3.1`
+  - Added support for `Python 3.11` and bumped the version from `0.12.2` -> `0.12.3.1`
 
 
 # Requirements and Installation
