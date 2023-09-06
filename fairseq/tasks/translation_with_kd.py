@@ -25,6 +25,10 @@ class KDTranslationConfig(TranslationConfig):
         default=None,
         metadata={"help": "teacher checkpoint path when performing distillation"},
     )
+    language_tags: Optional[str] = field(
+        default=None,
+        metadata={"help": "language tags for Global-language-wise distillation"},
+    )
 
 
 @register_task("translation_with_kd", dataclass=KDTranslationConfig)
@@ -45,9 +49,9 @@ class KDTranslationTask(TranslationTask):
         super().__init__(cfg, src_dict, tgt_dict)
         ## additional parameters
         self.kd_strategy = cfg.kd_strategy
-        self.lang_ids = [
-            i for i in range(len(src_dict)) if src_dict[i].startswith("__src__")
-        ]  ## FIXME
+        # dynamically recognize language tag ids
+        _rev_src_dict = {i: src_dict[i] for i in range(len(src_dict))}
+        self.lang_ids = [_rev_src_dict[tag] for tag in cfg.language_tags.split(",")]
 
     def train_step(
         self,
