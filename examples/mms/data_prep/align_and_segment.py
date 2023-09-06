@@ -188,3 +188,4 @@ if __name__ == "__main__":
     print("Using device: ", DEVICE)
     args = parser.parse_args()
     main(args)
+    
