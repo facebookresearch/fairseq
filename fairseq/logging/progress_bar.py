@@ -503,7 +503,7 @@ class WandBProgressBarWrapper(BaseProgressBar):
         self.wrapped_bar.log(stats, tag=tag, step=step)
 
     def is_running_in_sagemaker(self):
-        return 'SM_TRAINING_ENV' in os.environ
+        return "SM_TRAINING_ENV" in os.environ
 
     def print(self, stats, tag=None, step=None):
         """Print end-of-epoch stats."""
@@ -516,7 +516,9 @@ class WandBProgressBarWrapper(BaseProgressBar):
             wandb.config.update(config)
             self.wrapped_bar.update_config(config)
         else:
-            print("Running in AWS SageMaker , Config updated from environment variables")
+            print(
+                "Running in AWS SageMaker , Config updated from environment variables"
+            )
 
     def _log_to_wandb(self, stats, tag=None, step=None):
         if wandb is None:
