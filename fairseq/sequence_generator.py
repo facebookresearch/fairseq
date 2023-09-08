@@ -781,6 +781,7 @@ class EnsembleModel(nn.Module):
         # self.has_incremental = False
         self.save_onnx = False
         self.openvino_engine = False
+        self.decode_onnx_tag = 0
         
         self.FILE_PATH = sys.path[0]
         if not os.path.exists(self.FILE_PATH+"/../onnx_models"):
@@ -939,15 +940,16 @@ class EnsembleModel(nn.Module):
         log_probs = []
         avg_attn: Optional[Tensor] = None
         encoder_out: Optional[Dict[str, List[Tensor]]] = None
-        decode_onnx_tag = 0
+        
         for i, model in enumerate(self.models):
+            
             if self.has_encoder():
                 encoder_out = encoder_outs[i]
             if self.save_onnx:
-                if decode_onnx_tag == 1:
+                if self.decode_onnx_tag == 1:
                     self.decoder_export_onnx(model,tokens,encoder_out, incremental_states[i])
                     self.save_onnx = False
-                decode_onnx_tag =+1
+                self.decode_onnx_tag +=1
             # decode each model
             if self.has_incremental_states():
                 decoder_start_time = time.time()
