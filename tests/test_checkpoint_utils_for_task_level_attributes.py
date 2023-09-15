@@ -20,9 +20,10 @@ def mock_trainer(epoch, num_updates, iterations_in_epoch):
             "iterations_in_epoch": iterations_in_epoch,
             "shuffle": False,
         },
-        "task_name": checkpoint_dict()["task_name"],
+        "FakeTask": checkpoint_dict()["FakeTask"],
     }
     trainer.get_num_updates.return_value = num_updates
+    trainer.task.__class__.__name__ = "FakeTask"
     trainer.task.get_checkpoint_dict.return_value = checkpoint_dict()
     trainer.task.set_checkpoint_dict = MagicMock()
 
@@ -31,7 +32,7 @@ def mock_trainer(epoch, num_updates, iterations_in_epoch):
 
 def checkpoint_dict():
     return {
-        "task_name": {
+        "FakeTask": {
             "observer_stats": {
                 (
                     4,
@@ -131,9 +132,9 @@ class TestCheckpointsForTaskLevelAttributes(unittest.TestCase):
     def test_verify_checkpoint(self) -> None:
         cp_dict = self.trainer.task.get_checkpoint_dict()
         self.assertTrue(len(cp_dict) == 1)
-        self.assertTrue("task_name" in cp_dict)
-        self.assertTrue("observer_stats" in cp_dict["task_name"])
-        self.assertTrue(len(cp_dict["task_name"]["observer_stats"]) == 1)
+        self.assertTrue("FakeTask" in cp_dict)
+        self.assertTrue("observer_stats" in cp_dict["FakeTask"])
+        self.assertTrue(len(cp_dict["FakeTask"]["observer_stats"]) == 1)
         self.assertTrue(
             (
                 4,
@@ -141,10 +142,10 @@ class TestCheckpointsForTaskLevelAttributes(unittest.TestCase):
                 "MovingAveragePerChannelMinMax",
                 "MovingAveragePerChannelMinMax",
             )
-            in cp_dict["task_name"]["observer_stats"]
+            in cp_dict["FakeTask"]["observer_stats"]
         )
         self.assertTrue(
-            cp_dict["task_name"]["observer_stats"][
+            cp_dict["FakeTask"]["observer_stats"][
                 (
                     4,
                     16,
@@ -163,7 +164,7 @@ class TestCheckpointsForTaskLevelAttributes(unittest.TestCase):
             )
 
             self.trainer.task.set_checkpoint_dict.assert_called_once_with(
-                checkpoint_dict()["task_name"]
+                checkpoint_dict()["FakeTask"]
             )
 
 
