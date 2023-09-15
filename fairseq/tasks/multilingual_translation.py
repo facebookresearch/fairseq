@@ -10,8 +10,7 @@ from collections import OrderedDict
 from argparse import ArgumentError
 
 import torch
-from fairseq import options, utils
-from fairseq.logging import metrics
+from fairseq import metrics, options, utils
 from fairseq.data import (
     Dictionary,
     LanguagePairDataset,

@@ -20,9 +20,9 @@ except ImportError:
     _xformers_available = False
 
 from fairseq import utils
+from fairseq.incremental_decoding_utils import with_incremental_state
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
-from fairseq.models.fairseq_incremental_decoder import FairseqIncrementalDecoder
 
 
 # TODO: move this into xformers?
@@ -60,7 +60,8 @@ def _mask_for_xformers(mask: Tensor, to_dtype: Optional[torch.dtype] = None):
     return mask
 
 
-class MultiheadAttention(FairseqIncrementalDecoder):
+@with_incremental_state
+class MultiheadAttention(nn.Module):
     """Multi-headed attention.
 
     See "Attention Is All You Need" for more details.
@@ -78,7 +79,6 @@ class MultiheadAttention(FairseqIncrementalDecoder):
         add_zero_attn=False,
         self_attention=False,
         encoder_decoder_attention=False,
-        dictionary=None,
         q_noise=0.0,
         qn_block_size=8,
         # TODO: pass in config rather than string.
@@ -91,7 +91,7 @@ class MultiheadAttention(FairseqIncrementalDecoder):
             int
         ] = 16,  # This should be part of the config
     ):
-        super().__init__(dictionary)
+        super().__init__()
 
         xformers_att_config = utils.eval_str_dict(xformers_att_config)
         self.use_xformers = xformers_att_config is not None
@@ -144,6 +144,7 @@ class MultiheadAttention(FairseqIncrementalDecoder):
         self.beam_size = 1
         self.reset_parameters()
 
+        self.fp16_mask = False
         if self.use_xformers:
             xformers_att_config["dropout"] = xformers_att_config.get("dropout", dropout)
             xformers_att_config["num_heads"] = xformers_att_config.get(
@@ -155,12 +156,13 @@ class MultiheadAttention(FairseqIncrementalDecoder):
                 xformers_att_config["block_size"] = xformers_blocksparse_blocksize
                 xformers_att_config["layout"] = xformers_blocksparse_layout
                 xformers_att_config["name"] = "blocksparse"
+                # Mask required to be float16
+                self.fp16_mask = True
 
             self.attention = build_attention(xformers_att_config)
 
         self.onnx_trace = False
         self.skip_embed_dim_check = False
-        self.init_incremental_state()
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
@@ -430,11 +432,13 @@ class MultiheadAttention(FairseqIncrementalDecoder):
         kwargs = {}
 
         if attn_mask is not None and self.attention.supports_attention_mask:
-            attn_mask = _mask_for_xformers(attn_mask, to_dtype=q.dtype)
+            to_dtype = torch.float16 if self.fp16_mask else q.dtype
+            attn_mask = _mask_for_xformers(attn_mask, to_dtype=to_dtype)
             kwargs["att_mask"] = attn_mask
 
         if key_padding_mask is not None:
-            key_padding_mask = _mask_for_xformers(key_padding_mask, to_dtype=torch.bool)
+            to_dtype = torch.float16 if self.fp16_mask else torch.bool
+            key_padding_mask = _mask_for_xformers(key_padding_mask, to_dtype=to_dtype)
             if not self.attention.requires_separate_masks:
                 attn_mask = maybe_merge_masks(
                     attn_mask,
@@ -468,7 +472,7 @@ class MultiheadAttention(FairseqIncrementalDecoder):
 
     def forward(
         self,
-        query: Tensor,
+        query,
         key: Optional[Tensor],
         value: Optional[Tensor],
         key_padding_mask: Optional[Tensor] = None,
@@ -551,7 +555,7 @@ class MultiheadAttention(FairseqIncrementalDecoder):
                     self.out_proj.weight,
                     self.out_proj.bias,
                     self.training or self.dropout_module.apply_during_inference,
-                    key_padding_mask.bool() if key_padding_mask is not None else None,
+                    key_padding_mask,
                     need_weights,
                     attn_mask,
                     use_separate_proj_weight=True,
@@ -740,7 +744,6 @@ class MultiheadAttention(FairseqIncrementalDecoder):
         attn_probs = self.dropout_module(attn_weights)
 
         assert v is not None
-        attn: Optional[Tensor] = None
         if self.encoder_decoder_attention and bsz != kv_bsz:
             attn = torch.einsum(
                 "bxhts,bhsd->bxhtd",
@@ -829,7 +832,7 @@ class MultiheadAttention(FairseqIncrementalDecoder):
     @torch.jit.export
     def reorder_incremental_state(
         self,
-        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        incremental_state: Dict[str, Dict[str, Optional[Tensor]]],
         new_order: Tensor,
     ):
         """Reorder buffered internal state (for incremental generation)."""
@@ -870,7 +873,7 @@ class MultiheadAttention(FairseqIncrementalDecoder):
 
     def _set_input_buffer(
         self,
-        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        incremental_state: Dict[str, Dict[str, Optional[Tensor]]],
         buffer: Dict[str, Optional[Tensor]],
     ):
         return self.set_incremental_state(incremental_state, "attn_state", buffer)

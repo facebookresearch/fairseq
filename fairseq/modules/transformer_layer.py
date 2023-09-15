@@ -7,13 +7,14 @@ from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
-from torch import Tensor
-
 from fairseq import utils
-from fairseq.models.transformer import TransformerConfig
 from fairseq.modules import LayerNorm, MultiheadAttention
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
+from torch import Tensor
+from fairseq.models.transformer import (
+    TransformerConfig,
+)
 
 
 class TransformerEncoderLayerBase(nn.Module):
@@ -28,7 +29,7 @@ class TransformerEncoderLayerBase(nn.Module):
     *cfg.encoder.normalize_before* to ``True``.
 
     Args:
-        cfg (argparse.Namespace): parsed command-line arguments
+        args (argparse.Namespace): parsed command-line arguments
     """
 
     def __init__(self, cfg, return_fc=False):

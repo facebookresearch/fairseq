@@ -7,8 +7,7 @@ import math
 
 import torch
 import torch.nn.functional as F
-from fairseq import utils
-from fairseq.logging import metrics
+from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import FairseqDataclass
 from torch import Tensor

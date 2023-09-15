@@ -278,7 +278,7 @@ def main(cfg: FairseqConfig):
                 # original hypothesis (after tokenization and BPE)
                 print("H-{}\t{}\t{}".format(id_, score, hypo_str))
                 # detokenized hypothesis
-                print("D-{}\t{}\t{}".format(id_, score, detok_hypo_str))
+                print("D-{}\t{}\t{}".format(id_, score, detok_hypo_str.encode("utf-8").decode("latin1")))
                 print(
                     "P-{}\t{}".format(
                         id_,

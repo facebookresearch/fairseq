@@ -20,8 +20,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import fairseq
-from fairseq import options, utils
-from fairseq.logging import metrics
+from fairseq import metrics, options, utils
 from fairseq.data import (
     FairseqDataset,
     LanguagePairDataset,

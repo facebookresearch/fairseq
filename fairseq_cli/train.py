@@ -12,6 +12,7 @@ import logging
 import math
 import os
 import sys
+import copy
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 # We need to setup root logger before importing any fairseq libraries.
@@ -125,13 +126,12 @@ def main(cfg: FairseqConfig) -> None:
 
     # Load valid dataset (we load training data below, based on the latest checkpoint)
     # We load the valid dataset AFTER building the model
-    if not cfg.dataset.disable_validation:
-        data_utils.raise_if_valid_subsets_unintentionally_ignored(cfg)
-        if cfg.dataset.combine_valid_subsets:
-            task.load_dataset("valid", combine=True, epoch=1)
-        else:
-            for valid_sub_split in cfg.dataset.valid_subset.split(","):
-                task.load_dataset(valid_sub_split, combine=False, epoch=1)
+    data_utils.raise_if_valid_subsets_unintentionally_ignored(cfg)
+    if cfg.dataset.combine_valid_subsets:
+        task.load_dataset("valid", combine=True, epoch=1)
+    else:
+        for valid_sub_split in cfg.dataset.valid_subset.split(","):
+            task.load_dataset(valid_sub_split, combine=False, epoch=1)
 
     # (optionally) Configure quantization
     if cfg.common.quantization_config_path is not None:
@@ -175,20 +175,6 @@ def main(cfg: FairseqConfig) -> None:
 
     max_epoch = cfg.optimization.max_epoch or math.inf
     lr = trainer.get_lr()
-
-    # TODO: a dry run on validation set to pin the memory
-    valid_subsets = cfg.dataset.valid_subset.split(",")
-    if not cfg.dataset.disable_validation:
-        for subset in valid_subsets:
-            logger.info('begin dry-run validation on "{}" subset'.format(subset))
-            itr = trainer.get_valid_iterator(subset).next_epoch_itr(
-                shuffle=False, set_dataset_epoch=False  # use a fixed valid set
-            )
-            if cfg.common.tpu:
-                itr = utils.tpu_data_loader(itr)
-            for _ in itr:
-                pass
-    # TODO: end of dry run section
 
     train_meter = meters.StopwatchMeter()
     train_meter.start()
@@ -261,6 +247,9 @@ def should_stop_early(cfg: DictConfig, valid_loss: float) -> bool:
 def train(
     cfg: DictConfig, trainer: Trainer, task: tasks.FairseqTask, epoch_itr
 ) -> Tuple[List[Optional[float]], bool]:
+    global model_old
+    model_old = copy.deepcopy(trainer.model)
+
     """Train the model for one epoch and return validation losses."""
     # Initialize data iterator
     itr = epoch_itr.next_epoch_itr(
@@ -340,6 +329,11 @@ def train(
                 # reset mid-epoch stats after each log interval
                 # the end-of-epoch stats will still be preserved
                 metrics.reset_meters("train_inner")
+            
+            if num_updates > 2 and num_updates % (cfg.common.policy_update_per_k_epoch) == 0:  # warning
+                del model_old
+                torch.cuda.empty_cache()
+                model_old = copy.deepcopy(trainer.model)
 
         end_of_epoch = not itr.has_next()
         valid_losses, should_stop = validate_and_save(
@@ -439,11 +433,9 @@ def validate_and_save(
 
     # Save checkpoint
     if do_save or should_stop:
-        cp_path = checkpoint_utils.save_checkpoint(
+        checkpoint_utils.save_checkpoint(
             cfg.checkpoint, trainer, epoch_itr, valid_losses[0]
         )
-        if cp_path is not None and hasattr(task, "post_save"):
-            task.post_save(cp_path, num_updates)
 
     return valid_losses, should_stop
 

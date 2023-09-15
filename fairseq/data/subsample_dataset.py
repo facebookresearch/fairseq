@@ -3,11 +3,9 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import contextlib
 import logging
 
 import numpy as np
-from fairseq.data.data_utils import numpy_seed
 
 from . import BaseWrapperDataset
 
@@ -23,14 +21,13 @@ class SubsampleDataset(BaseWrapperDataset):
         size_ratio(float): the ratio to subsample to. must be between 0 and 1 (exclusive)
     """
 
-    def __init__(self, dataset, size_ratio, shuffle=False, seed=None):
+    def __init__(self, dataset, size_ratio, shuffle=False):
         super().__init__(dataset)
         assert size_ratio < 1
         self.actual_size = np.ceil(len(dataset) * size_ratio).astype(int)
-        with numpy_seed(seed) if seed is not None else contextlib.ExitStack():
-            self.indices = np.random.choice(
-                list(range(len(self.dataset))), self.actual_size, replace=False
-            )
+        self.indices = np.random.choice(
+            list(range(len(self.dataset))), self.actual_size, replace=False
+        )
         self.shuffle = shuffle
         logger.info(
             "subsampled dataset from {} to {} (ratio={})".format(

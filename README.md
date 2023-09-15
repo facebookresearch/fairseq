@@ -1,242 +1,168 @@
-<p align="center">
-  <img src="docs/fairseq_logo.png" width="150">
-  <br />
-  <br />
-  <a href="https://opensource.fb.com/support-ukraine"><img alt="Support Ukraine" src="https://img.shields.io/badge/Support-Ukraine-FFD500?style=flat&labelColor=005BBB" /></a>
-  <a href="https://github.com/pytorch/fairseq/blob/main/LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
-  <a href="https://github.com/pytorch/fairseq/releases"><img alt="Latest Release" src="https://img.shields.io/github/release/pytorch/fairseq.svg" /></a>
-  <a href="https://github.com/pytorch/fairseq/actions?query=workflow:build"><img alt="Build Status" src="https://github.com/pytorch/fairseq/workflows/build/badge.svg" /></a>
-  <a href="https://fairseq.readthedocs.io/en/latest/?badge=latest"><img alt="Documentation Status" src="https://readthedocs.org/projects/fairseq/badge/?version=latest" /></a>
-  <a href="https://app.circleci.com/pipelines/github/facebookresearch/fairseq/"><img alt="CicleCI Status" src="https://circleci.com/gh/facebookresearch/fairseq.svg?style=shield" /></a>
-</p>
+# Tailoring Language Generation Models under Total Variation Distance
 
---------------------------------------------------------------------------------
+This repository contains the code of our paper (ICLR 2023):
 
-Fairseq(-py) is a sequence modeling toolkit that allows researchers and
-developers to train custom models for translation, summarization, language
-modeling and other text generation tasks.
+> [Tailoring Language Generation Models under Total Variation Distance](https://openreview.net/forum?id=VELL0PlWfc)
 
-We provide reference implementations of various sequence modeling papers:
+In this work, we showed that MLE as an object to train text generation models tend to overestimate degenerated samples due to the zero-avoiding property of the KL Divergence (KLD). Instead, we leveraged Total Variation Distance (TVD) as an alternative to KLD and proposed the TaiLr objective based on TVD that is more robust to outliers by downweigting low-probability samples which MLE models tend to overestimate. 
 
-<details><summary>List of implemented papers</summary><p>
+To illustrate this, below we give a toy experiment of fitting a single Gaussian using KLD and TVD to a mixture of two Gaussians where KLD is sensitive to outliers while TVD is robust.
 
-* **Convolutional Neural Networks (CNN)**
-  + [Language Modeling with Gated Convolutional Networks (Dauphin et al., 2017)](examples/language_model/conv_lm/README.md)
-  + [Convolutional Sequence to Sequence Learning (Gehring et al., 2017)](examples/conv_seq2seq/README.md)
-  + [Classical Structured Prediction Losses for Sequence to Sequence Learning (Edunov et al., 2018)](https://github.com/pytorch/fairseq/tree/classic_seqlevel)
-  + [Hierarchical Neural Story Generation (Fan et al., 2018)](examples/stories/README.md)
-  + [wav2vec: Unsupervised Pre-training for Speech Recognition (Schneider et al., 2019)](examples/wav2vec/README.md)
-* **LightConv and DynamicConv models**
-  + [Pay Less Attention with Lightweight and Dynamic Convolutions (Wu et al., 2019)](examples/pay_less_attention_paper/README.md)
-* **Long Short-Term Memory (LSTM) networks**
-  + Effective Approaches to Attention-based Neural Machine Translation (Luong et al., 2015)
-* **Transformer (self-attention) networks**
-  + Attention Is All You Need (Vaswani et al., 2017)
-  + [Scaling Neural Machine Translation (Ott et al., 2018)](examples/scaling_nmt/README.md)
-  + [Understanding Back-Translation at Scale (Edunov et al., 2018)](examples/backtranslation/README.md)
-  + [Adaptive Input Representations for Neural Language Modeling (Baevski and Auli, 2018)](examples/language_model/README.adaptive_inputs.md)
-  + [Lexically constrained decoding with dynamic beam allocation (Post & Vilar, 2018)](examples/constrained_decoding/README.md)
-  + [Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context (Dai et al., 2019)](examples/truncated_bptt/README.md)
-  + [Adaptive Attention Span in Transformers (Sukhbaatar et al., 2019)](examples/adaptive_span/README.md)
-  + [Mixture Models for Diverse Machine Translation: Tricks of the Trade (Shen et al., 2019)](examples/translation_moe/README.md)
-  + [RoBERTa: A Robustly Optimized BERT Pretraining Approach (Liu et al., 2019)](examples/roberta/README.md)
-  + [Facebook FAIR's WMT19 News Translation Task Submission (Ng et al., 2019)](examples/wmt19/README.md)
-  + [Jointly Learning to Align and Translate with Transformer Models (Garg et al., 2019)](examples/joint_alignment_translation/README.md )
-  + [Multilingual Denoising Pre-training for Neural Machine Translation (Liu et at., 2020)](examples/mbart/README.md)
-  + [Neural Machine Translation with Byte-Level Subwords (Wang et al., 2020)](examples/byte_level_bpe/README.md)
-  + [Unsupervised Quality Estimation for Neural Machine Translation (Fomicheva et al., 2020)](examples/unsupervised_quality_estimation/README.md)
-  + [wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations (Baevski et al., 2020)](examples/wav2vec/README.md)
-  + [Generating Medical Reports from Patient-Doctor Conversations Using Sequence-to-Sequence Models (Enarvi et al., 2020)](examples/pointer_generator/README.md)
-  + [Linformer: Self-Attention with Linear Complexity (Wang et al., 2020)](examples/linformer/README.md)
-  + [Cross-lingual Retrieval for Iterative Self-Supervised Training (Tran et al., 2020)](examples/criss/README.md)
-  + [Deep Transformers with Latent Depth (Li et al., 2020)](examples/latent_depth/README.md)
-  + [Unsupervised Cross-lingual Representation Learning for Speech Recognition (Conneau et al., 2020)](https://arxiv.org/abs/2006.13979)
-  + [Self-training and Pre-training are Complementary for Speech Recognition (Xu et al., 2020)](https://arxiv.org/abs/2010.11430)
-  + [Robust wav2vec 2.0: Analyzing Domain Shift in Self-Supervised Pre-Training (Hsu, et al., 2021)](https://arxiv.org/abs/2104.01027)
-  + [Unsupervised Speech Recognition (Baevski, et al., 2021)](https://arxiv.org/abs/2105.11084)
-  + [Simple and Effective Zero-shot Cross-lingual Phoneme Recognition (Xu et al., 2021)](https://arxiv.org/abs/2109.11680)
-  + [VideoCLIP: Contrastive Pre-training for Zero-shot Video-Text Understanding (Xu et. al., 2021)](https://arxiv.org/pdf/2109.14084.pdf)
-  + [VLM: Task-agnostic Video-Language Model Pre-training for Video Understanding (Xu et. al., 2021)](https://aclanthology.org/2021.findings-acl.370.pdf)
-  + [NormFormer: Improved Transformer Pretraining with Extra Normalization (Shleifer et. al, 2021)](examples/normformer/README.md)
-* **Non-autoregressive Transformers**
-  + Non-Autoregressive Neural Machine Translation (Gu et al., 2017)
-  + Deterministic Non-Autoregressive Neural Sequence Modeling by Iterative Refinement (Lee et al. 2018)
-  + Insertion Transformer: Flexible Sequence Generation via Insertion Operations (Stern et al. 2019)
-  + Mask-Predict: Parallel Decoding of Conditional Masked Language Models (Ghazvininejad et al., 2019)
-  + [Levenshtein Transformer (Gu et al., 2019)](examples/nonautoregressive_translation/README.md)
-* **Finetuning**
-  + [Better Fine-Tuning by Reducing Representational Collapse (Aghajanyan et al. 2020)](examples/rxf/README.md)
+<div align="center">
+  <img src="imgs/toy.png" width="350px" />
+</div>
 
-</p></details>
+## Prerequisites
 
-### What's New:
-* May 2023 [Released models for Scaling Speech Technology to 1,000+ Languages  (Pratap, et al., 2023)](examples/mms/README.md)
-* June 2022 [Released code for wav2vec-U 2.0 from Towards End-to-end Unsupervised Speech Recognition (Liu, et al., 2022)](examples/wav2vec/unsupervised/README.md)
-* May 2022 [Integration with xFormers](https://github.com/facebookresearch/xformers)
-* December 2021 [Released Direct speech-to-speech translation code](examples/speech_to_speech/README.md)
-* October 2021 [Released VideoCLIP and VLM models](examples/MMPT/README.md)
-* October 2021 [Released multilingual finetuned XLSR-53 model](examples/wav2vec/README.md)
-* September 2021 [`master` branch renamed to `main`](https://github.com/github/renaming).
-* July 2021 [Released DrNMT code](examples/discriminative_reranking_nmt/README.md)
-* July 2021 [Released Robust wav2vec 2.0 model](examples/wav2vec/README.md)
-* June 2021 [Released XLMR-XL and XLMR-XXL models](examples/xlmr/README.md)
-* May 2021 [Released Unsupervised Speech Recognition code](examples/wav2vec/unsupervised/README.md)
-* March 2021 [Added full parameter and optimizer state sharding + CPU offloading](examples/fully_sharded_data_parallel/README.md)
-* February 2021 [Added LASER training code](examples/laser/README.md)
-* December 2020: [Added Adaptive Attention Span code](examples/adaptive_span/README.md)
-* December 2020: [GottBERT model and code released](examples/gottbert/README.md)
-* November 2020: Adopted the [Hydra](https://github.com/facebookresearch/hydra) configuration framework
-  * [see documentation explaining how to use it for new and existing projects](docs/hydra_integration.md)
-* November 2020: [fairseq 0.10.0 released](https://github.com/pytorch/fairseq/releases/tag/v0.10.0)
-* October 2020: [Added R3F/R4F (Better Fine-Tuning) code](examples/rxf/README.md)
-* October 2020: [Deep Transformer with Latent Depth code released](examples/latent_depth/README.md)
-* October 2020: [Added CRISS models and code](examples/criss/README.md)
-
-<details><summary>Previous updates</summary><p>
-
-* September 2020: [Added Linformer code](examples/linformer/README.md)
-* September 2020: [Added pointer-generator networks](examples/pointer_generator/README.md)
-* August 2020: [Added lexically constrained decoding](examples/constrained_decoding/README.md)
-* August 2020: [wav2vec2 models and code released](examples/wav2vec/README.md)
-* July 2020: [Unsupervised Quality Estimation code released](examples/unsupervised_quality_estimation/README.md)
-* May 2020: [Follow fairseq on Twitter](https://twitter.com/fairseq)
-* April 2020: [Monotonic Multihead Attention code released](examples/simultaneous_translation/README.md)
-* April 2020: [Quant-Noise code released](examples/quant_noise/README.md)
-* April 2020: [Initial model parallel support and 11B parameters unidirectional LM released](examples/megatron_11b/README.md)
-* March 2020: [Byte-level BPE code released](examples/byte_level_bpe/README.md)
-* February 2020: [mBART model and code released](examples/mbart/README.md)
-* February 2020: [Added tutorial for back-translation](https://github.com/pytorch/fairseq/tree/main/examples/backtranslation#training-your-own-model-wmt18-english-german)
-* December 2019: [fairseq 0.9.0 released](https://github.com/pytorch/fairseq/releases/tag/v0.9.0)
-* November 2019: [VizSeq released (a visual analysis toolkit for evaluating fairseq models)](https://facebookresearch.github.io/vizseq/docs/getting_started/fairseq_example)
-* November 2019: [CamemBERT model and code released](examples/camembert/README.md)
-* November 2019: [BART model and code released](examples/bart/README.md)
-* November 2019: [XLM-R models and code released](examples/xlmr/README.md)
-* September 2019: [Nonautoregressive translation code released](examples/nonautoregressive_translation/README.md)
-* August 2019: [WMT'19 models released](examples/wmt19/README.md)
-* July 2019: fairseq relicensed under MIT license
-* July 2019: [RoBERTa models and code released](examples/roberta/README.md)
-* June 2019: [wav2vec models and code released](examples/wav2vec/README.md)
-
-</p></details>
-
-### Features:
-
-* multi-GPU training on one machine or across multiple machines (data and model parallel)
-* fast generation on both CPU and GPU with multiple search algorithms implemented:
-  + beam search
-  + Diverse Beam Search ([Vijayakumar et al., 2016](https://arxiv.org/abs/1610.02424))
-  + sampling (unconstrained, top-k and top-p/nucleus)
-  + [lexically constrained decoding](examples/constrained_decoding/README.md) (Post & Vilar, 2018)
-* [gradient accumulation](https://fairseq.readthedocs.io/en/latest/getting_started.html#large-mini-batch-training-with-delayed-updates) enables training with large mini-batches even on a single GPU
-* [mixed precision training](https://fairseq.readthedocs.io/en/latest/getting_started.html#training-with-half-precision-floating-point-fp16) (trains faster with less GPU memory on [NVIDIA tensor cores](https://developer.nvidia.com/tensor-cores))
-* [extensible](https://fairseq.readthedocs.io/en/latest/overview.html): easily register new models, criterions, tasks, optimizers and learning rate schedulers
-* [flexible configuration](docs/hydra_integration.md) based on [Hydra](https://github.com/facebookresearch/hydra) allowing a combination of code, command-line and file based configuration
-* [full parameter and optimizer state sharding](examples/fully_sharded_data_parallel/README.md)
-* [offloading parameters to CPU](examples/fully_sharded_data_parallel/README.md)
-
-We also provide [pre-trained models for translation and language modeling](#pre-trained-models-and-examples)
-with a convenient `torch.hub` interface:
-
-``` python
-en2de = torch.hub.load('pytorch/fairseq', 'transformer.wmt19.en-de.single_model')
-en2de.translate('Hello world', beam=5)
-# 'Hallo Welt'
+```
+torch                   1.10.0
+fairseq                 1.0.0
+tensorboardX            2.5
+sacremoses              0.0.53
+regex                   2022.4.24
+(Python 3.7.3)
 ```
 
-See the PyTorch Hub tutorials for [translation](https://pytorch.org/hub/pytorch_fairseq_translation/)
-and [RoBERTa](https://pytorch.org/hub/pytorch_fairseq_roberta/) for more examples.
+Run `pip install -e .` to build fairseq locally. To work with the latest version of fairseq, simply copy the file `fairseq/criterions/tailr.py` to the corresponding directory `fairseq/criterions` in the new package.
 
-# Requirements and Installation
+## Quick Start
 
-* [PyTorch](http://pytorch.org/) version >= 1.10.0
-* Python version >= 3.8
-* For training new models, you'll also need an NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
-* **To install fairseq** and develop locally:
+Use the fairseq command line `fairseq-train` to run training. Besides the default argument, our method specifies the following additional arguments:
 
-``` bash
-git clone https://github.com/pytorch/fairseq
-cd fairseq
-pip install --editable ./
+- `--density-ratio-threshold`: the coefficient $\gamma$ in the proxy distribution (see Sec 3.3 of the paper)
+- `--density-min-weight`: the lower bound of the weighting coefficient in the training object (see Sec 3.4 of the paper)
 
-# on MacOS:
-# CFLAGS="-stdlib=libc++" pip install --editable ./
+Below, we provide more examples to run the experiments in our paper.
 
-# to install the latest stable release (0.10.x)
-# pip install fairseq
+
+## Synthetic Experiment
+
+First go to `examples/synthetic` and download the COCO dataset from [here](https://github.com/CR-Gjx/LeakGAN/tree/master/Image%20COCO/save). 
+
+### Preprocess
+
+Run the command `python preproc_synth.py` to preprocess the data. The splitted text data is saved in `data/coco`, fairseq processed data is saved in `data/coco-bin`.
+
+### Generate Synthetic Data
+
+First train an oracle model by running `bash train_oracle.sh` (the default architecture is a one-layer LSTM). The model checkpoint will be saved in `models/coco-mle-4096-lr1e-3-ep50`.
+
+Then sample synthetic data from the oracle model by running the following command:
+
+```bash
+python sample_synth.py \
+       --root_dir data/coco_pseudo \
+       --model_dir models/coco-mle-4096-lr1e-3-ep50 \
+       --train_num 10000 \
+       --valid_num 5000
 ```
 
-* **For faster training** install NVIDIA's [apex](https://github.com/NVIDIA/apex) library:
+ The data will be saved in `data/coco_pseudo`. In our paper, we sampled 10K data for training and 5K for evaluation and test.
 
-``` bash
-git clone https://github.com/NVIDIA/apex
-cd apex
-pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" \
-  --global-option="--deprecated_fused_adam" --global-option="--xentropy" \
-  --global-option="--fast_multihead_attn" ./
+Binarize the data with fairseq-preprocess by running:
+```bash
+bash binarize.sh data/coco_pseudo \
+     --srcdict data/coco_pseudo-bin/dict.src.txt \
+     --tgtdict data/coco_pseudo-bin/dict.tgt.txt
+```
+The result will be saved in `data/coco_pseudo-bin`.
+
+We also provide the [checkpoint](https://drive.google.com/file/d/1B8P4sQ_FBnh0OtiSRM10aCgdJh9mN5l0/view?usp=sharing) of the oracle model and the [synthetic dataset](https://drive.google.com/file/d/1VB2RLi0Z8_6Mmjp8H1e7brZLi04XnABe/view?usp=sharing).
+
+### Train
+
+To train a generation model using TaiLr, run the training script `bash train_tailr.sh`. The default model architecture is the same as the oracle model. 
+
+**Note**：The keyword argument `best-checkpoint-metric` is set to `nll_loss` so that the best checkpoint has the lowest NLL loss.
+
+### Evaluation
+
+**PPL_oracle** measures the perplexity of the oracle model evaluated on the data generated by the trained model. To evaluate this metric, there are two steps:
+
+1. First generate samples from the trained model (in the paper we generate 20K samples), and save the data as the `test` split. For example, given the trained model saved in `<MODEL_DIR>`, run the following command to generate data:
+```bash
+python sample_synth.py \
+       --root_dir data/coco_tailr \
+       --model_dir <MODEL_DIR> \
+       --test_num 20000 \
+```
+Then binarize the data by running the command `bash binarize_test.sh data/coco_tailr`.
+
+2. To evaluate the result using the oracle model, run the command: `bash eval_lm.sh models/coco-mle-4096-lr1e-3-ep50 50 test <GPU_ID> data/coco_tailr`.
+
+**PPL_test** measures the perplexity of the trained model evaluated on the oracle data. In the paper, we sampled 20K samples from the oracle model for evaluation. The evaluation is similar to PPL_oracle.
+
+**BLEU-4** measures the BLEU score of overlapped 4-grams between the data generated by the trained model and the oracle data. For example given the generated data saved in `<GEN_FILE>` and the oracle data saved in `<GT_FILE>`, run the command: `python bleu.py --s <GEN_FILE> --r <GT_FILE>`.
+
+**SelfBLEU-4** measures the SelfBLEU score by calculating overlapped 4-grams within the generated data. For example given the generated data saved in `<GEN_FILE>`, run the command: `python selfbleu.py --s <GEN_FILE>`.
+
+## Machine Translation
+
+First go to `examples/translation`.
+
+Preprocess the data following https://github.com/facebookresearch/fairseq/tree/main/examples/translation, the preprocessed data should be saved in a new directory `data-bin`.
+
+To train a generation model using TaiLr, run the command `bash train_tailr.sh`. To generate samples on the test set with the model saved in `<MODEL_DIR>`, run the command: `bash generate.sh <MODEL_DIR> <GPU_ID> test`. Default using the best checkpoint with the highest BLEU score on the valid set.
+
+To calculate BLEU score of the generated texts saved in `<GEN_FILE>` and the reference texts saved in `<GT_FILE>`, run the command `fairseq-score -s <GEN_FILE> -r <GT_FILE>`.
+
+## Summarization
+
+First go to `examples/bart/summarization`.
+
+To **prepare pre-trained BART**, download the checkpoint of pre-trained BART base model from [here](https://dl.fbaipublicfiles.com/fairseq/models/bart.base.tar.gz) and extract the files to `../models/bart-base`. Then download bpe files by running the following commands:
+```bash
+mkdir -p ../models/bart-base/bpe
+wget -O ../models/bart-base/bpe/encoder.json 'https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/encoder.json'
+wget -O ../models/bart-base/bpe/vocab.bpe 'https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/vocab.bpe'
+wget -O ../models/bart-base/bpe/dict.txt 'https://dl.fbaipublicfiles.com/fairseq/gpt2_bpe/dict.txt'
 ```
 
-* **For large datasets** install [PyArrow](https://arrow.apache.org/docs/python/install.html#using-pip): `pip install pyarrow`
-* If you use Docker make sure to increase the shared memory size either with `--ipc=host` or `--shm-size`
- as command line options to `nvidia-docker run` .
+Download the gigaword data from the [Google Drive link](https://drive.google.com/uc?export=download&id=1USoQ8lJgN8kAWnUnRrupMGrPMLlDVqlV) provided by https://github.com/microsoft/unilm/. Copy the `org_data` from the extracted file to `data/gigaword`.
 
-# Getting Started
+To tokenize the data using BPE, run the command `bash encode_bpe.sh data/gigaword models/bart-base`. Then binarize the data by running the command `bash binarize.sh data/gigaword`. The result will be saved in `data/gigaword-bin`.
 
-The [full documentation](https://fairseq.readthedocs.io/) contains instructions
-for getting started, training new models and extending fairseq with new model
-types and tasks.
+To train a generation model using TaiLr, run the command `bash train_tailr.sh`. 
 
-# Pre-trained models and examples
+To evaluate ROUGE score, first install [files2rouge](https://github.com/pltrdy/files2rouge). To pick the best checkpoint with the highest ROUGE score, run the command `bash validate.sh <MODEL_DIR> <GPU_ID>` and the scores are saved in `dev.score.x` where `x` is the epoch.
 
-We provide pre-trained models and pre-processed, binarized test sets for several tasks listed below,
-as well as example training and evaluation commands.
+To generate samples on the test set using the model saved at epoch `<EPOCH>`, run the command: `bash generate.sh <MODEL_DIR> <EPOCH> test.src <GPU_ID> data/gigaword`. Further calculate the ROUGE score of the generated summaries using `files2rouge data/gigaword/test.tgt <GEN_FILE>`.
 
-* [Translation](examples/translation/README.md): convolutional and transformer models are available
-* [Language Modeling](examples/language_model/README.md): convolutional and transformer models are available
+## Long Text Generation
 
-We also have more detailed READMEs to reproduce results from specific papers:
+First go to `examples/bart/long`.
 
-* [XLS-R: Self-supervised Cross-lingual Speech Representation Learning at Scale (Babu et al., 2021)](examples/wav2vec/xlsr/README.md)
-* [Cross-lingual Retrieval for Iterative Self-Supervised Training (Tran et al., 2020)](examples/criss/README.md)
-* [wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations (Baevski et al., 2020)](examples/wav2vec/README.md)
-* [Unsupervised Quality Estimation for Neural Machine Translation (Fomicheva et al., 2020)](examples/unsupervised_quality_estimation/README.md)
-* [Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)](examples/quant_noise/README.md)
-* [Neural Machine Translation with Byte-Level Subwords (Wang et al., 2020)](examples/byte_level_bpe/README.md)
-* [Multilingual Denoising Pre-training for Neural Machine Translation (Liu et at., 2020)](examples/mbart/README.md)
-* [Reducing Transformer Depth on Demand with Structured Dropout (Fan et al., 2019)](examples/layerdrop/README.md)
-* [Jointly Learning to Align and Translate with Transformer Models (Garg et al., 2019)](examples/joint_alignment_translation/README.md)
-* [Levenshtein Transformer (Gu et al., 2019)](examples/nonautoregressive_translation/README.md)
-* [Facebook FAIR's WMT19 News Translation Task Submission (Ng et al., 2019)](examples/wmt19/README.md)
-* [RoBERTa: A Robustly Optimized BERT Pretraining Approach (Liu et al., 2019)](examples/roberta/README.md)
-* [wav2vec: Unsupervised Pre-training for Speech Recognition (Schneider et al., 2019)](examples/wav2vec/README.md)
-* [Mixture Models for Diverse Machine Translation: Tricks of the Trade (Shen et al., 2019)](examples/translation_moe/README.md)
-* [Pay Less Attention with Lightweight and Dynamic Convolutions (Wu et al., 2019)](examples/pay_less_attention_paper/README.md)
-* [Understanding Back-Translation at Scale (Edunov et al., 2018)](examples/backtranslation/README.md)
-* [Classical Structured Prediction Losses for Sequence to Sequence Learning (Edunov et al., 2018)](https://github.com/pytorch/fairseq/tree/classic_seqlevel)
-* [Hierarchical Neural Story Generation (Fan et al., 2018)](examples/stories/README.md)
-* [Scaling Neural Machine Translation (Ott et al., 2018)](examples/scaling_nmt/README.md)
-* [Convolutional Sequence to Sequence Learning (Gehring et al., 2017)](examples/conv_seq2seq/README.md)
-* [Language Modeling with Gated Convolutional Networks (Dauphin et al., 2017)](examples/language_model/README.conv.md)
+Prepare the BART checkpoint following [the previous section](#summarization).
 
-# Join the fairseq community
+Download the writingPrompts data from [here](https://dl.fbaipublicfiles.com/fairseq/data/writingPrompts.tar.gz). Extract the files to `data/writingPrompts`.
 
-* Twitter: https://twitter.com/fairseq
-* Facebook page: https://www.facebook.com/groups/fairseq.users
-* Google group: https://groups.google.com/forum/#!forum/fairseq-users
+To tokenize the data using BPE, run the command `bash encode_bpe.sh data/writingPrompts models/bart-base`. Then binarize the data by running the command `bash binarize.sh data/writingPrompts`. The result will be saved in `data/writingPrompts-bin`.
 
-# License
+To train a generation model using TaiLr, run the command `bash train_tailr.sh`. The best checkpoint is picked with the lowest perplexity on the valid set.
 
-fairseq(-py) is MIT-licensed.
-The license applies to the pre-trained models as well.
+To generate samples on the test set (In the paper we evaluate on a subset with 1000 examples due to time constraint) using the model saved at epoch `<EPOCH>`, run the following command: 
+```bash
+head -n 1000 data/writingPrompts/test.src > data/writingPrompts/test.src.1000
+bash sample.sh <MODEL_DIR> <EPOCH> test.src.1000 <GPU_ID> data/writingPrompts
+```
 
-# Citation
+Before evaluation, we use the script `post_wp.sh` to post-process the target and generated texts, which strips `<newline>` from the texts.
 
-Please cite as:
+To evaluate Corpus-level BLEU score, run the command `bleu_score.py --h <GEN_FILE> --r <GT_FILE> --corpus`.
 
-``` bibtex
-@inproceedings{ott2019fairseq,
-  title = {fairseq: A Fast, Extensible Toolkit for Sequence Modeling},
-  author = {Myle Ott and Sergey Edunov and Alexei Baevski and Angela Fan and Sam Gross and Nathan Ng and David Grangier and Michael Auli},
-  booktitle = {Proceedings of NAACL-HLT 2019: Demonstrations},
-  year = {2019},
+To evaluate Rep-l, run the command `python rep.py --h <GEN_FILE>`.
+
+To evaluate Distinct, run the command `python dist.py --h <GEN_FILE>`.
+
+## Citation
+
+Please kindly cite our paper if you find this paper and the codes useful.
+
+```
+@inproceedings{ji2023Tailoring,
+    title = "Tailoring Language Generation Models under Total Variation Distance",
+    author = "Haozhe Ji, Pei Ke, Zhipeng Hu, Rongsheng Zhang, Minlie Huang",
+    booktitle = "The Eleventh International Conference on Learning Representations",
+    year = "2023",
 }
 ```

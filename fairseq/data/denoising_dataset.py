@@ -107,6 +107,7 @@ class DenoisingDataset(FairseqDataset):
         shuffle (bool, optional): shuffle the elements before batching.
           Default: ``True``
         seed: Seed for random number generator for reproducibility.
+        args: argparse arguments.
     """
 
     def __init__(
@@ -118,15 +119,7 @@ class DenoisingDataset(FairseqDataset):
         mask_whole_words,
         shuffle,
         seed,
-        mask,
-        mask_random,
-        insert,
-        rotate,
-        permute_sentences,
-        bpe,
-        replace_length,
-        mask_length,
-        poisson_lambda,
+        args,
         eos=None,
         item_transform_func=None,
     ):
@@ -139,31 +132,31 @@ class DenoisingDataset(FairseqDataset):
         self.seed = seed
         self.mask_idx = mask_idx
         self.mask_whole_word = mask_whole_words
-        self.mask_ratio = mask
-        self.random_ratio = mask_random
-        self.insert_ratio = insert
-        self.rotate_ratio = rotate
-        self.permute_sentence_ratio = permute_sentences
+        self.mask_ratio = args.mask
+        self.random_ratio = args.mask_random
+        self.insert_ratio = args.insert
+        self.rotate_ratio = args.rotate
+        self.permute_sentence_ratio = args.permute_sentences
         self.eos = eos if eos is not None else vocab.eos()
         self.item_transform_func = item_transform_func
 
-        if bpe != "gpt2":
+        if args.bpe != "gpt2":
             self.full_stop_index = self.vocab.eos()
         else:
-            assert bpe == "gpt2"
+            assert args.bpe == "gpt2"
             self.full_stop_index = self.vocab.index("13")
 
-        self.replace_length = replace_length
+        self.replace_length = args.replace_length
         if self.replace_length not in [-1, 0, 1]:
             raise ValueError(f"invalid arg: replace_length={self.replace_length}")
-        if mask_length not in ["subword", "word", "span-poisson"]:
-            raise ValueError(f"invalid arg: mask-length={mask_length}")
-        if mask_length == "subword" and replace_length not in [0, 1]:
+        if args.mask_length not in ["subword", "word", "span-poisson"]:
+            raise ValueError(f"invalid arg: mask-length={args.mask_length}")
+        if args.mask_length == "subword" and args.replace_length not in [0, 1]:
             raise ValueError(f"if using subwords, use replace-length=1 or 0")
 
         self.mask_span_distribution = None
-        if mask_length == "span-poisson":
-            _lambda = poisson_lambda
+        if args.mask_length == "span-poisson":
+            _lambda = args.poisson_lambda
 
             lambda_to_the_k = 1
             e_to_the_minus_lambda = math.exp(-_lambda)

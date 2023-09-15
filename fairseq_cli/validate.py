@@ -106,6 +106,10 @@ def main(cfg: DictConfig, override_args=None):
             num_workers=cfg.dataset.num_workers,
             data_buffer_size=cfg.dataset.data_buffer_size,
         ).next_epoch_itr(shuffle=False)
+        
+        
+    
+
         progress = progress_bar.progress_bar(
             itr,
             log_format=cfg.common.log_format,
@@ -114,12 +118,24 @@ def main(cfg: DictConfig, override_args=None):
             default_log_format=("tqdm" if not cfg.common.no_progress_bar else "simple"),
         )
 
+        saved_loss = []
         log_outputs = []
         for i, sample in enumerate(progress):
             sample = utils.move_to_cuda(sample) if use_cuda else sample
-            _loss, _sample_size, log_output = task.valid_step(sample, model, criterion)
+            #_loss, _sample_size, log_output = task.valid_step(sample, model, criterion)
+            _loss, _sample_size, log_output = criterion(model, sample, reduce=False)
+            
+            for idx, nll_loss_seq in zip(sample["id"].tolist(), log_output["nll_loss"].split(1, dim=0)):
+                saved_loss.append((idx, nll_loss_seq))
+
+            log_output["nll_loss"] = log_output["nll_loss"].sum()
+            log_output["loss"] = log_output["loss"].sum()
             progress.log(log_output, step=i)
             log_outputs.append(log_output)
+
+            
+            
+            
 
         if data_parallel_world_size > 1:
             log_outputs = distributed_utils.all_gather_list(
@@ -134,6 +150,16 @@ def main(cfg: DictConfig, override_args=None):
             log_output = agg.get_smoothed_values()
 
         progress.print(log_output, tag=subset, step=i)
+        if True:
+            print("saved loss to {}".format(cfg.common_eval.results_path))
+            max_len = max([x[1].size(1) for x in saved_loss])
+            cat_loss = torch.zeros(len(saved_loss), max_len)
+            for idx, nll_loss_seq in sorted(saved_loss, key=lambda x: x[0]):
+                cat_loss[idx, :nll_loss_seq.size(1)] = nll_loss_seq.squeeze(0)
+        
+
+            torch.save(cat_loss, cfg.common_eval.results_path)
+
 
 
 def cli_main():

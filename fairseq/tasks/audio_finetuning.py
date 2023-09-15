@@ -7,13 +7,12 @@
 
 import logging
 import os
-from fairseq.data.multi_corpus_dataset import MultiCorpusDataset
 import torch
 import json
 
 from argparse import Namespace
 from dataclasses import dataclass, field
-from typing import Optional, Any, OrderedDict
+from typing import Optional, Any
 
 from fairseq.data import AddTargetDataset, Dictionary, encoders
 from fairseq.tasks.audio_pretraining import AudioPretrainingTask, AudioPretrainingConfig
@@ -101,13 +100,7 @@ class AudioFinetuningConfig(AudioPretrainingConfig):
             "adds 'prev_output_tokens' to input and appends eos to target"
         },
     )
-    rebuild_batches: bool = True
-    target_dictionary: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "override default dictionary location"
-        }
-    )
+
 
 @register_task("audio_finetuning", dataclass=AudioFinetuningConfig)
 class AudioFinetuningTask(AudioPretrainingTask):
@@ -126,11 +119,7 @@ class AudioFinetuningTask(AudioPretrainingTask):
 
     def load_target_dictionary(self):
         if self.cfg.labels:
-            target_dictionary = self.cfg.data
-            if self.cfg.target_dictionary:  # override dict
-                target_dictionary = self.cfg.target_dictionary
-            dict_path = os.path.join(target_dictionary, f"dict.{self.cfg.labels}.txt")
-            logger.info('Using dict_path : {}'.format(dict_path))
+            dict_path = os.path.join(self.cfg.data, f"dict.{self.cfg.labels}.txt")
             return Dictionary.load(dict_path)
         return None
 
@@ -145,84 +134,34 @@ class AudioFinetuningTask(AudioPretrainingTask):
             TextCompressionLevel, str(self.cfg.text_compression_level)
         )
         data_path = self.cfg.data
-        if task_cfg.multi_corpus_keys is None:
-            label_path = os.path.join(data_path, f"{split}.{task_cfg.labels}")
-            skipped_indices = getattr(self.datasets[split], "skipped_indices", set())
-            text_compressor = TextCompressor(level=text_compression_level)
-            with open(label_path, "r") as f:
-                labels = [
-                    text_compressor.compress(l)
-                    for i, l in enumerate(f)
-                    if i not in skipped_indices
-                ]
+        label_path = os.path.join(data_path, f"{split}.{task_cfg.labels}")
+        skipped_indices = getattr(self.datasets[split], "skipped_indices", set())
+        text_compressor = TextCompressor(level=text_compression_level)
+        with open(label_path, "r") as f:
+            labels = [
+                text_compressor.compress(l)
+                for i, l in enumerate(f)
+                if i not in skipped_indices
+            ]
 
-            assert len(labels) == len(self.datasets[split]), (
-                f"labels length ({len(labels)}) and dataset length "
-                f"({len(self.datasets[split])}) do not match"
-            )
+        assert len(labels) == len(self.datasets[split]), (
+            f"labels length ({len(labels)}) and dataset length "
+            f"({len(self.datasets[split])}) do not match"
+        )
 
-            process_label = LabelEncoder(self.target_dictionary)
+        process_label = LabelEncoder(self.target_dictionary)
 
-            self.datasets[split] = AddTargetDataset(
-                self.datasets[split],
-                labels,
-                pad=self.target_dictionary.pad(),
-                eos=self.target_dictionary.eos(),
-                batch_targets=True,
-                process_label=process_label,
-                label_len_fn=label_len_fn,
-                add_to_input=task_cfg.get("autoregressive", False),
-                text_compression_level=text_compression_level,
-            )
-        else:
-
-            target_dataset_map = OrderedDict()
-
-            multi_corpus_keys = [k.strip() for k in task_cfg.multi_corpus_keys.split(",")]
-            corpus_idx_map = {k: idx for idx, k in enumerate(multi_corpus_keys)}
-
-            data_keys = [k.split(":") for k in split.split(",")]
-
-            multi_corpus_sampling_weights = [float(val.strip()) for val in task_cfg.multi_corpus_sampling_weights.split(",")]
-            data_weights = []
-            for key, file_name in data_keys:
-                k = key.strip()
-                label_path = os.path.join(data_path, f"{file_name.strip()}.{task_cfg.labels}")
-                skipped_indices = getattr(self.dataset_map[split][k], "skipped_indices", set())
-                text_compressor = TextCompressor(level=text_compression_level)
-                with open(label_path, "r") as f:
-                    labels = [
-                        text_compressor.compress(l)
-                        for i, l in enumerate(f)
-                        if i not in skipped_indices
-                    ]
-
-                assert len(labels) == len(self.dataset_map[split][k]), (
-                    f"labels length ({len(labels)}) and dataset length "
-                    f"({len(self.dataset_map[split][k])}) do not match"
-                )
-
-                process_label = LabelEncoder(self.target_dictionary)
-
-                # TODO: Remove duplication of code from the if block above
-                target_dataset_map[k] = AddTargetDataset(
-                    self.dataset_map[split][k],
-                    labels,
-                    pad=self.target_dictionary.pad(),
-                    eos=self.target_dictionary.eos(),
-                    batch_targets=True,
-                    process_label=process_label,
-                    label_len_fn=label_len_fn,
-                    add_to_input=task_cfg.get("autoregressive", False),
-                    text_compression_level=text_compression_level,
-                )
-
-                data_weights.append(multi_corpus_sampling_weights[corpus_idx_map[k]])
-
-            if len(target_dataset_map) == 1:
-                self.datasets[split] = list(target_dataset_map.values())[0]
-            else:
-                self.datasets[split] = MultiCorpusDataset(target_dataset_map, distribution=data_weights, seed=0, sort_indices=True)
+        self.datasets[split] = AddTargetDataset(
+            self.datasets[split],
+            labels,
+            pad=self.target_dictionary.pad(),
+            eos=self.target_dictionary.eos(),
+            batch_targets=True,
+            process_label=process_label,
+            label_len_fn=label_len_fn,
+            add_to_input=task_cfg.get("autoregressive", False),
+            text_compression_level=text_compression_level,
+        )
 
     @property
     def target_dictionary(self):

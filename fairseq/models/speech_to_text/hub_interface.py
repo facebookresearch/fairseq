@@ -3,19 +3,21 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import logging
 from argparse import Namespace
-from typing import Optional, Tuple, Union
+import logging
+from typing import Union, Tuple, Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import fairseq.data.audio.feature_transforms.utterance_cmvn as utt_cmvn
 from fairseq.data import encoders
-from fairseq.data.audio.audio_utils import convert_waveform as convert_wav
-from fairseq.data.audio.audio_utils import get_fbank
-from fairseq.data.audio.audio_utils import get_waveform as get_wav
+from fairseq.data.audio.audio_utils import (
+    get_waveform as get_wav,
+    convert_waveform as convert_wav,
+    get_fbank,
+)
+import fairseq.data.audio.feature_transforms.utterance_cmvn as utt_cmvn
 from fairseq.data.audio.speech_to_text_dataset import SpeechToTextDataset
 
 logger = logging.getLogger(__name__)
@@ -28,7 +30,7 @@ class S2THubInterface(nn.Module):
         self.task = task
         self.model = model
         self.model.eval()
-        self.generator = self.task.build_generator([self.model], self.cfg.generation)
+        self.generator = self.task.build_generator([self.model], self.cfg)
 
     @classmethod
     def get_model_input(cls, task, audio: Union[str, torch.Tensor]):
@@ -93,20 +95,16 @@ class S2THubInterface(nn.Module):
         prefix = cls.get_prefix_token(task, _tgt_lang)
         pred_tokens = generator.generate([model], sample, prefix_tokens=prefix)
         pred = cls.detokenize(task, pred_tokens[0][0]["tokens"])
-        eos_token = task.data_cfg.config.get("eos_token", None)
-        if eos_token:
-            pred = " ".join(pred.split(" ")[:-1])
 
         if synthesize_speech:
             pfx = f"{_tgt_lang}_" if task.data_cfg.prepend_tgt_lang_tag else ""
             tts_model_id = task.data_cfg.hub.get(f"{pfx}tts_model_id", None)
-            speaker = task.data_cfg.hub.get(f"{pfx}speaker", None)
             if tts_model_id is None:
                 logger.warning("TTS model configuration not found")
             else:
                 _repo, _id = tts_model_id.split(":")
                 tts_model = torch.hub.load(_repo, _id, verbose=False)
-                pred = (pred, tts_model.predict(pred, speaker=speaker))
+                pred = (pred, tts_model.predict(pred))
         return pred
 
     def predict(

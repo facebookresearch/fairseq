@@ -9,8 +9,7 @@ from dataclasses import dataclass, field
 import torch
 import torch.nn.functional as F
 
-from fairseq import utils
-from fairseq.logging import metrics
+from fairseq import metrics, utils
 from fairseq.criterions import register_criterion
 from fairseq.criterions.label_smoothed_cross_entropy import (
     LabelSmoothedCrossEntropyCriterion,

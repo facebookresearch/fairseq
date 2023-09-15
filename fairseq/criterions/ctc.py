@@ -12,9 +12,7 @@ from typing import Optional
 
 import torch
 import torch.nn.functional as F
-
-from fairseq import utils
-from fairseq.logging import metrics
+from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import FairseqDataclass
 from fairseq.data.data_utils import post_process
@@ -55,10 +53,6 @@ class CtcCriterionConfig(FairseqDataclass):
         default=-1.0,
         metadata={"help": "lm word score to use with wer_kenlm_model"},
     )
-    wer_sil_weight: float = field(
-        default=0,
-        metadata={"help": "lm word score to use with wer_kenlm_model"},
-    )
 
     wer_args: Optional[str] = field(
         default=None,
@@ -70,9 +64,7 @@ class CtcCriterionConfig(FairseqDataclass):
 
 @register_criterion("ctc", dataclass=CtcCriterionConfig)
 class CtcCriterion(FairseqCriterion):
-    def __init__(
-        self, cfg: CtcCriterionConfig, task: FairseqTask, rdrop_alpha: int = 0.0
-    ):
+    def __init__(self, cfg: CtcCriterionConfig, task: FairseqTask):
         super().__init__(task)
         self.blank_idx = (
             task.target_dictionary.index(task.blank_symbol)
@@ -82,8 +74,6 @@ class CtcCriterion(FairseqCriterion):
         self.pad_idx = task.target_dictionary.pad()
         self.eos_idx = task.target_dictionary.eos()
         self.post_process = cfg.post_process
-
-        self.rdrop_alpha = rdrop_alpha
 
         if cfg.wer_args is not None:
             (
@@ -106,7 +96,6 @@ class CtcCriterion(FairseqCriterion):
             dec_args.beam_threshold = min(50, len(task.target_dictionary))
             dec_args.lm_weight = cfg.wer_lm_weight
             dec_args.word_score = cfg.wer_word_score
-            dec_args.sil_weight = cfg.wer_sil_weight
             dec_args.unk_weight = -math.inf
             dec_args.sil_weight = 0
 
@@ -117,30 +106,11 @@ class CtcCriterion(FairseqCriterion):
         self.zero_infinity = cfg.zero_infinity
         self.sentence_avg = cfg.sentence_avg
 
-    def forward(self, model, sample, reduce=True, **kwargs):
+    def forward(self, model, sample, reduce=True):
         net_output = model(**sample["net_input"])
         lprobs = model.get_normalized_probs(
             net_output, log_probs=True
         ).contiguous()  # (T, B, C) from the encoder
-
-        # CTC loss is calculated over duplicated inputs
-        # sample is already duplicated for R-Drop
-        if self.rdrop_alpha > 0:
-            for k, v in sample.items():
-                if k in ["target", "target_lengths"]:
-                    sample[k] = torch.cat([v, v.clone()], dim=0)
-                elif k == "net_input":
-                    if sample[k]["src_tokens"].size(1) != sample[k]["src_lengths"].size(
-                        0
-                    ):
-                        # for decoder CTC loss
-                        sample[k]["src_lengths"] = torch.cat(
-                            [
-                                sample[k]["src_lengths"],
-                                sample[k]["src_lengths"].clone(),
-                            ],
-                            dim=0,
-                        )
 
         if "src_lengths" in sample["net_input"]:
             input_lengths = sample["net_input"]["src_lengths"]

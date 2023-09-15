@@ -250,6 +250,9 @@ class CommonConfig(FairseqDataclass):
             "help": "path to run plasma_store, defaults to /tmp/plasma. Paths outside /tmp tend to fail."
         },
     )
+    policy_update_per_k_epoch: int = field(
+        default=3000, metadata={"help": "number of steps to update policy"}
+    )
 
 
 @dataclass
@@ -636,7 +639,6 @@ class OptimizationConfig(FairseqDataclass):
             " (default is to skip it)."
         },
     )
-    debug_param_names: bool = False
 
 
 @dataclass
@@ -812,10 +814,6 @@ class GenerationConfig(FairseqDataclass):
         default=5,
         metadata={"help": "beam size"},
     )
-    beam_mt: int = field(
-        default=0,
-        metadata={"help": "beam size for the first-pass decoder"},
-    )
     nbest: int = field(
         default=1,
         metadata={"help": "number of hypotheses to output"},
@@ -830,18 +828,6 @@ class GenerationConfig(FairseqDataclass):
         default=200,
         metadata={
             "help": "generate sequences of maximum length ax + b, where x is the source length"
-        },
-    )
-    max_len_a_mt: float = field(
-        default=0,
-        metadata={
-            "help": "generate sequences of maximum length ax + b, where x is the source length for the first-pass decoder"
-        },
-    )
-    max_len_b_mt: int = field(
-        default=200,
-        metadata={
-            "help": "generate sequences of maximum length ax + b, where x is the source length for the first-pass decoder"
         },
     )
     min_len: int = field(
@@ -868,12 +854,6 @@ class GenerationConfig(FairseqDataclass):
         default=1,
         metadata={
             "help": "length penalty: <1.0 favors shorter, >1.0 favors longer sentences"
-        },
-    )
-    lenpen_mt: float = field(
-        default=1,
-        metadata={
-            "help": "length penalty for the first-pass decoder: <1.0 favors shorter, >1.0 favors longer sentences"
         },
     )
     unkpen: float = field(
@@ -1020,10 +1000,6 @@ class GenerationConfig(FairseqDataclass):
         default=False,
         metadata={"help": "if set, dont use seed for initializing random generators"},
     )
-    eos_token: Optional[str] = field(
-        default=None,
-        metadata={"help": "EOS token"},
-    )
 
 
 @dataclass
@@ -1052,6 +1028,10 @@ class CommonEvalConfig(FairseqDataclass):
     )
     results_path: Optional[str] = field(
         default=None, metadata={"help": "path to save eval results (optional)"}
+    )
+    eval_temp: float = field(
+        default=1.0,
+        metadata={"help": "evaluate with temperature"},
     )
 
 

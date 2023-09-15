@@ -5,17 +5,21 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional
+from typing import Dict, List, Optional, NamedTuple
 
 import torch
-
-from fairseq.data import ConcatDataset, Dictionary, ResamplingDataset
-from fairseq.data import data_utils as fairseq_data_utils
+from fairseq.data import (
+    ConcatDataset,
+    Dictionary,
+    ResamplingDataset,
+    data_utils as fairseq_data_utils,
+)
 from fairseq.data.audio.speech_to_text_dataset import (
-    S2TDataConfig,
     SpeechToTextDataset,
+    S2TDataConfig,
     SpeechToTextDatasetCreator,
 )
+
 
 logger = logging.getLogger(__name__)
 
@@ -48,12 +52,8 @@ class S2TJointDataConfig(S2TDataConfig):
     def prepend_tgt_lang_tag_no_change(self) -> bool:
         """Prepend target lang ID token as the prev_output_tokens BOS (e.g. for
         to-many multilingual setting). No change needed during inference.
-        This option is deprecated and replaced by prepend_tgt_lang_tag_as_bos.
         """
-        value = self.config.get("prepend_tgt_lang_tag_no_change", None)
-        if value is None:
-            return self.config.get("prepend_tgt_lang_tag_as_bos", False)
-        return value
+        return self.config.get("prepend_tgt_lang_tag_no_change", False)
 
     @property
     def sampling_text_alpha(self):

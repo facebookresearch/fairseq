@@ -25,8 +25,8 @@ from omegaconf import DictConfig
 )
 
 
-def build_criterion(cfg: DictConfig, task, from_checkpoint=False):
-    return build_criterion_(cfg, task, from_checkpoint=from_checkpoint)
+def build_criterion(cfg: DictConfig, task):
+    return build_criterion_(cfg, task)
 
 
 # automatically import any Python files in the criterions/ directory
