@@ -116,7 +116,7 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
     # attributes
     if hasattr(trainer.task, "get_checkpoint_dict"):
         extra_state = {**extra_state, **trainer.task.get_checkpoint_dict()}
-        logger.info(f"{trainer.task.__class__} checkpoint worthy attributes are ready to be persisted with the checkpoint")
+        logger.info(f"State of {trainer.task.__class__.__name__} is ready to be persisted with the checkpoint")
 
     if hasattr(save_checkpoint, "best"):
         extra_state.update({"best": save_checkpoint.best})
@@ -289,10 +289,10 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
         )
         epoch_itr.load_state_dict(itr_state)
 
-        # Preload the observer stats for Supernet
-        supernet_cp_dict = extra_state.get("supernet", {})
-        if supernet_cp_dict and hasattr(trainer.task, "set_checkpoint_dict"):
-            trainer.task.set_checkpoint_dict(supernet_cp_dict)
+        # Preload the checkpoint for the task
+        task_cp_dict = extra_state.get(trainer.task.__class__.__name__, {})
+        if task_cp_dict and hasattr(trainer.task, "set_checkpoint_dict"):
+            trainer.task.set_checkpoint_dict(task_cp_dict)
     else:
         epoch_itr = trainer.get_train_iterator(
             epoch=1, load_dataset=True, **passthrough_args
