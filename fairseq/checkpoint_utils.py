@@ -104,7 +104,20 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
         "checkpoint_last{}.pt".format(suffix)
     ] = not cfg.no_last_checkpoints
 
-    extra_state = {"train_iterator": epoch_itr.state_dict(), "val_loss": val_loss}
+    extra_state = {
+        "train_iterator": epoch_itr.state_dict(),
+        "val_loss": val_loss,
+    }
+
+    # Going forward, different tasks could expose an API like this to dump all
+    # the checkpoint worthy attributes in a dictionary which then will be
+    # merged with the parent dictionary to create the "extra_state". This
+    # allows for an extensible yet simple design to checkpoint task level
+    # attributes
+    if hasattr(trainer.task, "get_checkpoint_dict"):
+        extra_state = {**extra_state, **trainer.task.get_checkpoint_dict()}
+        logger.info(f"{trainer.task.__class__} checkpoint worthy attributes are ready to be persisted with the checkpoint")
+
     if hasattr(save_checkpoint, "best"):
         extra_state.update({"best": save_checkpoint.best})
 
@@ -275,6 +288,11 @@ def load_checkpoint(cfg: CheckpointConfig, trainer, **passthrough_args):
             epoch=itr_state["epoch"], load_dataset=True, **passthrough_args
         )
         epoch_itr.load_state_dict(itr_state)
+
+        # Preload the observer stats for Supernet
+        supernet_cp_dict = extra_state.get("supernet", {})
+        if supernet_cp_dict and hasattr(trainer.task, "set_checkpoint_dict"):
+            trainer.task.set_checkpoint_dict(supernet_cp_dict)
     else:
         epoch_itr = trainer.get_train_iterator(
             epoch=1, load_dataset=True, **passthrough_args
