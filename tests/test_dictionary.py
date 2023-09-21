@@ -90,11 +90,11 @@ class TestDictionary(unittest.TestCase):
         d.add_from_file(dict_file)
         self.assertEqual(d.index("<pad>"), 1)
         self.assertEqual(d.index("foo"), 3)
-        self.assertEqual(d.index("<unk>"), 4)
-        self.assertEqual(d.index("<s>"), 5)
-        self.assertEqual(d.index("</s>"), 6)
-        self.assertEqual(d.index(","), 7)
-        self.assertEqual(d.index("▁de"), 8)
+        self.assertEqual(d.index("<unk>"), 3)
+        self.assertEqual(d.index("<s>"), 0)
+        self.assertEqual(d.index("</s>"), 2)
+        self.assertEqual(d.index(","), 4)
+        self.assertEqual(d.index("▁de"), 5)
 
     def test_no_overwrite(self):
         # for example, Camembert overwrites <unk>, <s> and </s>
