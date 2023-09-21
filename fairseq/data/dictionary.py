@@ -337,7 +337,7 @@ class Dictionary:
 
         for i, word in enumerate(words):
             if add_if_not_exist:
-                idx = self.add_symbol(word)
+                idx = self.add_symbol(word, overwrite=True)
             else:
                 idx = self.index(word)
             if consumer is not None:
@@ -367,7 +367,7 @@ class Dictionary:
     def add_file_to_dictionary(filename, dict, tokenize, num_workers):
         def merge_result(counter):
             for w, c in sorted(counter.items()):
-                dict.add_symbol(w, c)
+                dict.add_symbol(w, c, overwrite=True)
 
         local_file = PathManager.get_local_path(filename)
         offsets = find_offsets(local_file, num_workers)
