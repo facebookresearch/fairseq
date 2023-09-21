@@ -218,14 +218,17 @@ class Dictionary:
     def load(cls, f, add_special_symbols=True):
         """Loads the dictionary from a text file with the format:
 
-        ```
-        <symbol0> <count0> [<flag0>]
-        <symbol1> <count1> [<flag1>]
-        ...
-        ```
-        Possible flags are `#fairseq:overwrite` to overwrite duplicates 
-        and `#fairseq:duplicate` to keep them (for backwards compatibility 
-        after bug fix)
+        Example::
+            ```
+            <symbol0> <count0> [<flag0>]
+            <symbol1> <count1> [<flag1>]
+            ...
+            ```
+        
+        Note:
+            Possible flags are `#fairseq:overwrite` to overwrite duplicates 
+            and `#fairseq:duplicate` to keep them (for backward compatibility 
+            after bug fix)
         """
         d = cls(add_special_symbols=add_special_symbols)
         d.add_from_file(f)
