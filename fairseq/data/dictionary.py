@@ -219,10 +219,13 @@ class Dictionary:
         """Loads the dictionary from a text file with the format:
 
         ```
-        <symbol0> <count0>
-        <symbol1> <count1>
+        <symbol0> <count0> [<flag0>]
+        <symbol1> <count1> [<flag1>]
         ...
         ```
+        Possible flags are `#fairseq:overwrite` to overwrite duplicates 
+        and `#fairseq:duplicate` to keep them (for backwards compatibility 
+        after bug fix)
         """
         d = cls(add_special_symbols=add_special_symbols)
         d.add_from_file(f)
@@ -253,18 +256,23 @@ class Dictionary:
             try:
                 line, field = line.rstrip().rsplit(" ", 1)
                 if field == "#fairseq:overwrite":
-                    overwrite = True
+                    overwrite, duplicate = True, False
+                    line, field = line.rsplit(" ", 1)
+                elif field == "#fairseq:duplicate":
+                    overwrite, duplicate = False, True
                     line, field = line.rsplit(" ", 1)
                 else:
-                    overwrite = False
+                    overwrite, duplicate = False, False
                 count = int(field)
                 word = line
-                if word in self and not overwrite:
+                if word in self and not overwrite and not duplicate:
                     raise RuntimeError(
                         "Duplicate word found when loading Dictionary: '{}'. "
                         "Duplicate words can overwrite earlier ones by adding the "
                         "#fairseq:overwrite flag at the end of the corresponding row "
-                        "in the dictionary file. If using the Camembert model, please "
+                        "in the dictionary file. Use the #fairseq:duplicate flag "
+                        "to keep duplicates in the dictionary (backward compatibility "
+                        "after bug fix). If using the Camembert model, please "
                         "download an updated copy of the model file.".format(word)
                     )
                 self.add_symbol(word, n=count, overwrite=overwrite)
@@ -273,13 +281,13 @@ class Dictionary:
                     f"Incorrect dictionary format, expected '<token> <cnt> [flags]': \"{line}\""
                 )
 
-    def _save(self, f, kv_iterator):
+    def _save(self, f, kvf_iterator):
         if isinstance(f, str):
             PathManager.mkdirs(os.path.dirname(f))
             with PathManager.open(f, "w", encoding="utf-8") as fd:
                 return self.save(fd)
-        for k, v in kv_iterator:
-            print("{} {}".format(k, v), file=f)
+        for k, v, flag in kvf_iterator:
+            print("{} {} {}".format(k, v, flag), file=f)
 
     def _get_meta(self):
         return [], []
@@ -295,6 +303,12 @@ class Dictionary:
             zip(
                 ex_keys + self.symbols[self.nspecial :],
                 ex_vals + self.count[self.nspecial :],
+                [ 
+                    '#fairseq:duplicate' 
+                    if s in self.symbols[:self.nspecial+i] 
+                    else '' 
+                    for i, s in enumerate(self.symbols[self.nspecial:]) 
+                ]
             ),
         )
 
