@@ -122,7 +122,7 @@ class TestDictionary(unittest.TestCase):
         self.assertEqual(d.index(","), 7)
         self.assertEqual(d.index("▁de"), 8)
 
-    def test_no_overwrite(self):
+    def test_no_overwrite_nor_duplicate(self):
         # for example, Camembert duplicates <unk>, <s> and </s>
         dict_file = io.StringIO(
             "<unk> 999\n" "<s> 999\n" "</s> 999\n" ", 999\n" "▁de 999\n"
