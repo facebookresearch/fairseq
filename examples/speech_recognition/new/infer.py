@@ -45,6 +45,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 config_path = Path(__file__).resolve().parent / "conf"
+config_path = str(config_path)
 
 
 @dataclass
