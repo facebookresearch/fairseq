@@ -12,8 +12,9 @@ from .character_token_embedder import CharacterTokenEmbedder
 from .conv_tbc import ConvTBC
 from .cross_entropy import cross_entropy
 from .downsampled_multihead_attention import DownsampledMultiHeadAttention
-from .dynamic_convolution import DynamicConv, DynamicConv1dTBC
+from .dynamic_convolution import DynamicConv, DynamicConv1dTBC, DynamicConv_scripatable
 from .dynamic_crf_layer import DynamicCRF
+from .ema_module import EMAModuleConfig, EMAModule
 from .fairseq_dropout import FairseqDropout
 from .fp32_batch_norm import Fp32BatchNorm
 from .fp32_group_norm import Fp32GroupNorm
@@ -31,7 +32,7 @@ from .location_attention import LocationAttention
 from .lstm_cell_with_zoneout import LSTMCellWithZoneOut
 from .multihead_attention import MultiheadAttention
 from .positional_embedding import PositionalEmbedding
-from .same_pad import SamePad
+from .same_pad import SamePad, SamePad2d
 from .scalar_bias import ScalarBias
 from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding
 from .transformer_sentence_encoder_layer import TransformerSentenceEncoderLayer
@@ -61,7 +62,10 @@ __all__ = [
     "DownsampledMultiHeadAttention",
     "DynamicConv1dTBC",
     "DynamicConv",
+    "DynamicConv_scripatable",
     "DynamicCRF",
+    "EMAModule",
+    "EMAModuleConfig",
     "FairseqDropout",
     "Fp32BatchNorm",
     "Fp32GroupNorm",
@@ -83,6 +87,7 @@ __all__ = [
     "MultiheadAttention",
     "PositionalEmbedding",
     "SamePad",
+    "SamePad2d",
     "ScalarBias",
     "SinusoidalPositionalEmbedding",
     "TransformerSentenceEncoderLayer",

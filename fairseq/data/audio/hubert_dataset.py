@@ -15,6 +15,11 @@ import torch
 import torch.nn.functional as F
 from fairseq.data import data_utils
 from fairseq.data.fairseq_dataset import FairseqDataset
+from fairseq.data.audio.audio_utils import (
+    parse_path,
+    read_from_stored_zip,
+)
+import io
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +146,7 @@ class HubertDataset(FairseqDataset):
         self.single_target = single_target
         self.label_rates = (
             [label_rates for _ in range(len(label_paths))]
-            if isinstance(label_rates, int)
+            if isinstance(label_rates, float)
             else label_rates
         )
         self.store_labels = store_labels
@@ -172,7 +177,14 @@ class HubertDataset(FairseqDataset):
         import soundfile as sf
 
         wav_path = os.path.join(self.audio_root, self.audio_names[index])
-        wav, cur_sample_rate = sf.read(wav_path)
+        _path, slice_ptr = parse_path(wav_path)
+        if len(slice_ptr) == 0:
+            wav, cur_sample_rate = sf.read(_path)
+        else:
+            assert _path.endswith(".zip")
+            data = read_from_stored_zip(_path, slice_ptr[0], slice_ptr[1])
+            f = io.BytesIO(data)
+            wav, cur_sample_rate = sf.read(f)
         wav = torch.from_numpy(wav).float()
         wav = self.postprocess(wav, cur_sample_rate)
         return wav
@@ -302,7 +314,7 @@ class HubertDataset(FairseqDataset):
         targets_list, lengths_list, ntokens_list = [], [], []
         itr = zip(targets_by_label, self.label_rates, self.pad_list)
         for targets, label_rate, pad in itr:
-            if label_rate == -1:
+            if label_rate == -1.0:
                 targets, lengths, ntokens = self.collater_seq_label(targets, pad)
             else:
                 targets, lengths, ntokens = self.collater_frm_label(

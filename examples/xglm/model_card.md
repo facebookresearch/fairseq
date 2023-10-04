@@ -50,7 +50,7 @@ The Cross-lingual Natural Language Inference (XNLI) corpus is the extension of t
 
 ### XStoryCloze
 #### Description
-A new dataset created by Meta AI by translating the validation split of the English StoryCloze dataset (Mostafazadeh et al., 2016) (Spring 2016 version) to 10 other typologically diverse languages (ru, zh Simplified, es Latin America, ar, hi, id, te, sw, eu, my).
+A new dataset created by Meta AI along side this work by translating the validation split of the English StoryCloze dataset (Mostafazadeh et al., 2016) (Spring 2016 version) to 10 other typologically diverse languages (ru, zh Simplified, es Latin America, ar, hi, id, te, sw, eu, my).
 
 ### XCOPA (Ponti et al., 2020)
 #### Description

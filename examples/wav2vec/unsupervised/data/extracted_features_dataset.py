@@ -28,6 +28,7 @@ class ExtractedFeaturesDataset(FairseqDataset):
         label_dict=None,
         shuffle=True,
         sort_by_length=True,
+        aux_target_postfix=None,
     ):
         super().__init__()
 
@@ -43,6 +44,7 @@ class ExtractedFeaturesDataset(FairseqDataset):
         self.sizes = []
         self.offsets = []
         self.labels = []
+        self.aux_tgt = None
 
         path = os.path.join(path, split)
         data_path = path
@@ -71,7 +73,16 @@ class ExtractedFeaturesDataset(FairseqDataset):
 
         self.sizes = np.asarray(self.sizes)
         self.offsets = np.asarray(self.offsets)
-
+        
+        if aux_target_postfix is not None:
+            if not os.path.exists(path+f".{aux_target_postfix}"):
+                logger.info(f"auxaliry target for {split} missing")
+            else:
+                with open(path+f".{aux_target_postfix}", "r") as t_f:
+                    self.aux_tgt = [
+                        torch.LongTensor(list(map(int,seg.strip().split())))\
+                                    for seg in t_f]
+ 
         logger.info(f"loaded {len(self.offsets)}, skipped {skipped} samples")
 
     def __getitem__(self, index):
@@ -86,6 +97,9 @@ class ExtractedFeaturesDataset(FairseqDataset):
                 line_tokenizer=lambda x: x,
                 append_eos=False,
             )
+        
+        if self.aux_tgt:
+            res["aux_target"] = self.aux_tgt[index]
 
         return res
 
@@ -121,6 +135,15 @@ class ExtractedFeaturesDataset(FairseqDataset):
                 left_pad=False,
             )
             res["target"] = target
+        
+        if self.aux_tgt:
+            idxs = torch.nn.utils.rnn.pad_sequence(
+                [s["aux_target"] for s in samples],
+                batch_first=True,
+                padding_value=-1,
+            )
+            res["net_input"]["aux_target"] = idxs
+        
         return res
 
     def num_tokens(self, index):

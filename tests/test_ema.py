@@ -6,6 +6,7 @@
 import unittest
 from copy import deepcopy
 from dataclasses import dataclass
+import pytest
 from typing import Optional
 from unittest.mock import patch
 
@@ -160,14 +161,16 @@ class TestEMA(unittest.TestCase):
         self._test_ema_start_update(updates=1)
 
     def test_ema_fp32(self):
-        model = DummyModule().half()
+        dtype = torch.float
+
+        model = DummyModule().to(dtype)
         optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
         state = deepcopy(model.state_dict())
         config = EMAConfig(ema_fp32=True)
         ema = EMA(model, config)
 
         x = torch.randn(32)
-        y = model(x.half())
+        y = model(x.to(dtype))
         loss = y.sum()
         loss.backward()
         optimizer.step()
@@ -192,7 +195,7 @@ class TestEMA(unittest.TestCase):
                         config.ema_decay * prev_param.float()
                         + (1 - config.ema_decay) * param.float()
                     )
-                    .half()
+                    .to(dtype)
                     .float()
                 ),
                 torch.norm(
@@ -207,11 +210,15 @@ class TestEMA(unittest.TestCase):
                 (
                     config.ema_decay * prev_param.float()
                     + (1 - config.ema_decay) * param.float()
-                ).half(),
+                ).to(dtype),
             )
 
+    @pytest.mark.skipif(
+        not torch.cuda.is_available(),
+        reason="CPU no longer supports Linear in half precision",
+    )
     def test_ema_fp16(self):
-        model = DummyModule().half()
+        model = DummyModule().cuda().half()
         optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
         state = deepcopy(model.state_dict())
         config = EMAConfig(ema_fp32=False)
@@ -220,7 +227,7 @@ class TestEMA(unittest.TestCase):
         # Since fp32 params is not used, it should be of size 0
         self.assertEqual(len(ema.fp32_params), 0)
 
-        x = torch.randn(32)
+        x = torch.randn(32).cuda()
         y = model(x.half())
         loss = y.sum()
         loss.backward()

@@ -9,13 +9,13 @@ XGLM models are trained on a new multilingual corpus extracted from CommonCrawl 
 
 ## Pre-trained models
 
-Model | Layers | Model Dim | Languages | Download
----|---|---|---|---
-`XGLM 564M` | 24 | 1024 | trained on 30 languages|  [xglm.564M.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.564M.tar.gz)
-`XGLM 1.7B` | 24 | 2048 | trained on 30 languages|  [xglm.1.7B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.1.7B.tar.gz)
-`XGLM 2.9B` | 48 | 2048 | trained on 30 languages|  [xglm.2.9B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.2.9B.tar.gz)
-`XGLM 7.5B` | 32 | 4096 | trained on 30 languages|  [xglm.7.5B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.7.5B.tar.gz)
-`XGLM 4.5B` | 48 | 2048 | trained on 134 languages|  [xglm.4.5B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.4.5B.tar.gz)
+Model | Layers | Model Dim | FFN Dim | Languages | Download
+---|---|---|---|---|---
+`XGLM 564M` | 24 | 1024 | 4096 | trained on 30 languages|  [xglm.564M.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.564M.tar.gz)
+`XGLM 1.7B` | 24 | 2048 | 8192 | trained on 30 languages|  [xglm.1.7B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.1.7B.tar.gz)
+`XGLM 2.9B` | 48 | 2048 | 8192 | trained on 30 languages|  [xglm.2.9B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.2.9B.tar.gz)
+`XGLM 7.5B` | 32 | 4096 | 16384 | trained on 30 languages|  [xglm.7.5B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.7.5B.tar.gz)
+`XGLM 4.5B` | 48 | 2048 | 16384 | trained on 134 languages|  [xglm.4.5B.tar.gz](https://dl.fbaipublicfiles.com/fairseq/models/xglm/xglm.4.5B.tar.gz)
 
 ## Pre-training Data Format
 Our models were pre-trained with data in the following format (i.e. paragraphs are separated with new lines and documents were separated with double new lines).
@@ -138,10 +138,24 @@ for lang in ['en', 'zh', 'hi']:
 # hi-1 0 0
 ```
 
-## Preprint
-[Few-shot Learning with Multilingual Language Models](https://arxiv.org/abs/2112.10668).
+## XStoryCloze
+
+We release XStoryCloze, a new multilingual dataset intended for few-shot evaluation, alongside this paper. XStoryCloze consists of professional translation of the validation split of the [English StoryCloze dataset](https://cs.rochester.edu/nlp/rocstories/) (Spring 2016 version) to 10 other languages. It is opensourced under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/legalcode), the same license as the English StoryCloze. 
+
+You can download the dataset via [this link](https://dl.fbaipublicfiles.com/xstorycloze.zip). 
+
+Language | ar | es | eu | hi | id | my | ru | sw | te | zh
+---|---|---|---|---|---|---|---|---|---|---
+Train size | 360 | 360 | 360 | 360 | 360 | 360 | 360 | 360 | 360 | 360  
+Eval size | 1511 | 1511 | 1511 | 1511 | 1511 | 1511 | 1511 | 1511 | 1511 | 1511
+
+Please refer to [the dataset doc](XStoryCloze.md) for more information.
+
+
+## Publication
+[Few-shot Learning with Multilingual Generative Language Models](https://arxiv.org/abs/2112.10668).
 Xi Victoria Lin*, Todor Mihaylov, Mikel Artetxe, Tianlu Wang, Shuohui Chen, Daniel Simig, Myle Ott, Naman Goyal, Shruti Bhosale, Jingfei Du, Ramakanth Pasunuru, Sam Shleifer, Punit Singh Koura, Vishrav Chaudhary, Brian O'Horo, Jeff Wang, Luke Zettlemoyer, Zornitsa Kozareva, Mona Diab, Veselin Stoyanov, Xian Li* (* Equal Contribution).
-ArXiv 2021.
+EMNLP 2022.
 
 ## Citation
 ```

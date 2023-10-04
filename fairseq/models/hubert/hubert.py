@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class HubertConfig(FairseqDataclass):
-    label_rate: int = II("task.label_rate")
+    label_rate: float = II("task.label_rate")
 
     extractor_mode: EXTRACTOR_MODE_CHOICES = field(
         default="default",
@@ -190,6 +190,12 @@ class HubertConfig(FairseqDataclass):
     conv_pos_groups: int = field(
         default=16,
         metadata={"help": "number of groups for convolutional positional embedding"},
+    )
+    conv_pos_batch_norm: bool = field(
+        default=False,
+        metadata={
+            "help": "use batch norm instead of weight norm in conv_pos (for bf16 models)"
+        },
     )
 
     latent_temp: Tuple[float, float, float] = field(

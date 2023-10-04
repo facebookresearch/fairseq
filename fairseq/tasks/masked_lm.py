@@ -3,13 +3,13 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from dataclasses import dataclass, field
 import logging
 import os
-
-from omegaconf import MISSING, II, OmegaConf
+from dataclasses import dataclass, field
 
 import numpy as np
+from omegaconf import II, MISSING, OmegaConf
+
 from fairseq import utils
 from fairseq.data import (
     Dictionary,
@@ -20,6 +20,7 @@ from fairseq.data import (
     NumSamplesDataset,
     PrependTokenDataset,
     RightPadDataset,
+    RightPaddingMaskDataset,
     SortDataset,
     TokenBlockDataset,
     data_utils,
@@ -30,7 +31,6 @@ from fairseq.dataclass import FairseqDataclass
 from fairseq.tasks import FairseqTask, register_task
 
 from .language_modeling import SAMPLE_BREAK_MODE_CHOICES, SHORTEN_METHOD_CHOICES
-
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +107,22 @@ class MaskedLMConfig(FairseqDataclass):
             "help": "include target tokens in model input. this is used for data2vec"
         },
     )
+    include_index: bool = field(
+        default=True,
+        metadata={"help": "include index in model input. this is used for data2vec"},
+    )
+    skip_masking: bool = field(
+        default=False,
+        metadata={"help": "skip masking at dataset"},
+    )
+    # subsample_train: float = field(
+    #     default=1,
+    #     metadata={"help": "shorten training set for debugging"},
+    # )
+    d2v2_multi: bool = field(
+        default=False,
+        metadata={"help": "prepare dataset for data2vec_multi"},
+    )
 
 
 @register_task("masked_lm", dataclass=MaskedLMConfig)
@@ -116,27 +132,27 @@ class MaskedLMTask(FairseqTask):
 
     """Task for training masked language models (e.g., BERT, RoBERTa)."""
 
-    def __init__(self, cfg: MaskedLMConfig, dictionary):
+    def __init__(self, cfg: MaskedLMConfig, dictionary=None):
         super().__init__(cfg)
-        self.dictionary = dictionary
+        self.dictionary = dictionary or self.load_dict(cfg)
 
         # add mask token
-        self.mask_idx = dictionary.add_symbol("<mask>")
+        self.mask_idx = self.dictionary.add_symbol("<mask>")
 
     @classmethod
     def setup_task(cls, cfg: MaskedLMConfig, **kwargs):
+        dictionary = cls.load_dict(cfg)
+        return cls(cfg, dictionary)
+
+    @classmethod
+    def load_dict(cls, cfg):
         paths = utils.split_paths(cfg.data)
         assert len(paths) > 0
         dictionary = Dictionary.load(os.path.join(paths[0], "dict.txt"))
         logger.info("dictionary: {} types".format(len(dictionary)))
-        return cls(cfg, dictionary)
+        return dictionary
 
-    def load_dataset(self, split, epoch=1, combine=False, **kwargs):
-        """Load a given dataset split.
-
-        Args:
-            split (str): name of the split (e.g., train, valid, test)
-        """
+    def _load_dataset_split(self, split, epoch, combine):
         paths = utils.split_paths(self.cfg.data)
         assert len(paths) > 0
         data_path = paths[(epoch - 1) % len(paths)]
@@ -173,7 +189,15 @@ class MaskedLMTask(FairseqTask):
         logger.info("loaded {} blocks from: {}".format(len(dataset), split_path))
 
         # prepend beginning-of-sentence token (<s>, equiv. to [CLS] in BERT)
-        dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())
+        return PrependTokenDataset(dataset, self.source_dictionary.bos())
+
+    def load_dataset(self, split, epoch=1, combine=False, **kwargs):
+        """Load a given dataset split.
+
+        Args:
+            split (str): name of the split (e.g., train, valid, test)
+        """
+        dataset = self._load_dataset_split(split, epoch, combine)
 
         # create masked input and targets
         mask_whole_words = (
@@ -195,6 +219,7 @@ class MaskedLMTask(FairseqTask):
             mask_whole_words=mask_whole_words,
             mask_multiple_length=self.cfg.mask_multiple_length,
             mask_stdev=self.cfg.mask_stdev,
+            skip_masking=self.cfg.skip_masking,
         )
 
         with data_utils.numpy_seed(self.cfg.seed):
@@ -205,6 +230,16 @@ class MaskedLMTask(FairseqTask):
             pad_idx=self.source_dictionary.pad(),
         )
 
+        if self.cfg.d2v2_multi:
+            dataset = self._d2v2_multi_dataset(src_dataset)
+        else:
+            dataset = self._regular_dataset(src_dataset, target_dataset)
+
+        self.datasets[split] = SortDataset(
+            dataset, sort_order=[shuffle, src_dataset.sizes]
+        )
+
+    def _regular_dataset(self, src_dataset, target_dataset):
         input_dict = {
             "src_tokens": RightPadDataset(
                 src_dataset,
@@ -214,23 +249,41 @@ class MaskedLMTask(FairseqTask):
         }
         if self.cfg.include_target_tokens:
             input_dict["target_tokens"] = target_dataset
+        if self.cfg.include_index:
+            input_dict["src_id"] = IdDataset()
 
-        self.datasets[split] = SortDataset(
-            NestedDictionaryDataset(
-                {
-                    "id": IdDataset(),
-                    "net_input": input_dict,
-                    "target": target_dataset,
-                    "nsentences": NumSamplesDataset(),
-                    "ntokens": NumelDataset(src_dataset, reduce=True),
-                },
-                sizes=[src_dataset.sizes],
-            ),
-            sort_order=[
-                shuffle,
-                src_dataset.sizes,
-            ],
+        dataset = NestedDictionaryDataset(
+            {
+                "id": IdDataset(),
+                "net_input": input_dict,
+                "target": target_dataset,
+                "nsentences": NumSamplesDataset(),
+                "ntokens": NumelDataset(src_dataset, reduce=True),
+            },
+            sizes=[src_dataset.sizes],
         )
+        return dataset
+
+    def _d2v2_multi_dataset(self, src_dataset):
+        input_dict = {
+            "source": RightPadDataset(
+                src_dataset,
+                pad_idx=self.source_dictionary.pad(),
+            ),
+            "id": IdDataset(),
+            "padding_mask": RightPaddingMaskDataset(src_dataset),
+        }
+
+        dataset = NestedDictionaryDataset(
+            {
+                "id": IdDataset(),
+                "net_input": input_dict,
+                "nsentences": NumSamplesDataset(),
+                "ntokens": NumelDataset(src_dataset, reduce=True),
+            },
+            sizes=[src_dataset.sizes],
+        )
+        return dataset
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, sort=True):
         src_dataset = RightPadDataset(
@@ -266,3 +319,9 @@ class MaskedLMTask(FairseqTask):
     @property
     def target_dictionary(self):
         return self.dictionary
+
+    def begin_epoch(self, epoch, model):
+        model.set_epoch(epoch)
+
+    def max_positions(self):
+        return self.cfg.tokens_per_sample

@@ -3,12 +3,14 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import asyncio
 import logging
 import time
 from collections import OrderedDict
 from typing import Dict, List, Optional
 
 import numpy as np
+
 from fairseq.data import data_utils
 
 from . import FairseqDataset
@@ -161,15 +163,42 @@ class MultiCorpusDataset(FairseqDataset):
         """
         return self.total_num_instances
 
-    def __getitem__(self, index):
+    async def getitem(self, index):
         new_index, key = self._map_index(index)
         try:
-            item = self.datasets[key][new_index]
+            if hasattr(self.datasets[key], "getitem"):
+                item = await self.datasets[key].getitem(new_index)
+            else:
+                item = self.datasets[key][new_index]
             item["full_id"] = index
             return item
         except Exception as e:
             e.args = (f"Error from {key} dataset", *e.args)
             raise
+
+    def __getitem__(self, index):
+        return asyncio.run(self.getitem(index))
+
+    async def getitems(self, indices):
+        # initialize a bunch of everstore read operations
+        # wait in the end to reduce overhead
+        # very helpful if io is latency bounded
+
+        max_concurrency = 32
+        sem = asyncio.Semaphore(max_concurrency)
+
+        async def controlled_getitem(index):
+            async with sem:
+                return await self.getitem(index)
+
+        coroutines = []
+        for index in indices:
+            coroutines.append(controlled_getitem(index))
+        results = await asyncio.gather(*coroutines)
+        return results
+
+    def __getitems__(self, indices):
+        return asyncio.run(self.getitems(indices))
 
     def collater(self, samples):
         """

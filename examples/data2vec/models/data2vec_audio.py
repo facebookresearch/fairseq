@@ -15,8 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
 
-from fairseq.dataclass.configs import EMAConfig
-from fairseq.models.ema import EMA
+from fairseq.modules import EMAModule, EMAModuleConfig
 from fairseq.data.data_utils import compute_mask_indices
 from fairseq.models import BaseFairseqModel, register_model
 from fairseq.models.wav2vec import (
@@ -148,7 +147,7 @@ class Data2VecAudioModel(BaseFairseqModel):
         self.num_updates = 0
 
     def make_ema_teacher(self):
-        ema_config = EMAConfig(
+        ema_config = EMAModuleConfig(
             ema_decay=self.cfg.ema_decay,
             ema_fp32=True,
         )
@@ -158,7 +157,7 @@ class Data2VecAudioModel(BaseFairseqModel):
             for k, _ in self.encoder.pos_conv.named_parameters():
                 skip_keys.add(f"pos_conv.{k}")
 
-        self.ema = EMA(
+        self.ema = EMAModule(
             self.encoder if self.cfg.ema_transformer_only else self,
             ema_config,
             skip_keys=skip_keys,
@@ -181,7 +180,7 @@ class Data2VecAudioModel(BaseFairseqModel):
                         num_updates,
                         self.cfg.ema_anneal_end_step,
                     )
-                self.ema._set_decay(decay)
+                self.ema.set_decay(decay)
             if self.ema.get_decay() < 1:
                 self.ema.step(self.encoder if self.cfg.ema_transformer_only else self)
 

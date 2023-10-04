@@ -26,19 +26,21 @@ class Dictionary:
         eos="</s>",
         unk="<unk>",
         extra_special_symbols=None,
+        add_special_symbols=True,
     ):
         self.bos_word, self.unk_word, self.pad_word, self.eos_word = bos, unk, pad, eos
         self.symbols = []
         self.count = []
         self.indices = {}
-        self.bos_index = self.add_symbol(bos)
-        self.pad_index = self.add_symbol(pad)
-        self.eos_index = self.add_symbol(eos)
-        self.unk_index = self.add_symbol(unk)
-        if extra_special_symbols:
-            for s in extra_special_symbols:
-                self.add_symbol(s)
-        self.nspecial = len(self.symbols)
+        if add_special_symbols:
+            self.bos_index = self.add_symbol(bos)
+            self.pad_index = self.add_symbol(pad)
+            self.eos_index = self.add_symbol(eos)
+            self.unk_index = self.add_symbol(unk)
+            if extra_special_symbols:
+                for s in extra_special_symbols:
+                    self.add_symbol(s)
+            self.nspecial = len(self.symbols)
 
     def __eq__(self, other):
         return self.indices == other.indices
@@ -213,7 +215,7 @@ class Dictionary:
         return self.unk_index
 
     @classmethod
-    def load(cls, f):
+    def load(cls, f, add_special_symbols=True):
         """Loads the dictionary from a text file with the format:
 
         ```
@@ -222,7 +224,7 @@ class Dictionary:
         ...
         ```
         """
-        d = cls()
+        d = cls(add_special_symbols=add_special_symbols)
         d.add_from_file(f)
         return d
 

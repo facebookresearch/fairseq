@@ -1,0 +1,198 @@
+{
+    "en": {
+        "oct22": {
+            "desc": "Wav2Vec 2.0 Large (LV-60) + Self Training from https://github.com/facebookresearch/fairseq/tree/main/examples/wav2vec#pre-trained-models",
+            "ckpt_path": "https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_vox_960h_pl.pt",
+            "dict_path": "https://dl.fbaipublicfiles.com/fairseq/wav2vec/dict.ltr.txt",
+            "model_type": "fairseq",
+            "lang": "en",
+            "post_process": "collapse"
+        }
+    },
+    "hok": {
+        "oct22": {
+            "desc": "Hokkien ASR model, for details check [TODO add paper link]",
+            "ckpt_path": "https://dl.fbaipublicfiles.com/ust_asr/hok/checkpoint_best.pt",
+            "dict_path": "https://dl.fbaipublicfiles.com/ust_asr/hok/dict.ltr.txt",
+            "model_type": "fairseq",
+            "lang": "hok",
+            "post_process": "none"
+        }
+    },
+    "es": {
+        "oct22": {
+            "model_path": "jonatasgrosman/wav2vec2-large-xlsr-53-spanish",
+            "model_type": "hf",
+            "lang": "es",
+            "post_process": "collapse"
+        }
+    },
+    "fr": {
+        "oct22": {
+            "model_path": "jonatasgrosman/wav2vec2-large-fr-voxpopuli-french",
+            "model_type": "hf",
+            "lang": "fr",
+            "post_process": "collapse"
+        }
+    },
+    "zh": {
+        "oct22": {
+            "model_path": "ydshieh/wav2vec2-large-xlsr-53-chinese-zh-cn-gpt",
+            "model_type": "hf",
+            "lang": "zh",
+            "post_process": "collapse"
+        }
+    },
+    "tr": {
+        "oct22": {
+            "model_path": "cahya/wav2vec2-large-xlsr-turkish-artificial-cv",
+            "model_type": "hf",
+            "lang": "tr",
+            "post_process": "collapse"
+        }
+    },
+    "ar": {
+        "oct22": {
+            "model_path": "jonatasgrosman/wav2vec2-large-xlsr-53-arabic",
+            "model_type": "hf",
+            "lang": "ar",
+            "post_process": "collapse"
+        }
+    },
+    "vi": {
+        "oct22": {
+            "model_path": "not-tanh/wav2vec2-large-xlsr-53-vietnamese",
+            "model_type": "hf",
+            "lang": "vi",
+            "post_process": "collapse"
+        }
+    },
+    "de": {
+        "oct22": {
+            "model_path": "jonatasgrosman/wav2vec2-xls-r-1b-german",
+            "model_type": "hf",
+            "lang": "de",
+            "post_process": "collapse"
+        }
+    },
+    "pl": {
+        "oct22": {
+            "model_path": "jonatasgrosman/wav2vec2-xls-r-1b-polish",
+            "model_type": "hf",
+            "lang": "pl",
+            "post_process": "collapse"
+        }
+    },
+    "it": {
+        "oct22": {
+            "model_path": "jonatasgrosman/wav2vec2-large-xlsr-53-italian",
+            "model_type": "hf",
+            "lang": "it",
+            "post_process": "collapse"
+        }
+    },
+    "pt": {
+        "oct22": {
+            "model_path": "jonatasgrosman/wav2vec2-xls-r-1b-portuguese",
+            "model_type": "hf",
+            "lang": "pt",
+            "post_process": "collapse"
+        }
+    },
+    "ro": {
+        "oct22": {
+            "model_path": "gigant/romanian-wav2vec2",
+            "model_type": "hf",
+            "lang": "ro",
+            "post_process": "collapse"
+        }
+    },
+    "cs": {
+        "oct22": {
+            "model_path": "comodoro/wav2vec2-xls-r-300m-cs-250",
+            "model_type": "hf",
+            "lang": "cs",
+            "post_process": "collapse"
+        }
+    },
+    "sk": {
+        "oct22": {
+            "model_path": "anuragshas/wav2vec2-xls-r-300m-sk-cv8-with-lm",
+            "model_type": "hf",
+            "lang": "sk",
+            "post_process": "collapse"
+        }
+    },
+    "sl": {
+        "oct22": {
+            "model_path": "anuragshas/wav2vec2-xls-r-300m-sl-cv8-with-lm",
+            "model_type": "hf",
+            "lang": "sl",
+            "post_process": "collapse"
+        }
+    },
+    "fi": {
+        "oct22": {
+            "model_path": "jonatasgrosman/wav2vec2-large-xlsr-53-finnish",
+            "model_type": "hf",
+            "lang": "fi",
+            "post_process": "collapse"
+        }
+    },
+    "hu": {
+        "oct22": {
+            "model_path": "jonatasgrosman/wav2vec2-large-xlsr-53-hungarian",
+            "model_type": "hf",
+            "lang": "hu",
+            "post_process": "collapse"
+        }
+    },
+    "et": {
+        "oct22": {
+            "model_path": "RASMUS/wav2vec2-xlsr-1b-et",
+            "model_type": "hf",
+            "lang": "et",
+            "post_process": "collapse"
+        }
+    },
+    "lt": {
+        "oct22": {
+            "model_path": "sammy786/wav2vec2-xlsr-lithuanian",
+            "model_type": "hf",
+            "lang": "lt",
+            "post_process": "collapse"
+        }
+    },
+    "nl": {
+        "oct22": {
+            "model_path": "jonatasgrosman/wav2vec2-xls-r-1b-dutch",
+            "model_type": "hf",
+            "lang": "nl",
+            "post_process": "collapse"
+        }
+    },
+    "lv": {
+        "oct22": {
+            "model_path": "reach-vb/wav2vec2-large-xls-r-1B-common_voice7-lv-ft",
+            "model_type": "hf",
+            "lang": "lv",
+            "post_process": "collapse"
+        }
+    },
+    "sv": {
+        "oct22": {
+            "model_path": "marinone94/xls-r-300m-sv-robust",
+            "model_type": "hf",
+            "lang": "sv",
+            "post_process": "collapse"
+        }
+    },
+    "hr": {
+        "oct22": {
+            "model_path": "classla/wav2vec2-xls-r-parlaspeech-hr",
+            "model_type": "hf",
+            "lang": "hr",
+            "post_process": "collapse"
+        }
+    }
+}

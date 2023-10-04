@@ -11,6 +11,7 @@ import random
 import sys
 import tempfile
 import unittest
+from packaging import version
 from io import StringIO
 from typing import Dict, List
 
@@ -625,6 +626,10 @@ class TestTranslation(unittest.TestCase):
                 )
                 generate_main(data_dir, extra_flags=[])
 
+    @unittest.skipIf(
+        version.parse(torch.__version__) > version.parse("1.8"),
+        "skip for latest torch versions",
+    )
     def test_transformer_pointer_generator(self):
         with contextlib.redirect_stdout(StringIO()):
             with tempfile.TemporaryDirectory(
@@ -1827,6 +1832,8 @@ def train_masked_lm(data_dir, arch, extra_flags=None):
             "masked_lm",
             "--batch-size",
             "500",
+            "--required-batch-size-multiple",
+            "1",
             "--save-dir",
             data_dir,
             "--max-epoch",

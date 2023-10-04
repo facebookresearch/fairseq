@@ -15,8 +15,7 @@ import torch.nn.functional as F
 from omegaconf import II
 
 from fairseq.dataclass import FairseqDataclass
-from fairseq.dataclass.configs import EMAConfig
-from fairseq.models.ema import EMA
+from fairseq.modules import EMAModule, EMAModuleConfig
 from fairseq.models import (
     FairseqEncoder,
     FairseqEncoderModel,
@@ -324,7 +323,7 @@ class Data2VecTextEncoder(FairseqEncoder):
         return RobertaLMHead(embed_dim, output_dim, activation_fn, weight)
 
     def make_ema_teacher(self):
-        ema_config = EMAConfig(
+        ema_config = EMAModuleConfig(
             ema_decay=self.cfg.ema_decay,
             ema_fp32=True,
         )
@@ -344,7 +343,7 @@ class Data2VecTextEncoder(FairseqEncoder):
                 for k, _ in self.sentence_encoder.layer_norm.named_parameters():
                     skip_keys.add(f"layernorm_embedding.{k}")
 
-        self.ema = EMA(
+        self.ema = EMAModule(
             self.sentence_encoder,
             ema_config,
             skip_keys=skip_keys,
@@ -367,7 +366,7 @@ class Data2VecTextEncoder(FairseqEncoder):
                         num_updates,
                         self.cfg.ema_anneal_end_step,
                     )
-                self.ema._set_decay(decay)
+                self.ema.set_decay(decay)
             if self.ema.get_decay() < 1:
                 self.ema.step(self.sentence_encoder)
 

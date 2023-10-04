@@ -13,7 +13,8 @@ from argparse import Namespace
 from omegaconf import II
 
 import numpy as np
-from fairseq import metrics, utils
+from fairseq import utils
+from fairseq.logging import metrics
 from fairseq.data import (
     AppendTokenDataset,
     ConcatDataset,
@@ -438,8 +439,8 @@ class TranslationTask(FairseqTask):
                     bleu = comp_bleu(
                         correct=meters["_bleu_counts"].sum,
                         total=meters["_bleu_totals"].sum,
-                        sys_len=meters["_bleu_sys_len"].sum,
-                        ref_len=meters["_bleu_ref_len"].sum,
+                        sys_len=int(meters["_bleu_sys_len"].sum),
+                        ref_len=int(meters["_bleu_ref_len"].sum),
                         **smooth,
                     )
                     return round(bleu.score, 2)

@@ -12,7 +12,11 @@ class TestS2TTransformer(TestFairseqSpeech):
         self.set_up_librispeech()
 
     def test_librispeech_s2t_transformer_s_checkpoint(self):
-        self.librispeech_s2t_test_base("librispeech_transformer_s.pt", 9)
+        self.base_test(
+            ckpt_name="librispeech_transformer_s.pt",
+            reference_score=9,
+            arg_overrides={"config_yaml": "cfg_librispeech.yaml"},
+        )
 
 
 if __name__ == "__main__":

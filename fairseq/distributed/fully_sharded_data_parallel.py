@@ -76,6 +76,18 @@ class FullyShardedDataParallel(FSDP):
             return super().load_state_dict(state_dict, strict=strict)
 
 
+class DummyProcessGroup:
+    def __init__(self, rank: int, size: int):
+        self._rank = rank
+        self._size = size
+
+    def rank(self) -> int:
+        return self._rank
+
+    def size(self) -> int:
+        return self._size
+
+
 @contextlib.contextmanager
 def fsdp_enable_wrap(cfg: DistributedTrainingConfig):
     try:
@@ -89,8 +101,6 @@ def fsdp_enable_wrap(cfg: DistributedTrainingConfig):
         assert cfg.fp16  # memory_efficient_fp16 should imply fp16
     group = dist_utils.get_data_parallel_group()
     if group is None and cfg.distributed_world_size == 1:
-        from fairscale.utils.testing import DummyProcessGroup
-
         group = DummyProcessGroup(rank=0, size=1)
     fsdp_config = {
         "process_group": group,

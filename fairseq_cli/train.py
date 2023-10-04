@@ -125,12 +125,13 @@ def main(cfg: FairseqConfig) -> None:
 
     # Load valid dataset (we load training data below, based on the latest checkpoint)
     # We load the valid dataset AFTER building the model
-    data_utils.raise_if_valid_subsets_unintentionally_ignored(cfg)
-    if cfg.dataset.combine_valid_subsets:
-        task.load_dataset("valid", combine=True, epoch=1)
-    else:
-        for valid_sub_split in cfg.dataset.valid_subset.split(","):
-            task.load_dataset(valid_sub_split, combine=False, epoch=1)
+    if not cfg.dataset.disable_validation:
+        data_utils.raise_if_valid_subsets_unintentionally_ignored(cfg)
+        if cfg.dataset.combine_valid_subsets:
+            task.load_dataset("valid", combine=True, epoch=1)
+        else:
+            for valid_sub_split in cfg.dataset.valid_subset.split(","):
+                task.load_dataset(valid_sub_split, combine=False, epoch=1)
 
     # (optionally) Configure quantization
     if cfg.common.quantization_config_path is not None:
@@ -174,6 +175,20 @@ def main(cfg: FairseqConfig) -> None:
 
     max_epoch = cfg.optimization.max_epoch or math.inf
     lr = trainer.get_lr()
+
+    # TODO: a dry run on validation set to pin the memory
+    valid_subsets = cfg.dataset.valid_subset.split(",")
+    if not cfg.dataset.disable_validation:
+        for subset in valid_subsets:
+            logger.info('begin dry-run validation on "{}" subset'.format(subset))
+            itr = trainer.get_valid_iterator(subset).next_epoch_itr(
+                shuffle=False, set_dataset_epoch=False  # use a fixed valid set
+            )
+            if cfg.common.tpu:
+                itr = utils.tpu_data_loader(itr)
+            for _ in itr:
+                pass
+    # TODO: end of dry run section
 
     train_meter = meters.StopwatchMeter()
     train_meter.start()
@@ -270,6 +285,17 @@ def train(
         log_file=cfg.common.log_file,
         log_interval=cfg.common.log_interval,
         epoch=epoch_itr.epoch,
+        aim_repo=(
+            cfg.common.aim_repo
+            if distributed_utils.is_master(cfg.distributed_training)
+            else None
+        ),
+        aim_run_hash=(
+            cfg.common.aim_run_hash
+            if distributed_utils.is_master(cfg.distributed_training)
+            else None
+        ),
+        aim_param_checkpoint_dir=cfg.checkpoint.save_dir,
         tensorboard_logdir=(
             cfg.common.tensorboard_logdir
             if distributed_utils.is_master(cfg.distributed_training)
@@ -413,9 +439,11 @@ def validate_and_save(
 
     # Save checkpoint
     if do_save or should_stop:
-        checkpoint_utils.save_checkpoint(
+        cp_path = checkpoint_utils.save_checkpoint(
             cfg.checkpoint, trainer, epoch_itr, valid_losses[0]
         )
+        if cp_path is not None and hasattr(task, "post_save"):
+            task.post_save(cp_path, num_updates)
 
     return valid_losses, should_stop
 
@@ -440,7 +468,7 @@ def validate(
 
     trainer.begin_valid_epoch(epoch_itr.epoch)
     valid_losses = []
-    for subset in subsets:
+    for subset_idx, subset in enumerate(subsets):
         logger.info('begin validation on "{}" subset'.format(subset))
 
         # Initialize data iterator
@@ -455,6 +483,17 @@ def validate(
             log_interval=cfg.common.log_interval,
             epoch=epoch_itr.epoch,
             prefix=f"valid on '{subset}' subset",
+            aim_repo=(
+                cfg.common.aim_repo
+                if distributed_utils.is_master(cfg.distributed_training)
+                else None
+            ),
+            aim_run_hash=(
+                cfg.common.aim_run_hash
+                if distributed_utils.is_master(cfg.distributed_training)
+                else None
+            ),
+            aim_param_checkpoint_dir=cfg.checkpoint.save_dir,
             tensorboard_logdir=(
                 cfg.common.tensorboard_logdir
                 if distributed_utils.is_master(cfg.distributed_training)
@@ -483,7 +522,9 @@ def validate(
                 trainer.valid_step(sample)
 
         # log validation stats
-        stats = get_valid_stats(cfg, trainer, agg.get_smoothed_values())
+        # only tracking the best metric on the 1st validation subset
+        tracking_best = subset_idx == 0
+        stats = get_valid_stats(cfg, trainer, agg.get_smoothed_values(), tracking_best)
 
         if hasattr(task, "post_validate"):
             task.post_validate(trainer.get_model(), stats, agg)
@@ -495,10 +536,13 @@ def validate(
 
 
 def get_valid_stats(
-    cfg: DictConfig, trainer: Trainer, stats: Dict[str, Any]
+    cfg: DictConfig,
+    trainer: Trainer,
+    stats: Dict[str, Any],
+    tracking_best: bool,
 ) -> Dict[str, Any]:
     stats["num_updates"] = trainer.get_num_updates()
-    if hasattr(checkpoint_utils.save_checkpoint, "best"):
+    if tracking_best and hasattr(checkpoint_utils.save_checkpoint, "best"):
         key = "best_{0}".format(cfg.checkpoint.best_checkpoint_metric)
         best_function = max if cfg.checkpoint.maximize_best_checkpoint_metric else min
         stats[key] = best_function(
