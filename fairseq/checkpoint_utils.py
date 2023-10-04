@@ -361,6 +361,7 @@ def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False):
             OmegaConf.set_struct(state["cfg"], True)
         else:
             state["cfg"] = OmegaConf.create(state["cfg"], flags={"allow_objects": True})
+
         if arg_overrides is not None:
             overwrite_args_by_name(state["cfg"], arg_overrides)
 

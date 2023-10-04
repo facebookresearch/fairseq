@@ -381,7 +381,6 @@ class omegaconf_no_object_check:
             _utils.is_primitive_type = self.old_is_primitive
         else:
             _utils.is_primitive_type_annotation = self.old_is_primitive
-            
 
 
 def convert_namespace_to_omegaconf(args: Namespace) -> DictConfig:
