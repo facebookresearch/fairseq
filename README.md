@@ -38,7 +38,7 @@ This clone of fairseq supports `Knowledge Distillation`, `Recurrent Stacking`, a
 
   - Here, similar to Global-Level KD, each language has its own Global FIFO queue, which makes it suitable for multilingual KD with imbalanced datasets. This technique requires adding language tags to each translation pair, similar to [Ramesh _et al_.](https://aclanthology.org/2022.tacl-1.9/). These tags will help the model break the batch into respective languages and push them into the corresponding Global language queues. Note that each FIFO language queue, irrespective of language abundance, will be of the same size, i.e., ```$kd_queue_sz```. I know this does not sound so good, and I am working on an alternative.
 
-  - *UPDATE-1*: _Initially, the KD Loss was implemented as the CrossEntropy between student and teacher model distributions, but it was very unustable in mixed-precision training, and led to `inf` loss. Hence, the latest implementation uses KL-Divergence, which is much more stable and easy to compute in PyTorch_.
+  - *UPDATE-1*: _Initially, the KD Loss was implemented as the CrossEntropy between student and teacher model distributions, but it was very unustable in mixed-precision training and led to `inf` loss. Hence, the latest implementation uses KL-Divergence, which is much more stable and easy to compute in PyTorch_.
   - *UPDATE-2*: _Based on [Wen _et al_.](https://aclanthology.org/2023.acl-long.605.pdf), newer variants for KD Loss have been implemented, wiz. `js_div` and `tvd`. They can be used by setting the flag `--kd-criterion $kd_criterion`. By default, `kl_div` is used._
 
 
@@ -47,13 +47,13 @@ This clone of fairseq supports `Knowledge Distillation`, `Recurrent Stacking`, a
 - **Adapter Tuning** ([Houlsby _et al_.](http://proceedings.mlr.press/v97/houlsby19a/houlsby19a.pdf), [Bapna & Firat](https://aclanthology.org/D19-1165/)): Small FFN blocks with a bottleneck hidden layer are added in the Transformer layer for additional parameterization. The adapter hidden layer currently supports `ReLU`, `GELU`, `SiLU`, and `Tanh` activations. Note that all other parameters except these adapters will be frozen during training. Gating for the skip-connection inside the adapter can be enabled using the flags `--encoder-adapter-use-gating` or `--decoder-adapter-use-gating`. 
 
   - The adapters can be added and trained using the following flags: `--encoder-add-adapters --encoder-adapter-reduction-factor $encoder_reduction_factor --encoder-adapter-ids $encoder_adapter_ids_list --encoder-train-adapter $encoder_train_adapter_id --decoder-add-adapters --decoder-adapter-reduction-factor $decoder_reduction_factor --decoder-adapter-ids $decoder_adapter_ids_list --decoder-train-adapter $decoder_train_adapter_id --adapter-activation-fn $adapter_activation_fn --load-checkpoint-liberally`
-  - During evaluation, you can add the following flags to `fairseq-interactive`  to use that specific adapter `--activate-encoder-adapter $encoder_adapter_id --activate-decoder-adapter $decoder_adapter_id`. Here `$encoder_adapter_ids_list`/`$decoder_adapter_ids_list` is a comma separated list like `as,bn,gu,hi,kn,ml,mr,or,pa,ta,te` and `$encoder_train_adapter_id`/`$decoder_train_adapter_id` is one of the adapters from that list (say `hi`) which will get trained. Essentially, the above flags add a block of bottleneck adapters and they can be trained one-after the another.
+  - During evaluation, you can add the following flags to `fairseq-interactive`  to use that specific adapter `--activate-encoder-adapter $encoder_adapter_id --activate-decoder-adapter $decoder_adapter_id`. Here `$encoder_adapter_ids_list`/`$decoder_adapter_ids_list` is a comma separated list like `as,bn,gu,hi,kn,ml,mr,or,pa,ta,te` and `$encoder_train_adapter_id`/`$decoder_train_adapter_id` is one of the adapters from that list (say `hi`) which will get trained. Essentially, the above flags add a block of bottleneck adapters and they can be trained one after the other.
 
 
 - **Miscellaneous**:
   - _Factorized Embedding Parameterization_ ([Lan _et al_.](https://iclr.cc/virtual_2020/poster_H1eA7AEtvS.html)): Similar to ALBERT, the large embeddings can be parameterized by adding an intermediate bottleneck layer, i.e., the instead of being a single $|V| \times d_m$ matrix, the Embedding consists of two pieces of sizes $|V| \times k$ and $k \times d_m$ respectively, where $k < d_m$. This helps curb the number of parameters in the Embedding layer, which can one of the most bulky components. Factorized embeddings can be used as:`--encoder-factorized-embed-dim $encoder_fac_embed_dim --decoder-factorized-embed-dim $decoder_fac_embed_dim `. A non-linear activation function can be applied to the intermediate bottleneck layer specifying it in the flag `--factorized-embed-activation-fn $fac_embed_activation_fn`.
 
-  - When using a penultimate linear transformation before the final projection on to the vocabulary, an activation can be added by `--decoder-output-activation-fn $decoder_out_activation_fn`
+  - When using a penultimate linear transformation before the final projection onto the vocabulary, activation can be added by `--decoder-output-activation-fn $decoder_out_activation_fn`
 
   - _Sanity Validation steps_: Similar to `Pytorch-Lightning Trainer`, a full pass over the validation set can be run at the beginning of training to eliminate any bugs in the training/validation. It can be activated with the flag: `--run-sanity-validation-steps`
 
@@ -70,7 +70,7 @@ This clone of fairseq supports `Knowledge Distillation`, `Recurrent Stacking`, a
 ``` bash
 git clone https://github.com/pytorch/fairseq
 cd fairseq
-pip install --editable ./
+pip install -e ./
 
 # on MacOS:
 # CFLAGS="-stdlib=libc++" pip install --editable ./
@@ -91,12 +91,12 @@ pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cud
 
 * **For large datasets** install [PyArrow](https://arrow.apache.org/docs/python/install.html#using-pip): `pip install pyarrow`
 * If you use Docker make sure to increase the shared memory size either with `--ipc=host` or `--shm-size`
- as command line options to `nvidia-docker run` .
+ as command line options to `nvidia-docker run`.
 
 # Getting Started
 
 The [full documentation](https://fairseq.readthedocs.io/) contains instructions
-for getting started, training new models and extending fairseq with new model
+for getting started, training new models, and extending fairseq with a new model
 types and tasks.
 
 # Join the fairseq community
@@ -125,4 +125,4 @@ Please cite as:
 
 # Final Note
 
-I will try my best to keep this repo sync'ed with upstream [fairseq](https://github.com/facebookresearch/fairseq) repository. This clone is very dynamic and can have broken stuff once in a while. So feel free to raise any issues or pull-requests to clear any bugs or introduce new features.
+_I will try my best to keep this repo synced with the upstream [fairseq](https://github.com/facebookresearch/fairseq) repository. This clone is very dynamic and can have broken stuff once in a while. So feel free to raise any issues or pull requests to clear any bugs or introduce new features._
