@@ -47,6 +47,7 @@ class RawAudioDataset(FairseqDataset):
         expand_adjacent: bool = False,
         mask_dropout: float = 0,
         non_overlapping: bool = False,
+        corpus_key=None,
     ):
         super().__init__()
 
@@ -72,6 +73,7 @@ class RawAudioDataset(FairseqDataset):
         self.expand_adjacent = expand_adjacent
         self.mask_dropout = mask_dropout
         self.non_overlapping = non_overlapping
+        self.corpus_key = corpus_key
 
     def __getitem__(self, index):
         raise NotImplementedError()
@@ -144,6 +146,8 @@ class RawAudioDataset(FairseqDataset):
                 collated_sources[i] = self.crop_to_max_size(source, target_size)
 
         input = {"source": collated_sources}
+        if self.corpus_key is not None:
+            input["corpus_key"] = [self.corpus_key] * len(sources)
         out = {"id": torch.LongTensor([s["id"] for s in samples])}
         if self.pad:
             input["padding_mask"] = padding_mask
