@@ -152,13 +152,6 @@ def main(cfg: FairseqConfig) -> None:
     train_encoder_adapter = getattr(cfg.model, "encoder_train_adapter", "$$") != "$$"
     train_decoder_adapter = getattr(cfg.model, "decoder_train_adapter", "$$") != "$$"
 
-    encoder_selectively_train_embedding = (
-        getattr(cfg.model, "encoder_selectively_train_embedding", "$$") != "$$"
-    )
-    decoder_selectively_train_embedding = (
-        getattr(cfg.model, "decoder_selectively_train_embedding", "$$") != "$$"
-    )
-
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
     if add_encoder_adapters or add_decoder_adapters:
         logging.info("adapters detected in encoder/decoder")
