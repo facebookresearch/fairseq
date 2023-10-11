@@ -15,8 +15,8 @@ def read_text_file(filename):
     return output
 
 
-def get_bleu(in_sent, target_sent):
-    bleu = sacrebleu.corpus_bleu([in_sent], [[target_sent]])
+def get_bleu(in_sent, target_sent,tokenize):
+    bleu = sacrebleu.corpus_bleu([in_sent], [[target_sent]],tokenize=tokenize)
     out = " ".join(
         map(str, [bleu.score, bleu.sys_len, bleu.ref_len] + bleu.counts + bleu.totals)
     )
@@ -35,14 +35,14 @@ def init(sp_model):
     sp.Load(sp_model)
 
 
-def process(source_sent, target_sent, hypo_sent, metric):
+def process(source_sent, target_sent, hypo_sent, metric,tokenize):
     source_bpe = " ".join(sp.EncodeAsPieces(source_sent))
     hypo_bpe = [" ".join(sp.EncodeAsPieces(h)) for h in hypo_sent]
 
     if metric == "bleu":
-        score_str = [get_bleu(h, target_sent) for h in hypo_sent]
+        score_str = [get_bleu(h, target_sent,tokenize) for h in hypo_sent]
     else:  # ter
-        score_str = [get_ter(h, target_sent) for h in hypo_sent]
+        score_str = [get_ter(h, target_sent,tokenize) for h in hypo_sent]
 
     return source_bpe, hypo_bpe, score_str
 
@@ -96,14 +96,14 @@ def main(args):
                 output = p.starmap(
                     process,
                     [
-                        (source_sents[i], target_sents[i], hypo_sents[i], args.metric)
+                        (source_sents[i], target_sents[i], hypo_sents[i], args.metric, args.tokenize)
                         for i in range(ns, num_sents, args.num_shards)
                     ],
                 )
         else:
             init(args.sentencepiece_model)
             output = [
-                process(source_sents[i], target_sents[i], hypo_sents[i], args.metric)
+                process(source_sents[i], target_sents[i], hypo_sents[i], args.metric,args.tokenize)
                 for i in range(ns, num_sents, args.num_shards)
             ]
 
@@ -130,6 +130,9 @@ if __name__ == "__main__":
     parser.add_argument("--metric", type=str, choices=["bleu", "ter"], default="bleu")
     parser.add_argument("--num-shards", type=int, default=1)
     parser.add_argument("--n-proc", type=int, default=8)
+    parser.add_argument("--tokenize", type=str, required=True)
+
+
 
     args = parser.parse_args()
 

@@ -92,6 +92,26 @@ def make_dataset(path, impl, fix_lua_indexing=False, dictionary=None):
         return HuffmanMMapIndexedDataset(path)
     return None
 
+def make_dataset_score(path, impl, fix_lua_indexing=False, dictionary=None):
+    if impl == "raw" and IndexedRawTextDataset.exists(path):
+       #  assert dictionary is not None
+        return IndexedRawTextDataset(path, dictionary)
+    elif impl == "lazy" and IndexedDataset.exists(path):
+        return IndexedDataset(path, fix_lua_indexing=fix_lua_indexing)
+    elif impl == "cached" and IndexedDataset.exists(path):
+        return IndexedCachedDataset(path, fix_lua_indexing=fix_lua_indexing)
+    elif impl == "mmap" and MMapIndexedDataset.exists(path):
+        return MMapIndexedDataset(path)
+    elif impl == "fasta" and FastaDataset.exists(path):
+        from fairseq.data.fasta_dataset import EncodedFastaDataset
+
+        return EncodedFastaDataset(path, dictionary)
+    elif impl == "huffman" and HuffmanMMapIndexedDataset.exists(path):
+        return HuffmanMMapIndexedDataset(path)
+    return None
+
+
+
 
 def dataset_exists(path, impl):
     if impl == "raw":
@@ -275,19 +295,25 @@ class IndexedRawTextDataset(FairseqDataset):
         self.reverse_order = reverse_order
         self.read_data(path, dictionary)
         self.size = len(self.tokens_list)
-
     def read_data(self, path, dictionary):
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
-                self.lines.append(line.strip("\n"))
-                tokens = dictionary.encode_line(
+                if dictionary == None:
+                    self.lines.append(line.strip("\n"))
+                    self.tokens_list.append(line.strip("\n"))
+                    self.sizes.append(len(self.lines))
+                else:
+
+                    self.lines.append(line.strip("\n"))
+                
+                    tokens = dictionary.encode_line(
                     line,
                     add_if_not_exist=False,
                     append_eos=self.append_eos,
                     reverse_order=self.reverse_order,
-                ).long()
-                self.tokens_list.append(tokens)
-                self.sizes.append(len(tokens))
+                     ).long()
+                    self.tokens_list.append(tokens)
+                    self.sizes.append(len(tokens))
         self.sizes = np.array(self.sizes)
 
     def check_index(self, i):

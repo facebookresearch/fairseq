@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from typing import Dict, List, Optional, Tuple
-
+import torch
 import torch.nn as nn
 from fairseq import utils
 from torch import Tensor
@@ -85,8 +85,18 @@ class FairseqDecoder(nn.Module):
                 target = None
             out = self.adaptive_softmax.get_log_prob(net_output[0], target=target)
             return out.exp_() if not log_probs else out
+        logits = []
+        for i in range(16):
+            logits.append(net_output[i][0])
+        # print(f"logits : {logits}")
+        # print(type(logits))
+        # print(f"logits_origin:{logits[0].shape}")
 
-        logits = net_output[0]
+        # logits = net_output[0]
+        # print(type(logits))
+        # print(len(logits))
+        logits = torch.stack(logits,dim=1)
+        # print(f"logits_final:{logits.shape}")
         if log_probs:
             return utils.log_softmax(logits, dim=-1, onnx_trace=self.onnx_trace)
         else:

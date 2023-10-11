@@ -26,8 +26,16 @@ def collate(
     if len(samples) == 0:
         return {}
 
+
+    
+
+
     def merge(key, left_pad, move_eos_to_beginning=False, pad_to_length=None):
-        return data_utils.collate_tokens(
+        if key == "score":
+            return data_utils.collate_score([s[key] for s in samples])
+        if key == "candidate":
+            
+            return data_utils.collate_candidate_tokens(
             [s[key] for s in samples],
             pad_idx,
             eos_idx,
@@ -36,6 +44,20 @@ def collate(
             pad_to_length=pad_to_length,
             pad_to_multiple=pad_to_multiple,
         )
+
+
+        else:
+
+            return data_utils.collate_tokens(
+            [s[key] for s in samples],
+            pad_idx,
+            eos_idx,
+            left_pad,
+            move_eos_to_beginning,
+            pad_to_length=pad_to_length,
+            pad_to_multiple=pad_to_multiple,
+        )
+  
 
     def check_alignment(alignment, src_len, tgt_len):
         if alignment is None or len(alignment) == 0:
@@ -65,11 +87,13 @@ def collate(
         return 1.0 / align_weights.float()
 
     id = torch.LongTensor([s["id"] for s in samples])
+
     src_tokens = merge(
         "source",
         left_pad=left_pad_source,
         pad_to_length=pad_to_length["source"] if pad_to_length is not None else None,
     )
+    
     # sort by descending source length
     src_lengths = torch.LongTensor(
         [s["source"].ne(pad_idx).long().sum() for s in samples]
@@ -77,38 +101,49 @@ def collate(
     src_lengths, sort_order = src_lengths.sort(descending=True)
     id = id.index_select(0, sort_order)
     src_tokens = src_tokens.index_select(0, sort_order)
-
+    # print("src_token",src_tokens.size())
+    
     prev_output_tokens = None
-    target = None
-    if samples[0].get("target", None) is not None:
-        target = merge(
-            "target",
+    candidate = None
+    if samples[0].get("candidate", None) is not None:
+        candidate = merge(
+            "candidate",
             left_pad=left_pad_target,
-            pad_to_length=pad_to_length["target"]
+            pad_to_length=pad_to_length["candidate"]
             if pad_to_length is not None
             else None,
         )
-        target = target.index_select(0, sort_order)
-        tgt_lengths = torch.LongTensor(
-            [s["target"].ne(pad_idx).long().sum() for s in samples]
+        candidate  = candidate.index_select(0, sort_order)
+        
+       
+        candidate_lengths = torch.LongTensor(
+            [s["candidate"][0].ne(pad_idx).long().sum() for s in samples]
         ).index_select(0, sort_order)
-        ntokens = tgt_lengths.sum().item()
-
+        ntokens = candidate_lengths.sum().item()
+        
+       
         if samples[0].get("prev_output_tokens", None) is not None:
             prev_output_tokens = merge("prev_output_tokens", left_pad=left_pad_target)
         elif input_feeding:
             # we create a shifted version of targets for feeding the
             # previous output token(s) into the next decoder step
             prev_output_tokens = merge(
-                "target",
+                "candidate",
                 left_pad=left_pad_target,
                 move_eos_to_beginning=True,
-                pad_to_length=pad_to_length["target"]
+                pad_to_length=pad_to_length["candidate"]
                 if pad_to_length is not None
                 else None,
             )
+           #  print(prev_output_tokens.size())
     else:
         ntokens = src_lengths.sum().item()
+    
+
+    score=None
+    if samples[0].get('score',None) is not None:
+        score = merge(key="score",left_pad = left_pad_source)
+    # figure out how to get the key like id nsentence,noken in the dictionary named batch
 
     batch = {
         "id": id,
@@ -118,13 +153,16 @@ def collate(
             "src_tokens": src_tokens,
             "src_lengths": src_lengths,
         },
-        "target": target,
+        "target": candidate,
+        "score": score
     }
+
+
     if prev_output_tokens is not None:
         batch["net_input"]["prev_output_tokens"] = prev_output_tokens.index_select(
             0, sort_order
         )
-
+    #  print("language_pair done")
     if samples[0].get("alignment", None) is not None:
         bsz, tgt_sz = batch["target"].shape
         src_sz = batch["net_input"]["src_tokens"].shape[1]
@@ -161,7 +199,7 @@ def collate(
         for i, sample in enumerate(samples):
             constraints[i, 0 : lens[i]] = samples[i].get("constraints")
         batch["constraints"] = constraints.index_select(0, sort_order)
-
+    
     return batch
 
 
@@ -212,6 +250,8 @@ class LanguagePairDataset(FairseqDataset):
         tgt=None,
         tgt_sizes=None,
         tgt_dict=None,
+        scores=None,
+        score_size=None,
         left_pad_source=True,
         left_pad_target=False,
         shuffle=True,
@@ -231,14 +271,20 @@ class LanguagePairDataset(FairseqDataset):
             assert src_dict.pad() == tgt_dict.pad()
             assert src_dict.eos() == tgt_dict.eos()
             assert src_dict.unk() == tgt_dict.unk()
-        if tgt is not None:
-            assert len(src) == len(
-                tgt
-            ), "Source and target must contain the same number of examples"
+        # if tgt is not None:
+        #    assert len(src) * 2 == len(
+        #        tgt
+        #    ) , "Source and target must contain the same number of examples"
         self.src = src
         self.tgt = tgt
+        self.scores = scores
         self.src_sizes = np.array(src_sizes)
+        
+
         self.tgt_sizes = np.array(tgt_sizes) if tgt_sizes is not None else None
+        self.score_sizes = np.array(score_size)
+        self.src_sizes = np.repeat(self.src_sizes, 16)
+    
         self.sizes = (
             np.vstack((self.src_sizes, self.tgt_sizes)).T
             if self.tgt_sizes is not None
@@ -291,8 +337,7 @@ class LanguagePairDataset(FairseqDataset):
             # the padded lengths (thanks to BucketPadLengthDataset)
             num_tokens = np.vectorize(self.num_tokens, otypes=[np.compat.long])
             self.bucketed_num_tokens = num_tokens(np.arange(len(self.src)))
-            self.buckets = [
-                (None, num_tokens) for num_tokens in np.unique(self.bucketed_num_tokens)
+            self.buckets = [   (None, num_tokens) for num_tokens in np.unique(self.bucketed_num_tokens)
             ]
         else:
             self.buckets = None
@@ -302,8 +347,20 @@ class LanguagePairDataset(FairseqDataset):
         return self.buckets
 
     def __getitem__(self, index):
-        tgt_item = self.tgt[index] if self.tgt is not None else None
-        src_item = self.src[index]
+        # tgt_item = self.tgt[index] if self.tgt is not None and index < len(self.tgt) else None
+        # index refers to the list index
+        src_item = self.src[index] if index <len(self.src) else None
+        
+        # Get the first target language item
+        # tgt_item = self.tgt[index *2]
+        # tgt_item_1 = self.tgt[index *2 +1]
+        candidate_item = []
+        score_item = []
+        for i in range(16):
+            candidate_item.append(self.tgt[index * 16 + i]) 
+            score_item.append(self.scores[index * 16 + i])
+    
+        #    tgt_item.append(tgt_item)
         # Append EOS to end of tgt sentence if it does not have an EOS and remove
         # EOS from end of src sentence if it exists. This is useful when we use
         # use existing datasets for opposite directions i.e., when we want to
@@ -330,8 +387,12 @@ class LanguagePairDataset(FairseqDataset):
         example = {
             "id": index,
             "source": src_item,
-            "target": tgt_item,
+            "candidate": candidate_item,
+            "score": score_item,
         }
+    
+        
+    
         if self.align_dataset is not None:
             example["alignment"] = self.align_dataset[index]
         if self.constraints is not None:
@@ -360,7 +421,7 @@ class LanguagePairDataset(FairseqDataset):
                   - `src_tokens` (LongTensor): a padded 2D Tensor of tokens in
                     the source sentence of shape `(bsz, src_len)`. Padding will
                     appear on the left if *left_pad_source* is ``True``.
-                  - `src_lengths` (LongTensor): 1D Tensor of the unpadded
+     <F2>             - `src_lengths` (LongTensor): 1D Tensor of the unpadded
                     lengths of each source sentence of shape `(bsz)`
                   - `prev_output_tokens` (LongTensor): a padded 2D Tensor of
                     tokens in the target sentence, shifted right by one

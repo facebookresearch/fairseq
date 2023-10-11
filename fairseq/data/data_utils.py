@@ -33,7 +33,49 @@ def infer_language_pair(path):
         if len(parts) >= 3 and len(parts[1].split("-")) == 2:
             return parts[1].split("-")
     return src, dst
+def collate_candidate_tokens(
+    values,
+    pad_idx,
+    eos_idx=None,
+    left_pad=False,
+    move_eos_to_beginning=False,
+    pad_to_length=None,
+    pad_to_multiple=1,
+    pad_to_bsz=None,
+):
+    """Convert a list of 1d tensors into a padded 3d tensor."""
 
+    size = max(v.size(0) for sub in values for v in sub)
+    size = size if pad_to_length is None else max(size, pad_to_length)
+    if pad_to_multiple != 1 and size % pad_to_multiple != 0:
+        size = int(((size - 0.1) // pad_to_multiple + 1) * pad_to_multiple)
+
+    batch_size = len(values) if pad_to_bsz is None else max(len(values), pad_to_bsz)
+
+    candidate_size = len(values[0])
+    
+    res = values[0][0].new(batch_size,candidate_size, size).fill_(pad_idx)
+    
+
+    def copy_tensor(src, dst):
+        assert dst.numel() == src.numel()
+        if move_eos_to_beginning:
+            if eos_idx is None:
+                # if no eos_idx is specified, then use the last token in src
+                dst[0] = src[-1]
+            else:
+                dst[0] = eos_idx
+            dst[1:] = src[:-1]
+        else:
+            dst.copy_(src)
+
+    for i, sublist in enumerate(values):
+        
+        for j, tensor in enumerate(sublist):
+            
+           # print(f" Tensor length: {len(tensor)},Size: {size}")
+            copy_tensor(tensor, res[i][j][size - len(tensor) :] if left_pad else res[i][j][: len(tensor)])
+    return res
 
 def collate_tokens(
     values,
@@ -46,6 +88,7 @@ def collate_tokens(
     pad_to_bsz=None,
 ):
     """Convert a list of 1d tensors into a padded 2d tensor."""
+
     size = max(v.size(0) for v in values)
     size = size if pad_to_length is None else max(size, pad_to_length)
     if pad_to_multiple != 1 and size % pad_to_multiple != 0:
@@ -53,7 +96,6 @@ def collate_tokens(
 
     batch_size = len(values) if pad_to_bsz is None else max(len(values), pad_to_bsz)
     res = values[0].new(batch_size, size).fill_(pad_idx)
-
     def copy_tensor(src, dst):
         assert dst.numel() == src.numel()
         if move_eos_to_beginning:
@@ -69,7 +111,11 @@ def collate_tokens(
     for i, v in enumerate(values):
         copy_tensor(v, res[i][size - len(v) :] if left_pad else res[i][: len(v)])
     return res
-
+def collate_score(values):
+    
+    int_values = [[float(item) for item in inner_list] for inner_list in values]
+    res = torch.tensor(int_values)
+    return res
 
 def load_indexed_dataset(
     path, dictionary=None, dataset_impl=None, combine=False, default="cached"
@@ -104,18 +150,20 @@ def load_indexed_dataset(
         dataset_impl_k = dataset_impl
         if dataset_impl_k is None:
             dataset_impl_k = indexed_dataset.infer_dataset_impl(path_k)
-        dataset = indexed_dataset.make_dataset(
+        dataset = indexed_dataset.make_dataset_score(
             path_k,
             impl=dataset_impl_k or default,
             fix_lua_indexing=True,
             dictionary=dictionary,
         )
+        
         if dataset is None:
             break
         logger.info("loaded {:,} examples from: {}".format(len(dataset), path_k))
         datasets.append(dataset)
         if not combine:
             break
+
     if len(datasets) == 0:
         return None
     elif len(datasets) == 1:
