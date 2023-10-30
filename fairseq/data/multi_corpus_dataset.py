@@ -215,6 +215,12 @@ class MultiCorpusDataset(FairseqDataset):
             except Exception:
                 print(f"Collating failed for key {key}", flush=True)
                 raise
+            # map key to dataset index
+            corpus_key_list = []
+            for sample in samples:
+                _, key = self._map_index(sample["full_id"])
+                corpus_key_list.append(list(self.datasets.keys()).index(key))
+                batch["net_input"]["corpus_key"] = torch.Tensor(dataset_idx_list).long()
             return batch
         else:
             # Subclasses may override __getitem__ to not specify full_id
