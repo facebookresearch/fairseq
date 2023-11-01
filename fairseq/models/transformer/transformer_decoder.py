@@ -21,9 +21,9 @@ from fairseq.modules import (
     LayerDropModuleList,
     LayerNorm,
     PositionalEmbedding,
-    SinusoidalPositionalEmbedding,
     transformer_layer,
 )
+from fairseq.modules.quant_elastic import QuantizeLinear
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 
@@ -89,11 +89,22 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         else:
             self.quant_noise = None
 
-        self.project_in_dim = (
-            Linear(input_embed_dim, embed_dim, bias=False)
-            if embed_dim != input_embed_dim
-            else None
-        )
+        self.project_in_dim = None
+        if embed_dim != input_embed_dim:
+            if cfg.quant_elastic.weight_bits == 32:
+                self.weight_quant_method = None
+                self.project_in_dim = Linear(input_embed_dim, embed_dim, bias=False)
+            else:
+                self.weight_quant_method = cfg.quant_elastic.weight_quant_method
+                self.project_in_dim = QuantizeLinear(
+                    input_embed_dim,
+                    embed_dim,
+                    weight_bits=cfg.quant_elastic.weight_bits,
+                    weight_quant_method=cfg.quant_elastic.weight_quant_method,
+                    learnable=cfg.quant_elastic.learnable_scaling,
+                    symmetric=cfg.quant_elastic.symmetric_quant,
+                )
+
         self.embed_positions = (
             PositionalEmbedding(
                 self.max_target_positions,
@@ -128,11 +139,22 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         else:
             self.layer_norm = None
 
-        self.project_out_dim = (
-            Linear(embed_dim, self.output_embed_dim, bias=False)
-            if embed_dim != self.output_embed_dim and not cfg.tie_adaptive_weights
-            else None
-        )
+        self.project_out_dim = None
+        if embed_dim != self.output_embed_dim and not cfg.tie_adaptive_weights:
+            if cfg.quant_elastic.weight_bits == 32:
+                self.project_out_dim = Linear(
+                    embed_dim, self.output_embed_dim, bias=False
+                )
+            else:
+                self.project_out_dim = QuantizeLinear(
+                    embed_dim,
+                    self.output_embed_dim,
+                    bias=False,
+                    weight_bits=cfg.quant_elastic.weight_bits,
+                    weight_quant_method=cfg.quant_elastic.weight_quant_method,
+                    learnable=cfg.quant_elastic.learnable_scaling,
+                    symmetric=cfg.quant_elastic.symmetric_quant,
+                )
 
         self.adaptive_softmax = None
         self.output_projection = output_projection
@@ -149,6 +171,10 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
                 adaptive_inputs=embed_tokens if cfg.tie_adaptive_weights else None,
                 factor=cfg.adaptive_softmax_factor,
                 tie_proj=cfg.tie_adaptive_proj,
+                weight_bits=cfg.quant_elastic.weight_bits,
+                weight_quant_method=cfg.quant_elastic.weight_quant_method,
+                learnable_scaling=cfg.quant_elastic.learnable_scaling,
+                symmetric_quant=cfg.quant_elastic.symmetric_quant,
             )
         elif self.share_input_output_embed:
             self.output_projection = nn.Linear(

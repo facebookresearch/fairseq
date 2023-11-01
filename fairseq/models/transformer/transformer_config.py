@@ -94,6 +94,20 @@ class QuantNoiseConfig(FairseqDataclass):
 
 
 @dataclass
+class QuantElasticConfig(FairseqDataclass):
+    weight_bits: int = field(
+        default=32,
+        metadata={"help": "number of bits for weights"},
+    )
+    weight_quant_method: Optional[str] = field(
+        default=None,
+        metadata={"help": "quantization method for weights"},
+    )
+    learnable_scaling: bool = field(default=True)
+    symmetric_quant: bool = field(default=True)
+
+
+@dataclass
 class TransformerConfig(FairseqDataclass):
     activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
         default="relu",
@@ -198,6 +212,7 @@ class TransformerConfig(FairseqDataclass):
     )
     # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
     quant_noise: QuantNoiseConfig = field(default=QuantNoiseConfig())
+    quant_elastic: QuantElasticConfig = field(default=QuantElasticConfig())
     min_params_to_wrap: int = field(
         default=DEFAULT_MIN_PARAMS_TO_WRAP,
         metadata={
@@ -317,6 +332,14 @@ class TransformerConfig(FairseqDataclass):
                     else:
                         config.quant_noise = cls._copy_keys(
                             args, QuantNoiseConfig, "quant_noise", seen
+                        )
+                elif fld.name == "quant_elastic":
+                    if safe_hasattr(args, "quant_elastic"):
+                        seen.add("quant_elastic")
+                        config.quant_elastic = QuantElasticConfig(**args.quant_elastic)
+                    else:
+                        config.quant_elastic = cls._copy_keys(
+                            args, QuantElasticConfig, "quant_elastic", seen
                         )
                 elif safe_hasattr(args, fld.name):
                     # if it's not a structure field, it's just a normal field, copy it over

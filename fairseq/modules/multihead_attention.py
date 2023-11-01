@@ -21,7 +21,7 @@ except ImportError:
 
 from fairseq import utils
 from fairseq.modules.fairseq_dropout import FairseqDropout
-from fairseq.modules.quant_noise import quant_noise
+from fairseq.modules.quant_elastic import QuantizeElasticMixin
 from fairseq.models.fairseq_incremental_decoder import FairseqIncrementalDecoder
 
 
@@ -60,7 +60,7 @@ def _mask_for_xformers(mask: Tensor, to_dtype: Optional[torch.dtype] = None):
     return mask
 
 
-class MultiheadAttention(FairseqIncrementalDecoder):
+class MultiheadAttention(QuantizeElasticMixin, FairseqIncrementalDecoder):
     """Multi-headed attention.
 
     See "Attention Is All You Need" for more details.
@@ -81,6 +81,10 @@ class MultiheadAttention(FairseqIncrementalDecoder):
         dictionary=None,
         q_noise=0.0,
         qn_block_size=8,
+        weight_bits=32,
+        weight_quant_method="bwn",
+        learnable_scaling=False,
+        symmetric_quant=False,
         # TODO: pass in config rather than string.
         # config defined in xformers.components.attention.AttentionConfig
         xformers_att_config: Optional[str] = None,
@@ -92,6 +96,13 @@ class MultiheadAttention(FairseqIncrementalDecoder):
         ] = 16,  # This should be part of the config
     ):
         super().__init__(dictionary)
+
+        self.q_noise = q_noise
+        self.qn_block_size = qn_block_size
+        self.weight_bits = weight_bits
+        self.weight_quant_method = weight_quant_method
+        self.learnable_scaling = learnable_scaling
+        self.symmetric_quant = symmetric_quant
 
         xformers_att_config = utils.eval_str_dict(xformers_att_config)
         self.use_xformers = xformers_att_config is not None
@@ -120,18 +131,12 @@ class MultiheadAttention(FairseqIncrementalDecoder):
             "Self-attention requires query, key and " "value to be of the same size"
         )
 
-        self.k_proj = quant_noise(
-            nn.Linear(self.kdim, embed_dim, bias=bias), q_noise, qn_block_size
-        )
-        self.v_proj = quant_noise(
-            nn.Linear(self.vdim, embed_dim, bias=bias), q_noise, qn_block_size
-        )
-        self.q_proj = quant_noise(
-            nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
-        )
+        self.k_proj = self._maybe_build_quantize_linear(self.kdim, embed_dim, bias=bias)
+        self.v_proj = self._maybe_build_quantize_linear(self.vdim, embed_dim, bias=bias)
+        self.q_proj = self._maybe_build_quantize_linear(embed_dim, embed_dim, bias=bias)
 
-        self.out_proj = quant_noise(
-            nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
+        self.out_proj = self._maybe_build_quantize_linear(
+            embed_dim, embed_dim, bias=bias
         )
 
         if add_bias_kv:

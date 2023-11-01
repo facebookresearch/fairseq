@@ -38,6 +38,10 @@ class TransformerEncoderLayerBase(nn.Module):
         self.embed_dim = cfg.encoder.embed_dim
         self.quant_noise = cfg.quant_noise.pq
         self.quant_noise_block_size = cfg.quant_noise.pq_block_size
+        self.weight_bits = cfg.quant_elastic.weight_bits
+        self.weight_quant_method = cfg.quant_elastic.weight_quant_method
+        self.learnable_scaling = cfg.quant_elastic.learnable_scaling
+        self.symmetric_quant = cfg.quant_elastic.symmetric_quant
         self.self_attn = self.build_self_attention(self.embed_dim, cfg)
         self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
         self.dropout_module = FairseqDropout(
@@ -140,6 +144,10 @@ class TransformerEncoderLayerBase(nn.Module):
             self_attention=True,
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
+            weight_bits=self.weight_bits,
+            weight_quant_method=self.weight_quant_method,
+            learnable_scaling=self.learnable_scaling,
+            symmetric_quant=self.symmetric_quant,
             xformers_att_config=cfg.encoder.xformers_att_config,
         )
 
@@ -265,6 +273,10 @@ class TransformerDecoderLayerBase(nn.Module):
         )
         self.quant_noise = cfg.quant_noise.pq
         self.quant_noise_block_size = cfg.quant_noise.pq_block_size
+        self.weight_bits = cfg.quant_elastic.weight_bits
+        self.weight_quant_method = cfg.quant_elastic.weight_quant_method
+        self.learnable_scaling = cfg.quant_elastic.learnable_scaling
+        self.symmetric_quant = cfg.quant_elastic.symmetric_quant
 
         self.cross_self_attention = cfg.cross_self_attention
 
@@ -359,6 +371,10 @@ class TransformerDecoderLayerBase(nn.Module):
             self_attention=not cfg.cross_self_attention,
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
+            weight_bits=self.weight_bits,
+            weight_quant_method=self.weight_quant_method,
+            learnable_scaling=self.learnable_scaling,
+            symmetric_quant=self.symmetric_quant,
             xformers_att_config=cfg.decoder.xformers_att_config,
         )
 
@@ -372,6 +388,10 @@ class TransformerDecoderLayerBase(nn.Module):
             encoder_decoder_attention=True,
             q_noise=self.quant_noise,
             qn_block_size=self.quant_noise_block_size,
+            weight_bits=self.weight_bits,
+            weight_quant_method=self.weight_quant_method,
+            learnable_scaling=self.learnable_scaling,
+            symmetric_quant=self.symmetric_quant,
             xformers_att_config=cfg.encoder.xformers_att_config,
         )
 

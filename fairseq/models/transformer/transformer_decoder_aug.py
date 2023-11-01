@@ -15,7 +15,6 @@ from fairseq.models.transformer import TransformerConfig
 from fairseq.models.transformer.transformer_decoder import TransformerDecoderBase
 from fairseq.modules import (
     LayerDropModuleList,
-    SinusoidalPositionalEmbedding,
     transformer_layer_aug,
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
