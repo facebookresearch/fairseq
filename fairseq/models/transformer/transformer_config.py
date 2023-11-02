@@ -213,6 +213,10 @@ class TransformerConfig(FairseqDataclass):
     # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
     quant_noise: QuantNoiseConfig = field(default=QuantNoiseConfig())
     quant_elastic: QuantElasticConfig = field(default=QuantElasticConfig())
+    # SubLN introduced in "Foundation Transformers" (Wang et al., 2022)
+    subln: bool = field(
+        default=False, metadata={"help": "add layernorm before attention out_proj"}
+    )
     min_params_to_wrap: int = field(
         default=DEFAULT_MIN_PARAMS_TO_WRAP,
         metadata={

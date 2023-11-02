@@ -94,6 +94,7 @@ class MultiheadAttention(QuantizeElasticMixin, FairseqIncrementalDecoder):
         xformers_blocksparse_blocksize: Optional[
             int
         ] = 16,  # This should be part of the config
+        subln=False,
     ):
         super().__init__(dictionary)
 
@@ -134,6 +135,8 @@ class MultiheadAttention(QuantizeElasticMixin, FairseqIncrementalDecoder):
         self.k_proj = self._maybe_build_quantize_linear(self.kdim, embed_dim, bias=bias)
         self.v_proj = self._maybe_build_quantize_linear(self.vdim, embed_dim, bias=bias)
         self.q_proj = self._maybe_build_quantize_linear(embed_dim, embed_dim, bias=bias)
+
+        self.inner_attn_ln = nn.LayerNorm(embed_dim) if subln else None
 
         self.out_proj = self._maybe_build_quantize_linear(
             embed_dim, embed_dim, bias=bias
@@ -775,6 +778,10 @@ class MultiheadAttention(QuantizeElasticMixin, FairseqIncrementalDecoder):
             attn = attn.contiguous().view(tgt_len, bsz, self.embed_dim)
         else:
             attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, self.embed_dim)
+
+        if self.inner_attn_ln is not None:
+            attn = self.inner_attn_ln(attn)
+
         attn = self.out_proj(attn)
         attn_weights: Optional[Tensor] = None
         if need_weights:

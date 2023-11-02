@@ -142,6 +142,7 @@ class TransformerEncoderLayerBase(QuantizeElasticMixin, nn.Module):
             learnable_scaling=self.learnable_scaling,
             symmetric_quant=self.symmetric_quant,
             xformers_att_config=cfg.encoder.xformers_att_config,
+            subln=cfg.subln,
         )
 
     def residual_connection(self, x, residual):
@@ -365,6 +366,7 @@ class TransformerDecoderLayerBase(QuantizeElasticMixin, nn.Module):
             learnable_scaling=self.learnable_scaling,
             symmetric_quant=self.symmetric_quant,
             xformers_att_config=cfg.decoder.xformers_att_config,
+            subln=cfg.subln,
         )
 
     def build_encoder_attention(self, embed_dim, cfg):

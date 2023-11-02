@@ -184,6 +184,7 @@ class TransformerLanguageModelConfig(FairseqDataclass):
     )
     learnable_scaling: bool = field(default=False)
     symmetric_quant: bool = field(default=False)
+    subln: bool = field(default=False)
     # config for Fully Sharded Data Parallel (FSDP) training
     min_params_to_wrap: int = field(
         default=DEFAULT_MIN_PARAMS_TO_WRAP,
@@ -374,6 +375,7 @@ def base_lm_architecture(args):
     args.weight_quant_method = safe_getattr(args, "weight_quant_method", "bwn")
     args.learnable_scaling = safe_getattr(args, "learnable_scaling", False)
     args.symmetric_quant = safe_getattr(args, "symmetric_quant", False)
+    args.subln = safegetattr(args, "subln", False)
 
     args.base_layers = safe_getattr(args, "base_layers", 0)
     args.base_sublayers = safe_getattr(args, "base_sublayers", 1)
