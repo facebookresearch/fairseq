@@ -14,9 +14,10 @@ from fairseq.models.transformer import TransformerConfig
 from fairseq.modules import LayerNorm, MultiheadAttention
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
+from fairseq.modules.quant_elastic import QuantizeElasticMixin
 
 
-class TransformerEncoderLayerBase(nn.Module):
+class TransformerEncoderLayerBase(QuantizeElasticMixin, nn.Module):
     """Encoder layer block.
 
     In the original paper each operation (multi-head attention or FFN) is
@@ -36,8 +37,8 @@ class TransformerEncoderLayerBase(nn.Module):
         self.cfg = cfg
         self.return_fc = return_fc
         self.embed_dim = cfg.encoder.embed_dim
-        self.quant_noise = cfg.quant_noise.pq
-        self.quant_noise_block_size = cfg.quant_noise.pq_block_size
+        self.q_noise = cfg.quant_noise.pq
+        self.qn_block_size = cfg.quant_noise.pq_block_size
         self.weight_bits = cfg.quant_elastic.weight_bits
         self.weight_quant_method = cfg.quant_elastic.weight_quant_method
         self.learnable_scaling = cfg.quant_elastic.learnable_scaling
@@ -59,27 +60,19 @@ class TransformerEncoderLayerBase(nn.Module):
         self.fc1 = self.build_fc1(
             self.embed_dim,
             cfg.encoder.ffn_embed_dim,
-            self.quant_noise,
-            self.quant_noise_block_size,
         )
         self.fc2 = self.build_fc2(
             cfg.encoder.ffn_embed_dim,
             self.embed_dim,
-            self.quant_noise,
-            self.quant_noise_block_size,
         )
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
 
-    def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
-        return quant_noise(
-            nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size
-        )
+    def build_fc1(self, input_dim, output_dim):
+        return self._maybe_build_quantize_linear(input_dim, output_dim)
 
-    def build_fc2(self, input_dim, output_dim, q_noise, qn_block_size):
-        return quant_noise(
-            nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size
-        )
+    def build_fc2(self, input_dim, output_dim):
+        return self._maybe_build_quantize_linear(input_dim, output_dim)
 
     def _get_fc_rank(self, remove_num: int) -> List[int]:
         f1_filter_param = []
@@ -109,8 +102,8 @@ class TransformerEncoderLayerBase(nn.Module):
 
         self.fc1 = quant_noise(
             nn.Linear(self.fc1.in_features, self.fc1.out_features - len(remove_index)),
-            p=self.quant_noise,
-            block_size=self.quant_noise_block_size,
+            p=self.q_noise,
+            block_size=self.qn_block_size,
         )
         self.fc1.weight = torch.nn.Parameter(new_fc1_weight)
         self.fc1.bias = torch.nn.Parameter(new_fc1_bias)
@@ -130,8 +123,8 @@ class TransformerEncoderLayerBase(nn.Module):
 
         self.fc2 = quant_noise(
             nn.Linear(self.fc2.in_features - len(remove_index), self.fc2.out_features),
-            p=self.quant_noise,
-            block_size=self.quant_noise_block_size,
+            p=self.q_noise,
+            block_size=self.qn_block_size,
         )
         self.fc2.weight = torch.nn.Parameter(new_fc2_weight)
         self.fc2.bias = torch.nn.Parameter(new_fc2_bias)
@@ -142,8 +135,8 @@ class TransformerEncoderLayerBase(nn.Module):
             cfg.encoder.attention_heads,
             dropout=cfg.attention_dropout,
             self_attention=True,
-            q_noise=self.quant_noise,
-            qn_block_size=self.quant_noise_block_size,
+            q_noise=self.q_noise,
+            qn_block_size=self.qn_block_size,
             weight_bits=self.weight_bits,
             weight_quant_method=self.weight_quant_method,
             learnable_scaling=self.learnable_scaling,
@@ -246,7 +239,7 @@ class TransformerEncoderLayer(TransformerEncoderLayerBase):
         )
 
 
-class TransformerDecoderLayerBase(nn.Module):
+class TransformerDecoderLayerBase(QuantizeElasticMixin, nn.Module):
     """Decoder layer block.
 
     In the original paper each operation (multi-head attention, encoder
@@ -271,8 +264,8 @@ class TransformerDecoderLayerBase(nn.Module):
         self.dropout_module = FairseqDropout(
             cfg.dropout, module_name=self.__class__.__name__
         )
-        self.quant_noise = cfg.quant_noise.pq
-        self.quant_noise_block_size = cfg.quant_noise.pq_block_size
+        self.q_noise = cfg.quant_noise.pq
+        self.qn_block_size = cfg.quant_noise.pq_block_size
         self.weight_bits = cfg.quant_elastic.weight_bits
         self.weight_quant_method = cfg.quant_elastic.weight_quant_method
         self.learnable_scaling = cfg.quant_elastic.learnable_scaling
@@ -338,14 +331,10 @@ class TransformerDecoderLayerBase(nn.Module):
         self.fc1 = self.build_fc1(
             self.embed_dim,
             cfg.decoder.ffn_embed_dim,
-            self.quant_noise,
-            self.quant_noise_block_size,
         )
         self.fc2 = self.build_fc2(
             cfg.decoder.ffn_embed_dim,
             self.embed_dim,
-            self.quant_noise,
-            self.quant_noise_block_size,
         )
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
@@ -353,11 +342,11 @@ class TransformerDecoderLayerBase(nn.Module):
 
         self.onnx_trace = False
 
-    def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
-        return quant_noise(nn.Linear(input_dim, output_dim), q_noise, qn_block_size)
+    def build_fc1(self, input_dim, output_dim):
+        return self._maybe_build_quantize_linear(input_dim, output_dim)
 
-    def build_fc2(self, input_dim, output_dim, q_noise, qn_block_size):
-        return quant_noise(nn.Linear(input_dim, output_dim), q_noise, qn_block_size)
+    def build_fc2(self, input_dim, output_dim):
+        return self._maybe_build_quantize_linear(input_dim, output_dim)
 
     def build_self_attention(
         self, embed_dim, cfg, add_bias_kv=False, add_zero_attn=False
@@ -369,8 +358,8 @@ class TransformerDecoderLayerBase(nn.Module):
             add_bias_kv=add_bias_kv,
             add_zero_attn=add_zero_attn,
             self_attention=not cfg.cross_self_attention,
-            q_noise=self.quant_noise,
-            qn_block_size=self.quant_noise_block_size,
+            q_noise=self.q_noise,
+            qn_block_size=self.qn_block_size,
             weight_bits=self.weight_bits,
             weight_quant_method=self.weight_quant_method,
             learnable_scaling=self.learnable_scaling,
@@ -386,8 +375,8 @@ class TransformerDecoderLayerBase(nn.Module):
             vdim=cfg.encoder.embed_dim,
             dropout=cfg.attention_dropout,
             encoder_decoder_attention=True,
-            q_noise=self.quant_noise,
-            qn_block_size=self.quant_noise_block_size,
+            q_noise=self.q_noise,
+            qn_block_size=self.qn_block_size,
             weight_bits=self.weight_bits,
             weight_quant_method=self.weight_quant_method,
             learnable_scaling=self.learnable_scaling,

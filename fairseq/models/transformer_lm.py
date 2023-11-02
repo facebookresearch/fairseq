@@ -310,6 +310,10 @@ class TransformerLanguageModel(FairseqLanguageModel):
                 options.eval_str_list(args.adaptive_input_cutoff, type=int),
                 args.quant_noise_pq,
                 args.quant_noise_pq_block_size,
+                args.weight_bits,
+                args.weight_quant_method,
+                args.learnable_scaling,
+                args.symmetric_quant,
             )
         else:
             embed_tokens = cls.build_embedding(
