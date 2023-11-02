@@ -1,6 +1,6 @@
 # ASR-BLEU evaluation toolkit
 
-This toolkit provides a set of public ASR models used for evaluation of different speech-to-speech translation systems at Meta AI. It enables easier score comparisons between different system's outputs.
+This toolkit provides a set of public ASR models used for evaluation of different speech-to-speech translation systems at FAIR. It enables easier score comparisons between different system's outputs.
 
 The ASRGenerator wraps different CTC-based ASR models from HuggingFace and fairseq code bases. Torchaudio CTC decoder is built on top of it to decode given audio files.
 

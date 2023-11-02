@@ -2,7 +2,7 @@
 
 ## Model details
 
-**Organization developing the model**  The FAIR team of Meta AI.
+**Organization developing the model**  The FAIR team
 
 **Model version**  This is version 1 of the model.
 
