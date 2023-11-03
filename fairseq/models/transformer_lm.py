@@ -22,7 +22,6 @@ from fairseq.models.transformer import (
     TransformerDecoder,
 )
 from fairseq.modules import AdaptiveInput, CharacterTokenEmbedder
-from fairseq.modules.quant_elastic import WEIGHT_QUANT_METHOD_CHOICES
 from fairseq.utils import safe_getattr, safe_hasattr
 
 DEFAULT_MAX_TARGET_POSITIONS = 1024
@@ -171,19 +170,8 @@ class TransformerLanguageModelConfig(FairseqDataclass):
         },
     )
     weight_bits: int = field(
-        default=32,
-        metadata={
-            "help": "number of bits for weights",
-        },
+        default=32, metadata={"help": "number of bits for weights",},
     )
-    weight_quant_method: ChoiceEnum(WEIGHT_QUANT_METHOD_CHOICES) = field(
-        default="bwn",
-        metadata={
-            "help": "quantization method for weights",
-        },
-    )
-    learnable_scaling: bool = field(default=False)
-    symmetric_quant: bool = field(default=False)
     subln: bool = field(default=False)
     # config for Fully Sharded Data Parallel (FSDP) training
     min_params_to_wrap: int = field(
@@ -312,9 +300,6 @@ class TransformerLanguageModel(FairseqLanguageModel):
                 args.quant_noise_pq,
                 args.quant_noise_pq_block_size,
                 args.weight_bits,
-                args.weight_quant_method,
-                args.learnable_scaling,
-                args.symmetric_quant,
             )
         else:
             embed_tokens = cls.build_embedding(
@@ -372,10 +357,7 @@ def base_lm_architecture(args):
     args.quant_noise_pq_block_size = safe_getattr(args, "quant_noise_pq_block_size", 8)
     args.quant_noise_scalar = safe_getattr(args, "quant_noise_scalar", 0)
     args.weight_bits = safe_getattr(args, "weight_bits", 32)
-    args.weight_quant_method = safe_getattr(args, "weight_quant_method", "bwn")
-    args.learnable_scaling = safe_getattr(args, "learnable_scaling", False)
-    args.symmetric_quant = safe_getattr(args, "symmetric_quant", False)
-    args.subln = safegetattr(args, "subln", False)
+    args.subln = safe_getattr(args, "subln", False)
 
     args.base_layers = safe_getattr(args, "base_layers", 0)
     args.base_sublayers = safe_getattr(args, "base_sublayers", 1)

@@ -9,10 +9,10 @@ from typing import List
 import torch
 from torch import nn
 
-from fairseq.modules.quant_elastic import QuantizeElasticMixin
+from fairseq.modules.quant_bitnet import QuantizeBitLinearMixin
 
 
-class AdaptiveInput(QuantizeElasticMixin, nn.Module):
+class AdaptiveInput(QuantizeBitLinearMixin, nn.Module):
     def __init__(
         self,
         vocab_size: int,
@@ -24,9 +24,6 @@ class AdaptiveInput(QuantizeElasticMixin, nn.Module):
         q_noise: float = 0,
         qn_block_size: int = 8,
         weight_bits: int = 32,
-        weight_quant_method: str = "bwn",
-        learnable_scaling: bool = False,
-        symmetric_quant: bool = False,
     ):
         super().__init__()
 
@@ -44,15 +41,12 @@ class AdaptiveInput(QuantizeElasticMixin, nn.Module):
         self.q_noise = q_noise
         self.qn_block_size = qn_block_size
         self.weight_bits = weight_bits
-        self.weight_quant_method = weight_quant_method
-        self.learnable_scaling = learnable_scaling
-        self.symmetric_quant = symmetric_quant
 
         self.embeddings = nn.ModuleList()
         for i in range(len(self.cutoff)):
             prev = self.cutoff[i - 1] if i > 0 else 0
             size = self.cutoff[i] - prev
-            dim = int(initial_dim // (factor**i))
+            dim = int(initial_dim // (factor ** i))
             seq = nn.Sequential(
                 nn.Embedding(size, dim, self.padding_idx),
                 self._maybe_build_quantize_linear(dim, output_dim, bias=False),

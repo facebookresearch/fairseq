@@ -21,7 +21,7 @@ except ImportError:
 
 from fairseq import utils
 from fairseq.modules.fairseq_dropout import FairseqDropout
-from fairseq.modules.quant_elastic import QuantizeElasticMixin
+from fairseq.modules.quant_bitnet import QuantizeBitLinearMixin
 from fairseq.models.fairseq_incremental_decoder import FairseqIncrementalDecoder
 
 
@@ -60,7 +60,7 @@ def _mask_for_xformers(mask: Tensor, to_dtype: Optional[torch.dtype] = None):
     return mask
 
 
-class MultiheadAttention(QuantizeElasticMixin, FairseqIncrementalDecoder):
+class MultiheadAttention(QuantizeBitLinearMixin, FairseqIncrementalDecoder):
     """Multi-headed attention.
 
     See "Attention Is All You Need" for more details.
@@ -82,9 +82,6 @@ class MultiheadAttention(QuantizeElasticMixin, FairseqIncrementalDecoder):
         q_noise=0.0,
         qn_block_size=8,
         weight_bits=32,
-        weight_quant_method="bwn",
-        learnable_scaling=False,
-        symmetric_quant=False,
         # TODO: pass in config rather than string.
         # config defined in xformers.components.attention.AttentionConfig
         xformers_att_config: Optional[str] = None,
@@ -101,9 +98,6 @@ class MultiheadAttention(QuantizeElasticMixin, FairseqIncrementalDecoder):
         self.q_noise = q_noise
         self.qn_block_size = qn_block_size
         self.weight_bits = weight_bits
-        self.weight_quant_method = weight_quant_method
-        self.learnable_scaling = learnable_scaling
-        self.symmetric_quant = symmetric_quant
 
         xformers_att_config = utils.eval_str_dict(xformers_att_config)
         self.use_xformers = xformers_att_config is not None
@@ -123,7 +117,7 @@ class MultiheadAttention(QuantizeElasticMixin, FairseqIncrementalDecoder):
         assert (
             self.head_dim * num_heads == self.embed_dim
         ), "embed_dim must be divisible by num_heads"
-        self.scaling = self.head_dim**-0.5
+        self.scaling = self.head_dim ** -0.5
 
         self.self_attention = self_attention
         self.encoder_decoder_attention = encoder_decoder_attention
@@ -202,33 +196,15 @@ class MultiheadAttention(QuantizeElasticMixin, FairseqIncrementalDecoder):
             start_idx = i * self.head_dim
             end_idx = (i + 1) * self.head_dim
             k_proj_heads_norm.append(
-                torch.sum(
-                    torch.abs(
-                        self.k_proj.weight[
-                            start_idx:end_idx,
-                        ]
-                    )
-                ).tolist()
+                torch.sum(torch.abs(self.k_proj.weight[start_idx:end_idx,])).tolist()
                 + torch.sum(torch.abs(self.k_proj.bias[start_idx:end_idx])).tolist()
             )
             q_proj_heads_norm.append(
-                torch.sum(
-                    torch.abs(
-                        self.q_proj.weight[
-                            start_idx:end_idx,
-                        ]
-                    )
-                ).tolist()
+                torch.sum(torch.abs(self.q_proj.weight[start_idx:end_idx,])).tolist()
                 + torch.sum(torch.abs(self.q_proj.bias[start_idx:end_idx])).tolist()
             )
             v_proj_heads_norm.append(
-                torch.sum(
-                    torch.abs(
-                        self.v_proj.weight[
-                            start_idx:end_idx,
-                        ]
-                    )
-                ).tolist()
+                torch.sum(torch.abs(self.v_proj.weight[start_idx:end_idx,])).tolist()
                 + torch.sum(torch.abs(self.v_proj.bias[start_idx:end_idx])).tolist()
             )
 
@@ -260,24 +236,18 @@ class MultiheadAttention(QuantizeElasticMixin, FairseqIncrementalDecoder):
         for ele in reserve_head_index:
             start_idx, end_idx = ele
             new_q_weight.append(
-                self.q_proj.weight[
-                    start_idx:end_idx,
-                ]
+                self.q_proj.weight[start_idx:end_idx,]
             )
             new_q_bias.append(self.q_proj.bias[start_idx:end_idx])
 
             new_k_weight.append(
-                self.k_proj.weight[
-                    start_idx:end_idx,
-                ]
+                self.k_proj.weight[start_idx:end_idx,]
             )
 
             new_k_bias.append(self.k_proj.bias[start_idx:end_idx])
 
             new_v_weight.append(
-                self.v_proj.weight[
-                    start_idx:end_idx,
-                ]
+                self.v_proj.weight[start_idx:end_idx,]
             )
             new_v_bias.append(self.v_proj.bias[start_idx:end_idx])
 
@@ -322,9 +292,7 @@ class MultiheadAttention(QuantizeElasticMixin, FairseqIncrementalDecoder):
         self.skip_embed_dim_check = True
 
     def _pad_masks(
-        self,
-        key_padding_mask: Optional[Tensor],
-        attn_mask: Optional[Tensor],
+        self, key_padding_mask: Optional[Tensor], attn_mask: Optional[Tensor],
     ) -> Tuple[Optional[Tensor], Optional[Tensor]]:
         if attn_mask is not None:
             shape = attn_mask.size()[:-1] + torch.Size([1])
@@ -332,11 +300,7 @@ class MultiheadAttention(QuantizeElasticMixin, FairseqIncrementalDecoder):
         if key_padding_mask is not None:
             shape = key_padding_mask.size()[:-1] + torch.Size([1])
             key_padding_mask = torch.cat(
-                [
-                    key_padding_mask,
-                    key_padding_mask.new_zeros(shape),
-                ],
-                dim=-1,
+                [key_padding_mask, key_padding_mask.new_zeros(shape),], dim=-1,
             )
         return key_padding_mask, attn_mask
 
@@ -752,21 +716,8 @@ class MultiheadAttention(QuantizeElasticMixin, FairseqIncrementalDecoder):
         if self.encoder_decoder_attention and bsz != kv_bsz:
             attn = torch.einsum(
                 "bxhts,bhsd->bxhtd",
-                attn_probs.view(
-                    (
-                        kv_bsz,
-                        -1,
-                        self.num_heads,
-                    )
-                    + attn_probs.size()[1:]
-                ),
-                v.view(
-                    (
-                        kv_bsz,
-                        self.num_heads,
-                    )
-                    + v.size()[1:]
-                ),
+                attn_probs.view((kv_bsz, -1, self.num_heads,) + attn_probs.size()[1:]),
+                v.view((kv_bsz, self.num_heads,) + v.size()[1:]),
             )
             attn = attn.reshape((-1,) + attn.size()[-2:])
         else:

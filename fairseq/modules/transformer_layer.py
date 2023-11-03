@@ -14,10 +14,10 @@ from fairseq.models.transformer import TransformerConfig
 from fairseq.modules import LayerNorm, MultiheadAttention
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
-from fairseq.modules.quant_elastic import QuantizeElasticMixin
+from fairseq.modules.quant_bitnet import QuantizeBitLinearMixin
 
 
-class TransformerEncoderLayerBase(QuantizeElasticMixin, nn.Module):
+class TransformerEncoderLayerBase(QuantizeBitLinearMixin, nn.Module):
     """Encoder layer block.
 
     In the original paper each operation (multi-head attention or FFN) is
@@ -39,10 +39,7 @@ class TransformerEncoderLayerBase(QuantizeElasticMixin, nn.Module):
         self.embed_dim = cfg.encoder.embed_dim
         self.q_noise = cfg.quant_noise.pq
         self.qn_block_size = cfg.quant_noise.pq_block_size
-        self.weight_bits = cfg.quant_elastic.weight_bits
-        self.weight_quant_method = cfg.quant_elastic.weight_quant_method
-        self.learnable_scaling = cfg.quant_elastic.learnable_scaling
-        self.symmetric_quant = cfg.quant_elastic.symmetric_quant
+        self.weight_bits = cfg.quant_bitnet.weight_bits
         self.self_attn = self.build_self_attention(self.embed_dim, cfg)
         self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
         self.dropout_module = FairseqDropout(
@@ -57,14 +54,8 @@ class TransformerEncoderLayerBase(QuantizeElasticMixin, nn.Module):
             float(activation_dropout_p), module_name=self.__class__.__name__
         )
         self.normalize_before = cfg.encoder.normalize_before
-        self.fc1 = self.build_fc1(
-            self.embed_dim,
-            cfg.encoder.ffn_embed_dim,
-        )
-        self.fc2 = self.build_fc2(
-            cfg.encoder.ffn_embed_dim,
-            self.embed_dim,
-        )
+        self.fc1 = self.build_fc1(self.embed_dim, cfg.encoder.ffn_embed_dim,)
+        self.fc2 = self.build_fc2(cfg.encoder.ffn_embed_dim, self.embed_dim,)
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
 
@@ -138,9 +129,6 @@ class TransformerEncoderLayerBase(QuantizeElasticMixin, nn.Module):
             q_noise=self.q_noise,
             qn_block_size=self.qn_block_size,
             weight_bits=self.weight_bits,
-            weight_quant_method=self.weight_quant_method,
-            learnable_scaling=self.learnable_scaling,
-            symmetric_quant=self.symmetric_quant,
             xformers_att_config=cfg.encoder.xformers_att_config,
             subln=cfg.subln,
         )
@@ -240,7 +228,7 @@ class TransformerEncoderLayer(TransformerEncoderLayerBase):
         )
 
 
-class TransformerDecoderLayerBase(QuantizeElasticMixin, nn.Module):
+class TransformerDecoderLayerBase(QuantizeBitLinearMixin, nn.Module):
     """Decoder layer block.
 
     In the original paper each operation (multi-head attention, encoder
@@ -267,18 +255,12 @@ class TransformerDecoderLayerBase(QuantizeElasticMixin, nn.Module):
         )
         self.q_noise = cfg.quant_noise.pq
         self.qn_block_size = cfg.quant_noise.pq_block_size
-        self.weight_bits = cfg.quant_elastic.weight_bits
-        self.weight_quant_method = cfg.quant_elastic.weight_quant_method
-        self.learnable_scaling = cfg.quant_elastic.learnable_scaling
-        self.symmetric_quant = cfg.quant_elastic.symmetric_quant
+        self.weight_bits = cfg.quant_bitnet.weight_bits
 
         self.cross_self_attention = cfg.cross_self_attention
 
         self.self_attn = self.build_self_attention(
-            self.embed_dim,
-            cfg,
-            add_bias_kv=add_bias_kv,
-            add_zero_attn=add_zero_attn,
+            self.embed_dim, cfg, add_bias_kv=add_bias_kv, add_zero_attn=add_zero_attn,
         )
         self.attn_ln = (
             LayerNorm(self.embed_dim)
@@ -319,24 +301,13 @@ class TransformerDecoderLayerBase(QuantizeElasticMixin, nn.Module):
             else None
         )
         self.w_resid = (
-            nn.Parameter(
-                torch.ones(
-                    self.embed_dim,
-                ),
-                requires_grad=True,
-            )
+            nn.Parameter(torch.ones(self.embed_dim,), requires_grad=True,)
             if utils.safe_getattr(cfg, "scale_resids", False)
             else None
         )
 
-        self.fc1 = self.build_fc1(
-            self.embed_dim,
-            cfg.decoder.ffn_embed_dim,
-        )
-        self.fc2 = self.build_fc2(
-            cfg.decoder.ffn_embed_dim,
-            self.embed_dim,
-        )
+        self.fc1 = self.build_fc1(self.embed_dim, cfg.decoder.ffn_embed_dim,)
+        self.fc2 = self.build_fc2(cfg.decoder.ffn_embed_dim, self.embed_dim,)
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
         self.need_attn = True
@@ -362,9 +333,6 @@ class TransformerDecoderLayerBase(QuantizeElasticMixin, nn.Module):
             q_noise=self.q_noise,
             qn_block_size=self.qn_block_size,
             weight_bits=self.weight_bits,
-            weight_quant_method=self.weight_quant_method,
-            learnable_scaling=self.learnable_scaling,
-            symmetric_quant=self.symmetric_quant,
             xformers_att_config=cfg.decoder.xformers_att_config,
             subln=cfg.subln,
         )
@@ -380,9 +348,6 @@ class TransformerDecoderLayerBase(QuantizeElasticMixin, nn.Module):
             q_noise=self.q_noise,
             qn_block_size=self.qn_block_size,
             weight_bits=self.weight_bits,
-            weight_quant_method=self.weight_quant_method,
-            learnable_scaling=self.learnable_scaling,
-            symmetric_quant=self.symmetric_quant,
             xformers_att_config=cfg.encoder.xformers_att_config,
         )
 
@@ -568,6 +533,5 @@ class TransformerDecoderLayer(TransformerDecoderLayerBase):
 
     def build_encoder_attention(self, embed_dim, args):
         return super().build_encoder_attention(
-            embed_dim,
-            TransformerConfig.from_namespace(args),
+            embed_dim, TransformerConfig.from_namespace(args),
         )

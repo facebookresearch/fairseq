@@ -94,24 +94,16 @@ class QuantNoiseConfig(FairseqDataclass):
 
 
 @dataclass
-class QuantElasticConfig(FairseqDataclass):
+class QuantBitNetConfig(FairseqDataclass):
     weight_bits: int = field(
-        default=32,
-        metadata={"help": "number of bits for weights"},
+        default=32, metadata={"help": "number of bits for weights"},
     )
-    weight_quant_method: Optional[str] = field(
-        default=None,
-        metadata={"help": "quantization method for weights"},
-    )
-    learnable_scaling: bool = field(default=True)
-    symmetric_quant: bool = field(default=True)
 
 
 @dataclass
 class TransformerConfig(FairseqDataclass):
     activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
-        default="relu",
-        metadata={"help": "activation function to use"},
+        default="relu", metadata={"help": "activation function to use"},
     )
     dropout: float = field(default=0.1, metadata={"help": "dropout probability"})
     attention_dropout: float = field(
@@ -212,7 +204,7 @@ class TransformerConfig(FairseqDataclass):
     )
     # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
     quant_noise: QuantNoiseConfig = field(default=QuantNoiseConfig())
-    quant_elastic: QuantElasticConfig = field(default=QuantElasticConfig())
+    quant_bitnet: QuantBitNetConfig = field(default=QuantBitNetConfig())
     # SubLN introduced in "Foundation Transformers" (Wang et al., 2022)
     subln: bool = field(
         default=False, metadata={"help": "add layernorm before attention out_proj"}
@@ -337,13 +329,13 @@ class TransformerConfig(FairseqDataclass):
                         config.quant_noise = cls._copy_keys(
                             args, QuantNoiseConfig, "quant_noise", seen
                         )
-                elif fld.name == "quant_elastic":
-                    if safe_hasattr(args, "quant_elastic"):
-                        seen.add("quant_elastic")
-                        config.quant_elastic = QuantElasticConfig(**args.quant_elastic)
+                elif fld.name == "quant_bitnet":
+                    if safe_hasattr(args, "quant_bitnet"):
+                        seen.add("quant_bitnet")
+                        config.quant_bitnet = QuantBitNetConfig(**args.quant_bitnet)
                     else:
-                        config.quant_elastic = cls._copy_keys(
-                            args, QuantElasticConfig, "quant_elastic", seen
+                        config.quant_bitnet = cls._copy_keys(
+                            args, QuantBitNetConfig, "quant_bitnet", seen
                         )
                 elif safe_hasattr(args, fld.name):
                     # if it's not a structure field, it's just a normal field, copy it over

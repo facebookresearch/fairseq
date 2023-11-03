@@ -23,7 +23,7 @@ from fairseq.modules import (
     PositionalEmbedding,
     transformer_layer,
 )
-from fairseq.modules.quant_elastic import QuantizeLinear
+from fairseq.modules.quant_bitnet import BitLinear
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 
@@ -91,19 +91,11 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
 
         self.project_in_dim = None
         if embed_dim != input_embed_dim:
-            if cfg.quant_elastic.weight_bits == 32:
-                self.weight_quant_method = None
-                self.project_in_dim = Linear(input_embed_dim, embed_dim, bias=False)
-            else:
-                self.weight_quant_method = cfg.quant_elastic.weight_quant_method
-                self.project_in_dim = QuantizeLinear(
-                    input_embed_dim,
-                    embed_dim,
-                    weight_bits=cfg.quant_elastic.weight_bits,
-                    weight_quant_method=cfg.quant_elastic.weight_quant_method,
-                    learnable=cfg.quant_elastic.learnable_scaling,
-                    symmetric=cfg.quant_elastic.symmetric_quant,
-                )
+            self.project_in_dim = (
+                Linear(input_embed_dim, embed_dim, bias=False)
+                if cfg.quant_bitnet.weight_bits == 32
+                else BitLinear(input_embed_dim, embed_dim)
+            )
 
         self.embed_positions = (
             PositionalEmbedding(
@@ -141,20 +133,12 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
 
         self.project_out_dim = None
         if embed_dim != self.output_embed_dim and not cfg.tie_adaptive_weights:
-            if cfg.quant_elastic.weight_bits == 32:
+            if cfg.quant_bitnet.weight_bits == 32:
                 self.project_out_dim = Linear(
                     embed_dim, self.output_embed_dim, bias=False
                 )
             else:
-                self.project_out_dim = QuantizeLinear(
-                    embed_dim,
-                    self.output_embed_dim,
-                    bias=False,
-                    weight_bits=cfg.quant_elastic.weight_bits,
-                    weight_quant_method=cfg.quant_elastic.weight_quant_method,
-                    learnable=cfg.quant_elastic.learnable_scaling,
-                    symmetric=cfg.quant_elastic.symmetric_quant,
-                )
+                self.project_out_dim = BitLinear(embed_dim, self.output_embed_dim)
 
         self.adaptive_softmax = None
         self.output_projection = output_projection
@@ -171,10 +155,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
                 adaptive_inputs=embed_tokens if cfg.tie_adaptive_weights else None,
                 factor=cfg.adaptive_softmax_factor,
                 tie_proj=cfg.tie_adaptive_proj,
-                weight_bits=cfg.quant_elastic.weight_bits,
-                weight_quant_method=cfg.quant_elastic.weight_quant_method,
-                learnable_scaling=cfg.quant_elastic.learnable_scaling,
-                symmetric_quant=cfg.quant_elastic.symmetric_quant,
+                weight_bits=cfg.quant_bitnet.weight_bits,
             )
         elif self.share_input_output_embed:
             self.output_projection = nn.Linear(
@@ -188,13 +169,12 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
                 self.output_embed_dim, len(dictionary), bias=False
             )
             nn.init.normal_(
-                self.output_projection.weight, mean=0, std=self.output_embed_dim**-0.5
+                self.output_projection.weight, mean=0, std=self.output_embed_dim ** -0.5
             )
         num_base_layers = cfg.base_layers
         for i in range(num_base_layers):
             self.layers.insert(
-                ((i + 1) * cfg.decoder.layers) // (num_base_layers + 1),
-                BaseLayer(cfg),
+                ((i + 1) * cfg.decoder.layers) // (num_base_layers + 1), BaseLayer(cfg),
             )
 
     def build_decoder_layer(self, cfg, no_encoder_attn=False):

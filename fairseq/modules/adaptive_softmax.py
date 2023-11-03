@@ -10,7 +10,7 @@ import torch
 import torch.nn.functional as F
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
-from fairseq.modules.quant_elastic import QuantizeElasticMixin
+from fairseq.modules.quant_bitnet import QuantizeBitLinearMixin
 from torch import nn
 
 
@@ -24,7 +24,7 @@ class TiedLinear(nn.Module):
         return F.linear(input, self.weight.t() if self.transpose else self.weight)
 
 
-class QuantizeElasticTiedMixin(QuantizeElasticMixin):
+class QuantizeBitNetTiedMixin(QuantizeBitLinearMixin):
     def _maybe_build_tied_quantize_linear(self, tied_emb, transpose=False):
         if self.weight_bits == 32:
             layer = quant_noise(
@@ -40,18 +40,9 @@ class QuantizeElasticTiedMixin(QuantizeElasticMixin):
         return layer
 
 
-class TiedHeadModule(QuantizeElasticTiedMixin, nn.Module):
+class TiedHeadModule(QuantizeBitNetTiedMixin, nn.Module):
     def __init__(
-        self,
-        weights,
-        input_dim,
-        num_classes,
-        q_noise,
-        qn_block_size,
-        weight_bits,
-        weight_quant_method,
-        learnable_scaling,
-        symmetric_quant,
+        self, weights, input_dim, num_classes, q_noise, qn_block_size, weight_bits,
     ):
         super().__init__()
         tied_emb, _ = weights
@@ -59,9 +50,6 @@ class TiedHeadModule(QuantizeElasticTiedMixin, nn.Module):
         self.q_noise = q_noise
         self.qn_block_size = qn_block_size
         self.weight_bits = weight_bits
-        self.weight_quant_method = weight_quant_method
-        self.learnable_scaling = learnable_scaling
-        self.symmetric_quant = symmetric_quant
 
         self.word_proj = self._maybe_build_tied_quantize_linear(
             tied_emb, transpose=False
@@ -88,7 +76,7 @@ class TiedHeadModule(QuantizeElasticTiedMixin, nn.Module):
         return out
 
 
-class AdaptiveSoftmax(QuantizeElasticTiedMixin, nn.Module):
+class AdaptiveSoftmax(QuantizeBitNetTiedMixin, nn.Module):
     """
     This is an implementation of the efficient softmax approximation for
     graphical processing units (GPU), described in the paper "Efficient softmax
@@ -107,9 +95,6 @@ class AdaptiveSoftmax(QuantizeElasticTiedMixin, nn.Module):
         q_noise=0,
         qn_block_size=8,
         weight_bits=32,
-        weight_quant_method="bwn",
-        learnable_scaling=False,
-        symmetric_quant=False,
     ):
         super().__init__()
 
@@ -132,9 +117,6 @@ class AdaptiveSoftmax(QuantizeElasticTiedMixin, nn.Module):
         self.q_noise = q_noise
         self.qn_block_size = qn_block_size
         self.weight_bits = weight_bits
-        self.weight_quant_method = weight_quant_method
-        self.learnable_scaling = learnable_scaling
-        self.symmetric_quant = symmetric_quant
 
         self.lsm = nn.LogSoftmax(dim=1)
 
@@ -146,9 +128,6 @@ class AdaptiveSoftmax(QuantizeElasticTiedMixin, nn.Module):
                 self.q_noise,
                 self.qn_block_size,
                 self.weight_bits,
-                self.weight_quant_method,
-                self.learnable_scaling,
-                self.symmetric_quant,
             )
         else:
             self.head = self._maybe_build_quantize_linear(
@@ -203,11 +182,7 @@ class AdaptiveSoftmax(QuantizeElasticTiedMixin, nn.Module):
                     tied_emb, transpose=False
                 )
 
-            m = nn.Sequential(
-                proj,
-                nn.Dropout(self.dropout_module.p),
-                out_proj,
-            )
+            m = nn.Sequential(proj, nn.Dropout(self.dropout_module.p), out_proj,)
 
             self.tail.append(m)
 
