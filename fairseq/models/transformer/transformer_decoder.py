@@ -23,8 +23,8 @@ from fairseq.modules import (
     PositionalEmbedding,
     transformer_layer,
 )
-from fairseq.modules.quant_bitnet import BitLinear
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
+from fairseq.modules.quant_bitnet import QuantizeBitLinearMixin
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 
 
@@ -36,7 +36,7 @@ def module_name_fordropout(module_name: str) -> str:
         return module_name
 
 
-class TransformerDecoderBase(FairseqIncrementalDecoder):
+class TransformerDecoderBase(QuantizeBitLinearMixin, FairseqIncrementalDecoder):
     """
     Transformer decoder consisting of *cfg.decoder.layers* layers. Each layer
     is a :class:`TransformerDecoderLayer`.
@@ -80,6 +80,10 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
 
         self.embed_scale = 1.0 if cfg.no_scale_embedding else math.sqrt(embed_dim)
 
+        self.q_noise = cfg.quant_noise.pq
+        self.qn_block_size = cfg.quant_noise.pq_block_size
+        self.weight_bits = cfg.quant_bitnet.weight_bits
+
         if not cfg.adaptive_input and cfg.quant_noise.pq > 0:
             self.quant_noise = apply_quant_noise_(
                 nn.Linear(embed_dim, embed_dim, bias=False),
@@ -91,10 +95,8 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
 
         self.project_in_dim = None
         if embed_dim != input_embed_dim:
-            self.project_in_dim = (
-                Linear(input_embed_dim, embed_dim, bias=False)
-                if cfg.quant_bitnet.weight_bits == 32
-                else BitLinear(input_embed_dim, embed_dim)
+            self.project_in_dim = self._maybe_build_quantize_linear(
+                input_embed_dim, embed_dim, bias=False
             )
 
         self.embed_positions = (
@@ -133,12 +135,9 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
 
         self.project_out_dim = None
         if embed_dim != self.output_embed_dim and not cfg.tie_adaptive_weights:
-            if cfg.quant_bitnet.weight_bits == 32:
-                self.project_out_dim = Linear(
-                    embed_dim, self.output_embed_dim, bias=False
-                )
-            else:
-                self.project_out_dim = BitLinear(embed_dim, self.output_embed_dim)
+            self.project_out_dim = self._maybe_build_quantize_linear(
+                embed_dim, self.output_embed_dim, bias=False
+            )
 
         self.adaptive_softmax = None
         self.output_projection = output_projection

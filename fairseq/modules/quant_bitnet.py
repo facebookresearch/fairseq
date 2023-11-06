@@ -5,9 +5,11 @@ from fairseq.modules.quant_noise import quant_noise
 
 
 class BitLinear(nn.Linear):
-    def __init__(self, *args, transpose=False, **kwargs) -> None:
+    def __init__(self, *args, transpose=False, init_weight=None, **kwargs) -> None:
         super(BitLinear, self).__init__(*args, **kwargs)
         self.transpose = transpose
+        if init_weight is not None:
+            self.weight = init_weight
 
     @staticmethod
     def _binarize(x):
@@ -29,7 +31,7 @@ class BitLinear(nn.Linear):
 
 class QuantizeBitLinearMixin:
     def _maybe_build_quantize_linear(
-        self, input_dim, output_dim, bias=True, transpose=False
+        self, input_dim, output_dim, bias=True, transpose=False, init_weight=None
     ):
         if self.weight_bits == 32:
             layer = quant_noise(
@@ -38,5 +40,11 @@ class QuantizeBitLinearMixin:
                 self.qn_block_size,
             )
         else:
-            layer = BitLinear(input_dim, output_dim, bias=bias, transpose=transpose)
+            layer = BitLinear(
+                input_dim,
+                output_dim,
+                bias=bias,
+                transpose=transpose,
+                init_weight=init_weight,
+            )
         return layer

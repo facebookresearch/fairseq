@@ -24,7 +24,7 @@ class TiedLinear(nn.Module):
         return F.linear(input, self.weight.t() if self.transpose else self.weight)
 
 
-class QuantizeBitNetTiedMixin(QuantizeBitLinearMixin):
+class QuantizeBitLinearTiedMixin(QuantizeBitLinearMixin):
     def _maybe_build_tied_quantize_linear(self, tied_emb, transpose=False):
         if self.weight_bits == 32:
             layer = quant_noise(
@@ -34,13 +34,16 @@ class QuantizeBitNetTiedMixin(QuantizeBitLinearMixin):
             )
         else:
             layer = self._maybe_build_quantize_linear(
-                tied_emb.size(1), tied_emb.size(0), bias=False, transpose=transpose
+                tied_emb.size(1),
+                tied_emb.size(0),
+                bias=False,
+                transpose=transpose,
+                init_weight=tied_emb,
             )
-            layer.weight.data = tied_emb
         return layer
 
 
-class TiedHeadModule(QuantizeBitNetTiedMixin, nn.Module):
+class TiedHeadModule(QuantizeBitLinearTiedMixin, nn.Module):
     def __init__(
         self, weights, input_dim, num_classes, q_noise, qn_block_size, weight_bits,
     ):
@@ -76,7 +79,7 @@ class TiedHeadModule(QuantizeBitNetTiedMixin, nn.Module):
         return out
 
 
-class AdaptiveSoftmax(QuantizeBitNetTiedMixin, nn.Module):
+class AdaptiveSoftmax(QuantizeBitLinearTiedMixin, nn.Module):
     """
     This is an implementation of the efficient softmax approximation for
     graphical processing units (GPU), described in the paper "Efficient softmax
