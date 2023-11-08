@@ -96,14 +96,16 @@ class QuantNoiseConfig(FairseqDataclass):
 @dataclass
 class QuantBitNetConfig(FairseqDataclass):
     weight_bits: int = field(
-        default=32, metadata={"help": "number of bits for weights"},
+        default=32,
+        metadata={"help": "number of bits for weights"},
     )
 
 
 @dataclass
 class TransformerConfig(FairseqDataclass):
     activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
-        default="relu", metadata={"help": "activation function to use"},
+        default="relu",
+        metadata={"help": "activation function to use"},
     )
     dropout: float = field(default=0.1, metadata={"help": "dropout probability"})
     attention_dropout: float = field(
@@ -205,10 +207,6 @@ class TransformerConfig(FairseqDataclass):
     # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
     quant_noise: QuantNoiseConfig = field(default=QuantNoiseConfig())
     quant_bitnet: QuantBitNetConfig = field(default=QuantBitNetConfig())
-    # SubLN introduced in "Foundation Transformers" (Wang et al., 2022)
-    subln: bool = field(
-        default=False, metadata={"help": "add layernorm before attention out_proj"}
-    )
     min_params_to_wrap: int = field(
         default=DEFAULT_MIN_PARAMS_TO_WRAP,
         metadata={

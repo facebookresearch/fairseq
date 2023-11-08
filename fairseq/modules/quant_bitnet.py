@@ -34,7 +34,6 @@ class BitLinear(nn.Linear):
             self.weight = init_weight
 
     def forward(self, input):
-
         weight_bin = BinarizerFunction.apply(self.weight)
         if self.transpose:
             weight_bin = weight_bin.t()

@@ -28,6 +28,7 @@ from fairseq.sequence_scorer import SequenceScorer
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
+    force=True,
     level=os.environ.get("LOGLEVEL", "INFO").upper(),
     stream=sys.stdout,
 )
@@ -197,7 +198,7 @@ def eval_lm(
 
     return {
         "loss": avg_nll_loss,
-        "perplexity": 2**avg_nll_loss,
+        "perplexity": 2 ** avg_nll_loss,
     }
 
 
@@ -296,13 +297,9 @@ def main(cfg: DictConfig, **unused_kwargs):
             *[model.max_positions() for model in models]
         ),
         num_shards=max(
-            cfg.dataset.num_shards,
-            cfg.distributed_training.distributed_world_size,
+            cfg.dataset.num_shards, cfg.distributed_training.distributed_world_size,
         ),
-        shard_id=max(
-            cfg.dataset.shard_id,
-            cfg.distributed_training.distributed_rank,
-        ),
+        shard_id=max(cfg.dataset.shard_id, cfg.distributed_training.distributed_rank,),
         num_workers=cfg.dataset.num_workers,
         data_buffer_size=cfg.dataset.data_buffer_size,
         context_window=cfg.eval_lm.context_window,

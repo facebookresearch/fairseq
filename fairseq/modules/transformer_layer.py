@@ -54,8 +54,14 @@ class TransformerEncoderLayerBase(QuantizeBitLinearMixin, nn.Module):
             float(activation_dropout_p), module_name=self.__class__.__name__
         )
         self.normalize_before = cfg.encoder.normalize_before
-        self.fc1 = self.build_fc1(self.embed_dim, cfg.encoder.ffn_embed_dim,)
-        self.fc2 = self.build_fc2(cfg.encoder.ffn_embed_dim, self.embed_dim,)
+        self.fc1 = self.build_fc1(
+            self.embed_dim,
+            cfg.encoder.ffn_embed_dim,
+        )
+        self.fc2 = self.build_fc2(
+            cfg.encoder.ffn_embed_dim,
+            self.embed_dim,
+        )
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
 
@@ -130,7 +136,6 @@ class TransformerEncoderLayerBase(QuantizeBitLinearMixin, nn.Module):
             qn_block_size=self.qn_block_size,
             weight_bits=self.weight_bits,
             xformers_att_config=cfg.encoder.xformers_att_config,
-            subln=cfg.subln,
         )
 
     def residual_connection(self, x, residual):
@@ -260,7 +265,10 @@ class TransformerDecoderLayerBase(QuantizeBitLinearMixin, nn.Module):
         self.cross_self_attention = cfg.cross_self_attention
 
         self.self_attn = self.build_self_attention(
-            self.embed_dim, cfg, add_bias_kv=add_bias_kv, add_zero_attn=add_zero_attn,
+            self.embed_dim,
+            cfg,
+            add_bias_kv=add_bias_kv,
+            add_zero_attn=add_zero_attn,
         )
         self.attn_ln = (
             LayerNorm(self.embed_dim)
@@ -301,13 +309,24 @@ class TransformerDecoderLayerBase(QuantizeBitLinearMixin, nn.Module):
             else None
         )
         self.w_resid = (
-            nn.Parameter(torch.ones(self.embed_dim,), requires_grad=True,)
+            nn.Parameter(
+                torch.ones(
+                    self.embed_dim,
+                ),
+                requires_grad=True,
+            )
             if utils.safe_getattr(cfg, "scale_resids", False)
             else None
         )
 
-        self.fc1 = self.build_fc1(self.embed_dim, cfg.decoder.ffn_embed_dim,)
-        self.fc2 = self.build_fc2(cfg.decoder.ffn_embed_dim, self.embed_dim,)
+        self.fc1 = self.build_fc1(
+            self.embed_dim,
+            cfg.decoder.ffn_embed_dim,
+        )
+        self.fc2 = self.build_fc2(
+            cfg.decoder.ffn_embed_dim,
+            self.embed_dim,
+        )
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
         self.need_attn = True
@@ -334,7 +353,6 @@ class TransformerDecoderLayerBase(QuantizeBitLinearMixin, nn.Module):
             qn_block_size=self.qn_block_size,
             weight_bits=self.weight_bits,
             xformers_att_config=cfg.decoder.xformers_att_config,
-            subln=cfg.subln,
         )
 
     def build_encoder_attention(self, embed_dim, cfg):
@@ -533,5 +551,6 @@ class TransformerDecoderLayer(TransformerDecoderLayerBase):
 
     def build_encoder_attention(self, embed_dim, args):
         return super().build_encoder_attention(
-            embed_dim, TransformerConfig.from_namespace(args),
+            embed_dim,
+            TransformerConfig.from_namespace(args),
         )

@@ -170,9 +170,11 @@ class TransformerLanguageModelConfig(FairseqDataclass):
         },
     )
     weight_bits: int = field(
-        default=32, metadata={"help": "number of bits for weights",},
+        default=32,
+        metadata={
+            "help": "number of bits for weights",
+        },
     )
-    subln: bool = field(default=False)
     # config for Fully Sharded Data Parallel (FSDP) training
     min_params_to_wrap: int = field(
         default=DEFAULT_MIN_PARAMS_TO_WRAP,
@@ -357,7 +359,6 @@ def base_lm_architecture(args):
     args.quant_noise_pq_block_size = safe_getattr(args, "quant_noise_pq_block_size", 8)
     args.quant_noise_scalar = safe_getattr(args, "quant_noise_scalar", 0)
     args.weight_bits = safe_getattr(args, "weight_bits", 32)
-    args.subln = safe_getattr(args, "subln", False)
 
     args.base_layers = safe_getattr(args, "base_layers", 0)
     args.base_sublayers = safe_getattr(args, "base_sublayers", 1)
