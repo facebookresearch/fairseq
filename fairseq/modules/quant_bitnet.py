@@ -4,6 +4,28 @@ import torch.nn as nn
 from fairseq.modules.quant_noise import quant_noise
 
 
+class BinarizerFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(input):
+        # Scaling factor to minimize l2 error with full-precision weights
+        alpha = input.norm(p=1).div(input.nelement())
+
+        # Center weights to zero-mean before binarization
+        ctr_input = input - input.mean()
+        output = torch.sign(ctr_input).mul(alpha)
+
+        return output
+
+    @staticmethod
+    def setup_context(ctx, inputs, output):
+        ctx.save_for_backward(inputs[0])
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        grad_input = grad_output.clone() if ctx.needs_input_grad[0] else None
+        return grad_input
+
+
 class BitLinear(nn.Linear):
     def __init__(self, *args, transpose=False, init_weight=None, **kwargs) -> None:
         super(BitLinear, self).__init__(*args, **kwargs)
@@ -11,19 +33,9 @@ class BitLinear(nn.Linear):
         if init_weight is not None:
             self.weight = init_weight
 
-    @staticmethod
-    def _binarize(x):
-        # Scaling factor to minimize l2 error with full-precision weights
-        alpha = x.norm(p=1).div(x.nelement())
-        x_bin = torch.sign(x).mul(alpha)
-
-        # Disregard binarization in backward for STE
-        x_bin = (x_bin - x).detach() + x
-        return x_bin
-
     def forward(self, input):
-        # Center weights to zero-mean before binarization
-        weight_bin = self._binarize(self.weight - self.weight.mean())
+
+        weight_bin = BinarizerFunction.apply(self.weight)
         if self.transpose:
             weight_bin = weight_bin.t()
         return nn.functional.linear(input, weight_bin, self.bias)
