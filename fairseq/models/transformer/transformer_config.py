@@ -117,7 +117,7 @@ class TransformerConfig(FairseqDataclass):
         default=DEFAULT_MAX_SOURCE_POSITIONS,
         metadata={"help": "Maximum input length supported by the encoder"},
     )
-    decoder: DecoderConfig = field(default_factory=EncDecBaseConfig)
+    decoder: DecoderConfig = field(default_factory=DecoderConfig)
     # TODO should really be in the decoder config
     max_target_positions: int = field(
         default=DEFAULT_MAX_TARGET_POSITIONS,
