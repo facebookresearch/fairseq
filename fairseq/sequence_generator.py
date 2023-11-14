@@ -19,7 +19,7 @@ from fairseq.models import FairseqIncrementalDecoder
 from fairseq.ngram_repeat_block import NGramRepeatBlock
 
 from openvino.runtime import Core
-
+from my_py_profile import MyProfile
 
 class SequenceGenerator(nn.Module):
     def __init__(
@@ -779,7 +779,7 @@ class EnsembleModel(nn.Module):
             self.has_incremental = True
 
         # self.has_incremental = False
-        self.save_onnx = False
+        self.save_onnx = True
         self.openvino_engine = False
         self.decode_onnx_tag = 0
         
@@ -789,12 +789,12 @@ class EnsembleModel(nn.Module):
             
         if self.openvino_engine:
             self.ie = Core()
-            self.encoder_model_path=self.FILE_PATH+"/../onnx_models/encoder.xml"
+            self.encoder_model_path=self.FILE_PATH+"/../../models/OpenVINO_Models/encoder.xml"
             self.encoder_model = self.ie.read_model(model=self.encoder_model_path)
             self.encoder_compiled_model=self.ie.compile_model(model=self.encoder_model,device_name="CPU")
             self.encoder_request = self.encoder_compiled_model.create_infer_request()
             
-            self.decoder_model_path=self.FILE_PATH+"/../onnx_models/decoder.xml"
+            self.decoder_model_path=self.FILE_PATH+"/../../models/OpenVINO_Models/decoder.xml"
             self.decoder_model = self.ie.read_model(model=self.decoder_model_path)
             self.decoder_compiled_model=self.ie.compile_model(model=self.decoder_model,device_name="CPU")
             self.decoder_request = self.decoder_compiled_model.create_infer_request()
@@ -852,7 +852,7 @@ class EnsembleModel(nn.Module):
         model.prepare_for_onnx_export_()
         model.eval()
         torch.onnx.export(model.encoder, (net_input),
-                    self.FILE_PATH+"/../onnx_models/encoder.onnx",
+                    self.FILE_PATH+"/../onnx_models/encoder_xiping.onnx",
                     input_names=["src_tokens","src_lengths"],
                     dynamic_axes={'src_tokens' : {0:"batch_size",
                                                   1:"src_lengths"},
@@ -878,29 +878,65 @@ class EnsembleModel(nn.Module):
             self.encoder_export_onnx(net_input)
         if not self.has_encoder():
             return None
-        encoder_start_time = time.time()
+        encoder_start_time = time.perf_counter()
         if self.openvino_engine:
             encoder_result = self.forward_encoder_IR(net_input)
-            encoder_time = time.time() - encoder_start_time
+            encoder_time = time.perf_counter() - encoder_start_time
             print("==IR_encoder_time==",encoder_time)
         else:
             encoder_result = [model.encoder.forward_torchscript(net_input) for model in self.models]
-            encoder_time = time.time() - encoder_start_time
+            encoder_time = time.perf_counter() - encoder_start_time
             print("==torch encoder_time==",encoder_time)
         return encoder_result
 
     def decoder_export_onnx(self,model,tokens, encoder_out, incremental_states):
-        torch.onnx.export(model.decoder, (tokens, encoder_out, incremental_states),
-            self.FILE_PATH+"/../onnx_models/decoder.onnx",
-            input_names = ["tokens", "encoder_out", "encoder_padding_mask"],
-            dynamic_axes={'tokens' : {0 : "batch_size", 1: "seq_len"},
-                          "encoder_out" : {0 : "batch_size", 1: "seq_len"},
-                          "encoder_padding_mask": {0 : "batch_size", 1: "seq_len"}
-            },
+        # model.decoder.prepare_for_onnx_export_()
+
+        inputs = {}
+        input_names = ["tokens"]
+        dynamic_axes = {'tokens': {0: "batch_size", 1: "seq_len"}}
+
+        for i in range(len(incremental_states)):
+            pk = "prev_key_"+str(i)
+            pv = "prev_value_"+str(i)
+            inputs[pk] = list(incremental_states.values())[i]["prev_key"]
+            inputs[pv] = list(incremental_states.values())[i]["prev_value"]
+            input_names.append(pk)
+            input_names.append(pv)
+            dynamic_axes[pk] = {0: "batch_size", 2: "seq_len"}
+            dynamic_axes[pv] = {0: "batch_size", 2: "seq_len"}
+        inputs["encoder_out"] = encoder_out["encoder_out"]
+        inputs["encoder_padding_mask"] = encoder_out["encoder_padding_mask"]
+
+        input_names.append("encoder_out")
+        input_names.append("encoder_padding_mask")
+
+        dynamic_axes["encoder_out"] = {0: "batch_size", 1: "seq_len"}
+        dynamic_axes["encoder_padding_mask"] = {0: "batch_size", 1: "seq_len"}
+        input_data = (tokens, inputs, {"ignore_param": "ignore_p"})
+
+        torch.onnx.export(model.decoder, input_data,
+            self.FILE_PATH+"/../onnx_models/decoder_xiping.onnx",
+            input_names = input_names,
+            dynamic_axes= dynamic_axes,
             # opset_version=14,
             # operator_export_type=torch.onnx.OperatorExportTypes.ONNX_ATEN_FALLBACK,
             verbose=True
             )
+        # ===================================================
+        # Original implement
+        # torch.onnx.export(model.decoder, (tokens, encoder_out, incremental_states),
+        #     self.FILE_PATH+"/../onnx_models/decoder.onnx",
+        #     input_names = ["tokens", "encoder_out", "incremental_states"],
+        #     dynamic_axes={'tokens' : {0 : "batch_size", 1: "seq_len"},
+        #                   "encoder_out" : {0 : "batch_size", 1: "seq_len"},
+        #                   "incremental_states": {0 : "batch_size", 1: "seq_len"}
+        #     },
+        #     # opset_version=14,
+        #     # operator_export_type=torch.onnx.OperatorExportTypes.ONNX_ATEN_FALLBACK,
+        #     verbose=True
+        #     )
+
         print("== Export Decoder onnx success ==")
 
     def OpenVINO_Inference_decoder(self,tokens,encoder_out,incremental_state=None):
@@ -940,8 +976,44 @@ class EnsembleModel(nn.Module):
         log_probs = []
         avg_attn: Optional[Tensor] = None
         encoder_out: Optional[Dict[str, List[Tensor]]] = None
+
+        # Override TransformerDecoderBase
+        from fairseq.models.transformer import TransformerDecoderBase
+        class MyTransformerDecoderBase(TransformerDecoderBase):
+            incremental_state_keys=[]
+            def forward(self, tokens, inputs):
+                incremental_state = torch.jit.annotate(Dict[str, Dict[str, Optional[Tensor]]], {})
+                encoder_out = torch.jit.annotate(Dict[str, Optional[Tensor]], {})
+                idx = 0
+                if "prev_key_0" in list(inputs.keys()):
+                    for key in MyTransformerDecoderBase.incremental_state_keys:
+                        incremental_state[key] = {
+                            "prev_key": inputs["prev_key_"+str(idx)],
+                            "prev_value": inputs["prev_value_"+str(idx)]
+                        }
+                        idx = idx + 1
+
+                # Find encoder_out and encoder_padding_mask
+                encoder_out["encoder_out"] = inputs["encoder_out"]
+                encoder_out["encoder_padding_mask"] = inputs["encoder_padding_mask"]
+
+                output = TransformerDecoderBase.forward(self=self, 
+                                                        prev_output_tokens=tokens, 
+                                                        encoder_out=encoder_out, incremental_state=incremental_state)
+                # output["incremental_state"] = incremental_state
+                if len(MyTransformerDecoderBase.incremental_state_keys) == 0:
+                    MyTransformerDecoderBase.incremental_state_keys = list(incremental_state.keys())
+                    # print("MyTransformerDecoderBase.incremental_state_keys=", MyTransformerDecoderBase.incremental_state_keys)
+
+                return output, incremental_state
+
+        def cast_TransformerDecoderBase_2_MyTransformerDecoderBase(parent):
+            parent.__class__ = MyTransformerDecoderBase
+            return parent
         
         for i, model in enumerate(self.models):
+            if self.has_incremental_states() and type(model.decoder) is TransformerDecoderBase:
+                model.decoder = cast_TransformerDecoderBase_2_MyTransformerDecoderBase(model.decoder)
             
             if self.has_encoder():
                 encoder_out = encoder_outs[i]
@@ -952,35 +1024,55 @@ class EnsembleModel(nn.Module):
                 self.decode_onnx_tag +=1
             # decode each model
             if self.has_incremental_states():
-                decoder_start_time = time.time()
+                decoder_start_time = time.perf_counter()
                 if self.openvino_engine:
                     decoder_out = self.OpenVINO_Inference_decoder(
                         tokens,
                         encoder_out=encoder_out,
                         incremental_state=incremental_states[i])
-                    decoder_time = time.time() - decoder_start_time
-                    print("==IR_decoder_time==",decoder_time)
+                    decoder_time = time.perf_counter() - decoder_start_time
+                    
+                    print(f"==IR_decoder_time=={decoder_time*1000:.2f} ms with incremental")
                 else:
-                    decoder_out = model.decoder.forward(
-                        tokens,
-                        encoder_out=encoder_out,
-                        incremental_state=incremental_states[i],
-                    ) 
-                    decoder_time = time.time() - decoder_start_time
-                    print("==torch decoder_time==",decoder_time)
+                    p = MyProfile("decoder_forword")
+                    if type(model.decoder) is TransformerDecoderBase:
+                        decoder_out = model.decoder.forward(
+                            tokens,
+                            encoder_out=encoder_out,
+                            incremental_state=incremental_states[i],
+                        )
+                    else:
+                        inputs = {}
+                        for idx in range(len(incremental_states[i])):
+                            pk = "prev_key_"+str(idx)
+                            pv = "prev_value_"+str(idx)
+                            inputs[pk] = list(incremental_states[i].values())[idx]["prev_key"]
+                            inputs[pv] = list(incremental_states[i].values())[idx]["prev_value"]
+
+                        inputs.update(encoder_out)
+                        decoder_out, incremental_states[i] = model.decoder.forward(tokens=tokens,
+                                                                                   inputs=inputs)
+
+                    decoder_time = time.perf_counter() - decoder_start_time
+                    print(f"==torch decoder_time=={decoder_time*1000:.2f} ms with incremental")
+                    shapes=[]
+                    for id in range(6):
+                        shapes.append(list(incremental_states[i].values())[id]['prev_key'].shape)
+                    print(f"incremental_states dims={shapes[0]}")
+                    del p
             else:
                 if hasattr(model, "decoder"):
-                    decoder_start_time = time.time()
+                    decoder_start_time = time.perf_counter()
                     if self.openvino_engine:
                         decoder_out = self.OpenVINO_Inference_decoder(
                             tokens,
                             encoder_out=encoder_out)
-                        decoder_time = time.time() - decoder_start_time
-                        print("==IR_decoder_time==",decoder_time)
+                        decoder_time = time.perf_counter() - decoder_start_time
+                        print(f"==IR_decoder_time=={decoder_time*1000:.2f} ms without incremental")
                     else:
                         decoder_out = model.decoder.forward(tokens, encoder_out=encoder_out)
-                        decoder_time = time.time() - decoder_start_time
-                        print("==torch decoder_time==",decoder_time)
+                        decoder_time = time.perf_counter() - decoder_start_time
+                        print(f"==torch decoder_time=={decoder_time*1000:.2f} ms without incremental")
                 else:
                     decoder_out = model.forward(tokens)
 

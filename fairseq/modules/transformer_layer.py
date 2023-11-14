@@ -8,6 +8,7 @@ from typing import Dict, List, Optional
 import torch
 import torch.nn as nn
 from torch import Tensor
+from my_py_profile import MyProfile
 
 from fairseq import utils
 from fairseq.models.transformer import TransformerConfig
@@ -414,13 +415,18 @@ class TransformerDecoderLayerBase(nn.Module):
         if self.normalize_before:
             x = self.self_attn_layer_norm(x)
         if prev_self_attn_state is not None:
+            p = MyProfile("prev_self_attn_state[0,1]", desc="Get prev_key, prev_value")
             prev_key, prev_value = prev_self_attn_state[:2]
             saved_state: Dict[str, Optional[Tensor]] = {
                 "prev_key": prev_key,
                 "prev_value": prev_value,
             }
+            del p
             if len(prev_self_attn_state) >= 3:
+                p = MyProfile("prev_self_attn_state[2]", desc="Get prev_key_padding_mask")
                 saved_state["prev_key_padding_mask"] = prev_self_attn_state[2]
+                del p
+
             assert incremental_state is not None
             self.self_attn._set_input_buffer(incremental_state, saved_state)
         _self_attn_input_buffer = self.self_attn._get_input_buffer(incremental_state)
@@ -448,6 +454,7 @@ class TransformerDecoderLayerBase(nn.Module):
         else:
             y = x
 
+        p = MyProfile("self_attn")
         x, attn = self.self_attn(
             query=x,
             key=y,
@@ -457,6 +464,8 @@ class TransformerDecoderLayerBase(nn.Module):
             need_weights=False,
             attn_mask=self_attn_mask,
         )
+        del p
+
         if self.c_attn is not None:
             tgt_len, bsz = x.size(0), x.size(1)
             x = x.view(tgt_len, bsz, self.nh, self.head_dim)
@@ -482,8 +491,11 @@ class TransformerDecoderLayerBase(nn.Module):
                 if len(prev_attn_state) >= 3:
                     saved_state["prev_key_padding_mask"] = prev_attn_state[2]
                 assert incremental_state is not None
+                p = MyProfile("encoder_attn._set_input_buffer")
                 self.encoder_attn._set_input_buffer(incremental_state, saved_state)
+                del p
 
+            p = MyProfile("encoder_attn")
             x, attn = self.encoder_attn(
                 query=x,
                 key=encoder_out,
@@ -494,6 +506,8 @@ class TransformerDecoderLayerBase(nn.Module):
                 need_weights=need_attn or (not self.training and self.need_attn),
                 need_head_weights=need_head_weights,
             )
+            del p
+
             x = self.dropout_module(x)
             x = self.residual_connection(x, residual)
             if not self.normalize_before:
@@ -515,7 +529,9 @@ class TransformerDecoderLayerBase(nn.Module):
         if not self.normalize_before:
             x = self.final_layer_norm(x)
         if self.onnx_trace and incremental_state is not None:
+            p = MyProfile("self_attn._get_input_buffer")
             saved_state = self.self_attn._get_input_buffer(incremental_state)
+            del p
             assert saved_state is not None
             if self_attn_padding_mask is not None:
                 self_attn_state = [

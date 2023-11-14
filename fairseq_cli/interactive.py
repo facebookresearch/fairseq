@@ -133,7 +133,7 @@ def main(cfg: FairseqConfig):
     if cfg.common.seed is not None and not cfg.generation.no_seed_provided:
         np.random.seed(cfg.common.seed)
         utils.set_torch_seed(cfg.common.seed)
-
+    cfg.common.cpu=1
     use_cuda = torch.cuda.is_available() and not cfg.common.cpu
 
     # Setup task, e.g., translation
@@ -307,6 +307,7 @@ def main(cfg: FairseqConfig):
         )
     )
 
+from my_py_profile import profile_finish
 
 def cli_main():
     parser = options.get_interactive_generation_parser()
@@ -316,3 +317,4 @@ def cli_main():
 
 if __name__ == "__main__":
     cli_main()
+    profile_finish()
