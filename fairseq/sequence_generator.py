@@ -893,6 +893,9 @@ class EnsembleModel(nn.Module):
 
         inputs = {}
         input_names = ["tokens"]
+        output_names = ["output","attn"]
+        for i in range(4):
+            output_names.append("inner_status_"+str(i))
         dynamic_axes = {'tokens': {0: "batch_size", 1: "seq_len"}}
 
         for i in range(len(incremental_states)):
@@ -902,6 +905,8 @@ class EnsembleModel(nn.Module):
             inputs[pv] = list(incremental_states.values())[i]["prev_value"]
             input_names.append(pk)
             input_names.append(pv)
+            output_names.append(pk)
+            output_names.append(pv)
             dynamic_axes[pk] = {0: "batch_size", 2: "seq_len"}
             dynamic_axes[pv] = {0: "batch_size", 2: "seq_len"}
         inputs["encoder_out"] = encoder_out["encoder_out"]
@@ -916,6 +921,7 @@ class EnsembleModel(nn.Module):
         torch.onnx.export(model.decoder, input_data,
             self.FILE_PATH+"/../onnx_models/decoder_xiping.onnx",
             input_names = input_names,
+            output_names = output_names,
             dynamic_axes= dynamic_axes,
             # opset_version=14,
             # operator_export_type=torch.onnx.OperatorExportTypes.ONNX_ATEN_FALLBACK,
@@ -1003,7 +1009,13 @@ class EnsembleModel(nn.Module):
                     MyTransformerDecoderBase.incremental_state_keys = list(incremental_state.keys())
                     # print("MyTransformerDecoderBase.incremental_state_keys=", MyTransformerDecoderBase.incremental_state_keys)
 
-                return output, incremental_state
+                output_prev_kv = torch.jit.annotate(Dict[str, Optional[Tensor]], {})
+                for idx in range(len(incremental_state.keys())):
+                    pk = "prev_key_"+str(idx)
+                    pv = "prev_value_"+str(idx)
+                    output_prev_kv[pk] = list(incremental_state.values())[idx]["prev_key"]
+                    output_prev_kv[pv] = list(incremental_state.values())[idx]["prev_value"]
+                return output + (output_prev_kv, )
 
         def cast_TransformerDecoderBase_2_MyTransformerDecoderBase(parent):
             parent.__class__ = MyTransformerDecoderBase
@@ -1049,8 +1061,22 @@ class EnsembleModel(nn.Module):
                         # inputs.update(encoder_out)
                         inputs["encoder_out"] = encoder_out["encoder_out"]
                         inputs["encoder_padding_mask"] = encoder_out["encoder_padding_mask"]
-                        decoder_out, incremental_states[i] = model.decoder.forward(tokens=tokens,
-                                                                                   inputs=inputs)
+                        decoder_out = model.decoder.forward(tokens=tokens,
+                                                            inputs=inputs)
+                        
+                        # Pass to incremental_states[i]
+                        if len(list(incremental_states[i].keys())) == 0:
+                            prev_kv_state = MyTransformerDecoderBase.incremental_state_keys
+                        else:
+                            prev_kv_state = list(incremental_states[i].keys())
+                        
+                        incremental_states[i].clear()
+                        prev_kv = decoder_out[-1]
+                        for p in range(len(prev_kv_state)):
+                            incremental_states[i][prev_kv_state[p]] = {
+                                "prev_key": prev_kv["prev_key_"+str(p)],
+                                "prev_value": prev_kv["prev_value_"+str(p)],
+                            }
 
                     decoder_time = time.perf_counter() - decoder_start_time
                     print(f"==torch decoder_time=={decoder_time*1000:.2f} ms with incremental")
