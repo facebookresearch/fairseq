@@ -5,7 +5,6 @@
 
 import math
 from typing import Any, Dict, List, Optional
-from my_py_profile import MyProfile
 
 import torch
 import torch.nn as nn
@@ -214,7 +213,6 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
                 - the decoder's output of shape `(batch, tgt_len, vocab)`
                 - a dictionary with any model-specific outputs
         """
-        p = MyProfile("extract_features")
         x, extra = self.extract_features(
             prev_output_tokens,
             encoder_out=encoder_out,
@@ -223,12 +221,9 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             alignment_layer=alignment_layer,
             alignment_heads=alignment_heads,
         )
-        del p
 
         if not features_only:
-            p = MyProfile("output_layer")
             x = self.output_layer(x)
-            del p
         return x, extra
 
     def extract_features(
@@ -297,18 +292,14 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         # embed positions
         positions = None
         if self.embed_positions is not None:
-            p = MyProfile("embed_positions")
             positions = self.embed_positions(
                 prev_output_tokens, incremental_state=incremental_state
             )
-            del p
 
         if incremental_state is not None:
-            p = MyProfile("prev_output_tokens", desc="left move")
             prev_output_tokens = prev_output_tokens[:, -1:]
             if positions is not None:
                 positions = positions[:, -1:]
-            del p
 
         # Prevent torchscript exporting issue for dynamic quant embedding
         prev_output_tokens = prev_output_tokens.contiguous()
@@ -330,9 +321,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         x = self.dropout_module(x)
 
         # B x T x C -> T x B x C
-        p = MyProfile("transpose")
         x = x.transpose(0, 1)
-        del p
 
         self_attn_padding_mask: Optional[Tensor] = None
         if self.cross_self_attention or prev_output_tokens.eq(self.padding_idx).any():
@@ -341,16 +330,12 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         # decoder layers
         attn: Optional[Tensor] = None
         inner_states: List[Optional[Tensor]] = [x]
-        p0 = MyProfile("loop_decoder")
         for idx, layer in enumerate(self.layers):
             if incremental_state is None and not full_context_alignment:
-                p = MyProfile("buffered_future_mask")
                 self_attn_mask = self.buffered_future_mask(x)
-                del p
             else:
                 self_attn_mask = None
 
-            p = MyProfile("layer", idx=str(idx), inner_states="x")
             # print(f"x={type(idx)}, alignment_layer={type(alignment_layer)}")
             x, layer_attn, _ = layer(
                 x,
@@ -363,10 +348,8 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
                 need_head_weights=bool((idx == alignment_layer)),
             )
             inner_states.append(x)
-            del p
             if layer_attn is not None and idx == alignment_layer:
                 attn = layer_attn.float().to(x)
-        del p0
 
         if attn is not None:
             if alignment_heads is not None:

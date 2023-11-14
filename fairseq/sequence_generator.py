@@ -19,7 +19,6 @@ from fairseq.models import FairseqIncrementalDecoder
 from fairseq.ngram_repeat_block import NGramRepeatBlock
 
 from openvino.runtime import Core
-from my_py_profile import MyProfile
 
 class SequenceGenerator(nn.Module):
     def __init__(
@@ -906,12 +905,11 @@ class EnsembleModel(nn.Module):
             dynamic_axes[pk] = {0: "batch_size", 2: "seq_len"}
             dynamic_axes[pv] = {0: "batch_size", 2: "seq_len"}
         inputs["encoder_out"] = encoder_out["encoder_out"]
-        inputs["encoder_padding_mask"] = encoder_out["encoder_padding_mask"]
-
         input_names.append("encoder_out")
-        input_names.append("encoder_padding_mask")
-
         dynamic_axes["encoder_out"] = {0: "batch_size", 1: "seq_len"}
+
+        inputs["encoder_padding_mask"] = encoder_out["encoder_padding_mask"]
+        input_names.append("encoder_padding_mask")
         dynamic_axes["encoder_padding_mask"] = {0: "batch_size", 1: "seq_len"}
         input_data = (tokens, inputs, {"ignore_param": "ignore_p"})
 
@@ -1019,7 +1017,7 @@ class EnsembleModel(nn.Module):
                 encoder_out = encoder_outs[i]
             if self.save_onnx:
                 if self.decode_onnx_tag == 1:
-                    self.decoder_export_onnx(model,tokens,encoder_out, incremental_states[i])
+                    self.decoder_export_onnx(model, tokens, encoder_out, incremental_states[i])
                     self.save_onnx = False
                 self.decode_onnx_tag +=1
             # decode each model
@@ -1034,7 +1032,6 @@ class EnsembleModel(nn.Module):
                     
                     print(f"==IR_decoder_time=={decoder_time*1000:.2f} ms with incremental")
                 else:
-                    p = MyProfile("decoder_forword")
                     if type(model.decoder) is TransformerDecoderBase:
                         decoder_out = model.decoder.forward(
                             tokens,
@@ -1049,7 +1046,9 @@ class EnsembleModel(nn.Module):
                             inputs[pk] = list(incremental_states[i].values())[idx]["prev_key"]
                             inputs[pv] = list(incremental_states[i].values())[idx]["prev_value"]
 
-                        inputs.update(encoder_out)
+                        # inputs.update(encoder_out)
+                        inputs["encoder_out"] = encoder_out["encoder_out"]
+                        inputs["encoder_padding_mask"] = encoder_out["encoder_padding_mask"]
                         decoder_out, incremental_states[i] = model.decoder.forward(tokens=tokens,
                                                                                    inputs=inputs)
 
@@ -1059,7 +1058,6 @@ class EnsembleModel(nn.Module):
                     for id in range(6):
                         shapes.append(list(incremental_states[i].values())[id]['prev_key'].shape)
                     print(f"incremental_states dims={shapes[0]}")
-                    del p
             else:
                 if hasattr(model, "decoder"):
                     decoder_start_time = time.perf_counter()
