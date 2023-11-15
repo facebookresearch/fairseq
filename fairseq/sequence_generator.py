@@ -905,8 +905,8 @@ class EnsembleModel(nn.Module):
             inputs[pv] = list(incremental_states.values())[i]["prev_value"]
             input_names.append(pk)
             input_names.append(pv)
-            output_names.append(pk)
-            output_names.append(pv)
+            output_names.append("key_"+str(i))
+            output_names.append("value_"+str(i))
             dynamic_axes[pk] = {0: "batch_size", 2: "seq_len"}
             dynamic_axes[pv] = {0: "batch_size", 2: "seq_len"}
         inputs["encoder_out"] = encoder_out["encoder_out"]
