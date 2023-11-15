@@ -888,15 +888,16 @@ class EnsembleModel(nn.Module):
             print("==torch encoder_time==",encoder_time)
         return encoder_result
 
-    def decoder_export_onnx(self,model,tokens, encoder_out, incremental_states):
+    def decoder_export_onnx(self,model,tokens, encoder_out, incremental_states, model_idx):
         # model.decoder.prepare_for_onnx_export_()
 
         inputs = {}
         input_names = ["tokens"]
-        output_names = ["output","attn"]
+        dynamic_axes = {'tokens': {0: "batch_size", 1: "seq_len"}}
+
+        output_names = ["output", "attn"]
         for i in range(4):
             output_names.append("inner_status_"+str(i))
-        dynamic_axes = {'tokens': {0: "batch_size", 1: "seq_len"}}
 
         for i in range(len(incremental_states)):
             pk = "prev_key_"+str(i)
@@ -905,10 +906,17 @@ class EnsembleModel(nn.Module):
             inputs[pv] = list(incremental_states.values())[i]["prev_value"]
             input_names.append(pk)
             input_names.append(pv)
-            output_names.append("key_"+str(i))
-            output_names.append("value_"+str(i))
             dynamic_axes[pk] = {0: "batch_size", 2: "seq_len"}
             dynamic_axes[pv] = {0: "batch_size", 2: "seq_len"}
+        # Output names
+        for i in range(6):
+            pk = "key_"+str(i)
+            pv = "value_"+str(i)
+            output_names.append(pk)
+            output_names.append(pv)
+            dynamic_axes[pk] = {0: "batch_size", 2: "seq_len"}
+            dynamic_axes[pv] = {0: "batch_size", 2: "seq_len"}
+
         inputs["encoder_out"] = encoder_out["encoder_out"]
         input_names.append("encoder_out")
         dynamic_axes["encoder_out"] = {0: "batch_size", 1: "seq_len"}
@@ -919,7 +927,7 @@ class EnsembleModel(nn.Module):
         input_data = (tokens, inputs, {"ignore_param": "ignore_p"})
 
         torch.onnx.export(model.decoder, input_data,
-            self.FILE_PATH+"/../onnx_models/decoder_xiping.onnx",
+            self.FILE_PATH+"/../onnx_models/decoder"+str(model_idx)+"_xiping.onnx",
             input_names = input_names,
             output_names = output_names,
             dynamic_axes= dynamic_axes,
@@ -1028,10 +1036,10 @@ class EnsembleModel(nn.Module):
             if self.has_encoder():
                 encoder_out = encoder_outs[i]
             if self.save_onnx:
-                if self.decode_onnx_tag == 1:
-                    self.decoder_export_onnx(model, tokens, encoder_out, incremental_states[i])
-                    self.save_onnx = False
+                self.decoder_export_onnx(model, tokens, encoder_out, incremental_states[i], self.decode_onnx_tag)
                 self.decode_onnx_tag +=1
+                if self.decode_onnx_tag >=2 : 
+                    self.save_onnx = False
             # decode each model
             if self.has_incremental_states():
                 decoder_start_time = time.perf_counter()
