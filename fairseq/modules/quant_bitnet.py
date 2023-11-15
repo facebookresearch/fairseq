@@ -35,9 +35,12 @@ class BitLinear(nn.Linear):
 
     def forward(self, input):
         weight_bin = BinarizerFunction.apply(self.weight)
+        bias_bin = (
+            BinarizerFunction.apply(self.bias) if self.bias is not None else self.bias
+        )
         if self.transpose:
             weight_bin = weight_bin.t()
-        return nn.functional.linear(input, weight_bin, self.bias)
+        return nn.functional.linear(input, weight_bin, bias_bin)
 
 
 class QuantizeBitLinearMixin:
