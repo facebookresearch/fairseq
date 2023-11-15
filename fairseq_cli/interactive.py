@@ -307,8 +307,6 @@ def main(cfg: FairseqConfig):
         )
     )
 
-from my_py_profile import profile_finish
-
 def cli_main():
     parser = options.get_interactive_generation_parser()
     args = options.parse_args_and_arch(parser)
@@ -317,4 +315,3 @@ def cli_main():
 
 if __name__ == "__main__":
     cli_main()
-    profile_finish()
