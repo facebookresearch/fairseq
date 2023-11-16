@@ -19,6 +19,7 @@ from fairseq.models import FairseqIncrementalDecoder
 from fairseq.ngram_repeat_block import NGramRepeatBlock
 
 from openvino.runtime import Core
+import openvino.runtime as ov
 
 class SequenceGenerator(nn.Module):
     def __init__(
@@ -220,6 +221,7 @@ class SequenceGenerator(nn.Module):
                 for i in range(self.model.models_size)
             ],
         )
+        incremental_states_ov = [torch.jit.annotate(Dict[str, ov.Tensor], {})]
         net_input = sample["net_input"]
 
         if "src_tokens" in net_input:
@@ -364,6 +366,7 @@ class SequenceGenerator(nn.Module):
                     tokens[:, : step + 1],
                     encoder_outs,
                     incremental_states,
+                    incremental_states_ov,
                     self.temperature,
                 )
 
@@ -778,8 +781,8 @@ class EnsembleModel(nn.Module):
             self.has_incremental = True
 
         # self.has_incremental = False
-        self.save_onnx = True
-        self.openvino_engine = False
+        self.save_onnx = False
+        self.openvino_engine = True
         self.decode_onnx_tag = 0
         
         self.FILE_PATH = sys.path[0]
@@ -793,11 +796,16 @@ class EnsembleModel(nn.Module):
             self.encoder_compiled_model=self.ie.compile_model(model=self.encoder_model,device_name="CPU")
             self.encoder_request = self.encoder_compiled_model.create_infer_request()
             
-            self.decoder_model_path=self.FILE_PATH+"/../../models/OpenVINO_Models/decoder.xml"
-            self.decoder_model = self.ie.read_model(model=self.decoder_model_path)
-            self.decoder_compiled_model=self.ie.compile_model(model=self.decoder_model,device_name="CPU")
-            self.decoder_request = self.decoder_compiled_model.create_infer_request()
-        
+            # self.decoder_model_path=self.FILE_PATH+"/../../models/OpenVINO_Models/decoder.xml"
+            # self.decoder_model = self.ie.read_model(model=self.decoder_model_path)
+            # self.decoder_compiled_model=self.ie.compile_model(model=self.decoder_model,device_name="CPU")
+            # self.decoder_request = self.decoder_compiled_model.create_infer_request()
+            dec_model_0_model_path=self.FILE_PATH + "/../../decoder0_xiping.xml"
+            dec_model_1_model_path=self.FILE_PATH + "/../../decoder1_xiping.xml"
+            decoder_model_0 = self.ie.read_model(model=dec_model_0_model_path)
+            decoder_model_1 = self.ie.read_model(model=dec_model_1_model_path)
+            self.decoder_compiled_model_0=self.ie.compile_model(model=decoder_model_0,device_name="CPU")
+            self.decoder_compiled_model_1=self.ie.compile_model(model=decoder_model_1,device_name="CPU")
 
     def forward(self):
         pass
@@ -954,15 +962,25 @@ class EnsembleModel(nn.Module):
     def OpenVINO_Inference_decoder(self,tokens,encoder_out,incremental_state=None):
         enc = encoder_out["encoder_out"][0].numpy()
         padding_mask = encoder_out["encoder_padding_mask"][0].numpy()
-        embedding = encoder_out["encoder_embedding"][0].numpy()
-        src_lengths = encoder_out["src_lengths"][0].numpy()
 
-        decoder_input = {"tokens":tokens,
-                "encoder_out":enc,
-                "encoder_padding_mask":padding_mask}
+        decoder_input = {"tokens": tokens,
+                         "encoder_padding_mask": padding_mask}
+        
+        # Prepare inputs
+        if len(incremental_state) == 0: # First inference
+            decoder_input["encoder_out"] = enc
+        else:
+            for pk in list(incremental_state.keys()):
+                decoder_input[pk] = incremental_state[pk]
 
-        decoder_result = self.decoder_compiled_model(decoder_input)
-        output_keys = list(self.decoder_compiled_model.outputs)
+        # Inference
+        if len(incremental_state) == 0: # First inference
+            decoder_result = self.decoder_compiled_model_0(decoder_input)
+            output_keys = list(self.decoder_compiled_model_0.outputs)
+        else:
+            decoder_result = self.decoder_compiled_model_1(decoder_input)
+            output_keys = list(self.decoder_compiled_model_1.outputs)
+
         x = decoder_result[output_keys[0]]
         attn = decoder_result[output_keys[1]]
         inner_states_0 = decoder_result[output_keys[2]]
@@ -975,6 +993,11 @@ class EnsembleModel(nn.Module):
                                             torch.from_numpy(inner_states_1), 
                                             torch.from_numpy(inner_states_2), 
                                             torch.from_numpy(inner_states_3)]}]
+        # Past key value.
+        for i in range(6):
+            incremental_state["prev_key_"+str(i)] = decoder_result[output_keys[6+i*2]]
+            incremental_state["prev_value_"+str(i)] = decoder_result[output_keys[6+i*2+1]]
+
         return decoder_result_list
     
     @torch.jit.export
@@ -983,6 +1006,7 @@ class EnsembleModel(nn.Module):
         tokens,
         encoder_outs: List[Dict[str, List[Tensor]]],
         incremental_states: List[Dict[str, Dict[str, Optional[Tensor]]]],
+        incremental_states_ov: List[Dict[str, ov.Tensor]],
         temperature: float = 1.0,
     ):
         log_probs = []
@@ -1047,7 +1071,7 @@ class EnsembleModel(nn.Module):
                     decoder_out = self.OpenVINO_Inference_decoder(
                         tokens,
                         encoder_out=encoder_out,
-                        incremental_state=incremental_states[i])
+                        incremental_state=incremental_states_ov[i])
                     decoder_time = time.perf_counter() - decoder_start_time
                     
                     print(f"==IR_decoder_time=={decoder_time*1000:.2f} ms with incremental")
