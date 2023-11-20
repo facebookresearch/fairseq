@@ -7,8 +7,8 @@ Model | Pretraining Data | Model | Paper Reference
 |---|---|---|---
 MR-HuBERT Base (~97M) | [Librispeech](http://www.openslr.org/12) 960 hr | [download](https://dl.fbaipublicfiles.com/mrhubert/mono_base/mrhubert_mono_base.pt) |  mono\_base
 MR-HuBERT Base (~321M) | [Libri-Light](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/mono_large/mrhubert_mono_large.pt) |  mono\_large
-Multilingual MR-HuBERT Base (~97M) | 
-Multilingual MR-HuBERT Large (~321M) | 
+Multilingual MR-HuBERT Base (~97M) | [Voxpopuli]() 100k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/multi_base/multi_base.pt) | multi\_base 
+Multilingual MR-HuBERT Large (~321M) | [Voxpopuli]() 100k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/multi_large/multi_large.pt) | Not in the paper
 
 
 ### Abalation models
@@ -40,6 +40,7 @@ MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresear
 MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-a/b8-h.pt) | (B.8)-h
 MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-a/b8-i.pt) | (B.8)-i
 MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-a/b8-j.pt) | (B.8)-j 
+Multilingual MR-HuBERT Large (Simple sampling) | [Voxpopuli]() 100k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/multi_large_simple/multi_large_simple.pt) 
 
 ## Load a model
 ```
