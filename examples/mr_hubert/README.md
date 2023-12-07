@@ -120,7 +120,7 @@ $ python fairseq_cli/hydra_train.py \
   model.w2v_path=/path/to/checkpoint
 ```
 
-Please see sample pre-training scripts `finetune.sh` for an example script.
+Please see sample fine-tuning scripts `finetune.sh` for an example script.
 
 ### Decode a MR-HuBERT model
 
@@ -184,4 +184,4 @@ Important parameters include:
 
 To decode with a Fairseq LM, you may check the usage examples in wav2vec2 or hubert examples.
 
-Please see sample pre-training scripts `decode.sh`  for an example script.
+Please see sample decoding scripts `decode.sh`  for an example script.
