@@ -7,8 +7,8 @@ Model | Pretraining Data | Model | Paper Reference
 |---|---|---|---
 MR-HuBERT Base (~97M) | [Librispeech](http://www.openslr.org/12) 960 hr | [download](https://dl.fbaipublicfiles.com/mrhubert/mono_base/mrhubert_mono_base.pt) |  mono\_base
 MR-HuBERT Base (~321M) | [Libri-Light](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/mono_large/mrhubert_mono_large.pt) |  mono\_large
-Multilingual MR-HuBERT Base (~97M) | [Voxpopuli]() 100k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/multi_base/multi_base.pt) | multi\_base 
-Multilingual MR-HuBERT Large (~321M) | [Voxpopuli]() 100k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/multi_large/multi_large.pt) | Not in the paper
+Multilingual MR-HuBERT Base (~97M) | [Voxpopuli](https://github.com/facebookresearch/voxpopuli) 100k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/multi_base/multi_base.pt) | multi\_base 
+Multilingual MR-HuBERT Large (~321M) | [Voxpopuli](https://github.com/facebookresearch/voxpopuli) 100k hr | [download 400k steps](https://dl.fbaipublicfiles.com/mrhubert/multi_large/multi_large_400k.pt)  or [download 600k steps](https://dl.fbaipublicfiles.com/mrhubert/multi_large/multi_large_600k.pt) | Not in the paper
 
 
 ### Abalation models
@@ -31,16 +31,18 @@ MR-HuBERT Base (Encodec 50Hz unit) | [Librispeech](http://www.openslr.org/12) 96
 MR-HuBERT Base (Encodec 50Hz units and 25Hz units) | [Librispeech](http://www.openslr.org/12) 960 hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b7-c/b7-c.pt) | (B.7)-c
 MR-HuBERT Base (Encodec 50Hz units stream 0&1 ) | [Librispeech](http://www.openslr.org/12) 960 hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b7-d/b7-d.pt) | (B.7)-d
 MR-HuBERT Large (no audio norm) | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-a/b8-a.pt) | (B.8)-a
-MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-a/b8-b.pt) | (B.8)-b
-MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-a/b8-c.pt) | (B.8)-c
-MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-a/b8-d.pt) | (B.8)-d
-MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-a/b8-e.pt) | (B.8)-e
-MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-a/b8-f.pt) | (B.8)-f
-MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-a/b8-g.pt) | (B.8)-g
-MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-a/b8-h.pt) | (B.8)-h
-MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-a/b8-i.pt) | (B.8)-i
-MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-a/b8-j.pt) | (B.8)-j 
-Multilingual MR-HuBERT Large (Simple sampling) | [Voxpopuli]() 100k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/multi_large_simple/multi_large_simple.pt) 
+MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-b/b8-b.pt) | (B.8)-b
+MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-c/b8-c.pt) | (B.8)-c
+MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-d/b8-d.pt) | (B.8)-d
+MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-e/b8-e.pt) | (B.8)-e
+MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-f/b8-f.pt) | (B.8)-f
+MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-g/b8-g.pt) | (B.8)-g
+MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-h/b8-h.pt) | (B.8)-h
+MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-i/b8-i.pt) | (B.8)-i
+MR-HuBERT Large (check paper )  | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/b8-j/b8-j.pt) | (B.8)-j 
+Multilingual MR-HuBERT Large (Simple sampling) | [Voxpopuli](https://github.com/facebookresearch/voxpopuli) 100k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/multi_large_simple/multi_large_simple.pt) | Not in paper
+MR-HuBERT xLarge (from HuBERT-base label) | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/mono_xlarge/v1.pt) | Not in paper
+MR-HuBERT xLarge (from HuBERT-large label) | [LibriLight](https://github.com/facebookresearch/libri-light) 60k hr | [download](https://dl.fbaipublicfiles.com/mrhubert/mono_xlarge/v2.pt) | Not in paper
 
 ## Load a model
 ```
