@@ -54,11 +54,10 @@ class FairseqMADGRADConfig(FairseqDataclass):
 
 @register_optimizer("madgrad", dataclass=FairseqMADGRADConfig)
 class FairseqMADGRAD(FairseqOptimizer):
-    """
-    MADGRAD_: A Momentumized, Adaptive, Dual Averaged Gradient Method for Stochastic
-    Optimization.
+    """MADGRAD_: A Momentumized, Adaptive, Dual Averaged Gradient Method for
+    Stochastic Optimization.
 
-    .. _MADGRAD: https://arxiv.org/abs/2101.11075
+    _MADGRAD: https://arxiv.org/abs/2101.11075
 
     MADGRAD is a general purpose optimizer that can be used in place of SGD or
     Adam may converge faster and generalize better. Currently GPU-only.
@@ -70,8 +69,7 @@ class FairseqMADGRAD(FairseqOptimizer):
 
     @property
     def optimizer_config(self):
-        """
-        Return a kwarg dictionary that will be used to override optimizer
+        """Return a kwarg dictionary that will be used to override optimizer
         args stored in checkpoints. This allows us to load a checkpoint and
         resume training using a different set of optimizer args, e.g., with a
         different learning rate.
