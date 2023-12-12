@@ -465,6 +465,16 @@ class MultiheadAttention(QuantizeBitLinearMixin, FairseqIncrementalDecoder):
         # TODO: support returning attention weights if needed.
         return y, None
 
+    def _maybe_quantize_weights(self):
+        if self.weight_bits < 32:
+            return (
+                self.q_proj.quantize_weights(),
+                self.k_proj.quantize_weights(),
+                self.v_proj.quantize_weights(),
+            )
+        else:
+            return self.q_proj.weight, self.k_proj.weight, self.v_proj.weight
+
     def forward(
         self,
         query: Tensor,
@@ -535,6 +545,11 @@ class MultiheadAttention(QuantizeBitLinearMixin, FairseqIncrementalDecoder):
                 )
 
             else:
+                (
+                    q_proj_weight,
+                    k_proj_weight,
+                    v_proj_weight,
+                ) = self._maybe_quantize_weights()
                 return F.multi_head_attention_forward(
                     query,
                     key,
@@ -554,9 +569,9 @@ class MultiheadAttention(QuantizeBitLinearMixin, FairseqIncrementalDecoder):
                     need_weights,
                     attn_mask,
                     use_separate_proj_weight=True,
-                    q_proj_weight=self.q_proj.weight,
-                    k_proj_weight=self.k_proj.weight,
-                    v_proj_weight=self.v_proj.weight,
+                    q_proj_weight=q_proj_weight,
+                    k_proj_weight=k_proj_weight,
+                    v_proj_weight=v_proj_weight,
                 )
 
         if incremental_state is not None:

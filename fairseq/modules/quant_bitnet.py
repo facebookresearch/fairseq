@@ -7,16 +7,18 @@ from torch import nn
 
 
 class QParams(nn.Module):
-    def __init__(self, n_bits: int, requires_grad: bool = True):
+    def __init__(self, n_bits, device, requires_grad: bool = True):
         super().__init__()
         q_base = 2 ** (n_bits - 1)
         self.q_min = -q_base
         self.q_max = q_base - 1
 
-        self.scale = nn.Parameter(torch.ones(1), requires_grad=requires_grad)
-        self.zero_point = nn.Parameter(torch.zeros(1), requires_grad=requires_grad)
+        factory_kwargs = {"device": device, "requires_grad": requires_grad}
+
+        self.scale = nn.Parameter(torch.ones(1, **factory_kwargs))
+        self.zero_point = nn.Parameter(torch.zeros(1, **factory_kwargs))
         self.register_buffer("eps", torch.tensor([torch.finfo(torch.float32).eps]))
-        self.initialized = False
+        self.register_buffer("initialized", torch.zeros(1, dtype=torch.bool))
 
     @staticmethod
     def reduce_tensor(X):
@@ -28,15 +30,18 @@ class QParams(nn.Module):
         if world_size > 1 and X.is_cuda:
             dist.all_reduce(X / world_size)
 
+    def is_initialized(self):
+        return self.initialized.item()
+
     @torch.no_grad()
     def _maybe_initialize(self, data):
-        if not self.initialized:
+        if not self.is_initialized():
             tensor_norm = data.abs().mean()
             self.reduce_tensor(tensor_norm)
             self.scale.copy_(2 * tensor_norm / math.sqrt(self.q_max))
             self.scale.data.clamp_(min=self.eps.item())
 
-            self.initialized = True
+            self.initialized = torch.ones_like(self.initialized)
 
     def forward(self, X):
         self._maybe_initialize(X)
@@ -58,7 +63,7 @@ def quantizer_function(input: torch.tensor, qparams: QParams):
 
 def get_default_quant_fn(weight, weight_bits):
     if weight_bits > 1:
-        qparams = QParams(weight_bits)
+        qparams = QParams(weight_bits, weight.device)
         quant_fn = quantizer_function
     else:
         qparams = None
@@ -124,8 +129,11 @@ class BitLinear(nn.Linear):
         vm = torch.vmap(quant_fn)
         return vm(x, qparams, n_bits) if n_bits > 1 else vm(x)
 
+    def quantize_weights(self):
+        return self.weight_bin_fn(self.weight, self.qparams)
+
     def forward(self, input):
-        weight_bin = self.weight_bin_fn(self.weight, self.qparams)
+        weight_bin = self.quantize_weights()
         if self.transpose:
             weight_bin = weight_bin.t()
         return nn.functional.linear(input, weight_bin, self.bias)
