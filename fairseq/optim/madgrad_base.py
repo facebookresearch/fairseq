@@ -60,6 +60,7 @@ class MADGRAD(torch.optim.Optimizer):
         weight_decay: float = 0,
         eps: float = 1e-6,
         decouple_decay=False,
+        par_bits=0,
     ):
         if momentum < 0 or momentum >= 1:
             raise ValueError(f"Momentum {momentum} must be in the range [0,1)")
@@ -76,6 +77,7 @@ class MADGRAD(torch.optim.Optimizer):
             momentum=momentum,
             weight_decay=weight_decay,
             decouple_decay=decouple_decay,
+            par_bits=par_bits,
         )
         super().__init__(params, defaults)
 
@@ -112,6 +114,7 @@ class MADGRAD(torch.optim.Optimizer):
             decay = group["weight_decay"]
             momentum = group["momentum"]
             decouple_decay = group.get("decouple_decay", False)
+            par_bits = group.get("par_bits", 0)
 
             ck = 1 - momentum
             lamb = lr * math.pow(k + 1, 0.5)
@@ -210,12 +213,17 @@ class MADGRAD(torch.optim.Optimizer):
                     if momentum == 0:
                         p_data_fp32.copy_(x0.addcdiv(s, rms, value=-1))
                     else:
-                        z = x0.addcdiv(s, rms, value=-1)
+                        if par_bits > 0 and decouple_decay:
+                            z = s.clone().mul_(-1).addcmul_(x0, rms)
+                            omega = z.norm(p=1).div(z.nelement())
+                            z.clamp_(min=-omega, max=omega).div_(rms)
+                        else:
+                            z = x0.addcdiv(s, rms, value=-1)
 
                         # p is a moving average of z
                         p_data_fp32.mul_(1 - ck).add_(z, alpha=ck)
 
-                    if decay != 0 and decouple_decay:
+                    if decouple_decay and decay != 0:
                         p_data_fp32.add_(p_old, alpha=-lr * decay)
 
                     if p.data.dtype in {torch.float16, torch.bfloat16}:

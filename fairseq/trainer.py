@@ -287,7 +287,6 @@ class Trainer(object):
         return self._lr_scheduler
 
     def _build_optimizer(self):
-
         if (
             self.cfg.optimization.debug_param_names
             and self.cfg.common.fp16_no_flatten_grads
@@ -308,6 +307,20 @@ class Trainer(object):
                     chain(self.model.parameters(), self.criterion.parameters()),
                 )
             )
+
+        is_adam_par = (
+            self.cfg.optimizer["_name"] == "adam" and self.cfg.optimizer["apply_par"]
+        )
+        is_madgrad_par = (
+            self.cfg.optimizer["_name"] == "madgrad"
+            and self.cfg.optimizer["par_bits"] > 0
+        )
+        if is_madgrad_par or is_adam_par:
+            param_dct = {k: p for k, p in self.model.named_parameters()}
+            non_par_params = {
+                p for k, p in param_dct.items() if k.endswith("embed_tokens.weight")
+            }
+            params = list(set(params) - non_par_params)
 
         if self.is_fsdp and self.cfg.common.fp16:
             # FullyShardedDataParallel always uses MemoryEfficientFP16 wrapper,
@@ -342,6 +355,16 @@ class Trainer(object):
                     "NOTE: your device may support faster training with --fp16 or --amp"
                 )
             self._optimizer = optim.build_optimizer(self.cfg.optimizer, params)
+
+            # Add extra param_group that disables relevant regularization
+            if is_adam_par:
+                self._optimizer._optimizer.add_param_group(
+                    {"params": list(non_par_params), "apply_par": False}
+                )
+            elif is_madgrad_par:
+                self._optimizer._optimizer.add_param_group(
+                    {"params": list(non_par_params), "par_bits": 0}
+                )
 
         if self.is_fsdp:
             assert (
