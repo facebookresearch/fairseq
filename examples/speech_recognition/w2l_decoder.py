@@ -95,11 +95,6 @@ class W2lDecoder(object):
         idxs = filter(lambda x: x != self.blank, idxs)
         return torch.LongTensor(list(idxs))
 
-
-class W2lViterbiDecoder(W2lDecoder):
-    def __init__(self, args, tgt_dict):
-        super().__init__(args, tgt_dict)
-
     def get_timesteps(self, token_idxs: List[int]) -> List[int]:
         """Returns frame numbers corresponding to every non-blank token.
 
@@ -140,6 +135,11 @@ class W2lViterbiDecoder(W2lDecoder):
             chars.append(self.symbols[token_idx])
 
         return chars
+
+
+class W2lViterbiDecoder(W2lDecoder):
+    def __init__(self, args, tgt_dict):
+        super().__init__(args, tgt_dict)
         
     def decode(self, emissions):
         B, T, N = emissions.size()
@@ -249,47 +249,6 @@ class W2lKenLMDecoder(W2lDecoder):
                 self.decoder_opts, self.lm, self.silence, self.blank, []
             )
 
-    def get_timesteps(self, token_idxs: List[int]) -> List[int]:
-        """Returns frame numbers corresponding to every non-blank token.
-
-        Parameters
-        ----------
-        token_idxs : List[int]
-            IDs of decoded tokens (including blank tokens), i.e. list of tokens spanning all frames of the emission matrix.
-
-        Returns
-        -------
-        List[int]
-            Frame numbers corresponding to every non-blank token.
-        """
-        timesteps = []
-        for i, token_idx in enumerate(token_idxs):
-            if token_idx == self.blank:
-                continue
-            if i == 0 or token_idx != token_idxs[i-1]:
-                timesteps.append(i)
-
-        return timesteps
-
-    def get_symbols(self, token_idxs: List[int]) -> List[int]:
-        """Returns characters corresponding to every non-blank token.
-
-        Parameters
-        ----------
-        token_idxs : List[int]
-            IDs of non-blank tokens.
-
-        Returns
-        -------
-        List[int]
-            Character corresponding to every non-blank token.
-        """
-        chars = []
-        for token_idx in token_idxs:
-            chars.append(self.symbols[token_idx])
-
-        return chars
-
     def decode(self, emissions):
         B, T, N = emissions.size()
         hypos = []
@@ -305,7 +264,7 @@ class W2lKenLMDecoder(W2lDecoder):
                         "symbols": self.get_symbols(self.get_tokens(result.tokens)), # characters (symbols) corresponding to non-blank token idxs.
                         "score": result.score,
                         "timesteps": self.get_timesteps(result.tokens), # frame numbers of non-blank tokens.
-                        "words": [self.word_dict.get_entry(x) for x in result.words if x >= 0] # the transcript as a list of words.
+                        "words": [self.word_dict.get_entry(x) for x in result.words if x >= 0] # the transcript as a list of words. Empty if lexicon-free decoding.
                     }
                     for result in nbest_results
                 ]
@@ -532,47 +491,6 @@ class W2lFairseqLMDecoder(W2lDecoder):
                 self.decoder_opts, self.lm, self.silence, self.blank, []
             )
 
-    def get_timesteps(self, token_idxs: List[int]) -> List[int]:
-        """Returns frame numbers corresponding to every non-blank token.
-
-        Parameters
-        ----------
-        token_idxs : List[int]
-            IDs of decoded tokens (including blank tokens), i.e. list of tokens spanning all frames of the emission matrix.
-
-        Returns
-        -------
-        List[int]
-            Frame numbers corresponding to every non-blank token.
-        """
-        timesteps = []
-        for i, token_idx in enumerate(token_idxs):
-            if token_idx == self.blank:
-                continue
-            if i == 0 or token_idx != token_idxs[i-1]:
-                timesteps.append(i)
-
-        return timesteps
-
-    def get_symbols(self, token_idxs: List[int]) -> List[int]:
-        """Returns characters corresponding to every non-blank token.
-
-        Parameters
-        ----------
-        token_idxs : List[int]
-            IDs of non-blank tokens.
-
-        Returns
-        -------
-        List[int]
-            Character corresponding to every non-blank token.
-        """
-        chars = []
-        for token_idx in token_idxs:
-            chars.append(self.symbols[token_idx])
-
-        return chars
-
     def decode(self, emissions):
         B, T, N = emissions.size()
         hypos = []
@@ -589,7 +507,7 @@ class W2lFairseqLMDecoder(W2lDecoder):
                         "score": result.score
                     }
             if self.lexicon:
-                hypo["words"] = [idx_to_word(x) for x in result.words if x >= 0] # the transcript as a list of words.
+                hypo["words"] = [idx_to_word(x) for x in result.words if x >= 0] # the transcript as a list of words. Empty if lexicon-free decoding.
             hypo["symbols"] = self.get_symbols(hypo["tokens"]) # characters (symbols) corresponding to non-blank token idxs.
             hypo["timesteps"] = self.get_timesteps(result.tokens) # frame numbers of non-blank tokens.
 
