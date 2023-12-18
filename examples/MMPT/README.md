@@ -1,166 +1,25 @@
-# VideoCLIP and VLM
+# SignCLIP - Connecting text and sign language by contrastive learning
 
-You just find this toolkit for multimodal video understanding! It contains implementation of two recent multi-modal video understanding papers [VideoCLIP](https://arxiv.org/pdf/2109.14084.pdf) (EMNLP, 2021) and [VLM](https://aclanthology.org/2021.findings-acl.370.pdf) (ACL Findings, 2021), along with high-performance toolkits that are typically lacking in existing codebase. The toolkit is desigend to contain generic performance-tuned components that can be potentially adapted to other frameworks (we initially use fairseq). 
+This codebase is an adaption of [VideoCLIP](https://github.com/facebookresearch/fairseq/tree/main/examples/MMPT), where general videos (e.g., [HowTo100M](https://www.di.ens.fr/willow/research/howto100m/)) are replaced by specific sign language videos (e.g., [How2Sign](https://how2sign.github.io/)) to bring together text and sign language under a same latent space. See VideoCLIP's original README for an overall introduction of multimodal video understanding and instructions on how to install and use the packages.
 
-VideoCLIP is a contrastive learning model for zero-shot transfer to retrieval/classification/sequence labeling style tasks.
+Video is the most available and rawest representational format that contains human motion and sign language. However, videos are very dense both temporally (*FPS*, frame per second) and spatially (resolution), which are not computataionally efficient and thus require a video encoder to extract informative features with reduced dimentionalties for downstream tasks. 
 
-<img src="videoclip.png" width="350" class="center">
+VideoCLIP uses a [S3D](https://github.com/antoine77340/S3D_HowTo100M) model pretrained on the HowTo100M instructional videos as the video encoder and it produces one video token per second. For sign language, it is possible to use a similar video encoder pretrained on sign language videos. A prominent one is the [I3D](https://www.robots.ox.ac.uk/~vgg/research/bslattend/) model pretrained specifically on the sign language recognition task of British Sign Language.
 
-VLM is a masked language model style pre-training using only one encoder with masked modality model (MMM) for retrieval/generation/sequence labeling style tasks.
+A potentially more interpretable and universal way of extracting sign language related features from videos is human pose estimation, for example by [MediaPipe Holistic](https://github.com/google/mediapipe/blob/master/docs/solutions/holistic.md). Recently, quantization-based approaches (such as [SignVQNet](http://nlpcl.kaist.ac.kr/~projects/signvqnet)) have also appeared as an alternative to convert continuous representations of sign language (videos/poses) to discreate tokens similar to spoken language (sub-)words.
 
-<img src="vlm.png" width="350" class="center">
+Given a 10-second 480p (640×480) RGB (3 channels) video with 30 FPS, we make a rough comprison between the dimentionalities of different video encoders:
 
-### News
-[Oct. 2021] Initial release of implementation for the following papers:  
-[VideoCLIP: Contrastive Pre-training for Zero-shot Video-Text Understanding](https://arxiv.org/pdf/2109.14084.pdf) (Xu et. al., EMNLP 2021)  
-[VLM: Task-agnostic Video-Language Model Pre-training for Video Understanding](https://aclanthology.org/2021.findings-acl.370.pdf) (Xu et. al., ACL Findings 2021)  
+| Encoder | Temporal dim. | Spatial dim. | 
+|-----------|-----------|-----------|
+| Original video | 10x30 | 640×480x3 |
+| S3D (pretrained on HowTo100M) | 10 | 512 |
+| I3D (pretrained on BSL) | 10 | 1024 |
+| MediaPipe Holistic | 10x30 | 543 |
+| SignVQNet | 10 | 1024 |
 
+On the text side, we follow VideoCLIP and use the pretrained [BERT](https://huggingface.co/docs/transformers/model_doc/bert) model. One additional idea is to use [SignWriting](https://github.com/sign-language-processing/transcription/blob/aa2b1ead7d39b2d545b83bac2041b4b539471a7c/pose_to_text/IDEA-CLIP.md) as a phonetic text representation of sign language.
 
-### Installation
-We aim to minimize the dependency of this repo on other packages.  
-We use fairseq as the main trainer (no models/datasets dependency on fairseq. We will support other trainer in future):  
-```
-git clone https://github.com/pytorch/fairseq
-cd fairseq
-pip install -e .  # also optionally follow fairseq README for apex installation for fp16 training.
-export MKL_THREADING_LAYER=GNU  # fairseq may need this for numpy.
-```
+## Credits
 
-Then install this toolkit:
-```
-cd examples/MMPT  # MMPT can be in any folder, not necessarily under fairseq/examples.
-pip install -e .
-```
-
-The code is developed under Python=3.8.8, Pytorch=1.8, cuda=11.0 with fairseq=1.0.0a0+af0389f and tested under Python=3.8.8 pytorch=1.9 cuda=11.0 fairseq=1.0.0a0+8e7bc73 during code release.
-Most models require `transformers==3.4` for API compatibility `pip install transformers==3.4`. 
-In addition, some downstream tasks may need `conda install pandas`.  
-
-
-### Usage
-#### Download Checkpoints
-We use pre-trained [S3D](https://github.com/antoine77340/S3D_HowTo100M) for video feature extraction. Please place the models as `pretrained_models/s3d_dict.npy` and `pretrained_models/s3d_howto100m.pth`.
-
-Download VideoCLIP checkpoint `https://dl.fbaipublicfiles.com/MMPT/retri/videoclip/checkpoint_best.pt` to `runs/retri/videoclip` or VLM checkpoint `https://dl.fbaipublicfiles.com/MMPT/mtm/vlm/checkpoint_best.pt` to `runs/mtm/vlm`.
-
-#### Demo of Inference
-run `python locallaunch.py projects/retri/videoclip.yaml --dryrun` to get all `.yaml`s for VideoCLIP.
-
-```python
-import torch
-
-from mmpt.models import MMPTModel
-
-
-model, tokenizer, aligner = MMPTModel.from_pretrained(
-    "projects/retri/videoclip/how2.yaml")
-
-model.eval()
-
-
-# B, T, FPS, H, W, C (VideoCLIP is trained on 30 fps of s3d)
-video_frames = torch.randn(1, 2, 30, 224, 224, 3)
-caps, cmasks = aligner._build_text_seq(
-    tokenizer("some text", add_special_tokens=False)["input_ids"]
-)
-
-caps, cmasks = caps[None, :], cmasks[None, :]  # bsz=1
-
-with torch.no_grad():
-    output = model(video_frames, caps, cmasks, return_score=True)
-print(output["score"])  # dot-product
-```
-
-#### Data Preparation
-See [dataset](DATASET.md) for each dataset.
-
-#### Global Config for Training Pipeline
-We organize a global config file for a training/testing pipeline under projects (see a detailed [explanation](CONFIG.md)). For example, VideoCLIP in `projects/retri/videoclip.yaml` and VLM is in `projects/mtm/vlm.yaml`.
-
-We wrap all cmds into `locallaunch.py` and `mmpt_cli/localjob.py`. You can check concrete cmds by `--dryrun` and then drop it for actual run.  
-
-First, run `python locallaunch.py projects/retri/videoclip.yaml --dryrun` will generate configs for all configs of pre-training, zero-shot evaluation, fine-tuning and testing, for VideoCLIP under `projects/retri/videoclip`.  
-
-Then each (either training or evaluation) process will be configed by a concrete config file (we save all complex arguments into the concrete config file for reproducibility, including fairseq args). For example, run zero-shot evaluation on youcook,
-```
-python locallaunch.py projects/retri/videoclip/test_youcook_zs.yaml --jobtype local_predict  # zero-shot evaluation.
-python locallaunch.py projects/retri/videoclip/youcook_videoclip.yaml --jobtype local_single --dryrun  # fine-tuning: use --dryrun to check cmds and drop it to make an actual run; local_small will run on two gpus (as in paper).
-python locallaunch.py projects/retri/videoclip/test_youcook_videoclip.yaml --jobtype local_predict  # testing on fine-tuned model.
-```
-
-Pretraining can be run as:  
-```
-python locallaunch.py projects/retri/videoclip/how2.yaml --jobtype local_single --dryrun # check then drop dryrun; paper is ran on local_big as 8 gpus.
-```
-You may need to change `--jobtype`, check/extend `LocalJob` in `mmpt_cli/localjob.py` for multi-gpu/multi-node pre-training.
-
-The detailed instructions of pretraining and fine-tuning can be found at [pretraining instruction](pretraining.md) and [finetuning instruction](endtask.md).
-
-
-### Development
-Several components of this toolkit can be re-used for future research (and also our ongoing research).
-
-#### Framework Wrapper
-We currently only support fairseq, but most components can be easily fit into other frameworks like huggingface. This repo is a `--user-dir` of fairseq with fairseq wrapper. For example, `mmpt/tasks` includes a `FairseqMMTTask`, which manages `mmpt/datasets` with `FairseqDataset`, `mmpt/models` with `FairseqModel`, `mmpt/losses` with `FairseqCriterion`.  
-
-#### Processors
-**Multi**modal research introduces the complexity on modality alignment from different input sources to losses. Inspired by [MMF](https://github.com/facebookresearch/mmf), this toolkit leverages `mmpt/processors` to handle various needs of data preprocessing and loading, **alleviating** the needs of multiple `torch.data.utils.Dataset` (that can be tricky for ablation study).  
-Processors can also be decoupled from `torch.data.utils.Dataset` for offline preprocessing instead of on-the-fly data preprocessing.
-
-We decouple a `mmpt.MMDataset` as 3 types of processors: `MetaProcessor`, `VideoProcessor`, `TextProcessor` and `Aligner`. They can be configed in `dataset` field of a config file (e.g., see `projects/task/how2.yaml`).  
-`MetaProcessor` is used to load the meta data about a dataset, aka, all video_ids of how2 dataset.  
-`VideoProcessor` is used to load the video features about a dataset. For example, S3D features for each second of a video.  
-`TextProcessor` is used to load the text (feature). For example, BERT pre-tokenized text clips for how2 dataset (with `start`s, `end`s of timestamps and `cap` for `token_ids`).  
-`Aligner` is the core class for different baselines that prepares the training data. For example, sampling a clip, masking tokens for MLM, etc.
-
-#### Performance-tuned Components
-To speed up pre-training, this toolkit uses sharded features stored in mmaped numpy, backed by `ShardedTensor` in `mmpt/utils/shardedtensor.py` (adopted from MARGE paper). This reduces the loads of IO for multi-GPU training without loading all features for a video into the memory each time and `ShardedTensor` ensure features are stored in continuous disk space for near random access. This is used for both How2 video features and texts in `mmpt/processors/how2processor.py`.
-
-
-### Citation
-If this codebase is useful for your work, please cite the following papers:
-
-```BibTeX
-@inproceedings{xu-etal-2021-videoclip,
-    title = "{VideoCLIP}: Contrastive Pre-training for\\Zero-shot Video-Text Understanding",
-    author = "Xu, Hu  and
-      Ghosh, Gargi  and
-      Huang, Po-Yao  and
-      Okhonko, Dmytro  and
-      Aghajanyan, Armen  and
-      Metze, Florian  and
-      Zettlemoyer, Luke  and
-      Feichtenhofer, Christoph",
-    booktitle = "Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing (EMNLP)",
-    month = nov,
-    year = "2021",
-    address = "Online",
-    publisher = "Association for Computational Linguistics",
-}
-
-@inproceedings{xu-etal-2021-vlm,
-    title = "{VLM}: Task-agnostic Video-Language Model Pre-training for Video Understanding",
-    author = "Xu, Hu  and
-      Ghosh, Gargi  and
-      Huang, Po-Yao  and
-      Arora, Prahal  and
-      Aminzadeh, Masoumeh  and
-      Feichtenhofer, Christoph  and
-      Metze, Florian  and
-      Zettlemoyer, Luke",
-    booktitle = "Findings of the Association for Computational Linguistics: ACL-IJCNLP 2021",
-    month = aug,
-    year = "2021",
-    address = "Online",
-    publisher = "Association for Computational Linguistics",
-    url = "https://aclanthology.org/2021.findings-acl.370",
-    doi = "10.18653/v1/2021.findings-acl.370",
-    pages = "4227--4239",
-}
-```
-
-### Bug Reports
-This repo is in its initial stage, welcome bug reports to huxu@fb.com
-
-### Copyright
-The majority of Multimodal Pre-training (MMPT) is licensed under CC-BY-NC, however portions of the project are available under separate license terms: Evaluation Codes/Models: Howto100M and HuggingFace Transformers are licensed under the Apache2.0 license; COIN and NLG-eval are licensed under the MIT license; CrossTask is licensed under the BSD-3; DiDeMo is licensed under the BSD-2 license.
+Mathias Müller (@bricksdont) proposes the [initial idea](https://docs.google.com/document/d/1mUSLZs_DWc4mHn_nt0soKf1hsTtbrHUUnEX_QBCth5w/edit#heading=h.p699gptqhse9).
