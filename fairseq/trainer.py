@@ -308,8 +308,8 @@ class Trainer(object):
                 )
             )
 
-        is_adam_par = (
-            self.cfg.optimizer["_name"] == "adam" and self.cfg.optimizer["apply_par"]
+        is_adam_par = self.cfg.optimizer["_name"] == "adam" and self.cfg.optimizer.get(
+            "apply_par", False
         )
         is_madgrad_par = (
             self.cfg.optimizer["_name"] == "madgrad"
@@ -318,7 +318,11 @@ class Trainer(object):
         if is_madgrad_par or is_adam_par:
             param_dct = {k: p for k, p in self.model.named_parameters()}
             non_par_params = {
-                p for k, p in param_dct.items() if k.endswith("embed_tokens.weight")
+                p
+                for k, p in param_dct.items()
+                if k.endswith("bias")
+                or k.endswith("embed_tokens.weight")
+                or k.endswith("layer_norm.weight")
             }
             params = list(set(params) - non_par_params)
 

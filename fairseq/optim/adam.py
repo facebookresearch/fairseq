@@ -36,7 +36,6 @@ class FairseqAdamConfig(FairseqDataclass):
     fp16_adam_stats: bool = field(
         default=False, metadata={"help": "use FP16 stats (with automatic scaling)"}
     )
-    apply_par: bool = field(default=False, metadata={"help": "apply PAR regularizer"})
     # TODO common vars below in parent
     tpu: bool = II("common.tpu")
     lr: List[float] = II("optimization.lr")
@@ -65,7 +64,7 @@ class FairseqAdam(FairseqOptimizer):
             # on TPUs we use the Adam defined here, since it
             # automatically casts gradients to FP32
             self._optimizer = Adam(params, **self.optimizer_config)
-        elif use_fused_adam and not cfg.apply_par:
+        elif use_fused_adam:
             logger.info("using FusedAdam")
             self._optimizer = fused_adam_cls(
                 params, use_fp16_stats=self.cfg.fp16_adam_stats, **self.optimizer_config
@@ -93,7 +92,6 @@ class FairseqAdam(FairseqOptimizer):
             if isinstance(self.cfg.adam_betas, str)
             else OmegaConf.to_container(self.cfg.adam_betas),
             "eps": self.cfg.adam_eps,
-            "apply_par": self.cfg.apply_par,
             "weight_decay": self.cfg.weight_decay,
         }
 
@@ -129,7 +127,6 @@ class Adam(torch.optim.Optimizer):
         weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
         amsgrad (boolean, optional): whether to use the AMSGrad variant of this
             algorithm from the paper `On the Convergence of Adam and Beyond`_
-        apply_par (boolean, optional): whether to apply PAR regularizer
 
     .. _Adam\: A Method for Stochastic Optimization:
         https://arxiv.org/abs/1412.6980
@@ -145,15 +142,9 @@ class Adam(torch.optim.Optimizer):
         eps=1e-8,
         weight_decay=0,
         amsgrad=False,
-        apply_par=False,
     ):
         defaults = dict(
-            lr=lr,
-            betas=betas,
-            eps=eps,
-            weight_decay=weight_decay,
-            amsgrad=amsgrad,
-            apply_par=apply_par,
+            lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, amsgrad=amsgrad,
         )
         super(Adam, self).__init__(params, defaults)
 
@@ -241,10 +232,6 @@ class Adam(torch.optim.Optimizer):
                     )
 
                 p_data_fp32.addcdiv_(exp_avg, denom, value=-step_size)
-
-                if group.get("apply_par", False):
-                    omega = p_data_fp32.norm(p=1).div(p_data_fp32.nelement())
-                    p_data_fp32.clamp_(min=-omega, max=omega)
 
                 if p.data.dtype in {torch.float16, torch.bfloat16}:
                     p.data.copy_(p_data_fp32)

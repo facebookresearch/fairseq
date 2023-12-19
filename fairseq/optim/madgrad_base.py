@@ -115,6 +115,7 @@ class MADGRAD(torch.optim.Optimizer):
             momentum = group["momentum"]
             decouple_decay = group.get("decouple_decay", False)
             par_bits = group.get("par_bits", 0)
+            apply_par = par_bits > 0 and decouple_decay
 
             ck = 1 - momentum
             lamb = lr * math.pow(k + 1, 0.5)
@@ -136,6 +137,10 @@ class MADGRAD(torch.optim.Optimizer):
                     state["s"] = torch.zeros_like(p_data_fp32).detach()
                     if momentum != 0:
                         state["x0"] = torch.clone(p_data_fp32).detach()
+                    if apply_par:
+                        state["lamb_sum"] = torch.zeros(
+                            1, dtype=p_data_fp32.dtype, device=p_data_fp32.device
+                        )
 
                 if momentum != 0.0 and grad.is_sparse:
                     raise RuntimeError(
@@ -210,18 +215,20 @@ class MADGRAD(torch.optim.Optimizer):
                         p_old = p_data_fp32.clone()
 
                     # Step
-                    if momentum == 0:
-                        p_data_fp32.copy_(x0.addcdiv(s, rms, value=-1))
-                    else:
-                        if par_bits > 0 and decouple_decay:
-                            z = s.clone().mul_(-1).addcmul_(x0, rms)
-                            omega = z.norm(p=1).div(z.nelement())
-                            z.clamp_(min=-omega, max=omega).div_(rms)
-                        else:
-                            z = x0.addcdiv(s, rms, value=-1)
+                    z = x0.addcdiv(s, rms, value=-1)
+                    if apply_par:
+                        state["lamb_sum"] += lamb
+                        omega = z.abs().mean()
+                        z = torch.where(
+                            z.abs() < omega.mul(rms.div(state["lamb_sum"])),
+                            z,
+                            torch.sign(z).mul_(omega),
+                        )
 
-                        # p is a moving average of z
-                        p_data_fp32.mul_(1 - ck).add_(z, alpha=ck)
+                    if momentum != 0:
+                        z.mul_(ck).add_(p_data_fp32, alpha=1 - ck)
+
+                    p_data_fp32.copy_(z)
 
                     if decouple_decay and decay != 0:
                         p_data_fp32.add_(p_old, alpha=-lr * decay)
