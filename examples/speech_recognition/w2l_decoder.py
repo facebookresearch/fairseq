@@ -12,33 +12,33 @@ Flashlight decoders.
 import gc
 import itertools as it
 import os.path as osp
-from typing import List
 import warnings
 from collections import deque, namedtuple
+from typing import List
 
 import numpy as np
 import torch
+from omegaconf import open_dict
+
 from examples.speech_recognition.data.replabels import unpack_replabels
 from fairseq import tasks
-from fairseq.utils import apply_to_sample
-from omegaconf import open_dict
-from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.data.data_utils import post_process
-
+from fairseq.dataclass.utils import convert_namespace_to_omegaconf
+from fairseq.utils import apply_to_sample
 
 try:
-    from flashlight.lib.text.dictionary import create_word_dict, load_words
     from flashlight.lib.sequence.criterion import CpuViterbiPath, get_data_ptr_as_bytes
     from flashlight.lib.text.decoder import (
-        CriterionType,
-        LexiconDecoderOptions,
-        KenLM,
         LM,
+        CriterionType,
+        KenLM,
+        LexiconDecoder,
+        LexiconDecoderOptions,
         LMState,
         SmearingMode,
         Trie,
-        LexiconDecoder,
     )
+    from flashlight.lib.text.dictionary import create_word_dict, load_words
 except:
     warnings.warn(
         "flashlight python bindings are required to use this functionality. Please install from https://github.com/facebookresearch/flashlight/tree/master/bindings/python"
@@ -52,7 +52,9 @@ class W2lDecoder(object):
         self.tgt_dict = tgt_dict
         self.vocab_size = len(tgt_dict)
         self.nbest = args.nbest
-        self.symbols = tgt_dict.symbols # symbols (usually chars) understood by the ASR model, that are predicted in the emission matrix.
+        self.symbols = (
+            tgt_dict.symbols
+        )  # symbols (usually chars) understood by the ASR model, that are predicted in the emission matrix.
 
         # criterion-specific init
         self.criterion_type = CriterionType.CTC
@@ -84,7 +86,7 @@ class W2lDecoder(object):
         model = models[0]
         encoder_out = model(**encoder_input)
         if hasattr(model, "get_logits"):
-            emissions = model.get_logits(encoder_out) # no need to normalize emissions
+            emissions = model.get_logits(encoder_out)  # no need to normalize emissions
         else:
             emissions = model.get_normalized_probs(encoder_out, log_probs=True)
         return emissions.transpose(0, 1).float().cpu().contiguous()
@@ -112,9 +114,9 @@ class W2lDecoder(object):
         for i, token_idx in enumerate(token_idxs):
             if token_idx == self.blank:
                 continue
-            if i == 0 or token_idx != token_idxs[i-1]:
+            if i == 0 or token_idx != token_idxs[i - 1]:
                 timesteps.append(i)
-                
+
         return timesteps
 
     def get_symbols(self, token_idxs: List[int]) -> List[int]:
@@ -140,7 +142,7 @@ class W2lDecoder(object):
 class W2lViterbiDecoder(W2lDecoder):
     def __init__(self, args, tgt_dict):
         super().__init__(args, tgt_dict)
-        
+
     def decode(self, emissions):
         B, T, N = emissions.size()
         hypos = []
@@ -161,18 +163,27 @@ class W2lViterbiDecoder(W2lDecoder):
         )
 
         for b in range(B):
+            tokens = self.get_tokens(viterbi_path[b].tolist()).tolist()
             hypos.append(
                 [
                     {
-                        "tokens": self.get_tokens(viterbi_path[b].tolist()).tolist(), # non-blank token idxs.
-                        "symbols": self.get_symbols(self.get_tokens(viterbi_path[b].tolist()).tolist()), # characters (symbols) corresponding to non-blank token idxs.
+                        "tokens": tokens,  # non-blank token idxs.
+                        "symbols": self.get_symbols(
+                            tokens
+                        ),  # characters (symbols) corresponding to non-blank token idxs.
                         "score": 0,
-                        "timesteps": self.get_timesteps(viterbi_path[b].tolist()), # frame numbers of non-blank tokens.
-                        "words": post_process(self.tgt_dict.string(self.get_tokens(viterbi_path[b].tolist()).int().cpu()), 'letter').split(' ') # the transcript as a list of words.
+                        "timesteps": self.get_timesteps(
+                            viterbi_path[b].tolist()
+                        ),  # frame numbers of non-blank tokens.
+                        "words": post_process(
+                            self.tgt_dict.string(tokens), "letter"
+                        ).split(
+                            " "
+                        ),  # the transcript as a list of words.
                     }
                 ]
             )
-        
+
         return hypos
 
 
@@ -230,8 +241,13 @@ class W2lKenLMDecoder(W2lDecoder):
                 self.unit_lm,
             )
         else:
-            assert args.unit_lm, "lexicon free decoding can only be done with a unit language model"
-            from flashlight.lib.text.decoder import LexiconFreeDecoder, LexiconFreeDecoderOptions
+            assert (
+                args.unit_lm
+            ), "lexicon free decoding can only be done with a unit language model"
+            from flashlight.lib.text.decoder import (
+                LexiconFreeDecoder,
+                LexiconFreeDecoderOptions,
+            )
 
             d = {w: [[w]] for w in tgt_dict.symbols}
             self.word_dict = create_word_dict(d)
@@ -260,13 +276,22 @@ class W2lKenLMDecoder(W2lDecoder):
             hypos.append(
                 [
                     {
-                        "tokens": self.get_tokens(result.tokens).tolist(), # non-blank token idxs.
-                        "symbols": self.get_symbols(self.get_tokens(result.tokens)), # characters (symbols) corresponding to non-blank token idxs.
+                        "tokens": tokens,  # non-blank token idxs.
+                        "symbols": self.get_symbols(
+                            tokens
+                        ),  # characters (symbols) corresponding to non-blank token idxs.
                         "score": result.score,
-                        "timesteps": self.get_timesteps(result.tokens), # frame numbers of non-blank tokens.
-                        "words": [self.word_dict.get_entry(x) for x in result.words if x >= 0] # the transcript as a list of words. Empty if lexicon-free decoding.
+                        "timesteps": self.get_timesteps(
+                            result.tokens
+                        ),  # frame numbers of non-blank tokens.
+                        "words": [
+                            self.word_dict.get_entry(x) for x in result.words if x >= 0
+                        ],  # the transcript as a list of words. Empty if lexicon-free decoding.
                     }
                     for result in nbest_results
+                    if (
+                        tokens := self.get_tokens(result.tokens).tolist()
+                    )  # tokens is a local variable for the list comprehension.
                 ]
             )
         return hypos
@@ -472,8 +497,13 @@ class W2lFairseqLMDecoder(W2lDecoder):
                 self.unit_lm,
             )
         else:
-            assert args.unit_lm, "lexicon free decoding can only be done with a unit language model"
-            from flashlight.lib.text.decoder import LexiconFreeDecoder, LexiconFreeDecoderOptions
+            assert (
+                args.unit_lm
+            ), "lexicon free decoding can only be done with a unit language model"
+            from flashlight.lib.text.decoder import (
+                LexiconFreeDecoder,
+                LexiconFreeDecoderOptions,
+            )
 
             d = {w: [[w]] for w in tgt_dict.symbols}
             self.word_dict = create_word_dict(d)
@@ -503,13 +533,21 @@ class W2lFairseqLMDecoder(W2lDecoder):
 
         def make_hypo(result):
             hypo = {
-                        "tokens": self.get_tokens(result.tokens).tolist(),  # non-blank token idxs.
-                        "score": result.score
-                    }
+                "tokens": self.get_tokens(
+                    result.tokens
+                ).tolist(),  # non-blank token idxs.
+                "score": result.score,
+            }
             if self.lexicon:
-                hypo["words"] = [idx_to_word(x) for x in result.words if x >= 0] # the transcript as a list of words. Empty if lexicon-free decoding.
-            hypo["symbols"] = self.get_symbols(hypo["tokens"]) # characters (symbols) corresponding to non-blank token idxs.
-            hypo["timesteps"] = self.get_timesteps(result.tokens) # frame numbers of non-blank tokens.
+                hypo["words"] = [
+                    idx_to_word(x) for x in result.words if x >= 0
+                ]  # the transcript as a list of words. Empty if lexicon-free decoding.
+            hypo["symbols"] = self.get_symbols(
+                hypo["tokens"]
+            )  # characters (symbols) corresponding to non-blank token idxs.
+            hypo["timesteps"] = self.get_timesteps(
+                result.tokens
+            )  # frame numbers of non-blank tokens.
 
             return hypo
 
