@@ -48,13 +48,21 @@ and training strategies:
 - from scratch
 
 The same as the original VideoCLIP model training, in all experiments, the video encoders are frozen and only the weights of the two separate
-trainable Transformers (one each for video and text) are updated, initialized with the pre-trained `bert-base-uncased`. We train 25 epochs from scratch and 10 epochs for finetuning, respectively.
+trainable Transformers (one each for video and text) are updated, initialized with the pre-trained `bert-base-uncased`. We train 25 epochs from scratch and 10 epochs for finetuning, respectively. To start the training, run the following command with the desired config file:
+
+```
+python locallaunch.py projects/retri/fingerclip/rwthfs_scratch_pose.yaml --jobtype local_single
+```
 
 ### Evaluation
 
-We evaluate the models by viewing fingerspelling understanding as a text-video/video-text retrieval task. For both directions, the candidates are ranked by the cosine similarity to the text/video query in the latent space. 
+We evaluate the models by viewing fingerspelling understanding as a text-video/video-text retrieval task. For both directions, the candidates are ranked by the cosine similarity to the text/video query in the latent space. To run the inference and evaluation on the test set:
 
-For each test text prompt `'Fingerspell the letter <letter_name> in German Sign Language.'`, there is possibly more than one correct video (e.g, the same letter signed by different signers) in the test video pool, and they are all considered a successful retrieval. We thus evaluate the text-video retrieval task by `precision@k`, i.e., in the k most similar candidates, how many of them are correct answers. For each test video example, there is only one correct text prompt out of the 35 possible prompts. We thus evaluate the video-text retrieval task by `recall@k`, i.e., by taking the k most similar candidates, how much is the chance that one of them is the correct answer. When `k=1`, both `precision@k` and `recall@k` can be interpreted as the retrieval accuracy. For both directions, we add an additional metric `Median R`, which is the median value of the index of the first correct answer in the candidate lists. 
+```
+python locallaunch.py projects/retri/fingerclip/test_rwthfs_scratch_pose.yaml --jobtype local_predict
+```
+
+For each test text prompt `'Fingerspell the letter <letter_name> in German Sign Language.'`, there is possibly more than one correct video (e.g, the same letter signed by different signers) in the test video pool, and they are all considered a successful retrieval. We thus evaluate the text-video retrieval task by `precision@k`, i.e., in the k most similar candidates, how many of them are correct answers. For each test video example, there is only one correct text prompt out of the 35 possible prompts. We thus evaluate the video-text retrieval task by `recall@k`, i.e., by taking the k most similar candidates, how much is the chance that one of them is the correct answer. When `k=1`, both `precision@k` and `recall@k` can be interpreted as the retrieval accuracy. For both directions, we add an additional metric `Median R`, which is the median value of the index of the first correct answer in the candidate lists.
 
 Please refer to [results_rwthfs.csv](https://github.com/J22Melody/fairseq/blob/kaggle/examples/MMPT/results_rwthfs.csv) for the evaluation results. Some takeaways:
 
@@ -67,9 +75,25 @@ Please refer to [results_rwthfs.csv](https://github.com/J22Melody/fairseq/blob/k
 
 ### Demo
 
+To run the inference on an arbitrary test video and text prompts with the best model `rwthfs_scratch_hand_dominant_aug`:
+
 ```
 python demo_finger.py
 ```
+
+For convenience, we input the pose file `1_1_1_cam2.pose` which contains the pose estimation of signer 1 signing the letter A and various text prompts to compare the similarities:
+
+```
+print(score_pose_and_text(pose_frames, 'random text')) # 46.2214
+print(score_pose_and_text(pose_frames, 'Fingerspell the letter Z in German Sign Language.')) # 58.8111
+print(score_pose_and_text(pose_frames, 'Fingerspell the letter C in German Sign Language.')) # 49.5250
+print(score_pose_and_text(pose_frames, 'Fingerspell the letter S in German Sign Language.')) # 64.0020
+print(score_pose_and_text(pose_frames, 'Fingerspell the letter A.')) # 65.4973
+print(score_pose_and_text(pose_frames, 'Fingerspell the letter a in German Sign Language.')) # 69.3042
+print(score_pose_and_text(pose_frames, 'Fingerspell the letter A in German Sign Language.')) # 69.3042
+```
+
+As expected, the model scores the lowest with random text and higher with the designed prompts. It also gives higher score to the letter S due to its visual resemblance to the actual letter A. Nevertheless, it still scores the correct prompt for the letter A the highest, and it scores the same for upper and lower cases since we use `bert-base-uncased` which is case-insensitive in FingerCLIP.
 
 ## Isolated Sign Language Recognition
 
