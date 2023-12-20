@@ -50,9 +50,9 @@ def score_pose_and_text(pose_frames, text):
     return output["score"]  # dot-product
 
 print(score_pose_and_text(pose_frames, 'random text'))
-# print(score_pose_and_text(pose_frames, 'Fingerspell the letter Z in German Sign Language.'))
-# print(score_pose_and_text(pose_frames, 'Fingerspell the letter C in German Sign Language.'))
-# print(score_pose_and_text(pose_frames, 'Fingerspell the letter S in German Sign Language.'))
-# print(score_pose_and_text(pose_frames, 'Fingerspell the letter A.'))
-# print(score_pose_and_text(pose_frames, 'Fingerspell the letter a in German Sign Language.'))
-# print(score_pose_and_text(pose_frames, 'Fingerspell the letter A in German Sign Language.'))
+print(score_pose_and_text(pose_frames, 'Fingerspell the letter Z in German Sign Language.'))
+print(score_pose_and_text(pose_frames, 'Fingerspell the letter C in German Sign Language.'))
+print(score_pose_and_text(pose_frames, 'Fingerspell the letter S in German Sign Language.'))
+print(score_pose_and_text(pose_frames, 'Fingerspell the letter A.'))
+print(score_pose_and_text(pose_frames, 'Fingerspell the letter a in German Sign Language.'))
+print(score_pose_and_text(pose_frames, 'Fingerspell the letter A in German Sign Language.'))
