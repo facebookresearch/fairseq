@@ -93,7 +93,7 @@ print(score_pose_and_text(pose_frames, 'Fingerspell the letter a in German Sign 
 print(score_pose_and_text(pose_frames, 'Fingerspell the letter A in German Sign Language.')) # 69.3042
 ```
 
-As expected, the model scores the lowest with random text and higher with the designed prompts. It also gives higher score to the letter S due to its visual resemblance to the actual letter A. Nevertheless, it still scores the correct prompt for the letter A the highest, and it scores the same for upper and lower cases since we use `bert-base-uncased` which is case-insensitive in FingerCLIP.
+As expected, the model scores the lowest with random text and higher with the designed prompts. It also gives a higher score to the letter S due to its visual resemblance to the actual letter A. Nevertheless, it still scores the correct prompt for the letter A the highest, and it scores the same for upper and lower cases since we use `bert-base-uncased` which is case-insensitive in FingerCLIP.
 
 ## Isolated Sign Language Recognition
 
