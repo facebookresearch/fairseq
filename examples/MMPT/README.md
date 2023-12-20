@@ -4,7 +4,7 @@ This codebase is an adaption of [VideoCLIP](https://github.com/facebookresearch/
 
 Video is the most available and rawest representational format that contains human motion and sign language. However, videos are very dense both temporally (*FPS*, frame per second) and spatially (resolution), which are not computataionally efficient and thus require a video encoder to extract informative features with reduced dimentionalties for downstream tasks. 
 
-VideoCLIP uses a [S3D](https://github.com/antoine77340/S3D_HowTo100M) model pretrained on the HowTo100M instructional videos as the video encoder and it produces one video token per second. For sign language, it is possible to use a similar video encoder pretrained on sign language videos. A prominent one is the [I3D](https://www.robots.ox.ac.uk/~vgg/research/bslattend/) model pretrained specifically on the sign language recognition task of British Sign Language.
+VideoCLIP uses a [S3D](https://github.com/antoine77340/S3D_HowTo100M) model pretrained on the HowTo100M instructional videos as the video encoder and it produces one video token per second. For sign language, it is possible to use a similar video encoder pretrained on sign language videos. A prominent one is the [I3D](https://www.robots.ox.ac.uk/~vgg/research/bslattend/) model pretrained specifically on the sign language recognition task of British Sign Language (BSL).
 
 A potentially more interpretable and universal way of extracting sign language related features from videos is human pose estimation, for example by [MediaPipe Holistic](https://github.com/google/mediapipe/blob/master/docs/solutions/holistic.md). Recently, quantization-based approaches (such as [SignVQNet](http://nlpcl.kaist.ac.kr/~projects/signvqnet)) have also appeared as an alternative to convert continuous representations of sign language (videos/poses) to discreate tokens similar to spoken language (sub-)words.
 
@@ -63,21 +63,16 @@ For each test text prompt `'Fingerspell the letter <letter_name> in German Sign 
 
 For each test video example, there is only one correct text prompt out of the 35 possible prompts. We therefore evaluate the video-text retrieval task by `recall@k`, i.e., by taking the k most similar candidates, how much is the chance that one of them is the correct answer.
 
-When `k=1`, both `precision@k` and `recall@k` can be interpreted as the retrieval accuracy. For both directions we add an additional metric `Median R`, which is the median value of the index of the first correct answer in the candidate lists. Here are the evaluation results:
+When `k=1`, both `precision@k` and `recall@k` can be interpreted as the retrieval accuracy. For both directions we add an additional metric `Median R`, which is the median value of the index of the first correct answer in the candidate lists. 
 
-|                            | T2V_P@1 | T2V_P@5 | T2V_P@10 | T2V_Median R | V2T_R@1 | V2T_R@5 | V2T_R@10 | V2T_Median R | notes                                                      |
-|----------------------------|---------|---------|----------|--------------|---------|---------|----------|--------------|------------------------------------------------------------|
-| test_rwthfs_zs             | 0.0286  | 0.0171  | 0.0286   | 22           | 0.0231  | 0.1386  | 0.2772   | 18           | zero-shot VideoCLIP (S3D HowTo100M video feature)           |
-| test_rwthfs_videoclip      | 0.4000  | 0.3600  | 0.3000   | 2            | 0.3135  | 0.7459  | 0.8944   | 2            | fine-tune VideoCLIP (S3D HowTo100M video feature)          |
-| test_rwthfs_scratch        | 0.5429  | 0.3543  | 0.2829   | 1            | 0.2772  | 0.6898  | 0.8680   | 3            | train from scratch (S3D HowTo100M video feature)           |
-| test_rwthfs_scratch_i3d_512| 0.7429  | 0.5600  | 0.4429   | 1            | 0.4653  | 0.8185  | 0.9406   | 2            | train from scratch (I3D BSL-1K video feature, downsampled from 1024 to 512) |
-| test_rwthfs_scratch_i3d    | 0.6286  | 0.4743  | 0.3743   | 1            | 0.3729  | 0.7756  | 0.9142   | 2            | train from scratch (I3D BSL-1K video feature)               |
-| test_rwthfs_scratch_pose   | 0.8857  | 0.6686  | 0.4171   | 1            | 0.6797  | 0.9739  | 1.0000   | 1            | train from scratch (pose full body feature)                |
-| test_rwthfs_scratch_pose_aug| 0.8286  | 0.6400  | 0.4143   | 1            | 0.6732  | 0.9804  | 1.0000   | 1            | train from scratch (pose full body feature with 2D aug.)  |
-| test_rwthfs_scratch_hand_dominant | 1.0000  | 0.7200  | 0.4200   | 1            | 0.8170  | 0.9869  | 1.0000   | 1            | train from scratch (pose dominant hand feature)           |
-| test_rwthfs_scratch_hand_dominant_norm| 0.8000  | 0.5543  | 0.3429   | 1            | 0.6078  | 0.8889  | 0.9346   | 1            | train from scratch (pose dominant hand feature with 3D norm.) |
-| test_rwthfs_scratch_hand_dominant_aug | 0.9143  | 0.7429  | 0.4257   | 1            | 0.9346  | 1.0000  | 1.0000   | 1            | train from scratch (pose dominant hand feature with 2D aug.) |
+Please refer to [results_rwthfs.csv](https://github.com/J22Melody/fairseq/blob/kaggle/examples/MMPT/results_rwthfs.csv) for the evaluation results. Some takeaways:
 
+- Neither zero-shot nor fine-tuned VideoCLIP is helpful, just train from scratch.
+- I3D features pretrained on BSL works better than S3D features pretrained on HowTo100M.
+- Pose estimation as feature extractors works better than 3D-CNN-based video encoders, probably because it is more universal. It is also more interpretable and operable (for data normalization and augmentation). 
+- For fingerspelling, it is beneficial to focus on just the dominant hand.
+- Video-text retrieval is more challenging than text-video retrieval. Video-text retrieval is also more valuable since it involves sign language video recognition and understanding, while text-video retrieval can sometimes be easily implemented as a sign language dictionary lookup.
+- SignCLIP solves both directions well, i.e., SignCLIP understands isolated fingerspelling of the letters in German Sign Language (DGS).
 
 ### Demo
 
