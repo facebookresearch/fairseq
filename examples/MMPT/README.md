@@ -95,7 +95,7 @@ https://github.com/J22Melody/fairseq/assets/2316987/97c9216e-3072-4f9c-8307-2afc
 ('Fingerspell the letter A in German Sign Language.', 70.70125579833984)
 ```
 
-As expected, the model scores the lowest with random text and higher with the designed prompts. It also scores the correct prompt for the letter A the highest, and it scores the same for upper and lower cases since we use `bert-base-uncased` which is case-insensitive in FingerCLIP.
+As expected, the model scores the lowest with random text and higher with the designed prompts. It also scores the correct prompt for the letter A the highest, and it scores the same for upper and lower cases since we use `bert-base-uncased` which is case-insensitive.
 
 ## Isolated Sign Language Recognition
 
