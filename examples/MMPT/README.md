@@ -52,7 +52,9 @@ trainable Transformers (one each for video and text) are updated, initialized wi
 
 ### Evaluation
 
-We evaluate the models by viewing fingerspelling understanding as a text-video/video-text retrieval task. For both directions, the candidates are ranked by the cosine similarity to the text/video query in the latent space. For each test text prompt `'Fingerspell the letter <letter_name> in German Sign Language.'`, there is possibly more than one correct video (e.g, the same letter signed by different signers) in the test video pool, and they are all considered a successful retrieval. We thus evaluate the text-video retrieval task by `precision@k`, i.e., in the k most similar candidates, how many of them are correct answers. For each test video example, there is only one correct text prompt out of the 35 possible prompts. We thus evaluate the video-text retrieval task by `recall@k`, i.e., by taking the k most similar candidates, how much is the chance that one of them is the correct answer. When `k=1`, both `precision@k` and `recall@k` can be interpreted as the retrieval accuracy. For both directions, we add an additional metric `Median R`, which is the median value of the index of the first correct answer in the candidate lists. 
+We evaluate the models by viewing fingerspelling understanding as a text-video/video-text retrieval task. For both directions, the candidates are ranked by the cosine similarity to the text/video query in the latent space. 
+
+For each test text prompt `'Fingerspell the letter <letter_name> in German Sign Language.'`, there is possibly more than one correct video (e.g, the same letter signed by different signers) in the test video pool, and they are all considered a successful retrieval. We thus evaluate the text-video retrieval task by `precision@k`, i.e., in the k most similar candidates, how many of them are correct answers. For each test video example, there is only one correct text prompt out of the 35 possible prompts. We thus evaluate the video-text retrieval task by `recall@k`, i.e., by taking the k most similar candidates, how much is the chance that one of them is the correct answer. When `k=1`, both `precision@k` and `recall@k` can be interpreted as the retrieval accuracy. For both directions, we add an additional metric `Median R`, which is the median value of the index of the first correct answer in the candidate lists. 
 
 Please refer to [results_rwthfs.csv](https://github.com/J22Melody/fairseq/blob/kaggle/examples/MMPT/results_rwthfs.csv) for the evaluation results. Some takeaways:
 
@@ -61,7 +63,7 @@ Please refer to [results_rwthfs.csv](https://github.com/J22Melody/fairseq/blob/k
 - Pose estimation as a feature extractor works better than 3D-CNN-based video encoders, probably because it is more universal. It is also more interpretable and operable (for data normalization and augmentation). 
 - For fingerspelling, it is beneficial to focus on just the dominant hand.
 - Video-text retrieval is more challenging than text-video retrieval. Video-text retrieval is also more valuable since it involves sign language video recognition and understanding, while text-video retrieval can sometimes be easily implemented as a sign language dictionary lookup.
-- SignCLIP solves both directions well, i.e., SignCLIP understands isolated fingerspelling of the letters in German Sign Language (DGS).
+- FingerCLIP solves both directions well, i.e., FingerCLIP understands isolated fingerspelling of the letters in German Sign Language (DGS).
 
 ### Demo
 
