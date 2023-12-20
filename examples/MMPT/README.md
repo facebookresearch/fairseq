@@ -78,22 +78,24 @@ Please refer to [results_rwthfs.csv](https://github.com/J22Melody/fairseq/blob/k
 To run the inference on an arbitrary test video and text prompts with the best model `rwthfs_scratch_hand_dominant_aug`:
 
 ```
-python demo_finger.py
+python demo_finger.py /data/zifjia/zifan_A.mediapipe.pose
 ```
 
-For convenience, we input the pose file `1_1_1_cam2.pose` which contains the pose estimation of signer 1 signing the letter A and various text prompts to compare the similarities:
+We input a pose file that contains the pose estimation of the following video of signing the letter A and various text prompts to compare the similarities:
+
+https://github.com/J22Melody/fairseq/assets/2316987/97c9216e-3072-4f9c-8307-2afcaca47a63
 
 ```
-print(score_pose_and_text(pose_frames, 'random text')) # 46.2214
-print(score_pose_and_text(pose_frames, 'Fingerspell the letter Z in German Sign Language.')) # 58.8111
-print(score_pose_and_text(pose_frames, 'Fingerspell the letter C in German Sign Language.')) # 49.5250
-print(score_pose_and_text(pose_frames, 'Fingerspell the letter S in German Sign Language.')) # 64.0020
-print(score_pose_and_text(pose_frames, 'Fingerspell the letter A.')) # 65.4973
-print(score_pose_and_text(pose_frames, 'Fingerspell the letter a in German Sign Language.')) # 69.3042
-print(score_pose_and_text(pose_frames, 'Fingerspell the letter A in German Sign Language.')) # 69.3042
+('random text', 40.20402145385742)
+('Fingerspell the letter Z in German Sign Language.', 59.460140228271484)
+('Fingerspell the letter C in German Sign Language.', 65.52384948730469)
+('Fingerspell the letter S in German Sign Language.', 52.56050491333008)
+('Fingerspell the letter A.', 61.64430618286133)
+('Fingerspell the letter a in German Sign Language.', 70.70125579833984)
+('Fingerspell the letter A in German Sign Language.', 70.70125579833984)
 ```
 
-As expected, the model scores the lowest with random text and higher with the designed prompts. It also gives a higher score to the letter S due to its visual resemblance to the actual letter A. Nevertheless, it still scores the correct prompt for the letter A the highest, and it scores the same for upper and lower cases since we use `bert-base-uncased` which is case-insensitive in FingerCLIP.
+As expected, the model scores the lowest with random text and higher with the designed prompts. It also scores the correct prompt for the letter A the highest, and it scores the same for upper and lower cases since we use `bert-base-uncased` which is case-insensitive in FingerCLIP.
 
 ## Isolated Sign Language Recognition
 
