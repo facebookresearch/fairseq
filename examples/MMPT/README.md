@@ -103,7 +103,7 @@ We continue our exploration with the [Google - Isolated Sign Language Recognitio
 
 ### Training
 
-Following the practice in FingerCLIP, we make each batch a collection of unique signs (maximumly 250) with text prompts `'Sign the sign <sign_name> in American Sign Language.'` at training time. We try to implement some of the techniques employed in the [top solutions](https://www.kaggle.com/competitions/asl-signs/leaderboard) of the competition (although most of them use a dedicated classification model instead of a CLIP model):
+Following the practice in FingerCLIP, we make each batch a collection of unique signs (maximumly 250) with text prompts `'Sign the sign <sign_name> in American Sign Language.'` at training time. We try to implement some of the techniques employed in the [top solutions](https://www.kaggle.com/competitions/asl-signs/leaderboard) of the competition (although most of them use a dedicated classification model instead of a CLIP-like model):
 
 - a selective subset of the keypoints from pose estimation
 - a 1D CNN layer before the video Transformer
@@ -117,7 +117,7 @@ python locallaunch.py projects/retri/signclip/asl_signs_face.yaml --jobtype loca
 
 ### Evaluation
 
-The same evaluation protocol is used as FingerCLIP, except that now the search space is bigger since the test set's size increases to 4723 and the number of unique text prompts increases to 250. To run the inference and evaluation on the test set:
+The same evaluation protocol as in FingerCLIP is used, i.e., the ISLR task can be formulated as video-text retrieval, except that now the search space is bigger since the test set's size increases to 4723 and the number of unique text prompts increases to 250. To run the inference and evaluation on the test set:
 
 ```
 python locallaunch.py projects/retri/signclip/test_asl_signs_face.yaml --jobtype local_predict
@@ -125,12 +125,15 @@ python locallaunch.py projects/retri/signclip/test_asl_signs_face.yaml --jobtype
 
 Please refer to [results_asl_signs.csv](https://github.com/J22Melody/fairseq/blob/main/examples/MMPT/results_asl_signs.csv) for the evaluation results. Takeaways:
 
+- The effectiveness of our approach is proved not only on fingerspelling but also for ISLR.
 - Including the face should help understand signs, but only with a selective subset of the keypoints (nose, lips, eyes) because the full set is too dense.
 - 1D CNN and aggressive dropout do not further improve the performance.
 - Compared to the public leaderboard, there is a margin between video-text retrieval-based classification using SignCLIP and a dedicated classifier trained for the ISLR task.
 
 ## SignCLIP v1
 
+To fully realize the power and versatility of SignCLIP, in this version, we do not focus on a single dataset and a single task anymore. Instead, we train the models on more diverse sign language datasets with as large a batch size as we can afford (the original [CLIP](https://openai.com/research/clip) was trained with batch size 32,768).
+
 ## Credits
 
-Mathias Müller ([@bricksdont](https://github.com/bricksdont)) proposes the [initial idea](https://docs.google.com/document/d/1mUSLZs_DWc4mHn_nt0soKf1hsTtbrHUUnEX_QBCth5w/edit#heading=h.p699gptqhse9) of a CLIP model for sign language.
+Mathias Müller ([@bricksdont](https://github.com/bricksdont)) proposes the [initial idea](https://docs.google.com/document/d/1mUSLZs_DWc4mHn_nt0soKf1hsTtbrHUUnEX_QBCth5w/edit#heading=h.p699gptqhse9) of a CLIP-like model for sign language.
