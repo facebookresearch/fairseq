@@ -1,5 +1,6 @@
 dataset:
-  max_video_len: 128
+  max_video_len: 256
+  # max_video_len: 128
   max_len: 96
   video_processor: RWTHFSPoseProcessor
   bert_name: bert-base-uncased

@@ -1,3 +1,5 @@
+import sys
+
 import torch
 import numpy as np
 from pose_format import Pose
@@ -18,7 +20,7 @@ def pose_normalization_info(pose_header):
                                                 p2=("pose_keypoints_2d", "LShoulder"))
 
 
-pose_path = '/shares/volk.cl.uzh/zifjia/RWTH_Fingerspelling/pose/1_1_1_cam2.pose'
+pose_path = '/shares/volk.cl.uzh/zifjia/RWTH_Fingerspelling/pose/1_1_1_cam2.pose' if len(sys.argv) < 2 else sys.argv[1]
 with open(pose_path, "rb") as f:
     buffer = f.read()
     pose = Pose.read(buffer)
@@ -47,7 +49,7 @@ def score_pose_and_text(pose_frames, text):
         # print(output['pooled_text'].shape)
         # print(output['pooled_video'].shape)
     
-    return output["score"]  # dot-product
+    return text, float(output["score"])  # dot-product
 
 print(score_pose_and_text(pose_frames, 'random text'))
 print(score_pose_and_text(pose_frames, 'Fingerspell the letter Z in German Sign Language.'))
