@@ -1,0 +1,38 @@
+dataset:
+  max_video_len: 128
+  max_len: 96
+  split: test
+  video_processor: ASLSignPoseProcessor
+  bert_name: bert-base-cased
+  meta_processor: ASLSignMetaProcessor
+  text_processor: TextProcessor
+  test_path: data/asl_signs/test.txt
+  # test_path: data/asl_signs/val.txt
+  val_path: data/asl_signs/val.txt
+  train_path: data/asl_signs/train.txt
+  metadata_path: /shares/volk.cl.uzh/zifjia/asl-signs/train.csv
+  vfeat_dir: /shares/volk.cl.uzh/zifjia/asl-signs/train_landmark_files
+  # metadata_path: /mnt/asl-signs/train.csv
+  # vfeat_dir: /mnt/asl-signs/train_landmark_files
+  aligner: DSAligner
+  pose_components: ["pose", "left_hand", "right_hand", "face"]
+slurm_config: big
+task_type: local_predict
+fairseq:
+  dataset:
+    batch_size: 256
+    valid_subset: test
+    num_workers: 2
+  common_eval:
+    path: runs/retri/asl_signs_face/checkpoint_best.pt
+model:
+  model_cls: MMFusionSeparate
+  mm_encoder_cls: null
+  video_encoder_cls: MMBertForEncoder
+  text_encoder_cls: BertModel
+  num_hidden_video_layers: 6
+  vfeat_dim: 453
+eval:
+  save_path: runs/retri/asl_signs_face/eval
+metric: RWTHFSMetric
+predictor: RetrievalPredictor

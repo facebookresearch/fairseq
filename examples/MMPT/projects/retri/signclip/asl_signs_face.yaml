@@ -1,19 +1,20 @@
 dataset:
-  max_video_len: 256
-  # max_video_len: 128
+  max_video_len: 128
   max_len: 96
-  video_processor: RWTHFSPoseProcessor
-  bert_name: bert-base-uncased
-  meta_processor: RWTHFSMetaProcessor
+  video_processor: ASLSignPoseProcessor
+  bert_name: bert-base-cased
+  meta_processor: ASLSignMetaProcessor
   text_processor: TextProcessor
-  test_path: data/rwthfs/test.txt
-  val_path: data/rwthfs/val.txt
-  train_path: data/rwthfs/train.txt
-  gesture_id_path: data/rwthfs/gesture_ids.txt
-  vfeat_dir: /shares/volk.cl.uzh/zifjia/RWTH_Fingerspelling/pose
+  test_path: data/asl_signs/test.txt
+  val_path: data/asl_signs/val.txt
+  train_path: data/asl_signs/train.txt
+  # train_path: data/asl_signs/val.txt
+  metadata_path: /shares/volk.cl.uzh/zifjia/asl-signs/train.csv
+  vfeat_dir: /shares/volk.cl.uzh/zifjia/asl-signs/train_landmark_files
+  # metadata_path: /mnt/asl-signs/train.csv
+  # vfeat_dir: /mnt/asl-signs/train_landmark_files
   aligner: DSAligner
-  pose_components: ["RIGHT_HAND_LANDMARKS"]
-  augment2d: true
+  pose_components: ["pose", "left_hand", "right_hand", "face"]
 fairseq:
   common:
     fp16: true
@@ -21,7 +22,8 @@ fairseq:
     log_interval: 1000
   dataset:
     num_workers: 1
-    batch_size: 35
+    # batch_size: 250
+    batch_size: 128
   optimization:
     lr:
     - 5.0e-05
@@ -39,7 +41,7 @@ fairseq:
     reset_optimizer: true
     reset_dataloader: true
     reset_meters: true
-    save_dir: runs/retri/rwthfs_hand_dominant_aug
+    save_dir: runs/retri/asl_signs_face
 task_type: sweep_small
 model:
   model_cls: MMFusionSeparate
@@ -47,8 +49,8 @@ model:
   video_encoder_cls: MMBertForEncoder
   text_encoder_cls: BertModel
   num_hidden_video_layers: 6
-  vfeat_dim: 63
+  vfeat_dim: 453
 loss:
   loss_cls: MMContraLoss
 eval:
-  save_path: runs/retri/rwthfs_hand_dominant_aug
+  save_path: runs/retri/asl_signs_face

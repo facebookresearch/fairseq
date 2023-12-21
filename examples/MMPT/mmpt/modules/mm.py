@@ -29,10 +29,27 @@ except ImportError:
     pass
 
 
+class VideoConv1D(nn.Module):
+    def __init__(self, config, kernel_size=17):
+        super().__init__()
+        self.num_layers = config.conv1d
+        input_dim = config.input_dim if hasattr(config, "input_dim") else 512
+        for i in range(self.num_layers):
+            setattr(self, f'conv1d_{i}', nn.Conv1d(input_dim, input_dim, kernel_size, padding='same'))
+
+    def forward(self, hidden_states):
+        hidden_states = torch.swapaxes(hidden_states, 1, 2)
+        for i in range(self.num_layers):
+            hidden_states = getattr(self, f'conv1d_{i}')(hidden_states)
+        hidden_states = torch.swapaxes(hidden_states, 1, 2)
+        return hidden_states
+
+
 class VideoTokenMLP(nn.Module):
     def __init__(self, config):
         super().__init__()
         input_dim = config.input_dim if hasattr(config, "input_dim") else 512
+        self.dropout = nn.Dropout(p=config.dropout) if hasattr(config, "dropout") else None
         self.linear1 = nn.Linear(input_dim, config.hidden_size)
         self.LayerNorm = nn.LayerNorm(config.hidden_size)
         self.activation = ACT2FN[config.hidden_act]
@@ -42,7 +59,11 @@ class VideoTokenMLP(nn.Module):
         hidden_states = self.linear1(hidden_states)
         hidden_states = self.activation(hidden_states)
         hidden_states = self.LayerNorm(hidden_states)
+        if self.dropout:
+            hidden_states = self.dropout(hidden_states)
         hidden_states = self.linear2(hidden_states)
+        if self.dropout:
+            hidden_states = self.dropout(hidden_states)
         return hidden_states
 
 

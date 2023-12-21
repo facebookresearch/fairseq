@@ -10,6 +10,8 @@ import pickle
 import random
 import math
 import numpy as np
+import pandas as pd
+import pyarrow.parquet as pq
 import torch
 
 from collections import defaultdict
@@ -863,83 +865,9 @@ class DiDeMoAligner(DSAligner):
         return super().__call__(video_id, video_feature, text_feature)
 
 
-# -------------------- RWTH Fingerspelling -----------------------
+# -------------------- SignCLIP common -----------------------
 
-
-class RWTHFSMetaProcessor(MetaProcessor):
-    """RWTH German Fingerspelling Database
-    https://www-i6.informatik.rwth-aachen.de/aslr/fingerspelling.php
-    """
-
-    def __init__(self, config):
-        super().__init__(config)
-
-        vfeat_dir = config.vfeat_dir
-        split_path = self._get_split_path(config)
-
-        self.letter_to_id = {}
-        self.id_to_letter = {}
-
-        with open(config.gesture_id_path) as f:
-            for idx, line in enumerate(f):
-                letter = line.split(' = ')[1].rstrip('\n')
-                self.letter_to_id[letter] = idx + 1
-                self.id_to_letter[str(idx + 1)] = letter
-
-        with open(split_path) as f:
-            lines = []
-            for line in f:
-                video_id = line.rstrip('\n') 
-                signer_id, letter_id, seq_id, camera_id = video_id.split('_')
-
-                # FIXME: for now we do full body pose estimation for all videos, so exclude cam1 where only the hands are present
-                if config.video_processor == 'RWTHFSPoseProcessor' and camera_id == 'cam1':
-                    continue
-                
-                lines.append(video_id)
-
-            if config.split == 'train':
-                self.data = []
-
-                video_ids = defaultdict(list)
-                for video_id in lines:
-                    signer_id, letter_id, seq_id, camera_id = video_id.split('_')
-                    video_ids[self.id_to_letter[letter_id]].append(video_id)
-
-                length = []
-                for key, value in video_ids.items():
-                    length.append(len(value))
-                max_length = max(length)
-
-                for i in range(max_length):
-                    for key, value in video_ids.items():
-                        self.data.append(value[i % len(value)])
-            else:
-                self.data = lines
-
-    def __getitem__(self, idx):
-        video_id = self.data[idx]
-        signer_id, letter_id, seq_id, camera_id = video_id.split('_')
-        body_part = 'handshape' if camera_id == 'cam1' else 'whole body'
-        text_info = f'Fingerspell the letter {self.id_to_letter[letter_id]} in German Sign Language.'
-        # print(video_id, text_info)
-        return video_id, text_info
-
-
-class RWTHFSVideoProcessor(VideoProcessor):
-    def __call__(self, video_id):
-        feat = np.load(os.path.join(self.vfeat_dir, video_id + ".npy"))
-        # pooling adapater (not needed when training from scratch)
-        feat_dim = 512
-        if feat.shape[1] > feat_dim and not self.vfeat_custom:
-            # i3d feature is 1024
-            # adapt feature dimension to 512 by average pooling
-            feat = feat.reshape(feat.shape[0], feat_dim, int(feat.shape[1] / feat_dim))
-            feat = np.average(feat, axis=2)
-        return feat
-
-
-class RWTHFSPoseProcessor(VideoProcessor):
+class PoseProcessor(VideoProcessor):
     def __init__(self, config):
         super().__init__(config)
         self.pose_components = config.pose_components
@@ -1020,3 +948,191 @@ class RWTHFSPoseProcessor(VideoProcessor):
             return pose
         else:
             raise ValueError("Unknown pose header schema for hiding legs")
+
+
+# -------------------- RWTH Fingerspelling -----------------------
+
+
+class RWTHFSMetaProcessor(MetaProcessor):
+    """RWTH German Fingerspelling Database
+    https://www-i6.informatik.rwth-aachen.de/aslr/fingerspelling.php
+    """
+
+    def __init__(self, config):
+        super().__init__(config)
+
+        vfeat_dir = config.vfeat_dir
+        split_path = self._get_split_path(config)
+
+        self.letter_to_id = {}
+        self.id_to_letter = {}
+
+        with open(config.gesture_id_path) as f:
+            for idx, line in enumerate(f):
+                letter = line.split(' = ')[1].rstrip('\n')
+                self.letter_to_id[letter] = idx + 1
+                self.id_to_letter[str(idx + 1)] = letter
+
+        with open(split_path) as f:
+            lines = []
+            for line in f:
+                video_id = line.rstrip('\n') 
+                signer_id, letter_id, seq_id, camera_id = video_id.split('_')
+
+                # FIXME: for now we do full body pose estimation for all videos, so exclude cam1 where only the hands are present
+                if config.video_processor == 'RWTHFSPoseProcessor' and camera_id == 'cam1':
+                    continue
+                
+                lines.append(video_id)
+
+            if config.split == 'train':
+                self.data = []
+
+                video_ids = defaultdict(list)
+                for video_id in lines:
+                    signer_id, letter_id, seq_id, camera_id = video_id.split('_')
+                    video_ids[self.id_to_letter[letter_id]].append(video_id)
+
+                length = []
+                for key, value in video_ids.items():
+                    length.append(len(value))
+                max_length = max(length)
+
+                for i in range(max_length):
+                    for key, value in video_ids.items():
+                        self.data.append(value[i % len(value)])
+            else:
+                self.data = lines
+
+    def __getitem__(self, idx):
+        video_id = self.data[idx]
+        signer_id, letter_id, seq_id, camera_id = video_id.split('_')
+        body_part = 'handshape' if camera_id == 'cam1' else 'whole body'
+        text_info = f'Fingerspell the letter {self.id_to_letter[letter_id]} in German Sign Language.'
+        # print(video_id, text_info)
+        return video_id, text_info
+
+
+class RWTHFSVideoProcessor(VideoProcessor):
+    def __call__(self, video_id):
+        feat = np.load(os.path.join(self.vfeat_dir, video_id + ".npy"))
+        # pooling adapater (not needed when training from scratch)
+        feat_dim = 512
+        if feat.shape[1] > feat_dim and not self.vfeat_custom:
+            # i3d feature is 1024
+            # adapt feature dimension to 512 by average pooling
+            feat = feat.reshape(feat.shape[0], feat_dim, int(feat.shape[1] / feat_dim))
+            feat = np.average(feat, axis=2)
+        return feat
+
+
+class RWTHFSPoseProcessor(PoseProcessor):
+    pass
+
+# -------------------- ASL Signs -----------------------
+
+class ASLSignMetaProcessor(MetaProcessor):
+    """Google - Isolated Sign Language Recognition
+    https://www.kaggle.com/competitions/asl-signs/overview
+    """
+
+    def __init__(self, config):
+        super().__init__(config)
+
+        vfeat_dir = config.vfeat_dir
+        split_path = self._get_split_path(config)
+        metadata_df = pd.read_csv(config.metadata_path, dtype=str)
+
+        with open(split_path) as f:
+            lines = []
+            for line in f:
+                video_id = line.rstrip('\n') 
+                lines.append(video_id)
+
+            metadata_df = metadata_df[metadata_df['sequence_id'].isin(lines)]
+            data = metadata_df.to_dict('records')
+
+            print(f'sign distribution in the {config.split} set:')
+            print(metadata_df.groupby(['sign'])['sign'].count().reset_index(name='count').sort_values(['count'], ascending=False))
+
+            if config.split == 'train':
+                self.data = []
+
+                indices = defaultdict(list)
+                for index, item in enumerate(data):
+                    indices[item['sign']].append(index)
+
+                length = []
+                for key, value in indices.items():
+                    length.append(len(value))
+                max_length = max(length)
+
+                for i in range(max_length):
+                    for key, value in indices.items():
+                        self.data.append(data[value[i % len(value)]])
+            else:
+                self.data = data
+
+    def __getitem__(self, idx):
+        video_id = self.data[idx]['path'].replace('train_landmark_files/', '')
+        text_info = f'Sign the sign "{self.data[idx]["sign"]}" in American Sign Language.'
+        # print(video_id, text_info)
+        return video_id, text_info
+
+
+class ASLSignPoseProcessor(PoseProcessor):
+    NOSE = [
+        1,2,98,327
+    ]
+    LIP = [ 0, 
+        61, 185, 40, 39, 37, 267, 269, 270, 409,
+        291, 146, 91, 181, 84, 17, 314, 405, 321, 375,
+        78, 191, 80, 81, 82, 13, 312, 311, 310, 415,
+        95, 88, 178, 87, 14, 317, 402, 318, 324, 308,
+    ]
+    REYE = [
+        33, 7, 163, 144, 145, 153, 154, 155, 133,
+        246, 161, 160, 159, 158, 157, 173,
+    ]
+    LEYE = [
+        263, 249, 390, 373, 374, 380, 381, 382, 362,
+        466, 388, 387, 386, 385, 384, 398,
+    ]
+    FACE = sorted(NOSE + LIP + REYE + LEYE)
+    FACE_FULL = np.arange(0, 468).tolist()
+
+    LHAND = np.arange(468, 489).tolist()
+    POSE = np.arange(489, 522).tolist()
+    RHAND = np.arange(522, 543).tolist()
+    BODY = LHAND + POSE + RHAND
+
+    def __call__(self, video_id):
+        pose_df = pq.read_table(os.path.join(self.vfeat_dir, video_id)).to_pandas()
+
+        # pd.set_option('display.max_rows', None)
+        # print(pose_df[pose_df['frame'] == 18])
+
+        # pose_df = pose_df[pose_df['type'].isin(self.pose_components)]
+
+        points = []
+        if "face" in self.pose_components:
+            points = points + self.FACE
+        if "face_full" in self.pose_components:
+            points = points + self.FACE_FULL
+        if "left_hand" in self.pose_components:
+            points = points + self.LHAND
+        if "pose" in self.pose_components:
+            points = points + self.POSE    
+        if "right_hand" in self.pose_components:
+            points = points + self.RHAND
+
+        num_frames = len(pose_df['frame'].drop_duplicates())
+        dimensions = ['x', 'y', 'z']
+
+        pose_data = pose_df[dimensions].to_numpy().reshape(num_frames, -1, len(dimensions))
+        pose_data = pose_data[:, points, :]
+
+        pose_data = pose_data.reshape(num_frames, -1)
+        pose_data = np.nan_to_num(pose_data)
+        
+        return pose_data

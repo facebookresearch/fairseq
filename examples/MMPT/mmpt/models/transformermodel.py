@@ -29,7 +29,7 @@ try:
 except ImportError:
     pass
 
-from ..modules import VideoTokenMLP, MMBertEmbeddings
+from ..modules import VideoConv1D, VideoTokenMLP, MMBertEmbeddings
 
 
 # --------------- fine-tuning models ---------------
@@ -137,6 +137,7 @@ class MMBertForEncoder(BertPreTrainedModel):
     """A BertModel for Contrastive Learning."""
     def __init__(self, config):
         super().__init__(config)
+        self.videoconv = VideoConv1D(config) if hasattr(config, "conv1d") else None
         self.videomlp = VideoTokenMLP(config)
         self.bert = MMBertModel(config)
         self.init_weights()
@@ -159,7 +160,7 @@ class MMBertForEncoder(BertPreTrainedModel):
             else self.config.use_return_dict
         )
         if input_video_embeds is not None:
-            video_tokens = self.videomlp(input_video_embeds)
+            video_tokens = self.videomlp(self.videoconv(input_video_embeds)) if self.videoconv else self.videomlp(input_video_embeds)
         else:
             video_tokens = None
 

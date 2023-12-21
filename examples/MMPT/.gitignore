@@ -128,7 +128,7 @@ dmypy.json
 # Pyre type checker
 .pyre/
 runs
-data
+data/feat
 pretrained_models
 projects/mmfusion_*
 log_test
@@ -137,3 +137,5 @@ python_log
 slurm_snapshot_code
 lightning_logs
 demos
+
+slurm*.out
