@@ -64,7 +64,7 @@ python locallaunch.py projects/retri/fingerclip/test_rwthfs_scratch_pose.yaml --
 
 For each test text prompt `'Fingerspell the letter <letter_name> in German Sign Language.'`, there is possibly more than one correct video (e.g, the same letter signed by different signers) in the test video pool, and they are all considered a successful retrieval. We thus evaluate the text-video retrieval task by `precision@k`, i.e., in the k most similar candidates, how many of them are correct answers. For each test video example, there is only one correct text prompt out of the 35 possible prompts. We thus evaluate the video-text retrieval task by `recall@k`, i.e., by taking the k most similar candidates, how much is the chance that one of them is the correct answer. When `k=1`, both `precision@k` and `recall@k` can be interpreted as the retrieval accuracy. For both directions, we add an additional metric `Median R`, which is the median value of the index of the first correct answer in the candidate lists.
 
-Please refer to [results_rwthfs.csv](https://github.com/J22Melody/fairseq/blob/main/examples/MMPT/results_rwthfs.csv) for the evaluation results. Some takeaways:
+Please refer to [results_rwthfs.csv](https://github.com/J22Melody/fairseq/blob/main/examples/MMPT/results_rwthfs.csv) for the evaluation results. Takeaways:
 
 - Neither zero-shot nor fine-tuned VideoCLIP is helpful, just train from scratch.
 - I3D features pretrained on BSL works better than S3D features pretrained on HowTo100M.
@@ -97,7 +97,39 @@ https://github.com/J22Melody/fairseq/assets/2316987/97c9216e-3072-4f9c-8307-2afc
 
 As expected, the model scores the lowest with random text and higher with the designed prompts. It also scores the correct prompt for the letter A the highest, and it scores the same for upper and lower cases since we use `bert-base-uncased` which is case-insensitive.
 
-## Isolated Sign Language Recognition
+## SignCLIP v0 - Isolated Sign Language Recognition (ISLR)
+
+We continue our exploration with the [Google - Isolated Sign Language Recognition](https://www.kaggle.com/competitions/asl-signs/data) dataset, which was released for the [Kaggle](https://www.kaggle.com/) competition on classifying isolated American Sign Language (ASL) signs. The dataset contains the pose estimation (by MediaPipe Holistic) of 94,478 signing videos of 250 different individual signs. We split them randomly into training, dev, and test sets at the ratio of 9:0.5:0.5.
+
+### Training
+
+Following the practice in FingerCLIP, we make each batch a collection of unique signs (maximumly 250) with text prompts `'Sign the sign <sign_name> in American Sign Language.'` at training time. We try to implement some of the techniques employed in the [top solutions](https://www.kaggle.com/competitions/asl-signs/leaderboard) of the competition (although most of them use a dedicated classification model instead of a CLIP model):
+
+- a selective subset of the keypoints from pose estimation
+- a 1D CNN layer before the video Transformer
+- aggressive dropout
+
+We always train the models from scratch and inherit the training setup from FingerCLIP. To start the training, run the following command with the desired config file:
+
+```
+python locallaunch.py projects/retri/signclip/asl_signs_face.yaml --jobtype local_single
+```
+
+### Evaluation
+
+The same evaluation protocol is used as FingerCLIP, except that now the search space is bigger since the test set's size increases to 4723 and the number of unique text prompts increases to 250. To run the inference and evaluation on the test set:
+
+```
+python locallaunch.py projects/retri/signclip/test_asl_signs_face.yaml --jobtype local_predict
+```
+
+Please refer to [results_asl_signs.csv](https://github.com/J22Melody/fairseq/blob/main/examples/MMPT/results_asl_signs.csv) for the evaluation results. Takeaways:
+
+- Including the face should help understand signs, but only with a selective subset of the keypoints (nose, lips, eyes) because the full set is too dense.
+- 1D CNN and aggressive dropout do not further improve the performance.
+- Compared to the public leaderboard, there is a margin between video-text retrieval-based classification using SignCLIP and a dedicated classifier trained for the ISLR task.
+
+## SignCLIP v1
 
 ## Credits
 
