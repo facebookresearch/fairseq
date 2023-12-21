@@ -64,7 +64,7 @@ python locallaunch.py projects/retri/fingerclip/test_rwthfs_scratch_pose.yaml --
 
 For each test text prompt `'Fingerspell the letter <letter_name> in German Sign Language.'`, there is possibly more than one correct video (e.g, the same letter signed by different signers) in the test video pool, and they are all considered a successful retrieval. We thus evaluate the text-video retrieval task by `precision@k`, i.e., in the k most similar candidates, how many of them are correct answers. For each test video example, there is only one correct text prompt out of the 35 possible prompts. We thus evaluate the video-text retrieval task by `recall@k`, i.e., by taking the k most similar candidates, how much is the chance that one of them is the correct answer. When `k=1`, both `precision@k` and `recall@k` can be interpreted as the retrieval accuracy. For both directions, we add an additional metric `Median R`, which is the median value of the index of the first correct answer in the candidate lists.
 
-Please refer to [results_rwthfs.csv](https://github.com/J22Melody/fairseq/blob/kaggle/examples/MMPT/results_rwthfs.csv) for the evaluation results. Some takeaways:
+Please refer to [results_rwthfs.csv](https://github.com/J22Melody/fairseq/blob/main/examples/MMPT/results_rwthfs.csv) for the evaluation results. Some takeaways:
 
 - Neither zero-shot nor fine-tuned VideoCLIP is helpful, just train from scratch.
 - I3D features pretrained on BSL works better than S3D features pretrained on HowTo100M.
