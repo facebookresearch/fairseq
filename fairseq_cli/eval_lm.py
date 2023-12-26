@@ -198,7 +198,7 @@ def eval_lm(
 
     return {
         "loss": avg_nll_loss,
-        "perplexity": 2 ** avg_nll_loss,
+        "perplexity": 2**avg_nll_loss,
     }
 
 
@@ -272,6 +272,7 @@ def main(cfg: DictConfig, **unused_kwargs):
             model.half()
         if use_cuda and not cfg.distributed_training.pipeline_model_parallel:
             model.cuda()
+        cfg["optimizer"] = model_args["optimizer"]
         model.prepare_for_inference_(cfg)
 
     assert len(models) > 0
@@ -297,9 +298,13 @@ def main(cfg: DictConfig, **unused_kwargs):
             *[model.max_positions() for model in models]
         ),
         num_shards=max(
-            cfg.dataset.num_shards, cfg.distributed_training.distributed_world_size,
+            cfg.dataset.num_shards,
+            cfg.distributed_training.distributed_world_size,
         ),
-        shard_id=max(cfg.dataset.shard_id, cfg.distributed_training.distributed_rank,),
+        shard_id=max(
+            cfg.dataset.shard_id,
+            cfg.distributed_training.distributed_rank,
+        ),
         num_workers=cfg.dataset.num_workers,
         data_buffer_size=cfg.dataset.data_buffer_size,
         context_window=cfg.eval_lm.context_window,

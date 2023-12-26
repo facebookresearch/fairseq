@@ -3,11 +3,12 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import torch
 
 from dataclasses import dataclass, field
 from typing import Optional
 
-from omegaconf import II
+from omegaconf import DictConfig, II
 
 from fairseq import options, utils
 from fairseq.dataclass import ChoiceEnum, FairseqDataclass
@@ -22,6 +23,7 @@ from fairseq.models.transformer import (
     TransformerDecoder,
 )
 from fairseq.modules import AdaptiveInput, CharacterTokenEmbedder
+from fairseq.modules.quant_bitnet import BinarizerFunction
 from fairseq.utils import safe_getattr, safe_hasattr
 
 DEFAULT_MAX_TARGET_POSITIONS = 1024
@@ -270,6 +272,24 @@ class TransformerLanguageModel(FairseqLanguageModel):
 
     def __init__(self, decoder):
         super().__init__(decoder)
+
+    @torch.inference_mode
+    def binarize_linear_weights(self):
+        """Manually binarize weights in linear layers for MADGRAD with PAR."""
+        for m in self.decoder.layers.modules():
+            if isinstance(m, torch.nn.Linear):
+                m.weight.copy_(BinarizerFunction.apply(m.weight))
+
+    def prepare_for_inference_(self, cfg: DictConfig):
+        super().prepare_for_inference_(cfg)
+
+        if (
+            cfg["optimizer"]["_name"] == "madgrad"
+            and safe_getattr(cfg["optimizer"], "par_bits", 0) == 1
+            or cfg["optimizer"]["_name"] == "adam"
+            and safe_getattr(cfg["optimizer"], "apply_par", False)
+        ):
+            self.binarize_linear_weights()
 
     @classmethod
     def build_model(cls, args, task):

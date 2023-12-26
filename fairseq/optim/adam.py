@@ -36,9 +36,14 @@ class FairseqAdamConfig(FairseqDataclass):
     fp16_adam_stats: bool = field(
         default=False, metadata={"help": "use FP16 stats (with automatic scaling)"}
     )
+    apply_par: bool = field(default=False, metadata={"help": "apply PAR regularizer"})
+    par_lamb: float = field(
+        default=1e-4, metadata={"help": "PAR regularization constant"}
+    )
     # TODO common vars below in parent
     tpu: bool = II("common.tpu")
     lr: List[float] = II("optimization.lr")
+    max_update: int = II("optimization.max_update")
 
 
 @register_optimizer("adam", dataclass=FairseqAdamConfig)
@@ -64,10 +69,16 @@ class FairseqAdam(FairseqOptimizer):
             # on TPUs we use the Adam defined here, since it
             # automatically casts gradients to FP32
             self._optimizer = Adam(params, **self.optimizer_config)
-        elif use_fused_adam:
+        elif use_fused_adam and not cfg.apply_par:
             logger.info("using FusedAdam")
+
+            # Drop nonexistent PAR parameters
+            optimizer_cfg = self.optimizer_config
+            for attr in ("apply_par", "par_lamb", "max_update"):
+                optimizer_cfg.pop(attr)
+
             self._optimizer = fused_adam_cls(
-                params, use_fp16_stats=self.cfg.fp16_adam_stats, **self.optimizer_config
+                params, use_fp16_stats=self.cfg.fp16_adam_stats, **optimizer_cfg
             )
         else:
             if self.cfg.fp16_adam_stats:
@@ -88,11 +99,14 @@ class FairseqAdam(FairseqOptimizer):
             "lr": self.cfg.lr[0]
             if isinstance(self.cfg.lr, Collection)
             else self.cfg.lr,
+            "max_update": self.cfg.max_update,
             "betas": eval(self.cfg.adam_betas)
             if isinstance(self.cfg.adam_betas, str)
             else OmegaConf.to_container(self.cfg.adam_betas),
             "eps": self.cfg.adam_eps,
             "weight_decay": self.cfg.weight_decay,
+            "apply_par": self.cfg.apply_par,
+            "par_lamb": self.cfg.par_lamb,
         }
 
     def average_params(self):
@@ -138,13 +152,23 @@ class Adam(torch.optim.Optimizer):
         self,
         params,
         lr=1e-3,
+        max_update=120000,
         betas=(0.9, 0.999),
         eps=1e-8,
         weight_decay=0,
         amsgrad=False,
+        apply_par=False,
+        par_lamb=1e-4,
     ):
         defaults = dict(
-            lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, amsgrad=amsgrad,
+            lr=lr,
+            max_update=max_update,
+            betas=betas,
+            eps=eps,
+            weight_decay=weight_decay,
+            amsgrad=amsgrad,
+            apply_par=apply_par,
+            par_lamb=par_lamb,
         )
         super(Adam, self).__init__(params, defaults)
 
@@ -232,6 +256,19 @@ class Adam(torch.optim.Optimizer):
                     )
 
                 p_data_fp32.addcdiv_(exp_avg, denom, value=-step_size)
+
+                if group["apply_par"]:
+                    omega = p_data_fp32.abs().mean()
+                    gamma = math.sqrt(
+                        (group["max_update"] - state["step"] + 1.0)
+                        / group["max_update"]
+                    )
+                    gamma *= group["par_lamb"]
+                    p_data_fp32 = torch.where(
+                        p_data_fp32.abs() < omega.mul(gamma),
+                        p_data_fp32.div(gamma),
+                        torch.sign(p_data_fp32).mul_(omega),
+                    )
 
                 if p.data.dtype in {torch.float16, torch.bfloat16}:
                     p.data.copy_(p_data_fp32)

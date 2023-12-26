@@ -133,10 +133,12 @@ class MADGRAD(torch.optim.Optimizer):
                     p_data_fp32 = p_data_fp32.float()
 
                 if "grad_sum_sq" not in state:
-                    state["grad_sum_sq"] = torch.zeros_like(p_data_fp32).detach()
-                    state["s"] = torch.zeros_like(p_data_fp32).detach()
+                    state["grad_sum_sq"] = torch.zeros_like(p_data_fp32)
+                    state["s"] = torch.zeros_like(p_data_fp32)
                     if momentum != 0:
-                        state["x0"] = torch.clone(p_data_fp32).detach()
+                        state["x0"] = torch.clone(p_data_fp32)
+                        state["momentum_buf"] = torch.zeros_like(p_data_fp32)
+
                     if apply_par:
                         state["lamb_sum"] = torch.zeros(
                             1, dtype=p_data_fp32.dtype, device=p_data_fp32.device
@@ -199,6 +201,7 @@ class MADGRAD(torch.optim.Optimizer):
                         rms = grad_sum_sq.pow(1 / 3).add_(eps)
                         x0 = p_data_fp32.addcdiv(s, rms, value=1)
                     else:
+                        rms_prev = grad_sum_sq.pow(1 / 3).add_(eps)
                         x0 = state["x0"]
 
                     # Accumulate second moments
@@ -211,22 +214,28 @@ class MADGRAD(torch.optim.Optimizer):
                     # Update s
                     s.data.add_(grad, alpha=lamb)
 
-                    if decay != 0 and decouple_decay:
+                    if decouple_decay and decay != 0:
                         p_old = p_data_fp32.clone()
 
                     # Step
-                    z = x0.addcdiv(s, rms, value=-1)
-                    if apply_par:
-                        state["lamb_sum"] += lamb
-                        omega = z.abs().mean()
-                        z = torch.where(
-                            z.abs() < omega.mul(rms.div(state["lamb_sum"])),
-                            z,
-                            torch.sign(z).mul_(omega),
+                    if momentum != 0:
+                        state["momentum_buf"].mul_(rms.div(rms_prev).mul_(1 - ck)).add_(
+                            s
                         )
 
-                    if momentum != 0:
-                        z.mul_(ck).add_(p_data_fp32, alpha=1 - ck)
+                        z = x0.addcdiv(state["momentum_buf"], rms, value=-ck)
+                    else:
+                        z = x0.addcdiv(s, rms, value=-1)
+
+                    if apply_par:
+                        state["lamb_sum"].add_(lamb)
+                        omega = z.abs().mean()
+                        gamma = rms.pow(2).div_(state["lamb_sum"]).clamp_(max=1)
+                        z = torch.where(
+                            z.abs() < omega.mul(gamma),
+                            z.div(gamma),
+                            torch.sign(z).mul_(omega),
+                        )
 
                     p_data_fp32.copy_(z)
 
