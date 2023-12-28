@@ -132,7 +132,21 @@ Please refer to [results_asl_signs.csv](https://github.com/J22Melody/fairseq/blo
 
 ## SignCLIP v1
 
-To fully realize the power and versatility of SignCLIP, in this version, we do not focus on a single dataset and a single task anymore. Instead, we train the models on more diverse sign language datasets with as large a batch size as we can afford (the original [CLIP](https://openai.com/research/clip) was trained with batch size 32,768). As a reference, VideoCLIP was pretrained on 1.1M videos, and the duration of each is ∼6.5 minutes with ∼110 clip-text pairs.
+To fully realize the power and versatility of SignCLIP, in this version, we do not focus on a single dataset and a single task anymore. Instead, we train the models on more diverse sign language datasets with as large a batch size as we can afford (the original [CLIP](https://openai.com/research/clip) was trained with batch size 32,768). 
+
+As a reference, CLIP was trained on 400 million (image, text) pairs collected from
+the internet and VideoCLIP was pretrained on 1.1M HowTo100M videos, and the duration of each is ∼6.5 minutes with ∼110 clip-text pairs.
+
+| Dataset | Language | Type | #examples | #signs | #signers |
+|-----------|-----------|-----------|-----------|-----------|-----------|
+| [RWTH German Fingerspelling](https://www-i6.informatik.rwth-aachen.de/aslr/fingerspelling.php) | DGS | Isolated Fingerspelling | 1400 | 35 | 20 |
+| [ChicagoFSWild](https://home.ttic.edu/~klivescu/ChicagoFSWild.htm) | ASL | Continuous fingerspelling | 7,304 | - | 160 |
+| [ChicagoFSWild+](https://home.ttic.edu/~klivescu/ChicagoFSWild.htm) | ASL | Continuous fingerspelling | 55,232 | - | 260 |
+| [Google - American Sign Language Fingerspelling Recognition](https://www.kaggle.com/competitions/asl-fingerspelling/data) | ASL | Continuous fingerspelling | 67,208 | - | 100 |
+| [Google - Isolated Sign Language Recognition](https://www.kaggle.com/competitions/asl-signs/data) | ASL | ISLR | 94,478 | 250 | 21 |
+| [WLASL](https://dxli94.github.io/WLASL/) | ASL | ISLR | 21,083 | 2,000 | 100 |
+| [How2Sign](https://how2sign.github.io/) | ASL | Continuous | 35,000 | 16,000 | 11 |
+
 
 ## Credits
 
