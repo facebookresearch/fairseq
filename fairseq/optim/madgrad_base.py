@@ -137,12 +137,12 @@ class MADGRAD(torch.optim.Optimizer):
                     state["s"] = torch.zeros_like(p_data_fp32)
                     if momentum != 0:
                         state["x0"] = torch.clone(p_data_fp32)
-                        state["momentum_buf"] = torch.zeros_like(p_data_fp32)
 
                     if apply_par:
                         state["lamb_sum"] = torch.zeros(
                             1, dtype=p_data_fp32.dtype, device=p_data_fp32.device
                         )
+                        state["z"] = torch.zeros_like(p_data_fp32)  # TODO
 
                 if momentum != 0.0 and grad.is_sparse:
                     raise RuntimeError(
@@ -201,7 +201,6 @@ class MADGRAD(torch.optim.Optimizer):
                         rms = grad_sum_sq.pow(1 / 3).add_(eps)
                         x0 = p_data_fp32.addcdiv(s, rms, value=1)
                     else:
-                        rms_prev = grad_sum_sq.pow(1 / 3).add_(eps)
                         x0 = state["x0"]
 
                     # Accumulate second moments
@@ -218,24 +217,20 @@ class MADGRAD(torch.optim.Optimizer):
                         p_old = p_data_fp32.clone()
 
                     # Step
-                    if momentum != 0:
-                        state["momentum_buf"].mul_(rms.div(rms_prev).mul_(1 - ck)).add_(
-                            s
-                        )
-
-                        z = x0.addcdiv(state["momentum_buf"], rms, value=-ck)
-                    else:
-                        z = x0.addcdiv(s, rms, value=-1)
-
+                    z = x0.addcdiv(s, rms, value=-1)
                     if apply_par:
                         state["lamb_sum"].add_(lamb)
                         omega = z.abs().mean()
-                        gamma = rms.pow(2).div_(state["lamb_sum"]).clamp_(max=1)
+                        gamma = rms.div_(state["lamb_sum"]).clamp_(max=1)
                         z = torch.where(
                             z.abs() < omega.mul(gamma),
                             z.div(gamma),
                             torch.sign(z).mul_(omega),
                         )
+                        state["z"].copy_(z)  # TODO
+
+                    if momentum != 0:  # TODO
+                        z.mul_(ck).add_(p_data_fp32, alpha=1 - ck)
 
                     p_data_fp32.copy_(z)
 

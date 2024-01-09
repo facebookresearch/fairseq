@@ -6,7 +6,7 @@
 import torch
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from omegaconf import DictConfig, II
 
@@ -272,6 +272,27 @@ class TransformerLanguageModel(FairseqLanguageModel):
 
     def __init__(self, decoder):
         super().__init__(decoder)
+
+    def split_par_params(self) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+        _par_params, _non_par_params = [], []
+        for k, p in self.named_parameters():
+            if not p.requires_grad:
+                continue
+            if (
+                k.endswith("bias")
+                or k.endswith("embed_tokens.weight")
+                or k.endswith("layer_norm.weight")
+            ):
+                _non_par_params.append(p)
+            else:
+                _par_params.append(p)
+        return _par_params, _non_par_params
+
+    @torch.inference_mode
+    def copy_par_optimizer_z(self, optimizer_state):
+        _par_params, _ = self.split_par_params()
+        for i, param in enumerate(_par_params):
+            param.data.copy_(optimizer_state[i]["z"])
 
     @torch.inference_mode
     def binarize_linear_weights(self):

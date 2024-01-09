@@ -251,19 +251,36 @@ def main(cfg: DictConfig, **unused_kwargs):
 
     # Load ensemble
     logger.info("loading model(s) from {}".format(cfg.common_eval.path))
+    state = checkpoint_utils.load_checkpoint_to_cpu(
+        checkpoint_utils.get_maybe_sharded_checkpoint_filename(
+            filename=cfg.common_eval.path,
+            suffix=cfg.checkpoint.checkpoint_suffix,
+            shard_idx=0,
+            num_shards=cfg.checkpoint.checkpoint_shard_count,
+        ),
+        arg_overrides=eval(cfg.common_eval.model_overrides),
+    )
     models, model_args, task = checkpoint_utils.load_model_ensemble_and_task(
         [cfg.common_eval.path],
-        arg_overrides=eval(cfg.common_eval.model_overrides),
-        suffix=cfg.checkpoint.checkpoint_suffix,
-        strict=(cfg.checkpoint.checkpoint_shard_count == 1),
         num_shards=cfg.checkpoint.checkpoint_shard_count,
         task=task,
+        state=state,
     )
 
     use_fp16 = cfg.common.fp16
     use_cuda = torch.cuda.is_available() and not cfg.common.cpu
     if use_cuda:
         torch.cuda.set_device(cfg.distributed_training.device_id)
+
+    cfg["optimizer"] = model_args["optimizer"]
+    is_madgrad_par = (
+        model_args["optimizer"]["_name"] == "madgrad"
+        and model_args["optimizer"]["par_bits"] > 0
+    )
+    if is_madgrad_par:
+        optimizer_state = state["last_optimizer_state"]["state"]
+        for model in models:
+            model.copy_par_optimizer_z(optimizer_state)
 
     # Optimize ensemble for generation and set the source and dest dicts on the model
     # (required by scorer)
@@ -272,7 +289,6 @@ def main(cfg: DictConfig, **unused_kwargs):
             model.half()
         if use_cuda and not cfg.distributed_training.pipeline_model_parallel:
             model.cuda()
-        cfg["optimizer"] = model_args["optimizer"]
         model.prepare_for_inference_(cfg)
 
     assert len(models) > 0

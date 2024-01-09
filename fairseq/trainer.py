@@ -316,15 +316,7 @@ class Trainer(object):
             and self.cfg.optimizer["par_bits"] > 0
         )
         if is_madgrad_par or is_adam_par:
-            param_dct = {k: p for k, p in self.model.named_parameters()}
-            non_par_params = {
-                p
-                for k, p in param_dct.items()
-                if k.endswith("bias")
-                or k.endswith("embed_tokens.weight")
-                or k.endswith("layer_norm.weight")
-            }
-            params = list(set(params) - non_par_params)
+            params, non_par_params = self.model.split_par_params()
 
         if self.is_fsdp and self.cfg.common.fp16:
             # FullyShardedDataParallel always uses MemoryEfficientFP16 wrapper,
