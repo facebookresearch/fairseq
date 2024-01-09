@@ -272,7 +272,6 @@ def main(cfg: DictConfig, **unused_kwargs):
     if use_cuda:
         torch.cuda.set_device(cfg.distributed_training.device_id)
 
-    cfg["optimizer"] = model_args["optimizer"]
     is_madgrad_par = (
         model_args["optimizer"]["_name"] == "madgrad"
         and model_args["optimizer"]["par_bits"] > 0
@@ -284,6 +283,7 @@ def main(cfg: DictConfig, **unused_kwargs):
 
     # Optimize ensemble for generation and set the source and dest dicts on the model
     # (required by scorer)
+    cfg["optimizer"] = model_args["optimizer"]
     for model in models:
         if use_fp16:
             model.half()

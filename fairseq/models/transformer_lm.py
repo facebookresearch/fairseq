@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import re
 import torch
 
 from dataclasses import dataclass, field
@@ -273,16 +274,19 @@ class TransformerLanguageModel(FairseqLanguageModel):
     def __init__(self, decoder):
         super().__init__(decoder)
 
+    def _is_non_par_param(self, param_name):
+        if not hasattr(self, "_non_par_pattern"):
+            self._non_par_pattern = re.compile(
+                "(?:bias|embed_tokens\.weight|layer_norm\.weight)$"
+            )
+        return self._non_par_pattern.search(param_name)
+
     def split_par_params(self) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         _par_params, _non_par_params = [], []
         for k, p in self.named_parameters():
             if not p.requires_grad:
                 continue
-            if (
-                k.endswith("bias")
-                or k.endswith("embed_tokens.weight")
-                or k.endswith("layer_norm.weight")
-            ):
+            if self._is_non_par_param(k):
                 _non_par_params.append(p)
             else:
                 _par_params.append(p)
@@ -306,7 +310,10 @@ class TransformerLanguageModel(FairseqLanguageModel):
 
         if (
             cfg["optimizer"]["_name"] == "madgrad"
-            and safe_getattr(cfg["optimizer"], "par_bits", 0) == 1
+            and (
+                safe_getattr(cfg["optimizer"], "par_bits", 0) == 1
+                or safe_getattr(cfg["model"], "weight_bits", 32) == 1
+            )
             or cfg["optimizer"]["_name"] == "adam"
             and safe_getattr(cfg["optimizer"], "apply_par", False)
         ):

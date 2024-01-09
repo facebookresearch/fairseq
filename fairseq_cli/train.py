@@ -318,6 +318,14 @@ def train(
     )
     progress.update_config(_flatten_config(cfg))
 
+    try:
+        import wandb
+
+        if wandb.run:
+            wandb.watch(trainer.model, log="all")
+    except:
+        pass
+
     trainer.begin_epoch(epoch_itr.epoch)
 
     valid_subsets = cfg.dataset.valid_subset.split(",")
