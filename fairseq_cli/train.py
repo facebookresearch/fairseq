@@ -279,6 +279,7 @@ def train(
     )
     if cfg.common.tpu:
         itr = utils.tpu_data_loader(itr)
+    is_master = distributed_utils.is_master(cfg.distributed_training)
     progress = progress_bar.progress_bar(
         itr,
         log_format=cfg.common.log_format,
@@ -296,35 +297,25 @@ def train(
             else None
         ),
         aim_param_checkpoint_dir=cfg.checkpoint.save_dir,
-        tensorboard_logdir=(
-            cfg.common.tensorboard_logdir
-            if distributed_utils.is_master(cfg.distributed_training)
-            else None
-        ),
+        tensorboard_logdir=cfg.common.tensorboard_logdir if is_master else None,
         default_log_format=("tqdm" if not cfg.common.no_progress_bar else "simple"),
-        wandb_project=(
-            cfg.common.wandb_project
-            if distributed_utils.is_master(cfg.distributed_training)
-            else None
-        ),
+        wandb_project=cfg.common.wandb_project if is_master else None,
         wandb_run_name=os.environ.get(
             "WANDB_NAME", os.path.basename(cfg.checkpoint.save_dir)
         ),
-        azureml_logging=(
-            cfg.common.azureml_logging
-            if distributed_utils.is_master(cfg.distributed_training)
-            else False
-        ),
+        wandb_log_dir=cfg.common.wandb_log_dir if is_master else None,
+        azureml_logging=cfg.common.azureml_logging if is_master else False,
     )
     progress.update_config(_flatten_config(cfg))
 
-    try:
-        import wandb
+    if is_master:
+        try:
+            import wandb
 
-        if wandb.run:
-            wandb.watch(trainer.model, log="all")
-    except:
-        pass
+            if wandb.run:  # make sure wandb.init was called
+                wandb.watch(trainer.model, log="all")
+        except:
+            pass
 
     trainer.begin_epoch(epoch_itr.epoch)
 

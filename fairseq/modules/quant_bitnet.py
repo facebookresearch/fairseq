@@ -79,10 +79,7 @@ class BinarizerFunction(torch.autograd.Function):
         # Scaling factor to minimize l2 error with full-precision weights
         alpha = input.norm(p=1).div(input.nelement())
 
-        # Center weights to zero-mean before binarization
-        ctr_input = input - input.mean()
-        output = torch.sign(ctr_input).mul(alpha)
-
+        output = torch.sign(input).mul(alpha)
         return output
 
     @staticmethod

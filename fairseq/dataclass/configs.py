@@ -136,6 +136,10 @@ class CommonConfig(FairseqDataclass):
         default=None,
         metadata={"help": "Weights and Biases project name to use for logging"},
     )
+    wandb_log_dir: Optional[str] = field(
+        default=None,
+        metadata={"help": "Weights and Biases logging path (default: ./wandb)"},
+    )
     azureml_logging: Optional[bool] = field(
         default=False,
         metadata={"help": "Log scalars to AzureML context"},
