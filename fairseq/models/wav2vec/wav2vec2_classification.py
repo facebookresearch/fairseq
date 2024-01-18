@@ -206,7 +206,7 @@ class MeanPoolingFast(nn.Module):
             if cfg.latent_embed_dim is not None
             else encoder_embed_dim
         )
-        logging.debug(f"| {self.latent_embed_dim=}")
+        logging.debug(f"| {self.latent_embed_dim}")
         self.linear = Linear(encoder_embed_dim, self.latent_embed_dim)
         self.projection = Linear(self.latent_embed_dim, num_targets)
 
