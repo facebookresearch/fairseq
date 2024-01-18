@@ -9,6 +9,8 @@ import torch.optim
 
 from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple
 
+from fairseq.optim import quant_utils
+
 if TYPE_CHECKING:
     from torch.optim.optimizer import _params_t
 else:
@@ -60,7 +62,8 @@ class MADGRAD(torch.optim.Optimizer):
         weight_decay: float = 0,
         eps: float = 1e-6,
         decouple_decay=False,
-        par_bits=0,
+        quant_method="ste",
+        quant_bits=32,
     ):
         if momentum < 0 or momentum >= 1:
             raise ValueError(f"Momentum {momentum} must be in the range [0,1)")
@@ -77,7 +80,8 @@ class MADGRAD(torch.optim.Optimizer):
             momentum=momentum,
             weight_decay=weight_decay,
             decouple_decay=decouple_decay,
-            par_bits=par_bits,
+            quant_method=quant_method,
+            quant_bits=quant_bits,
         )
         super().__init__(params, defaults)
 
@@ -138,9 +142,14 @@ class MADGRAD(torch.optim.Optimizer):
             state["s"] = torch.zeros_like(p_data_fp32)
 
         if momentum != 0 and "x0" not in state:
-            state["x0"] = torch.clone(p_data_fp32)
+            state["x0"] = p_data_fp32.clone()
 
         return p_data_fp32, grad
+
+    @staticmethod
+    def binarize_param(latent_p, p_data_fp32):
+        omega = quant_utils.estimate_omega(latent_p)
+        quant_utils.scaled_sign_(p_data_fp32.copy_(latent_p), omega)
 
     def step(self, closure: Optional[Callable[[], float]] = None) -> Optional[float]:
         """Performs a single optimization step.
@@ -167,8 +176,13 @@ class MADGRAD(torch.optim.Optimizer):
             decay = group["weight_decay"]
             momentum = group["momentum"]
             decouple_decay = group["decouple_decay"]
-            par_bits = group["par_bits"]
-            apply_par = par_bits > 0 and decouple_decay
+            quant_bits = group["quant_bits"]
+            quant_method = group["quant_method"]
+
+            apply_par = quant_bits == 1 and quant_method == "parq"
+            apply_ste = quant_bits == 1 and quant_method == "ste"
+            if 1 < quant_bits < 32:
+                raise NotImplementedError  # TODO
 
             ck = 1 - momentum
             lamb = lr * math.pow(k + 1, 0.5)
@@ -185,6 +199,8 @@ class MADGRAD(torch.optim.Optimizer):
                         1, dtype=p_data_fp32.dtype, device=p_data_fp32.device
                     )
                     state["z"] = torch.zeros_like(p_data_fp32)
+                if apply_ste and "latent_p" not in state:
+                    state["latent_p"] = p_data_fp32.clone()
 
                 if momentum != 0.0 and grad.is_sparse:
                     raise RuntimeError(
@@ -244,7 +260,7 @@ class MADGRAD(torch.optim.Optimizer):
 
                     if apply_par:
                         rms.div_(state["lamb_sum"].add_(lamb)).clamp_(max=1)
-                        omega = z.abs().mean()
+                        omega = quant_utils.estimate_omega(z)
                         z = torch.where(
                             z.abs() < omega.mul(rms),
                             z.div(rms),
@@ -253,7 +269,15 @@ class MADGRAD(torch.optim.Optimizer):
                         state["z"].copy_(z)
 
                     if momentum != 0:
-                        z.mul_(ck).add_(p_data_fp32, alpha=1 - ck)
+                        z.mul_(ck).add_(
+                            state["latent_p"] if apply_ste else p_data_fp32,
+                            alpha=1 - ck,
+                        )
+
+                    if apply_ste:
+                        state["latent_p"].copy_(z)
+                        omega = quant_utils.estimate_omega(z)
+                        quant_utils.scaled_sign_(z, omega)
 
                     if decouple_decay and decay != 0:
                         p_old = p_data_fp32.clone()

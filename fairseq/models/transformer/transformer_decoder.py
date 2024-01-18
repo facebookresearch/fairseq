@@ -21,6 +21,7 @@ from fairseq.modules import (
     LayerDropModuleList,
     LayerNorm,
     PositionalEmbedding,
+    SinusoidalPositionalEmbedding,
     transformer_layer,
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
@@ -79,9 +80,6 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
 
         self.embed_scale = 1.0 if cfg.no_scale_embedding else math.sqrt(embed_dim)
 
-        self.q_noise = cfg.quant_noise.pq
-        self.qn_block_size = cfg.quant_noise.pq_block_size
-
         if not cfg.adaptive_input and cfg.quant_noise.pq > 0:
             self.quant_noise = apply_quant_noise_(
                 nn.Linear(embed_dim, embed_dim, bias=False),
@@ -91,10 +89,11 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         else:
             self.quant_noise = None
 
-        self.project_in_dim = None
-        if embed_dim != input_embed_dim:
-            self.project_in_dim = nn.Linear(input_embed_dim, embed_dim, bias=False)
-
+        self.project_in_dim = (
+            Linear(input_embed_dim, embed_dim, bias=False)
+            if embed_dim != input_embed_dim
+            else None
+        )
         self.embed_positions = (
             PositionalEmbedding(
                 self.max_target_positions,
@@ -129,11 +128,11 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         else:
             self.layer_norm = None
 
-        self.project_out_dim = None
-        if embed_dim != self.output_embed_dim and not cfg.tie_adaptive_weights:
-            self.project_out_dim = nn.Linear(
-                embed_dim, self.output_embed_dim, bias=False
-            )
+        self.project_out_dim = (
+            Linear(embed_dim, self.output_embed_dim, bias=False)
+            if embed_dim != self.output_embed_dim and not cfg.tie_adaptive_weights
+            else None
+        )
 
         self.adaptive_softmax = None
         self.output_projection = output_projection

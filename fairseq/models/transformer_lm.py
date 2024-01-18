@@ -24,9 +24,8 @@ from fairseq.models.transformer import (
     Embedding,
     TransformerDecoder,
 )
-from fairseq.models.transformer.transformer_config import DEFAULT_NON_PAR_PATTERN
+from fairseq.models.transformer.transformer_config import DEFAULT_NON_QUANT_PATTERN
 from fairseq.modules import AdaptiveInput, CharacterTokenEmbedder
-from fairseq.modules.quant_bitnet import BinarizerFunction, BitLinear
 from fairseq.utils import safe_getattr, safe_hasattr
 
 DEFAULT_MAX_TARGET_POSITIONS = 1024
@@ -176,14 +175,8 @@ class TransformerLanguageModelConfig(FairseqDataclass):
             "help": "scalar quantization noise and scalar quantization at training time"
         },
     )
-    weight_bits: int = field(
-        default=32,
-        metadata={
-            "help": "number of bits for weights",
-        },
-    )
-    re_non_par_pattern: str = field(
-        default=DEFAULT_NON_PAR_PATTERN,
+    re_non_quant_pattern: str = field(
+        default=DEFAULT_NON_QUANT_PATTERN,
         metadata={"help": "regex expression for filtering out non-PAR params"},
     )
     # config for Fully Sharded Data Parallel (FSDP) training
@@ -279,91 +272,41 @@ class TransformerLanguageModel(FairseqLanguageModel):
             ),
         }
 
-    def replace_modules_with_quant(self, weight_bits: int):
-        target_modules = set(
-            [
-                ".".join(pn.split(".")[:-1])
-                for pn, p in self.named_parameters()
-                if not self._is_non_par_param(pn) and p.requires_grad
-            ]
-        )
-
-        for mn, m in self.named_modules():
-            for attr_str in dir(m):
-                if f"{mn}.{attr_str}" not in target_modules:
-                    continue
-
-                tgt_mod = getattr(m, attr_str)
-                assert isinstance(tgt_mod, torch.nn.Linear)
-                setattr(
-                    m,
-                    attr_str,
-                    BitLinear(
-                        tgt_mod.in_features,
-                        tgt_mod.out_features,
-                        weight_bits=weight_bits,
-                        init_weight=tgt_mod.weight,
-                        init_bias=tgt_mod.bias,
-                    ),
-                )
-                logger.info(f"{mn}.{attr_str} to {weight_bits}-bit layer")
-
     def __init__(self, decoder):
         super().__init__(decoder)
 
         if safe_hasattr(self.decoder.cfg, "quant_bitnet") and safe_getattr(
-            self.decoder.cfg.quant_bitnet, "re_non_par_pattern"
+            self.decoder.cfg.quant_bitnet, "re_non_quant_pattern"
         ):
-            self._non_par_pattern = re.compile(
-                self.decoder.cfg.quant_bitnet.re_non_par_pattern
+            self._non_quant_pattern = re.compile(
+                self.decoder.cfg.quant_bitnet.re_non_quant_pattern
             )
-            weight_bits = safe_getattr(self.decoder.cfg.quant_bitnet, "weight_bits", 32)
-            if weight_bits < 32:
-                self.replace_modules_with_quant(weight_bits)
 
-    def _is_non_par_param(self, param_name):
-        return not hasattr(self, "_non_par_pattern") or self._non_par_pattern.search(
-            param_name
-        )
+    def _is_non_quant_param(self, param_name):
+        return not hasattr(
+            self, "_non_quant_pattern"
+        ) or self._non_quant_pattern.search(param_name)
 
-    def split_par_params(self) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
-        _par_params, _non_par_params = [], []
+    def split_quant_params(self) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+        _par_params, _non_quant_params = [], []
+        _par_param_names = []
         for k, p in self.named_parameters():
             if not p.requires_grad:
                 continue
-            if self._is_non_par_param(k):
-                _non_par_params.append(p)
+            if self._is_non_quant_param(k):
+                _non_quant_params.append(p)
             else:
                 _par_params.append(p)
-        return _par_params, _non_par_params
+                _par_param_names.append(k)
+        logger.info(f"compressed params: {_par_param_names}")
+        return _par_params, _non_quant_params
 
     @torch.inference_mode
     def copy_par_optimizer_z(self, optimizer_state):
         """Overwrite weights with corresponding `z` tensors stored in optimizer."""
-        _par_params, _ = self.split_par_params()
+        _par_params, _ = self.split_quant_params()
         for i, param in enumerate(_par_params):
             param.data.copy_(optimizer_state[i]["z"])
-
-    @torch.inference_mode
-    def binarize_linear_weights(self):
-        """Manually binarize weights in linear layers for MADGRAD with PAR."""
-        for m in self.decoder.layers.modules():
-            if isinstance(m, torch.nn.Linear):
-                m.weight.copy_(BinarizerFunction.apply(m.weight))
-
-    def prepare_for_inference_(self, cfg: DictConfig):
-        super().prepare_for_inference_(cfg)
-
-        if (
-            cfg["optimizer"]["_name"] == "madgrad"
-            and (
-                safe_getattr(cfg["optimizer"], "par_bits", 0) == 1
-                or safe_getattr(cfg["model"], "weight_bits", 32) == 1
-            )
-            or cfg["optimizer"]["_name"] == "adam"
-            and safe_getattr(cfg["optimizer"], "apply_par", False)
-        ):
-            self.binarize_linear_weights()
 
     @classmethod
     def build_model(cls, args, task):
@@ -451,9 +394,8 @@ def base_lm_architecture(args):
     args.quant_noise_pq = safe_getattr(args, "quant_noise_pq", 0)
     args.quant_noise_pq_block_size = safe_getattr(args, "quant_noise_pq_block_size", 8)
     args.quant_noise_scalar = safe_getattr(args, "quant_noise_scalar", 0)
-    args.weight_bits = safe_getattr(args, "weight_bits", 32)
-    args.re_non_par_pattern = safe_getattr(
-        args, "re_non_par_pattern", DEFAULT_NON_PAR_PATTERN
+    args.re_non_quant_pattern = safe_getattr(
+        args, "re_non_quant_pattern", DEFAULT_NON_QUANT_PATTERN
     )
 
     args.base_layers = safe_getattr(args, "base_layers", 0)

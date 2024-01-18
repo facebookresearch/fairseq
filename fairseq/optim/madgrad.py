@@ -50,7 +50,8 @@ class FairseqMADGRADConfig(FairseqDataclass):
     decouple_decay: bool = field(
         default=False, metadata={"help": "decouple weight decay"}
     )
-    par_bits: int = field(default=0, metadata={"help": "number of segments in PAR"})
+    quant_method: str = II("optimization.quant_method")
+    quant_bits: int = II("optimization.quant_bits")
 
 
 @register_optimizer("madgrad", dataclass=FairseqMADGRADConfig)
@@ -83,5 +84,6 @@ class FairseqMADGRAD(FairseqOptimizer):
             "weight_decay": self.cfg.weight_decay,
             "eps": self.cfg.madgrad_eps,
             "decouple_decay": self.cfg.decouple_decay,
-            "par_bits": self.cfg.par_bits,
+            "quant_method": self.cfg.quant_method,
+            "quant_bits": self.cfg.quant_bits,
         }

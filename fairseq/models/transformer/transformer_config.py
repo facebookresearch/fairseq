@@ -18,7 +18,7 @@ DEFAULT_MAX_SOURCE_POSITIONS = 1024
 DEFAULT_MAX_TARGET_POSITIONS = 1024
 
 DEFAULT_MIN_PARAMS_TO_WRAP = int(1e8)
-DEFAULT_NON_PAR_PATTERN = "(?:bias|embed_tokens\.weight|layer_norm\.weight)$"
+DEFAULT_NON_QUANT_PATTERN = r"(?:bias|embed_tokens\.weight|layer_norm\.weight)$"
 
 _NAME_PARSER = r"(decoder|encoder|quant_noise)_(.*)"
 
@@ -96,13 +96,9 @@ class QuantNoiseConfig(FairseqDataclass):
 
 @dataclass
 class QuantBitNetConfig(FairseqDataclass):
-    weight_bits: int = field(
-        default=32,
-        metadata={"help": "number of bits for weights"},
-    )
-    re_non_par_pattern: str = field(
-        default=DEFAULT_NON_PAR_PATTERN,
-        metadata={"help": "regex expression for filtering out non-PAR params"},
+    re_non_quant_pattern: str = field(
+        default=DEFAULT_NON_QUANT_PATTERN,
+        metadata={"help": "regex for filtering out non-PAR params"},
     )
 
 

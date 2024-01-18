@@ -19,6 +19,7 @@ from fairseq.modules import (
     LayerDropModuleList,
     LayerNorm,
     PositionalEmbedding,
+    SinusoidalPositionalEmbedding,
     transformer_layer,
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper

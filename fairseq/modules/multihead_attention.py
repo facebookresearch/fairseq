@@ -11,8 +11,6 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn import Parameter
 
-from fairseq.modules.quant_bitnet import BitLinear
-
 try:
     from xformers.components.attention import build_attention
     from xformers.components.attention.utils import maybe_merge_masks
@@ -23,6 +21,7 @@ except ImportError:
 
 from fairseq import utils
 from fairseq.modules.fairseq_dropout import FairseqDropout
+from fairseq.modules.quant_noise import quant_noise
 from fairseq.models.fairseq_incremental_decoder import FairseqIncrementalDecoder
 
 
@@ -94,9 +93,6 @@ class MultiheadAttention(FairseqIncrementalDecoder):
     ):
         super().__init__(dictionary)
 
-        self.q_noise = q_noise
-        self.qn_block_size = qn_block_size
-
         xformers_att_config = utils.eval_str_dict(xformers_att_config)
         self.use_xformers = xformers_att_config is not None
         if self.use_xformers and not _xformers_available:
@@ -124,11 +120,19 @@ class MultiheadAttention(FairseqIncrementalDecoder):
             "Self-attention requires query, key and " "value to be of the same size"
         )
 
-        self.k_proj = torch.nn.Linear(self.kdim, embed_dim, bias=bias)
-        self.v_proj = torch.nn.Linear(self.vdim, embed_dim, bias=bias)
-        self.q_proj = torch.nn.Linear(embed_dim, embed_dim, bias=bias)
+        self.k_proj = quant_noise(
+            nn.Linear(self.kdim, embed_dim, bias=bias), q_noise, qn_block_size
+        )
+        self.v_proj = quant_noise(
+            nn.Linear(self.vdim, embed_dim, bias=bias), q_noise, qn_block_size
+        )
+        self.q_proj = quant_noise(
+            nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
+        )
 
-        self.out_proj = torch.nn.Linear(embed_dim, embed_dim, bias=bias)
+        self.out_proj = quant_noise(
+            nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
+        )
 
         if add_bias_kv:
             self.bias_k = Parameter(torch.Tensor(1, 1, embed_dim))
@@ -462,16 +466,6 @@ class MultiheadAttention(FairseqIncrementalDecoder):
         # TODO: support returning attention weights if needed.
         return y, None
 
-    def _maybe_quantize_weights(self):
-        if isinstance(self.q_proj, BitLinear):
-            return (
-                self.q_proj.quantize_weights(),
-                self.k_proj.quantize_weights(),
-                self.v_proj.quantize_weights(),
-            )
-        else:
-            return self.q_proj.weight, self.k_proj.weight, self.v_proj.weight
-
     def forward(
         self,
         query: Tensor,
@@ -542,11 +536,6 @@ class MultiheadAttention(FairseqIncrementalDecoder):
                 )
 
             else:
-                (
-                    q_proj_weight,
-                    k_proj_weight,
-                    v_proj_weight,
-                ) = self._maybe_quantize_weights()
                 return F.multi_head_attention_forward(
                     query,
                     key,
@@ -566,9 +555,9 @@ class MultiheadAttention(FairseqIncrementalDecoder):
                     need_weights,
                     attn_mask,
                     use_separate_proj_weight=True,
-                    q_proj_weight=q_proj_weight,
-                    k_proj_weight=k_proj_weight,
-                    v_proj_weight=v_proj_weight,
+                    q_proj_weight=self.q_proj.weight,
+                    k_proj_weight=self.k_proj.weight,
+                    v_proj_weight=self.v_proj.weight,
                 )
 
         if incremental_state is not None:
@@ -781,7 +770,6 @@ class MultiheadAttention(FairseqIncrementalDecoder):
             attn = attn.contiguous().view(tgt_len, bsz, self.embed_dim)
         else:
             attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, self.embed_dim)
-
         attn = self.out_proj(attn)
         attn_weights: Optional[Tensor] = None
         if need_weights:

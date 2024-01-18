@@ -308,15 +308,12 @@ class Trainer(object):
                 )
             )
 
-        is_adam_par = self.cfg.optimizer["_name"] == "adam" and self.cfg.optimizer.get(
-            "apply_par", False
+        is_quantized = (
+            self.cfg.optimizer["_name"] in {"adam", "madgrad"}
+            and self.cfg.optimizer["quant_bits"] == 1
         )
-        is_madgrad_par = (
-            self.cfg.optimizer["_name"] == "madgrad"
-            and self.cfg.optimizer["par_bits"] > 0
-        )
-        if is_madgrad_par or is_adam_par:
-            params, non_par_params = self.model.split_par_params()
+        if is_quantized:
+            params, non_quant_params = self.model.split_quant_params()
 
         if self.is_fsdp and self.cfg.common.fp16:
             # FullyShardedDataParallel always uses MemoryEfficientFP16 wrapper,
@@ -353,13 +350,9 @@ class Trainer(object):
             self._optimizer = optim.build_optimizer(self.cfg.optimizer, params)
 
             # Add extra param_group that disables relevant regularization
-            if is_adam_par:
+            if is_quantized:
                 self._optimizer._optimizer.add_param_group(
-                    {"params": list(non_par_params), "apply_par": False}
-                )
-            elif is_madgrad_par:
-                self._optimizer._optimizer.add_param_group(
-                    {"params": list(non_par_params), "par_bits": 0}
+                    {"params": list(non_quant_params), "quant_bits": 32}
                 )
 
         if self.is_fsdp:

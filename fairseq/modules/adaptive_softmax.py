@@ -24,29 +24,25 @@ class TiedLinear(nn.Module):
 
 
 class TiedHeadModule(nn.Module):
-    def __init__(
-        self,
-        weights,
-        input_dim,
-        num_classes,
-        q_noise,
-        qn_block_size,
-    ):
+    def __init__(self, weights, input_dim, num_classes, q_noise, qn_block_size):
         super().__init__()
         tied_emb, _ = weights
         self.num_words, emb_dim = tied_emb.size()
-        self.q_noise = q_noise
-        self.qn_block_size = qn_block_size
 
-        self.word_proj = nn.Linear(tied_emb, transpose=False)
-
+        self.word_proj = quant_noise(
+            TiedLinear(tied_emb, transpose=False), q_noise, qn_block_size
+        )
         if input_dim != emb_dim:
             self.word_proj = nn.Sequential(
-                nn.Linear(input_dim, emb_dim, bias=False),
+                quant_noise(
+                    nn.Linear(input_dim, emb_dim, bias=False), q_noise, qn_block_size
+                ),
                 self.word_proj,
             )
 
-        self.class_proj = nn.Linear(input_dim, num_classes, bias=False)
+        self.class_proj = quant_noise(
+            nn.Linear(input_dim, num_classes, bias=False), q_noise, qn_block_size
+        )
         self.out_dim = self.num_words + num_classes
 
         self.register_buffer("_float_tensor", torch.FloatTensor(1))
@@ -110,7 +106,11 @@ class AdaptiveSoftmax(nn.Module):
                 self.qn_block_size,
             )
         else:
-            self.head = nn.Linear(input_dim, output_dim, bias=False)
+            self.head = quant_noise(
+                nn.Linear(input_dim, output_dim, bias=False),
+                self.q_noise,
+                self.qn_block_size,
+            )
 
         self._make_tail(adaptive_inputs, tie_proj)
 
@@ -139,23 +139,35 @@ class AdaptiveSoftmax(nn.Module):
 
             if tied_proj is not None:
                 if tie_proj:
-                    proj = nn.Linear(tied_proj, transpose=True)
+                    proj = quant_noise(
+                        TiedLinear(tied_proj, transpose=True),
+                        self.q_noise,
+                        self.qn_block_size,
+                    )
                 else:
-                    proj = nn.Linear(tied_proj.size(0), tied_proj.size(1), bias=False)
+                    proj = quant_noise(
+                        nn.Linear(tied_proj.size(0), tied_proj.size(1), bias=False),
+                        self.q_noise,
+                        self.qn_block_size,
+                    )
             else:
-                proj = nn.Linear(self.input_dim, dim, bias=False)
+                proj = quant_noise(
+                    nn.Linear(self.input_dim, dim, bias=False),
+                    self.q_noise,
+                    self.qn_block_size,
+                )
 
             if tied_emb is None:
                 out_proj = nn.Linear(
                     dim, self.cutoff[i + 1] - self.cutoff[i], bias=False
                 )
             else:
-                out_proj = nn.Linear(tied_emb, transpose=False)
+                out_proj = TiedLinear(tied_emb, transpose=False)
 
             m = nn.Sequential(
                 proj,
                 nn.Dropout(self.dropout_module.p),
-                out_proj,
+                quant_noise(out_proj, self.q_noise, self.qn_block_size),
             )
 
             self.tail.append(m)

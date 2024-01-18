@@ -641,6 +641,12 @@ class OptimizationConfig(FairseqDataclass):
         },
     )
     debug_param_names: bool = False
+    quant_method: str = field(
+        default="ste", metadata={"help": "type of quantization in ('parq', 'ste')"}
+    )
+    quant_bits: int = field(
+        default=32, metadata={"help": "number of quantization levels"}
+    )
 
 
 @dataclass

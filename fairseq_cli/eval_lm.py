@@ -24,6 +24,7 @@ from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.logging import progress_bar
 from fairseq.logging.meters import StopwatchMeter
 from fairseq.sequence_scorer import SequenceScorer
+from fairseq.utils import safe_getattr
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -272,11 +273,10 @@ def main(cfg: DictConfig, **unused_kwargs):
     if use_cuda:
         torch.cuda.set_device(cfg.distributed_training.device_id)
 
-    is_madgrad_par = (
-        model_args["optimizer"]["_name"] == "madgrad"
-        and model_args["optimizer"]["par_bits"] > 0
-    )
-    if is_madgrad_par:
+    if (
+        safe_getattr(model_args["optimizer"], "quant_method") == "parq"
+        and safe_getattr(model_args["optimizer"], "quant_bits", 32) < 32
+    ):
         optimizer_state = state["last_optimizer_state"]["state"]
         for model in models:
             model.copy_par_optimizer_z(optimizer_state)

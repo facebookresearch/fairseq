@@ -13,7 +13,7 @@ import torch
 import torch.distributed as dist
 import torch.optim
 from fairseq.dataclass import FairseqDataclass
-from fairseq.optim import FairseqOptimizer, register_optimizer
+from fairseq.optim import FairseqOptimizer, quant_utils, register_optimizer
 from fairseq.optim.fused_adam import get_fused_adam_class
 from omegaconf import II, OmegaConf
 
@@ -36,14 +36,11 @@ class FairseqAdamConfig(FairseqDataclass):
     fp16_adam_stats: bool = field(
         default=False, metadata={"help": "use FP16 stats (with automatic scaling)"}
     )
-    apply_par: bool = field(default=False, metadata={"help": "apply PAR regularizer"})
-    par_lamb: float = field(
-        default=1e-4, metadata={"help": "PAR regularization constant"}
-    )
     # TODO common vars below in parent
     tpu: bool = II("common.tpu")
     lr: List[float] = II("optimization.lr")
-    max_update: int = II("optimization.max_update")
+    quant_method: str = II("optimization.quant_method")
+    quant_bits: int = II("optimization.quant_bits")
 
 
 @register_optimizer("adam", dataclass=FairseqAdamConfig)
@@ -57,28 +54,33 @@ class FairseqAdam(FairseqOptimizer):
 
     def __init__(self, cfg: FairseqAdamConfig, params):
         super().__init__(cfg)
+        quant_bits = getattr(cfg, "quant_bits", 32)
+        if 1 < quant_bits < 32:
+            raise NotImplementedError(
+                f"{quant_bits}-bit quantization not supported yet"
+            )
+        quant_method = getattr(cfg, "quant_method", "ste")
+        if quant_bits < 32 and quant_method != "ste":
+            raise NotImplementedError(f"{quant_method=} not supported yet")
+
         fused_adam_cls = get_fused_adam_class()
         use_fused_adam = (
             not getattr(cfg, "use_old_adam", False)
+            and quant_bits == 32
             and fused_adam_cls is not None
             and torch.cuda.is_available()
         )
+
         if getattr(cfg, "tpu", False):
             if self.cfg.fp16_adam_stats:
                 raise NotImplementedError("--fp16-adam-stats is only supported on GPU")
             # on TPUs we use the Adam defined here, since it
             # automatically casts gradients to FP32
             self._optimizer = Adam(params, **self.optimizer_config)
-        elif use_fused_adam and not cfg.apply_par:
+        elif use_fused_adam:
             logger.info("using FusedAdam")
-
-            # Drop nonexistent PAR parameters
-            optimizer_cfg = self.optimizer_config
-            for attr in ("apply_par", "par_lamb", "max_update"):
-                optimizer_cfg.pop(attr)
-
             self._optimizer = fused_adam_cls(
-                params, use_fp16_stats=self.cfg.fp16_adam_stats, **optimizer_cfg
+                params, use_fp16_stats=self.cfg.fp16_adam_stats, **self.optimizer_config
             )
         else:
             if self.cfg.fp16_adam_stats:
@@ -99,14 +101,13 @@ class FairseqAdam(FairseqOptimizer):
             "lr": self.cfg.lr[0]
             if isinstance(self.cfg.lr, Collection)
             else self.cfg.lr,
-            "max_update": self.cfg.max_update,
             "betas": eval(self.cfg.adam_betas)
             if isinstance(self.cfg.adam_betas, str)
             else OmegaConf.to_container(self.cfg.adam_betas),
             "eps": self.cfg.adam_eps,
             "weight_decay": self.cfg.weight_decay,
-            "apply_par": self.cfg.apply_par,
-            "par_lamb": self.cfg.par_lamb,
+            "quant_method": self.cfg.quant_method,
+            "quant_bits": self.cfg.quant_bits,
         }
 
     def average_params(self):
@@ -152,23 +153,21 @@ class Adam(torch.optim.Optimizer):
         self,
         params,
         lr=1e-3,
-        max_update=120000,
         betas=(0.9, 0.999),
         eps=1e-8,
         weight_decay=0,
         amsgrad=False,
-        apply_par=False,
-        par_lamb=1e-4,
+        quant_method="ste",
+        quant_bits=32,
     ):
         defaults = dict(
             lr=lr,
-            max_update=max_update,
             betas=betas,
             eps=eps,
             weight_decay=weight_decay,
             amsgrad=amsgrad,
-            apply_par=apply_par,
-            par_lamb=par_lamb,
+            quant_method=quant_method,
+            quant_bits=quant_bits,
         )
         super(Adam, self).__init__(params, defaults)
 
@@ -179,6 +178,11 @@ class Adam(torch.optim.Optimizer):
     @property
     def supports_flat_params(self):
         return True
+
+    @staticmethod
+    def binarize_param(p_data_fp32):
+        omega = quant_utils.estimate_omega(p_data_fp32)
+        quant_utils.scaled_sign_(p_data_fp32, omega)
 
     def step(self, closure=None):
         """Performs a single optimization step.
@@ -203,6 +207,7 @@ class Adam(torch.optim.Optimizer):
                         "Adam does not support sparse gradients, please consider SparseAdam instead"
                     )
                 amsgrad = group.get("amsgrad", False)
+                apply_ste = group["quant_method"] == "ste" and group["quant_bits"] < 32
 
                 p_data_fp32 = p.data
                 if p.data.dtype in {torch.float16, torch.bfloat16}:
@@ -220,6 +225,10 @@ class Adam(torch.optim.Optimizer):
                     if amsgrad:
                         # Maintains max of all exp. moving avg. of sq. grad. values
                         state["max_exp_avg_sq"] = torch.zeros_like(p_data_fp32)
+                    if apply_ste:
+                        # Keep full-precision copy of params before binarizing
+                        state["latent_p"] = p_data_fp32.clone()
+                        self.binarize_param(p_data_fp32)
                 else:
                     state["exp_avg"] = state["exp_avg"].to(p_data_fp32)
                     state["exp_avg_sq"] = state["exp_avg_sq"].to(p_data_fp32)
@@ -250,25 +259,14 @@ class Adam(torch.optim.Optimizer):
                 bias_correction2 = 1 - beta2 ** state["step"]
                 step_size = group["lr"] * math.sqrt(bias_correction2) / bias_correction1
 
+                p_buf = state["latent_p"] if apply_ste else p_data_fp32
                 if group["weight_decay"] != 0:
-                    p_data_fp32.add_(
-                        p_data_fp32, alpha=-group["weight_decay"] * group["lr"]
-                    )
+                    p_buf.add_(p_data_fp32, alpha=-group["weight_decay"] * group["lr"])
 
-                p_data_fp32.addcdiv_(exp_avg, denom, value=-step_size)
+                p_buf.addcdiv_(exp_avg, denom, value=-step_size)
 
-                if group["apply_par"]:
-                    omega = p_data_fp32.abs().mean()
-                    gamma = math.sqrt(
-                        (group["max_update"] - state["step"] + 1.0)
-                        / group["max_update"]
-                    )
-                    gamma *= group["par_lamb"]
-                    p_data_fp32 = torch.where(
-                        p_data_fp32.abs() < omega.mul(gamma),
-                        p_data_fp32.div(gamma),
-                        torch.sign(p_data_fp32).mul_(omega),
-                    )
+                if apply_ste:  # load latent_p then binarize
+                    self.binarize_param(p_data_fp32.copy_(p_buf))
 
                 if p.data.dtype in {torch.float16, torch.bfloat16}:
                     p.data.copy_(p_data_fp32)

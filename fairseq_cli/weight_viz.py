@@ -21,6 +21,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
+from fairseq.utils import safe_getattr
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -39,7 +40,7 @@ def add_histograms(
     global_step: int,
 ):
     for k, p in model.named_parameters():
-        if not p.requires_grad or model._is_non_par_param(k):
+        if not p.requires_grad or model._is_non_quant_param(k):
             continue
 
         writer.add_histogram(k, p, global_step=global_step)
@@ -90,7 +91,8 @@ def main(cfg: DictConfig, **unused_kwargs):
         model = _models.pop()
         is_madgrad_par = (
             model_args["optimizer"]["_name"] == "madgrad"
-            and model_args["optimizer"]["par_bits"] > 0
+            and safe_getattr(model_args["optimizer"], "quant_method") == "parq"
+            and safe_getattr(model_args["optimizer"], "quant_bits", 32) < 32
         )
         if is_madgrad_par:
             optimizer_state = state["last_optimizer_state"]["state"]
