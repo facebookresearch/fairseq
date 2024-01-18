@@ -8,7 +8,7 @@ import typing as tp
 from collections import Counter, deque
 from dataclasses import dataclass
 
-from bitarray import bitarray, util
+from bitarray import bitarray
 from fairseq.data import Dictionary
 
 # basically we have to write to addressable bytes for the memory mapped
@@ -43,7 +43,7 @@ class HuffmanCoder:
         """
         # count the 0 padding at the end until we find the first 1
         # we want to remove the one too
-        remove_cnt = util.rindex(a, 1)
+        remove_cnt = index(a, right=1)
         return a[:remove_cnt]
 
     def encode(self, iter: tp.List[str]) -> bytes:
