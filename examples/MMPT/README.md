@@ -143,7 +143,7 @@ the internet and VideoCLIP was pretrained on 1.1M HowTo100M videos, and the dura
 | [ChicagoFSWild](https://home.ttic.edu/~klivescu/ChicagoFSWild.htm) | ASL | Continuous fingerspelling | 7,304 | - | 160 |
 | [ChicagoFSWild+](https://home.ttic.edu/~klivescu/ChicagoFSWild.htm) | ASL | Continuous fingerspelling | 55,232 | - | 260 |
 | [Google - American Sign Language Fingerspelling Recognition](https://www.kaggle.com/competitions/asl-fingerspelling/data) | ASL | Continuous fingerspelling | 67,208 | - | 100 |
-| [Google - Isolated Sign Language Recognition](https://www.kaggle.com/competitions/asl-signs/data) | ASL | ISLR | 94,478 | 250 | 21 |
+| [Google - Isolated Sign Language Recognition](https://www.kaggle.com/competitions/asl-signs/data) | ASL | ISLR | 94,477 | 250 | 21 |
 | [WLASL](https://dxli94.github.io/WLASL/) | ASL | ISLR | 21,083 | 2,000 | 100 |
 | [Sem-Lex](https://github.com/leekezar/SemLex) | ASL | ISLR | 91,148 | 3,149 | 41 |
 | [ASL Citizen](https://www.microsoft.com/en-us/research/project/asl-citizen/) | ASL | ISLR | 84,000 | 2,700 | - |
