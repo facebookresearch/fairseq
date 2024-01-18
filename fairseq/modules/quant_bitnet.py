@@ -99,6 +99,7 @@ class BitLinear(nn.Linear):
         weight_bits=1,
         transpose=False,
         init_weight=None,
+        init_bias=None,
         binarize_per_ch=False,
         **kwargs
     ) -> None:
@@ -114,8 +115,11 @@ class BitLinear(nn.Linear):
             n_bits=weight_bits,
         )
 
-        if init_weight is not None:
-            self.weight = init_weight
+        with torch.no_grad():
+            if init_weight is not None:
+                self.weight.copy_(init_weight)
+            if init_bias is not None:
+                self.bias.copy_(init_bias)
 
     @staticmethod
     def _default_binarizer(x, qparams, quant_fn=BinarizerFunction, n_bits=1):
@@ -134,28 +138,3 @@ class BitLinear(nn.Linear):
         if self.transpose:
             weight_bin = weight_bin.t()
         return nn.functional.linear(input, weight_bin, self.bias)
-
-
-class QuantizeBitLinearMixin:
-    def _maybe_build_quantize_linear(
-        self,
-        input_dim,
-        output_dim,
-        bias=True,
-        transpose=False,
-        init_weight=None,
-        binarize_per_ch=False,
-    ):
-        if self.weight_bits < 32:
-            layer = BitLinear(
-                input_dim,
-                output_dim,
-                bias=bias,
-                transpose=transpose,
-                init_weight=init_weight,
-                binarize_per_ch=binarize_per_ch,
-                weight_bits=self.weight_bits,
-            )
-        else:
-            layer = nn.Linear(input_dim, output_dim, bias=bias)
-        return layer

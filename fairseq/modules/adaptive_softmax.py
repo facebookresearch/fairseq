@@ -10,7 +10,6 @@ import torch
 import torch.nn.functional as F
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
-from fairseq.modules.quant_bitnet import QuantizeBitLinearMixin
 from torch import nn
 
 
@@ -24,49 +23,30 @@ class TiedLinear(nn.Module):
         return F.linear(input, self.weight.t() if self.transpose else self.weight)
 
 
-class QuantizeBitLinearTiedMixin(QuantizeBitLinearMixin):
-    def _maybe_build_tied_quantize_linear(self, tied_emb, transpose=False):
-        if self.weight_bits == 32:
-            layer = quant_noise(
-                TiedLinear(tied_emb, transpose=transpose),
-                self.q_noise,
-                self.qn_block_size,
-            )
-        else:
-            layer = self._maybe_build_quantize_linear(
-                tied_emb.size(1),
-                tied_emb.size(0),
-                bias=False,
-                transpose=transpose,
-                init_weight=tied_emb,
-            )
-        return layer
-
-
-class TiedHeadModule(QuantizeBitLinearTiedMixin, nn.Module):
+class TiedHeadModule(nn.Module):
     def __init__(
-        self, weights, input_dim, num_classes, q_noise, qn_block_size, weight_bits,
+        self,
+        weights,
+        input_dim,
+        num_classes,
+        q_noise,
+        qn_block_size,
     ):
         super().__init__()
         tied_emb, _ = weights
         self.num_words, emb_dim = tied_emb.size()
         self.q_noise = q_noise
         self.qn_block_size = qn_block_size
-        self.weight_bits = weight_bits
 
-        self.word_proj = self._maybe_build_tied_quantize_linear(
-            tied_emb, transpose=False
-        )
+        self.word_proj = nn.Linear(tied_emb, transpose=False)
 
         if input_dim != emb_dim:
             self.word_proj = nn.Sequential(
-                self._maybe_build_quantize_linear(input_dim, emb_dim, bias=False),
+                nn.Linear(input_dim, emb_dim, bias=False),
                 self.word_proj,
             )
 
-        self.class_proj = self._maybe_build_quantize_linear(
-            input_dim, num_classes, bias=False
-        )
+        self.class_proj = nn.Linear(input_dim, num_classes, bias=False)
         self.out_dim = self.num_words + num_classes
 
         self.register_buffer("_float_tensor", torch.FloatTensor(1))
@@ -79,7 +59,7 @@ class TiedHeadModule(QuantizeBitLinearTiedMixin, nn.Module):
         return out
 
 
-class AdaptiveSoftmax(QuantizeBitLinearTiedMixin, nn.Module):
+class AdaptiveSoftmax(nn.Module):
     """
     This is an implementation of the efficient softmax approximation for
     graphical processing units (GPU), described in the paper "Efficient softmax
@@ -97,7 +77,6 @@ class AdaptiveSoftmax(QuantizeBitLinearTiedMixin, nn.Module):
         tie_proj=False,
         q_noise=0,
         qn_block_size=8,
-        weight_bits=32,
     ):
         super().__init__()
 
@@ -119,7 +98,6 @@ class AdaptiveSoftmax(QuantizeBitLinearTiedMixin, nn.Module):
         self.factor = factor
         self.q_noise = q_noise
         self.qn_block_size = qn_block_size
-        self.weight_bits = weight_bits
 
         self.lsm = nn.LogSoftmax(dim=1)
 
@@ -130,12 +108,9 @@ class AdaptiveSoftmax(QuantizeBitLinearTiedMixin, nn.Module):
                 len(cutoff) - 1,
                 self.q_noise,
                 self.qn_block_size,
-                self.weight_bits,
             )
         else:
-            self.head = self._maybe_build_quantize_linear(
-                input_dim, output_dim, bias=False
-            )
+            self.head = nn.Linear(input_dim, output_dim, bias=False)
 
         self._make_tail(adaptive_inputs, tie_proj)
 
@@ -164,28 +139,24 @@ class AdaptiveSoftmax(QuantizeBitLinearTiedMixin, nn.Module):
 
             if tied_proj is not None:
                 if tie_proj:
-                    proj = self._maybe_build_tied_quantize_linear(
-                        tied_proj, transpose=True
-                    )
+                    proj = nn.Linear(tied_proj, transpose=True)
                 else:
-                    proj = self._maybe_build_quantize_linear(
-                        tied_proj.size(0), tied_proj.size(1), bias=False
-                    )
+                    proj = nn.Linear(tied_proj.size(0), tied_proj.size(1), bias=False)
             else:
-                proj = self._maybe_build_quantize_linear(
-                    self.input_dim, dim, bias=False
-                )
+                proj = nn.Linear(self.input_dim, dim, bias=False)
 
             if tied_emb is None:
-                out_proj = self._maybe_build_tied_quantize_linear(
+                out_proj = nn.Linear(
                     dim, self.cutoff[i + 1] - self.cutoff[i], bias=False
                 )
             else:
-                out_proj = self._maybe_build_tied_quantize_linear(
-                    tied_emb, transpose=False
-                )
+                out_proj = nn.Linear(tied_emb, transpose=False)
 
-            m = nn.Sequential(proj, nn.Dropout(self.dropout_module.p), out_proj,)
+            m = nn.Sequential(
+                proj,
+                nn.Dropout(self.dropout_module.p),
+                out_proj,
+            )
 
             self.tail.append(m)
 

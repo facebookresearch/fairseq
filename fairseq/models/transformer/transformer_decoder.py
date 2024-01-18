@@ -24,7 +24,6 @@ from fairseq.modules import (
     transformer_layer,
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
-from fairseq.modules.quant_bitnet import QuantizeBitLinearMixin
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 
 
@@ -36,7 +35,7 @@ def module_name_fordropout(module_name: str) -> str:
         return module_name
 
 
-class TransformerDecoderBase(QuantizeBitLinearMixin, FairseqIncrementalDecoder):
+class TransformerDecoderBase(FairseqIncrementalDecoder):
     """
     Transformer decoder consisting of *cfg.decoder.layers* layers. Each layer
     is a :class:`TransformerDecoderLayer`.
@@ -82,7 +81,6 @@ class TransformerDecoderBase(QuantizeBitLinearMixin, FairseqIncrementalDecoder):
 
         self.q_noise = cfg.quant_noise.pq
         self.qn_block_size = cfg.quant_noise.pq_block_size
-        self.weight_bits = cfg.quant_bitnet.weight_bits
 
         if not cfg.adaptive_input and cfg.quant_noise.pq > 0:
             self.quant_noise = apply_quant_noise_(
@@ -95,9 +93,7 @@ class TransformerDecoderBase(QuantizeBitLinearMixin, FairseqIncrementalDecoder):
 
         self.project_in_dim = None
         if embed_dim != input_embed_dim:
-            self.project_in_dim = self._maybe_build_quantize_linear(
-                input_embed_dim, embed_dim, bias=False
-            )
+            self.project_in_dim = nn.Linear(input_embed_dim, embed_dim, bias=False)
 
         self.embed_positions = (
             PositionalEmbedding(
@@ -135,7 +131,7 @@ class TransformerDecoderBase(QuantizeBitLinearMixin, FairseqIncrementalDecoder):
 
         self.project_out_dim = None
         if embed_dim != self.output_embed_dim and not cfg.tie_adaptive_weights:
-            self.project_out_dim = self._maybe_build_quantize_linear(
+            self.project_out_dim = nn.Linear(
                 embed_dim, self.output_embed_dim, bias=False
             )
 
@@ -154,7 +150,6 @@ class TransformerDecoderBase(QuantizeBitLinearMixin, FairseqIncrementalDecoder):
                 adaptive_inputs=embed_tokens if cfg.tie_adaptive_weights else None,
                 factor=cfg.adaptive_softmax_factor,
                 tie_proj=cfg.tie_adaptive_proj,
-                weight_bits=cfg.quant_bitnet.weight_bits,
             )
         elif self.share_input_output_embed:
             self.output_projection = nn.Linear(
@@ -168,12 +163,13 @@ class TransformerDecoderBase(QuantizeBitLinearMixin, FairseqIncrementalDecoder):
                 self.output_embed_dim, len(dictionary), bias=False
             )
             nn.init.normal_(
-                self.output_projection.weight, mean=0, std=self.output_embed_dim ** -0.5
+                self.output_projection.weight, mean=0, std=self.output_embed_dim**-0.5
             )
         num_base_layers = cfg.base_layers
         for i in range(num_base_layers):
             self.layers.insert(
-                ((i + 1) * cfg.decoder.layers) // (num_base_layers + 1), BaseLayer(cfg),
+                ((i + 1) * cfg.decoder.layers) // (num_base_layers + 1),
+                BaseLayer(cfg),
             )
 
     def build_decoder_layer(self, cfg, no_encoder_attn=False):

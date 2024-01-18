@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
 import re
 import torch
 
@@ -23,11 +24,14 @@ from fairseq.models.transformer import (
     Embedding,
     TransformerDecoder,
 )
+from fairseq.models.transformer.transformer_config import DEFAULT_NON_PAR_PATTERN
 from fairseq.modules import AdaptiveInput, CharacterTokenEmbedder
-from fairseq.modules.quant_bitnet import BinarizerFunction
+from fairseq.modules.quant_bitnet import BinarizerFunction, BitLinear
 from fairseq.utils import safe_getattr, safe_hasattr
 
 DEFAULT_MAX_TARGET_POSITIONS = 1024
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -178,6 +182,10 @@ class TransformerLanguageModelConfig(FairseqDataclass):
             "help": "number of bits for weights",
         },
     )
+    re_non_par_pattern: str = field(
+        default=DEFAULT_NON_PAR_PATTERN,
+        metadata={"help": "regex expression for filtering out non-PAR params"},
+    )
     # config for Fully Sharded Data Parallel (FSDP) training
     min_params_to_wrap: int = field(
         default=DEFAULT_MIN_PARAMS_TO_WRAP,
@@ -271,15 +279,52 @@ class TransformerLanguageModel(FairseqLanguageModel):
             ),
         }
 
+    def replace_modules_with_quant(self, weight_bits: int):
+        target_modules = set(
+            [
+                ".".join(pn.split(".")[:-1])
+                for pn, p in self.named_parameters()
+                if not self._is_non_par_param(pn) and p.requires_grad
+            ]
+        )
+
+        for mn, m in self.named_modules():
+            for attr_str in dir(m):
+                if f"{mn}.{attr_str}" not in target_modules:
+                    continue
+
+                tgt_mod = getattr(m, attr_str)
+                assert isinstance(tgt_mod, torch.nn.Linear)
+                setattr(
+                    m,
+                    attr_str,
+                    BitLinear(
+                        tgt_mod.in_features,
+                        tgt_mod.out_features,
+                        weight_bits=weight_bits,
+                        init_weight=tgt_mod.weight,
+                        init_bias=tgt_mod.bias,
+                    ),
+                )
+                logger.info(f"{mn}.{attr_str} to {weight_bits}-bit layer")
+
     def __init__(self, decoder):
         super().__init__(decoder)
 
-    def _is_non_par_param(self, param_name):
-        if not hasattr(self, "_non_par_pattern"):
+        if safe_hasattr(self.decoder.cfg, "quant_bitnet") and safe_getattr(
+            self.decoder.cfg.quant_bitnet, "re_non_par_pattern"
+        ):
             self._non_par_pattern = re.compile(
-                "(?:bias|embed_tokens\.weight|layer_norm\.weight)$"
+                self.decoder.cfg.quant_bitnet.re_non_par_pattern
             )
-        return self._non_par_pattern.search(param_name)
+            weight_bits = safe_getattr(self.decoder.cfg.quant_bitnet, "weight_bits", 32)
+            if weight_bits < 32:
+                self.replace_modules_with_quant(weight_bits)
+
+    def _is_non_par_param(self, param_name):
+        return not hasattr(self, "_non_par_pattern") or self._non_par_pattern.search(
+            param_name
+        )
 
     def split_par_params(self) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         _par_params, _non_par_params = [], []
@@ -294,6 +339,7 @@ class TransformerLanguageModel(FairseqLanguageModel):
 
     @torch.inference_mode
     def copy_par_optimizer_z(self, optimizer_state):
+        """Overwrite weights with corresponding `z` tensors stored in optimizer."""
         _par_params, _ = self.split_par_params()
         for i, param in enumerate(_par_params):
             param.data.copy_(optimizer_state[i]["z"])
@@ -349,7 +395,6 @@ class TransformerLanguageModel(FairseqLanguageModel):
                 options.eval_str_list(args.adaptive_input_cutoff, type=int),
                 args.quant_noise_pq,
                 args.quant_noise_pq_block_size,
-                args.weight_bits,
             )
         else:
             embed_tokens = cls.build_embedding(
@@ -407,6 +452,9 @@ def base_lm_architecture(args):
     args.quant_noise_pq_block_size = safe_getattr(args, "quant_noise_pq_block_size", 8)
     args.quant_noise_scalar = safe_getattr(args, "quant_noise_scalar", 0)
     args.weight_bits = safe_getattr(args, "weight_bits", 32)
+    args.re_non_par_pattern = safe_getattr(
+        args, "re_non_par_pattern", DEFAULT_NON_PAR_PATTERN
+    )
 
     args.base_layers = safe_getattr(args, "base_layers", 0)
     args.base_sublayers = safe_getattr(args, "base_sublayers", 1)

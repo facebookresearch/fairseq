@@ -11,6 +11,8 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn import Parameter
 
+from fairseq.modules.quant_bitnet import BitLinear
+
 try:
     from xformers.components.attention import build_attention
     from xformers.components.attention.utils import maybe_merge_masks
@@ -21,7 +23,6 @@ except ImportError:
 
 from fairseq import utils
 from fairseq.modules.fairseq_dropout import FairseqDropout
-from fairseq.modules.quant_bitnet import QuantizeBitLinearMixin
 from fairseq.models.fairseq_incremental_decoder import FairseqIncrementalDecoder
 
 
@@ -60,7 +61,7 @@ def _mask_for_xformers(mask: Tensor, to_dtype: Optional[torch.dtype] = None):
     return mask
 
 
-class MultiheadAttention(QuantizeBitLinearMixin, FairseqIncrementalDecoder):
+class MultiheadAttention(FairseqIncrementalDecoder):
     """Multi-headed attention.
 
     See "Attention Is All You Need" for more details.
@@ -81,7 +82,6 @@ class MultiheadAttention(QuantizeBitLinearMixin, FairseqIncrementalDecoder):
         dictionary=None,
         q_noise=0.0,
         qn_block_size=8,
-        weight_bits=32,
         # TODO: pass in config rather than string.
         # config defined in xformers.components.attention.AttentionConfig
         xformers_att_config: Optional[str] = None,
@@ -96,7 +96,6 @@ class MultiheadAttention(QuantizeBitLinearMixin, FairseqIncrementalDecoder):
 
         self.q_noise = q_noise
         self.qn_block_size = qn_block_size
-        self.weight_bits = weight_bits
 
         xformers_att_config = utils.eval_str_dict(xformers_att_config)
         self.use_xformers = xformers_att_config is not None
@@ -125,13 +124,11 @@ class MultiheadAttention(QuantizeBitLinearMixin, FairseqIncrementalDecoder):
             "Self-attention requires query, key and " "value to be of the same size"
         )
 
-        self.k_proj = self._maybe_build_quantize_linear(self.kdim, embed_dim, bias=bias)
-        self.v_proj = self._maybe_build_quantize_linear(self.vdim, embed_dim, bias=bias)
-        self.q_proj = self._maybe_build_quantize_linear(embed_dim, embed_dim, bias=bias)
+        self.k_proj = torch.nn.Linear(self.kdim, embed_dim, bias=bias)
+        self.v_proj = torch.nn.Linear(self.vdim, embed_dim, bias=bias)
+        self.q_proj = torch.nn.Linear(embed_dim, embed_dim, bias=bias)
 
-        self.out_proj = self._maybe_build_quantize_linear(
-            embed_dim, embed_dim, bias=bias
-        )
+        self.out_proj = torch.nn.Linear(embed_dim, embed_dim, bias=bias)
 
         if add_bias_kv:
             self.bias_k = Parameter(torch.Tensor(1, 1, embed_dim))
@@ -466,7 +463,7 @@ class MultiheadAttention(QuantizeBitLinearMixin, FairseqIncrementalDecoder):
         return y, None
 
     def _maybe_quantize_weights(self):
-        if self.weight_bits < 32:
+        if isinstance(self.q_proj, BitLinear):
             return (
                 self.q_proj.quantize_weights(),
                 self.k_proj.quantize_weights(),

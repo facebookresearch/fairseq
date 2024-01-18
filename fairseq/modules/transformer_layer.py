@@ -14,10 +14,9 @@ from fairseq.models.transformer import TransformerConfig
 from fairseq.modules import LayerNorm, MultiheadAttention
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
-from fairseq.modules.quant_bitnet import QuantizeBitLinearMixin
 
 
-class TransformerEncoderLayerBase(QuantizeBitLinearMixin, nn.Module):
+class TransformerEncoderLayerBase(nn.Module):
     """Encoder layer block.
 
     In the original paper each operation (multi-head attention or FFN) is
@@ -39,7 +38,6 @@ class TransformerEncoderLayerBase(QuantizeBitLinearMixin, nn.Module):
         self.embed_dim = cfg.encoder.embed_dim
         self.q_noise = cfg.quant_noise.pq
         self.qn_block_size = cfg.quant_noise.pq_block_size
-        self.weight_bits = cfg.quant_bitnet.weight_bits
         self.self_attn = self.build_self_attention(self.embed_dim, cfg)
         self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
         self.dropout_module = FairseqDropout(
@@ -66,10 +64,10 @@ class TransformerEncoderLayerBase(QuantizeBitLinearMixin, nn.Module):
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
 
     def build_fc1(self, input_dim, output_dim):
-        return self._maybe_build_quantize_linear(input_dim, output_dim)
+        return nn.Linear(input_dim, output_dim)
 
     def build_fc2(self, input_dim, output_dim):
-        return self._maybe_build_quantize_linear(input_dim, output_dim)
+        return nn.Linear(input_dim, output_dim)
 
     def _get_fc_rank(self, remove_num: int) -> List[int]:
         f1_filter_param = []
@@ -134,7 +132,6 @@ class TransformerEncoderLayerBase(QuantizeBitLinearMixin, nn.Module):
             self_attention=True,
             q_noise=self.q_noise,
             qn_block_size=self.qn_block_size,
-            weight_bits=self.weight_bits,
             xformers_att_config=cfg.encoder.xformers_att_config,
         )
 
@@ -233,7 +230,7 @@ class TransformerEncoderLayer(TransformerEncoderLayerBase):
         )
 
 
-class TransformerDecoderLayerBase(QuantizeBitLinearMixin, nn.Module):
+class TransformerDecoderLayerBase(nn.Module):
     """Decoder layer block.
 
     In the original paper each operation (multi-head attention, encoder
@@ -260,7 +257,6 @@ class TransformerDecoderLayerBase(QuantizeBitLinearMixin, nn.Module):
         )
         self.q_noise = cfg.quant_noise.pq
         self.qn_block_size = cfg.quant_noise.pq_block_size
-        self.weight_bits = cfg.quant_bitnet.weight_bits
 
         self.cross_self_attention = cfg.cross_self_attention
 
@@ -334,10 +330,10 @@ class TransformerDecoderLayerBase(QuantizeBitLinearMixin, nn.Module):
         self.onnx_trace = False
 
     def build_fc1(self, input_dim, output_dim):
-        return self._maybe_build_quantize_linear(input_dim, output_dim)
+        return nn.Linear(input_dim, output_dim)
 
     def build_fc2(self, input_dim, output_dim):
-        return self._maybe_build_quantize_linear(input_dim, output_dim)
+        return nn.Linear(input_dim, output_dim)
 
     def build_self_attention(
         self, embed_dim, cfg, add_bias_kv=False, add_zero_attn=False
@@ -351,7 +347,6 @@ class TransformerDecoderLayerBase(QuantizeBitLinearMixin, nn.Module):
             self_attention=not cfg.cross_self_attention,
             q_noise=self.q_noise,
             qn_block_size=self.qn_block_size,
-            weight_bits=self.weight_bits,
             xformers_att_config=cfg.decoder.xformers_att_config,
         )
 
@@ -365,7 +360,6 @@ class TransformerDecoderLayerBase(QuantizeBitLinearMixin, nn.Module):
             encoder_decoder_attention=True,
             q_noise=self.q_noise,
             qn_block_size=self.qn_block_size,
-            weight_bits=self.weight_bits,
             xformers_att_config=cfg.encoder.xformers_att_config,
         )
 
