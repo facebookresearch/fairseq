@@ -15,7 +15,7 @@ Given a 10-second 480p (640×480) RGB (3 channels) video with 30 FPS, we make a 
 | Original video | 10x30 | 640×480x3 |
 | S3D (pretrained on HowTo100M) | 10 | 512 |
 | I3D (pretrained on BSL) | 10 | 1024 |
-| MediaPipe Holistic | 10x30 | 543 |
+| MediaPipe Holistic | 10x30 | 543x3 |
 | SignVQNet | 10 | 1024 |
 
 On the text side, we follow VideoCLIP and use the pretrained [BERT](https://huggingface.co/docs/transformers/model_doc/bert) model. One additional [idea](https://github.com/sign-language-processing/transcription/blob/aa2b1ead7d39b2d545b83bac2041b4b539471a7c/pose_to_text/IDEA-CLIP.md) is to use [SignWriting](https://www.signwriting.org/about/what/what02.html#:~:text=SignWriting%20is%20a%20writing%20system,signed%20language%20in%20the%20world.) as a phonetic text representation of sign language.
