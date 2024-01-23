@@ -116,7 +116,9 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
     # attributes
     if hasattr(trainer.task, "get_checkpoint_dict"):
         extra_state = {**extra_state, **trainer.task.get_checkpoint_dict()}
-        logger.info(f"State of {trainer.task.__class__.__name__} is ready to be persisted with the checkpoint")
+        logger.info(
+            f"State of {trainer.task.__class__.__name__} is ready to be persisted with the checkpoint"
+        )
 
     if hasattr(save_checkpoint, "best"):
         extra_state.update({"best": save_checkpoint.best})
@@ -498,10 +500,12 @@ def load_model_ensemble_and_task(
                 # model parallel checkpoint or unsharded checkpoint
                 # support old external tasks
 
-                if "from_checkpoint" in argspec.args:
-                    model = task.build_model(cfg.model, from_checkpoint=True)
-                else:
-                    model = task.build_model(cfg.model)
+                kwargs = (
+                    task.kwargs_from_cfg(cfg, argspec.args)
+                    if hasattr(task, "kwargs_from_cfg")
+                    else {}
+                )
+                model = task.build_model(cfg.model, **kwargs)
                 if (
                     "optimizer_history" in state
                     and len(state["optimizer_history"]) > 0

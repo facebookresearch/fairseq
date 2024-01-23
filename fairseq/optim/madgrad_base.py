@@ -181,8 +181,6 @@ class MADGRAD(torch.optim.Optimizer):
 
             apply_par = quant_bits == 1 and quant_method == "parq"
             apply_ste = quant_bits == 1 and quant_method == "ste"
-            if 1 < quant_bits < 32:
-                raise NotImplementedError  # TODO
 
             ck = 1 - momentum
             lamb = lr * math.pow(k + 1, 0.5)

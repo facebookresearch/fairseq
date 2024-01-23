@@ -89,11 +89,12 @@ def main(cfg: FairseqConfig) -> None:
     assert cfg.criterion, "Please specify criterion to train a model"
 
     # Build model and criterion
+    kwargs = task.kwargs_from_cfg(cfg) if hasattr(task, "kwargs_from_cfg") else {}
     if cfg.distributed_training.ddp_backend == "fully_sharded":
         with fsdp_enable_wrap(cfg.distributed_training):
-            model = fsdp_wrap(task.build_model(cfg.model))
+            model = fsdp_wrap(task.build_model(cfg.model, **kwargs))
     else:
-        model = task.build_model(cfg.model)
+        model = task.build_model(cfg.model, **kwargs)
     criterion = task.build_criterion(cfg.criterion)
     logger.info(model)
     logger.info("task: {}".format(task.__class__.__name__))
@@ -314,7 +315,7 @@ def train(
 
             if wandb.run:  # make sure wandb.init was called
                 wandb.watch(trainer.model, log="all")
-        except:
+        except ImportError:
             pass
 
     trainer.begin_epoch(epoch_itr.epoch)

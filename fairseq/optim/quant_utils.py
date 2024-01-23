@@ -7,7 +7,7 @@ def estimate_omega(latent_p):
     """Compute layer-wise scaling factor estimated from latent weights.
     XNOR-Net: https://arxiv.org/abs/1603.05279
     """
-    return latent_p.norm(p=1).div(latent_p.nelement())
+    return latent_p.norm(p=1).div(latent_p.numel())
 
 
 def scaled_sign_(latent_p, omega):

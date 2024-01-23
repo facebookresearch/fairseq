@@ -522,6 +522,7 @@ class MultiheadAttention(FairseqIncrementalDecoder):
             # A workaround for quantization to work. Otherwise JIT compilation
             # treats bias in linear module as method.
             and not torch.jit.is_scripting()
+            and not hasattr(self.k_proj, "scale")
             # The Multihead attention implemented in pytorch forces strong dimension check
             # for input embedding dimention and K,Q,V projection dimension.
             # Since pruning will break the dimension check and it is not easy to modify the pytorch API,

@@ -55,10 +55,6 @@ class FairseqAdam(FairseqOptimizer):
     def __init__(self, cfg: FairseqAdamConfig, params):
         super().__init__(cfg)
         quant_bits = getattr(cfg, "quant_bits", 32)
-        if 1 < quant_bits < 32:
-            raise NotImplementedError(
-                f"{quant_bits}-bit quantization not supported yet"
-            )
         quant_method = getattr(cfg, "quant_method", "ste")
         if quant_bits < 32 and quant_method != "ste":
             raise NotImplementedError(f"{quant_method=} not supported yet")
@@ -79,8 +75,11 @@ class FairseqAdam(FairseqOptimizer):
             self._optimizer = Adam(params, **self.optimizer_config)
         elif use_fused_adam:
             logger.info("using FusedAdam")
+            optimizer_config = self.optimizer_config
+            for k in {"quant_method", "quant_bits"}:
+                optimizer_config.pop(k)
             self._optimizer = fused_adam_cls(
-                params, use_fp16_stats=self.cfg.fp16_adam_stats, **self.optimizer_config
+                params, use_fp16_stats=self.cfg.fp16_adam_stats, **optimizer_config
             )
         else:
             if self.cfg.fp16_adam_stats:
@@ -207,7 +206,7 @@ class Adam(torch.optim.Optimizer):
                         "Adam does not support sparse gradients, please consider SparseAdam instead"
                     )
                 amsgrad = group.get("amsgrad", False)
-                apply_ste = group["quant_method"] == "ste" and group["quant_bits"] < 32
+                apply_ste = group["quant_method"] == "ste" and group["quant_bits"] == 1
 
                 p_data_fp32 = p.data
                 if p.data.dtype in {torch.float16, torch.bfloat16}:

@@ -28,7 +28,7 @@ from fairseq.logging import meters, metrics
 from fairseq.models.ema import build_ema
 from fairseq.nan_detector import NanDetector
 from fairseq.optim import lr_scheduler
-from fairseq.utils import safe_hasattr
+from fairseq.utils import safe_getattr, safe_hasattr
 
 logger = logging.getLogger(__name__)
 
@@ -308,12 +308,14 @@ class Trainer(object):
                 )
             )
 
+        # TODO: quantize `1 < quant_bits < 32` in optimizer
+        quant_bits = safe_getattr(self.cfg.optimizer, "quant_bits", 32)
         is_quantized = (
-            self.cfg.optimizer["_name"] in {"adam", "madgrad"}
-            and self.cfg.optimizer["quant_bits"] == 1
+            self.cfg.optimizer["_name"] in {"adam", "madgrad"} and quant_bits == 1
         )
         if is_quantized:
-            params, non_quant_params = self.model.split_quant_params()
+            quant_param_names = []
+            params, non_quant_params = self.model.split_quant_params(quant_param_names)
 
         if self.is_fsdp and self.cfg.common.fp16:
             # FullyShardedDataParallel always uses MemoryEfficientFP16 wrapper,
@@ -352,7 +354,7 @@ class Trainer(object):
             # Add extra param_group that disables relevant regularization
             if is_quantized:
                 self._optimizer._optimizer.add_param_group(
-                    {"params": list(non_quant_params), "quant_bits": 32}
+                    {"params": non_quant_params, "quant_bits": 32}
                 )
 
         if self.is_fsdp:

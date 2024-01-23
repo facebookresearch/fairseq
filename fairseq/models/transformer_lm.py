@@ -10,7 +10,7 @@ import torch
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
-from omegaconf import DictConfig, II
+from omegaconf import II
 
 from fairseq import options, utils
 from fairseq.dataclass import ChoiceEnum, FairseqDataclass
@@ -26,6 +26,7 @@ from fairseq.models.transformer import (
 )
 from fairseq.models.transformer.transformer_config import DEFAULT_NON_QUANT_PATTERN
 from fairseq.modules import AdaptiveInput, CharacterTokenEmbedder
+from fairseq.modules.quantization.lsq import LSQLinear
 from fairseq.utils import safe_getattr, safe_hasattr
 
 DEFAULT_MAX_TARGET_POSITIONS = 1024
@@ -287,25 +288,46 @@ class TransformerLanguageModel(FairseqLanguageModel):
             self, "_non_quant_pattern"
         ) or self._non_quant_pattern.search(param_name)
 
-    def split_quant_params(self) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
-        _par_params, _non_quant_params = [], []
-        _par_param_names = []
+    def split_quant_params(
+        self, quant_param_names: Optional[List[str]] = None
+    ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+        quant_params, non_quant_params = [], []
         for k, p in self.named_parameters():
             if not p.requires_grad:
                 continue
             if self._is_non_quant_param(k):
-                _non_quant_params.append(p)
+                non_quant_params.append(p)
             else:
-                _par_params.append(p)
-                _par_param_names.append(k)
-        logger.info(f"compressed params: {_par_param_names}")
-        return _par_params, _non_quant_params
+                quant_params.append(p)
+                if quant_param_names is not None:
+                    quant_param_names.append(k)
+
+        if quant_param_names is not None:
+            logger.info(f"{quant_param_names=}")
+
+        return quant_params, non_quant_params
+
+    def insert_lsq_modules(self, quant_param_names: List[str], quant_bits):
+        for name in quant_param_names:
+            module_name = name.rsplit(".weight", 1)[0]
+            cur_module = self.get_submodule(module_name)
+            assert isinstance(cur_module, torch.nn.Linear)
+
+            parent, child = module_name.rsplit(".", 1)
+            lsq_module = LSQLinear(
+                quant_bits,
+                cur_module.weight,
+                cur_module.bias,
+            )
+
+            parent_module = self.get_submodule(parent)
+            setattr(parent_module, child, lsq_module)
 
     @torch.inference_mode
     def copy_par_optimizer_z(self, optimizer_state):
         """Overwrite weights with corresponding `z` tensors stored in optimizer."""
-        _par_params, _ = self.split_quant_params()
-        for i, param in enumerate(_par_params):
+        quant_params, _ = self.split_quant_params()
+        for i, param in enumerate(quant_params):
             param.data.copy_(optimizer_state[i]["z"])
 
     @classmethod
