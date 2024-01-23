@@ -103,6 +103,10 @@ class MultiresHubertPretrainingConfig(FairseqDataclass):
 
 @register_task("multires_hubert_pretraining", dataclass=MultiresHubertPretrainingConfig)
 class MultiresHubertPretrainingTask(FairseqTask):
+    """
+    Multiresolution HuBERT Pretraining Task.
+    The task is based on `HubertPretrainingTask` but extended to multiresolution.
+    """
 
     cfg: MultiresHubertPretrainingConfig
 

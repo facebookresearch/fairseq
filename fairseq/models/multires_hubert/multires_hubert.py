@@ -334,7 +334,6 @@ class MultiresHubertModel(BaseFairseqModel):
                 == len(cfg.label_rate_ratios) // 2
             ), "number of override encoder layers must match the label rate ratios information"
             self.len_encoder_modules = len(self.override_encoder_layers)
-            logger.info(self.override_encoder_layers)
         else:
             self.override_encoder_layers = None
             self.len_encoder_modules = None
@@ -477,7 +476,6 @@ class MultiresHubertModel(BaseFairseqModel):
             self.label_rates.append(self.base_rate)
 
         for label_rate_ratio in self.label_rate_ratios:
-            logger.info("label_Rate_ratio: {}".format(label_rate_ratio))
             upsample_rate, downsample_rate = label_rate_ratio
             if (base_ds_rate * upsample_rate) % downsample_rate != 0:
                 logger.warning(
@@ -554,7 +552,6 @@ class MultiresHubertModel(BaseFairseqModel):
 
         # Note(jiatong): different from hubert, we just set the final dim as encoder_embed_dim
         final_dim = cfg.final_dim if cfg.final_dim > 0 else cfg.encoder_embed_dim
-        # final_dim = cfg.encoder_embed_dim
 
         self.mask_emb = nn.Parameter(
             torch.FloatTensor(cfg.encoder_embed_dim).uniform_()
@@ -584,10 +581,6 @@ class MultiresHubertModel(BaseFairseqModel):
         self.label_embs_concat = nn.ParameterList()
 
         for i in range(self.predictor_head_num):
-            # if dictionaries[i] is None:
-            #     self.label_embs_concat.append(None)
-            #     continue
-            # TODO(jiatong): for skipping case
             if self.use_single_target:
                 num_classes = len(dictionaries[0])
             else:
@@ -691,11 +684,9 @@ class MultiresHubertModel(BaseFairseqModel):
         targ_tsz = target.size(1)
         if feat2tar_ratio * feat_tsz > targ_tsz:
             feat_tsz = int(targ_tsz / feat2tar_ratio)
-            # logger.info("feat_tsz: {}, features: {}, target:{}".format(feat_tsz, features.size(), target.size()))
             features = features[:, :feat_tsz]
         target_inds = torch.arange(feat_tsz).float() * feat2tar_ratio
         target = target[:, target_inds.long()]
-        # logger.info("finalized_target: {}, feat2tar_ratio: {}, target_inds: {}".format(target.size(), feat2tar_ratio,target_inds.long()))
         return features, target
 
     def forward_padding_mask(
@@ -774,7 +765,6 @@ class MultiresHubertModel(BaseFairseqModel):
             x, padding_mask, mask_indices = self.downsample_modules[i](
                 x, padding=padding_mask, mask_indices=mask_indices
             )
-            # logger.info("index: {}, x_input: {}, residuals: {}".format(i, x.size(), residuals[i].size()))
 
         residual = self.middle_encoder(x, padding_mask=padding_mask, layer=None)[0]
         x = x + residual
@@ -790,7 +780,6 @@ class MultiresHubertModel(BaseFairseqModel):
                 self.label_nums - 2 - i
             ](x, padding=padding_mask, mask_indices=mask_indices)
             x, _ = self.decoders[i](x, padding_mask=padding_mask, layer=None)
-            # logger.info("index: {}, x_input: {}, residuals: {}".format(i, x.size(), residuals[i].size()))
             x, padding_mask = align_size_sum(x, padding_mask, residuals[i])
             res_outputs.append(x)
             padding_masks.append(padding_mask)
@@ -803,7 +792,6 @@ class MultiresHubertModel(BaseFairseqModel):
         if target_list is not None:
             new_target_list = []
             for i in range(self.label_nums):
-                # logger.info("i: {}, res_output: {}, target_list: {}".format(i, res_outputs[i].size(), target_list[0].size()))
                 if self.use_single_target:
                     res_outputs[i], reformat_target_list = self.forward_targets(
                         res_outputs[i], target_list[0], self.feat2tar_ratios[i]
@@ -827,7 +815,6 @@ class MultiresHubertModel(BaseFairseqModel):
                         res_outputs[i], multi_mask_indices[i]
                     )
 
-        # logger.info("-" * 100)
 
         if features_only:
             # NOTE(jiatong): need to reverse back
@@ -849,13 +836,6 @@ class MultiresHubertModel(BaseFairseqModel):
             # y: (S, D)
             # negs: (Neg, S, D)
             return self.compute_nce(proj_x, y, negs)
-
-        multires_record = {
-            "logit_m_list": [],
-            "logit_u_list": [],
-            "padding_mask": [],
-            "features_pen": [],
-        }
 
         logit_m_list, logit_u_list = [], []
         for j in range(self.label_nums):
@@ -889,11 +869,6 @@ class MultiresHubertModel(BaseFairseqModel):
                 )
             else:
                 logit_u_list.append(None)
-
-            multires_record["logit_m_list"].append(logit_m_list)
-            multires_record["logit_u_list"].append(logit_u_list)
-            multires_record["padding_mask"].append(padding_mask)
-            multires_record["features_pen"].append(features_pen)
 
             # if we only want one prediction, we can exit now
             if self.predictor_head_num == 1:
