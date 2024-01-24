@@ -367,7 +367,7 @@ class Trainer(object):
                 and not self.cfg.common.memory_efficient_bf16
             ) and not self.cfg.common.fp16_no_flatten_grads:
                 raise ValueError(
-                    "ZeRO is incomptabile with fp16 and flattened grads. "
+                    "ZeRO is incompatible with fp16 and flattened grads. "
                     "Please use --fp16-no-flatten-grads"
                 )
             else:

@@ -636,7 +636,7 @@ class set_torch_seed(object):
 
 def parse_alignment(line):
     """
-    Parses a single line from the alingment file.
+    Parses a single line from the alignment file.
 
     Args:
         line (str): String containing the alignment of the format:
@@ -766,7 +766,7 @@ class CudaEnvironment(object):
         Given a list of CudaEnviorments, pretty print them
         """
         num_workers = len(cuda_env_list)
-        center = "CUDA enviroments for all {} workers".format(num_workers)
+        center = "CUDA environments for all {} workers".format(num_workers)
         banner_len = 40 - len(center) // 2
         first_line = "*" * banner_len + center + "*" * banner_len
         logger.info(first_line)
@@ -938,7 +938,7 @@ def hotreload_function(name=None):
 
             if end_action.strip().lower() == "disable":
                 logger.warning(
-                    f"{prefix}: Stop pausing {jname}. The function is still being watched and newly editted code will take effect "
+                    f"{prefix}: Stop pausing {jname}. The function is still being watched and newly edited code will take effect "
                     f"if the {jname} is called again later."
                     f' "unset HOTRELOAD_PAUSE" before relaunch to disable hotreload and'
                     f" remove @hotreload_function decorator in the code."
