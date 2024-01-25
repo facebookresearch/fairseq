@@ -108,8 +108,6 @@ class RWTHFST2VMetric(RetrievalMetric):
         self.error = True
 
     def compute_metrics(self, outputs, texts, video_ids, **kwargs):
-        # return super().compute_metrics(outputs, texts, **kwargs)
-
         row_ids = [idx for idx, text in enumerate(texts) if text not in texts[:idx]]
         texts_reduced = [texts[i] for i in row_ids]
         x = outputs[row_ids, :]

@@ -9,14 +9,12 @@ import os
 import pickle
 import random
 import math
+from collections import defaultdict
+
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 import torch
-
-from collections import defaultdict
-from pose_format import Pose
-from pose_format.utils.normalization_3d import PoseNormalizer
 
 from .processor import (
     MetaProcessor,
@@ -867,6 +865,14 @@ class DiDeMoAligner(DSAligner):
 
 # -------------------- SignCLIP common -----------------------
 
+from pose_format import Pose
+from pose_format.utils.normalization_3d import PoseNormalizer
+
+import mediapipe as mp
+mp_holistic = mp.solutions.holistic
+FACEMESH_CONTOURS_POINTS = [str(p) for p in sorted(set([p for p_tup in list(mp_holistic.FACEMESH_CONTOURS) for p in p_tup]))]
+
+
 class PoseProcessor(VideoProcessor):
     def __init__(self, config):
         super().__init__(config)
@@ -875,9 +881,10 @@ class PoseProcessor(VideoProcessor):
         self.augment2d = config.augment2d
         self.split = config.split
 
-    def __call__(self, video_id):
-        buffer = open(os.path.join(self.vfeat_dir, video_id + ".pose"), "rb").read()
-        pose = Pose.read(buffer)
+    def __call__(self, video_id, pose=None):
+        if video_id:
+            buffer = open(os.path.join(self.vfeat_dir, video_id + ".pose"), "rb").read()
+            pose = Pose.read(buffer)
 
         # normalize pose: the mean distance between the shoulders of each person equals 1
         pose = pose.normalize(self.pose_normalization_info(pose.header))
@@ -885,10 +892,14 @@ class PoseProcessor(VideoProcessor):
 
         # select components
         if self.pose_components:
-            pose = pose.get_components(self.pose_components)
-            # 3D Hand Normalization
-            if self.pose_components == ['RIGHT_HAND_LANDMARKS'] and self.normalize_hand:
-                pose = self.hand_normalization(pose)
+            if self.pose_components == 'reduced_face':
+                pose = pose.get_components(["POSE_LANDMARKS", "FACE_LANDMARKS", "LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"], 
+                    {"FACE_LANDMARKS": FACEMESH_CONTOURS_POINTS})
+            else:
+                pose = pose.get_components(self.pose_components)
+                # 3D Hand Normalization
+                if self.pose_components == ['RIGHT_HAND_LANDMARKS'] and self.normalize_hand:
+                    pose = self.hand_normalization(pose)
         else:
             pose = pose.get_components(["POSE_LANDMARKS", "FACE_LANDMARKS", "LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"])
 
@@ -896,7 +907,7 @@ class PoseProcessor(VideoProcessor):
         if self.split == 'train' and self.augment2d:
             pose = pose.augment2d()
 
-        feat = pose.body.data
+        feat = np.nan_to_num(pose.body.data)
         feat = feat.reshape(feat.shape[0], -1)
         
         return feat
@@ -928,8 +939,8 @@ class PoseProcessor(VideoProcessor):
         normalizer = PoseNormalizer(plane=plane, line=line, size=100)
         tensor = normalizer(pose.body.data)
 
-        pose.body.data = np.nan_to_num(tensor)
-        # pose.body.data = tensor
+        # pose.body.data = np.nan_to_num(tensor)
+        pose.body.data = tensor
         pose.focus()
 
         return pose
@@ -1136,3 +1147,77 @@ class ASLSignPoseProcessor(PoseProcessor):
         pose_data = np.nan_to_num(pose_data)
         
         return pose_data
+
+
+# -------------------- SignCLIP v1 -----------------------
+
+import importlib
+
+import tensorflow_datasets as tfds
+import sign_language_datasets.datasets
+from sign_language_datasets.datasets.config import SignDatasetConfig
+
+from pose_format.numpy.pose_body import NumPyPoseBody
+from pose_format.pose_header import PoseHeader
+from pose_format.utils.reader import BufferReader
+
+
+class SignCLIPMetaProcessor(MetaProcessor):
+    def __init__(self, config):
+        super().__init__(config)
+        self.data = []
+
+        print('================================')
+        print(f'Loading {config.split} data ... ')
+        print('================================')
+
+        datasets = config[f'{config.split}_datasets']
+        datasets = [item if len(item) == 3 else [*item, None] for item in datasets]
+
+        for dataset, version, split_version in datasets:
+            print('--------------------------------')
+            print(f'Loading the {dataset} {version} dataset, {split_version if split_version else "default"} split ... ')
+            print('--------------------------------')
+
+            sd_config = SignDatasetConfig(name="holistic", version=version, include_video=False, include_pose="holistic", extra={'split': split_version} if split_version else {})
+            data = tfds.load(name=dataset, builder_kwargs=dict(config=sd_config), data_dir=config.data_dir)
+
+            split = 'validation' if config.split == 'valid' else config.split
+            data_l = list(data[split])
+            # data_l = list(data['test'])
+            print(f'In total {len(data_l)} raw {split} examples.')
+
+            # read common pose header for the dataset
+            dataset_module = importlib.import_module("sign_language_datasets.datasets." + dataset + "." + dataset)
+            with open(dataset_module._POSE_HEADERS['holistic'], "rb") as buffer:
+                pose_header = PoseHeader.read(BufferReader(buffer.read()))
+
+            for datum in data_l:
+                datum['id'] = f"{dataset}_{datum['id'].numpy().decode('utf-8')}"
+                datum['text'] = f"<American Sign Language> {datum['text'].numpy().decode('utf-8')}"
+
+                # reconstruct pose object
+                tf_pose = datum['pose']
+                fps = int(tf_pose["fps"].numpy())
+                pose_body = NumPyPoseBody(fps, tf_pose["data"].numpy(), tf_pose["conf"].numpy())
+                pose = Pose(pose_header, pose_body)
+                datum['pose'] = pose
+                datum['pose_length'] = pose.body.data.shape[0]
+
+            data_l = [datum for datum in data_l if datum['pose_length'] > 0 and datum['pose_length'] <= config.max_video_len]
+            print(f'In total {len(data_l)} wellformed {split} examples.')
+
+            self.data = self.data + data_l
+
+
+    def __getitem__(self, idx):
+        datum = self.data[idx]
+        return idx, datum['text']
+
+
+class SignCLIPPoseProcessor(PoseProcessor):
+    def __call__(self, idx, data):
+        # the pose objects are passed to PoseProcessor
+        feat = super().__call__(None, data[idx]['pose'])
+        return feat
+        

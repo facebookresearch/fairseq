@@ -1,0 +1,62 @@
+dataset:
+  max_video_len: 256
+  max_len: 64
+  meta_processor: SignCLIPMetaProcessor
+  video_processor: SignCLIPPoseProcessor
+  text_processor: TextProcessor
+  bert_name: bert-base-cased
+  data_dir: /shares/volk.cl.uzh/zifjia/tensorflow_datasets
+  # train_datasets: [
+  #   ['asl_citizen', '1.0.0'],
+  #   ['sem_lex', '1.0.0'],
+  #   ['asl_signs', '1.0.0', '1.0.0-uzh'],
+  #   ['chicago_fs_wild', '1.0.0'],
+  #   ['chicago_fs_wild', '2.0.0'],
+  # ]
+  train_datasets: [['asl_signs', '1.0.0', '1.0.0-uzh']]
+  valid_datasets: [['asl_signs', '1.0.0', '1.0.0-uzh']]
+  test_datasets: [['asl_signs', '1.0.0', '1.0.0-uzh']]
+  test_path: data/<dataset>/test.txt # placeholder, no use
+  val_path: data/<dataset>/val.txt # placeholder, no use
+  train_path: data/<dataset>/train.txt # placeholder, no use
+  aligner: DSAligner
+  pose_components: 'reduced_face'
+fairseq:
+  common:
+    fp16: true
+    tensorboard_logdir: run
+    log_interval: 1000
+  dataset:
+    num_workers: 1
+    batch_size: 256
+    # batch_size: 512 # memory error on 32GB GPU
+  optimization:
+    lr:
+    - 5.0e-05
+    clip_norm: 2.0
+    optimizer: adam
+    adam_betas: (0.9, 0.98)
+    lr_scheduler: polynomial_decay
+    total_num_update: 1000000
+    warmup_updates: 1000
+    weight_decay: 0.0
+    ddp_backend: no_c10d
+    max_epoch: 25
+  checkpoint:
+    no_epoch_checkpoints: true
+    reset_optimizer: true
+    reset_dataloader: true
+    reset_meters: true
+    save_dir: runs/retri/baseline
+task_type: sweep_small
+model:
+  model_cls: MMFusionSeparate
+  mm_encoder_cls: null
+  video_encoder_cls: MMBertForEncoder
+  text_encoder_cls: BertModel
+  num_hidden_video_layers: 6
+  vfeat_dim: 609
+loss:
+  loss_cls: MMContraLoss
+eval:
+  save_path: runs/retri/baseline
