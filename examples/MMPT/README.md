@@ -15,7 +15,7 @@ Given a 10-second 480p (640×480) RGB (3 channels) video with 30 FPS, we make a 
 | Original video | 10x30 | 640×480x3 |
 | S3D (pretrained on HowTo100M) | 10 | 512 |
 | I3D (pretrained on BSL) | 10 | 1024 |
-| MediaPipe Holistic | 10x30 | 543 |
+| MediaPipe Holistic | 10x30 | 543x3 |
 | SignVQNet | 10 | 1024 |
 
 On the text side, we follow VideoCLIP and use the pretrained [BERT](https://huggingface.co/docs/transformers/model_doc/bert) model. One additional [idea](https://github.com/sign-language-processing/transcription/blob/aa2b1ead7d39b2d545b83bac2041b4b539471a7c/pose_to_text/IDEA-CLIP.md) is to use [SignWriting](https://www.signwriting.org/about/what/what02.html#:~:text=SignWriting%20is%20a%20writing%20system,signed%20language%20in%20the%20world.) as a phonetic text representation of sign language.
@@ -132,7 +132,25 @@ Please refer to [results_asl_signs.csv](https://github.com/J22Melody/fairseq/blo
 
 ## SignCLIP v1
 
-To fully realize the power and versatility of SignCLIP, in this version, we do not focus on a single dataset and a single task anymore. Instead, we train the models on more diverse sign language datasets with as large a batch size as we can afford (the original [CLIP](https://openai.com/research/clip) was trained with batch size 32,768). As a reference, VideoCLIP was pretrained on 1.1M videos, and the duration of each is ∼6.5 minutes with ∼110 clip-text pairs.
+To fully realize the power and versatility of SignCLIP, in this version, we do not focus on a single dataset and a single task anymore. Instead, we train the models on more diverse sign language datasets with as large a batch size as we can afford (the original [CLIP](https://openai.com/research/clip) was trained with batch size 32,768). 
+
+As a reference, CLIP was trained on 400 million (image, text) pairs collected from
+the internet and VideoCLIP was pretrained on 1.1M HowTo100M videos, and the duration of each is ∼6.5 minutes with ∼110 clip-text pairs.
+
+| Dataset | Language | Type | #examples | #signs | #signers |
+|-----------|-----------|-----------|-----------|-----------|-----------|
+| [RWTH German Fingerspelling](https://www-i6.informatik.rwth-aachen.de/aslr/fingerspelling.php) | DGS | Isolated Fingerspelling | 1400 | 35 | 20 |
+| [ChicagoFSWild](https://home.ttic.edu/~klivescu/ChicagoFSWild.htm) | ASL | Continuous fingerspelling | 7,304 | - | 160 |
+| [ChicagoFSWild+](https://home.ttic.edu/~klivescu/ChicagoFSWild.htm) | ASL | Continuous fingerspelling | 55,232 | - | 260 |
+| [Google - American Sign Language Fingerspelling Recognition](https://www.kaggle.com/competitions/asl-fingerspelling/data) | ASL | Continuous fingerspelling | 67,208 | - | 100 |
+| [Google - Isolated Sign Language Recognition](https://www.kaggle.com/competitions/asl-signs/data) | ASL | ISLR | 94,477 | 250 | 21 |
+| [WLASL](https://dxli94.github.io/WLASL/) | ASL | ISLR | 21,083 | 2,000 | 100 |
+| [Sem-Lex](https://github.com/leekezar/SemLex) | ASL | ISLR | 91,148 | 3,149 | 41 |
+| [ASL Citizen](https://www.microsoft.com/en-us/research/project/asl-citizen/) | ASL | ISLR | 84,000 | 2,700 | - |
+| [ASL-LEX](https://asl-lex.org/about.html) | ASL | Phonological Database | - | 2,723 | - |
+| [How2Sign](https://how2sign.github.io/) | ASL | Continuous | 35,000 | 16,000 | 11 |
+
+
 
 ## Credits
 
