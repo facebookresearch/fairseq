@@ -1204,15 +1204,56 @@ class SignCLIPMetaProcessor(MetaProcessor):
                 datum['pose'] = pose
                 datum['pose_length'] = pose.body.data.shape[0]
 
+            # filter empty or long poses
             data_l = [datum for datum in data_l if datum['pose_length'] > 0 and datum['pose_length'] <= config.max_video_len]
             print(f'In total {len(data_l)} wellformed {split} examples.')
 
             self.data = self.data + data_l
 
+        # Group examples by text prompts
+        self.text_to_idxs = defaultdict(list)
+        for idx, datum in enumerate(self.data):
+            self.text_to_idxs[datum['text']].append(idx)
+
+        print('Number of examples grouped by the text prompts:')
+        text_to_idxs_num = [(text, len(idxs)) for text, idxs in self.text_to_idxs.items()]
+        text_to_idxs_num = sorted(text_to_idxs_num, key=lambda x: x[1], reverse=True)
+        for i, entry in enumerate(text_to_idxs_num):
+            if i < 10 or (len(text_to_idxs_num) - i < 10):
+                print(entry)
+            elif i == 10:
+                print('...')
+        
+        # unique sampler: sample config.unique_sampler_num examples of different text prompts randomly (for a batch)
+        if config.split == 'train' and config.unique_sampler_num:
+            if config.unique_sampler_num > len(text_to_idxs_num):
+                raise ValueError(f'Impossible to sample {config.unique_sampler_num} unique examples given {len(text_to_idxs_num)} unique text prompts.')
+
+            random.seed(42)
+            self.unique_sampler_num = config.unique_sampler_num
+            self.text_prompts = list(self.text_to_idxs.keys())
+            self.text_prompts_sampled = []
+
 
     def __getitem__(self, idx):
-        datum = self.data[idx]
-        return idx, datum['text']
+        if hasattr(self, 'unique_sampler_num'):
+            # reset when starting a new epoch or when a batch is full
+            if idx == 0 or len(self.text_prompts_sampled) == self.unique_sampler_num:
+                self.text_prompts = list(self.text_to_idxs.keys())
+                self.text_prompts_sampled = []
+                # print('reset')
+
+            # randomly sample one example per text prompt
+            sampled_text = random.choice(self.text_prompts)
+            sampled_idx = random.choice(self.text_to_idxs[sampled_text])
+            self.text_prompts.remove(sampled_text)
+            self.text_prompts_sampled.append(sampled_text)
+
+            # print(sampled_idx, sampled_text)
+            return sampled_idx, sampled_text
+        else:
+            datum = self.data[idx]
+            return idx, datum['text']
 
 
 class SignCLIPPoseProcessor(PoseProcessor):

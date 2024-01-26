@@ -1,3 +1,4 @@
 ,T2V_P@1,T2V_P@5,T2V_P@10,T2V_Median R,V2T_R@1,V2T_R@5,V2T_R@10,V2T_Median R,notes
 baseline,0.9240,0.8992,0.8352,1.0,0.7349,0.9083,0.9385,1.0,baseline (asl_signs data)
 baseline_aug,0.9400,0.8904,0.8232,1.0,0.6921,0.8977,0.9329,1.0,baseline with 2d augmentation
+baseline_unique,0.9720,0.9240,0.8340,1.0,0.7012,0.8952,0.9274,1.0,baseline with unique sampler

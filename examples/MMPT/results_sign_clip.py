@@ -13,10 +13,12 @@ tasks_path = 'projects/retri/signclip_v1/'
 tasks = [
     'baseline',
     'baseline_aug',
+    'baseline_unique',
 ]
 notes = [
     'baseline (asl_signs data)',
     'baseline with 2d augmentation',
+    'baseline with unique sampler',
 ]
 
 results = {}
