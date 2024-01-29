@@ -4,7 +4,7 @@ from sign_language_datasets.datasets.config import SignDatasetConfig
 import yaml
 
 
-config_file = './projects/retri/signclip_v1/baseline.yaml'
+config_file = './projects/retri/signclip_v1/baseline_asl.yaml'
 
 with open(config_file, "r") as stream:
     try:

@@ -1165,13 +1165,19 @@ from pose_format.utils.reader import BufferReader
 class SignCLIPMetaProcessor(MetaProcessor):
     def __init__(self, config):
         super().__init__(config)
+        random.seed(42)
+
+        self.config = config
+        self.split = config.split
+        self.pose_processer = SignCLIPPoseProcessor(config) # call pose_processer by meta_processor itself
+        self.datasets = []
         self.data = []
 
         print('================================')
-        print(f'Loading {config.split} data ... ')
+        print(f'Loading {self.split} data ... ')
         print('================================')
 
-        datasets = config[f'{config.split}_datasets']
+        datasets = config[f'{self.split}_datasets']
         datasets = [item if len(item) == 3 else [*item, None] for item in datasets]
 
         for dataset, version, split_version in datasets:
@@ -1180,35 +1186,35 @@ class SignCLIPMetaProcessor(MetaProcessor):
             print('--------------------------------')
 
             sd_config = SignDatasetConfig(name="holistic", version=version, include_video=False, include_pose="holistic", extra={'split': split_version} if split_version else {})
-            data = tfds.load(name=dataset, builder_kwargs=dict(config=sd_config), data_dir=config.data_dir)
+            split = 'validation' if self.split == 'valid' else self.split
+            data_l = tfds.load(name=dataset, builder_kwargs=dict(config=sd_config), data_dir=config.data_dir)[split]
 
-            split = 'validation' if config.split == 'valid' else config.split
-            data_l = list(data[split])
-            # data_l = list(data['test'])
             print(f'In total {len(data_l)} raw {split} examples.')
+
+            # filter empty or long poses
+            data_l_filtered = [datum for datum in data_l if datum['pose']['data'].shape[0] > 0 and datum['pose']['data'].shape[0] <= config.max_video_len]
+            print(f'In total {len(data_l_filtered)} wellformed {split} examples.')
 
             # read common pose header for the dataset
             dataset_module = importlib.import_module("sign_language_datasets.datasets." + dataset + "." + dataset)
             with open(dataset_module._POSE_HEADERS['holistic'], "rb") as buffer:
                 pose_header = PoseHeader.read(BufferReader(buffer.read()))
 
-            for datum in data_l:
-                datum['id'] = f"{dataset}_{datum['id'].numpy().decode('utf-8')}"
-                datum['text'] = f"<American Sign Language> {datum['text'].numpy().decode('utf-8')}"
+            self.datasets.append({
+                'name': dataset,
+                'pose_header': pose_header,
+                'data_l': data_l_filtered,
+            })
+            self.data = self.data + [dict(
+                datum, 
+                id=f"{dataset}_{datum['id'].numpy().decode('utf-8')}",
+                text=f"<American Sign Language> {datum['text'].numpy().decode('utf-8')}",
+                pose_header=pose_header,
+            ) for datum in data_l_filtered]
 
-                # reconstruct pose object
-                tf_pose = datum['pose']
-                fps = int(tf_pose["fps"].numpy())
-                pose_body = NumPyPoseBody(fps, tf_pose["data"].numpy(), tf_pose["conf"].numpy())
-                pose = Pose(pose_header, pose_body)
-                datum['pose'] = pose
-                datum['pose_length'] = pose.body.data.shape[0]
-
-            # filter empty or long poses
-            data_l = [datum for datum in data_l if datum['pose_length'] > 0 and datum['pose_length'] <= config.max_video_len]
-            print(f'In total {len(data_l)} wellformed {split} examples.')
-
-            self.data = self.data + data_l
+        print(f'In total {len(self.data)} wellformed {split} examples from all datasets.')
+        if self.split == 'train':
+            random.shuffle(self.data)
 
         # Group examples by text prompts
         self.text_to_idxs = defaultdict(list)
@@ -1225,15 +1231,13 @@ class SignCLIPMetaProcessor(MetaProcessor):
                 print('...')
         
         # unique sampler: sample config.unique_sampler_num examples of different text prompts randomly (for a batch)
-        if config.split == 'train' and config.unique_sampler_num:
+        if self.split == 'train' and config.unique_sampler_num:
             if config.unique_sampler_num > len(text_to_idxs_num):
                 raise ValueError(f'Impossible to sample {config.unique_sampler_num} unique examples given {len(text_to_idxs_num)} unique text prompts.')
 
-            random.seed(42)
             self.unique_sampler_num = config.unique_sampler_num
             self.text_prompts = list(self.text_to_idxs.keys())
             self.text_prompts_sampled = []
-
 
     def __getitem__(self, idx):
         if hasattr(self, 'unique_sampler_num'):
@@ -1253,12 +1257,71 @@ class SignCLIPMetaProcessor(MetaProcessor):
             return sampled_idx, sampled_text
         else:
             datum = self.data[idx]
-            return idx, datum['text']
+
+            # reconstruct pose object
+            tf_pose = datum['pose']
+            fps = int(tf_pose["fps"].numpy())
+            pose_body = NumPyPoseBody(fps, tf_pose["data"].numpy(), tf_pose["conf"].numpy())
+            pose = Pose(datum['pose_header'], pose_body)
+            vfeat = self.pose_processer(pose)
+
+            return idx, datum['text'], vfeat
+
+
+    # TODO: try asynchronously load data by generator
+    # def __len__(self):
+    #     return 2000
+
+
+    # def __getitem_iter__(self):
+    #     data_ls = [iter(list(dataset['data_l'])) for dataset in self.datasets]
+    #     # data_ls = [iter(dataset['data_l']) for dataset in self.datasets] # FIXME: this makes the genertor hang on the third call
+        
+    #     for dataset in self.datasets:
+    #         dataset['exhausted'] = False
+
+    #     while not all([dataset['exhausted'] for dataset in self.datasets]):
+    #         # take turns to sample from each dataset until exhausted
+    #         for i, dataset in enumerate(self.datasets):
+    #             if dataset['exhausted']:
+    #                 continue
+    #             try:
+    #                 datum = next(data_ls[i])
+                    
+    #                 # reconstruct pose object
+    #                 tf_pose = datum['pose']
+    #                 fps = int(tf_pose["fps"].numpy())
+    #                 pose_body = NumPyPoseBody(fps, tf_pose["data"].numpy(), tf_pose["conf"].numpy())
+    #                 pose = Pose(dataset['pose_header'], pose_body)
+    #                 datum['pose'] = pose
+    #                 datum['pose_length'] = pose.body.data.shape[0]
+
+    #                 filter empty or long poses
+    #                 if datum['pose_length'] > 0 and datum['pose_length'] <= self.config.max_video_len:
+    #                     datum['id'] = f"{dataset['name']}_{datum['id'].numpy().decode('utf-8')}"
+    #                     datum['text'] = f"<American Sign Language> {datum['text'].numpy().decode('utf-8')}"
+
+    #                 yield datum
+    #             except StopIteration:
+    #                 dataset['exhausted'] = True
+
+
+    # def __getitem__(self, idx):
+    #     if idx == 0:
+    #         self.data_iter = self.__getitem_iter__()
+    #     elif idx >= self.__len__():
+    #         raise ValueError(f'No example left in the data, in total {self.__len__()}, required index {idx}.')
+
+    #     datum = next(self.data_iter)
+    #     print(f"{self.split}, {idx}, {datum['text']}")
+
+    #     vfeat = self.pose_processer(datum['pose'])
+    #     return idx, datum['text'], vfeat
 
 
 class SignCLIPPoseProcessor(PoseProcessor):
-    def __call__(self, idx, data):
+    def __call__(self, pose):
         # the pose objects are passed to PoseProcessor
-        feat = super().__call__(None, data[idx]['pose'])
+        feat = super().__call__(None, pose)
         return feat
         

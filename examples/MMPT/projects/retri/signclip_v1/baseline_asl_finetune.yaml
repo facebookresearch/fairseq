@@ -31,16 +31,17 @@ fairseq:
     adam_betas: (0.9, 0.98)
     lr_scheduler: polynomial_decay
     total_num_update: 1000000
-    warmup_updates: 1000
+    warmup_updates: 122
     weight_decay: 0.0
     ddp_backend: no_c10d
-    max_epoch: 25
+    max_epoch: 10
   checkpoint:
+    restore_file: runs/retri/baseline_asl/checkpoint_best.pt
     no_epoch_checkpoints: true
     reset_optimizer: true
     reset_dataloader: true
     reset_meters: true
-    save_dir: runs/retri/baseline
+    save_dir: runs/retri/baseline_asl_finetune
 task_type: sweep_small
 model:
   model_cls: MMFusionSeparate
@@ -52,4 +53,4 @@ model:
 loss:
   loss_cls: MMContraLoss
 eval:
-  save_path: runs/retri/baseline
+  save_path: runs/retri/baseline_asl_finetune

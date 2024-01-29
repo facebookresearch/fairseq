@@ -47,11 +47,14 @@ class MMDataset(Dataset):
     def __getitem__(self, idx):
         if self.split == "test":
             set_seed(idx)
-        video_id, text_id = self.meta_processor[idx]
-        if isinstance(self.video_processor, SignCLIPPoseProcessor):
-            video_feature = self.video_processor(video_id, self.meta_processor.data)
+        meta_returns = self.meta_processor[idx]
+        if len(meta_returns) == 3:
+            video_id, text_id, vfeat = meta_returns
         else:
-            video_feature = self.video_processor(video_id)
+            video_id, text_id = meta_returns
+            vfeat = None
+        # we might return the feature tensor for the video directly
+        video_feature = vfeat if vfeat is not None else self.video_processor(video_id)
         text_feature = self.text_processor(text_id)
         output = self.align_processor(video_id, video_feature, text_feature)
         # TODO (huxu): the following is for debug purpose.

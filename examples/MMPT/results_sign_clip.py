@@ -14,11 +14,15 @@ tasks = [
     'baseline',
     'baseline_aug',
     'baseline_unique',
+    'baseline_asl',
+    'baseline_asl_finetune',
 ]
 notes = [
     'baseline (asl_signs data)',
     'baseline with 2d augmentation',
     'baseline with unique sampler',
+    'baseline trained with 3 ASL ISLR datasets',
+    'baseline trained with 3 ASL ISLR datasets then finefuned',
 ]
 
 results = {}
