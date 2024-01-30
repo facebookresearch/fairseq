@@ -16,6 +16,8 @@ tasks = [
     'baseline_unique',
     'baseline_asl',
     'baseline_asl_finetune',
+    'baseline_asl_plus',
+    'baseline_asl_plus_fs',
 ]
 notes = [
     'baseline (asl_signs data)',
@@ -23,6 +25,8 @@ notes = [
     'baseline with unique sampler',
     'baseline trained with 3 ASL ISLR datasets',
     'baseline trained with 3 ASL ISLR datasets then finefuned',
+    'baseline trained with 3 ASL ISLR datasets (including validation data)',
+    'baseline trained with 3 ASL ISLR datasets + ChicagoFS (including validation data)',
 ]
 
 results = {}

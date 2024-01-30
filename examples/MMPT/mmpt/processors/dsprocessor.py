@@ -1185,32 +1185,37 @@ class SignCLIPMetaProcessor(MetaProcessor):
             print(f'Loading the {dataset} {version} dataset, {split_version if split_version else "default"} split ... ')
             print('--------------------------------')
 
-            sd_config = SignDatasetConfig(name="holistic", version=version, include_video=False, include_pose="holistic", extra={'split': split_version} if split_version else {})
-            split = 'validation' if self.split == 'valid' else self.split
-            data_l = tfds.load(name=dataset, builder_kwargs=dict(config=sd_config), data_dir=config.data_dir)[split]
-
-            print(f'In total {len(data_l)} raw {split} examples.')
-
-            # filter empty or long poses
-            data_l_filtered = [datum for datum in data_l if datum['pose']['data'].shape[0] > 0 and datum['pose']['data'].shape[0] <= config.max_video_len]
-            print(f'In total {len(data_l_filtered)} wellformed {split} examples.')
-
             # read common pose header for the dataset
             dataset_module = importlib.import_module("sign_language_datasets.datasets." + dataset + "." + dataset)
             with open(dataset_module._POSE_HEADERS['holistic'], "rb") as buffer:
                 pose_header = PoseHeader.read(BufferReader(buffer.read()))
 
-            self.datasets.append({
-                'name': dataset,
-                'pose_header': pose_header,
-                'data_l': data_l_filtered,
-            })
-            self.data = self.data + [dict(
-                datum, 
-                id=f"{dataset}_{datum['id'].numpy().decode('utf-8')}",
-                text=f"<American Sign Language> {datum['text'].numpy().decode('utf-8')}",
-                pose_header=pose_header,
-            ) for datum in data_l_filtered]
+            sd_config = SignDatasetConfig(name="holistic", version=version, include_video=False, include_pose="holistic", extra={'split': split_version} if split_version else {})
+            splits = ['validation' if self.split == 'valid' else self.split]
+            # utilize unused validation data from some datasets for pretraining as well
+            if self.split == 'train' and config.use_valid_for_pretraining and dataset not in [d[0] for d in config.valid_datasets]:
+                splits = ['train', 'validation'] 
+
+            for split in splits:
+                data_l = tfds.load(name=dataset, builder_kwargs=dict(config=sd_config), data_dir=config.data_dir)[split]
+
+                print(f'In total {len(data_l)} raw {split} examples.')
+
+                # filter empty or long poses
+                data_l_filtered = [datum for datum in data_l if datum['pose']['data'].shape[0] > 0 and datum['pose']['data'].shape[0] <= config.max_video_len]
+                print(f'In total {len(data_l_filtered)} wellformed {split} examples.')
+                
+                self.datasets.append({
+                    'name': dataset,
+                    'pose_header': pose_header,
+                    'data_l': data_l_filtered,
+                })
+                self.data = self.data + [dict(
+                    datum, 
+                    id=f"{dataset}_{datum['id'].numpy().decode('utf-8')}",
+                    text=f"<American Sign Language> {datum['text'].numpy().decode('utf-8')}",
+                    pose_header=pose_header,
+                ) for datum in data_l_filtered]
 
         print(f'In total {len(self.data)} wellformed {split} examples from all datasets.')
         if self.split == 'train':
