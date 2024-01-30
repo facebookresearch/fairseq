@@ -6,6 +6,7 @@
 import numpy as np
 import json
 import statistics
+from tqdm import tqdm
 
 
 class Metric(object):
@@ -119,7 +120,7 @@ class RWTHFST2VMetric(RetrievalMetric):
         fn5 = 0
         tp10 = 0
         fn10 = 0
-        for i in range(x.shape[0]):
+        for i in tqdm(range(x.shape[0])):
             gold_text = texts_reduced[i]
             row = list(x[i])
             # id to text
@@ -203,7 +204,7 @@ class RWTHFSV2TMetric(RetrievalMetric):
         fn5 = 0
         tp10 = 0
         fn10 = 0
-        for i in range(x.shape[0]):
+        for i in tqdm(range(x.shape[0])):
             gold_text = texts[i]
             row = list(x[i])
             # id to text

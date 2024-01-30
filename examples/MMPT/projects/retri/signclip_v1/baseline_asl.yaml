@@ -7,14 +7,12 @@ dataset:
   bert_name: bert-base-cased
   data_dir: /shares/volk.cl.uzh/zifjia/tensorflow_datasets
   train_datasets: [
-    # ['asl_citizen', '1.0.0'],
-    # ['sem_lex', '1.0.0'],
-    # ['asl_signs', '1.0.0', '1.0.0-uzh'],
-    ['chicago_fs_wild', '1.0.0'],
-    # ['chicago_fs_wild', '2.0.0'],
+    ['asl_citizen', '1.0.0'],
+    ['sem_lex', '1.0.0'],
+    ['asl_signs', '1.0.0', '1.0.0-uzh'],
   ]
   valid_datasets: [['asl_signs', '1.0.0', '1.0.0-uzh']]
-  test_datasets: [['asl_signs', '1.0.0', '1.0.0-uzh']]
+  # test_datasets: [['asl_signs', '1.0.0', '1.0.0-uzh']]
   test_path: data/<dataset>/test.txt # placeholder, no use
   val_path: data/<dataset>/val.txt # placeholder, no use
   train_path: data/<dataset>/train.txt # placeholder, no use
