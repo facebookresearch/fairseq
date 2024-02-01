@@ -62,7 +62,7 @@ class MADGRAD(torch.optim.Optimizer):
         weight_decay: float = 0,
         eps: float = 1e-6,
         decouple_decay=False,
-        quant_method="ste",
+        quant_method="none",
         quant_bits=32,
     ):
         if momentum < 0 or momentum >= 1:
@@ -145,11 +145,6 @@ class MADGRAD(torch.optim.Optimizer):
             state["x0"] = p_data_fp32.clone()
 
         return p_data_fp32, grad
-
-    @staticmethod
-    def binarize_param(latent_p, p_data_fp32):
-        omega = quant_utils.estimate_omega(latent_p)
-        quant_utils.scaled_sign_(p_data_fp32.copy_(latent_p), omega)
 
     def step(self, closure: Optional[Callable[[], float]] = None) -> Optional[float]:
         """Performs a single optimization step.

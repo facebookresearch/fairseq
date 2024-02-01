@@ -1,8 +1,9 @@
 import math
 import torch
-import torch.nn.functional as F
 
 from torch import nn
+
+from fairseq.modules.quantization.adapted_linear import AdaptedLinear
 
 
 class LSQClampRound(torch.autograd.Function):
@@ -43,26 +44,13 @@ class LSQClampRound(torch.autograd.Function):
         return grad_target, grad_scale, None, None
 
 
-class LSQLinear(nn.Linear):
-    def __init__(
-        self,
-        quant_bits: int,
-        weight_init: torch.Tensor,
-        bias_init: torch.Tensor,
-    ):
-        factory_kwargs = {"device": weight_init.device, "dtype": weight_init.dtype}
-        in_features = weight_init.shape[1]
-        out_features = weight_init.shape[0]
-        super().__init__(
-            in_features, out_features, bias=bias_init is not None, **factory_kwargs
-        )
+class LSQLinear(AdaptedLinear):
+    def __init__(self, weight_init, bias_init, quant_bits: int):
+        super().__init__(weight_init, bias_init)
+
         q_base = 2 ** (quant_bits - 1)
         self.qmin = -q_base
         self.qmax = q_base - 1
-
-        delattr(self, "weight")
-        self._weight = nn.Parameter(weight_init)
-
         self.scale = nn.Parameter(2 * weight_init.abs().mean() / math.sqrt(self.qmax))
 
     @property

@@ -208,13 +208,13 @@ class LanguageModelingTask(LegacyFairseqTask):
                     "Unsupported language modeling target: {}".format(target)
                 )
 
-        if 1 < quant_bits < 32:
+        if quant_bits < 32:
             quant_param_names = [
                 k
                 for k, _ in model.named_parameters()
                 if not model._is_non_quant_param(k)
             ]
-            model.insert_lsq_modules(quant_param_names, quant_bits)
+            model.insert_quant_modules(quant_param_names, quant_bits)
         return model
 
     def load_dataset(

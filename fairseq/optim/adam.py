@@ -55,7 +55,7 @@ class FairseqAdam(FairseqOptimizer):
     def __init__(self, cfg: FairseqAdamConfig, params):
         super().__init__(cfg)
         quant_bits = getattr(cfg, "quant_bits", 32)
-        quant_method = getattr(cfg, "quant_method", "ste")
+        quant_method = getattr(cfg, "quant_method", "none")
         if quant_bits < 32 and quant_method != "ste":
             raise NotImplementedError(f"{quant_method=} not supported yet")
 
@@ -156,7 +156,7 @@ class Adam(torch.optim.Optimizer):
         eps=1e-8,
         weight_decay=0,
         amsgrad=False,
-        quant_method="ste",
+        quant_method="none",
         quant_bits=32,
     ):
         defaults = dict(
@@ -225,8 +225,8 @@ class Adam(torch.optim.Optimizer):
                         # Maintains max of all exp. moving avg. of sq. grad. values
                         state["max_exp_avg_sq"] = torch.zeros_like(p_data_fp32)
                     if apply_ste:
-                        # Keep full-precision copy of params before binarizing
-                        state["latent_p"] = p_data_fp32.clone()
+                        # Keep full-precision copy of param before binarizing
+                        state["latent_p"] = p_data_fp32.detach().clone()
                         self.binarize_param(p_data_fp32)
                 else:
                     state["exp_avg"] = state["exp_avg"].to(p_data_fp32)
