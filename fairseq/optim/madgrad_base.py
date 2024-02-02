@@ -193,7 +193,7 @@ class MADGRAD(torch.optim.Optimizer):
                     )
                     state["z"] = torch.zeros_like(p_data_fp32)
                 if apply_ste and "latent_p" not in state:
-                    state["latent_p"] = p_data_fp32.clone()
+                    state["latent_p"] = p_data_fp32.clone().detach()
 
                 if momentum != 0.0 and grad.is_sparse:
                     raise RuntimeError(
@@ -267,13 +267,15 @@ class MADGRAD(torch.optim.Optimizer):
                             alpha=1 - ck,
                         )
 
+                    if decouple_decay and decay != 0:
+                        p_old = (
+                            state["latent_p"] if apply_ste else p_data_fp32
+                        ).clone()
+
                     if apply_ste:
                         state["latent_p"].copy_(z)
                         omega = quant_utils.estimate_omega(z)
                         quant_utils.scaled_sign_(z, omega)
-
-                    if decouple_decay and decay != 0:
-                        p_old = p_data_fp32.clone()
 
                     p_data_fp32.copy_(z)
 

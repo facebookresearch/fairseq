@@ -179,9 +179,9 @@ class Adam(torch.optim.Optimizer):
         return True
 
     @staticmethod
-    def binarize_param(p_data_fp32):
+    def binarize_param(p_data_fp32) -> torch.Tensor:
         omega = quant_utils.estimate_omega(p_data_fp32)
-        quant_utils.scaled_sign_(p_data_fp32, omega)
+        return quant_utils.scaled_sign_(p_data_fp32, omega)
 
     def step(self, closure=None):
         """Performs a single optimization step.
@@ -215,7 +215,7 @@ class Adam(torch.optim.Optimizer):
                 state = self.state[p]
 
                 # State initialization
-                if len(state) == 0:
+                if "step" not in state:
                     state["step"] = 0
                     # Exponential moving average of gradient values
                     state["exp_avg"] = torch.zeros_like(p_data_fp32)
@@ -225,9 +225,8 @@ class Adam(torch.optim.Optimizer):
                         # Maintains max of all exp. moving avg. of sq. grad. values
                         state["max_exp_avg_sq"] = torch.zeros_like(p_data_fp32)
                     if apply_ste:
-                        # Keep full-precision copy of param before binarizing
-                        state["latent_p"] = p_data_fp32.detach().clone()
-                        self.binarize_param(p_data_fp32)
+                        # Keep full-precision copy of param
+                        state["latent_p"] = p_data_fp32.clone().detach()
                 else:
                     state["exp_avg"] = state["exp_avg"].to(p_data_fp32)
                     state["exp_avg_sq"] = state["exp_avg_sq"].to(p_data_fp32)
@@ -260,7 +259,7 @@ class Adam(torch.optim.Optimizer):
 
                 p_buf = state["latent_p"] if apply_ste else p_data_fp32
                 if group["weight_decay"] != 0:
-                    p_buf.add_(p_data_fp32, alpha=-group["weight_decay"] * group["lr"])
+                    p_buf.add_(p_buf, alpha=-group["weight_decay"] * group["lr"])
 
                 p_buf.addcdiv_(exp_avg, denom, value=-step_size)
 
