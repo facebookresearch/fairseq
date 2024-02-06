@@ -1152,6 +1152,7 @@ class ASLSignPoseProcessor(PoseProcessor):
 # -------------------- SignCLIP v1 -----------------------
 
 import importlib
+from tqdm import tqdm
 
 import tensorflow_datasets as tfds
 import sign_language_datasets.datasets
@@ -1273,60 +1274,52 @@ class SignCLIPMetaProcessor(MetaProcessor):
             return idx, datum['text'], vfeat
 
 
-    # TODO: try asynchronously load data by generator
-    # def __len__(self):
-    #     return 2000
-
-
-    # def __getitem_iter__(self):
-    #     data_ls = [iter(list(dataset['data_l'])) for dataset in self.datasets]
-    #     # data_ls = [iter(dataset['data_l']) for dataset in self.datasets] # FIXME: this makes the genertor hang on the third call
-        
-    #     for dataset in self.datasets:
-    #         dataset['exhausted'] = False
-
-    #     while not all([dataset['exhausted'] for dataset in self.datasets]):
-    #         # take turns to sample from each dataset until exhausted
-    #         for i, dataset in enumerate(self.datasets):
-    #             if dataset['exhausted']:
-    #                 continue
-    #             try:
-    #                 datum = next(data_ls[i])
-                    
-    #                 # reconstruct pose object
-    #                 tf_pose = datum['pose']
-    #                 fps = int(tf_pose["fps"].numpy())
-    #                 pose_body = NumPyPoseBody(fps, tf_pose["data"].numpy(), tf_pose["conf"].numpy())
-    #                 pose = Pose(dataset['pose_header'], pose_body)
-    #                 datum['pose'] = pose
-    #                 datum['pose_length'] = pose.body.data.shape[0]
-
-    #                 filter empty or long poses
-    #                 if datum['pose_length'] > 0 and datum['pose_length'] <= self.config.max_video_len:
-    #                     datum['id'] = f"{dataset['name']}_{datum['id'].numpy().decode('utf-8')}"
-    #                     datum['text'] = f"<American Sign Language> {datum['text'].numpy().decode('utf-8')}"
-
-    #                 yield datum
-    #             except StopIteration:
-    #                 dataset['exhausted'] = True
-
-
-    # def __getitem__(self, idx):
-    #     if idx == 0:
-    #         self.data_iter = self.__getitem_iter__()
-    #     elif idx >= self.__len__():
-    #         raise ValueError(f'No example left in the data, in total {self.__len__()}, required index {idx}.')
-
-    #     datum = next(self.data_iter)
-    #     print(f"{self.split}, {idx}, {datum['text']}")
-
-    #     vfeat = self.pose_processer(datum['pose'])
-    #     return idx, datum['text'], vfeat
-
-
 class SignCLIPPoseProcessor(PoseProcessor):
     def __call__(self, pose):
         # the pose objects are passed to PoseProcessor
         feat = super().__call__(None, pose)
         return feat
         
+
+class SignCLIPPretrainMetaProcessor(MetaProcessor):
+    def __init__(self, config):
+        super().__init__(config)
+        random.seed(42)
+
+        # TODO: remove debug
+        # config.split = 'test'
+
+        self.vfeat_dir = config.vfeat_dir
+        split_path = self._get_split_path(config)
+        metadata_df = pd.read_csv(config.metadata_path, dtype=str)
+
+        with open(split_path) as f:
+            lines = []
+            for line in f:
+                video_id = int(line.rstrip('\n'))
+                lines.append(video_id)
+
+            metadata_df = metadata_df.reset_index()
+            metadata_df = metadata_df[metadata_df['index'].isin(lines)]
+            metadata_df = metadata_df[metadata_df['language'] == 'en']
+
+            print(metadata_df)
+
+            print(f'text distribution in the {config.split} set:')
+            print(metadata_df.groupby(['text'])['text'].count().reset_index(name='count').sort_values(['count'], ascending=False))
+
+            data = metadata_df.to_dict('records')
+            data = [datum for datum in tqdm(data) if os.path.exists(os.path.join(config.vfeat_dir, datum['pose']))]
+
+            print(f'In total {len(data)} {config.split} examples with poses.')
+
+            self.data = data
+
+            if config.split == 'train':
+                random.shuffle(self.data)
+
+    def __getitem__(self, idx):
+        datum = self.data[idx]
+        video_id = datum['pose'].replace('.pose', '')
+        text_info = f"<{datum['language']}> <{datum['videoLanguage']}> {datum['text']}"
+        return video_id, text_info
