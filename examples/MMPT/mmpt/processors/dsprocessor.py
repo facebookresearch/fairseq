@@ -1211,10 +1211,11 @@ class SignCLIPMetaProcessor(MetaProcessor):
                     'pose_header': pose_header,
                     'data_l': data_l_filtered,
                 })
+                tag_prompt = "<en> <ase>" if config.sp_universal_tagging else "<American Sign Language>"
                 self.data = self.data + [dict(
                     datum, 
                     id=f"{dataset}_{datum['id'].numpy().decode('utf-8')}",
-                    text=f"<American Sign Language> {datum['text'].numpy().decode('utf-8')}",
+                    text = f"{tag_prompt} {datum['text'].numpy().decode('utf-8')}",
                     pose_header=pose_header,
                 ) for datum in data_l_filtered]
 
