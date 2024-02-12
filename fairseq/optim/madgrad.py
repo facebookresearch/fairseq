@@ -67,6 +67,11 @@ class FairseqMADGRAD(FairseqOptimizer):
 
     def __init__(self, cfg: FairseqMADGRADConfig, params):
         super().__init__(cfg)
+
+        quant_bits = getattr(cfg, "quant_bits", 32)
+        quant_method = getattr(cfg, "quant_method", "none")
+        if quant_bits > 2 and quant_method != "least-sq":
+            raise NotImplementedError(f"{quant_method=} not supported yet")
         self._optimizer = MADGRAD(params, **self.optimizer_config)
 
     @property

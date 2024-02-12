@@ -308,11 +308,19 @@ class Trainer(object):
                 )
             )
 
-        # TODO: quantize `1 < quant_bits < 32` in optimizer
         quant_bits = safe_getattr(self.cfg.optimizer, "quant_bits", 32)
-        is_quantized = (
-            self.cfg.optimizer["_name"] in {"adam", "madgrad"} and quant_bits == 1
+        quant_method = safe_getattr(self.cfg.optimizer, "quant_method", "none")
+        optim_ste = safe_getattr(self.cfg.optimizer, "optim_ste", False)
+        is_quantized = (  # TODO: quantize `1 < quant_bits < 32` in optimizer
+            optim_ste and quant_method != "none" and quant_bits < 32
         )
+        if is_quantized and (
+            self.cfg.optimizer["_name"] not in {"adam", "madgrad"}
+            or quant_method == "lsq"
+            or quant_bits > 1
+        ):
+            raise NotImplementedError
+
         if is_quantized:
             quant_param_names = []
             params, non_quant_params = self.model.split_quant_params(quant_param_names)

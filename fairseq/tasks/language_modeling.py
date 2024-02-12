@@ -191,16 +191,20 @@ class LanguageModelingTask(LegacyFairseqTask):
     @staticmethod
     def kwargs_from_cfg(cfg, args=None):
         kwargs = {}
-        quant_bits = safe_getattr(cfg.optimizer, "quant_bits")
-        if quant_bits is not None:
-            kwargs["quant_bits"] = quant_bits
+        if not safe_getattr(cfg.optimizer, "optim_ste", False):
+            for k in ("quant_bits", "quant_method"):
+                v = safe_getattr(cfg.optimizer, k)
+                if v is not None:
+                    kwargs[k] = v
 
         if args is not None and "from_checkpoint" in args:
             kwargs["from_checkpoint"] = True
 
         return kwargs
 
-    def build_model(self, args, from_checkpoint=False, quant_bits=32):
+    def build_model(
+        self, args, from_checkpoint=False, quant_bits=32, quant_method="none"
+    ):
         model = super().build_model(args, from_checkpoint)
         for target in self.targets:
             if target not in model.supported_targets:
@@ -214,7 +218,7 @@ class LanguageModelingTask(LegacyFairseqTask):
                 for k, _ in model.named_parameters()
                 if not model._is_non_quant_param(k)
             ]
-            model.insert_quant_modules(quant_param_names, quant_bits)
+            model.insert_quant_modules(quant_param_names, quant_bits, quant_method)
         return model
 
     def load_dataset(

@@ -26,8 +26,7 @@ from fairseq.models.transformer import (
 )
 from fairseq.models.transformer.transformer_config import DEFAULT_NON_QUANT_PATTERN
 from fairseq.modules import AdaptiveInput, CharacterTokenEmbedder
-from fairseq.modules.quantization.binary import BinarizedLinear
-from fairseq.modules.quantization.lsq import LSQLinear
+from fairseq.modules.quantization.models import get_quant_module
 from fairseq.utils import safe_getattr, safe_hasattr
 
 DEFAULT_MAX_TARGET_POSITIONS = 1024
@@ -308,17 +307,17 @@ class TransformerLanguageModel(FairseqLanguageModel):
 
         return quant_params, non_quant_params
 
-    def insert_quant_modules(self, quant_param_names: List[str], quant_bits):
+    def insert_quant_modules(
+        self, quant_param_names: List[str], quant_bits: int, quant_method: str
+    ):
         for name in quant_param_names:
             module_name = name.rsplit(".weight", 1)[0]
             cur_module = self.get_submodule(module_name)
             assert isinstance(cur_module, torch.nn.Linear)
 
             parent, child = module_name.rsplit(".", 1)
-            quant_module = (
-                BinarizedLinear(cur_module.weight, cur_module.bias)
-                if quant_bits == 1
-                else LSQLinear(cur_module.weight, cur_module.bias, quant_bits)
+            quant_module = get_quant_module(
+                quant_bits, quant_method, cur_module.weight, cur_module.bias
             )
 
             parent_module = self.get_submodule(parent)
