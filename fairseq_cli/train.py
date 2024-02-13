@@ -309,7 +309,7 @@ def train(
     )
     progress.update_config(_flatten_config(cfg))
 
-    if is_master:
+    if is_master and cfg.common.wandb_watch:
         try:
             import wandb
 

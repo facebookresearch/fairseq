@@ -1,7 +1,7 @@
 import math
 import torch
 
-from torch.nested import nested_tensor, to_padded_tensor
+from torch.nested import nested_tensor
 from typing import Tuple, Type
 
 
@@ -135,13 +135,36 @@ class QuantLS2(torch.autograd.Function):
         return grad_input, None, None, None, None
 
 
+class QuantLSGreedy(torch.autograd.Function):
+    """k-bit greedy quantization: https://arxiv.org/abs/1603.05279"""
+
+    @staticmethod
+    def forward(ctx, input, vs, training: bool = True):
+        residual = input
+        input_sgn = torch.zeros_like(input)
+        for i in range(vs.size(0)):
+            if training:
+                vs[i].copy_(l1_normalized(residual))
+
+            residual = QuantLS2.update_residual(residual, vs[i])
+            input_sgn.add_((input - input_sgn).sign_().mul_(vs[i]))
+
+        return input_sgn
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        grad_input = grad_output if ctx.needs_input_grad[0] else None
+        return grad_input, None, None
+
+
 class LSQClampRound(torch.autograd.Function):
     """Learned step size quantization: https://arxiv.org/abs/1902.08153"""
 
     @staticmethod
     def forward(target, scale, qmin, qmax):
         quant_target = target.div(scale).clamp_(qmin, qmax)
-        return quant_target.round().mul_(scale)
+        quant_target = quant_target.round().mul_(scale)
+        return quant_target
 
     @staticmethod
     def setup_context(ctx, inputs, outputs):
@@ -159,16 +182,18 @@ class LSQClampRound(torch.autograd.Function):
 
     @staticmethod
     def get_grad_scale(
-        quant_target, qmin, qmax, neg_mask, mid_mask, pos_mask, grad_target
+        quant_target, qmin, qmax, neg_mask, mid_mask, pos_mask, grad_output
     ):
-        neg_mask.mul_(qmin)
-        pos_mask.mul_(qmax)
+        mid_mask = mid_mask.mul(quant_target.round().sub(quant_target))
+        grad_scale = neg_mask.mul(qmin) + mid_mask + pos_mask.mul(qmax)
+
         grad_scale_factor = 1.0 / math.sqrt(qmax * quant_target.numel())
-        mid_mask.mul_(quant_target.round().sub_(quant_target)).mul_(
-            grad_target * grad_scale_factor
-        )
-        grad_scale = neg_mask + pos_mask + mid_mask
+        grad_scale.mul_(grad_output * grad_scale_factor)
         return grad_scale
+
+    @staticmethod
+    def get_grad_target(grad_output, mid_mask):
+        return grad_output.mul(mid_mask)
 
     @staticmethod
     def backward(ctx, grad_output):
@@ -180,9 +205,6 @@ class LSQClampRound(torch.autograd.Function):
             quant_target, ctx.qmin, ctx.qmax
         )
 
-        if ctx.needs_input_grad[0]:
-            grad_target = grad_output.mul(mid_mask)
-
         if ctx.needs_input_grad[1]:
             grad_scale = LSQClampRound.get_grad_scale(
                 quant_target,
@@ -191,7 +213,10 @@ class LSQClampRound(torch.autograd.Function):
                 neg_mask,
                 mid_mask,
                 pos_mask,
-                grad_target,
+                grad_output,
             )
+
+        if ctx.needs_input_grad[0]:
+            grad_target = LSQClampRound.get_grad_target(grad_output, mid_mask)
 
         return grad_target, grad_scale, None, None

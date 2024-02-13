@@ -1,10 +1,16 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from torch import Tensor
 from typing import Optional
-from .quant import Binarizer, get_qminmax, get_scale_init, QuantLS2, LSQClampRound
+from .quant import (
+    Binarizer,
+    get_qminmax,
+    get_scale_init,
+    QuantLS2,
+    QuantLSGreedy,
+    LSQClampRound,
+)
 
 
 class AdaptedLinear(nn.Linear):
@@ -73,8 +79,14 @@ def get_quant_module(
     if quant_method == "lsq":
         module_cls = LSQLinear
         kwargs["quant_bits"] = quant_bits
-    elif quant_method == "least-sq" and quant_bits < 3:
-        module_cls = BinarizedLinear if quant_bits == 1 else QuantLS2Linear
+    elif quant_method == "least-sq" and quant_bits < 32:
+        if quant_bits == 1:
+            module_cls = BinarizedLinear
+        elif quant_bits == 2:
+            module_cls = QuantLS2Linear
+        else:
+            module_cls = QuantLSGreedy
+            kwargs["quant_bits"] = quant_bits
     else:
         raise NotImplementedError
 
