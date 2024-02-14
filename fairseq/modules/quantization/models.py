@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from torch import Tensor
 from typing import Optional
-from .quant import (
+from fairseq.optim.quant import (
     Binarizer,
     get_qminmax,
     get_scale_init,
@@ -27,9 +27,14 @@ class AdaptedLinear(nn.Linear):
 
 
 class BinarizedLinear(AdaptedLinear):
+    def __init__(self, weight_init: Tensor, bias_init: Optional[Tensor]):
+        super().__init__(weight_init, bias_init)
+
+        self.register_buffer("v", torch.zeros(1))
+
     @property
     def weight(self):
-        return Binarizer.apply(self._weight)
+        return Binarizer.apply(self._weight, self.v, self.training)
 
 
 class LSQLinear(AdaptedLinear):
@@ -56,15 +61,12 @@ class QuantLS2Linear(AdaptedLinear):
     ):
         super().__init__(weight_init, bias_init)
 
-        self.register_buffer("v1", torch.zeros(1))
-        self.register_buffer("v2", torch.zeros(1))
+        self.register_buffer("vs", torch.zeros(2))
         self.stride = stride
 
     @property
     def weight(self):
-        return QuantLS2.apply(
-            self._weight, self.v1, self.v2, self.stride, self.training
-        )
+        return QuantLS2.apply(self._weight, self.vs, self.training, self.stride)
 
     def extra_repr(self):
         stride = self.stride

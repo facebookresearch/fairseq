@@ -70,8 +70,9 @@ class FairseqMADGRAD(FairseqOptimizer):
 
         quant_bits = getattr(cfg, "quant_bits", 32)
         quant_method = getattr(cfg, "quant_method", "none")
-        if quant_bits > 2 and quant_method != "least-sq":
-            raise NotImplementedError(f"{quant_method=} not supported yet")
+        if 1 < quant_bits < 32 and quant_method == "parq":
+            raise NotImplementedError
+
         self._optimizer = MADGRAD(params, **self.optimizer_config)
 
     @property

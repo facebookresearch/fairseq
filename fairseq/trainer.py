@@ -314,16 +314,11 @@ class Trainer(object):
         is_quantized = (  # TODO: quantize `1 < quant_bits < 32` in optimizer
             optim_ste and quant_method != "none" and quant_bits < 32
         )
-        if is_quantized and (
-            self.cfg.optimizer["_name"] not in {"adam", "madgrad"}
-            or quant_method == "lsq"
-            or quant_bits > 1
-        ):
-            raise NotImplementedError
-
         if is_quantized:
             quant_param_names = []
             params, non_quant_params = self.model.split_quant_params(quant_param_names)
+        else:
+            self.cfg.optimizer.quant_bits = 32
 
         if self.is_fsdp and self.cfg.common.fp16:
             # FullyShardedDataParallel always uses MemoryEfficientFP16 wrapper,
@@ -358,11 +353,14 @@ class Trainer(object):
                     "NOTE: your device may support faster training with --fp16 or --amp"
                 )
             self._optimizer = optim.build_optimizer(self.cfg.optimizer, params)
-
             # Add extra param_group that disables relevant regularization
             if is_quantized:
                 self._optimizer._optimizer.add_param_group(
-                    {"params": non_quant_params, "quant_bits": 32}
+                    {
+                        "params": non_quant_params,
+                        "quant_bits": 32,
+                        "quant_method": "none",
+                    }
                 )
 
         if self.is_fsdp:

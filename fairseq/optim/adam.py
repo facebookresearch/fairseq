@@ -13,8 +13,9 @@ import torch
 import torch.distributed as dist
 import torch.optim
 from fairseq.dataclass import FairseqDataclass
-from fairseq.optim import FairseqOptimizer, quant_utils, register_optimizer
+from fairseq.optim import FairseqOptimizer, register_optimizer
 from fairseq.optim.fused_adam import get_fused_adam_class
+from fairseq.optim.quant_optimizer import QuantOptimizer
 from omegaconf import II, OmegaConf
 
 
@@ -56,8 +57,8 @@ class FairseqAdam(FairseqOptimizer):
         super().__init__(cfg)
         quant_bits = getattr(cfg, "quant_bits", 32)
         quant_method = getattr(cfg, "quant_method", "none")
-        if quant_bits > 2 and quant_method != "least-sq":
-            raise NotImplementedError(f"{quant_method=} not supported yet")
+        if 1 < quant_bits < 32 and quant_method == "parq":
+            raise NotImplementedError
 
         fused_adam_cls = get_fused_adam_class()
         use_fused_adam = (
@@ -121,7 +122,7 @@ class FairseqAdam(FairseqOptimizer):
             dist.all_reduce(value["exp_avg_sq"], op=dist.ReduceOp.SUM)
 
 
-class Adam(torch.optim.Optimizer):
+class Adam(QuantOptimizer):
     r"""Implements Adam algorithm.
 
     This implementation is modified from torch.optim.Adam based on:
@@ -178,11 +179,6 @@ class Adam(torch.optim.Optimizer):
     def supports_flat_params(self):
         return True
 
-    @staticmethod
-    def binarize_param(p_data_fp32) -> torch.Tensor:
-        omega = quant_utils.estimate_omega(p_data_fp32)
-        return quant_utils.scaled_sign_(p_data_fp32, omega)
-
     def step(self, closure=None):
         """Performs a single optimization step.
 
@@ -206,9 +202,11 @@ class Adam(torch.optim.Optimizer):
                         "Adam does not support sparse gradients, please consider SparseAdam instead"
                     )
                 amsgrad = group.get("amsgrad", False)
-                apply_ste = (
-                    group["quant_method"] == "least-sq" and group["quant_bits"] < 32
-                )
+
+                apply_ste = group["quant_bits"] < 32 and group["quant_method"] in {
+                    "lsq",
+                    "least-sq",
+                }
 
                 p_data_fp32 = p.data
                 if p.data.dtype in {torch.float16, torch.bfloat16}:
@@ -265,8 +263,8 @@ class Adam(torch.optim.Optimizer):
 
                 p_buf.addcdiv_(exp_avg, denom, value=-step_size)
 
-                if apply_ste:  # load latent_p then binarize
-                    self.binarize_param(p_data_fp32.copy_(p_buf))
+                if apply_ste:
+                    self.quantize_param_(group, state, p_buf, p)
 
                 if p.data.dtype in {torch.float16, torch.bfloat16}:
                     p.data.copy_(p_data_fp32)

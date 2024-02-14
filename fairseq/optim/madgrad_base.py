@@ -9,7 +9,7 @@ import torch.optim
 
 from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple
 
-from fairseq.optim import quant_utils
+from fairseq.optim.quant_optimizer import QuantOptimizer
 
 if TYPE_CHECKING:
     from torch.optim.optimizer import _params_t
@@ -17,7 +17,7 @@ else:
     _params_t = Any
 
 
-class MADGRAD(torch.optim.Optimizer):
+class MADGRAD(QuantOptimizer):
     """
     MADGRAD_: A Momentumized, Adaptive, Dual Averaged Gradient Method for Stochastic
     Optimization.
@@ -175,7 +175,7 @@ class MADGRAD(torch.optim.Optimizer):
             quant_method = group["quant_method"]
 
             apply_par = quant_bits == 1 and quant_method == "parq"
-            apply_ste = quant_bits == 1 and quant_method == "least-sq"
+            apply_ste = quant_bits < 32 and quant_method in {"lsq", "least-sq"}
 
             ck = 1 - momentum
             lamb = lr * math.pow(k + 1, 0.5)
@@ -253,11 +253,11 @@ class MADGRAD(torch.optim.Optimizer):
 
                     if apply_par:
                         rms.div_(state["lamb_sum"].add_(lamb)).clamp_(max=1)
-                        omega = quant_utils.estimate_omega(z)
+                        v = z.abs().mean()
                         z = torch.where(
-                            z.abs() < omega.mul(rms),
+                            z.abs() < v.mul(rms),
                             z.div(rms),
-                            torch.sign(z).mul_(omega),
+                            torch.sign(z).mul_(v),
                         )
                         state["z"].copy_(z)
 
@@ -267,20 +267,19 @@ class MADGRAD(torch.optim.Optimizer):
                             alpha=1 - ck,
                         )
 
-                    if decouple_decay and decay != 0:
-                        p_old = (
+                    if apply_ste or decouple_decay and decay != 0:
+                        p_buf = (
                             state["latent_p"] if apply_ste else p_data_fp32
                         ).clone()
 
                     if apply_ste:
                         state["latent_p"].copy_(z)
-                        omega = quant_utils.estimate_omega(z)
-                        quant_utils.scaled_sign_(z, omega)
+                        self.quantize_param_(group, state, state["latent_p"], z)
 
                     p_data_fp32.copy_(z)
 
                     if decouple_decay and decay != 0:
-                        p_data_fp32.add_(p_old, alpha=-lr * decay)
+                        p_data_fp32.add_(p_buf, alpha=-lr * decay)
 
                     if p.data.dtype in {torch.float16, torch.bfloat16}:
                         p.data.copy_(p_data_fp32)

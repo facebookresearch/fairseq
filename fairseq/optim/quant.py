@@ -12,9 +12,18 @@ def get_qminmax(quant_bits) -> Tuple[int, int]:
     return qmin, qmax
 
 
-def get_quant_cls(quant_bits) -> Type[torch.autograd.Function]:
+def get_quant_cls(quant_method: str, quant_bits: int) -> Type[torch.autograd.Function]:
     assert quant_bits < 32
-    return Binarizer if quant_bits == 1 else LSQClampRound
+    if quant_method == "lsq":
+        quant_cls = LSQClampRound
+    elif quant_method == "least-sq":
+        if quant_bits == 1:
+            quant_cls = Binarizer
+        elif quant_bits == 2:
+            quant_cls = QuantLS2
+        else:
+            quant_cls = QuantLSGreedy
+    return quant_cls
 
 
 def get_scale_init(input, qmax):
@@ -25,21 +34,21 @@ def l1_normalized(input, dim=None, keepdim=False) -> torch.Tensor:
     return input.abs().mean(dim=dim, keepdim=keepdim)
 
 
-def scaled_sign(input) -> torch.Tensor:
-    omega = l1_normalized(input)
-    return input.sign().mul_(omega)
-
-
 class Binarizer(torch.autograd.Function):
     """1-bit binary quantization: https://arxiv.org/abs/1603.05279"""
 
     @staticmethod
-    def forward(ctx, input):
-        return scaled_sign(input)
+    def forward(ctx, input, v, training: bool = False):
+        if training:
+            v.copy_(l1_normalized(input))
+
+        input_sgn = input.sign().mul_(v)
+        return input_sgn
 
     @staticmethod
     def backward(ctx, grad_output):
-        return grad_output if ctx.needs_input_grad[0] else None
+        grad_input = grad_output if ctx.needs_input_grad[0] else None
+        return grad_input, None, None
 
 
 class QuantLS2(torch.autograd.Function):
@@ -111,7 +120,7 @@ class QuantLS2(torch.autograd.Function):
         return v1
 
     @staticmethod
-    def forward(ctx, input, v1, v2, stride, training: bool = True):
+    def forward(ctx, input, vs, training: bool = False, stride: int = 5):
         if training:
             # Simulate striding along randomly permuted columns
             n_col = input.size(1) // stride
@@ -119,14 +128,14 @@ class QuantLS2(torch.autograd.Function):
             strided_input = input[:, idx].abs()
 
             v1s = QuantLS2.get_v1_cands(strided_input)
-            v1.copy_(QuantLS2.compute_v1(strided_input, v1s))
+            vs[0].copy_(QuantLS2.compute_v1(strided_input, v1s))
 
-            residual = QuantLS2.update_residual(input, v1)
-            v2.copy_(l1_normalized(residual))
+            residual = QuantLS2.update_residual(input, vs[0])
+            vs[1].copy_(l1_normalized(residual))
 
         # Use v1 and v2 to compute quantized input
-        input_sgn = input.sign().mul(v1)
-        input_sgn.add_((input - input_sgn).sign_().mul_(v2))
+        input_sgn = input.sign().mul(vs[0])
+        input_sgn.add_((input - input_sgn).sign_().mul_(vs[1]))
         return input_sgn
 
     @staticmethod
@@ -220,3 +229,24 @@ class LSQClampRound(torch.autograd.Function):
             grad_target = LSQClampRound.get_grad_target(grad_output, mid_mask)
 
         return grad_target, grad_scale, None, None
+
+
+class LSQNaive(torch.nn.Module):
+    @staticmethod
+    def grad_scale(x, scale):
+        x_scale = x.mul(scale)
+        return (x - x_scale).detach() + x_scale
+
+    @staticmethod
+    def round_pass(x):
+        x_round = x.round()
+        return (x_round - x).detach() + x
+
+    @staticmethod
+    def forward(target, scale, qmin, qmax):
+        grad_scale_factor = 1.0 / math.sqrt(qmax * target.numel())
+        s = LSQNaive.grad_scale(scale, grad_scale_factor)
+
+        quant_target = target.div(s).clamp_(qmin, qmax)
+        quant_target = LSQNaive.round_pass(quant_target).mul_(s)
+        return quant_target
