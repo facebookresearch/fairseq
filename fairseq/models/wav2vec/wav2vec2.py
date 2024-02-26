@@ -1009,7 +1009,7 @@ class TransformerEncoder(nn.Module):
             layer = checkpoint_wrapper(layer)
         return layer
 
-    def __init__(self, args: Wav2Vec2Config):
+    def __init__(self, args: Wav2Vec2Config, skip_pos_conv: bool = False, override_encoder_layer: int = None):
         super().__init__()
 
         self.dropout = args.dropout
@@ -1045,7 +1045,8 @@ class TransformerEncoder(nn.Module):
             self.pos_conv = make_conv_block(
                 self.embedding_dim, k, args.conv_pos_groups, num_layers
             )
-
+        elif skip_pos_conv:
+            self.pos_conv = None
         else:
             self.pos_conv = make_conv_pos(
                 self.embedding_dim,
@@ -1056,8 +1057,13 @@ class TransformerEncoder(nn.Module):
                 else False,
             )
 
+        if override_encoder_layer is None:
+            encoder_layers = args.encoder_layers
+        else:
+            encoder_layers = override_encoder_layer
+
         self.layers = nn.ModuleList(
-            [self.build_encoder_layer(args, layer_idx=ii) for ii in range(args.encoder_layers)]
+            [self.build_encoder_layer(args, layer_idx=ii) for ii in range(encoder_layers)]
         )
         self.layer_norm_first = args.layer_norm_first
         self.layer_norm = LayerNorm(self.embedding_dim)
@@ -1087,9 +1093,10 @@ class TransformerEncoder(nn.Module):
         if padding_mask is not None:
             x = index_put(x, padding_mask, 0)
 
-        x_conv = self.pos_conv(x.transpose(1, 2))
-        x_conv = x_conv.transpose(1, 2)
-        x = x + x_conv
+        if self.pos_conv is not None:
+            x_conv = self.pos_conv(x.transpose(1, 2))
+            x_conv = x_conv.transpose(1, 2)
+            x = x + x_conv
 
         if not self.layer_norm_first:
             x = self.layer_norm(x)

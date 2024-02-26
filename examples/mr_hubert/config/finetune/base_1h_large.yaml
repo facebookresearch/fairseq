@@ -1,0 +1,99 @@
+# @package _group_
+
+common:
+  fp16: true
+  log_format: json
+  log_interval: 200
+  tensorboard_logdir: tblog
+  seed: 1337
+
+checkpoint:
+  save_interval: 1000
+  keep_interval_updates: 1
+  no_epoch_checkpoints: true
+  best_checkpoint_metric: wer
+
+distributed_training:
+  ddp_backend: c10d
+  find_unused_parameters: true
+  distributed_world_size: 8
+  distributed_port: 29671
+  nprocs_per_node: 8
+
+task:
+  _name: multires_hubert_pretraining
+  data: ???
+  fine_tuning: true
+  label_dir: ???
+  label_rate_ratios: ???
+  normalize: true  # must be consistent with pre-training
+  labels: ["ltr"]
+  single_target: true
+
+dataset:
+  num_workers: 0
+  max_tokens: 1280000
+  validate_after_updates: ${model.freeze_finetune_updates}
+  validate_interval: 5
+  train_subset: train_10h
+  valid_subset: dev
+
+criterion:
+  _name: ctc
+  zero_infinity: true
+
+optimization:
+  max_update: 25000
+  lr: [3e-4]
+  sentence_avg: true
+  update_freq: [5]
+
+optimizer:
+  _name: adam
+  adam_betas: (0.9,0.98)
+  adam_eps: 1e-08
+
+lr_scheduler:
+  _name: tri_stage
+  phase_ratio: [0.1, 0.4, 0.5]
+  final_lr_scale: 0.05
+
+model:
+  _name: multires_hubert_ctc
+  multires_hubert_path: ???
+  apply_mask: true
+  mask_selection: static
+  mask_length: 10
+  mask_other: 0
+  mask_prob: 0.75
+  mask_channel_selection: static
+  mask_channel_length: 64
+  mask_channel_other: 0
+  mask_channel_prob: 0.5
+  layerdrop: 0.1
+  dropout: 0.0
+  activation_dropout: 0.1
+  attention_dropout: 0.0
+  feature_grad_mult: 0.0
+  freeze_finetune_updates: 10000
+
+hydra:
+  job:
+    config:
+      override_dirname:
+        kv_sep: '-'
+        item_sep: '__'
+        exclude_keys:
+          - run
+          - task.data
+          - task.label_dir
+          - model.multires_hubert_path
+          - dataset.train_subset
+          - dataset.valid_subset
+          - criterion.wer_kenlm_model
+          - criterion.wer_lexicon
+  run:
+    dir: ???
+  sweep:
+    dir: ???
+    subdir: ${hydra.job.config_name}__${hydra.job.override_dirname}
