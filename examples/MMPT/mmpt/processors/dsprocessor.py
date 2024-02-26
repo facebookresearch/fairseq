@@ -872,6 +872,8 @@ import mediapipe as mp
 mp_holistic = mp.solutions.holistic
 FACEMESH_CONTOURS_POINTS = [str(p) for p in sorted(set([p for p_tup in list(mp_holistic.FACEMESH_CONTOURS) for p in p_tup]))]
 
+from sign_vq.data.normalize import pre_process_mediapipe, normalize_mean_std
+
 
 class PoseProcessor(VideoProcessor):
     def __init__(self, config):
@@ -879,6 +881,7 @@ class PoseProcessor(VideoProcessor):
         self.pose_components = config.pose_components
         self.normalize_hand = config.normalize_hand
         self.augment2d = config.augment2d
+        self.preprocess = config.preprocess
         self.split = config.split
 
     def __call__(self, video_id, pose=None):
@@ -886,22 +889,28 @@ class PoseProcessor(VideoProcessor):
             buffer = open(os.path.join(self.vfeat_dir, video_id + ".pose"), "rb").read()
             pose = Pose.read(buffer)
 
-        # normalize pose: the mean distance between the shoulders of each person equals 1
-        pose = pose.normalize(self.pose_normalization_info(pose.header))
-        pose = self.pose_hide_legs(pose)
-
-        # select components
-        if self.pose_components:
-            if self.pose_components == 'reduced_face':
-                pose = pose.get_components(["POSE_LANDMARKS", "FACE_LANDMARKS", "LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"], 
-                    {"FACE_LANDMARKS": FACEMESH_CONTOURS_POINTS})
-            else:
-                pose = pose.get_components(self.pose_components)
-                # 3D Hand Normalization
-                if self.pose_components == ['RIGHT_HAND_LANDMARKS'] and self.normalize_hand:
-                    pose = self.hand_normalization(pose)
+        # reuse the preprocessing pipeline from sign-vq
+        # https://github.com/sign-language-processing/sign-vq
+        if self.preprocess == 'sign-vq':
+            pose = pre_process_mediapipe(pose)
+            pose = normalize_mean_std(pose)
         else:
-            pose = pose.get_components(["POSE_LANDMARKS", "FACE_LANDMARKS", "LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"])
+            # normalize pose: the mean distance between the shoulders of each person equals 1
+            pose = pose.normalize(self.pose_normalization_info(pose.header))
+            pose = self.pose_hide_legs(pose)
+
+            # select components
+            if self.pose_components:
+                if self.pose_components == 'reduced_face':
+                    pose = pose.get_components(["POSE_LANDMARKS", "FACE_LANDMARKS", "LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"], 
+                        {"FACE_LANDMARKS": FACEMESH_CONTOURS_POINTS})
+                else:
+                    pose = pose.get_components(self.pose_components)
+                    # 3D Hand Normalization
+                    if self.pose_components == ['RIGHT_HAND_LANDMARKS'] and self.normalize_hand:
+                        pose = self.hand_normalization(pose)
+            else:
+                pose = pose.get_components(["POSE_LANDMARKS", "FACE_LANDMARKS", "LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"])
 
         # augmentation (training only)
         if self.split == 'train' and self.augment2d:

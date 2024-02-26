@@ -11,22 +11,16 @@ args = parser.parse_args()
 
 tasks_path = 'projects/retri/signclip_v1/'
 tasks = [
-    'baseline',
-    'baseline_aug',
-    'baseline_unique',
-    'baseline_asl',
-    'baseline_asl_finetune',
-    'baseline_asl_plus',
-    'baseline_asl_plus_fs',
+    'baseline_sp_b768',
+    'baseline_sp_b768_aug',
+    'baseline_sp_b768_pre',
+    'baseline_sp_b768_pre_aug',
 ]
 notes = [
-    'baseline (asl_signs data)',
-    'baseline with 2d augmentation',
-    'baseline with unique sampler',
-    'baseline trained with 3 ASL ISLR datasets',
-    'baseline trained with 3 ASL ISLR datasets then finefuned',
-    'baseline trained with 3 ASL ISLR datasets (including validation data)',
-    'baseline trained with 3 ASL ISLR datasets + ChicagoFS (including validation data)',
+    'pretrained with spreadthesign',
+    '+ 2D augmentation',
+    '+ SignVQ preprocessing',
+    '+ both',
 ]
 
 results = {}

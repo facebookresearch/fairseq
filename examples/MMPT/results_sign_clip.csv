@@ -1,8 +1,5 @@
 ,T2V_P@1,T2V_P@5,T2V_P@10,T2V_Median R,V2T_R@1,V2T_R@5,V2T_R@10,V2T_Median R,notes
-baseline,0.9240,0.8992,0.8352,1.0,0.7349,0.9083,0.9385,1.0,baseline (asl_signs data)
-baseline_aug,0.9400,0.8904,0.8232,1.0,0.6921,0.8977,0.9329,1.0,baseline with 2d augmentation
-baseline_unique,0.9720,0.9240,0.8340,1.0,0.7012,0.8952,0.9274,1.0,baseline with unique sampler
-baseline_asl,0.9240,0.8792,0.8060,1.0,0.6885,0.8935,0.9298,1.0,baseline trained with 3 ASL ISLR datasets
-baseline_asl_finetune,0.9280,0.9104,0.8496,1.0,0.7343,0.9134,0.9414,1.0,baseline trained with 3 ASL ISLR datasets then finefuned
-baseline_asl_plus,0.9080,0.8656,0.8000,1.0,0.6827,0.8996,0.9385,1.0,baseline trained with 3 ASL ISLR datasets (including validation data)
-baseline_asl_plus_fs,0.9280,0.8832,0.8208,1.0,0.6902,0.9041,0.9378,1.0,baseline trained with 3 ASL ISLR datasets + ChicagoFS (including validation data)
+baseline_sp_b768,0.3450,0.1320,0.0779,3.0,0.3516,0.6581,0.7815,3,pretrained with spreadthesign
+baseline_sp_b768_aug,0.3231,0.1260,0.0751,3.0,0.3441,0.6321,0.7603,3,+ 2D augmentation
+baseline_sp_b768_pre,0.3704,0.1371,0.0803,2.0,0.3787,0.6899,0.8067,2,+ SignVQ preprocessing
+baseline_sp_b768_pre_aug,0.4509,0.1509,0.0847,2.0,0.4551,0.7570,0.8426,2,+ both
