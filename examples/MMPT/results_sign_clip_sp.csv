@@ -1,0 +1,5 @@
+,T2V_P@1,T2V_P@5,T2V_P@10,T2V_Median R,V2T_R@1,V2T_R@5,V2T_R@10,V2T_Median R,notes
+baseline_sp_b768,0.3450,0.1320,0.0779,3.0,0.3516,0.6581,0.7815,3,pretrained with spreadthesign
+baseline_sp_b768_aug,0.3231,0.1260,0.0751,3.0,0.3441,0.6321,0.7603,3,+ 2D augmentation
+baseline_sp_b768_pre,0.3704,0.1371,0.0803,2.0,0.3787,0.6899,0.8067,2,+ SignVQ preprocessing
+baseline_sp_b768_pre_aug,0.4509,0.1509,0.0847,2.0,0.4551,0.7570,0.8426,2,+ both

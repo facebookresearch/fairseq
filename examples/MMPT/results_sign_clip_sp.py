@@ -65,5 +65,5 @@ df['notes'] = notes
 
 print(df)
 
-df.to_csv('results_sign_clip.csv')
+df.to_csv('results_sign_clip_sp.csv')
     
