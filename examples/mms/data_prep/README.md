@@ -14,8 +14,8 @@ We describe the process of aligning long audio files with their transcripts and 
   
 - Step 3: Install a few other dependencies 
   ```
-  pip install sox 
-  pip install dataclasses 
+  apt install sox 
+  pip install sox dataclasses 
   ```  
 
 - Step 4: Create a text file containing the transcript for a (long) audio file. Each line in the text file will correspond to a separate audio segment that will be generated upon alignment.
@@ -29,7 +29,7 @@ We describe the process of aligning long audio files with their transcripts and 
 
 - Step 5: Run forced alignment and segment the audio file into shorter segments. 
   ```
-  python align_and_segment.py --audio /path/to/audio.wav --textfile /path/to/textfile --lang <iso> --outdir /path/to/output --uroman /path/to/uroman/bin 
+  python align_and_segment.py --audio /path/to/audio.wav --text_filepath /path/to/textfile --lang <iso> --outdir /path/to/output --uroman /path/to/uroman/bin 
   ```
 
   The above code  will generated the audio segments under output directory based on the content of each line in the input text file. The `manifest.json` file consisting of the of segmented audio filepaths and their corresponding transcripts. 

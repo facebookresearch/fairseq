@@ -177,6 +177,10 @@ We also provide an Ipython notebook example inside `lid/tutorial` folder [ipynb]
 
 MMS Adapter fine-tuning has been added to the official 🤗 Transformers examples [here](https://github.com/huggingface/transformers/tree/main/examples/pytorch/speech-recognition#connectionist-temporal-classification-with-adapters).
 For a more step-by-step explanation of how to fine-tune MMS, please have a look at the blog [**Fine-tuning MMS Adapter Models for Multi-Lingual ASR**](https://huggingface.co/blog/mms_adapters) on 🤗 blogs.
+
+### TTS
+
+For a guide on how to fine-tune MMS TTS checkpoints using the 🤗 Transformer implementation, please have a look at this [repository](https://github.com/ylacombe/finetune-hf-vits).
   
 ## Pretrained models
 
