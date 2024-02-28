@@ -11,9 +11,9 @@ from torch import Tensor
 
 from fairseq import utils
 from fairseq.models.transformer import TransformerConfig
-from fairseq.modules import LayerNorm, MultiheadAttention, BottleneckAdapterBlock
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
+from fairseq.modules import LayerNorm, MultiheadAttention, NativeMultiheadAttention
 
 
 class TransformerEncoderLayerBase(nn.Module):
@@ -38,6 +38,7 @@ class TransformerEncoderLayerBase(nn.Module):
         self.embed_dim = cfg.encoder.embed_dim
         self.quant_noise = cfg.quant_noise.pq
         self.quant_noise_block_size = cfg.quant_noise.pq_block_size
+        self.use_native_attention = cfg.use_native_attention
         self.self_attn = self.build_self_attention(self.embed_dim, cfg)
         self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
 
@@ -68,25 +69,6 @@ class TransformerEncoderLayerBase(nn.Module):
         )
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
-
-        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-        self.add_adapters = cfg.encoder.add_adapters
-        self.adapter_to_be_used = cfg.encoder.train_adapter
-
-        if self.add_adapters:
-            # implements only pfeiffer adapters
-            self.adapter_block = BottleneckAdapterBlock(
-                adapter_ids=cfg.encoder.adapter_ids.split(","),
-                in_dim=self.embed_dim,
-                reduction_factor=cfg.encoder.adapter_reduction_factor,
-                activation=cfg.adapter_activation_fn,
-                dropout=cfg.dropout,
-                ln_before=cfg.encoder.normalize_before,
-                use_gating=cfg.encoder.adapter_use_gating,
-            )
-        else:
-            self.adapter_block = None
-        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
         return quant_noise(
@@ -154,15 +136,23 @@ class TransformerEncoderLayerBase(nn.Module):
         self.fc2.bias = torch.nn.Parameter(new_fc2_bias)
 
     def build_self_attention(self, embed_dim, cfg):
-        return MultiheadAttention(
-            embed_dim,
-            cfg.encoder.attention_heads,
-            dropout=cfg.attention_dropout,
-            self_attention=True,
-            q_noise=self.quant_noise,
-            qn_block_size=self.quant_noise_block_size,
-            xformers_att_config=cfg.encoder.xformers_att_config,
-        )
+        if self.use_native_attention:
+            return NativeMultiheadAttention(
+                embed_dim,
+                cfg.encoder.attention_heads,
+                dropout=cfg.attention_dropout,
+                self_attention=True,
+            )
+        else:
+            return MultiheadAttention(
+                embed_dim,
+                cfg.encoder.attention_heads,
+                dropout=cfg.attention_dropout,
+                self_attention=True,
+                q_noise=self.quant_noise,
+                qn_block_size=self.quant_noise_block_size,
+                xformers_att_config=cfg.encoder.xformers_att_config,
+            )
 
     def residual_connection(self, x, residual):
         return residual + x
@@ -245,15 +235,6 @@ class TransformerEncoderLayerBase(nn.Module):
         if not self.normalize_before:
             x = self.final_layer_norm(x)
 
-        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-        if (
-            self.add_adapters
-            and self.adapter_to_be_used is not None
-            and self.adapter_block is not None
-        ):
-            x = self.adapter_block(x, self.adapter_to_be_used)
-        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-
         if self.return_fc and not torch.jit.is_scripting():
             return x, fc_result
         return x
@@ -300,6 +281,7 @@ class TransformerDecoderLayerBase(nn.Module):
         self.quant_noise_block_size = cfg.quant_noise.pq_block_size
 
         self.cross_self_attention = cfg.cross_self_attention
+        self.use_native_attention = cfg.use_native_attention
 
         self.self_attn = self.build_self_attention(
             self.embed_dim,
@@ -371,25 +353,6 @@ class TransformerDecoderLayerBase(nn.Module):
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
 
-        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-        self.add_adapters = cfg.decoder.add_adapters
-        self.adapter_to_be_used = cfg.decoder.train_adapter
-
-        if self.add_adapters:
-            # implements only pfeiffer adapters
-            self.adapter_block = BottleneckAdapterBlock(
-                adapter_ids=cfg.decoder.adapter_ids.split(","),
-                in_dim=self.embed_dim,
-                reduction_factor=cfg.decoder.adapter_reduction_factor,
-                activation=cfg.adapter_activation_fn,
-                dropout=cfg.dropout,
-                ln_before=cfg.decoder.normalize_before,
-                use_gating=cfg.decoder.adapter_use_gating,
-            )
-        else:
-            self.adapter_block = None
-        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-
         self.need_attn = True
         self.onnx_trace = False
 
@@ -402,30 +365,48 @@ class TransformerDecoderLayerBase(nn.Module):
     def build_self_attention(
         self, embed_dim, cfg, add_bias_kv=False, add_zero_attn=False
     ):
-        return MultiheadAttention(
-            embed_dim,
-            cfg.decoder.attention_heads,
-            dropout=cfg.attention_dropout,
-            add_bias_kv=add_bias_kv,
-            add_zero_attn=add_zero_attn,
-            self_attention=not cfg.cross_self_attention,
-            q_noise=self.quant_noise,
-            qn_block_size=self.quant_noise_block_size,
-            xformers_att_config=cfg.decoder.xformers_att_config,
-        )
+        if self.use_native_attention:
+            return NativeMultiheadAttention(
+                embed_dim,
+                cfg.decoder.attention_heads,
+                dropout=cfg.attention_dropout,
+                self_attention=not cfg.cross_self_attention,
+            )
+        else:
+            return MultiheadAttention(
+                embed_dim,
+                cfg.decoder.attention_heads,
+                dropout=cfg.attention_dropout,
+                add_bias_kv=add_bias_kv,
+                add_zero_attn=add_zero_attn,
+                self_attention=not cfg.cross_self_attention,
+                q_noise=self.quant_noise,
+                qn_block_size=self.quant_noise_block_size,
+                xformers_att_config=cfg.decoder.xformers_att_config,
+            )
 
     def build_encoder_attention(self, embed_dim, cfg):
-        return MultiheadAttention(
-            embed_dim,
-            cfg.decoder.attention_heads,
-            kdim=cfg.encoder.embed_dim,
-            vdim=cfg.encoder.embed_dim,
-            dropout=cfg.attention_dropout,
-            encoder_decoder_attention=True,
-            q_noise=self.quant_noise,
-            qn_block_size=self.quant_noise_block_size,
-            xformers_att_config=cfg.encoder.xformers_att_config,
-        )
+        if self.use_native_attention:
+            return NativeMultiheadAttention(
+                embed_dim,
+                cfg.decoder.attention_heads,
+                kdim=cfg.encoder.embed_dim,
+                vdim=cfg.encoder.embed_dim,
+                dropout=cfg.attention_dropout,
+                encoder_decoder_attention=True,
+            )
+        else:
+            return MultiheadAttention(
+                embed_dim,
+                cfg.decoder.attention_heads,
+                kdim=cfg.encoder.embed_dim,
+                vdim=cfg.encoder.embed_dim,
+                dropout=cfg.attention_dropout,
+                encoder_decoder_attention=True,
+                q_noise=self.quant_noise,
+                qn_block_size=self.quant_noise_block_size,
+                xformers_att_config=cfg.encoder.xformers_att_config,
+            )
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
@@ -570,15 +551,6 @@ class TransformerDecoderLayerBase(nn.Module):
 
         if not self.normalize_before:
             x = self.final_layer_norm(x)
-
-        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-        if (
-            self.add_adapters
-            and self.adapter_to_be_used is not None
-            and self.adapter_block is not None
-        ):
-            x = self.adapter_block(x, self.adapter_to_be_used)
-        ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
         if self.onnx_trace and incremental_state is not None:
             saved_state = self.self_attn._get_input_buffer(incremental_state)

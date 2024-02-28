@@ -18,7 +18,7 @@ modeling and other text generation tasks.
 
 
 # Usage
-This clone of fairseq supports `Knowledge Distillation`, `Recurrent Stacking`, and `Adapter tuning` for the `Transformer` model and the `translation` task. You can add the following flags to `fairseq-train` to use them:
+This clone of fairseq supports `Knowledge Distillation`, `Recurrent Stacking`, and `LoRA` for the `Transformer` model and the `translation` task. You can add the following flags to `fairseq-train` to use them:
 
 - **Knowledge Distillation**: The original implementation was sourced from [LeslieOverfitting](https://github.com/LeslieOverfitting/selective_distillation) and [MANGA-UOFA](https://github.com/MANGA-UOFA/fdistill)
 
@@ -36,29 +36,27 @@ This clone of fairseq supports `Knowledge Distillation`, `Recurrent Stacking`, a
   - Lastly, the Global-Language-wise selection approach ([Gumma _et al_.](https://aclanthology.org/2023.eamt-1.11/)) can used by:
     - `--task translation_with_kd --kd-strategy global_language_wise --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd --kd-rate $kd_rate --kd-queue-size $kd_queue_sz --kd-language-tags $language_tags` (note that the `$language_tags` should be a comma separated string of language tags)
 
-  - Here, similar to Global-Level KD, each language has its own Global FIFO queue, which makes it suitable for multilingual KD with imbalanced datasets. This technique requires adding language tags to each translation pair, similar to [Ramesh _et al_.](https://aclanthology.org/2022.tacl-1.9/). These tags will help the model break the batch into respective languages and push them into the corresponding Global language queues. Note that each FIFO language queue, irrespective of language abundance, will be of the same size, i.e., ```$kd_queue_sz```. I know this does not sound so good, and I am working on an alternative.
+  - Here, similar to Global-Level KD, each language has its own Global FIFO queue, which makes it suitable for multilingual KD with imbalanced datasets. This technique requires adding language tags to each translation pair, similar to [Ramesh _et al_.](https://aclanthology.org/2022.tacl-1.9/). These tags will help the model break the batch into respective languages and push them into the corresponding Global language queues. Note that each FIFO language queue, irrespective of language abundance, will be of the same size, i.e., `$kd_queue_sz`. I know this does not sound so good, and I am working on an alternative.
 
   - *UPDATE-1*: _Initially, the KD Loss was implemented as the CrossEntropy between student and teacher model distributions, but it was very unustable in mixed-precision training and led to `inf` loss. Hence, the latest implementation uses KL-Divergence, which is much more stable and easy to compute in PyTorch_.
   - *UPDATE-2*: _Based on [Wen _et al_.](https://aclanthology.org/2023.acl-long.605.pdf), newer variants for KD Loss have been implemented, wiz. `js_div` and `tvd`. They can be used by setting the flag `--kd-criterion $kd_criterion`. By default, `kl_div` is used._
 
-
 - **Recurrent Stacking** ([Dabre & Fujita](https://ojs.aaai.org/index.php/AAAI/article/view/4590)): RS is an extreme parameter sharing technique in which all the layers in the encoder/decoder are shared. Implementation-wise, only one layer exists in the module, and the rest $N-1$ are mere references to it. RS can be activated with the following flags: `--encoder-recurrent-stacking $encoder_recurrent_stacking --decoder-recurrent-stacking $decoder_recurrent_stacking`
 
-- **Adapter Tuning** ([Houlsby _et al_.](http://proceedings.mlr.press/v97/houlsby19a/houlsby19a.pdf), [Bapna & Firat](https://aclanthology.org/D19-1165/)): Small FFN blocks with a bottleneck hidden layer are added in the Transformer layer for additional parameterization. The adapter hidden layer currently supports `ReLU`, `GELU`, `SiLU`, and `Tanh` activations. Note that all other parameters except these adapters will be frozen during training. Gating for the skip-connection inside the adapter can be enabled using the flags `--encoder-adapter-use-gating` or `--decoder-adapter-use-gating`. 
-
-  - The adapters can be added and trained using the following flags: `--encoder-add-adapters --encoder-adapter-reduction-factor $encoder_reduction_factor --encoder-adapter-ids $encoder_adapter_ids_list --encoder-train-adapter $encoder_train_adapter_id --decoder-add-adapters --decoder-adapter-reduction-factor $decoder_reduction_factor --decoder-adapter-ids $decoder_adapter_ids_list --decoder-train-adapter $decoder_train_adapter_id --adapter-activation-fn $adapter_activation_fn --load-checkpoint-liberally`
-  - During evaluation, you can add the following flags to `fairseq-interactive`  to use that specific adapter `--activate-encoder-adapter $encoder_adapter_id --activate-decoder-adapter $decoder_adapter_id`. Here `$encoder_adapter_ids_list`/`$decoder_adapter_ids_list` is a comma separated list like `as,bn,gu,hi,kn,ml,mr,or,pa,ta,te` and `$encoder_train_adapter_id`/`$decoder_train_adapter_id` is one of the adapters from that list (say `hi`) which will get trained. Essentially, the above flags add a block of bottleneck adapters and they can be trained one after the other.
-
-
+- **Low-Rank Adaptation (LoRA)** ([Hu _et al_.](https://openreview.net/forum?id=nZeVKeeFYf9)): LoRA is a technique for efficient model adaptation that modifies a small number of model parameters while freezing the rest, enabling effective fine-tuning of large-scale pre-trained models with minimal computational overhead. The LoRA modules can be added and trained using the following flags: `--use-native-attention --lora-r $r --lora-alpha $alpha --lora-dropout $dropout --lora-bias "none" --lora-modules "k_proj,v_proj" --load-checkpoint-liberally`. The model will automatically merge the weights when the `.eval()` method is called, and unmerge them with `.train()`. Note that, training these modules will replace the required linear layers with `LoRALinear` layers, and attention blocks with `NativeMultiheadAttention`. These changes are yet to be reverted upon saving the final best model. 
+  
 - **Miscellaneous**:
-  - _Factorized Embedding Parameterization_ ([Lan _et al_.](https://iclr.cc/virtual_2020/poster_H1eA7AEtvS.html)): Similar to ALBERT, the large embeddings can be parameterized by adding an intermediate bottleneck layer, i.e., the instead of being a single $|V| \times d_m$ matrix, the Embedding consists of two pieces of sizes $|V| \times k$ and $k \times d_m$ respectively, where $k < d_m$. This helps curb the number of parameters in the Embedding layer, which can one of the most bulky components. Factorized embeddings can be used as:`--encoder-factorized-embed-dim $encoder_fac_embed_dim --decoder-factorized-embed-dim $decoder_fac_embed_dim `. A non-linear activation function can be applied to the intermediate bottleneck layer specifying it in the flag `--factorized-embed-activation-fn $fac_embed_activation_fn`.
+  - _Factorized Embedding Parameterization_ ([Lan _et al_.](https://openreview.net/forum?id=nZeVKeeFYf9)): Similar to ALBERT, the large embeddings can be parameterized by adding an intermediate bottleneck layer, i.e., the instead of being a single $|V| \times d_m$ matrix, the Embedding consists of two pieces of sizes $|V| \times k$ and $k \times d_m$ respectively, where $k < d_m$. This helps curb the number of parameters in the Embedding layer, which can one of the most bulky components. Factorized embeddings can be used as:`--encoder-factorized-embed-dim $encoder_fac_embed_dim --decoder-factorized-embed-dim $decoder_fac_embed_dim`. A non-linear activation function can be applied to the intermediate bottleneck layer specifying it in the flag `--factorized-embed-activation-fn $fac_embed_activation_fn`.
 
   - When using a penultimate linear transformation before the final projection onto the vocabulary, activation can be added by `--decoder-output-activation-fn $decoder_out_activation_fn`
 
   - _Sanity Validation steps_: Similar to `Pytorch-Lightning Trainer`, a full pass over the validation set can be run at the beginning of training to eliminate any bugs in the training/validation. It can be activated with the flag: `--run-sanity-validation-steps`
 
-  - Added support for `Python 3.11` and bumped the version from `0.12.2` -> `0.12.3.1`
+  - Added support for `Python 3.11+` and bumped the version from `0.12.2` -> `0.12.4`
 
+  - Script to port fairseq transformer models to HuggingFace can be found [here](https://github.com/AI4Bharat/IndicTrans2/tree/main/huggingface_interface)
+
+  - Adapters are now deprecated and removed in favor of LoRA
 
 # Requirements and Installation
 
@@ -113,7 +111,6 @@ The license applies to the pre-trained models as well.
 # Citation
 
 Please cite as:
-
 ``` bibtex
 @inproceedings{ott2019fairseq,
   title = {fairseq: A Fast, Extensible Toolkit for Sequence Modeling},

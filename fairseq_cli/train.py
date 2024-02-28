@@ -13,7 +13,6 @@ import math
 import os
 import sys
 import json
-from tqdm import tqdm
 from omegaconf import OmegaConf
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -42,7 +41,52 @@ from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from fairseq.trainer import Trainer
 from fairseq.checkpoint_utils import load_model_ensemble
-from fairseq.modules.bottleneck_adapter_block import BottleneckAdapter
+from fairseq.modules.lora import LoRALayer, LoRALinear
+
+
+# copied from: https://github.com/microsoft/LoRA/blob/main/loralib/utils.py
+def mark_only_lora_as_trainable(model: torch.nn.Module, bias: str = "none") -> None:
+    for n, p in model.named_parameters():
+        if "lora_" not in n:
+            p.requires_grad = False
+    if bias == "none":
+        return
+    elif bias == "all":
+        for n, p in model.named_parameters():
+            if "bias" in n:
+                p.requires_grad = True
+    elif bias == "lora_only":
+        for m in model.modules():
+            if isinstance(m, LoRALayer) and hasattr(m, "bias") and m.bias is not None:
+                m.bias.requires_grad = True
+    else:
+        raise NotImplementedError
+
+
+def replace_linear_with_lora(model, lora_modules, lora_params) -> None:
+    """
+    Replace all nn.Linear layers in the model with LoRALinear layers.
+
+    Args:
+    - model: The original model to be modified.
+    - lora_modules: A list of module names that should be replaced with LoRALinear layers.
+    - lora_params: A dictionary containing parameters for the LoRALinear layer.
+    """
+    for name, module in model.named_children():
+        if name in lora_modules and isinstance(module, torch.nn.Linear):
+            in_features = module.in_features
+            out_features = module.out_features
+            new_module = LoRALinear(in_features, out_features, **lora_params)
+
+            if module.weight is not None:
+                with torch.no_grad():
+                    new_module.weight.data = module.weight.data
+                    if module.bias is not None:
+                        new_module.bias.data = module.bias.data
+
+            setattr(model, name, new_module)
+        else:
+            replace_linear_with_lora(module, lora_modules, lora_params)
 
 
 def main(cfg: FairseqConfig) -> None:
@@ -147,41 +191,21 @@ def main(cfg: FairseqConfig) -> None:
     logger.info("model: {}".format(model.__class__.__name__))
     logger.info("criterion: {}".format(criterion.__class__.__name__))
 
-    add_encoder_adapters = getattr(cfg.model, "encoder_add_adapters", "$$") != "$$"
-    add_decoder_adapters = getattr(cfg.model, "decoder_add_adapters", "$$") != "$$"
-    train_encoder_adapter = getattr(cfg.model, "encoder_train_adapter", "$$") != "$$"
-    train_decoder_adapter = getattr(cfg.model, "decoder_train_adapter", "$$") != "$$"
-
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-    if add_encoder_adapters or add_decoder_adapters:
-        logging.info("adapters detected in encoder/decoder")
-        if train_encoder_adapter:
-            logging.info(
-                "'{0}' adapters in the encoder will be trained. Make sure '{0}' data is only being fed to the encoder for the training.".format(
-                    cfg.model.encoder_train_adapter
-                )
-            )
-        if train_decoder_adapter:
-            logging.info(
-                "'{0}' adapters in the decoder will be trained. Make sure '{0}' data is only being fed to the decoder for the training.".format(
-                    cfg.model.decoder_train_adapter
-                )
-            )
+    if cfg.model.lora_r > 0:
+        logging.info("adding LoRA modules to model")
 
-        logging.info("all parameters except the adapters will be frozen")
+        lora_modules = cfg.model.lora_modules.split(",")
+        lora_params = {
+            "r": cfg.model.lora_r,
+            "alpha": cfg.model.lora_alpha,
+            "dropout": cfg.model.lora_dropout,
+            "fan_in_fan_out": False,
+            "merge_weights": True,
+        }
 
-        if train_encoder_adapter or train_decoder_adapter:
-            for name, layer in model.named_modules():
-                for p in layer.parameters():
-                    p.requires_grad = False
-            for name, layer in model.named_modules():
-                if isinstance(layer, BottleneckAdapter) and (
-                    cfg.model.encoder_train_adapter == name.split(".")[-1]
-                    or cfg.model.decoder_train_adapter == name.split(".")[-1]
-                ):
-                    logging.info(f"gradients for {name} will be active")
-                    for p in layer.parameters():
-                        p.requires_grad = True
+        replace_linear_with_lora(model, lora_modules, lora_params)
+        mark_only_lora_as_trainable(model, bias=cfg.model.lora_bias)
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
     logger.info(

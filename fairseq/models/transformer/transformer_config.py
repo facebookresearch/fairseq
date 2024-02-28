@@ -69,35 +69,6 @@ class EncDecBaseConfig(FairseqDataclass):
         },
     )
 
-    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-    add_adapters: Optional[bool] = field(
-        default=False,
-        metadata={"help": "add adapters to the transformer encoder/decoder layers"},
-    )
-    adapter_reduction_factor: Optional[int] = field(
-        default=None,
-        metadata={"help": "reduction factor for the adapters"},
-    )
-    adapter_ids: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "list of ids to be used as keys for the adapters (comma separated)"
-        },
-    )
-    train_adapter: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "trains the adapter of only that specific id. Rest parameters are frozen"
-        },
-    )
-    adapter_use_gating: Optional[bool] = field(
-        default=False,
-        metadata={
-            "help": "whether to use gating along with skip connection for the adapter"
-        },
-    )
-    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-
 
 @dataclass
 class DecoderConfig(EncDecBaseConfig):
@@ -145,11 +116,13 @@ class TransformerConfig(FairseqDataclass):
     adapter_activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
         default="relu", metadata={"help": "activation function for adapters"}
     )
-    factorized_embed_activation_fn: ChoiceEnum(
-        utils.get_available_activation_fns()
-    ) = field(
-        default="linear",
-        metadata={"help": "activation function to use for the factorized embedding"},
+    factorized_embed_activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = (
+        field(
+            default="linear",
+            metadata={
+                "help": "activation function to use for the factorized embedding"
+            },
+        )
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
@@ -253,6 +226,36 @@ class TransformerConfig(FairseqDataclass):
     )
     cross_self_attention: bool = field(
         default=False, metadata={"help": "perform cross+self-attention"}
+    )
+    use_native_attention: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "use native attention implementation without much checks. Mainly added for RoPE and LoRA implementation"
+        },
+    )
+    lora_r: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": "LoRA: number of random features to use for the attention mechanism"
+        },
+    )
+    lora_alpha: Optional[int] = field(
+        default=1,
+        metadata={"help": "LoRA: scaling factor for the random features"},
+    )
+    lora_dropout: Optional[float] = field(
+        default=0.0,
+        metadata={"help": "LoRA: dropout probability for the random features"},
+    )
+    lora_bias: Optional[str] = field(
+        default="none",
+        metadata={"help": "LoRA: whether to use bias in the attention mechanism"},
+    )
+    lora_modules: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "A comma separated string of modules to apply LoRA. Supports only Linear and Embedding layers for now."
+        },
     )
     # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
     quant_noise: QuantNoiseConfig = field(default=QuantNoiseConfig)
@@ -387,9 +390,7 @@ class TransformerConfig(FairseqDataclass):
             args_dict = (
                 args._asdict()
                 if safe_hasattr(args, "_asdict")
-                else vars(args)
-                if safe_hasattr(args, "__dict__")
-                else {}
+                else vars(args) if safe_hasattr(args, "__dict__") else {}
             )  # namedtupled doesn't have __dict__ :-/
             for key, value in args_dict.items():
                 if key not in seen:
