@@ -12,6 +12,7 @@ from torch.nn import Parameter
 
 from fairseq import utils
 from fairseq.modules.fairseq_dropout import FairseqDropout
+from fairseq.modules.quant_noise import quant_noise
 from fairseq.modules.multihead_attention import MultiheadAttention
 
 
@@ -34,8 +35,11 @@ class NativeMultiheadAttention(MultiheadAttention):
         self_attention=False,
         encoder_decoder_attention=False,
         dictionary=None,
+        q_noise=0.0,
+        qn_block_size=8,
+        use_rope=False
     ):
-        super().__init__(dictionary)
+        super().__init__(embed_dim, num_heads)
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
         self.vdim = vdim if vdim is not None else embed_dim
@@ -52,6 +56,7 @@ class NativeMultiheadAttention(MultiheadAttention):
         ), "embed_dim must be divisible by num_heads"
         self.scaling = self.head_dim**-0.5
 
+        self.use_rope = use_rope
         self.self_attention = self_attention
         self.encoder_decoder_attention = encoder_decoder_attention
 
@@ -59,10 +64,19 @@ class NativeMultiheadAttention(MultiheadAttention):
             "Self-attention requires query, key and " "value to be of the same size"
         )
 
-        self.k_proj = nn.Linear(self.kdim, embed_dim, bias=bias)
-        self.v_proj = nn.Linear(self.vdim, embed_dim, bias=bias)
-        self.q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
-        self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
+        self.k_proj = quant_noise(
+            nn.Linear(self.kdim, embed_dim, bias=bias), q_noise, qn_block_size
+        )
+        self.v_proj = quant_noise(
+            nn.Linear(self.vdim, embed_dim, bias=bias), q_noise, qn_block_size
+        )
+        self.q_proj = quant_noise(
+            nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
+        )
+
+        self.out_proj = quant_noise(
+            nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
+        )
 
         if add_bias_kv:
             self.bias_k = Parameter(torch.Tensor(1, 1, embed_dim))
