@@ -25,7 +25,7 @@ class LoRALayer:
         self.merge_weights = merge_weights
 
 
-class LoRAEmbedding(nn.Embedding, LoRALayer):
+class Embedding(nn.Embedding, LoRALayer):
     # LoRA implemented in a dense layer
     def __init__(
         self,
@@ -97,7 +97,7 @@ class LoRAEmbedding(nn.Embedding, LoRALayer):
             return nn.Embedding.forward(self, x)
 
 
-class LoRALinear(nn.Linear, LoRALayer):
+class Linear(nn.Linear, LoRALayer):
     # LoRA implemented in a dense layer
     def __init__(
         self,

@@ -41,7 +41,7 @@ from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from fairseq.trainer import Trainer
 from fairseq.checkpoint_utils import load_model_ensemble
-from fairseq.modules.lora import LoRALayer, LoRALinear
+from fairseq.modules.lora import LoRALayer, Linear
 
 
 # copied from: https://github.com/microsoft/LoRA/blob/main/loralib/utils.py
@@ -65,18 +65,18 @@ def mark_only_lora_as_trainable(model: torch.nn.Module, bias: str = "none") -> N
 
 def replace_linear_with_lora(model, lora_modules, lora_params) -> None:
     """
-    Replace all nn.Linear layers in the model with LoRALinear layers.
+    Replace all nn.Linear layers in the model with fairseq.modules.lora.Linear layers.
 
     Args:
     - model: The original model to be modified.
-    - lora_modules: A list of module names that should be replaced with LoRALinear layers.
-    - lora_params: A dictionary containing parameters for the LoRALinear layer.
+    - lora_modules: A list of module names that should be replaced with fairseq.modules.lora.Linear layers.
+    - lora_params: A dictionary containing parameters for the fairseq.modules.lora.Linear layer.
     """
     for name, module in model.named_children():
         if name in lora_modules and isinstance(module, torch.nn.Linear):
             in_features = module.in_features
             out_features = module.out_features
-            new_module = LoRALinear(in_features, out_features, **lora_params)
+            new_module = Linear(in_features, out_features, **lora_params)
 
             if module.weight is not None:
                 with torch.no_grad():
