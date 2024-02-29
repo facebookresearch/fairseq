@@ -12,10 +12,10 @@ from torch.nn import Parameter
 
 from fairseq import utils
 from fairseq.modules.fairseq_dropout import FairseqDropout
-from fairseq.models.fairseq_incremental_decoder import FairseqIncrementalDecoder
+from fairseq.modules.multihead_attention import MultiheadAttention
 
 
-class NativeMultiheadAttention(FairseqIncrementalDecoder):
+class NativeMultiheadAttention(MultiheadAttention):
     """Native Multi-headed attention
     Removes a lot of the overhead in the MultiheadAttention module
     See "Attention Is All You Need" for more details.
@@ -75,81 +75,6 @@ class NativeMultiheadAttention(FairseqIncrementalDecoder):
         self.reset_parameters()
 
         self.init_incremental_state()
-
-    def reset_parameters(self):
-        if self.qkv_same_dim:
-            # Empirically observed the convergence to be much better with
-            # the scaled initialization
-            nn.init.xavier_uniform_(self.k_proj.weight, gain=1 / math.sqrt(2))
-            nn.init.xavier_uniform_(self.v_proj.weight, gain=1 / math.sqrt(2))
-            nn.init.xavier_uniform_(self.q_proj.weight, gain=1 / math.sqrt(2))
-        else:
-            nn.init.xavier_uniform_(self.k_proj.weight)
-            nn.init.xavier_uniform_(self.v_proj.weight)
-            nn.init.xavier_uniform_(self.q_proj.weight)
-
-        nn.init.xavier_uniform_(self.out_proj.weight)
-        if self.out_proj.bias is not None:
-            nn.init.constant_(self.out_proj.bias, 0.0)
-        if self.bias_k is not None:
-            nn.init.xavier_normal_(self.bias_k)
-        if self.bias_v is not None:
-            nn.init.xavier_normal_(self.bias_v)
-
-    def _pad_masks(
-        self,
-        key_padding_mask: Optional[Tensor],
-        attn_mask: Optional[Tensor],
-    ) -> Tuple[Optional[Tensor], Optional[Tensor]]:
-        if attn_mask is not None:
-            shape = attn_mask.size()[:-1] + torch.Size([1])
-            attn_mask = torch.cat([attn_mask, attn_mask.new_zeros(shape)], dim=-1)
-        if key_padding_mask is not None:
-            shape = key_padding_mask.size()[:-1] + torch.Size([1])
-            key_padding_mask = torch.cat(
-                [
-                    key_padding_mask,
-                    key_padding_mask.new_zeros(shape),
-                ],
-                dim=-1,
-            )
-        return key_padding_mask, attn_mask
-
-    def _add_bias(
-        self,
-        k: Tensor,
-        v: Tensor,
-        key_padding_mask: Optional[Tensor],
-        attn_mask: Optional[Tensor],
-        bsz: int,
-    ) -> Tuple[Tensor, Tensor, Optional[Tensor], Optional[Tensor]]:
-        assert self.bias_k is not None
-        assert self.bias_v is not None
-        k = torch.cat([k, self.bias_k.repeat(1, bsz, 1)])
-        v = torch.cat([v, self.bias_v.repeat(1, bsz, 1)])
-        key_padding_mask, attn_mask = self._pad_masks(
-            key_padding_mask=key_padding_mask, attn_mask=attn_mask
-        )
-        return k, v, key_padding_mask, attn_mask
-
-    def _append_zero_attn(
-        self,
-        k: Tensor,
-        v: Tensor,
-        key_padding_mask: Optional[Tensor],
-        attn_mask: Optional[Tensor],
-    ) -> Tuple[Tensor, Tensor, Optional[Tensor], Optional[Tensor]]:
-        zero_attn_shape = k.size()[:-2] + torch.Size([1]) + k.size()[-1:]
-        k = torch.cat(
-            [k, torch.zeros(zero_attn_shape, dtype=k.dtype, device=k.device)], dim=-2
-        )
-        v = torch.cat(
-            [v, torch.zeros(zero_attn_shape, dtype=v.dtype, device=v.device)], dim=-2
-        )
-        key_padding_mask, attn_mask = self._pad_masks(
-            key_padding_mask=key_padding_mask, attn_mask=attn_mask
-        )
-        return k, v, key_padding_mask, attn_mask
 
     def forward(
         self,
@@ -409,99 +334,3 @@ class NativeMultiheadAttention(FairseqIncrementalDecoder):
                 attn_weights = attn_weights.mean(dim=0)
 
         return attn, attn_weights
-
-    @staticmethod
-    def _append_prev_key_padding_mask(
-        key_padding_mask: Optional[Tensor],
-        prev_key_padding_mask: Optional[Tensor],
-        batch_size: int,
-        src_len: int,
-        static_kv: bool,
-    ) -> Optional[Tensor]:
-        # saved key padding masks have shape (bsz, seq_len)
-        if prev_key_padding_mask is not None and static_kv:
-            new_key_padding_mask = prev_key_padding_mask
-        elif prev_key_padding_mask is not None and key_padding_mask is not None:
-            new_key_padding_mask = torch.cat(
-                [prev_key_padding_mask.float(), key_padding_mask.float()], dim=1
-            )
-        # During incremental decoding, as the padding token enters and
-        # leaves the frame, there will be a time when prev or current
-        # is None
-        elif prev_key_padding_mask is not None:
-            if src_len > prev_key_padding_mask.size(1):
-                filler = torch.zeros(
-                    (batch_size, src_len - prev_key_padding_mask.size(1)),
-                    device=prev_key_padding_mask.device,
-                )
-                new_key_padding_mask = torch.cat(
-                    [prev_key_padding_mask.float(), filler.float()], dim=1
-                )
-            else:
-                new_key_padding_mask = prev_key_padding_mask.float()
-        elif key_padding_mask is not None:
-            if src_len > key_padding_mask.size(1):
-                filler = torch.zeros(
-                    (batch_size, src_len - key_padding_mask.size(1)),
-                    device=key_padding_mask.device,
-                )
-                new_key_padding_mask = torch.cat(
-                    [filler.float(), key_padding_mask.float()], dim=1
-                )
-            else:
-                new_key_padding_mask = key_padding_mask.float()
-        else:
-            new_key_padding_mask = prev_key_padding_mask
-        return new_key_padding_mask
-
-    @torch.jit.export
-    def reorder_incremental_state(
-        self,
-        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
-        new_order: Tensor,
-    ):
-        """Reorder buffered internal state (for incremental generation)."""
-        input_buffer = self._get_input_buffer(incremental_state)
-        if input_buffer is not None:
-            for k in input_buffer.keys():
-                input_buffer_k = input_buffer[k]
-                if input_buffer_k is not None:
-                    if self.encoder_decoder_attention:
-                        if input_buffer_k.size(0) * self.beam_size == new_order.size(0):
-                            return incremental_state
-                        elif self.beam_size > 1:
-                            input_buffer[k] = input_buffer_k.index_select(
-                                0,
-                                new_order.reshape(-1, self.beam_size)[:, 0]
-                                // self.beam_size,
-                            )
-                        else:
-                            input_buffer[k] = input_buffer_k.index_select(0, new_order)
-                    else:
-                        input_buffer[k] = input_buffer_k.index_select(0, new_order)
-            incremental_state = self._set_input_buffer(incremental_state, input_buffer)
-        return incremental_state
-
-    def set_beam_size(self, beam_size):
-        """Used for effiecient beamable enc-dec attention"""
-        self.beam_size = beam_size
-
-    def _get_input_buffer(
-        self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]
-    ) -> Dict[str, Optional[Tensor]]:
-        result = self.get_incremental_state(incremental_state, "attn_state")
-        if result is not None:
-            return result
-        else:
-            empty_result: Dict[str, Optional[Tensor]] = {}
-            return empty_result
-
-    def _set_input_buffer(
-        self,
-        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
-        buffer: Dict[str, Optional[Tensor]],
-    ):
-        return self.set_incremental_state(incremental_state, "attn_state", buffer)
-
-    def apply_sparse_mask(self, attn_weights, tgt_len: int, src_len: int, bsz: int):
-        return attn_weights
