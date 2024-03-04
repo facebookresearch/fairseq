@@ -19,7 +19,7 @@ Example fine-tuning cmd for `RTE` task
 ```bash
 ROBERTA_PATH=/path/to/roberta/model.pt
 
-CUDA_VISIBLE_DEVICES=0 fairseq-hydra-train -config-dir examples/roberta/config/finetuning --config-name rte \
+CUDA_VISIBLE_DEVICES=0 fairseq-hydra-train --config-dir examples/roberta/config/finetuning --config-name rte \
 task.data=RTE-bin checkpoint.restore_file=$ROBERTA_PATH
 ```
 
