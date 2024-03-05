@@ -3,17 +3,21 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import math
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import torch
 from torch import Tensor, nn
 from torch.nn import Parameter
 
 from fairseq import utils
+from einops import rearrange
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
 from fairseq.modules.multihead_attention import MultiheadAttention
+from fairseq.modules.rotary_positional_embedding import (
+    RotaryPositionalEmbedding,
+    apply_rotary_pos_emb,
+)
 
 
 class NativeMultiheadAttention(MultiheadAttention):
@@ -37,9 +41,9 @@ class NativeMultiheadAttention(MultiheadAttention):
         dictionary=None,
         q_noise=0.0,
         qn_block_size=8,
-        use_rope=False
+        use_rope=False,
     ):
-        super().__init__(embed_dim, num_heads)
+        super().__init__(embed_dim, num_heads, dictionary=dictionary)
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
         self.vdim = vdim if vdim is not None else embed_dim
@@ -56,9 +60,15 @@ class NativeMultiheadAttention(MultiheadAttention):
         ), "embed_dim must be divisible by num_heads"
         self.scaling = self.head_dim**-0.5
 
-        self.use_rope = use_rope
+        self.use_rope = use_rope and self_attention
         self.self_attention = self_attention
         self.encoder_decoder_attention = encoder_decoder_attention
+
+        self.rotary_pos_embed = (
+            RotaryPositionalEmbedding(dim=self.head_dim, base=10000)
+            if use_rope
+            else None
+        )
 
         assert not self.self_attention or self.qkv_same_dim, (
             "Self-attention requires query, key and " "value to be of the same size"
@@ -250,6 +260,18 @@ class NativeMultiheadAttention(MultiheadAttention):
         assert k is not None
         assert k.size(1) == src_len
 
+        if self.use_rope:
+            cos, sin = self.rotary_pos_embed(q, seq_len=tgt_len)
+            q_ = q.view(kv_bsz, self.num_heads, tgt_len, self.head_dim)
+            k_ = k.view(kv_bsz, self.num_heads, src_len, self.head_dim)
+            q_ = rearrange(q_, "b h t c -> t b h c")
+            k_ = rearrange(k_, "b h t c -> t b h c")
+            q_, k_ = apply_rotary_pos_emb(q_, k_, cos, sin, offset=0)
+            q = rearrange(q_, "t b h c -> (b h) t c")
+            k = rearrange(k_, "t b h c -> (b h) t c")
+
+        assert k.size(1) == src_len
+
         # This is part of a workaround to get around fork/join parallelism
         # not supporting Optional types.
         if key_padding_mask is not None and key_padding_mask.dim() == 0:
@@ -277,7 +299,13 @@ class NativeMultiheadAttention(MultiheadAttention):
             attn_weights = torch.bmm(q, k.transpose(1, 2))
         attn_weights = self.apply_sparse_mask(attn_weights, tgt_len, src_len, bsz)
 
-        assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
+        assert list(attn_weights.size()) == [
+            bsz * self.num_heads,
+            tgt_len,
+            src_len,
+        ], "attn_weights: {} vs [bsz * self.num_heads, tgt_len, src_len]: {}".format(
+            list(attn_weights.size()), [bsz * self.num_heads, tgt_len, src_len]
+        )
 
         if attn_mask is not None:
             attn_mask = attn_mask.unsqueeze(0)

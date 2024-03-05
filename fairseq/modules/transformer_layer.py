@@ -142,6 +142,7 @@ class TransformerEncoderLayerBase(nn.Module):
                 cfg.encoder.attention_heads,
                 dropout=cfg.attention_dropout,
                 self_attention=True,
+                use_rope=getattr(cfg, "use_rope", False),
             )
         else:
             return MultiheadAttention(
@@ -370,6 +371,7 @@ class TransformerDecoderLayerBase(nn.Module):
                 embed_dim,
                 cfg.decoder.attention_heads,
                 dropout=cfg.attention_dropout,
+                use_rope=getattr(cfg, "use_rope", False),
                 self_attention=not cfg.cross_self_attention,
             )
         else:

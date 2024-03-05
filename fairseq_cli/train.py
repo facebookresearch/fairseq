@@ -192,7 +192,7 @@ def main(cfg: FairseqConfig) -> None:
     logger.info("criterion: {}".format(criterion.__class__.__name__))
 
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-    if cfg.model.lora_r > 0:
+    if getattr(cfg.model, "lora_r", 0) > 0:
         logging.info("adding LoRA modules to model")
 
         lora_modules = cfg.model.lora_modules.split(",")

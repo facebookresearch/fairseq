@@ -257,6 +257,12 @@ class TransformerConfig(FairseqDataclass):
             "help": "A comma separated string of modules to apply LoRA. Supports only Linear and Embedding layers for now."
         },
     )
+    use_rope: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "use rotary position embedding (RoPE) for self-attention"
+        },
+    )
     # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
     quant_noise: QuantNoiseConfig = field(default=QuantNoiseConfig)
     min_params_to_wrap: int = field(
