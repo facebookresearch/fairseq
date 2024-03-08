@@ -10,6 +10,7 @@ import logging
 import os
 import shutil
 import sys
+import re
 from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -101,6 +102,29 @@ class InferenceProcessor:
         self.task = tasks.setup_task(cfg.task)
 
         models, saved_cfg = self.load_model_ensemble()
+
+        ### LOAD ADAPTER ####
+        ckpt_obj = checkpoint_utils.load_checkpoint_to_cpu(self.cfg.common_eval.path)
+        if "adapter" in ckpt_obj:
+            target_lang = self.cfg.dataset.gen_subset.split(":")[0]
+            assert target_lang in ckpt_obj["adapter"]
+            
+            logger.info(f">>> LOADING ADAPTER: {target_lang}")
+            ft_obj = ckpt_obj["adapter"][target_lang]
+            ft_model = ft_obj["model"]
+            cdevice = models[0].w2v_encoder.proj.weight.device
+            cdtype = models[0].w2v_encoder.proj.weight.dtype
+            ft_proj_out, ft_proj_in = ft_model["w2v_encoder.proj.weight"].shape
+            ft_proj = torch.nn.Linear(ft_proj_in, ft_proj_out, bias=True)
+            ft_proj.to(device=cdevice, dtype=cdtype)
+            models[0].w2v_encoder.proj = ft_proj
+            with torch.no_grad():
+                for kk, vv in models[0].named_parameters():
+                    if kk in ft_model:
+                        vv.copy_(ft_model[kk])
+            self.task.load_state_dict(ft_obj["task_state"])
+            # overwrite gen_subset with master config
+            self.cfg.dataset.gen_subset = re.sub('^[\w-]+:', saved_cfg['task']['multi_corpus_keys']+":", self.cfg.dataset.gen_subset)
         self.models = models
         self.saved_cfg = saved_cfg
         self.tgt_dict = self.task.target_dictionary

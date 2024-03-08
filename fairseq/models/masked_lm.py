@@ -294,12 +294,6 @@ class MaskedLMEncoder(FairseqEncoder):
         return self.max_positions
 
     def upgrade_state_dict_named(self, state_dict, name):
-        if isinstance(
-            self.sentence_encoder.embed_positions, SinusoidalPositionalEmbedding
-        ):
-            state_dict[
-                name + ".sentence_encoder.embed_positions._float_tensor"
-            ] = torch.FloatTensor(1)
         if not self.load_softmax:
             for k in list(state_dict.keys()):
                 if (

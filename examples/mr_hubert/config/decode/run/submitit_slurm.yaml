@@ -1,0 +1,17 @@
+# @package _global_
+hydra:
+  launcher:
+    cpus_per_task: ${distributed_training.distributed_world_size}
+    gpus_per_node: ${distributed_training.distributed_world_size}
+    tasks_per_node: ${hydra.launcher.gpus_per_node}
+    nodes: 1
+    mem_gb: 200
+    timeout_min: 4320
+    max_num_timeout: 50
+    name: ${hydra.job.config_name}
+    submitit_folder: ${hydra.sweep.dir}/submitit
+
+distributed_training:
+  distributed_world_size: 1
+  distributed_no_spawn: true
+  distributed_port: 29761
