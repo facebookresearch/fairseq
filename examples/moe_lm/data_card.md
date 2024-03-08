@@ -6,12 +6,12 @@ We follow the recommendations of Gebru et al. (2018) and provide a datacard for 
 ## Motivation
 * **For what purpose was the dataset created? Was there a specific task in mind? Was there a specific gap that needed to be filled? Please provide a description.**
 The pre-training data for training the 1.1 T model was created by a union of six English language datasets, including five datasets used by RoBERTa (Liu et al 2019) and the English subset of CC 100. These purpose of creating this dataset was to pre-train the language model.
-    
+
 * **Who created the dataset (e.g., which team, research group) and on behalf of which entity (e.g., company, institution, organization)?**
-Meta AI.
-    
+FAIR (Fundamental Artificial Intelligence Research)
+
 * **Who funded the creation of the dataset? If there is an associated grant, please provide the name of the grantor and the grant name and number.**
-Meta AI.
+FAIR (Fundamental Artificial Intelligence Research)
 
 * **Any other comments?**
 No.
@@ -183,7 +183,7 @@ No.
 ## Maintenance
 
 * **Who is supporting/hosting/maintaining the dataset?**
-Meta AI.
+FAIR (Fundamental Artificial Intelligence Research)
 
 * **How can the owner/curator/manager of the dataset be contacted (e.g., email address)?**
 Refer to the main document.

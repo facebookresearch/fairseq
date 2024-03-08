@@ -2,7 +2,7 @@
 ## Version 1.0.0
 
 ### Model developer
-Meta AI
+FAIR (Fundamental Artificial Intelligence Research)
 
 ### Model type
 An autoregressive English language model trained on a union of six English language models. We explore dense and sparse (MoE based) architectures in the paper.
@@ -132,7 +132,7 @@ A dataset extracted from CommonCrawl snapshots between January 2018 and December
 The 1.1T parameter model was evaluated on the StereoSet and CrowS pairs dataset for inherent bias in the model, and bias as a result of the data. Similar to StereoSet, we observe that both the dense and MoE models get worse in terms of the Stereotype Score (SS) with scale.
 
 ### Privacy and security
-The 1.1T model did not have any special Privacy and Security considerations. The training data and evaluation data were both public and went through standard Meta AI Privacy and licensing procedures.
+The 1.1T model did not have any special Privacy and Security considerations. The training data and evaluation data were both public and went through standard Meta privacy and licensing procedures.
 
 ### Transparency and control
 In the spirit of transparency and accountability we have created this model card for the 1.1T parameter model and a data card for the training data (referenced in Artetxe et al. (2021)).
