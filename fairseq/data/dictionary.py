@@ -259,25 +259,25 @@ class Dictionary:
             try:
                 line, field = line.rstrip().rsplit(" ", 1)
                 if field == "#fairseq:overwrite":
-                    overwrite, duplicate = True, False
+                    overwrite = True
                     line, field = line.rsplit(" ", 1)
                 elif field == "#fairseq:duplicate":
-                    overwrite, duplicate = False, True
+                    overwrite = False
                     line, field = line.rsplit(" ", 1)
                 else:
-                    overwrite, duplicate = False, False
+                    if line in self:
+                        raise RuntimeError(
+                            "Duplicate word found when loading Dictionary: '{}'. "
+                            "Duplicate words can overwrite earlier ones by adding the "
+                            "#fairseq:overwrite flag at the end of the corresponding row "
+                            "in the dictionary file. Use the #fairseq:duplicate flag "
+                            "to keep duplicates in the dictionary (backward compatibility "
+                            "after bug fix). If using the Camembert model, please "
+                            "download an updated copy of the model file.".format(word)
+                        )
+                    overwrite = True # default behaviour
                 count = int(field)
                 word = line
-                if word in self and not overwrite and not duplicate:
-                    raise RuntimeError(
-                        "Duplicate word found when loading Dictionary: '{}'. "
-                        "Duplicate words can overwrite earlier ones by adding the "
-                        "#fairseq:overwrite flag at the end of the corresponding row "
-                        "in the dictionary file. Use the #fairseq:duplicate flag "
-                        "to keep duplicates in the dictionary (backward compatibility "
-                        "after bug fix). If using the Camembert model, please "
-                        "download an updated copy of the model file.".format(word)
-                    )
                 self.add_symbol(word, n=count, overwrite=overwrite)
             except ValueError:
                 raise ValueError(
