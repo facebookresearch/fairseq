@@ -41,7 +41,7 @@ from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from fairseq.trainer import Trainer
 from fairseq.checkpoint_utils import load_model_ensemble
-from fairseq.modules.lora import LoRALayer, Linear
+from fairseq.modules.lora import LoRALayer, Linear, Embedding
 
 
 # copied from: https://github.com/microsoft/LoRA/blob/main/loralib/utils.py
@@ -63,7 +63,7 @@ def mark_only_lora_as_trainable(model: torch.nn.Module, bias: str = "none") -> N
         raise NotImplementedError
 
 
-def replace_linear_with_lora(model, lora_modules, lora_params) -> None:
+def replace_with_lora(model, lora_modules, lora_params) -> None:
     """
     Replace all nn.Linear layers in the model with fairseq.modules.lora.Linear layers.
 
@@ -74,9 +74,8 @@ def replace_linear_with_lora(model, lora_modules, lora_params) -> None:
     """
     for name, module in model.named_children():
         if name in lora_modules and isinstance(module, torch.nn.Linear):
-            in_features = module.in_features
-            out_features = module.out_features
-            new_module = Linear(in_features, out_features, **lora_params)
+
+            new_module = Linear(module.in_features, module.out_features, **lora_params)
 
             if module.weight is not None:
                 with torch.no_grad():
@@ -85,8 +84,30 @@ def replace_linear_with_lora(model, lora_modules, lora_params) -> None:
                         new_module.bias.data = module.bias.data
 
             setattr(model, name, new_module)
+        
+        elif name in lora_modules and isinstance(module, torch.nn.Embedding):
+            lora_params_emb = lora_params.copy()
+            lora_params_emb.pop("dropout", None)
+
+            new_module = Embedding(
+                num_embeddings=module.num_embeddings,
+                embedding_dim=module.embedding_dim,
+                scale_grad_by_freq=module.scale_grad_by_freq,
+                padding_idx=module.padding_idx,
+                max_norm=module.max_norm,
+                norm_type=module.norm_type,
+                sparse=module.sparse,
+                **lora_params_emb,
+            )
+
+            if module.weight is not None:
+                with torch.no_grad():
+                    new_module.weight.data = module.weight.data
+
+            setattr(model, name, new_module)
+        
         else:
-            replace_linear_with_lora(module, lora_modules, lora_params)
+            replace_with_lora(module, lora_modules, lora_params)
 
 
 def main(cfg: FairseqConfig) -> None:
@@ -200,11 +221,10 @@ def main(cfg: FairseqConfig) -> None:
             "r": cfg.model.lora_r,
             "alpha": cfg.model.lora_alpha,
             "dropout": cfg.model.lora_dropout,
-            "fan_in_fan_out": False,
             "merge_weights": True,
         }
 
-        replace_linear_with_lora(model, lora_modules, lora_params)
+        replace_with_lora(model, lora_modules, lora_params)
         mark_only_lora_as_trainable(model, bias=cfg.model.lora_bias)
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 

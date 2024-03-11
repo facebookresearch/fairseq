@@ -14,10 +14,6 @@ from einops import rearrange
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
 from fairseq.modules.multihead_attention import MultiheadAttention
-from fairseq.modules.rotary_positional_embedding import (
-    RotaryPositionalEmbedding,
-    apply_rotary_pos_emb,
-)
 
 
 class NativeMultiheadAttention(MultiheadAttention):
@@ -64,11 +60,12 @@ class NativeMultiheadAttention(MultiheadAttention):
         self.self_attention = self_attention
         self.encoder_decoder_attention = encoder_decoder_attention
 
-        self.rotary_pos_embed = (
-            RotaryPositionalEmbedding(dim=self.head_dim, base=10000)
-            if use_rope
-            else None
-        )
+        if self.use_rope:
+            from rotary_embedding_torch import RotaryEmbedding
+
+            self.rotary_pos_embed = (
+                RotaryEmbedding(dim=self.head_dim) if use_rope else None
+            )
 
         assert not self.self_attention or self.qkv_same_dim, (
             "Self-attention requires query, key and " "value to be of the same size"
@@ -261,14 +258,12 @@ class NativeMultiheadAttention(MultiheadAttention):
         assert k.size(1) == src_len
 
         if self.use_rope:
-            cos, sin = self.rotary_pos_embed(q, seq_len=tgt_len)
-            q_ = q.view(kv_bsz, self.num_heads, tgt_len, self.head_dim)
-            k_ = k.view(kv_bsz, self.num_heads, src_len, self.head_dim)
-            q_ = rearrange(q_, "b h t c -> t b h c")
-            k_ = rearrange(k_, "b h t c -> t b h c")
-            q_, k_ = apply_rotary_pos_emb(q_, k_, cos, sin, offset=0)
-            q = rearrange(q_, "t b h c -> (b h) t c")
-            k = rearrange(k_, "t b h c -> (b h) t c")
+            q_ = q.view(kv_bsz, self.num_heads, -1, self.head_dim)
+            k_ = k.view(kv_bsz, self.num_heads, -1, self.head_dim)
+            q_ = self.rotary_pos_embed.rotate_queries_or_keys(q_)
+            k_ = self.rotary_pos_embed.rotate_queries_or_keys(k_)
+            q = q_.view(kv_bsz * self.num_heads, -1, self.head_dim)
+            k = k_.view(kv_bsz * self.num_heads, -1, self.head_dim)
 
         assert k.size(1) == src_len
 
