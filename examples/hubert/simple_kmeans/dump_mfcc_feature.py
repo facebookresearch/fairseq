@@ -48,7 +48,7 @@ class MfccFeatureReader(object):
             deltas = torchaudio.functional.compute_deltas(mfccs)
             ddeltas = torchaudio.functional.compute_deltas(deltas)
             concat = torch.cat([mfccs, deltas, ddeltas], dim=0)
-            concat = concat.transpose(0, 1).contiguous()  # (freq, time)
+            concat = concat.transpose(0, 1).contiguous()  # (time, freq)
             return concat
 
 
