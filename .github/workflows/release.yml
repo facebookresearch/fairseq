@@ -30,9 +30,9 @@ jobs:
           new_tag=$(echo $output | awk '{print $2}')
           echo "new version is $new_version"
           echo "new tag is $new_tag"
-          echo ::set-output name=version::$new_version
-          echo ::set-output name=tag::$new_tag
-          echo ::set-output name=branch_name::$new_version-release
+          echo "version=$new_version" >> $GITHUB_OUTPUT
+          echo "tag=$new_tag" >> $GITHUB_OUTPUT
+          echo "branch_name=$new_version-release" >> $GITHUB_OUTPUT
           echo "NEW_TAG=$new_tag" >> $GITHUB_ENV
           echo "NEW_BRANCH=$new_version-release" >> $GITHUB_ENV
 
