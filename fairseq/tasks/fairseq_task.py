@@ -257,7 +257,7 @@ class FairseqTask(object):
                 (default: False).
             skip_remainder_batch (bool, optional): if set, discard the last
                 batch in each training epoch, as the last batch is often smaller than
-                    local_batch_size * distributed_word_size (default: ``True``).
+                    local_batch_size * distributed_word_size (default: ``False``).
             grouped_shuffling (bool, optional): group batches with each groups
                 containing num_shards batches and shuffle groups. Reduces difference
                 between sequence lengths among workers for batches sorted by length.
