@@ -32,12 +32,14 @@ def retrieve_asr_config(lang_key: str, asr_version: str, json_path: str) -> dict
     Retrieve the asr model configs
 
     Args:
-        lang_key: the lanuage type as the key name
+        lang_key: the language type as the key name
         json_path: the path of the config json file
 
     Returns:
         Dict of all the configs in the json file
     """
+    if len(lang_key) !=3:
+        raise ValueError(f"'{lang_key}' lang key for language type must be 3 characters!")
 
     with open(json_path, "r") as f:
         asr_model_cfgs = json.load(f)
