@@ -80,7 +80,7 @@ class Wav2Vec2Config(FairseqDataclass):
         default=0.0, metadata={"help": "dropout probability after activation in FFN"}
     )
     encoder_layerdrop: float = field(
-        default=0.0, metadata={"help": "probability of dropping a tarnsformer layer"}
+        default=0.0, metadata={"help": "probability of dropping a transformer layer"}
     )
     dropout_input: float = field(
         default=0.0,
