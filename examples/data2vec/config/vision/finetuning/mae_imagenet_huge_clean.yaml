@@ -6,6 +6,7 @@ common:
   log_interval: 200
   tensorboard_logdir: tb
   fp16_no_flatten_grads: true
+  user_dir: ${env:PWD}/examples/data2vec
 
 checkpoint:
   save_interval: 1
