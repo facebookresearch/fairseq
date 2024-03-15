@@ -34,18 +34,14 @@ sclite -r ${RES_DIR}/ref.word-checkpoint_last.pt-${SET}.txt -h ${RES_DIR}/hypo.w
 ```
 `Sum/Avg` row from first table of the report has WER
 
-## Using flashlight (previously called [wav2letter](https://github.com/facebookresearch/wav2letter)) components
-[flashlight](https://github.com/facebookresearch/flashlight) now has integration with fairseq. Currently this includes:
+## Using Flashlight (previously called [wav2letter](https://github.com/facebookresearch/wav2letter)) components
+[Flashlight Text](https://github.com/flashlight/text) and [Flashlight Sequence](https://github.com/flashlight/sequence) now have integration with fairseq. Currently this includes:
 
 * AutoSegmentationCriterion (ASG)
 * flashlight-style Conv/GLU model
 * flashlight's beam search decoder
 
-To use these, follow the instructions on [this page](https://github.com/flashlight/flashlight/tree/e16682fa32df30cbf675c8fe010f929c61e3b833/bindings/python) to install python bindings. **Flashlight v0.3.2** must be used to install the bindings. Running:
-```
-git clone --branch v0.3.2 https://github.com/flashlight/flashlight
-```
-will properly clone and check out this version.
+**See the respective instructions for [Flashlight Text](https://github.com/flashlight/text#readme) and [Flashlight Sequence](https://github.com/flashlight/sequence#readme) to get started.**
 
 ## Training librispeech data (flashlight style, Conv/GLU + ASG loss)
 Training command:

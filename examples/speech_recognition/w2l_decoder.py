@@ -40,7 +40,7 @@ try:
     )
 except:
     warnings.warn(
-        "flashlight python bindings are required to use this functionality. Please install from https://github.com/facebookresearch/flashlight/tree/master/bindings/python"
+        "Flashlight python bindings are required to use this functionality. Please install from https://github.com/flashlight/text/#readme and https://github.com/flashlight/sequence#readme"
     )
     LM = object
     LMState = object
