@@ -21,7 +21,7 @@ The low-resource splits can be downloaded here: [download link](http://dl.fbaipu
 | HuBERT   | Librispeech | 68.70 | 82.78 | [link](https://dl.fbaipublicfiles.com/stop/end-to-end-nlu-hubert-ls.pt) |
 
 ## Pretrained models ASR Models
-| Speech Pre-training  | ASR Dataset | STOP Eval WER | STOP Test WER | dev\_other WER | dev\_clean WER | test\_clean WER | test\_other WER | Link |
+| Speech Pre-training  | ASR Dataset | dev\_other WER |dev\_clean WER| test\_clean WER | test\_other WER |  STOP Eval WER |  STOP Test WER  | Link |
 | ----------- |  ----------- |  ----------- |  ----------- |  ----------- |  ----------- |  ----------- |  ----------- |  ----------- |
 | HuBERT  | Librispeech | 8.47 | 2.99 | 3.25 | 8.06 | 25.68 | 26.19 | [link](https://dl.fbaipublicfiles.com/stop/ctc-asr-hubert-ls.pt) |
 | Wav2Vec  | Librispeech | 9.215 | 3.204 | 3.334 | 9.006 | 27.257 | 27.588 | [link](https://dl.fbaipublicfiles.com/stop/ctc-asr-wav2vec-ls.pt) |
