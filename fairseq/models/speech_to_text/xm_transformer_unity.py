@@ -21,7 +21,6 @@ from fairseq.models.speech_to_text.xm_transformer import (
     base_architecture as xm_t_base_architecture,
 )
 from fairseq.models.speech_to_text.xm_transformer import (
-    build_embedding,
     need_finetuning,
     set_default_adaptor_args,
     set_default_general_args,
@@ -114,7 +113,9 @@ class XMTransformerModelUnitY(XMTransformerModel):
         _args.layerdrop = _args.decoder_layerdrop
         _args.decoder_layers = _args.translation_decoder_layers
 
-        embed_tokens = build_embedding(tgt_dict, _args.decoder_embed_dim)
+        embed_tokens = TransformerModelBase.build_embedding(
+            _args, tgt_dict, _args.decoder_embed_dim
+        )
         decoder = TransformerDecoder(_args, tgt_dict, embed_tokens)
 
         if getattr(args, "load_pretrained_aux_decoder_from", None) is not None:
@@ -137,14 +138,16 @@ class XMTransformerModelUnitY(XMTransformerModel):
         if args.decoder_embed_dim != _args.decoder_embed_dim:
             proj = Linear(args.decoder_embed_dim, _args.decoder_embed_dim)
 
-        embed_tokens = build_embedding(task.target_dictionary, _args.decoder_embed_dim)
+        embed_tokens = TransformerModelBase.build_embedding(
+            _args, task.target_dictionary, _args.decoder_embed_dim
+        )
         decoder_cls = AugTransformerDecoder if aug_attn else TransformerDecoder
         decoder = decoder_cls(_args, task.target_dictionary, embed_tokens)
 
         if getattr(args, "load_pretrained_decoder_from", None) is not None:
             # load all layers first and then discard the bottom layers
-            embed_tokens = build_embedding(
-                task.target_dictionary, _args.decoder_embed_dim
+            embed_tokens = TransformerModelBase.build_embedding(
+                _args, task.target_dictionary, _args.decoder_embed_dim
             )
             decoder_tmp = decoder_cls(_args, task.target_dictionary, embed_tokens)
             decoder_tmp = cls.maybe_load_pretrained(
