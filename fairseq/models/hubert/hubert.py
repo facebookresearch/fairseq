@@ -341,7 +341,7 @@ class HubertModel(BaseFairseqModel):
         model = HubertModel(cfg, task.cfg, task.dictionaries)
         return model
 
-    def apply_mask(self, x, padding_mask, target_list):
+    def apply_mask(self, x, padding_mask):
         B, T, C = x.shape
         if self.mask_prob > 0:
             mask_indices = compute_mask_indices(
@@ -460,7 +460,7 @@ class HubertModel(BaseFairseqModel):
         unmasked_features = self.dropout_features(unmasked_features)
 
         if mask:
-            x, mask_indices = self.apply_mask(features, padding_mask, target_list)
+            x, mask_indices = self.apply_mask(features, padding_mask)
         else:
             x = features
             mask_indices = None
