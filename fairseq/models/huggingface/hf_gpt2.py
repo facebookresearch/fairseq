@@ -9,13 +9,13 @@ import sys
 from typing import Dict, List, Optional
 
 import torch
+
 from fairseq.models import (
     FairseqIncrementalDecoder,
     FairseqLanguageModel,
     register_model,
     register_model_architecture,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,14 @@ class HuggingFaceGPT2LanguageModel(FairseqLanguageModel):
         parser.add_argument('--attention-dropout', type=float, metavar='D',
                             help='dropout probability for attention weights')
         # fmt: on
+
+        # Adding argument for scalar quantization noise, same name as in transformer_lm model cfg
+        parser.add_argument(
+            "--quant_noise_scalar",
+            type=float,
+            metavar="D",
+            help="scalar quantization noise and scalar quantization at training time",
+        )
 
     @classmethod
     def build_model(cls, args, task):
@@ -142,6 +150,8 @@ def default_architecture(args):
     args.num_layers = getattr(args, "num_layers", 12)
     args.dropout = getattr(args, "dropout", 0.1)
     args.attention_dropout = getattr(args, "attention_dropout", 0.1)
+    # Adding argument for scalar quantization noise, same name as in transformer_lm model cfg
+    args.quant_noise_scalar = getattr(args, "quant_noise_scalar", 0.0)
 
 
 @register_model_architecture("hf_gpt2", "hf_gpt2_medium")
