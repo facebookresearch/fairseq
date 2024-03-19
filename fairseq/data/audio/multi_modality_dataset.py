@@ -251,7 +251,7 @@ class LangPairMaskDataset(FairseqDataset):
         return sample
 
     def collater(self, samples, pad_to_length=None):
-        return self.dataset.collater(samples, pad_to_length)
+        return self.dataset.collater(samples, pad_to_length=pad_to_length)
 
 
 class FileAudioDatasetWrapper(FileAudioDataset):
