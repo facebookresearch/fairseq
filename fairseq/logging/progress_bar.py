@@ -13,6 +13,7 @@ import logging
 import os
 import sys
 from collections import OrderedDict
+from collections.abc import MutableMapping
 from contextlib import contextmanager
 from numbers import Number
 from typing import Optional
@@ -39,6 +40,7 @@ def progress_bar(
     wandb_project: Optional[str] = None,
     wandb_run_name: Optional[str] = None,
     azureml_logging: Optional[bool] = False,
+    mlflow_logging: Optional[bool] = False,
 ):
     if log_format is None:
         log_format = default_log_format
@@ -84,6 +86,9 @@ def progress_bar(
 
     if azureml_logging:
         bar = AzureMLProgressBarWrapper(bar)
+
+    if mlflow_logging:
+        bar = MlflowProgressBar(bar, epoch=epoch, prefix=prefix)
 
     return bar
 
@@ -580,3 +585,140 @@ class AzureMLProgressBarWrapper(BaseProgressBar):
                 self.run.log_row(name=name, **{"step": step, key: stats[key].val})
             elif isinstance(stats[key], Number):
                 self.run.log_row(name=name, **{"step": step, key: stats[key]})
+
+
+try:
+    import mlflow
+
+    assert hasattr(mlflow, "__version__")
+except (ImportError, AssertionError):
+    mlflow = None
+
+
+class MlflowProgressBar(BaseProgressBar):
+    """Logs parameters, metrics, checkpoints, and model to Mlflow"""
+
+    def __init__(
+        self, wrapped_bar, epoch: Optional[int] = None, prefix: Optional[str] = None
+    ):
+        self.wrapped_bar = wrapped_bar
+        self.epoch = epoch
+        self.prefix = prefix
+        self._save_dir = None
+        self._is_valid = False
+        self._arch_name = None
+        if self.prefix is not None and isinstance(self.prefix, str):
+            self._is_valid = True if "valid" in self.prefix else self._is_valid
+
+        if mlflow is None:
+            logger.warning(
+                "mlflow not found, pip install mlflow to start logging to mlflow"
+            )
+            return
+
+        self.mlflow = mlflow
+        if self.mlflow is not None:
+            self.client = mlflow.tracking.MlflowClient()
+            if self.mlflow.active_run() is not None:
+                self.active_run = self.mlflow.active_run()
+            else:
+                self.active_run = self.mlflow.start_run()
+            self.run_id = self.active_run.info.run_id
+            logger.info(f"Mlflow: Logging params and metrics with run_id {self.run_id}")
+
+    def __iter__(self):
+        return iter(self.wrapped_bar)
+
+    def log(self, stats, tag=None, step=None):
+        """Log intermediate stats to tensorboard."""
+        self._log_to_mlflow(stats, tag=tag, step=step)
+        self.wrapped_bar.log(stats, tag=tag, step=step)
+
+    def print(self, stats, tag=None, step=None):
+        """Print end-of-epoch stats."""
+        self._log_to_mlflow(stats, tag=tag, step=step)
+        self.wrapped_bar.print(stats, tag=tag, step=step)
+
+    def update_config(self, config):
+        """Log latest configuration."""
+        self._save_dir = config.get("checkpoint", {}).get("save_dir")
+        self._arch_name = config.get("args", {}).get("arch")
+        self._log_mlflow_params(params=config)
+        self.wrapped_bar.update_config(config)
+
+    def __del__(self):
+        """Class destructor, logs artifacts if found."""
+        if self.mlflow is not None and not self._is_valid:
+            try:
+                if self._save_dir is None:
+                    run = self.client.get_run(run_id=self.run_id)
+                    self._save_dir = run.data.params.get("checkpoint/save_dir", None)
+                    self._arch_name = run.data.params.get("args/arch", self._arch_name)
+
+                if os.path.exists(self._save_dir):
+                    logger.info(
+                        "Mlflow: Logging artifacts and model, this might take some time"
+                    )
+                    name = (
+                        self._arch_name
+                        if (
+                            self._arch_name is not None
+                            or str(self._arch_name).strip != ""
+                        )
+                        else "fairseq"
+                    )
+                    mode = "valid" if self._is_valid else "train"
+                    self.mlflow.pyfunc.log_model(
+                        f"{name}/{self.epoch}/{mode}",
+                        artifacts={"artifacts": str(self._save_dir)},
+                        python_model=self.mlflow.pyfunc.PythonModel(),
+                    )
+            except Exception:
+                logger.exception(msg="Mlflow: not logging artifacts")
+
+    @staticmethod
+    def _flatten_params(params_dict, parent_key="", sep="/"):
+        """Static method to flatten configs for logging to mlflow"""
+        items = []
+        for key, value in params_dict.items():
+            new_key = parent_key + sep + key if parent_key else key
+            if isinstance(value, MutableMapping):
+                items.extend(
+                    MlflowProgressBar._flatten_params(value, new_key, sep).items()
+                )
+            else:
+                items.append((new_key, value))
+        return dict(items)
+
+    def _log_mlflow_params(self, params: dict):
+        """Method to log params to mlflow. In mlflow params are just initial state."""
+        flattened_params = MlflowProgressBar._flatten_params(params_dict=params)
+        try:
+            run = self.client.get_run(run_id=self.run_id)
+            logged_params = run.data.params
+            [
+                self.mlflow.log_param(key=k, value=v)
+                for k, v in flattened_params.items()
+                if k not in logged_params and v is not None and str(v).strip() != ""
+            ]
+        except Exception as err:
+            logger.warning(f"Mlflow: not logging params because - {err}")
+
+    def _log_to_mlflow(self, stats, tag=None, step=None):
+        """Log values to mlflow"""
+        if self.mlflow is None:
+            return
+        if step is None:
+            step = stats.get("num_updates")
+
+        prefix = "" if tag is None else f"{tag}/"
+
+        for key in stats.keys() - {"num_updates"}:
+            if isinstance(stats[key], AverageMeter):
+                self.mlflow.log_metric(
+                    key=prefix + key, value=float(stats[key].val), step=step
+                )
+            elif isinstance(stats[key], Number):
+                self.mlflow.log_metric(
+                    key=prefix + key, value=float(stats[key]), step=step
+                )
