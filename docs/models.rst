@@ -37,6 +37,24 @@ Convolutional Neural Networks (CNN)
     :members:
 
 
+Recurrent Neural Networks (RNN) with attention
+----------------------------------------------
+
+.. module:: fairseq.models.rnn
+.. autoclass:: fairseq.models.rnn.RNNModel
+    :members:
+.. autoclass:: fairseq.models.rnn.RNNEncoder
+    :members:
+.. autoclass:: fairseq.models.rnn.RNNDecoder
+    :members:
+.. autoclass:: fairseq.models.rnn.Attention
+    :members:
+
+.. module:: fairseq.models.multilingual_rnn
+.. autoclass:: fairseq.models.multilingual_rnn.MultilingualRNNModel
+
+
+
 Long Short-Term Memory (LSTM) networks
 --------------------------------------
 
