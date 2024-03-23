@@ -8,9 +8,7 @@ import argparse
 import logging
 from pathlib import Path
 import soundfile as sf
-from examples.speech_to_text.prep_mustc_data import (
-    MUSTC
-)
+from examples.speech_to_text.prep_mustc_data import MUSTC
 
 from tqdm import tqdm
 
@@ -23,9 +21,7 @@ def main(args):
     split = args.split
 
     cur_root = root / f"en-{lang}"
-    assert cur_root.is_dir(), (
-        f"{cur_root.as_posix()} does not exist. Skipped."
-    )
+    assert cur_root.is_dir(), f"{cur_root.as_posix()} does not exist. Skipped."
 
     dataset = MUSTC(root.as_posix(), lang, split)
     output = Path(args.output).absolute()
@@ -36,7 +32,7 @@ def main(args):
         sf.write(
             output / f"{utt_id}.wav",
             waveform.squeeze(0).numpy(),
-            samplerate=int(sample_rate)
+            samplerate=int(sample_rate),
         )
         f_text.write(text + "\n")
         f_wav_list.write(str(output / f"{utt_id}.wav") + "\n")

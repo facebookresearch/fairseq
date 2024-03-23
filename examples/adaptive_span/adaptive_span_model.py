@@ -193,7 +193,7 @@ class TransformerSeq(nn.Module):
         nn.Module.__init__(self)
         # token embeddings
         self.in_emb = nn.Embedding(vocab_size, d_model)
-        nn.init.normal_(self.in_emb.weight, mean=0, std=d_model ** -0.5)
+        nn.init.normal_(self.in_emb.weight, mean=0, std=d_model**-0.5)
         self.out_emb = nn.Linear(d_model, vocab_size)
         self.aux_loss_scaler = aux_loss_scaler
         if emb_dropout > 0:

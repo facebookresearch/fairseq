@@ -10,7 +10,7 @@ import tempfile
 import numpy as np
 import json
 
-    
+
 def subset_manifest(infer_manifest, veri_pair):
     with open(infer_manifest) as ff, open(veri_pair) as gg, tempfile.NamedTemporaryFile(
         "w", delete=False
@@ -37,9 +37,9 @@ def wrap_target_dataset(infer_manifest, dataset, task):
     label_path = infer_manifest.replace(".tsv", ".lang")
     text_compressor = TextCompressor(level=TextCompressionLevel.none)
     with open(label_path, "r") as f:
-        labels = [text_compressor.compress(l) for i,l in enumerate(f)]
+        labels = [text_compressor.compress(l) for i, l in enumerate(f)]
         assert len(labels) == len(dataset)
-        
+
     process_label = LabelEncoder(task.target_dictionary)
     dataset = AddTargetDataset(
         dataset,
@@ -129,9 +129,7 @@ if __name__ == "__main__":
     # Load model & task
     print("| loading model from {}".format(args.path))
     arg_overrides = {
-        "task": {
-            "data": args.data
-        },
+        "task": {"data": args.data},
         # 'mask_prob': 0
         #'max_sample_size': sys.maxsize,
         #'min_sample_size': 0,
@@ -182,13 +180,15 @@ if __name__ == "__main__":
                     latent = None
                 logit = model.forward(**sample["net_input"])
                 logit_lsm = torch.log_softmax(logit.squeeze(), dim=-1)
-                scores, indices  = torch.topk(logit_lsm, args.top_k, dim=-1)
+                scores, indices = torch.topk(logit_lsm, args.top_k, dim=-1)
                 scores = torch.exp(scores).to("cpu").tolist()
                 indices = indices.to("cpu").tolist()
                 assert sample["id"].numel() == 1
                 sample_idx = sample["id"].to("cpu").tolist()[0]
                 assert sample_idx not in predictions
-                predictions[sample_idx] = [(task.target_dictionary[int(i)], s) for s, i in zip(scores, indices)]
+                predictions[sample_idx] = [
+                    (task.target_dictionary[int(i)], s) for s, i in zip(scores, indices)
+                ]
 
     with open(f"{args.output_path}/predictions.txt", "w") as fo:
         for idx in range(len(infer_dataset)):

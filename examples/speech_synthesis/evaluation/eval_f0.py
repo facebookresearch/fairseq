@@ -14,7 +14,9 @@ import tqdm
 from tabulate import tabulate
 
 from examples.speech_synthesis.utils import (
-    gross_pitch_error, voicing_decision_error, f0_frame_error
+    gross_pitch_error,
+    voicing_decision_error,
+    f0_frame_error,
 )
 from examples.speech_synthesis.evaluation.eval_sp import load_eval_spec
 
@@ -35,15 +37,14 @@ def difference_function(x, n, tau_max):
     x = np.array(x, np.float64)
     w = x.size
     tau_max = min(tau_max, w)
-    x_cumsum = np.concatenate((np.array([0.]), (x * x).cumsum()))
+    x_cumsum = np.concatenate((np.array([0.0]), (x * x).cumsum()))
     size = w + tau_max
     p2 = (size // 32).bit_length()
     nice_numbers = (16, 18, 20, 24, 25, 27, 30, 32)
-    size_pad = min(x * 2 ** p2 for x in nice_numbers if x * 2 ** p2 >= size)
+    size_pad = min(x * 2**p2 for x in nice_numbers if x * 2**p2 >= size)
     fc = np.fft.rfft(x, size_pad)
     conv = np.fft.irfft(fc * fc.conjugate())[:tau_max]
-    return x_cumsum[w:w - tau_max:-1] + x_cumsum[w] - x_cumsum[:tau_max] - \
-        2 * conv
+    return x_cumsum[w : w - tau_max : -1] + x_cumsum[w] - x_cumsum[:tau_max] - 2 * conv
 
 
 def cumulative_mean_normalized_difference_function(df, n):
@@ -81,11 +82,12 @@ def get_pitch(cmdf, tau_min, tau_max, harmo_th=0.1):
             return tau
         tau += 1
 
-    return 0    # if unvoiced
+    return 0  # if unvoiced
 
 
-def compute_yin(sig, sr, w_len=512, w_step=256, f0_min=100, f0_max=500,
-                harmo_thresh=0.1):
+def compute_yin(
+    sig, sr, w_len=512, w_step=256, f0_min=100, f0_max=500, harmo_thresh=0.1
+):
     """
 
     Compute the Yin Algorithm. Return fundamental frequency and harmonic rate.
@@ -117,8 +119,8 @@ def compute_yin(sig, sr, w_len=512, w_step=256, f0_min=100, f0_max=500,
 
     # time values for each analysis window
     time_scale = range(0, len(sig) - w_len, w_step)
-    times = [t/float(sr) for t in time_scale]
-    frames = [sig[t:t + w_len] for t in time_scale]
+    times = [t / float(sr) for t in time_scale]
+    frames = [sig[t : t + w_len] for t in time_scale]
 
     pitches = [0.0] * len(time_scale)
     harmonic_rates = [0.0] * len(time_scale)
@@ -158,12 +160,7 @@ def extract_f0(samples):
         yref_f0 = compute_yin(yref, sr)
         ysyn_f0 = compute_yin(ysyn, sr)
 
-        f0_samples += [
-            {
-                "ref": yref_f0,
-                "syn": ysyn_f0
-            }
-        ]
+        f0_samples += [{"ref": yref_f0, "syn": ysyn_f0}]
 
     return f0_samples
 
@@ -184,10 +181,7 @@ def eval_f0_error(samples, distortion_fn):
         ysyn_t = np.array(ysyn_t)
 
         distortion = distortion_fn(yref_t, yref_f, ysyn_t, ysyn_f)
-        results.append((distortion.item(),
-                        len(yref_f),
-                        len(ysyn_f)
-                        ))
+        results.append((distortion.item(), len(yref_f), len(ysyn_f)))
     return results
 
 
@@ -224,8 +218,9 @@ def print_results(results, show_bin):
     if show_bin:
         edges = [0, 200, 400, 600, 800, 1000, 2000, 4000]
         for i in range(1, len(edges)):
-            mask = np.logical_and(results[:, 1] >= edges[i-1],
-                                  results[:, 1] < edges[i])
+            mask = np.logical_and(
+                results[:, 1] >= edges[i - 1], results[:, 1] < edges[i]
+            )
             if not mask.any():
                 continue
             bin_results = results[mask]

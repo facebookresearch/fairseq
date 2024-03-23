@@ -26,4 +26,4 @@ if __name__ == "__main__":
     with open(files) as fr:
         for fi in fr:
             fi = fi.strip()
-            print(f'{fi}\t{sf.SoundFile(fi).frames}')
+            print(f"{fi}\t{sf.SoundFile(fi).frames}")

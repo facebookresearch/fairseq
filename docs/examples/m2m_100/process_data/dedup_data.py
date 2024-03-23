@@ -16,7 +16,9 @@ def main(args):
 
     data = existing_data()
     train_languages = sorted(languages)
-    for language_pair in train_languages[args.start_index:args.start_index + args.size]:
+    for language_pair in train_languages[
+        args.start_index : args.start_index + args.size
+    ]:
         print(language_pair)
         dedup(language_pair, data)
 
@@ -30,21 +32,21 @@ def existing_data():
         with open(os.path.join(DEDUP_FROM_DIR, file)) as f:
             data |= set(f.readlines())
     return data
- 
+
+
 def dedup(language_pair, data, verbose=True, output=True):
     train_filenames = LanguagePair(
-            src=f"{DATADIR}/{language_pair.src}_{language_pair.tgt}/train.{language_pair.src}",
-            tgt=f"{DATADIR}/{language_pair.src}_{language_pair.tgt}/train.{language_pair.tgt}",
-        )
+        src=f"{DATADIR}/{language_pair.src}_{language_pair.tgt}/train.{language_pair.src}",
+        tgt=f"{DATADIR}/{language_pair.src}_{language_pair.tgt}/train.{language_pair.tgt}",
+    )
 
     output_filenames = LanguagePair(
         src=f"{OUTPUT_DIR}/train.dedup.{language_pair.src}-{language_pair.tgt}.{language_pair.src}",
-        tgt=f"{OUTPUT_DIR}/train.dedup.{language_pair.src}-{language_pair.tgt}.{language_pair.tgt}"
+        tgt=f"{OUTPUT_DIR}/train.dedup.{language_pair.src}-{language_pair.tgt}.{language_pair.tgt}",
     )
 
     # If output exists, skip this pair. It has already been done.
-    if (os.path.exists(output_filenames.src) and
-        os.path.exists(output_filenames.tgt)):
+    if os.path.exists(output_filenames.src) and os.path.exists(output_filenames.tgt):
         if verbose:
             print(f"{language_pair.src}-{language_pair.tgt} already done.")
         return
@@ -84,7 +86,7 @@ def dedup(language_pair, data, verbose=True, output=True):
                 o.write(line)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-s", "--start-index", required=True, type=int)
     parser.add_argument("-n", "--size", required=True, type=int)

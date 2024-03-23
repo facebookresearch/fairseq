@@ -163,7 +163,7 @@ class LaserTransformerDecoder(TransformerDecoder):
             nn.init.normal_(
                 self.output_projection.weight,
                 mean=0,
-                std=laser_output_embed_dim ** -0.5,
+                std=laser_output_embed_dim**-0.5,
             )
 
     def build_decoder_layer(self, args, no_encoder_attn=False):

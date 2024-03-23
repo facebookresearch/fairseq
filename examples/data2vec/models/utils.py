@@ -1,6 +1,7 @@
 import math
 import torch
 
+
 def get_alibi(
     max_positions: int,
     attention_heads: int,
@@ -9,7 +10,7 @@ def get_alibi(
         def get_slopes_power_of_2(n):
             start = 2 ** (-(2 ** -(math.log2(n) - 3)))
             ratio = start
-            return [start * ratio ** i for i in range(n)]
+            return [start * ratio**i for i in range(n)]
 
         # In the paper, we only train models that have 2^a heads for some
         # a. This function has some good properties that only occur when
@@ -31,15 +32,14 @@ def get_alibi(
     # autoregressive model so we want a symmetric mask with 0 on the
     # diagonal and other wise linear decreasing valuees
     pos_bias = (
-        torch.abs(
-            torch.arange(maxpos).unsqueeze(0) - torch.arange(maxpos).unsqueeze(1)
-        )
+        torch.abs(torch.arange(maxpos).unsqueeze(0) - torch.arange(maxpos).unsqueeze(1))
         * -1
     )
     alibi_bias = slopes.unsqueeze(1).unsqueeze(1) * pos_bias.unsqueeze(0).expand(
         attn_heads, -1, -1
     )
     return alibi_bias
+
 
 def masked_alibi(alibi_bias, mask_indices, orig_B, orig_T):
     alibi_bias = alibi_bias.view(orig_B, -1, orig_T, orig_T)
@@ -51,5 +51,3 @@ def masked_alibi(alibi_bias, mask_indices, orig_B, orig_T):
     alibi_bias = alibi_bias.masked_select(alibi_mask.unsqueeze(-2))
     alibi_bias = alibi_bias.view(-1, M, M)
     return alibi_bias
-
-

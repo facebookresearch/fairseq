@@ -24,6 +24,7 @@ class SimulTransTextAgentJA(TextAgent):
     Simultaneous Translation
     Text agent for Japanese
     """
+
     def __init__(self, args):
 
         # Whether use gpu
@@ -102,36 +103,29 @@ class SimulTransTextAgentJA(TextAgent):
 
     def build_word_splitter(self, args):
         self.spm = {}
-        for lang in ['src', 'tgt']:
-            if getattr(args, f'{lang}_splitter_type', None):
-                path = getattr(args, f'{lang}_splitter_path', None)
+        for lang in ["src", "tgt"]:
+            if getattr(args, f"{lang}_splitter_type", None):
+                path = getattr(args, f"{lang}_splitter_path", None)
                 if path:
                     self.spm[lang] = spm.SentencePieceProcessor()
                     self.spm[lang].Load(path)
 
     def segment_to_units(self, segment, states):
         # Split a full word (segment) into subwords (units)
-        return self.spm['src'].EncodeAsPieces(segment)
+        return self.spm["src"].EncodeAsPieces(segment)
 
     def update_model_encoder(self, states):
         if len(states.units.source) == 0:
             return
 
-        src_indices = [
-            self.dict['src'].index(x)
-            for x in states.units.source.value
-        ]
+        src_indices = [self.dict["src"].index(x) for x in states.units.source.value]
 
         if states.finish_read():
             # Append the eos index when the prediction is over
             src_indices += [self.dict["tgt"].eos_index]
 
-        src_indices = self.to_device(
-            torch.LongTensor(src_indices).unsqueeze(0)
-        )
-        src_lengths = self.to_device(
-            torch.LongTensor([src_indices.size(1)])
-        )
+        src_indices = self.to_device(torch.LongTensor(src_indices).unsqueeze(0))
+        src_lengths = self.to_device(torch.LongTensor([src_indices.size(1)]))
 
         states.encoder_states = self.model.encoder(src_indices, src_lengths)
 
@@ -175,7 +169,7 @@ class SimulTransTextAgentJA(TextAgent):
             torch.LongTensor(
                 [self.model.decoder.dictionary.eos()]
                 + [
-                    self.dict['tgt'].index(x)
+                    self.dict["tgt"].index(x)
                     for x in states.units.target.value
                     if x is not None
                 ]
@@ -189,8 +183,8 @@ class SimulTransTextAgentJA(TextAgent):
         }
 
         # Online only means the reading is not finished
-        states.incremental_states["online"]["only"] = (
-            torch.BoolTensor([not states.finish_read()])
+        states.incremental_states["online"]["only"] = torch.BoolTensor(
+            [not states.finish_read()]
         )
 
         x, outputs = self.model.decoder.forward(
@@ -218,9 +212,9 @@ class SimulTransTextAgentJA(TextAgent):
 
         index = lprobs.argmax(dim=-1)[0, 0].item()
 
-        if index != self.dict['tgt'].eos_index:
-            token = self.dict['tgt'].string([index])
+        if index != self.dict["tgt"].eos_index:
+            token = self.dict["tgt"].string([index])
         else:
-            token = self.dict['tgt'].eos_word
+            token = self.dict["tgt"].eos_word
 
         return token

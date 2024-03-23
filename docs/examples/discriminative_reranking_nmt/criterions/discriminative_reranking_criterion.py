@@ -41,7 +41,11 @@ class KLDivergenceRerankingCriterionConfig(FairseqDataclass):
 )
 class KLDivergenceRerankingCriterion(FairseqCriterion):
     def __init__(
-        self, task, target_dist_norm, temperature, forward_batch_size,
+        self,
+        task,
+        target_dist_norm,
+        temperature,
+        forward_batch_size,
     ):
         super().__init__(task)
         self.target_dist_norm = target_dist_norm

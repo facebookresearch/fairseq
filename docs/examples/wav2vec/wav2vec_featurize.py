@@ -23,7 +23,7 @@ from torch import nn
 
 
 def read_audio(fname):
-    """ Load an audio file and return PCM along with the sample rate """
+    """Load an audio file and return PCM along with the sample rate"""
 
     wav, sr = sf.read(fname)
     assert sr == 16e3
@@ -35,7 +35,9 @@ class PretrainedWav2VecModel(nn.Module):
     def __init__(self, fname):
         super().__init__()
 
-        model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([fname])
+        model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task(
+            [fname]
+        )
         model = model[0]
         model.eval()
 
@@ -78,7 +80,7 @@ class EmbeddingWriterConfig(argparse.ArgumentParser):
 
 
 class Prediction:
-    """ Lightweight wrapper around a fairspeech embedding model """
+    """Lightweight wrapper around a fairspeech embedding model"""
 
     def __init__(self, fname, gpu=0):
         self.gpu = gpu
@@ -93,7 +95,7 @@ class Prediction:
 
 
 class H5Writer:
-    """ Write features as hdf5 file in flashlight compatible format """
+    """Write features as hdf5 file in flashlight compatible format"""
 
     def __init__(self, fname):
         self.fname = fname

@@ -33,7 +33,8 @@ class JobLauncher(object):
             self.job_key = job_type.split("_")[0]
         print("[JobLauncher] job_key", self.job_key)
         job = JobLauncher.JOB_CONFIG[self.job_key](
-            self.yaml_file, job_type=job_type, dryrun=dryrun)
+            self.yaml_file, job_type=job_type, dryrun=dryrun
+        )
         return job.submit()
 
 
@@ -66,8 +67,7 @@ class Pipeline(object):
                 if OmegaConf.is_list(stage):
                     stage_yamls = []
                     for task_file in stage:
-                        stage_yamls.append(
-                            os.path.join(self.project_dir, task_file))
+                        stage_yamls.append(os.path.join(self.project_dir, task_file))
                     run_yamls.append(stage_yamls)
                 else:
                     run_yamls.append(os.path.join(self.project_dir, stage))
@@ -103,15 +103,11 @@ class Pipeline(object):
                 overwrite_config.task_list is None
                 or len(overwrite_config.task_list) == 0
             ):
-                print(
-                    "[warning]",
-                    job_config.task_group,
-                    "has no task_list specified.")
+                print("[warning]", job_config.task_group, "has no task_list specified.")
             # we don't want this added to a final config.
             task_list = overwrite_config.pop("task_list", None)
             for config_file in task_list:
-                config_file_path = os.path.join(
-                    self.base_project_dir, config_file)
+                config_file_path = os.path.join(self.base_project_dir, config_file)
                 config = recursive_config(config_file_path)
                 # overwrite it.
                 if overwrite_config:
@@ -142,7 +138,7 @@ if __name__ == "__main__":
         help="run config and prepare to submit without launch the job.",
     )
     parser.add_argument(
-        "--jobtype", type=str, default="",
-        help="force to run jobs as specified.")
+        "--jobtype", type=str, default="", help="force to run jobs as specified."
+    )
     args = parser.parse_args()
     main(args)

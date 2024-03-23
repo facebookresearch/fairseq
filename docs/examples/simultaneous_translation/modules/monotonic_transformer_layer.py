@@ -29,8 +29,7 @@ class TransformerMonotonicDecoderLayer(TransformerDecoderLayer):
         self.encoder_attn = build_monotonic_attention(args)
 
     def prune_incremental_state(
-        self,
-        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]
+        self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]
     ):
         input_buffer = self.self_attn._get_input_buffer(incremental_state)
         for key in ["prev_key", "prev_value"]:

@@ -9,16 +9,21 @@ from .utils import to_gpu, get_mask_from_lengths
 
 
 class LocationLayer(nn.Module):
-    def __init__(self, attention_n_filters, attention_kernel_size,
-                 attention_dim):
+    def __init__(self, attention_n_filters, attention_kernel_size, attention_dim):
         super(LocationLayer, self).__init__()
         padding = int((attention_kernel_size - 1) / 2)
-        self.location_conv = ConvNorm(2, attention_n_filters,
-                                      kernel_size=attention_kernel_size,
-                                      padding=padding, bias=False, stride=1,
-                                      dilation=1)
-        self.location_dense = LinearNorm(attention_n_filters, attention_dim,
-                                         bias=False, w_init_gain='tanh')
+        self.location_conv = ConvNorm(
+            2,
+            attention_n_filters,
+            kernel_size=attention_kernel_size,
+            padding=padding,
+            bias=False,
+            stride=1,
+            dilation=1,
+        )
+        self.location_dense = LinearNorm(
+            attention_n_filters, attention_dim, bias=False, w_init_gain="tanh"
+        )
 
     def forward(self, attention_weights_cat):
         processed_attention = self.location_conv(attention_weights_cat)
@@ -28,21 +33,28 @@ class LocationLayer(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, attention_rnn_dim, embedding_dim, attention_dim,
-                 attention_location_n_filters, attention_location_kernel_size):
+    def __init__(
+        self,
+        attention_rnn_dim,
+        embedding_dim,
+        attention_dim,
+        attention_location_n_filters,
+        attention_location_kernel_size,
+    ):
         super(Attention, self).__init__()
-        self.query_layer = LinearNorm(attention_rnn_dim, attention_dim,
-                                      bias=False, w_init_gain='tanh')
-        self.memory_layer = LinearNorm(embedding_dim, attention_dim, bias=False,
-                                       w_init_gain='tanh')
+        self.query_layer = LinearNorm(
+            attention_rnn_dim, attention_dim, bias=False, w_init_gain="tanh"
+        )
+        self.memory_layer = LinearNorm(
+            embedding_dim, attention_dim, bias=False, w_init_gain="tanh"
+        )
         self.v = LinearNorm(attention_dim, 1, bias=False)
-        self.location_layer = LocationLayer(attention_location_n_filters,
-                                            attention_location_kernel_size,
-                                            attention_dim)
+        self.location_layer = LocationLayer(
+            attention_location_n_filters, attention_location_kernel_size, attention_dim
+        )
         self.score_mask_value = -float("inf")
 
-    def get_alignment_energies(self, query, processed_memory,
-                               attention_weights_cat):
+    def get_alignment_energies(self, query, processed_memory, attention_weights_cat):
         """
         PARAMS
         ------
@@ -57,14 +69,21 @@ class Attention(nn.Module):
 
         processed_query = self.query_layer(query.unsqueeze(1))
         processed_attention_weights = self.location_layer(attention_weights_cat)
-        energies = self.v(torch.tanh(
-            processed_query + processed_attention_weights + processed_memory))
+        energies = self.v(
+            torch.tanh(processed_query + processed_attention_weights + processed_memory)
+        )
 
         energies = energies.squeeze(-1)
         return energies
 
-    def forward(self, attention_hidden_state, memory, processed_memory,
-                attention_weights_cat, mask):
+    def forward(
+        self,
+        attention_hidden_state,
+        memory,
+        processed_memory,
+        attention_weights_cat,
+        mask,
+    ):
         """
         PARAMS
         ------
@@ -75,7 +94,8 @@ class Attention(nn.Module):
         mask: binary mask for padded data
         """
         alignment = self.get_alignment_energies(
-            attention_hidden_state, processed_memory, attention_weights_cat)
+            attention_hidden_state, processed_memory, attention_weights_cat
+        )
 
         if mask is not None:
             alignment.data.masked_fill_(mask, self.score_mask_value)
@@ -92,8 +112,11 @@ class Prenet(nn.Module):
         super(Prenet, self).__init__()
         in_sizes = [in_dim] + sizes[:-1]
         self.layers = nn.ModuleList(
-            [LinearNorm(in_size, out_size, bias=False)
-             for (in_size, out_size) in zip(in_sizes, sizes)])
+            [
+                LinearNorm(in_size, out_size, bias=False)
+                for (in_size, out_size) in zip(in_sizes, sizes)
+            ]
+        )
 
     def forward(self, x):
         for linear in self.layers:
@@ -103,7 +126,7 @@ class Prenet(nn.Module):
 
 class Postnet(nn.Module):
     """Postnet
-        - Five 1-d convolution with 512 channels and kernel size 5
+    - Five 1-d convolution with 512 channels and kernel size 5
     """
 
     def __init__(self, hparams):
@@ -112,32 +135,49 @@ class Postnet(nn.Module):
 
         self.convolutions.append(
             nn.Sequential(
-                ConvNorm(hparams.n_mel_channels, hparams.postnet_embedding_dim,
-                         kernel_size=hparams.postnet_kernel_size, stride=1,
-                         padding=int((hparams.postnet_kernel_size - 1) / 2),
-                         dilation=1, w_init_gain='tanh'),
-                nn.BatchNorm1d(hparams.postnet_embedding_dim))
+                ConvNorm(
+                    hparams.n_mel_channels,
+                    hparams.postnet_embedding_dim,
+                    kernel_size=hparams.postnet_kernel_size,
+                    stride=1,
+                    padding=int((hparams.postnet_kernel_size - 1) / 2),
+                    dilation=1,
+                    w_init_gain="tanh",
+                ),
+                nn.BatchNorm1d(hparams.postnet_embedding_dim),
+            )
         )
 
         for i in range(1, hparams.postnet_n_convolutions - 1):
             self.convolutions.append(
                 nn.Sequential(
-                    ConvNorm(hparams.postnet_embedding_dim,
-                             hparams.postnet_embedding_dim,
-                             kernel_size=hparams.postnet_kernel_size, stride=1,
-                             padding=int((hparams.postnet_kernel_size - 1) / 2),
-                             dilation=1, w_init_gain='tanh'),
-                    nn.BatchNorm1d(hparams.postnet_embedding_dim))
+                    ConvNorm(
+                        hparams.postnet_embedding_dim,
+                        hparams.postnet_embedding_dim,
+                        kernel_size=hparams.postnet_kernel_size,
+                        stride=1,
+                        padding=int((hparams.postnet_kernel_size - 1) / 2),
+                        dilation=1,
+                        w_init_gain="tanh",
+                    ),
+                    nn.BatchNorm1d(hparams.postnet_embedding_dim),
+                )
             )
 
         self.convolutions.append(
             nn.Sequential(
-                ConvNorm(hparams.postnet_embedding_dim, hparams.n_mel_channels,
-                         kernel_size=hparams.postnet_kernel_size, stride=1,
-                         padding=int((hparams.postnet_kernel_size - 1) / 2),
-                         dilation=1, w_init_gain='linear'),
-                nn.BatchNorm1d(hparams.n_mel_channels))
+                ConvNorm(
+                    hparams.postnet_embedding_dim,
+                    hparams.n_mel_channels,
+                    kernel_size=hparams.postnet_kernel_size,
+                    stride=1,
+                    padding=int((hparams.postnet_kernel_size - 1) / 2),
+                    dilation=1,
+                    w_init_gain="linear",
+                ),
+                nn.BatchNorm1d(hparams.n_mel_channels),
             )
+        )
 
     def forward(self, x):
         for i in range(len(self.convolutions) - 1):
@@ -149,27 +189,37 @@ class Postnet(nn.Module):
 
 class Encoder(nn.Module):
     """Encoder module:
-        - Three 1-d convolution banks
-        - Bidirectional LSTM
+    - Three 1-d convolution banks
+    - Bidirectional LSTM
     """
+
     def __init__(self, hparams):
         super(Encoder, self).__init__()
 
         convolutions = []
         for _ in range(hparams.encoder_n_convolutions):
             conv_layer = nn.Sequential(
-                ConvNorm(hparams.encoder_embedding_dim,
-                         hparams.encoder_embedding_dim,
-                         kernel_size=hparams.encoder_kernel_size, stride=1,
-                         padding=int((hparams.encoder_kernel_size - 1) / 2),
-                         dilation=1, w_init_gain='relu'),
-                nn.BatchNorm1d(hparams.encoder_embedding_dim))
+                ConvNorm(
+                    hparams.encoder_embedding_dim,
+                    hparams.encoder_embedding_dim,
+                    kernel_size=hparams.encoder_kernel_size,
+                    stride=1,
+                    padding=int((hparams.encoder_kernel_size - 1) / 2),
+                    dilation=1,
+                    w_init_gain="relu",
+                ),
+                nn.BatchNorm1d(hparams.encoder_embedding_dim),
+            )
             convolutions.append(conv_layer)
         self.convolutions = nn.ModuleList(convolutions)
 
-        self.lstm = nn.LSTM(hparams.encoder_embedding_dim,
-                            int(hparams.encoder_embedding_dim / 2), 1,
-                            batch_first=True, bidirectional=True)
+        self.lstm = nn.LSTM(
+            hparams.encoder_embedding_dim,
+            int(hparams.encoder_embedding_dim / 2),
+            1,
+            batch_first=True,
+            bidirectional=True,
+        )
 
     def forward(self, x, input_lengths):
         for conv in self.convolutions:
@@ -179,14 +229,12 @@ class Encoder(nn.Module):
 
         # pytorch tensor are not reversible, hence the conversion
         input_lengths = input_lengths.cpu().numpy()
-        x = nn.utils.rnn.pack_padded_sequence(
-            x, input_lengths, batch_first=True)
+        x = nn.utils.rnn.pack_padded_sequence(x, input_lengths, batch_first=True)
 
         self.lstm.flatten_parameters()
         outputs, _ = self.lstm(x)
 
-        outputs, _ = nn.utils.rnn.pad_packed_sequence(
-            outputs, batch_first=True)
+        outputs, _ = nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
 
         return outputs
 
@@ -212,19 +260,28 @@ class AudioEncoder(nn.Module):
         inp_dim = hparams.n_mel_channels
         for _ in range(hparams.lat_n_convolutions):
             conv_layer = nn.Sequential(
-                ConvNorm(inp_dim, hparams.lat_n_filters,
-                         kernel_size=hparams.lat_kernel_size, stride=1,
-                         padding=int((hparams.lat_kernel_size - 1) / 2),
-                         dilation=1, w_init_gain='tanh'),
-                nn.BatchNorm1d(hparams.lat_n_filters))
+                ConvNorm(
+                    inp_dim,
+                    hparams.lat_n_filters,
+                    kernel_size=hparams.lat_kernel_size,
+                    stride=1,
+                    padding=int((hparams.lat_kernel_size - 1) / 2),
+                    dilation=1,
+                    w_init_gain="tanh",
+                ),
+                nn.BatchNorm1d(hparams.lat_n_filters),
+            )
             inp_dim = hparams.lat_n_filters
             convolutions.append(conv_layer)
         self.convolutions = nn.ModuleList(convolutions)
 
-        self.lstm = nn.LSTM(hparams.lat_n_filters,
-                            int(hparams.lat_n_filters / 2),
-                            hparams.lat_n_blstms, batch_first=True,
-                            bidirectional=True)
+        self.lstm = nn.LSTM(
+            hparams.lat_n_filters,
+            int(hparams.lat_n_filters / 2),
+            hparams.lat_n_blstms,
+            batch_first=True,
+            bidirectional=True,
+        )
         self.pool = GlobalAvgPool()
 
         self.mu_proj = LinearNorm(hparams.lat_n_filters, hparams.lat_dim)
@@ -284,33 +341,43 @@ class Decoder(nn.Module):
 
         self.prenet = Prenet(
             hparams.n_mel_channels * hparams.n_frames_per_step,
-            [hparams.prenet_dim, hparams.prenet_dim])
+            [hparams.prenet_dim, hparams.prenet_dim],
+        )
 
         self.attention_rnn = nn.LSTMCell(
             hparams.prenet_dim + hparams.encoder_embedding_dim,
-            hparams.attention_rnn_dim)
+            hparams.attention_rnn_dim,
+        )
 
         self.attention_layer = Attention(
-            hparams.attention_rnn_dim, hparams.encoder_embedding_dim,
-            hparams.attention_dim, hparams.attention_location_n_filters,
-            hparams.attention_location_kernel_size)
+            hparams.attention_rnn_dim,
+            hparams.encoder_embedding_dim,
+            hparams.attention_dim,
+            hparams.attention_location_n_filters,
+            hparams.attention_location_kernel_size,
+        )
 
-        encoder_tot_dim = (hparams.encoder_embedding_dim + \
-                           hparams.lat_dim + hparams.obs_dim)
+        encoder_tot_dim = (
+            hparams.encoder_embedding_dim + hparams.lat_dim + hparams.obs_dim
+        )
         self.decoder_rnn = nn.LSTMCell(
-            hparams.attention_rnn_dim + encoder_tot_dim,
-            hparams.decoder_rnn_dim, 1)
+            hparams.attention_rnn_dim + encoder_tot_dim, hparams.decoder_rnn_dim, 1
+        )
 
         self.linear_projection = LinearNorm(
             hparams.decoder_rnn_dim + encoder_tot_dim,
-            hparams.n_mel_channels * hparams.n_frames_per_step)
+            hparams.n_mel_channels * hparams.n_frames_per_step,
+        )
 
         self.gate_layer = LinearNorm(
-            hparams.decoder_rnn_dim + encoder_tot_dim, 1,
-            bias=True, w_init_gain='sigmoid')
+            hparams.decoder_rnn_dim + encoder_tot_dim,
+            1,
+            bias=True,
+            w_init_gain="sigmoid",
+        )
 
     def get_go_frame(self, memory):
-        """ Gets all zeros frames to use as first decoder input
+        """Gets all zeros frames to use as first decoder input
         PARAMS
         ------
         memory: decoder outputs
@@ -320,12 +387,13 @@ class Decoder(nn.Module):
         decoder_input: all zeros frames
         """
         B = memory.size(0)
-        decoder_input = Variable(memory.data.new(
-            B, self.n_mel_channels * self.n_frames_per_step).zero_())
+        decoder_input = Variable(
+            memory.data.new(B, self.n_mel_channels * self.n_frames_per_step).zero_()
+        )
         return decoder_input
 
     def initialize_decoder_states(self, memory, obs_and_lat, mask):
-        """ Initializes attention rnn states, decoder rnn states, attention
+        """Initializes attention rnn states, decoder rnn states, attention
         weights, attention cumulative weights, attention context, stores memory
         and stores processed memory
         PARAMS
@@ -337,22 +405,21 @@ class Decoder(nn.Module):
         B = memory.size(0)
         MAX_TIME = memory.size(1)
 
-        self.attention_hidden = Variable(memory.data.new(
-            B, self.attention_rnn_dim).zero_())
-        self.attention_cell = Variable(memory.data.new(
-            B, self.attention_rnn_dim).zero_())
+        self.attention_hidden = Variable(
+            memory.data.new(B, self.attention_rnn_dim).zero_()
+        )
+        self.attention_cell = Variable(
+            memory.data.new(B, self.attention_rnn_dim).zero_()
+        )
 
-        self.decoder_hidden = Variable(memory.data.new(
-            B, self.decoder_rnn_dim).zero_())
-        self.decoder_cell = Variable(memory.data.new(
-            B, self.decoder_rnn_dim).zero_())
+        self.decoder_hidden = Variable(memory.data.new(B, self.decoder_rnn_dim).zero_())
+        self.decoder_cell = Variable(memory.data.new(B, self.decoder_rnn_dim).zero_())
 
-        self.attention_weights = Variable(memory.data.new(
-            B, MAX_TIME).zero_())
-        self.attention_weights_cum = Variable(memory.data.new(
-            B, MAX_TIME).zero_())
-        self.attention_context = Variable(memory.data.new(
-            B, self.encoder_embedding_dim).zero_())
+        self.attention_weights = Variable(memory.data.new(B, MAX_TIME).zero_())
+        self.attention_weights_cum = Variable(memory.data.new(B, MAX_TIME).zero_())
+        self.attention_context = Variable(
+            memory.data.new(B, self.encoder_embedding_dim).zero_()
+        )
 
         self.memory = memory
         self.processed_memory = self.attention_layer.memory_layer(memory)
@@ -360,7 +427,7 @@ class Decoder(nn.Module):
         self.mask = mask
 
     def parse_decoder_inputs(self, decoder_inputs):
-        """ Prepares decoder inputs, i.e. mel outputs
+        """Prepares decoder inputs, i.e. mel outputs
         PARAMS
         ------
         decoder_inputs: inputs used for teacher-forced training, i.e. mel-specs
@@ -374,13 +441,15 @@ class Decoder(nn.Module):
         decoder_inputs = decoder_inputs.transpose(1, 2)
         decoder_inputs = decoder_inputs.view(
             decoder_inputs.size(0),
-            int(decoder_inputs.size(1)/self.n_frames_per_step), -1)
+            int(decoder_inputs.size(1) / self.n_frames_per_step),
+            -1,
+        )
         # (B, T_out, n_mel_channels) -> (T_out, B, n_mel_channels)
         decoder_inputs = decoder_inputs.transpose(0, 1)
         return decoder_inputs
 
     def parse_decoder_outputs(self, mel_outputs, gate_outputs, alignments):
-        """ Prepares decoder outputs for output
+        """Prepares decoder outputs for output
         PARAMS
         ------
         mel_outputs:
@@ -401,15 +470,14 @@ class Decoder(nn.Module):
         # (T_out, B, n_mel_channels) -> (B, T_out, n_mel_channels)
         mel_outputs = torch.stack(mel_outputs).transpose(0, 1).contiguous()
         # decouple frames per step
-        mel_outputs = mel_outputs.view(
-            mel_outputs.size(0), -1, self.n_mel_channels)
+        mel_outputs = mel_outputs.view(mel_outputs.size(0), -1, self.n_mel_channels)
         # (B, T_out, n_mel_channels) -> (B, n_mel_channels, T_out)
         mel_outputs = mel_outputs.transpose(1, 2)
 
         return mel_outputs, gate_outputs, alignments
 
     def decode(self, decoder_input):
-        """ Decoder step using stored states, attention and memory
+        """Decoder step using stored states, attention and memory
         PARAMS
         ------
         decoder_input: previous mel output
@@ -422,40 +490,52 @@ class Decoder(nn.Module):
         """
         cell_input = torch.cat((decoder_input, self.attention_context), -1)
         self.attention_hidden, self.attention_cell = self.attention_rnn(
-            cell_input, (self.attention_hidden, self.attention_cell))
+            cell_input, (self.attention_hidden, self.attention_cell)
+        )
         self.attention_hidden = F.dropout(
-            self.attention_hidden, self.p_attention_dropout, self.training)
+            self.attention_hidden, self.p_attention_dropout, self.training
+        )
 
         attention_weights_cat = torch.cat(
-            (self.attention_weights.unsqueeze(1),
-             self.attention_weights_cum.unsqueeze(1)), dim=1)
+            (
+                self.attention_weights.unsqueeze(1),
+                self.attention_weights_cum.unsqueeze(1),
+            ),
+            dim=1,
+        )
         self.attention_context, self.attention_weights = self.attention_layer(
-            self.attention_hidden, self.memory, self.processed_memory,
-            attention_weights_cat, self.mask)
+            self.attention_hidden,
+            self.memory,
+            self.processed_memory,
+            attention_weights_cat,
+            self.mask,
+        )
 
         self.attention_weights_cum += self.attention_weights
-        decoder_input = torch.cat(
-            (self.attention_hidden, self.attention_context), -1)
+        decoder_input = torch.cat((self.attention_hidden, self.attention_context), -1)
         if self.obs_and_lat is not None:
             decoder_input = torch.cat((decoder_input, self.obs_and_lat), -1)
         self.decoder_hidden, self.decoder_cell = self.decoder_rnn(
-            decoder_input, (self.decoder_hidden, self.decoder_cell))
+            decoder_input, (self.decoder_hidden, self.decoder_cell)
+        )
         self.decoder_hidden = F.dropout(
-            self.decoder_hidden, self.p_decoder_dropout, self.training)
+            self.decoder_hidden, self.p_decoder_dropout, self.training
+        )
 
         decoder_hidden_attention_context = torch.cat(
-            (self.decoder_hidden, self.attention_context), dim=1)
+            (self.decoder_hidden, self.attention_context), dim=1
+        )
         if self.obs_and_lat is not None:
             decoder_hidden_attention_context = torch.cat(
-                    (decoder_hidden_attention_context, self.obs_and_lat), dim=1)
-        decoder_output = self.linear_projection(
-            decoder_hidden_attention_context)
+                (decoder_hidden_attention_context, self.obs_and_lat), dim=1
+            )
+        decoder_output = self.linear_projection(decoder_hidden_attention_context)
 
         gate_prediction = self.gate_layer(decoder_hidden_attention_context)
         return decoder_output, gate_prediction, self.attention_weights
 
     def forward(self, memory, obs_and_lat, decoder_inputs, memory_lengths):
-        """ Decoder forward pass for training
+        """Decoder forward pass for training
         PARAMS
         ------
         memory: Encoder outputs
@@ -476,24 +556,25 @@ class Decoder(nn.Module):
         decoder_inputs = self.prenet(decoder_inputs)
 
         self.initialize_decoder_states(
-            memory, obs_and_lat, mask=~get_mask_from_lengths(memory_lengths))
+            memory, obs_and_lat, mask=~get_mask_from_lengths(memory_lengths)
+        )
 
         mel_outputs, gate_outputs, alignments = [], [], []
         while len(mel_outputs) < decoder_inputs.size(0) - 1:
             decoder_input = decoder_inputs[len(mel_outputs)]
-            mel_output, gate_output, attention_weights = self.decode(
-                decoder_input)
+            mel_output, gate_output, attention_weights = self.decode(decoder_input)
             mel_outputs += [mel_output.squeeze(1)]
             gate_outputs += [gate_output.squeeze()]
             alignments += [attention_weights]
 
         mel_outputs, gate_outputs, alignments = self.parse_decoder_outputs(
-            mel_outputs, gate_outputs, alignments)
+            mel_outputs, gate_outputs, alignments
+        )
 
         return mel_outputs, gate_outputs, alignments
 
     def inference(self, memory, obs_and_lat, ret_has_eos=False):
-        """ Decoder inference
+        """Decoder inference
         PARAMS
         ------
         memory: Encoder outputs
@@ -529,7 +610,8 @@ class Decoder(nn.Module):
             decoder_input = mel_output
 
         mel_outputs, gate_outputs, alignments = self.parse_decoder_outputs(
-            mel_outputs, gate_outputs, alignments)
+            mel_outputs, gate_outputs, alignments
+        )
 
         if ret_has_eos:
             return mel_outputs, gate_outputs, alignments, has_eos
@@ -546,8 +628,7 @@ class Tacotron2(nn.Module):
         self.n_frames_per_step = hparams.n_frames_per_step
 
         # initialize text encoder embedding
-        self.embedding = nn.Embedding(
-            hparams.n_symbols, hparams.symbols_embedding_dim)
+        self.embedding = nn.Embedding(hparams.n_symbols, hparams.symbols_embedding_dim)
         std = sqrt(2.0 / (hparams.n_symbols + hparams.symbols_embedding_dim))
         val = sqrt(3.0) * std  # uniform bounds for std
         self.embedding.weight.data.uniform_(-val, val)
@@ -555,8 +636,7 @@ class Tacotron2(nn.Module):
         # initialize observed attribute embedding
         self.obs_embedding = None
         if hparams.obs_dim > 0:
-            self.obs_embedding = nn.Embedding(
-                hparams.obs_n_class, hparams.obs_dim)
+            self.obs_embedding = nn.Embedding(hparams.obs_n_class, hparams.obs_dim)
             std = sqrt(2.0 / (hparams.obs_n_class + hparams.obs_dim))
             val = sqrt(3.0) * std  # uniform bounds for std
             self.obs_embedding.weight.data.uniform_(-val, val)
@@ -570,8 +650,14 @@ class Tacotron2(nn.Module):
             self.lat_encoder = AudioEncoder(hparams)
 
     def parse_batch(self, batch):
-        (text_padded, input_lengths, obs_labels,
-         mel_padded, gate_padded, output_lengths) = batch
+        (
+            text_padded,
+            input_lengths,
+            obs_labels,
+            mel_padded,
+            gate_padded,
+            output_lengths,
+        ) = batch
         text_padded = to_gpu(text_padded).long()
         input_lengths = to_gpu(input_lengths).long()
         obs_labels = to_gpu(obs_labels).long()
@@ -581,9 +667,16 @@ class Tacotron2(nn.Module):
         output_lengths = to_gpu(output_lengths).long()
 
         return (
-            (text_padded, input_lengths, obs_labels,
-             mel_padded, max_len, output_lengths),
-            (mel_padded, gate_padded))
+            (
+                text_padded,
+                input_lengths,
+                obs_labels,
+                mel_padded,
+                max_len,
+                output_lengths,
+            ),
+            (mel_padded, gate_padded),
+        )
 
     def parse_output(self, outputs, output_lengths=None):
         if self.mask_padding and output_lengths is not None:
@@ -598,8 +691,7 @@ class Tacotron2(nn.Module):
         return outputs
 
     def forward(self, inputs):
-        (text_inputs, text_lengths, obs_labels,
-         mels, max_len, output_lengths) = inputs
+        (text_inputs, text_lengths, obs_labels, mels, max_len, output_lengths) = inputs
         text_lengths, output_lengths = text_lengths.data, output_lengths.data
 
         embedded_inputs = self.embedding(text_inputs).transpose(1, 2)
@@ -621,15 +713,23 @@ class Tacotron2(nn.Module):
             obs_and_lat = None
 
         mel_outputs, gate_outputs, alignments = self.decoder(
-            encoder_outputs, obs_and_lat, mels, memory_lengths=text_lengths)
+            encoder_outputs, obs_and_lat, mels, memory_lengths=text_lengths
+        )
 
         mel_outputs_postnet = self.postnet(mel_outputs)
         mel_outputs_postnet = mel_outputs + mel_outputs_postnet
 
         return self.parse_output(
-            [mel_outputs, mel_outputs_postnet, gate_outputs, alignments,
-             lat_mu, lat_logvar],
-            output_lengths)
+            [
+                mel_outputs,
+                mel_outputs_postnet,
+                gate_outputs,
+                alignments,
+                lat_mu,
+                lat_logvar,
+            ],
+            output_lengths,
+        )
 
     def inference(self, inputs, obs_labels=None, lat=None, ret_has_eos=False):
         embedded_inputs = self.embedding(inputs).transpose(1, 2)
@@ -655,13 +755,15 @@ class Tacotron2(nn.Module):
             obs_and_lat = None
 
         mel_outputs, gate_outputs, alignments, has_eos = self.decoder.inference(
-            encoder_outputs, obs_and_lat, ret_has_eos=True)
+            encoder_outputs, obs_and_lat, ret_has_eos=True
+        )
 
         mel_outputs_postnet = self.postnet(mel_outputs)
         mel_outputs_postnet = mel_outputs + mel_outputs_postnet
 
         outputs = self.parse_output(
-            [mel_outputs, mel_outputs_postnet, gate_outputs, alignments])
+            [mel_outputs, mel_outputs_postnet, gate_outputs, alignments]
+        )
 
         if ret_has_eos:
             return outputs + [has_eos]

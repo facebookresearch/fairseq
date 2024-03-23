@@ -18,7 +18,8 @@ import torchaudio.functional as F
 
 SAMPLING_FREQ = 16000
 EMISSION_INTERVAL = 30
-DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 def generate_emissions(model, audio_file):
     waveform, _ = torchaudio.load(audio_file)  # waveform: channels X T
@@ -79,22 +80,28 @@ def get_alignments(
 
     # Force Alignment
     if tokens:
-        token_indices = [dictionary[c] for c in " ".join(tokens).split(" ") if c in dictionary]
+        token_indices = [
+            dictionary[c] for c in " ".join(tokens).split(" ") if c in dictionary
+        ]
     else:
         print(f"Empty transcript!!!!! for audio file {audio_file}")
         token_indices = []
 
     blank = dictionary["<blank>"]
-    
+
     targets = torch.tensor(token_indices, dtype=torch.int32).to(DEVICE)
-    
+
     input_lengths = torch.tensor(emissions.shape[0]).unsqueeze(-1)
     target_lengths = torch.tensor(targets.shape[0]).unsqueeze(-1)
     path, _ = F.forced_align(
-        emissions.unsqueeze(0), targets.unsqueeze(0), input_lengths, target_lengths, blank=blank
+        emissions.unsqueeze(0),
+        targets.unsqueeze(0),
+        input_lengths,
+        target_lengths,
+        blank=blank,
     )
     path = path.squeeze().to("cpu").tolist()
-    
+
     segments = merge_repeats(path, {v: k for k, v in dictionary.items()})
     return segments, stride
 
@@ -103,7 +110,7 @@ def main(args):
     assert not os.path.exists(
         args.outdir
     ), f"Error: Output path exists already {args.outdir}"
-    
+
     transcripts = []
     with open(args.text_filepath) as f:
         transcripts = [line.strip() for line in f]
@@ -131,7 +138,7 @@ def main(args):
     spans = get_spans(tokens, segments)
 
     os.makedirs(args.outdir)
-    with open( f"{args.outdir}/manifest.json", "w") as f:
+    with open(f"{args.outdir}/manifest.json", "w") as f:
         for i, t in enumerate(transcripts):
             span = spans[i]
             seg_start_idx = span[0].start
@@ -140,18 +147,18 @@ def main(args):
             output_file = f"{args.outdir}/segment{i}.flac"
 
             audio_start_sec = seg_start_idx * stride / 1000
-            audio_end_sec = seg_end_idx * stride / 1000 
+            audio_end_sec = seg_end_idx * stride / 1000
 
             tfm = sox.Transformer()
-            tfm.trim(audio_start_sec , audio_end_sec)
+            tfm.trim(audio_start_sec, audio_end_sec)
             tfm.build_file(args.audio_filepath, output_file)
-            
+
             sample = {
                 "audio_start_sec": audio_start_sec,
                 "audio_filepath": str(output_file),
                 "duration": audio_end_sec - audio_start_sec,
                 "text": t,
-                "normalized_text":norm_transcripts[i],
+                "normalized_text": norm_transcripts[i],
                 "uroman_tokens": tokens[i],
             }
             f.write(json.dumps(sample) + "\n")

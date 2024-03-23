@@ -21,12 +21,14 @@ class DummyLoss(Loss):
 
 class DummyK400Loss(Loss):
     """dummy k400 loss for MViT."""
+
     def __init__(self):
         self.loss = nn.CrossEntropyLoss()
 
     def __call__(self, logits, targets, **kwargs):
         return self.loss(
-            logits, torch.randint(0, 400, (logits.size(0),), device=logits.device))
+            logits, torch.randint(0, 400, (logits.size(0),), device=logits.device)
+        )
 
 
 class CrossEntropy(Loss):

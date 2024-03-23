@@ -116,13 +116,11 @@ class TransformerConfig(FairseqDataclass):
     adapter_activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
         default="relu", metadata={"help": "activation function for adapters"}
     )
-    factorized_embed_activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = (
-        field(
-            default="linear",
-            metadata={
-                "help": "activation function to use for the factorized embedding"
-            },
-        )
+    factorized_embed_activation_fn: ChoiceEnum(
+        utils.get_available_activation_fns()
+    ) = field(
+        default="linear",
+        metadata={"help": "activation function to use for the factorized embedding"},
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
@@ -259,9 +257,25 @@ class TransformerConfig(FairseqDataclass):
     )
     use_rope: Optional[bool] = field(
         default=False,
+        metadata={"help": "use rotary position embedding (RoPE) for self-attention"},
+    )
+    rope_learned_freq: Optional[bool] = field(
+        default=False,
         metadata={
-            "help": "use rotary position embedding (RoPE) for self-attention"
+            "help": "use learned frequencies for RoPE instead of fixed frequencies"
         },
+    )
+    rope_use_xpos: Optional[bool] = field(
+        default=False,
+        metadata={"help": "decay RoPE similar to ALiBi"},
+    )
+    rope_xpos_scale_base: Optional[int] = field(
+        default=512,
+        metadata={"help": "base for scaling the positional encoding"},
+    )
+    rope_interpolate_factor: Optional[float] = field(
+        default=1,
+        metadata={"help": "interpolation factor for RoPE"},
     )
     # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
     quant_noise: QuantNoiseConfig = field(default=QuantNoiseConfig)
@@ -396,7 +410,9 @@ class TransformerConfig(FairseqDataclass):
             args_dict = (
                 args._asdict()
                 if safe_hasattr(args, "_asdict")
-                else vars(args) if safe_hasattr(args, "__dict__") else {}
+                else vars(args)
+                if safe_hasattr(args, "__dict__")
+                else {}
             )  # namedtupled doesn't have __dict__ :-/
             for key, value in args_dict.items():
                 if key not in seen:

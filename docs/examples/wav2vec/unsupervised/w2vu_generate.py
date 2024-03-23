@@ -594,7 +594,7 @@ def main(cfg: UnsupGenerateConfig, model=None):
             "blank_weight": cfg.blank_weight,
             "blank_mode": cfg.blank_mode,
         }
-    
+
     if cfg.decode_stride:
         overrides["model"]["generator_stride"] = cfg.decode_stride
 

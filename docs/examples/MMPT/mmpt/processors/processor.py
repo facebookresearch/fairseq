@@ -54,6 +54,7 @@ class TextProcessor(Processor):
         self.bert_name = str(config.bert_name)
         self.use_fast = config.use_fast
         from transformers import AutoTokenizer
+
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.bert_name, use_fast=self.use_fast
         )
@@ -84,12 +85,14 @@ class Aligner(object):
     """
     An alignprocessor align video and text and output a dict of tensors (for a model).
     """
+
     def __init__(self, config):
         """__init__ needs to be light weight for more workers/threads."""
         self.split = config.split
         self.max_video_len = config.max_video_len
         self.max_len = config.max_len
         from transformers import AutoTokenizer
+
         tokenizer = AutoTokenizer.from_pretrained(
             str(config.bert_name), use_fast=config.use_fast
         )
@@ -107,9 +110,7 @@ class Aligner(object):
         `video_clips`: video clip sequence to build.
         """
         if not isinstance(video_feature, np.ndarray):
-            raise ValueError(
-                "unsupported type of video_feature", type(video_feature)
-            )
+            raise ValueError("unsupported type of video_feature", type(video_feature))
 
         if video_clips is None:
             # this is borrowed from DSAligner
@@ -126,10 +127,10 @@ class Aligner(object):
         for start, end in zip(video_clips["start"], video_clips["end"]):
             clip_len = min(self.max_video_len - video_len, (end - start))
             if clip_len > 0:
-                vfeats[video_len: video_len + clip_len] = video_feature[
-                    start: start + clip_len
+                vfeats[video_len : video_len + clip_len] = video_feature[
+                    start : start + clip_len
                 ]
-                vmasks[video_len: video_len + clip_len] = 1
+                vmasks[video_len : video_len + clip_len] = 1
                 video_len += clip_len
         vfeats = torch.from_numpy(vfeats)
 
@@ -184,91 +185,101 @@ class MMAttentionMask2DProcessor(Processor):
 
     def _build_videogeneration_mask(self, vmask, cmask):
         # cls_mask is only about text otherwise it will leak generation.
-        cls_text_mask = torch.cat([
-            # [CLS]
-            torch.ones(
-                (1,), dtype=torch.bool, device=cmask.device),
-            # video tokens and [SEP] for video.
-            torch.zeros(
-                (vmask.size(0) + 1,), dtype=torch.bool, device=cmask.device),
-            cmask[2:]
-            ], dim=0)
+        cls_text_mask = torch.cat(
+            [
+                # [CLS]
+                torch.ones((1,), dtype=torch.bool, device=cmask.device),
+                # video tokens and [SEP] for video.
+                torch.zeros(
+                    (vmask.size(0) + 1,), dtype=torch.bool, device=cmask.device
+                ),
+                cmask[2:],
+            ],
+            dim=0,
+        )
 
         # concat horizontially.
         video_len = int(vmask.sum())
-        video_masks = torch.cat([
-            # [CLS]
-            torch.ones(
-                (video_len, 1), dtype=torch.bool, device=cmask.device
-            ),
-            torch.tril(
-                torch.ones(
-                    (video_len, video_len),
-                    dtype=torch.bool, device=cmask.device)),
-            # video_padding
-            torch.zeros(
-                (video_len, vmask.size(0) - video_len),
-                dtype=torch.bool, device=cmask.device
-            ),
-            # [SEP] for video (unused).
-            torch.zeros(
-                (video_len, 1), dtype=torch.bool, device=cmask.device
-            ),
-            cmask[2:].unsqueeze(0).repeat(video_len, 1)
-            ], dim=1)
+        video_masks = torch.cat(
+            [
+                # [CLS]
+                torch.ones((video_len, 1), dtype=torch.bool, device=cmask.device),
+                torch.tril(
+                    torch.ones(
+                        (video_len, video_len), dtype=torch.bool, device=cmask.device
+                    )
+                ),
+                # video_padding
+                torch.zeros(
+                    (video_len, vmask.size(0) - video_len),
+                    dtype=torch.bool,
+                    device=cmask.device,
+                ),
+                # [SEP] for video (unused).
+                torch.zeros((video_len, 1), dtype=torch.bool, device=cmask.device),
+                cmask[2:].unsqueeze(0).repeat(video_len, 1),
+            ],
+            dim=1,
+        )
 
-        text_masks = cls_text_mask[None, :].repeat(
-            cmask.size(0) - 2, 1)
+        text_masks = cls_text_mask[None, :].repeat(cmask.size(0) - 2, 1)
         video_padding_masks = cls_text_mask[None, :].repeat(
-            vmask.size(0) - video_len, 1)
+            vmask.size(0) - video_len, 1
+        )
 
-        return torch.cat([
-            cls_text_mask[None, :],
-            video_masks,
-            video_padding_masks,
-            torch.cat([cmask[:1], vmask, cmask[1:]], dim=0)[None,:],
-            text_masks
-            ], dim=0)
+        return torch.cat(
+            [
+                cls_text_mask[None, :],
+                video_masks,
+                video_padding_masks,
+                torch.cat([cmask[:1], vmask, cmask[1:]], dim=0)[None, :],
+                text_masks,
+            ],
+            dim=0,
+        )
 
     def _build_textgeneration_mask(self, vmask, cmask):
         # cls_mask is only about video otherwise it will leak generation.
-        cls_video_mask = torch.cat([
-            # [CLS]
-            torch.ones(
-                (1,), dtype=torch.bool, device=cmask.device),
-            vmask,
-            # [SEP]
-            torch.ones((1,), dtype=torch.bool, device=cmask.device),
-            torch.zeros(
-                (cmask.size(0)-2,), dtype=torch.bool, device=cmask.device)
-        ], dim=0)
+        cls_video_mask = torch.cat(
+            [
+                # [CLS]
+                torch.ones((1,), dtype=torch.bool, device=cmask.device),
+                vmask,
+                # [SEP]
+                torch.ones((1,), dtype=torch.bool, device=cmask.device),
+                torch.zeros(
+                    (cmask.size(0) - 2,), dtype=torch.bool, device=cmask.device
+                ),
+            ],
+            dim=0,
+        )
 
         # concat horizontially.
         text_len = int(cmask[2:].sum())
-        text_masks = torch.cat([
-            # [CLS]
-            torch.ones(
-                (text_len, 1), dtype=torch.bool, device=cmask.device
-            ),
-            vmask.unsqueeze(0).repeat(text_len, 1),
-            # [SEP] for video.
-            torch.ones(
-                (text_len, 1), dtype=torch.bool, device=cmask.device
-            ),
-            torch.tril(
-                torch.ones(
-                    (text_len, text_len),
-                    dtype=torch.bool, device=cmask.device)),
-            # padding.
-            torch.zeros(
-                (text_len, cmask.size(0) - text_len - 2),
-                dtype=torch.bool, device=cmask.device
-            )
-        ], dim=1)
+        text_masks = torch.cat(
+            [
+                # [CLS]
+                torch.ones((text_len, 1), dtype=torch.bool, device=cmask.device),
+                vmask.unsqueeze(0).repeat(text_len, 1),
+                # [SEP] for video.
+                torch.ones((text_len, 1), dtype=torch.bool, device=cmask.device),
+                torch.tril(
+                    torch.ones(
+                        (text_len, text_len), dtype=torch.bool, device=cmask.device
+                    )
+                ),
+                # padding.
+                torch.zeros(
+                    (text_len, cmask.size(0) - text_len - 2),
+                    dtype=torch.bool,
+                    device=cmask.device,
+                ),
+            ],
+            dim=1,
+        )
 
-        cls_video_masks = cls_video_mask[None, :].repeat(
-            vmask.size(0) + 2, 1)
+        cls_video_masks = cls_video_mask[None, :].repeat(vmask.size(0) + 2, 1)
         text_padding_masks = cls_video_mask[None, :].repeat(
-            cmask.size(0) - text_len - 2, 1)
-        return torch.cat([
-            cls_video_masks, text_masks, text_padding_masks], dim=0)
+            cmask.size(0) - text_len - 2, 1
+        )
+        return torch.cat([cls_video_masks, text_masks, text_padding_masks], dim=0)

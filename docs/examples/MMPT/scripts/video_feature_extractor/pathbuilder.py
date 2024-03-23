@@ -59,16 +59,13 @@ class PathBuilder(object):
                 print("adding", ext)
             if shards:
                 shard_id = str(idx % shards)
-                feature_fn = os.path.join(
-                    feature_dir, shard_id, video_id + ext)
+                feature_fn = os.path.join(feature_dir, shard_id, video_id + ext)
             else:
-                feature_fn = os.path.join(
-                    feature_dir, video_id + ext)
+                feature_fn = os.path.join(feature_dir, video_id + ext)
             feature_path.append(feature_fn)
 
         print("targeting", len(feature_path), "videos")
-        meta = {
-            "video_path": video_path, "feature_path": feature_path}
+        meta = {"video_path": video_path, "feature_path": feature_path}
         with open(meta_fn, "w") as fw:
             json.dump(meta, fw)
 
@@ -78,12 +75,13 @@ class PathBuilder(object):
             cur, total = int(splits[0]), int(splits[1])
             assert cur < total
             import math
+
             chunk = math.ceil(len(meta["video_path"]) / total)
             start = cur * chunk
             end = (cur + 1) * chunk
             meta = {
-                    "video_path": meta["video_path"][start:end],
-                    "feature_path": meta["feature_path"][start:end]
+                "video_path": meta["video_path"][start:end],
+                "feature_path": meta["feature_path"][start:end],
             }
 
         return meta

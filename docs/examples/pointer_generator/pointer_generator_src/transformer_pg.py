@@ -159,7 +159,7 @@ class TransformerPointerGeneratorEncoder(TransformerEncoder):
         src_tokens,
         src_lengths: Optional[Tensor] = None,
         return_all_hiddens: bool = False,
-        token_embeddings: Optional[Tensor] = None
+        token_embeddings: Optional[Tensor] = None,
     ):
         """
         Runs the `forward()` method of the parent Transformer class. Then adds
@@ -193,10 +193,9 @@ class TransformerPointerGeneratorEncoder(TransformerEncoder):
                 - **src_tokens** (Tensor): input token ids of shape
                   `(batch, src_len)`
         """
-        encoder_out = self.forward_scriptable(src_tokens,
-                                              src_lengths,
-                                              return_all_hiddens,
-                                              token_embeddings)
+        encoder_out = self.forward_scriptable(
+            src_tokens, src_lengths, return_all_hiddens, token_embeddings
+        )
 
         # The Pytorch Mobile lite interpreter does not supports returning NamedTuple in
         # `forward` so we use a dictionary instead.
@@ -310,11 +309,7 @@ class TransformerPointerGeneratorDecoder(TransformerDecoder):
         return x, extra
 
     def output_layer(
-        self,
-        features: Tensor,
-        attn: Tensor,
-        src_tokens: Tensor,
-        p_gens: Tensor
+        self, features: Tensor, attn: Tensor, src_tokens: Tensor, p_gens: Tensor
     ) -> Tensor:
         """
         Project features to the vocabulary size and mix with the attention
@@ -423,9 +418,11 @@ class Embedding(nn.Embedding):
         unk_idx: int,
         max_norm: Optional[float] = float("inf"),
     ):
-        super().__init__(num_embeddings, embedding_dim, padding_idx=padding_idx, max_norm=max_norm)
+        super().__init__(
+            num_embeddings, embedding_dim, padding_idx=padding_idx, max_norm=max_norm
+        )
         self.unk_idx = unk_idx
-        nn.init.normal_(self.weight, mean=0, std=embedding_dim ** -0.5)
+        nn.init.normal_(self.weight, mean=0, std=embedding_dim**-0.5)
         nn.init.constant_(self.weight[padding_idx], 0)
 
     def forward(self, input):
@@ -433,8 +430,13 @@ class Embedding(nn.Embedding):
             input >= self.num_embeddings, torch.ones_like(input) * self.unk_idx, input
         )
         return nn.functional.embedding(
-            input, self.weight, self.padding_idx, self.max_norm,
-            self.norm_type, self.scale_grad_by_freq, self.sparse
+            input,
+            self.weight,
+            self.padding_idx,
+            self.max_norm,
+            self.norm_type,
+            self.scale_grad_by_freq,
+            self.sparse,
         )
 
 

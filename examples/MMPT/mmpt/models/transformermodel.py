@@ -58,8 +58,7 @@ class MMBertForJoint(BertPreTrainedModel):
         separate_forward_split=None,
     ):
         return_dict = (
-            return_dict if return_dict is not None
-            else self.config.use_return_dict
+            return_dict if return_dict is not None else self.config.use_return_dict
         )
         video_tokens = self.videomlp(input_video_embeds)
 
@@ -109,8 +108,7 @@ class MMBertForTokenClassification(BertPreTrainedModel):
         separate_forward_split=None,
     ):
         return_dict = (
-            return_dict if return_dict is not None
-            else self.config.use_return_dict
+            return_dict if return_dict is not None else self.config.use_return_dict
         )
 
         video_tokens = self.videomlp(input_video_embeds)
@@ -133,8 +131,10 @@ class MMBertForTokenClassification(BertPreTrainedModel):
 
 # ------------ pre-training models ----------------
 
+
 class MMBertForEncoder(BertPreTrainedModel):
     """A BertModel for Contrastive Learning."""
+
     def __init__(self, config):
         super().__init__(config)
         self.videomlp = VideoTokenMLP(config)
@@ -155,8 +155,7 @@ class MMBertForEncoder(BertPreTrainedModel):
         return_dict=None,
     ):
         return_dict = (
-            return_dict if return_dict is not None
-            else self.config.use_return_dict
+            return_dict if return_dict is not None else self.config.use_return_dict
         )
         if input_video_embeds is not None:
             video_tokens = self.videomlp(input_video_embeds)
@@ -180,6 +179,7 @@ class MMBertForEncoder(BertPreTrainedModel):
 
 class MMBertForMFMMLM(BertPreTrainedModel):
     """A BertModel with shared prediction head on MFM-MLM."""
+
     def __init__(self, config):
         super().__init__(config)
         self.videomlp = VideoTokenMLP(config)
@@ -209,8 +209,7 @@ class MMBertForMFMMLM(BertPreTrainedModel):
         return_dict=None,
     ):
         return_dict = (
-            return_dict if return_dict is not None
-            else self.config.use_return_dict
+            return_dict if return_dict is not None else self.config.use_return_dict
         )
         if input_video_embeds is not None:
             video_tokens = self.videomlp(input_video_embeds)
@@ -218,8 +217,7 @@ class MMBertForMFMMLM(BertPreTrainedModel):
             video_tokens = None
 
         if target_video_hidden_states is not None:
-            target_video_hidden_states = self.videomlp(
-                target_video_hidden_states)
+            target_video_hidden_states = self.videomlp(target_video_hidden_states)
 
             non_masked_frame_hidden_states = video_tokens.masked_select(
                 non_masked_frame_mask.unsqueeze(-1)
@@ -248,8 +246,7 @@ class MMBertForMFMMLM(BertPreTrainedModel):
                 :, 1:text_offset
             ]  # remove [SEP] as not in video_label.
             text_sequence_output = torch.cat(
-                [sequence_output[:, :1], sequence_output[:, text_offset:]],
-                dim=1
+                [sequence_output[:, :1], sequence_output[:, text_offset:]], dim=1
             )
 
             hidden_size = video_sequence_output.size(-1)
@@ -285,8 +282,7 @@ class BertMFMMLMPredictionHead(nn.Module):
         self.transform = BertPredictionHeadTransform(config)
         # The output weights are the same as the input embeddings, but there is
         # an output-only bias for each token.
-        self.decoder = nn.Linear(
-            config.hidden_size, config.vocab_size, bias=False)
+        self.decoder = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
         self.bias = nn.Parameter(torch.zeros(config.vocab_size))
 
@@ -305,8 +301,7 @@ class BertMFMMLMPredictionHead(nn.Module):
         if video_hidden_states is not None:
             video_hidden_states = self.transform(video_hidden_states)
             non_masked_frame_logits = torch.mm(
-                video_hidden_states,
-                non_masked_frame_hidden_states.transpose(1, 0)
+                video_hidden_states, non_masked_frame_hidden_states.transpose(1, 0)
             )
             masked_frame_logits = torch.bmm(
                 video_hidden_states.unsqueeze(1),
@@ -357,8 +352,7 @@ class BertMTMPredictionHead(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.transform = BertPredictionHeadTransform(config)
-        self.decoder = nn.Linear(
-            config.hidden_size, config.vocab_size, bias=False)
+        self.decoder = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
     def forward(
         self,
@@ -378,27 +372,22 @@ class BertMTMPredictionHead(nn.Module):
             ).squeeze(-1)
 
             non_masked_frame_logits = torch.mm(
-                video_hidden_states,
-                non_masked_frame_hidden_states
+                video_hidden_states, non_masked_frame_hidden_states
             )
             video_on_vocab_logits = self.decoder(video_hidden_states)
-            video_logits = torch.cat([
-                masked_frame_logits,
-                non_masked_frame_logits,
-                video_on_vocab_logits], dim=1)
+            video_logits = torch.cat(
+                [masked_frame_logits, non_masked_frame_logits, video_on_vocab_logits],
+                dim=1,
+            )
 
         if text_hidden_states is not None:
             text_hidden_states = self.transform(text_hidden_states)
             # text first so label does not need to be shifted.
             text_on_vocab_logits = self.decoder(text_hidden_states)
             text_on_video_logits = torch.mm(
-                text_hidden_states,
-                non_masked_frame_hidden_states
+                text_hidden_states, non_masked_frame_hidden_states
             )
-            text_logits = torch.cat([
-                text_on_vocab_logits,
-                text_on_video_logits
-            ], dim=1)
+            text_logits = torch.cat([text_on_vocab_logits, text_on_video_logits], dim=1)
 
         return video_logits, text_logits
 
@@ -461,8 +450,7 @@ class MMBertModel(BertModel):
             else self.config.output_hidden_states
         )
         return_dict = (
-            return_dict if return_dict is not None
-            else self.config.use_return_dict
+            return_dict if return_dict is not None else self.config.use_return_dict
         )
 
         if input_ids is not None and inputs_embeds is not None:
@@ -493,25 +481,22 @@ class MMBertModel(BertModel):
                     input_ids.size(1),
                 )
         else:
-            raise ValueError(
-                "You have to specify either input_ids or inputs_embeds")
+            raise ValueError("You have to specify either input_ids or inputs_embeds")
 
-        device = input_ids.device if input_ids is not None \
-            else inputs_embeds.device
+        device = input_ids.device if input_ids is not None else inputs_embeds.device
 
         if attention_mask is None:
             attention_mask = torch.ones(input_shape, device=device)
         if token_type_ids is None:
-            token_type_ids = torch.zeros(
-                input_shape, dtype=torch.long, device=device)
+            token_type_ids = torch.zeros(input_shape, dtype=torch.long, device=device)
 
         # We can provide a self-attention mask of dimensions
         # [batch_size, from_seq_length, to_seq_length]
         # ourselves in which case
         # we just need to make it broadcastable to all heads.
-        extended_attention_mask: torch.Tensor = \
-            self.get_extended_attention_mask(
-                attention_mask, input_shape, device)
+        extended_attention_mask: torch.Tensor = self.get_extended_attention_mask(
+            attention_mask, input_shape, device
+        )
 
         # If a 2D or 3D attention mask is provided for the cross-attention
         # we need to make broadcastable to
@@ -522,11 +507,9 @@ class MMBertModel(BertModel):
                 encoder_sequence_length,
                 _,
             ) = encoder_hidden_states.size()
-            encoder_hidden_shape = (
-                encoder_batch_size, encoder_sequence_length)
+            encoder_hidden_shape = (encoder_batch_size, encoder_sequence_length)
             if encoder_attention_mask is None:
-                encoder_attention_mask = torch.ones(
-                    encoder_hidden_shape, device=device)
+                encoder_attention_mask = torch.ones(encoder_hidden_shape, device=device)
             encoder_extended_attention_mask = self.invert_attention_mask(
                 encoder_attention_mask
             )
@@ -541,8 +524,7 @@ class MMBertModel(BertModel):
         # and head_mask is converted to shape
         # [num_hidden_layers x batch x num_heads x seq_length x seq_length]
 
-        head_mask = self.get_head_mask(
-            head_mask, self.config.num_hidden_layers)
+        head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
 
         embedding_output = self.embeddings(
             input_ids,
@@ -553,8 +535,7 @@ class MMBertModel(BertModel):
         )
 
         if separate_forward_split is not None:
-            split_embedding_output = \
-                embedding_output[:, :separate_forward_split]
+            split_embedding_output = embedding_output[:, :separate_forward_split]
             split_extended_attention_mask = extended_attention_mask[
                 :, :, :, :separate_forward_split, :separate_forward_split
             ]
@@ -578,8 +559,7 @@ class MMBertModel(BertModel):
                 for _all_hidden_states in split_encoder_outputs[1]:
                     encoder_outputs[-1].append([_all_hidden_states])
 
-            split_embedding_output = \
-                embedding_output[:, separate_forward_split:]
+            split_embedding_output = embedding_output[:, separate_forward_split:]
             split_extended_attention_mask = extended_attention_mask[
                 :, :, :, separate_forward_split:, separate_forward_split:
             ]
@@ -658,8 +638,7 @@ class MMBertModel(BertModel):
             extended_attention_mask = extended_attention_mask.to(
                 dtype=self.dtype
             )  # fp16 compatibility
-            extended_attention_mask = (1.0 - extended_attention_mask) \
-                * -10000.0
+            extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
             return extended_attention_mask
         else:
             return super().get_extended_attention_mask(

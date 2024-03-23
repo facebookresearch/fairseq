@@ -59,7 +59,7 @@ class Wav2Vec2FeatureReader(object):
 
             feat = []
             for start in range(0, x.size(1), self.max_chunk):
-                x_chunk = x[:, start: start + self.max_chunk]
+                x_chunk = x[:, start : start + self.max_chunk]
                 res = self.model.extract_features(
                     source=x_chunk,
                     padding_mask=None,

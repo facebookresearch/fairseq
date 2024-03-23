@@ -66,8 +66,7 @@ class MMDataset(Dataset):
             batch = OrderedDict()
             for key in samples[0]:
                 if samples[0][key] is not None:
-                    batch[key] = default_collate(
-                        [sample[key] for sample in samples])
+                    batch[key] = default_collate([sample[key] for sample in samples])
                 # if torch.is_tensor(batch[key]):
                 #    print(key, batch[key].size())
                 # else:

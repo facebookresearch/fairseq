@@ -37,7 +37,11 @@ class NativeMultiheadAttention(MultiheadAttention):
         dictionary=None,
         q_noise=0.0,
         qn_block_size=8,
-        use_rope=False,
+        rope=False,
+        rope_interpolate_factor=1,
+        rope_use_xpos=False,
+        rope_xpos_scale_base=512,
+        rope_learned_freq=False,
     ):
         super().__init__(embed_dim, num_heads, dictionary=dictionary)
         self.embed_dim = embed_dim
@@ -56,15 +60,24 @@ class NativeMultiheadAttention(MultiheadAttention):
         ), "embed_dim must be divisible by num_heads"
         self.scaling = self.head_dim**-0.5
 
-        self.use_rope = use_rope and self_attention
+        self.rope = rope and self_attention
         self.self_attention = self_attention
         self.encoder_decoder_attention = encoder_decoder_attention
 
-        if self.use_rope:
+        if self.rope:
             from rotary_embedding_torch import RotaryEmbedding
 
             self.rotary_pos_embed = (
-                RotaryEmbedding(dim=self.head_dim) if use_rope else None
+                RotaryEmbedding(
+                    dim=self.head_dim,
+                    use_xpos=rope_use_xpos,
+                    learned_freq=rope_learned_freq,
+                    xpos_scale_base=rope_xpos_scale_base,
+                    interpolate_factor=rope_interpolate_factor,
+                    seq_before_head_dim=False,
+                )
+                if self.rope
+                else None
             )
 
         assert not self.self_attention or self.qkv_same_dim, (
@@ -257,11 +270,10 @@ class NativeMultiheadAttention(MultiheadAttention):
         assert k is not None
         assert k.size(1) == src_len
 
-        if self.use_rope:
+        if self.rope:
             q_ = q.view(kv_bsz, self.num_heads, -1, self.head_dim)
             k_ = k.view(kv_bsz, self.num_heads, -1, self.head_dim)
-            q_ = self.rotary_pos_embed.rotate_queries_or_keys(q_)
-            k_ = self.rotary_pos_embed.rotate_queries_or_keys(k_)
+            q_, k_ = self.rotary_pos_embed.rotate_queries_and_keys(q_, k_)
             q = q_.view(kv_bsz * self.num_heads, -1, self.head_dim)
             k = k_.view(kv_bsz * self.num_heads, -1, self.head_dim)
 

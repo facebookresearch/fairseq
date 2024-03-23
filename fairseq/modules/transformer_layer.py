@@ -142,8 +142,12 @@ class TransformerEncoderLayerBase(nn.Module):
                 cfg.encoder.attention_heads,
                 dropout=cfg.attention_dropout,
                 self_attention=True,
-                use_rope=getattr(cfg, "use_rope", False)
+                rope=getattr(cfg, "use_rope", False)
                 and cfg.no_token_positional_embeddings,
+                rope_interpolate_factor=getattr(cfg, "rope_interpolate_factor", 1),
+                rope_use_xpos=getattr(cfg, "rope_use_xpos", False),
+                rope_xpos_scale_base=getattr(cfg, "rope_xpos_scale_base", 512),
+                rope_learned_freq=getattr(cfg, "rope_learned_freq", False),
             )
         else:
             return MultiheadAttention(
@@ -372,9 +376,13 @@ class TransformerDecoderLayerBase(nn.Module):
                 embed_dim,
                 cfg.decoder.attention_heads,
                 dropout=cfg.attention_dropout,
-                use_rope=getattr(cfg, "use_rope", False)
-                and cfg.no_token_positional_embeddings,
                 self_attention=not cfg.cross_self_attention,
+                rope=getattr(cfg, "use_rope", False)
+                and cfg.no_token_positional_embeddings,
+                rope_interpolate_factor=getattr(cfg, "rope_interpolate_factor", 1),
+                rope_use_xpos=getattr(cfg, "rope_use_xpos", False),
+                rope_xpos_scale_base=getattr(cfg, "rope_xpos_scale_base", 512),
+                rope_learned_freq=getattr(cfg, "rope_learned_freq", False),
             )
         else:
             return MultiheadAttention(

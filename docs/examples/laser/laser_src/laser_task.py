@@ -208,7 +208,7 @@ class LaserTask(LegacyFairseqTask):
                 if init_pair_datasets[key]["sample"] is None:
                     val = float(init_pair_datasets[key]["len"]) / length_sum
                     freq_per_dataset[key] = val
-                    weighted_freqs_sum += val ** self.args.weighting_alpha
+                    weighted_freqs_sum += val**self.args.weighting_alpha
 
             for key in freq_per_dataset:
                 val = (

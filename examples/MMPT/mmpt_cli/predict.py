@@ -75,8 +75,7 @@ def main(args):
                 model = mmtask.load_checkpoint(checkpoint)
                 ckpt = os.path.basename(checkpoint)
                 evaluator = Evaluator(config)
-                output = evaluator.evaluate(
-                    model, test_dataloader, ckpt + "_merged")
+                output = evaluator.evaluate(model, test_dataloader, ckpt + "_merged")
                 results.append((checkpoint, output))
         # use the one specified by the config lastly.
         model = mmtask.load_checkpoint(config.fairseq.common_eval.path)
@@ -85,7 +84,7 @@ def main(args):
         results.append((config.fairseq.common_eval.path, output))
 
         best_result = None
-        best_metric = 0.
+        best_metric = 0.0
         for checkpoint, result in results:
             print(checkpoint)
             evaluator.metric.print_computed_metrics(result)

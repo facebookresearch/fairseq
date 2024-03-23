@@ -159,10 +159,7 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
                 module_count += 1
         self.model = None
         self.encoder = TransformerEncoder(
-            cfg.distributed_training, 
-            None, 
-            None, 
-            encoder_module_list
+            cfg.distributed_training, None, None, encoder_module_list
         )
         self.decoder = TransformerDecoder(
             cfg.distributed_training,
@@ -170,7 +167,7 @@ class PipelineParallelTransformerModel(BaseFairseqModel):
             None,
             decoder_module_list=decoder_module_list,
         )
-    
+
     @staticmethod
     def add_args(parser):
         """Add model-specific arguments to the parser."""

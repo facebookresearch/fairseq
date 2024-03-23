@@ -36,7 +36,7 @@ class BLSTM(nn.Module):
 
 def rescale_conv(conv, reference):
     std = conv.weight.std().detach()
-    scale = (std / reference)**0.5
+    scale = (std / reference) ** 0.5
     conv.weight.data /= scale
     if conv.bias is not None:
         conv.bias.data /= scale
@@ -71,22 +71,25 @@ class Demucs(nn.Module):
         - floor (float): stability flooring when normalizing.
 
     """
+
     @capture_init
-    def __init__(self,
-                 chin=1,
-                 chout=1,
-                 hidden=48,
-                 depth=5,
-                 kernel_size=8,
-                 stride=4,
-                 causal=True,
-                 resample=4,
-                 growth=2,
-                 max_hidden=10_000,
-                 normalize=True,
-                 glu=True,
-                 rescale=0.1,
-                 floor=1e-3):
+    def __init__(
+        self,
+        chin=1,
+        chout=1,
+        hidden=48,
+        depth=5,
+        kernel_size=8,
+        stride=4,
+        causal=True,
+        resample=4,
+        growth=2,
+        max_hidden=10_000,
+        normalize=True,
+        glu=True,
+        rescale=0.1,
+        floor=1e-3,
+    ):
 
         super().__init__()
         if resample not in [1, 2, 4]:
@@ -113,13 +116,15 @@ class Demucs(nn.Module):
             encode += [
                 nn.Conv1d(chin, hidden, kernel_size, stride),
                 nn.ReLU(),
-                nn.Conv1d(hidden, hidden * ch_scale, 1), activation,
+                nn.Conv1d(hidden, hidden * ch_scale, 1),
+                activation,
             ]
             self.encoder.append(nn.Sequential(*encode))
 
             decode = []
             decode += [
-                nn.Conv1d(hidden, ch_scale * hidden, 1), activation,
+                nn.Conv1d(hidden, ch_scale * hidden, 1),
+                activation,
                 nn.ConvTranspose1d(hidden, chout, kernel_size, stride),
             ]
             if index > 0:
@@ -153,7 +158,7 @@ class Demucs(nn.Module):
 
     @property
     def total_stride(self):
-        return self.stride ** self.depth // self.resample
+        return self.stride**self.depth // self.resample
 
     def forward(self, mix):
         if mix.dim() == 2:
@@ -182,7 +187,7 @@ class Demucs(nn.Module):
         x = x.permute(1, 2, 0)
         for decode in self.decoder:
             skip = skips.pop(-1)
-            x = x + skip[..., :x.shape[-1]]
+            x = x + skip[..., : x.shape[-1]]
             x = decode(x)
         if self.resample == 2:
             x = downsample2(x)
@@ -204,12 +209,10 @@ def fast_conv(conv, x):
     assert batch == 1
     if kernel == 1:
         x = x.view(chin, length)
-        out = th.addmm(conv.bias.view(-1, 1),
-                       conv.weight.view(chout, chin), x)
+        out = th.addmm(conv.bias.view(-1, 1), conv.weight.view(chout, chin), x)
     elif length == kernel:
         x = x.view(chin * kernel, 1)
-        out = th.addmm(conv.bias.view(-1, 1),
-                       conv.weight.view(chout, chin * kernel), x)
+        out = th.addmm(conv.bias.view(-1, 1), conv.weight.view(chout, chin * kernel), x)
     else:
         out = conv(x)
     return out.view(batch, chout, -1)
@@ -232,11 +235,10 @@ class DemucsStreamer:
         - resample_buffer (int): size of the buffer of previous inputs/outputs
             kept for resampling.
     """
-    def __init__(self, demucs,
-                 dry=0,
-                 num_frames=1,
-                 resample_lookahead=64,
-                 resample_buffer=256):
+
+    def __init__(
+        self, demucs, dry=0, num_frames=1, resample_lookahead=64, resample_buffer=256
+    ):
         device = next(iter(demucs.parameters())).device
         self.demucs = demucs
         self.lstm_state = None
@@ -245,14 +247,13 @@ class DemucsStreamer:
         self.resample_lookahead = resample_lookahead
         resample_buffer = min(demucs.total_stride, resample_buffer)
         self.resample_buffer = resample_buffer
-        self.frame_length = demucs.valid_length(1) + \
-            demucs.total_stride * (num_frames - 1)
+        self.frame_length = demucs.valid_length(1) + demucs.total_stride * (
+            num_frames - 1
+        )
         self.total_length = self.frame_length + self.resample_lookahead
         self.stride = demucs.total_stride * num_frames
         self.resample_in = th.zeros(demucs.chin, resample_buffer, device=device)
-        self.resample_out = th.zeros(
-            demucs.chin, resample_buffer, device=device
-        )
+        self.resample_out = th.zeros(demucs.chin, resample_buffer, device=device)
 
         self.frames = 0
         self.total_time = 0
@@ -306,25 +307,26 @@ class DemucsStreamer:
         outs = []
         while self.pending.shape[1] >= self.total_length:
             self.frames += 1
-            frame = self.pending[:, :self.total_length]
+            frame = self.pending[:, : self.total_length]
             dry_signal = frame[:, :stride]
             if demucs.normalize:
                 mono = frame.mean(0)
                 variance = (mono**2).mean()
-                self.variance = variance / self.frames + \
-                    (1 - 1 / self.frames) * self.variance
+                self.variance = (
+                    variance / self.frames + (1 - 1 / self.frames) * self.variance
+                )
                 frame = frame / (demucs.floor + math.sqrt(self.variance))
             frame = th.cat([self.resample_in, frame], dim=-1)
-            self.resample_in[:] = frame[:, stride - resample_buffer:stride]
+            self.resample_in[:] = frame[:, stride - resample_buffer : stride]
 
             if resample == 4:
                 frame = upsample2(upsample2(frame))
             elif resample == 2:
                 frame = upsample2(frame)
             # remove pre sampling buffer
-            frame = frame[:, resample * resample_buffer:]
+            frame = frame[:, resample * resample_buffer :]
             # remove extra samples after window
-            frame = frame[:, :resample * self.frame_length]
+            frame = frame[:, : resample * self.frame_length]
 
             out, extra = self._separate_frame(frame)
             padded_out = th.cat([self.resample_out, out, extra], 1)
@@ -336,7 +338,7 @@ class DemucsStreamer:
             else:
                 out = padded_out
 
-            out = out[:, resample_buffer // resample:]
+            out = out[:, resample_buffer // resample :]
             out = out[:, :stride]
 
             if demucs.normalize:
@@ -374,8 +376,7 @@ class DemucsStreamer:
                     prev = prev[..., stride:]
                     tgt = (length - demucs.kernel_size) // demucs.stride + 1
                     missing = tgt - prev.shape[-1]
-                    offset = length - demucs.kernel_size - \
-                        demucs.stride * (missing - 1)
+                    offset = length - demucs.kernel_size - demucs.stride * (missing - 1)
                     x = x[..., offset:]
                 x = encode[1](encode[0](x))
                 x = fast_conv(encode[2], x)
@@ -395,27 +396,25 @@ class DemucsStreamer:
         extra = None
         for idx, decode in enumerate(demucs.decoder):
             skip = skips.pop(-1)
-            x += skip[..., :x.shape[-1]]
+            x += skip[..., : x.shape[-1]]
             x = fast_conv(decode[0], x)
             x = decode[1](x)
 
             if extra is not None:
-                skip = skip[..., x.shape[-1]:]
-                extra += skip[..., :extra.shape[-1]]
+                skip = skip[..., x.shape[-1] :]
+                extra += skip[..., : extra.shape[-1]]
                 extra = decode[2](decode[1](decode[0](extra)))
             x = decode[2](x)
-            next_state.append(
-                x[..., -demucs.stride:] - decode[2].bias.view(-1, 1)
-            )
+            next_state.append(x[..., -demucs.stride :] - decode[2].bias.view(-1, 1))
             if extra is None:
-                extra = x[..., -demucs.stride:]
+                extra = x[..., -demucs.stride :]
             else:
-                extra[..., :demucs.stride] += next_state[-1]
-            x = x[..., :-demucs.stride]
+                extra[..., : demucs.stride] += next_state[-1]
+            x = x[..., : -demucs.stride]
 
             if not first:
                 prev = self.conv_state.pop(0)
-                x[..., :demucs.stride] += prev
+                x[..., : demucs.stride] += prev
             if idx != demucs.depth - 1:
                 x = decode[3](x)
                 extra = decode[3](extra)
@@ -425,10 +424,12 @@ class DemucsStreamer:
 
 def test():
     import argparse
+
     parser = argparse.ArgumentParser(
         "denoiser.demucs",
         description="Benchmark the streaming Demucs implementation, as well as "
-                    "checking the delta with the offline implementation.")
+        "checking the delta with the offline implementation.",
+    )
     parser.add_argument("--depth", default=5, type=int)
     parser.add_argument("--resample", default=4, type=int)
     parser.add_argument("--hidden", default=48, type=int)
@@ -441,9 +442,9 @@ def test():
         th.set_num_threads(args.num_threads)
     sr = args.sample_rate
     sr_ms = sr / 1000
-    demucs = Demucs(
-        depth=args.depth, hidden=args.hidden, resample=args.resample
-    ).to(args.device)
+    demucs = Demucs(depth=args.depth, hidden=args.hidden, resample=args.resample).to(
+        args.device
+    )
     x = th.randn(1, int(sr * 4)).to(args.device)
     out = demucs(x[None])[0]
     streamer = DemucsStreamer(demucs, num_frames=args.num_frames)
@@ -459,11 +460,11 @@ def test():
     model_size = sum(p.numel() for p in demucs.parameters()) * 4 / 2**20
     initial_lag = streamer.total_length / sr_ms
     tpf = 1000 * streamer.time_per_frame
-    print(f"model size: {model_size:.1f}MB, ", end='')
+    print(f"model size: {model_size:.1f}MB, ", end="")
     print(f"delta batch/streaming: {th.norm(out - out_rt) / th.norm(out):.2%}")
-    print(f"initial lag: {initial_lag:.1f}ms, ", end='')
+    print(f"initial lag: {initial_lag:.1f}ms, ", end="")
     print(f"stride: {streamer.stride * args.num_frames / sr_ms:.1f}ms")
-    print(f"time per frame: {tpf:.1f}ms, ", end='')
+    print(f"time per frame: {tpf:.1f}ms, ", end="")
     rtf = (1000 * streamer.time_per_frame) / (streamer.stride / sr_ms)
     print(f"RTF: {rtf:.2f}")
     print(f"Total lag with computation: {initial_lag + tpf:.1f}ms")

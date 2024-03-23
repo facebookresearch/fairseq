@@ -315,7 +315,9 @@ class Data2VecTextEncoder(FairseqEncoder):
         return nn.Embedding(vocab_size, embedding_dim, padding_idx)
 
     def build_encoder(self, cfg, dictionary, embed_tokens):
-        encoder = TransformerEncoder(cfg.transformer, dictionary, embed_tokens, return_fc=True)
+        encoder = TransformerEncoder(
+            cfg.transformer, dictionary, embed_tokens, return_fc=True
+        )
         encoder.apply(init_bert_params)
         return encoder
 
@@ -489,9 +491,7 @@ class Data2VecTextEncoder(FairseqEncoder):
         }
 
         # logging other values
-        other_logs = {
-            "ema_decay": self.ema.get_decay() * 1000
-        }
+        other_logs = {"ema_decay": self.ema.get_decay() * 1000}
         result["logs"] = other_logs
         return result
 

@@ -18,25 +18,33 @@ import commons
 import utils
 import argparse
 import subprocess
-from data_utils import TextAudioLoader, TextAudioCollate, TextAudioSpeakerLoader, TextAudioSpeakerCollate
+from data_utils import (
+    TextAudioLoader,
+    TextAudioCollate,
+    TextAudioSpeakerLoader,
+    TextAudioSpeakerCollate,
+)
 from models import SynthesizerTrn
 from scipy.io.wavfile import write
 
+
 class TextMapper(object):
     def __init__(self, vocab_file):
-        self.symbols = [x.replace("\n", "") for x in open(vocab_file, encoding="utf-8").readlines()]
+        self.symbols = [
+            x.replace("\n", "") for x in open(vocab_file, encoding="utf-8").readlines()
+        ]
         self.SPACE_ID = self.symbols.index(" ")
         self._symbol_to_id = {s: i for i, s in enumerate(self.symbols)}
         self._id_to_symbol = {i: s for i, s in enumerate(self.symbols)}
 
     def text_to_sequence(self, text, cleaner_names):
-        '''Converts a string of text to a sequence of IDs corresponding to the symbols in the text.
+        """Converts a string of text to a sequence of IDs corresponding to the symbols in the text.
         Args:
         text: string to convert to a sequence
         cleaner_names: names of the cleaner functions to run the text through
         Returns:
         List of integers corresponding to the symbols in the text
-        '''
+        """
         sequence = []
         clean_text = text.strip()
         for symbol in clean_text:
@@ -46,18 +54,17 @@ class TextMapper(object):
 
     def uromanize(self, text, uroman_pl):
         iso = "xxx"
-        with tempfile.NamedTemporaryFile() as tf, \
-             tempfile.NamedTemporaryFile() as tf2:
+        with tempfile.NamedTemporaryFile() as tf, tempfile.NamedTemporaryFile() as tf2:
             with open(tf.name, "w") as f:
                 f.write("\n".join([text]))
             cmd = f"perl " + uroman_pl
             cmd += f" -l {iso} "
-            cmd +=  f" < {tf.name} > {tf2.name}"
+            cmd += f" < {tf.name} > {tf2.name}"
             os.system(cmd)
             outtexts = []
             with open(tf2.name) as f:
                 for line in f:
-                    line =  re.sub(r"\s+", " ", line).strip()
+                    line = re.sub(r"\s+", " ", line).strip()
                     outtexts.append(line)
             outtext = outtexts[0]
         return outtext
@@ -85,19 +92,34 @@ class TextMapper(object):
             print(f"{lang} (ț -> ţ): {text}")
         return text
 
+
 def generate():
-    parser = argparse.ArgumentParser(description='TTS inference')
-    parser.add_argument('--model-dir', type=str, help='model checkpoint dir')
-    parser.add_argument('--wav', type=str, help='output wav path')
-    parser.add_argument('--txt', type=str, help='input text')
-    parser.add_argument('--uroman-dir', type=str, default=None, help='uroman lib dir (will download if not specified)')
-    parser.add_argument('--lang', type=str, default=None, help='language iso code (required for Romanian)')
+    parser = argparse.ArgumentParser(description="TTS inference")
+    parser.add_argument("--model-dir", type=str, help="model checkpoint dir")
+    parser.add_argument("--wav", type=str, help="output wav path")
+    parser.add_argument("--txt", type=str, help="input text")
+    parser.add_argument(
+        "--uroman-dir",
+        type=str,
+        default=None,
+        help="uroman lib dir (will download if not specified)",
+    )
+    parser.add_argument(
+        "--lang",
+        type=str,
+        default=None,
+        help="language iso code (required for Romanian)",
+    )
     args = parser.parse_args()
     ckpt_dir, wav_path, txt = args.model_dir, args.wav, args.txt
 
     if torch.cuda.is_available():
         device = torch.device("cuda")
-    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available() and torch.backends.mps.is_built():
+    elif (
+        hasattr(torch.backends, "mps")
+        and torch.backends.mps.is_available()
+        and torch.backends.mps.is_built()
+    ):
         device = torch.device("mps")
     else:
         device = torch.device("cpu")
@@ -112,7 +134,8 @@ def generate():
         len(text_mapper.symbols),
         hps.data.filter_length // 2 + 1,
         hps.train.segment_size // hps.data.hop_length,
-        **hps.model)
+        **hps.model,
+    )
     net_g.to(device)
     _ = net_g.eval()
 
@@ -122,7 +145,7 @@ def generate():
     _ = utils.load_checkpoint(g_pth, net_g, None)
 
     print(f"text: {txt}")
-    is_uroman = hps.data.training_files.split('.')[-1] == 'uroman'
+    is_uroman = hps.data.training_files.split(".")[-1] == "uroman"
     if is_uroman:
         with tempfile.TemporaryDirectory() as tmp_dir:
             if args.uroman_dir is None:
@@ -140,10 +163,18 @@ def generate():
     with torch.no_grad():
         x_tst = stn_tst.unsqueeze(0).to(device)
         x_tst_lengths = torch.LongTensor([stn_tst.size(0)]).to(device)
-        hyp = net_g.infer(
-            x_tst, x_tst_lengths, noise_scale=.667,
-            noise_scale_w=0.8, length_scale=1.0
-        )[0][0,0].cpu().float().numpy()
+        hyp = (
+            net_g.infer(
+                x_tst,
+                x_tst_lengths,
+                noise_scale=0.667,
+                noise_scale_w=0.8,
+                length_scale=1.0,
+            )[0][0, 0]
+            .cpu()
+            .float()
+            .numpy()
+        )
 
     os.makedirs(os.path.dirname(wav_path), exist_ok=True)
     print(f"wav: {wav_path}")
@@ -151,5 +182,5 @@ def generate():
     return
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     generate()

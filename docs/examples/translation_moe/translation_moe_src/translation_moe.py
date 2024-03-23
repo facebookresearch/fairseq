@@ -122,7 +122,9 @@ class TranslationMoETask(TranslationTask):
                 elif getattr(cfg, "dropout", None):
                     dropout = cfg.dropout
                 else:
-                    raise ValueError("Must specify task.mean_pool_gating_network_dropout")
+                    raise ValueError(
+                        "Must specify task.mean_pool_gating_network_dropout"
+                    )
 
                 model.gating_network = MeanPoolGatingNetwork(
                     encoder_dim,

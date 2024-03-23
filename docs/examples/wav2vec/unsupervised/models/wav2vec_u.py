@@ -419,7 +419,7 @@ class Wav2vec_U(BaseFairseqModel):
         super().set_num_updates(num_updates)
         self.update_num = num_updates
         self.curr_temp = max(
-            self.max_temp * self.temp_decay ** num_updates, self.min_temp
+            self.max_temp * self.temp_decay**num_updates, self.min_temp
         )
 
     def discrim_step(self, num_updates):

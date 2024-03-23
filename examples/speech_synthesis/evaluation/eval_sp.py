@@ -23,7 +23,7 @@ from fairseq.tasks.text_to_speech import batch_mel_cepstral_distortion
 
 def load_eval_spec(path):
     with open(path) as f:
-        reader = csv.DictReader(f, delimiter='\t')
+        reader = csv.DictReader(f, delimiter="\t")
         samples = list(reader)
     return samples
 
@@ -47,13 +47,14 @@ def eval_distortion(samples, distortion_fn, device="cuda"):
         nins = torch.sum(pathmap.sum(dim=1) - 1)  # extra frames in syn
         ndel = torch.sum(pathmap.sum(dim=0) - 1)  # missing frames from syn
         results.append(
-            (distortion.item(),  # path distortion
-             pathmap.size(0),  # yref num frames
-             pathmap.size(1),  # ysyn num frames
-             pathmap.sum().item(),  # path length
-             nins.item(),  # insertion
-             ndel.item(),  # deletion
-             )
+            (
+                distortion.item(),  # path distortion
+                pathmap.size(0),  # yref num frames
+                pathmap.size(1),  # ysyn num frames
+                pathmap.sum().item(),  # path length
+                nins.item(),  # insertion
+                ndel.item(),  # deletion
+            )
         )
     return results
 
@@ -79,17 +80,13 @@ def print_results(results, show_bin):
             "dur_ref": int(dur_ref),
             "dur_syn": int(dur_syn),
             "dur_ali": int(dur_ali),
-            "dist_per_ref_frm": dist/dur_ref,
-            "dist_per_syn_frm": dist/dur_syn,
-            "dist_per_ali_frm": dist/dur_ali,
-            "ins": nins/dur_ref,
-            "del": ndel/dur_ref,
+            "dist_per_ref_frm": dist / dur_ref,
+            "dist_per_syn_frm": dist / dur_syn,
+            "dist_per_ali_frm": dist / dur_ali,
+            "ins": nins / dur_ref,
+            "del": ndel / dur_ref,
         }
-        print(tabulate(
-            [res.values()],
-            res.keys(),
-            floatfmt=".4f"
-        ))
+        print(tabulate([res.values()], res.keys(), floatfmt=".4f"))
 
     print(">>>> ALL")
     _print_result(results)
@@ -97,8 +94,9 @@ def print_results(results, show_bin):
     if show_bin:
         edges = [0, 200, 400, 600, 800, 1000, 2000, 4000]
         for i in range(1, len(edges)):
-            mask = np.logical_and(results[:, 1] >= edges[i-1],
-                                  results[:, 1] < edges[i])
+            mask = np.logical_and(
+                results[:, 1] >= edges[i - 1], results[:, 1] < edges[i]
+            )
             if not mask.any():
                 continue
             bin_results = results[mask]
@@ -121,6 +119,7 @@ def main(eval_spec, mcd, msd, show_bin):
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("eval_spec")
     parser.add_argument("--mcd", action="store_true")

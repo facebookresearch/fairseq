@@ -35,9 +35,7 @@ from fairseq.data.audio.audio_utils import get_waveform, convert_waveform
 log = logging.getLogger(__name__)
 
 
-MANIFEST_COLUMNS = [
-    "id", "audio", "n_frames", "tgt_text", "speaker", "tgt_lang"
-]
+MANIFEST_COLUMNS = ["id", "audio", "n_frames", "tgt_text", "speaker", "tgt_lang"]
 
 
 class mTEDx(Dataset):
@@ -48,9 +46,29 @@ class mTEDx(Dataset):
     """
 
     SPLITS = ["train", "valid", "test"]
-    LANGPAIRS = ["es-es", "fr-fr", "pt-pt", "it-it", "ru-ru", "el-el", "ar-ar",
-                 "de-de", "es-en", "es-fr", "es-pt", "es-it", "fr-en", "fr-es",
-                 "fr-pt", "pt-en", "pt-es", "it-en", "it-es", "ru-en", "el-en"]
+    LANGPAIRS = [
+        "es-es",
+        "fr-fr",
+        "pt-pt",
+        "it-it",
+        "ru-ru",
+        "el-el",
+        "ar-ar",
+        "de-de",
+        "es-en",
+        "es-fr",
+        "es-pt",
+        "es-it",
+        "fr-en",
+        "fr-es",
+        "fr-pt",
+        "pt-en",
+        "pt-es",
+        "it-en",
+        "it-es",
+        "ru-en",
+        "el-en",
+    ]
 
     def __init__(self, root: str, lang: str, split: str) -> None:
         assert split in self.SPLITS and lang in self.LANGPAIRS
@@ -61,9 +79,7 @@ class mTEDx(Dataset):
         try:
             import yaml
         except ImportError:
-            print(
-                "Please install PyYAML to load the Multilingual TEDx YAML files"
-            )
+            print("Please install PyYAML to load the Multilingual TEDx YAML files")
         with open(txt_root / f"{split}.yaml") as f:
             segments = yaml.load(f, Loader=yaml.BaseLoader)
         # Load source and target utterances
@@ -99,11 +115,18 @@ class mTEDx(Dataset):
                     )
                 )
 
-    def __getitem__(
-            self, n: int
-    ) -> Tuple[torch.Tensor, int, str, str, str, str, str]:
-        wav_path, offset, n_frames, sr, src_utt, tgt_utt, spk_id, tgt_lang, \
-            utt_id = self.data[n]
+    def __getitem__(self, n: int) -> Tuple[torch.Tensor, int, str, str, str, str, str]:
+        (
+            wav_path,
+            offset,
+            n_frames,
+            sr,
+            src_utt,
+            tgt_utt,
+            spk_id,
+            tgt_lang,
+            utt_id,
+        ) = self.data[n]
         waveform, _ = get_waveform(wav_path, frames=n_frames, start=offset)
         waveform = torch.from_numpy(waveform)
         return waveform, sr, src_utt, tgt_utt, spk_id, tgt_lang, utt_id
@@ -130,12 +153,15 @@ def process(args):
                 for waveform, sample_rate, _, _, _, utt_id in tqdm(dataset):
                     tgt_sample_rate = 16_000
                     _wavform, _ = convert_waveform(
-                        waveform, sample_rate, to_mono=True,
-                        to_sample_rate=tgt_sample_rate
+                        waveform,
+                        sample_rate,
+                        to_mono=True,
+                        to_sample_rate=tgt_sample_rate,
                     )
                     sf.write(
                         (audio_root / f"{utt_id}.flac").as_posix(),
-                        _wavform.numpy(), tgt_sample_rate
+                        _wavform.numpy(),
+                        tgt_sample_rate,
                     )
             else:
                 print("Extracting log mel filter bank features...")
@@ -160,9 +186,7 @@ def process(args):
                 manifest["id"].append(utt_id)
                 manifest["audio"].append(audio_paths[utt_id])
                 manifest["n_frames"].append(audio_lengths[utt_id])
-                manifest["tgt_text"].append(
-                    src_utt if args.task == "asr" else tgt_utt
-                )
+                manifest["tgt_text"].append(src_utt if args.task == "asr" else tgt_utt)
                 manifest["speaker"].append(spk_id)
                 manifest["tgt_lang"].append(tgt_lang)
             if is_train_split:
@@ -189,7 +213,7 @@ def process(args):
                 spm_filename=spm_filename_prefix + ".model",
                 yaml_filename=f"config_{args.task}.yaml",
                 specaugment_policy=None,
-                extra={"use_audio_input": True}
+                extra={"use_audio_input": True},
             )
         else:
             gen_config_yaml(
@@ -204,8 +228,9 @@ def process(args):
 
 def process_joint(args):
     cur_root = Path(args.data_root)
-    assert all((cur_root / f"{lang}").is_dir() for lang in mTEDx.LANGPAIRS), \
-        "do not have downloaded data available for all languages"
+    assert all(
+        (cur_root / f"{lang}").is_dir() for lang in mTEDx.LANGPAIRS
+    ), "do not have downloaded data available for all languages"
     # Generate vocab
     vocab_size_str = "" if args.vocab_type == "char" else str(args.vocab_size)
     spm_filename_prefix = f"spm_{args.vocab_type}{vocab_size_str}_{args.task}"
@@ -226,7 +251,7 @@ def process_joint(args):
             cur_root / spm_filename_prefix,
             args.vocab_type,
             args.vocab_size,
-            special_symbols=special_symbols
+            special_symbols=special_symbols,
         )
     # Generate config YAML
     gen_config_yaml(

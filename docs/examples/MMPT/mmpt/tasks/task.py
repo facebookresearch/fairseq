@@ -43,14 +43,10 @@ class Task(object):
         """TODO (huxu): move processor breakdown to MMDataset."""
         """fill-in `self.train_data`, `self.val_data` and `self.test_data`."""
 
-        meta_processor_cls = getattr(
-            processors, self.config.dataset.meta_processor)
-        video_processor_cls = getattr(
-            processors, self.config.dataset.video_processor)
-        text_processor_cls = getattr(
-            processors, self.config.dataset.text_processor)
-        aligner_cls = getattr(
-            processors, self.config.dataset.aligner)
+        meta_processor_cls = getattr(processors, self.config.dataset.meta_processor)
+        video_processor_cls = getattr(processors, self.config.dataset.video_processor)
+        text_processor_cls = getattr(processors, self.config.dataset.text_processor)
+        aligner_cls = getattr(processors, self.config.dataset.aligner)
 
         if self.config.dataset.train_path is not None:
             self.config.dataset.split = "train"
@@ -126,7 +122,7 @@ class Task(object):
         ) in state_dict.items():
             # remove fairseq wrapper since this is a task.
             if key.startswith("mmmodel"):
-                key = key[len("mmmodel."):]
+                key = key[len("mmmodel.") :]
             ret_state_dict[key] = value
         return ret_state_dict
 
@@ -140,10 +136,7 @@ class Task(object):
         size = tensor.size()
         if len(size) >= 2:
             batch_size = size[0] * size[1]
-            expanded_size = (
-                (batch_size,) + size[2:] if len(size) > 2
-                else (batch_size,)
-            )
+            expanded_size = (batch_size,) + size[2:] if len(size) > 2 else (batch_size,)
             tensor = tensor.view(expanded_size)
         return tensor
 

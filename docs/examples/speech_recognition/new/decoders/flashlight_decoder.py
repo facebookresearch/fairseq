@@ -135,7 +135,7 @@ class KenLMDecoder(BaseDecoder):
         for i, token_idx in enumerate(token_idxs):
             if token_idx == self.blank:
                 continue
-            if i == 0 or token_idx != token_idxs[i-1]:
+            if i == 0 or token_idx != token_idxs[i - 1]:
                 timesteps.append(i)
         return timesteps
 

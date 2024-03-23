@@ -77,7 +77,9 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
         self.kd_criterion = kd_criterion
         self.kd_strategy = self.task.kd_strategy
         self.kd_queue_size = kd_queue_size
-        self.num_languages = len(self.task.lang_ids) if self.task.lang_ids is not None else -1
+        self.num_languages = (
+            len(self.task.lang_ids) if self.task.lang_ids is not None else -1
+        )
 
         if self.kd_strategy == "global_language_wise":
             self.queue = {}

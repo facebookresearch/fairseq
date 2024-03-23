@@ -107,5 +107,5 @@ __all__ = [
     "RelPositionMultiHeadedAttention",
     "RelPositionalEncoding",
     "RotaryPositionalEmbedding",
-    "RotaryPositionMultiHeadedAttention"
+    "RotaryPositionMultiHeadedAttention",
 ]

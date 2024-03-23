@@ -18,7 +18,7 @@ from .text import SOS_TOK, EOS_TOK
 def get_mask_from_lengths(lengths):
     max_len = torch.max(lengths).item()
     ids = torch.arange(0, max_len, out=torch.cuda.LongTensor(max_len))
-    mask = (ids < lengths.unsqueeze(1))
+    mask = ids < lengths.unsqueeze(1)
     return mask
 
 
@@ -38,7 +38,7 @@ def read_binary_audio(bin_data, tar_sr=None):
         data (np.ndarray) : audio of shape (n,) or (2, n)
         tar_sr (int) : sample rate
     """
-    data, ori_sr = sf.read(io.BytesIO(bin_data), dtype='float32')
+    data, ori_sr = sf.read(io.BytesIO(bin_data), dtype="float32")
     data = data.T
     if (tar_sr is not None) and (ori_sr != tar_sr):
         data = librosa.resample(data, ori_sr, tar_sr)
@@ -50,7 +50,7 @@ def read_binary_audio(bin_data, tar_sr=None):
 
 
 def load_filepaths_and_text(filename):
-    with open(filename, encoding='utf-8') as f:
+    with open(filename, encoding="utf-8") as f:
         data = [json.loads(line.rstrip()) for line in f]
     return data
 
@@ -67,15 +67,15 @@ def load_code_dict(path, add_sos=False, add_eos=False):
     if not path:
         return {}
 
-    with open(path, 'r') as f:
-        codes = ['_'] + [line.rstrip() for line in f]  # '_' for pad
+    with open(path, "r") as f:
+        codes = ["_"] + [line.rstrip() for line in f]  # '_' for pad
     code_dict = {c: i for i, c in enumerate(codes)}
 
     if add_sos:
         code_dict[SOS_TOK] = len(code_dict)
     if add_eos:
         code_dict[EOS_TOK] = len(code_dict)
-    assert(set(code_dict.values()) == set(range(len(code_dict))))
+    assert set(code_dict.values()) == set(range(len(code_dict)))
 
     return code_dict
 
@@ -83,7 +83,7 @@ def load_code_dict(path, add_sos=False, add_eos=False):
 def load_obs_label_dict(path):
     if not path:
         return {}
-    with open(path, 'r') as f:
+    with open(path, "r") as f:
         obs_labels = [line.rstrip() for line in f]
     return {c: i for i, c in enumerate(obs_labels)}
 

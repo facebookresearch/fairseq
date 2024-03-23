@@ -29,8 +29,7 @@ def get_world_size():
 
 
 def get_local_rank():
-    return torch.distributed.get_rank() \
-        if torch.distributed.is_initialized() else 0
+    return torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
 
 
 def print_on_rank0(func):
@@ -43,6 +42,7 @@ class RetriMeter(object):
     """
     Statistics on whether retrieval yields a better pair.
     """
+
     def __init__(self, freq=1024):
         self.freq = freq
         self.total = 0
@@ -64,5 +64,12 @@ class RetriMeter(object):
             print("[INFO]", self)
 
     def __repr__(self):
-        return "RetriMeter (" + str(self.replace / self.total) \
-            + "/" + str(self.replace) + "/" + str(self.total) + ")"
+        return (
+            "RetriMeter ("
+            + str(self.replace / self.total)
+            + "/"
+            + str(self.replace)
+            + "/"
+            + str(self.total)
+            + ")"
+        )

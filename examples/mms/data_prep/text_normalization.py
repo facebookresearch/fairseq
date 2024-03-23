@@ -5,7 +5,9 @@ import unicodedata
 from examples.mms.data_prep.norm_config import norm_config
 
 
-def text_normalize(text, iso_code, lower_case=True, remove_numbers=True, remove_brackets=False):
+def text_normalize(
+    text, iso_code, lower_case=True, remove_numbers=True, remove_brackets=False
+):
 
     """Given a text, normalize it by changing to lower case, removing punctuations, removing words that only contain digits and removing extra spaces
 
@@ -15,16 +17,22 @@ def text_normalize(text, iso_code, lower_case=True, remove_numbers=True, remove_
         remove_numbers : Boolean flag to specify if words containing only digits should be removed
 
     Returns:
-        normalized_text : the string after all normalization  
+        normalized_text : the string after all normalization
 
     """
 
     config = norm_config.get(iso_code, norm_config["*"])
 
-    for field in ["lower_case", "punc_set","del_set", "mapping", "digit_set", "unicode_norm"]:
+    for field in [
+        "lower_case",
+        "punc_set",
+        "del_set",
+        "mapping",
+        "digit_set",
+        "unicode_norm",
+    ]:
         if field not in config:
             config[field] = norm_config["*"][field]
-
 
     text = unicodedata.normalize(config["unicode_norm"], text)
 
@@ -34,7 +42,7 @@ def text_normalize(text, iso_code, lower_case=True, remove_numbers=True, remove_
         text = text.lower()
 
     # brackets
-    
+
     # always text inside brackets with numbers in them. Usually corresponds to "(Sam 23:17)"
     text = re.sub(r"\([^\)]*\d[^\)]*\)", " ", text)
     if remove_brackets:
@@ -84,6 +92,7 @@ def text_normalize(text, iso_code, lower_case=True, remove_numbers=True, remove_
 
     if config["rm_diacritics"]:
         from unidecode import unidecode
+
         normalized_text = unidecode(normalized_text)
 
     # Remove extra spaces

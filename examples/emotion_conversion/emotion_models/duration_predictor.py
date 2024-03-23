@@ -40,10 +40,14 @@ class Collator:
     def __call__(self, batch):
         x = [item[0] for item in batch]
         lengths = [len(item) for item in x]
-        x = torch.nn.utils.rnn.pad_sequence(x, batch_first=True, padding_value=self.padding_idx)
+        x = torch.nn.utils.rnn.pad_sequence(
+            x, batch_first=True, padding_value=self.padding_idx
+        )
         y = [item[1] for item in batch]
-        y = torch.nn.utils.rnn.pad_sequence(y, batch_first=True, padding_value=self.padding_idx)
-        mask = (x != self.padding_idx)
+        y = torch.nn.utils.rnn.pad_sequence(
+            y, batch_first=True, padding_value=self.padding_idx
+        )
+        mask = x != self.padding_idx
         return x, y, mask, lengths
 
 
@@ -58,8 +62,8 @@ class Predictor(nn.Module):
         self.emb = nn.Embedding(n_tokens + 1, emb_dim, padding_idx=self.padding_token)
 
     def inflate_input(self, batch):
-        """ get a sequence of tokens, predict their durations
-        and inflate them accordingly """
+        """get a sequence of tokens, predict their durations
+        and inflate them accordingly"""
         batch_durs = self.forward(batch)
         batch_durs = torch.exp(batch_durs) - 1
         batch_durs = batch_durs.round()
@@ -78,7 +82,9 @@ class Predictor(nn.Module):
 
 
 class CnnPredictor(Predictor):
-    def __init__(self, n_tokens, emb_dim, channels, kernel, output_dim, dropout, n_layers):
+    def __init__(
+        self, n_tokens, emb_dim, channels, kernel, output_dim, dropout, n_layers
+    ):
         super(CnnPredictor, self).__init__(n_tokens=n_tokens, emb_dim=emb_dim)
         layers = [
             Rearrange("b t c -> b c t"),
@@ -88,10 +94,12 @@ class CnnPredictor(Predictor):
             nn.LayerNorm(channels),
             nn.Dropout(dropout),
         ]
-        for _ in range(n_layers-1):
+        for _ in range(n_layers - 1):
             layers += [
                 Rearrange("b t c -> b c t"),
-                nn.Conv1d(channels, channels, kernel_size=kernel, padding=(kernel - 1) // 2),
+                nn.Conv1d(
+                    channels, channels, kernel_size=kernel, padding=(kernel - 1) // 2
+                ),
                 Rearrange("b c t -> b t c"),
                 nn.ReLU(),
                 nn.LayerNorm(channels),
@@ -110,9 +118,7 @@ class CnnPredictor(Predictor):
 
 def l2_log_loss(input, target):
     return F.mse_loss(
-        input=input.float(),
-        target=torch.log(target.float() + 1),
-        reduce=False
+        input=input.float(), target=torch.log(target.float() + 1), reduce=False
     )
 
 
@@ -172,16 +178,24 @@ def train(cfg):
 
     best_loss = float("inf")
     for epoch in range(cfg.epochs):
-        train_loss, train_loss_scaled = train_epoch(model, train_dl, l2_log_loss, optimizer, device)
-        valid_loss, valid_loss_scaled, *acc = valid_epoch(model, valid_dl, l2_log_loss, device)
+        train_loss, train_loss_scaled = train_epoch(
+            model, train_dl, l2_log_loss, optimizer, device
+        )
+        valid_loss, valid_loss_scaled, *acc = valid_epoch(
+            model, valid_dl, l2_log_loss, device
+        )
         acc0, acc1, acc2, acc3 = acc
         if valid_loss_scaled < best_loss:
             path = f"{os.getcwd()}/{cfg.substring}.ckpt"
             save_ckpt(model, path, cfg[cfg.model])
             best_loss = valid_loss_scaled
             logger.info(f"saved checkpoint: {path}")
-            logger.info(f"[epoch {epoch}] train loss: {train_loss:.3f}, train scaled: {train_loss_scaled:.3f}")
-            logger.info(f"[epoch {epoch}] valid loss: {valid_loss:.3f}, valid scaled: {valid_loss_scaled:.3f}")
+            logger.info(
+                f"[epoch {epoch}] train loss: {train_loss:.3f}, train scaled: {train_loss_scaled:.3f}"
+            )
+            logger.info(
+                f"[epoch {epoch}] valid loss: {valid_loss:.3f}, valid scaled: {valid_loss_scaled:.3f}"
+            )
             logger.info(f"acc: {acc0,acc1,acc2,acc3}")
 
 
@@ -230,7 +244,14 @@ def valid_epoch(model, loader, criterion, device):
     acc2 = acc.acc(tol=2)
     acc3 = acc.acc(tol=3)
     logger.info(f"accs: {acc0,acc1,acc2,acc3}")
-    return epoch_loss / len(loader), epoch_loss_scaled / len(loader), acc0, acc1, acc2, acc3
+    return (
+        epoch_loss / len(loader),
+        epoch_loss_scaled / len(loader),
+        acc0,
+        acc1,
+        acc2,
+        acc3,
+    )
 
 
 @hydra.main(config_path=".", config_name="duration_predictor.yaml")

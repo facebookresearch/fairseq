@@ -55,7 +55,7 @@ class Trainer(object):
         self.task = task
         self.teacher_model = None
         self.perform_distillation = False
-        self.load_checkpoint_liberally = cfg.checkpoint.load_checkpoint_liberally
+        self.load_checkpoint_liberally = not cfg.checkpoint.load_checkpoint_liberally
 
         # catalog shared parameters
         shared_params = _catalog_shared_params(model)
@@ -591,9 +591,9 @@ class Trainer(object):
                     logger.info(self.model)
 
                 self.model.load_state_dict(
-                    state["model"], 
+                    state["model"],
                     model_cfg=self.cfg.model,
-                    strict=self.load_checkpoint_liberally
+                    strict=self.load_checkpoint_liberally,
                 )
                 # save memory for later steps
                 del state["model"]
@@ -866,7 +866,7 @@ class Trainer(object):
                             criterion=self.criterion,
                             optimizer=self.optimizer,
                             update_num=self.get_num_updates(),
-                            ignore_grad=is_dummy_batch
+                            ignore_grad=is_dummy_batch,
                         )
                     else:
                         # general training (no distillation)
@@ -877,10 +877,9 @@ class Trainer(object):
                             criterion=self.criterion,
                             optimizer=self.optimizer,
                             update_num=self.get_num_updates(),
-                            ignore_grad=is_dummy_batch
+                            ignore_grad=is_dummy_batch,
                         )
 
-                        
                     del loss
 
                 logging_outputs.append(logging_output)
@@ -1181,21 +1180,21 @@ class Trainer(object):
 
             sample, is_dummy_batch = self._prepare_sample(sample)
 
-            try:     
-                if self.perform_distillation:        
+            try:
+                if self.perform_distillation:
                     _loss, sample_size, logging_output = self.task.valid_step(
-                        sample=sample, 
-                        model=self.model, 
-                        teacher_model=self.teacher_model, 
-                        criterion=self.criterion, 
-                        **extra_kwargs
+                        sample=sample,
+                        model=self.model,
+                        teacher_model=self.teacher_model,
+                        criterion=self.criterion,
+                        **extra_kwargs,
                     )
                 else:
                     _loss, sample_size, logging_output = self.task.valid_step(
-                        sample=sample, 
+                        sample=sample,
                         model=self.model,
-                        criterion=self.criterion, 
-                        **extra_kwargs
+                        criterion=self.criterion,
+                        **extra_kwargs,
                     )
             except RuntimeError as e:
                 if "out of memory" in str(e):

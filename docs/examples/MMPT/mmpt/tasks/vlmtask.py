@@ -19,8 +19,7 @@ class VLMTask(Task):
         if len(size) >= 2:
             batch_size = size[0] * (size[1] // 2)
             expanded_size = (
-                (batch_size, 2) + size[2:] if len(size) > 2
-                else (batch_size, 2)
+                (batch_size, 2) + size[2:] if len(size) > 2 else (batch_size, 2)
             )
             tensor = tensor.view(expanded_size)
             tensor = torch.cat([tensor[:, 0], tensor[:, 1]], dim=0)

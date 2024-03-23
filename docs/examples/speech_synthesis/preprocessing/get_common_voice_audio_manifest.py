@@ -22,9 +22,7 @@ log = logging.getLogger(__name__)
 SPLITS = ["train", "dev", "test"]
 
 
-def get_top_n(
-        root: Path, n_speakers: int = 10, min_n_tokens: int = 5
-) -> pd.DataFrame:
+def get_top_n(root: Path, n_speakers: int = 10, min_n_tokens: int = 5) -> pd.DataFrame:
     df = load_df_from_tsv(root / "validated.tsv")
     df["n_tokens"] = [len(s.split()) for s in df["sentence"]]
     df = df[df["n_tokens"] >= min_n_tokens]
@@ -43,10 +41,10 @@ def get_top_n(
 
 
 def get_splits(
-        df, train_split_ratio=0.99, speaker_in_all_splits=False, rand_seed=0
+    df, train_split_ratio=0.99, speaker_in_all_splits=False, rand_seed=0
 ) -> Tuple[Dict[str, str], List[str]]:
     np.random.seed(rand_seed)
-    dev_split_ratio = (1. - train_split_ratio) / 3
+    dev_split_ratio = (1.0 - train_split_ratio) / 3
     grouped = list(df.groupby("client_id"))
     id_to_split = {}
     for _, cur_df in tqdm(grouped):
@@ -64,8 +62,8 @@ def get_splits(
         cur_shuffled_indices = [cur_indices[i] for i in cur_shuffled_indices]
         cur_indices_by_split = {
             "train": cur_shuffled_indices[:cur_n_train],
-            "dev": cur_shuffled_indices[cur_n_train: cur_n_train + cur_n_dev],
-            "test": cur_shuffled_indices[cur_n_train + cur_n_dev:]
+            "dev": cur_shuffled_indices[cur_n_train : cur_n_train + cur_n_dev],
+            "test": cur_shuffled_indices[cur_n_train + cur_n_dev :],
         }
         for split in SPLITS:
             for i in cur_indices_by_split[split]:
@@ -85,8 +83,9 @@ def convert_to_wav(root: Path, filenames: List[str], target_sr=16_000):
             waveform, sr, [["rate", str(target_sr)], ["channels", "1"]]
         )
         out_path = (out_root / Path(n).with_suffix(".wav").name).as_posix()
-        torchaudio.save(out_path, converted, converted_sr, encoding="PCM_S",
-                        bits_per_sample=16)
+        torchaudio.save(
+            out_path, converted, converted_sr, encoding="PCM_S", bits_per_sample=16
+        )
 
 
 def process(args):
@@ -121,7 +120,7 @@ def process(args):
     for split in SPLITS:
         save_df_to_tsv(
             pd.DataFrame.from_dict(manifest_by_split[split]),
-            output_root / f"{split}.audio.tsv"
+            output_root / f"{split}.audio.tsv",
         )
 
 

@@ -40,7 +40,9 @@ class HubertFeatureReader(object):
         logger.info(f" max_chunk = {self.max_chunk}")
 
     def read_audio(self, path, ref_len=None):
-        wav = get_features_or_waveform(path, need_waveform=True, use_sample_rate=self.task.cfg.sample_rate)
+        wav = get_features_or_waveform(
+            path, need_waveform=True, use_sample_rate=self.task.cfg.sample_rate
+        )
         if wav.ndim == 2:
             wav = wav.mean(-1)
         assert wav.ndim == 1, wav.ndim

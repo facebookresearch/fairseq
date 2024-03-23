@@ -12,7 +12,6 @@ import numpy as np
 import faiss
 
 
-
 def get_parser():
     parser = argparse.ArgumentParser(
         description="compute a pca matrix given an array of numpy features"

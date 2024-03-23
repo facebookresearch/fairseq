@@ -84,7 +84,7 @@ def replace_with_lora(model, lora_modules, lora_params) -> None:
                         new_module.bias.data = module.bias.data
 
             setattr(model, name, new_module)
-        
+
         elif name in lora_modules and isinstance(module, torch.nn.Embedding):
             lora_params_emb = lora_params.copy()
             lora_params_emb.pop("dropout", None)
@@ -105,7 +105,7 @@ def replace_with_lora(model, lora_modules, lora_params) -> None:
                     new_module.weight.data = module.weight.data
 
             setattr(model, name, new_module)
-        
+
         else:
             replace_with_lora(module, lora_modules, lora_params)
 
@@ -591,7 +591,6 @@ def validate_and_save(
 
     should_stop |= should_stop_early(cfg, valid_losses[0])
 
-    # Save checkpoint
     if do_save or should_stop:
         cp_path = checkpoint_utils.save_checkpoint(
             cfg.checkpoint, trainer, epoch_itr, valid_losses[0]

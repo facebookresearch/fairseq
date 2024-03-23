@@ -19,48 +19,58 @@ from tqdm import tqdm
 
 from examples.speech_to_text.data_utils import load_tsv_to_dicts
 from fairseq.data.audio.audio_utils import (
-    TTSSpectrogram, TTSMelScale, parse_path, read_from_stored_zip, is_npy_data
+    TTSSpectrogram,
+    TTSMelScale,
+    parse_path,
+    read_from_stored_zip,
+    is_npy_data,
 )
 
 
 def trim_or_pad_to_target_length(
-        data_1d_or_2d: np.ndarray, target_length: int
+    data_1d_or_2d: np.ndarray, target_length: int
 ) -> np.ndarray:
     assert len(data_1d_or_2d.shape) in {1, 2}
     delta = data_1d_or_2d.shape[0] - target_length
     if delta >= 0:  # trim if being longer
-        data_1d_or_2d = data_1d_or_2d[: target_length]
+        data_1d_or_2d = data_1d_or_2d[:target_length]
     else:  # pad if being shorter
         if len(data_1d_or_2d.shape) == 1:
-            data_1d_or_2d = np.concatenate(
-                [data_1d_or_2d, np.zeros(-delta)], axis=0
-            )
+            data_1d_or_2d = np.concatenate([data_1d_or_2d, np.zeros(-delta)], axis=0)
         else:
             data_1d_or_2d = np.concatenate(
-                [data_1d_or_2d, np.zeros((-delta, data_1d_or_2d.shape[1]))],
-                axis=0
+                [data_1d_or_2d, np.zeros((-delta, data_1d_or_2d.shape[1]))], axis=0
             )
     return data_1d_or_2d
 
 
 def extract_logmel_spectrogram(
-        waveform: torch.Tensor, sample_rate: int,
-        output_path: Optional[Path] = None, win_length: int = 1024,
-        hop_length: int = 256, n_fft: int = 1024,
-        win_fn: callable = torch.hann_window, n_mels: int = 80,
-        f_min: float = 0., f_max: float = 8000, eps: float = 1e-5,
-        overwrite: bool = False, target_length: Optional[int] = None
+    waveform: torch.Tensor,
+    sample_rate: int,
+    output_path: Optional[Path] = None,
+    win_length: int = 1024,
+    hop_length: int = 256,
+    n_fft: int = 1024,
+    win_fn: callable = torch.hann_window,
+    n_mels: int = 80,
+    f_min: float = 0.0,
+    f_max: float = 8000,
+    eps: float = 1e-5,
+    overwrite: bool = False,
+    target_length: Optional[int] = None,
 ):
     if output_path is not None and output_path.is_file() and not overwrite:
         return
 
     spectrogram_transform = TTSSpectrogram(
-        n_fft=n_fft, win_length=win_length, hop_length=hop_length,
-        window_fn=win_fn
+        n_fft=n_fft, win_length=win_length, hop_length=hop_length, window_fn=win_fn
     )
     mel_scale_transform = TTSMelScale(
-        n_mels=n_mels, sample_rate=sample_rate, f_min=f_min, f_max=f_max,
-        n_stft=n_fft // 2 + 1
+        n_mels=n_mels,
+        sample_rate=sample_rate,
+        f_min=f_min,
+        f_max=f_max,
+        n_stft=n_fft // 2 + 1,
     )
     spectrogram = spectrogram_transform(waveform)
     mel_spec = mel_scale_transform(spectrogram)
@@ -77,9 +87,12 @@ def extract_logmel_spectrogram(
 
 
 def extract_pitch(
-        waveform: torch.Tensor, sample_rate: int,
-        output_path: Optional[Path] = None, hop_length: int = 256,
-        log_scale: bool = True, phoneme_durations: Optional[List[int]] = None
+    waveform: torch.Tensor,
+    sample_rate: int,
+    output_path: Optional[Path] = None,
+    hop_length: int = 256,
+    log_scale: bool = True,
+    phoneme_durations: Optional[List[int]] = None,
 ):
     if output_path is not None and output_path.is_file():
         return
@@ -119,7 +132,7 @@ def extract_pitch(
         d_cumsum = np.cumsum(np.concatenate([np.array([0]), phoneme_durations]))
         pitch = np.array(
             [
-                np.mean(pitch[d_cumsum[i-1]: d_cumsum[i]])
+                np.mean(pitch[d_cumsum[i - 1] : d_cumsum[i]])
                 for i in range(1, len(d_cumsum))
             ]
         )
@@ -135,9 +148,12 @@ def extract_pitch(
 
 
 def extract_energy(
-        waveform: torch.Tensor, output_path: Optional[Path] = None,
-        hop_length: int = 256, n_fft: int = 1024, log_scale: bool = True,
-        phoneme_durations: Optional[List[int]] = None
+    waveform: torch.Tensor,
+    output_path: Optional[Path] = None,
+    hop_length: int = 256,
+    n_fft: int = 1024,
+    log_scale: bool = True,
+    phoneme_durations: Optional[List[int]] = None,
 ):
     if output_path is not None and output_path.is_file():
         return
@@ -145,26 +161,22 @@ def extract_energy(
     assert len(waveform.shape) == 2 and waveform.shape[0] == 1
     waveform = waveform.view(1, 1, waveform.shape[1])
     waveform = F.pad(
-        waveform.unsqueeze(1), [n_fft // 2, n_fft // 2, 0, 0],
-        mode="reflect"
+        waveform.unsqueeze(1), [n_fft // 2, n_fft // 2, 0, 0], mode="reflect"
     )
     waveform = waveform.squeeze(1)
 
     fourier_basis = np.fft.fft(np.eye(n_fft))
     cutoff = int((n_fft / 2 + 1))
     fourier_basis = np.vstack(
-        [np.real(fourier_basis[:cutoff, :]),
-         np.imag(fourier_basis[:cutoff, :])]
+        [np.real(fourier_basis[:cutoff, :]), np.imag(fourier_basis[:cutoff, :])]
     )
 
     forward_basis = torch.FloatTensor(fourier_basis[:, None, :])
-    forward_transform = F.conv1d(
-        waveform, forward_basis, stride=hop_length, padding=0
-    )
+    forward_transform = F.conv1d(waveform, forward_basis, stride=hop_length, padding=0)
 
     real_part = forward_transform[:, :cutoff, :]
     imag_part = forward_transform[:, cutoff:, :]
-    magnitude = torch.sqrt(real_part ** 2 + imag_part ** 2)
+    magnitude = torch.sqrt(real_part**2 + imag_part**2)
     energy = torch.norm(magnitude, dim=1).squeeze(0).numpy()
 
     if phoneme_durations is not None:
@@ -172,7 +184,7 @@ def extract_energy(
         d_cumsum = np.cumsum(np.concatenate([np.array([0]), phoneme_durations]))
         energy = np.array(
             [
-                np.mean(energy[d_cumsum[i - 1]: d_cumsum[i]])
+                np.mean(energy[d_cumsum[i - 1] : d_cumsum[i]])
                 for i in range(1, len(d_cumsum))
             ]
         )
@@ -191,7 +203,7 @@ def get_global_cmvn(feature_root: Path, output_path: Optional[Path] = None):
     mean_x, mean_x2, n_frames = None, None, 0
     feature_paths = feature_root.glob("*.npy")
     for p in tqdm(feature_paths):
-        with open(p, 'rb') as f:
+        with open(p, "rb") as f:
             frames = np.load(f).squeeze()
 
         n_frames += frames.shape[0]
@@ -202,7 +214,7 @@ def get_global_cmvn(feature_root: Path, output_path: Optional[Path] = None):
         else:
             mean_x += cur_mean_x
 
-        cur_mean_x2 = (frames ** 2).sum(axis=0)
+        cur_mean_x2 = (frames**2).sum(axis=0)
         if mean_x2 is None:
             mean_x2 = cur_mean_x2
         else:
@@ -210,11 +222,11 @@ def get_global_cmvn(feature_root: Path, output_path: Optional[Path] = None):
 
     mean_x /= n_frames
     mean_x2 /= n_frames
-    var_x = mean_x2 - mean_x ** 2
+    var_x = mean_x2 - mean_x**2
     std_x = np.sqrt(np.maximum(var_x, 1e-10))
 
     if output_path is not None:
-        with open(output_path, 'wb') as f:
+        with open(output_path, "wb") as f:
             np.savez(f, mean=mean_x, std=std_x)
     else:
         return {"mean": mean_x, "std": std_x}
@@ -225,24 +237,24 @@ def ipa_phonemize(text, lang="en-us", use_g2p=False):
         assert lang == "en-us", "g2pE phonemizer only works for en-us"
         try:
             from g2p_en import G2p
+
             g2p = G2p()
             return " ".join("|" if p == " " else p for p in g2p(text))
         except ImportError:
-            raise ImportError(
-                "Please install phonemizer: pip install g2p_en"
-            )
+            raise ImportError("Please install phonemizer: pip install g2p_en")
     else:
         try:
             from phonemizer import phonemize
             from phonemizer.separator import Separator
+
             return phonemize(
-                text, backend='espeak', language=lang,
-                separator=Separator(word="| ", phone=" ")
+                text,
+                backend="espeak",
+                language=lang,
+                separator=Separator(word="| ", phone=" "),
             )
         except ImportError:
-            raise ImportError(
-                "Please install phonemizer: pip install phonemizer"
-            )
+            raise ImportError("Please install phonemizer: pip install phonemizer")
 
 
 @dataclass
@@ -254,8 +266,11 @@ class ForceAlignmentInfo(object):
 
 
 def get_mfa_alignment_by_sample_id(
-        textgrid_zip_path: str, sample_id: str, sample_rate: int,
-        hop_length: int, silence_phones: List[str] = ("sil", "sp", "spn")
+    textgrid_zip_path: str,
+    sample_id: str,
+    sample_rate: int,
+    hop_length: int,
+    silence_phones: List[str] = ("sil", "sp", "spn"),
 ) -> ForceAlignmentInfo:
     try:
         import tgt
@@ -291,28 +306,26 @@ def get_mfa_alignment_by_sample_id(
     frame_durations = frame_durations[:end_idx]
 
     return ForceAlignmentInfo(
-        tokens=phones, frame_durations=frame_durations, start_sec=start_sec,
-        end_sec=end_sec
+        tokens=phones,
+        frame_durations=frame_durations,
+        start_sec=start_sec,
+        end_sec=end_sec,
     )
 
 
 def get_mfa_alignment(
-        textgrid_zip_path: str, sample_ids: List[str], sample_rate: int,
-        hop_length: int
+    textgrid_zip_path: str, sample_ids: List[str], sample_rate: int, hop_length: int
 ) -> Dict[str, ForceAlignmentInfo]:
     return {
-        i: get_mfa_alignment_by_sample_id(
-            textgrid_zip_path, i, sample_rate, hop_length
-        ) for i in tqdm(sample_ids)
+        i: get_mfa_alignment_by_sample_id(textgrid_zip_path, i, sample_rate, hop_length)
+        for i in tqdm(sample_ids)
     }
 
 
 def get_unit_alignment(
-        id_to_unit_tsv_path: str, sample_ids: List[str]
+    id_to_unit_tsv_path: str, sample_ids: List[str]
 ) -> Dict[str, ForceAlignmentInfo]:
-    id_to_units = {
-        e["id"]: e["units"] for e in load_tsv_to_dicts(id_to_unit_tsv_path)
-    }
+    id_to_units = {e["id"]: e["units"] for e in load_tsv_to_dicts(id_to_unit_tsv_path)}
     id_to_units = {i: id_to_units[i].split() for i in sample_ids}
     id_to_units_collapsed = {
         i: [uu for uu, _ in groupby(u)] for i, u in id_to_units.items()
@@ -323,8 +336,10 @@ def get_unit_alignment(
 
     return {
         i: ForceAlignmentInfo(
-            tokens=id_to_units_collapsed[i], frame_durations=id_to_durations[i],
-            start_sec=None, end_sec=None
+            tokens=id_to_units_collapsed[i],
+            frame_durations=id_to_durations[i],
+            start_sec=None,
+            end_sec=None,
         )
         for i in sample_ids
     }

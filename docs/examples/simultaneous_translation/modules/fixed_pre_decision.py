@@ -9,7 +9,7 @@ from . import register_monotonic_attention
 from .monotonic_multihead_attention import (
     MonotonicAttention,
     MonotonicInfiniteLookbackAttention,
-    WaitKAttention
+    WaitKAttention,
 )
 from typing import Dict, Optional
 
@@ -43,7 +43,7 @@ def fixed_pooling_monotonic_attention(monotonic_attention):
                             k = key[
                                 :,
                                 :,
-                                self.pre_decision_ratio - 1:: self.pre_decision_ratio,
+                                self.pre_decision_ratio - 1 :: self.pre_decision_ratio,
                             ].contiguous()
                             if key.size(-1) % self.pre_decision_ratio != 0:
                                 k = torch.cat([k, key[:, :, -1:]], dim=-1).contiguous()
@@ -99,7 +99,9 @@ def fixed_pooling_monotonic_attention(monotonic_attention):
                 query: Optional[Tensor],
                 key: Optional[Tensor],
                 key_padding_mask: Optional[Tensor] = None,
-                incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
+                incremental_state: Optional[
+                    Dict[str, Dict[str, Optional[Tensor]]]
+                ] = None,
             ):
                 assert key is not None
                 assert query is not None
@@ -146,12 +148,10 @@ def fixed_pooling_monotonic_attention(monotonic_attention):
                         [
                             p_choose,
                             torch.zeros(
-                                p_choose.size(0),
-                                tgt_len,
-                                src_len - p_choose.size(-1)
-                            ).to(p_choose)
+                                p_choose.size(0), tgt_len, src_len - p_choose.size(-1)
+                            ).to(p_choose),
                         ],
-                        dim=2
+                        dim=2,
                     )
                 else:
                     # can be larger than src_len because we used ceil before

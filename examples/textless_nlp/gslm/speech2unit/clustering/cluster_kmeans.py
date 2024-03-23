@@ -174,9 +174,7 @@ def main(args, logger):
             )
         )
         if args.out_features_path:
-            logger.info(
-                f"Saved extracted features at {args.out_features_path}"
-            )
+            logger.info(f"Saved extracted features at {args.out_features_path}")
     logger.info(f"Features shape = {features_batch.shape}\n")
 
     # Learn and save K-means model

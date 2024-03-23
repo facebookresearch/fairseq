@@ -12,7 +12,9 @@ MAX_WAV_VALUE = 32768.0
 
 parser = argparse.ArgumentParser(description="")
 parser.add_argument("tsv", help="")
-parser.add_argument("--extractor", choices=["crepe", "pyaapt"], default="pyaapt", help="")
+parser.add_argument(
+    "--extractor", choices=["crepe", "pyaapt"], default="pyaapt", help=""
+)
 parser.add_argument("--interp", action="store_true", help="")
 parser.add_argument("--n_workers", type=int, default=40, help="")
 args = parser.parse_args()
@@ -34,14 +36,19 @@ def extract_f0(tsv_line):
         wav = np.pad(wav.squeeze(), (pad, pad), "constant", constant_values=0)
         signal = basic.SignalObj(wav, sr)
         pitch = pYAAPT.yaapt(
-                signal,
-                **{
-                    'frame_length': frame_length,
-                    'frame_space': 5.0,
-                    'nccf_thresh1': 0.25,
-                    'tda_frame_length': 25.0
-                })
-        pitch = pitch.samp_interp[None, None, :] if args.interp else pitch.samp_values[None, None, :]
+            signal,
+            **{
+                "frame_length": frame_length,
+                "frame_space": 5.0,
+                "nccf_thresh1": 0.25,
+                "tda_frame_length": 25.0,
+            }
+        )
+        pitch = (
+            pitch.samp_interp[None, None, :]
+            if args.interp
+            else pitch.samp_values[None, None, :]
+        )
         pitch = pitch[0, 0]
         f0_path = wav_path.replace(".wav", ".yaapt")
         f0_path += ".interp.f0" if args.interp else ".f0"

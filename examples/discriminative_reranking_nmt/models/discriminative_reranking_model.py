@@ -27,9 +27,9 @@ SENTENCE_REP_CHOICES = ChoiceEnum(["head", "meanpool", "maxpool"])
 
 def update_init_roberta_model_state(state):
     """
-   update the state_dict of a Roberta model for initializing
-   weights of the BertRanker
-   """
+    update the state_dict of a Roberta model for initializing
+    weights of the BertRanker
+    """
     for k in list(state.keys()):
         if ".lm_head." in k or "version" in k:
             del state[k]

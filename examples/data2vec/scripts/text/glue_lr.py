@@ -23,7 +23,9 @@ def get_best_stat_str(task_vals, show_subdir):
     task_to_best_dir = {}
     for task, subdir_to_val in task_vals.items():
         task_to_best_val[task] = max(subdir_to_val.values())
-        task_to_best_dir[task] = max(subdir_to_val.keys(), key=lambda x: subdir_to_val[x])
+        task_to_best_dir[task] = max(
+            subdir_to_val.keys(), key=lambda x: subdir_to_val[x]
+        )
 
     # import pdb; pdb.set_trace()
     N1 = len(task_to_best_val)
@@ -34,7 +36,7 @@ def get_best_stat_str(task_vals, show_subdir):
     try:
         msg = ""
         for task in TASKS:
-            dir = task_to_best_dir.get(task, 'null')
+            dir = task_to_best_dir.get(task, "null")
             val = task_to_best_val.get(task, -100)
             msg += f"({dir}, {val})\t" if show_subdir else f"{val}\t"
         msg += f"{avg1:.2f}\t{avg2:.2f}"
@@ -43,6 +45,7 @@ def get_best_stat_str(task_vals, show_subdir):
         msg += str(sorted(task_vals.items()))
     return msg
 
+
 def get_all_stat_str(task_vals):
     msg = ""
     for task in [task for task in TASKS if task in task_vals]:
@@ -50,6 +53,7 @@ def get_all_stat_str(task_vals):
         for subdir in sorted(task_vals[task].keys()):
             msg += f"\t{subdir}\t{task_vals[task][subdir]}\n"
     return msg
+
 
 def get_tabular_stat_str(task_vals):
     """assume subdir is <param>/run_*/0"""
@@ -64,8 +68,8 @@ def get_tabular_stat_str(task_vals):
             param_to_runs[param][run] = task_vals[task][subdir]
         params = sorted(param_to_runs, key=lambda x: float(x))
         runs = sorted(set(run for runs in param_to_runs.values() for run in runs))
-        msg += ("runs:" + "\t".join(runs) + "\n")
-        msg += ("params:" + "\t".join(params) + "\n")
+        msg += "runs:" + "\t".join(runs) + "\n"
+        msg += "params:" + "\t".join(params) + "\n"
         for param in params:
             msg += "\t".join([str(param_to_runs[param].get(run, None)) for run in runs])
             msg += "\n"
@@ -73,13 +77,22 @@ def get_tabular_stat_str(task_vals):
         #     msg += f"\t{subdir}\t{task_vals[task][subdir]}\n"
     return msg
 
-   
 
 def main():
-    parser.add_argument("--show_glue", action="store_true", help="show glue metric for each task instead of accuracy")
+    parser.add_argument(
+        "--show_glue",
+        action="store_true",
+        help="show glue metric for each task instead of accuracy",
+    )
     parser.add_argument("--print_mode", default="best", help="best|all|tabular")
-    parser.add_argument("--show_subdir", action="store_true", help="print the subdir that has the best results for each run")
-    parser.add_argument("--override_target", default="valid_accuracy", help="override target")
+    parser.add_argument(
+        "--show_subdir",
+        action="store_true",
+        help="print the subdir that has the best results for each run",
+    )
+    parser.add_argument(
+        "--override_target", default="valid_accuracy", help="override target"
+    )
 
     args = parser.parse_args()
     args.target = args.override_target
@@ -87,8 +100,8 @@ def main():
     args.best = True
     args.last = 0
     args.path_contains = None
-    
-    res =  valids_main(args, print_output=False)
+
+    res = valids_main(args, print_output=False)
     grouped_acc = {}
     grouped_met = {}  # use official metric for each task
     for path, v in res.items():
@@ -108,7 +121,9 @@ def main():
 
         if v is not None:
             grouped_acc[run][task][subdir] = float(v.get("valid_accuracy", -100))
-            grouped_met[run][task][subdir] = float(v.get(f"valid_{TASK_TO_METRIC[task]}", -100))
+            grouped_met[run][task][subdir] = float(
+                v.get(f"valid_{TASK_TO_METRIC[task]}", -100)
+            )
         else:
             print(f"{path} has None return")
 
@@ -138,6 +153,7 @@ def main():
         else:
             raise ValueError(args.print_mode)
         print()
+
 
 if __name__ == "__main__":
     main()

@@ -62,8 +62,7 @@ class InceptionBlock(nn.Module):
             self.gating_b3 = SelfGating(num_outputs_3_0b)
 
     def forward(self, input):
-        """Inception block
-      """
+        """Inception block"""
         b0 = self.conv_b0(input)
         b1 = self.conv_b1_a(input)
         b1 = self.conv_b1_b(b1)
@@ -85,8 +84,7 @@ class SelfGating(nn.Module):
         self.fc = nn.Linear(input_dim, input_dim)
 
     def forward(self, input_tensor):
-        """Feature gating as used in S3D-G.
-      """
+        """Feature gating as used in S3D-G."""
         spatiotemporal_average = th.mean(input_tensor, dim=[2, 3, 4])
         weights = self.fc(spatiotemporal_average)
         weights = th.sigmoid(weights)
@@ -237,7 +235,7 @@ class Sentence_Embedding(nn.Module):
         x = F.relu(self.fc1(x))
         x = th.max(x, dim=1)[0]
         x = self.fc2(x)
-        return {'text_embedding': x}
+        return {"text_embedding": x}
 
 
 class S3D(nn.Module):
@@ -295,12 +293,10 @@ class S3D(nn.Module):
             self.mixed_5b.output_dim, 384, 192, 384, 48, 128, 128
         )
         self.fc = nn.Linear(self.mixed_5c.output_dim, num_classes)
-        self.text_module = Sentence_Embedding(num_classes,
-            token_to_word_path=dict_path)
+        self.text_module = Sentence_Embedding(num_classes, token_to_word_path=dict_path)
 
     def _space_to_depth(self, input):
-        """3D space to depth trick for TPU optimization.
-      """
+        """3D space to depth trick for TPU optimization."""
         B, C, T, H, W = input.shape
         input = input.view(B, C, T // 2, 2, H // 2, 2, W // 2, 2)
         input = input.permute(0, 3, 5, 7, 1, 2, 4, 6)
@@ -333,4 +329,4 @@ class S3D(nn.Module):
         net = self.mixed_5b(net)
         net = self.mixed_5c(net)
         net = th.mean(net, dim=[2, 3, 4])
-        return {'video_embedding': self.fc(net), 'mixed_5c': net}
+        return {"video_embedding": self.fc(net), "mixed_5c": net}

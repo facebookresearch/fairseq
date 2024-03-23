@@ -20,9 +20,7 @@ class HubertFeatureReader:
             model,
             cfg,
             task,
-        ) = fairseq.checkpoint_utils.load_model_ensemble_and_task(
-            [checkpoint_path]
-        )
+        ) = fairseq.checkpoint_utils.load_model_ensemble_and_task([checkpoint_path])
         self.model = model[0].eval()
         self.task = task
         self.layer = layer
@@ -34,11 +32,11 @@ class HubertFeatureReader:
     def read_audio(self, path, ref_len=None, channel_id=None):
         wav, sr = sf.read(path)
         if channel_id is not None:
-            assert wav.ndim == 2, \
-                f"Expected stereo input when channel_id is given ({path})"
-            assert channel_id in [1, 2], \
-                "channel_id is expected to be in [1, 2]"
-            wav = wav[:, channel_id-1]
+            assert (
+                wav.ndim == 2
+            ), f"Expected stereo input when channel_id is given ({path})"
+            assert channel_id in [1, 2], "channel_id is expected to be in [1, 2]"
+            wav = wav[:, channel_id - 1]
         if wav.ndim == 2:
             wav = wav.mean(-1)
         assert wav.ndim == 1, wav.ndim
@@ -59,7 +57,7 @@ class HubertFeatureReader:
 
             feat = []
             for start in range(0, x.size(1), self.max_chunk):
-                x_chunk = x[:, start: start + self.max_chunk]
+                x_chunk = x[:, start : start + self.max_chunk]
                 feat_chunk, _ = self.model.extract_features(
                     source=x_chunk,
                     padding_mask=None,

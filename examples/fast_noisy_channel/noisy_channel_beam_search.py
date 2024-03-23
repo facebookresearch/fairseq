@@ -8,7 +8,6 @@ from fairseq.search import Search
 
 
 class NoisyChannelBeamSearch(Search):
-
     def __init__(self, tgt_dict):
         super().__init__(tgt_dict)
         self.fw_scores_buf = None
@@ -46,10 +45,12 @@ class NoisyChannelBeamSearch(Search):
 
         else:
             # make probs contain cumulative scores for each hypothesis
-            raw_scores = (scores[:, :, step - 1].unsqueeze(-1))
-            fw_lprobs_cum = (fw_lprobs.add(raw_scores))
+            raw_scores = scores[:, :, step - 1].unsqueeze(-1)
+            fw_lprobs_cum = fw_lprobs.add(raw_scores)
 
-        combined_lprobs = self.combine_fw_bw(combine_method, fw_lprobs_cum, bw_lprobs, step)
+        combined_lprobs = self.combine_fw_bw(
+            combine_method, fw_lprobs_cum, bw_lprobs, step
+        )
 
         # choose the top k according to the combined noisy channel model score
         torch.topk(
@@ -63,9 +64,17 @@ class NoisyChannelBeamSearch(Search):
             out=(self.scores_buf, self.indices_buf),
         )
         # save corresponding fw and lm scores
-        self.fw_scores_buf = torch.gather(fw_lprobs_cum.view(bsz, -1), 1, self.indices_buf)
+        self.fw_scores_buf = torch.gather(
+            fw_lprobs_cum.view(bsz, -1), 1, self.indices_buf
+        )
         self.lm_scores_buf = torch.gather(lm_lprobs.view(bsz, -1), 1, self.indices_buf)
         # Project back into relative indices and beams
         self.beams_buf = self.indices_buf // vocab_size
         self.indices_buf.fmod_(vocab_size)
-        return self.scores_buf, self.fw_scores_buf, self.lm_scores_buf, self.indices_buf, self.beams_buf
+        return (
+            self.scores_buf,
+            self.fw_scores_buf,
+            self.lm_scores_buf,
+            self.indices_buf,
+            self.beams_buf,
+        )

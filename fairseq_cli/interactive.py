@@ -103,6 +103,7 @@ def make_batches(lines, cfg, task, max_positions, encode_fn):
             constraints=constraints,
         )
 
+
 def main(cfg: FairseqConfig):
     if isinstance(cfg, Namespace):
         cfg = convert_namespace_to_omegaconf(cfg)
@@ -145,7 +146,8 @@ def main(cfg: FairseqConfig):
         arg_overrides=overrides,
         task=task,
         suffix=cfg.checkpoint.checkpoint_suffix,
-        strict=(cfg.checkpoint.checkpoint_shard_count == 1),
+        strict=(cfg.checkpoint.checkpoint_shard_count == 1)
+        and not cfg.checkpoint.load_checkpoint_liberally,
         num_shards=cfg.checkpoint.checkpoint_shard_count,
     )
 
@@ -163,7 +165,8 @@ def main(cfg: FairseqConfig):
             model.cuda()
         model.prepare_for_inference_(cfg)
 
-        
+        model.eval()
+
         if cfg.interactive.activate_encoder_adapter is not None:
             logging.info(
                 "using {} adapters in encoder".format(
@@ -240,7 +243,7 @@ def main(cfg: FairseqConfig):
                     "src_lengths": src_lengths,
                 },
             }
-            
+
             translate_start_time = time.time()
             translations = task.inference_step(
                 generator, models, sample, constraints=constraints

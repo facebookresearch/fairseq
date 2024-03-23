@@ -15,9 +15,7 @@ class Wav2VecFeatureReader:
     """
 
     def __init__(self, checkpoint_path, layer, use_cuda=True):
-        state = fairseq.checkpoint_utils.load_checkpoint_to_cpu(
-            checkpoint_path
-        )
+        state = fairseq.checkpoint_utils.load_checkpoint_to_cpu(checkpoint_path)
 
         w2v_args = state["args"]
         self.task = fairseq.tasks.setup_task(w2v_args)
@@ -33,11 +31,11 @@ class Wav2VecFeatureReader:
     def read_audio(self, fname, channel_id=None):
         wav, sr = sf.read(fname)
         if channel_id is not None:
-            assert wav.ndim == 2, \
-                f"Expected stereo input when channel_id is given ({fname})"
-            assert channel_id in [1, 2], \
-                "channel_id is expected to be in [1, 2]"
-            wav = wav[:, channel_id-1]
+            assert (
+                wav.ndim == 2
+            ), f"Expected stereo input when channel_id is given ({fname})"
+            assert channel_id in [1, 2], "channel_id is expected to be in [1, 2]"
+            wav = wav[:, channel_id - 1]
         if wav.ndim == 2:
             wav = wav.mean(-1)
         assert wav.ndim == 1, wav.ndim

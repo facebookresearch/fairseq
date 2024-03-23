@@ -11,7 +11,7 @@ import torch.nn as nn
 
 from examples.simultaneous_translation.utils.p_choose_strategy import (
     learnable_p_choose,
-    waitk_p_choose
+    waitk_p_choose,
 )
 
 from examples.simultaneous_translation.utils.monotonic_attention import (
@@ -30,6 +30,7 @@ class MonotonicAttention(MultiheadAttention):
     """
     Abstract class of monotonic attentions
     """
+
     k_in_proj: Dict[str, nn.Linear]
     q_in_proj: Dict[str, nn.Linear]
 
@@ -93,7 +94,7 @@ class MonotonicAttention(MultiheadAttention):
         key: Tensor,
         energy_type: str,
         key_padding_mask: Optional[Tensor] = None,
-        bias: int = 0
+        bias: int = 0,
     ):
         """
         Compute energy from query and key
@@ -125,8 +126,7 @@ class MonotonicAttention(MultiheadAttention):
 
         if key_padding_mask is not None:
             energy = energy.masked_fill(
-                key_padding_mask.unsqueeze(1).to(torch.bool),
-                - float("inf")
+                key_padding_mask.unsqueeze(1).to(torch.bool), -float("inf")
             )
 
         return energy
@@ -141,10 +141,7 @@ class MonotonicAttention(MultiheadAttention):
         )
 
         p_choose = learnable_p_choose(
-            monotonic_energy,
-            self.noise_mean,
-            self.noise_var,
-            self.training
+            monotonic_energy, self.noise_mean, self.noise_var, self.training
         )
         return p_choose
 
@@ -169,9 +166,7 @@ class MonotonicAttention(MultiheadAttention):
                 "Simultaneous translation models don't support batch decoding."
             )
         # 1. compute stepwise probability
-        p_choose = self.p_choose(
-            query, key, None, incremental_state
-        ).squeeze(1)
+        p_choose = self.p_choose(query, key, None, incremental_state).squeeze(1)
 
         # 2. Compute the alpha
         src_len = key.size(0)
@@ -180,8 +175,7 @@ class MonotonicAttention(MultiheadAttention):
         monotonic_cache = self._get_monotonic_buffer(incremental_state)
         # Step for each head
         monotonic_step = monotonic_cache.get(
-            'head_step',
-            p_choose.new_zeros(1, self.num_heads).long()
+            "head_step", p_choose.new_zeros(1, self.num_heads).long()
         )
         assert monotonic_step is not None
         finish_read = monotonic_step.eq(max_steps)
@@ -191,18 +185,13 @@ class MonotonicAttention(MultiheadAttention):
             # p_choose: self.num_heads, src_len
             # only choose the p at monotonic steps
             # p_choose_i: 1, self.num_heads
-            p_choose_i = (
-                p_choose.gather(
-                    1,
-                    monotonic_step
-                    .clamp(0, src_len - 1),
-                )
+            p_choose_i = p_choose.gather(
+                1,
+                monotonic_step.clamp(0, src_len - 1),
             )
 
             read_one_step = (
-                (p_choose_i < 0.5)
-                .type_as(monotonic_step)
-                .masked_fill(finish_read, 0)
+                (p_choose_i < 0.5).type_as(monotonic_step).masked_fill(finish_read, 0)
             )
             # 1 x bsz
             # sample actions on unfinished seq
@@ -214,50 +203,34 @@ class MonotonicAttention(MultiheadAttention):
             finish_read = monotonic_step.eq(max_steps) | (read_one_step == 0)
 
         # p_choose at last steps
-        p_choose_i = (
-            p_choose.gather(
-                1,
-                monotonic_step
-                .clamp(0, src_len - 1),
-            )
+        p_choose_i = p_choose.gather(
+            1,
+            monotonic_step.clamp(0, src_len - 1),
         )
 
         monotonic_cache["head_step"] = monotonic_step
         # Whether a head is looking for new input
-        monotonic_cache["head_read"] = (
-            monotonic_step.eq(max_steps) & (p_choose_i < 0.5)
-        )
+        monotonic_cache["head_read"] = monotonic_step.eq(max_steps) & (p_choose_i < 0.5)
         self._set_monotonic_buffer(incremental_state, monotonic_cache)
 
         # 2. Update alpha
-        alpha = (
-            p_choose
-            .new_zeros([self.num_heads, src_len])
-            .scatter(
-                1,
-                (monotonic_step)
-                .view(self.num_heads, 1).clamp(0, src_len - 1),
-                1
-            )
+        alpha = p_choose.new_zeros([self.num_heads, src_len]).scatter(
+            1, (monotonic_step).view(self.num_heads, 1).clamp(0, src_len - 1), 1
         )
 
         if not self.mass_preservation:
             alpha = alpha.masked_fill(
-                (monotonic_step == max_steps)
-                .view(self.num_heads, 1),
-                0
+                (monotonic_step == max_steps).view(self.num_heads, 1), 0
             )
 
         # 4. Compute Beta
         if self.soft_attention:
             monotonic_step = monotonic_step.t()
-            beta_mask = torch.arange(src_len).expand_as(alpha).gt(monotonic_step).unsqueeze(1)
-            # If it's soft attention just do softmax on current context
-            soft_energy = self.energy_from_qk(
-                query,
-                key,
-                "soft"
+            beta_mask = (
+                torch.arange(src_len).expand_as(alpha).gt(monotonic_step).unsqueeze(1)
             )
+            # If it's soft attention just do softmax on current context
+            soft_energy = self.energy_from_qk(query, key, "soft")
             beta = torch.nn.functional.softmax(
                 soft_energy.masked_fill(beta_mask, -float("inf")), dim=-1
             )
@@ -296,9 +269,7 @@ class MonotonicAttention(MultiheadAttention):
         )
 
         if self.mass_preservation:
-            alpha = mass_preservation(
-                alpha, key_padding_mask
-            )
+            alpha = mass_preservation(alpha, key_padding_mask)
 
         # 3. compute expected soft attention (soft aligned model only)
         if self.soft_attention:
@@ -330,7 +301,9 @@ class MonotonicAttention(MultiheadAttention):
         key_padding_mask: Optional[Tensor] = None,
         attn_mask: Optional[Tensor] = None,
         incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]] = None,
-        need_weights: bool = True, static_kv: bool = False, need_head_weights: bool = False,
+        need_weights: bool = True,
+        static_kv: bool = False,
+        need_head_weights: bool = False,
     ):
         """
         query: tgt_len, bsz, embed_dim
@@ -347,12 +320,9 @@ class MonotonicAttention(MultiheadAttention):
         src_len = value.size(0)
 
         if key_padding_mask is not None:
-            assert not key_padding_mask[:, 0].any(), (
-                "Only right padding is supported."
-            )
+            assert not key_padding_mask[:, 0].any(), "Only right padding is supported."
             key_padding_mask = (
-                key_padding_mask
-                .unsqueeze(1)
+                key_padding_mask.unsqueeze(1)
                 .expand([bsz, self.num_heads, src_len])
                 .contiguous()
                 .view(-1, src_len)
@@ -360,19 +330,18 @@ class MonotonicAttention(MultiheadAttention):
 
         if incremental_state is not None:
             # Inference
-            (
-                p_choose, alpha, beta
-            ) = self.monotonic_attention_process_infer(
+            (p_choose, alpha, beta) = self.monotonic_attention_process_infer(
                 query, key, incremental_state
             )
             soft_energy = beta
         else:
             # Train
             (
-                p_choose, alpha, beta, soft_energy
-            ) = self.monotonic_attention_process_train(
-                query, key, key_padding_mask
-            )
+                p_choose,
+                alpha,
+                beta,
+                soft_energy,
+            ) = self.monotonic_attention_process_train(query, key, key_padding_mask)
 
         v = self.v_proj(value)
         length, bsz, _ = v.size()
@@ -398,10 +367,12 @@ class MonotonicAttention(MultiheadAttention):
             "beta": beta,
         }
 
-    def _get_monotonic_buffer(self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]):
+    def _get_monotonic_buffer(
+        self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]]
+    ):
         maybe_incremental_state = self.get_incremental_state(
             incremental_state,
-            'monotonic',
+            "monotonic",
         )
         if maybe_incremental_state is None:
             typed_empty_dict: Dict[str, Optional[Tensor]] = {}
@@ -409,18 +380,20 @@ class MonotonicAttention(MultiheadAttention):
         else:
             return maybe_incremental_state
 
-    def _set_monotonic_buffer(self, incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]], buffer: Dict[str, Optional[Tensor]]):
+    def _set_monotonic_buffer(
+        self,
+        incremental_state: Optional[Dict[str, Dict[str, Optional[Tensor]]]],
+        buffer: Dict[str, Optional[Tensor]],
+    ):
         self.set_incremental_state(
             incremental_state,
-            'monotonic',
+            "monotonic",
             buffer,
         )
 
 
 @register_monotonic_attention("infinite_lookback")
-class MonotonicInfiniteLookbackAttention(
-    MonotonicAttention
-):
+class MonotonicInfiniteLookbackAttention(MonotonicAttention):
     def __init__(self, args):
         super().__init__(args)
         self.soft_attention = True
@@ -447,29 +420,27 @@ class MonotonicInfiniteLookbackAttention(
 
 
 @register_monotonic_attention("waitk")
-class WaitKAttention(
-    MonotonicInfiniteLookbackAttention
-):
+class WaitKAttention(MonotonicInfiniteLookbackAttention):
     """
     STACL: Simultaneous Translation with Implicit Anticipation and
     Controllable Latency using Prefix-to-Prefix Framework
     https://www.aclweb.org/anthology/P19-1289/
     """
+
     def __init__(self, args):
         super().__init__(args)
         self.q_in_proj["soft"] = self.q_in_proj["monotonic"]
         self.k_in_proj["soft"] = self.k_in_proj["monotonic"]
 
         self.waitk_lagging = args.waitk_lagging
-        assert self.waitk_lagging > 0, (
-            f"Lagging has to been larger than 0, get {self.waitk_lagging}."
-        )
+        assert (
+            self.waitk_lagging > 0
+        ), f"Lagging has to been larger than 0, get {self.waitk_lagging}."
 
     @staticmethod
     def add_args(parser):
         super(
-            MonotonicInfiniteLookbackAttention,
-            MonotonicInfiniteLookbackAttention
+            MonotonicInfiniteLookbackAttention, MonotonicInfiniteLookbackAttention
         ).add_args(parser)
 
         parser.add_argument(
@@ -499,9 +470,7 @@ class WaitKAttention(
 
 
 @register_monotonic_attention("chunkwise")
-class ChunkwiseAttention(
-    MonotonicInfiniteLookbackAttention
-):
+class ChunkwiseAttention(MonotonicInfiniteLookbackAttention):
     def __init__(self, args):
         super().__init__(args)
         self.chunk_size = args.mocha_chunk_size
@@ -509,11 +478,8 @@ class ChunkwiseAttention(
 
     @staticmethod
     def add_args(parser):
-        super(
-            MonotonicInfiniteLookbackAttention
-        ).add_args(parser)
+        super(MonotonicInfiniteLookbackAttention).add_args(parser)
 
         parser.add_argument(
-            "--mocha-chunk-size", type=int,
-            required=True, help="Mocha chunk size"
+            "--mocha-chunk-size", type=int, required=True, help="Mocha chunk size"
         )

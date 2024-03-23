@@ -92,7 +92,9 @@ class SpeechTextJointToTextTask(SpeechToTextTask):
             help="use mixed data in one update when update-freq  > 1",
         )
         parser.add_argument(
-            "--load-speech-only", action="store_true", help="load speech data only",
+            "--load-speech-only",
+            action="store_true",
+            help="load speech data only",
         )
         parser.add_argument(
             "--mask-text-ratio",
@@ -258,7 +260,9 @@ class SpeechTextJointToTextTask(SpeechToTextTask):
         text_dataset = None
         if self.args.parallel_text_data != "" and is_train_split:
             text_dataset = self.load_langpair_dataset(
-                self.data_cfg.prepend_tgt_lang_tag_no_change, 1.0, epoch=epoch,
+                self.data_cfg.prepend_tgt_lang_tag_no_change,
+                1.0,
+                epoch=epoch,
             )
             if self.args.mask_text_ratio > 0:
                 # add mask

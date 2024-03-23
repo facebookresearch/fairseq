@@ -13,7 +13,12 @@ import sys
 from fractions import Fraction
 import warnings
 from collections import Counter
-from nltk.translate.bleu_score import modified_precision, closest_ref_length, brevity_penalty, SmoothingFunction
+from nltk.translate.bleu_score import (
+    modified_precision,
+    closest_ref_length,
+    brevity_penalty,
+    SmoothingFunction,
+)
 
 
 def corpus_bleu(
@@ -23,7 +28,7 @@ def corpus_bleu(
     smoothing_function=None,
     auto_reweigh=False,
     averaging_mode="geometric",
-    no_length_penalty=False
+    no_length_penalty=False,
 ):
     """
     Calculate a single corpus-level BLEU score (aka. system-level BLEU) for all
@@ -104,13 +109,15 @@ def corpus_bleu(
         ref_lengths += closest_ref_length(references, hyp_len)
 
     # Calculate corpus-level brevity penalty.
-    if no_length_penalty and averaging_mode == 'geometric':
+    if no_length_penalty and averaging_mode == "geometric":
         bp = 1.0
-    elif no_length_penalty and averaging_mode == 'arithmetic':
+    elif no_length_penalty and averaging_mode == "arithmetic":
         bp = 0.0
     else:
         assert not no_length_penalty
-        assert averaging_mode != 'arithmetic', 'Not sure how to apply length penalty when aurithmetic mode'
+        assert (
+            averaging_mode != "arithmetic"
+        ), "Not sure how to apply length penalty when aurithmetic mode"
         bp = brevity_penalty(ref_lengths, hyp_lengths)
 
     # Uniformly re-weighting based on maximum hypothesis lengths if largest
@@ -159,8 +166,14 @@ def sentence_bleu(
     smoothing_function=None,
     auto_reweigh=False,
     averaging_mode="geometric",
-    no_length_penalty=False
+    no_length_penalty=False,
 ):
     return corpus_bleu(
-        [references], [hypothesis], weights, smoothing_function, auto_reweigh, averaging_mode, no_length_penalty
+        [references],
+        [hypothesis],
+        weights,
+        smoothing_function,
+        auto_reweigh,
+        averaging_mode,
+        no_length_penalty,
     )

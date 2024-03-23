@@ -38,9 +38,7 @@ def get_parser():
         help="Acoustic feature type",
     )
     parser.add_argument(
-        "--acoustic_model_path",
-        type=str,
-        help="Pretrained acoustic model checkpoint"
+        "--acoustic_model_path", type=str, help="Pretrained acoustic model checkpoint"
     )
     parser.add_argument(
         "--layer",
@@ -93,12 +91,8 @@ def main(args, logger):
             sample_pct=1.0,
             flatten=False,
         )
-        logger.info(
-            f"Features extracted for {len(features_batch)} utterances.\n"
-        )
-        logger.info(
-            f"Dimensionality of representation = {features_batch[0].shape[1]}"
-        )
+        logger.info(f"Features extracted for {len(features_batch)} utterances.\n")
+        logger.info(f"Dimensionality of representation = {features_batch[0].shape[1]}")
 
     # K-means model
     logger.info(f"Loading K-means model from {args.kmeans_model_path} ...")

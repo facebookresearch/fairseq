@@ -251,8 +251,7 @@ class CommonConfig(FairseqDataclass):
         },
     )
     run_sanity_validation_steps: bool = field(
-        default=False,
-        metadata={"help": "whether to run one validation sanity epoch"}
+        default=False, metadata={"help": "whether to run one validation sanity epoch"}
     )
 
 
@@ -782,12 +781,12 @@ class CheckpointConfig(FairseqDataclass):
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
     load_checkpoint_liberally: bool = field(
-        default=True,
+        default=False,
         metadata={
             "help": "leads the checkpoint in non-strict manner,"
             "i.e., any architecture differences can be accomodated - "
             "mainly helpful while training with adapters"
-        }
+        },
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
     model_parallel_size: int = II("common.model_parallel_size")
@@ -1112,11 +1111,11 @@ class InteractiveConfig(FairseqDataclass):
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
     activate_encoder_adapter: Optional[str] = field(
         default=None,
-        metadata={"help": "encoder language adapters to be used while evaluating"}
+        metadata={"help": "encoder language adapters to be used while evaluating"},
     )
     activate_decoder_adapter: Optional[str] = field(
         default=None,
-        metadata={"help": "decoder language adapters to be used while evaluating"}
+        metadata={"help": "decoder language adapters to be used while evaluating"},
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
@@ -1152,7 +1151,9 @@ class EMAConfig(FairseqDataclass):
 class FairseqConfig(FairseqDataclass):
     common: CommonConfig = field(default=CommonConfig)
     common_eval: CommonEvalConfig = field(default=CommonEvalConfig)
-    distributed_training: DistributedTrainingConfig = field(default=DistributedTrainingConfig)
+    distributed_training: DistributedTrainingConfig = field(
+        default=DistributedTrainingConfig
+    )
     dataset: DatasetConfig = field(default=DatasetConfig)
     optimization: OptimizationConfig = field(default=OptimizationConfig)
     checkpoint: CheckpointConfig = field(default=CheckpointConfig)

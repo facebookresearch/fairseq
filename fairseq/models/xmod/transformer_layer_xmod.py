@@ -3,7 +3,10 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from fairseq.modules.transformer_layer import TransformerEncoderLayer, TransformerDecoderLayer
+from fairseq.modules.transformer_layer import (
+    TransformerEncoderLayer,
+    TransformerDecoderLayer,
+)
 from typing import Dict, List, Optional
 import torch
 import torch.nn as nn
@@ -149,7 +152,7 @@ class XMODTransformerEncoderLayerBase(TransformerEncoderLayer):
 
         residual = x
         if self.normalize_before:
-            x = self.self_attn_layer_norm(x)   
+            x = self.self_attn_layer_norm(x)
         x, _ = self.self_attn(
             query=x,
             key=x,

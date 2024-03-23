@@ -52,10 +52,11 @@ class KDTranslationTask(TranslationTask):
         if cfg.kd_language_tags is not None:
             # dynamically recognize language tag ids
             _rev_src_dict = {i: src_dict[i] for i in range(len(src_dict))}
-            self.lang_ids = [_rev_src_dict[tag] for tag in cfg.kd_language_tags.split(",")]
+            self.lang_ids = [
+                _rev_src_dict[tag] for tag in cfg.kd_language_tags.split(",")
+            ]
         else:
             self.lang_ids = None
-
 
     def train_step(
         self,

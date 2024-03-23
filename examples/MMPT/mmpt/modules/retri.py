@@ -27,12 +27,9 @@ class VectorRetriever(object):
     def __init__(self, hidden_size, cent, db_type, examples_per_cent_to_train):
         if db_type == "flatl2":
             quantizer = faiss.IndexFlatL2(hidden_size)  # the other index
-            self.db = faiss.IndexIVFFlat(
-                quantizer, hidden_size, cent, faiss.METRIC_L2)
+            self.db = faiss.IndexIVFFlat(quantizer, hidden_size, cent, faiss.METRIC_L2)
         elif db_type == "pq":
-            self.db = faiss.index_factory(
-                    hidden_size, f"IVF{cent}_HNSW32,PQ32"
-            )
+            self.db = faiss.index_factory(hidden_size, f"IVF{cent}_HNSW32,PQ32")
         else:
             raise ValueError("unknown type of db", db_type)
         self.train_thres = cent * examples_per_cent_to_train
@@ -49,29 +46,20 @@ class VectorRetriever(object):
         return self.db.ntotal
 
     def save(self, out_dir):
-        faiss.write_index(
-            self.db,
-            os.path.join(out_dir, "faiss_idx")
-        )
-        with open(
-                os.path.join(
-                    out_dir, "videoid_to_vectoridx.pkl"),
-                "wb") as fw:
-            pickle.dump(
-                self.videoid_to_vectoridx, fw,
-                protocol=pickle.HIGHEST_PROTOCOL
-            )
+        faiss.write_index(self.db, os.path.join(out_dir, "faiss_idx"))
+        with open(os.path.join(out_dir, "videoid_to_vectoridx.pkl"), "wb") as fw:
+            pickle.dump(self.videoid_to_vectoridx, fw, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load(self, out_dir):
         fn = os.path.join(out_dir, "faiss_idx")
         self.db = faiss.read_index(fn)
-        with open(
-                os.path.join(out_dir, "videoid_to_vectoridx.pkl"), "rb") as fr:
+        with open(os.path.join(out_dir, "videoid_to_vectoridx.pkl"), "rb") as fr:
             self.videoid_to_vectoridx = pickle.load(fr)
 
     def add(self, hidden_states, video_ids, last=False):
         assert len(hidden_states) == len(video_ids), "{}, {}".format(
-            str(len(hidden_states)), str(len(video_ids)))
+            str(len(hidden_states)), str(len(video_ids))
+        )
         assert len(hidden_states.shape) == 2
         assert hidden_states.dtype == np.float32
 
@@ -79,8 +67,7 @@ class VectorRetriever(object):
         for idx, video_id in enumerate(video_ids):
             if video_id not in self.videoid_to_vectoridx:
                 valid_idx.append(idx)
-                self.videoid_to_vectoridx[video_id] = \
-                    len(self.videoid_to_vectoridx)
+                self.videoid_to_vectoridx[video_id] = len(self.videoid_to_vectoridx)
 
         hidden_states = hidden_states[valid_idx]
         if not self.db.is_trained:
@@ -99,7 +86,7 @@ class VectorRetriever(object):
         if local_rank == 0:
             start = time.time()
             print("training db on", self.train_thres, "/", self.train_len)
-        self.db.train(hidden_states[:self.train_thres])
+        self.db.train(hidden_states[: self.train_thres])
         if local_rank == 0:
             print("training db for", time.time() - start)
         self.db.add(hidden_states)
@@ -113,7 +100,7 @@ class VectorRetriever(object):
             raise ValueError(
                 "cannot search: size mismatch in-between index and db",
                 len(self.videoid_to_vectoridx),
-                self.db.ntotal
+                self.db.ntotal,
             )
 
         if self.vectoridx_to_videoid is None:
@@ -121,8 +108,7 @@ class VectorRetriever(object):
                 self.videoid_to_vectoridx[videoid]: videoid
                 for videoid in self.videoid_to_vectoridx
             }
-            assert len(self.vectoridx_to_videoid) \
-                == len(self.videoid_to_vectoridx)
+            assert len(self.vectoridx_to_videoid) == len(self.videoid_to_vectoridx)
 
         # MultilingualFaissDataset uses the following; not sure the purpose.
         # faiss.ParameterSpace().set_index_parameter(self.db, "nprobe", 10)
@@ -130,22 +116,18 @@ class VectorRetriever(object):
         queried_dist, index = queried_dist[:, 0], index[:, 0]
 
         outputs = np.array(
-            [self.vectoridx_to_videoid[_index]
-                if _index != -1 else (-1, -1, -1) for _index in index],
-            dtype=np.int32)
+            [
+                self.vectoridx_to_videoid[_index] if _index != -1 else (-1, -1, -1)
+                for _index in index
+            ],
+            dtype=np.int32,
+        )
         outputs[queried_dist <= orig_dist] = -1
         return outputs
 
-    def search_by_video_ids(
-        self,
-        video_ids,
-        retri_factor
-    ):
+    def search_by_video_ids(self, video_ids, retri_factor):
         if len(self.videoid_to_vectoridx) != self.db.ntotal:
-            raise ValueError(
-                len(self.videoid_to_vectoridx),
-                self.db.ntotal
-            )
+            raise ValueError(len(self.videoid_to_vectoridx), self.db.ntotal)
 
         if not self.make_direct_maps_done:
             self.make_direct_maps()
@@ -155,8 +137,7 @@ class VectorRetriever(object):
                 self.videoid_to_vectoridx[videoid]: videoid
                 for videoid in self.videoid_to_vectoridx
             }
-            assert len(self.vectoridx_to_videoid) \
-                == len(self.videoid_to_vectoridx)
+            assert len(self.vectoridx_to_videoid) == len(self.videoid_to_vectoridx)
 
         query_hidden_states = []
         vector_ids = []
@@ -175,11 +156,8 @@ class VectorRetriever(object):
             # the first video_id is always the video itself.
             cands = [video_ids[sample_idx]]
             for vector_idx in sample:
-                if vector_idx >= 0 \
-                        and vector_ids[sample_idx] != vector_idx:
-                    cands.append(
-                        self.vectoridx_to_videoid[vector_idx]
-                    )
+                if vector_idx >= 0 and vector_ids[sample_idx] != vector_idx:
+                    cands.append(self.vectoridx_to_videoid[vector_idx])
             outputs.append(cands)
         return outputs
 
@@ -192,15 +170,8 @@ class VectorRetrieverDM(VectorRetriever):
     https://github.com/fairinternal/fairseq-py/blob/paraphrase_pretraining/fairseq/data/multilingual_faiss_dataset.py
     """
 
-    def __init__(
-        self,
-        hidden_size,
-        cent,
-        db_type,
-        examples_per_cent_to_train
-    ):
-        super().__init__(
-            hidden_size, cent, db_type, examples_per_cent_to_train)
+    def __init__(self, hidden_size, cent, db_type, examples_per_cent_to_train):
+        super().__init__(hidden_size, cent, db_type, examples_per_cent_to_train)
         self.make_direct_maps_done = False
 
     def make_direct_maps(self):
@@ -213,10 +184,7 @@ class VectorRetrieverDM(VectorRetriever):
         orig_dist,
     ):
         if len(self.videoid_to_vectoridx) != self.db.ntotal:
-            raise ValueError(
-                len(self.videoid_to_vectoridx),
-                self.db.ntotal
-            )
+            raise ValueError(len(self.videoid_to_vectoridx), self.db.ntotal)
 
         if not self.make_direct_maps_done:
             self.make_direct_maps()
@@ -225,8 +193,7 @@ class VectorRetrieverDM(VectorRetriever):
                 self.videoid_to_vectoridx[videoid]: videoid
                 for videoid in self.videoid_to_vectoridx
             }
-            assert len(self.vectoridx_to_videoid) \
-                == len(self.videoid_to_vectoridx)
+            assert len(self.vectoridx_to_videoid) == len(self.videoid_to_vectoridx)
 
         # MultilingualFaissDataset uses the following; not sure the reason.
         # faiss.ParameterSpace().set_index_parameter(self.db, "nprobe", 10)
@@ -234,23 +201,15 @@ class VectorRetrieverDM(VectorRetriever):
         outputs = []
         for sample_idx, sample in enumerate(index):
             # and queried_dist[sample_idx] < thres \
-            if sample >= 0 \
-                    and queried_dist[sample_idx] < orig_dist[sample_idx]:
+            if sample >= 0 and queried_dist[sample_idx] < orig_dist[sample_idx]:
                 outputs.append(self.vectoridx_to_videoid[sample])
             else:
                 outputs.append(None)
         return outputs
 
-    def search_by_video_ids(
-        self,
-        video_ids,
-        retri_factor=8
-    ):
+    def search_by_video_ids(self, video_ids, retri_factor=8):
         if len(self.videoid_to_vectoridx) != self.db.ntotal:
-            raise ValueError(
-                len(self.videoid_to_vectoridx),
-                self.db.ntotal
-            )
+            raise ValueError(len(self.videoid_to_vectoridx), self.db.ntotal)
 
         if not self.make_direct_maps_done:
             self.make_direct_maps()
@@ -259,8 +218,7 @@ class VectorRetrieverDM(VectorRetriever):
                 self.videoid_to_vectoridx[videoid]: videoid
                 for videoid in self.videoid_to_vectoridx
             }
-            assert len(self.vectoridx_to_videoid) \
-                == len(self.videoid_to_vectoridx)
+            assert len(self.vectoridx_to_videoid) == len(self.videoid_to_vectoridx)
 
         query_hidden_states = []
         vector_ids = []
@@ -279,11 +237,8 @@ class VectorRetrieverDM(VectorRetriever):
             # the first video_id is always the video itself.
             cands = [video_ids[sample_idx]]
             for vector_idx in sample:
-                if vector_idx >= 0 \
-                        and vector_ids[sample_idx] != vector_idx:
-                    cands.append(
-                        self.vectoridx_to_videoid[vector_idx]
-                    )
+                if vector_idx >= 0 and vector_ids[sample_idx] != vector_idx:
+                    cands.append(self.vectoridx_to_videoid[vector_idx])
             outputs.append(cands)
         return outputs
 
@@ -295,11 +250,9 @@ class MMVectorRetriever(VectorRetrieverDM):
     """
 
     def __init__(self, hidden_size, cent, db_type, examples_per_cent_to_train):
-        super().__init__(
-            hidden_size, cent, db_type, examples_per_cent_to_train)
+        super().__init__(hidden_size, cent, db_type, examples_per_cent_to_train)
         video_db = self.db
-        super().__init__(
-            hidden_size, cent, db_type, examples_per_cent_to_train)
+        super().__init__(hidden_size, cent, db_type, examples_per_cent_to_train)
         text_db = self.db
         self.db = {"video": video_db, "text": text_db}
         self.video_to_videoid = defaultdict(list)
@@ -313,23 +266,11 @@ class MMVectorRetriever(VectorRetrieverDM):
         faiss.downcast_index(self.db["text"]).make_direct_map()
 
     def save(self, out_dir):
-        faiss.write_index(
-            self.db["video"],
-            os.path.join(out_dir, "video_faiss_idx")
-        )
-        faiss.write_index(
-            self.db["text"],
-            os.path.join(out_dir, "text_faiss_idx")
-        )
+        faiss.write_index(self.db["video"], os.path.join(out_dir, "video_faiss_idx"))
+        faiss.write_index(self.db["text"], os.path.join(out_dir, "text_faiss_idx"))
 
-        with open(
-                os.path.join(
-                    out_dir, "videoid_to_vectoridx.pkl"),
-                "wb") as fw:
-            pickle.dump(
-                self.videoid_to_vectoridx, fw,
-                protocol=pickle.HIGHEST_PROTOCOL
-            )
+        with open(os.path.join(out_dir, "videoid_to_vectoridx.pkl"), "wb") as fw:
+            pickle.dump(self.videoid_to_vectoridx, fw, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load(self, out_dir):
         fn = os.path.join(out_dir, "video_faiss_idx")
@@ -337,15 +278,15 @@ class MMVectorRetriever(VectorRetrieverDM):
         fn = os.path.join(out_dir, "text_faiss_idx")
         text_db = faiss.read_index(fn)
         self.db = {"video": video_db, "text": text_db}
-        with open(
-                os.path.join(out_dir, "videoid_to_vectoridx.pkl"), "rb") as fr:
+        with open(os.path.join(out_dir, "videoid_to_vectoridx.pkl"), "rb") as fr:
             self.videoid_to_vectoridx = pickle.load(fr)
         self.video_to_videoid = defaultdict(list)
 
     def add(self, hidden_states, video_ids):
         """hidden_states is a pair `(video, text)`"""
         assert len(hidden_states) == len(video_ids), "{}, {}".format(
-            str(len(hidden_states)), str(len(video_ids)))
+            str(len(hidden_states)), str(len(video_ids))
+        )
         assert len(hidden_states.shape) == 3
         assert len(self.video_to_videoid) == 0
 
@@ -353,8 +294,7 @@ class MMVectorRetriever(VectorRetrieverDM):
         for idx, video_id in enumerate(video_ids):
             if video_id not in self.videoid_to_vectoridx:
                 valid_idx.append(idx)
-                self.videoid_to_vectoridx[video_id] = \
-                    len(self.videoid_to_vectoridx)
+                self.videoid_to_vectoridx[video_id] = len(self.videoid_to_vectoridx)
 
         batch_size = hidden_states.shape[0]
         hidden_states = hidden_states[valid_idx]
@@ -368,8 +308,8 @@ class MMVectorRetriever(VectorRetrieverDM):
 
             hidden_states = np.concatenate(self.train_cache, axis=1)
             del self.train_cache
-            self.db["video"].train(hidden_states[0, :self.train_thres])
-            self.db["text"].train(hidden_states[1, :self.train_thres])
+            self.db["video"].train(hidden_states[0, : self.train_thres])
+            self.db["text"].train(hidden_states[1, : self.train_thres])
         self.db["video"].add(hidden_states[0])
         self.db["text"].add(hidden_states[1])
 
@@ -377,20 +317,13 @@ class MMVectorRetriever(VectorRetrieverDM):
         if not self.video_to_videoid:
             for video_id, video_clip, text_clip in self.videoid_to_vectoridx:
                 self.video_to_videoid[video_id].append(
-                    (video_id, video_clip, text_clip))
+                    (video_id, video_clip, text_clip)
+                )
         return self.video_to_videoid[video_id]
 
-    def search(
-        self,
-        video_ids,
-        target_modality,
-        retri_factor=8
-    ):
+    def search(self, video_ids, target_modality, retri_factor=8):
         if len(self.videoid_to_vectoridx) != len(self):
-            raise ValueError(
-                len(self.videoid_to_vectoridx),
-                len(self)
-            )
+            raise ValueError(len(self.videoid_to_vectoridx), len(self))
 
         if not self.make_direct_maps_done:
             self.make_direct_maps()
@@ -399,8 +332,7 @@ class MMVectorRetriever(VectorRetrieverDM):
                 self.videoid_to_vectoridx[videoid]: videoid
                 for videoid in self.videoid_to_vectoridx
             }
-            assert len(self.vectoridx_to_videoid) \
-                == len(self.videoid_to_vectoridx)
+            assert len(self.vectoridx_to_videoid) == len(self.videoid_to_vectoridx)
 
         src_modality = "text" if target_modality == "video" else "video"
 
@@ -415,15 +347,12 @@ class MMVectorRetriever(VectorRetrieverDM):
 
         # MultilingualFaissDataset uses the following; not sure the reason.
         # faiss.ParameterSpace().set_index_parameter(self.db, "nprobe", 10)
-        _, index = self.db[target_modality].search(
-            query_hidden_states, retri_factor)
+        _, index = self.db[target_modality].search(query_hidden_states, retri_factor)
         outputs = []
         for sample_idx, sample in enumerate(index):
             cands = []
             for vector_idx in sample:
                 if vector_idx >= 0:
-                    cands.append(
-                        self.vectoridx_to_videoid[vector_idx]
-                    )
+                    cands.append(self.vectoridx_to_videoid[vector_idx])
             outputs.append(cands)
         return outputs

@@ -22,6 +22,7 @@ def capture_init(init):
     Decorate `__init__` with this, and you can then
     recover the *args and **kwargs passed to it in `self._init_args_kwargs`
     """
+
     @functools.wraps(init)
     def __init__(self, *args, **kwargs):
         self._init_args_kwargs = (args, kwargs)
@@ -31,21 +32,19 @@ def capture_init(init):
 
 
 def deserialize_model(package, strict=False):
-    """deserialize_model.
-
-    """
-    klass = package['class']
+    """deserialize_model."""
+    klass = package["class"]
     if strict:
-        model = klass(*package['args'], **package['kwargs'])
+        model = klass(*package["args"], **package["kwargs"])
     else:
         sig = inspect.signature(klass)
-        kw = package['kwargs']
+        kw = package["kwargs"]
         for key in list(kw):
             if key not in sig.parameters:
                 logger.warning("Dropping inexistant parameter %s", key)
                 del kw[key]
-        model = klass(*package['args'], **kw)
-    model.load_state_dict(package['state'])
+        model = klass(*package["args"], **kw)
+    model.load_state_dict(package["state"])
     return model
 
 
@@ -98,13 +97,16 @@ class LogProgress:
         - name (str): prefix to use in the log.
         - level: logging level (like `logging.INFO`).
     """
-    def __init__(self,
-                 logger,
-                 iterable,
-                 updates=5,
-                 total=None,
-                 name="LogProgress",
-                 level=logging.INFO):
+
+    def __init__(
+        self,
+        logger,
+        iterable,
+        updates=5,
+        total=None,
+        name="LogProgress",
+        level=logging.INFO,
+    ):
         self.iterable = iterable
         self.total = total or len(iterable)
         self.updates = updates
@@ -169,8 +171,8 @@ def bold(text):
 
 def cal_snr(lbl, est):
     import torch
+
     y = 10.0 * torch.log10(
-        torch.sum(lbl**2, dim=-1) / (torch.sum((est-lbl)**2, dim=-1) + EPS) +
-        EPS
+        torch.sum(lbl**2, dim=-1) / (torch.sum((est - lbl) ** 2, dim=-1) + EPS) + EPS
     )
     return y

@@ -36,7 +36,7 @@ class NoisyChannelSequenceGenerator(object):
         channel_models=None,
         k2=10,
         ch_weight=1.0,
-        channel_scoring_type='log_norm',
+        channel_scoring_type="log_norm",
         top_k_vocab=0,
         lm_models=None,
         lm_dict=None,
@@ -122,24 +122,17 @@ class NoisyChannelSequenceGenerator(object):
         self.log_softmax_fn = torch.nn.LogSoftmax(dim=1)
         self.normalize_lm_scores_by_tgt_len = normalize_lm_scores_by_tgt_len
 
-        self.share_tgt_dict = (self.lm_dict == self.tgt_dict)
+        self.share_tgt_dict = self.lm_dict == self.tgt_dict
         self.tgt_to_lm = make_dict2dict(tgt_dict, lm_dict)
 
         self.ch_scoring_bsz = 3072
 
-        assert temperature > 0, '--temperature must be greater than 0'
+        assert temperature > 0, "--temperature must be greater than 0"
 
         self.search = NoisyChannelBeamSearch(tgt_dict)
 
     @torch.no_grad()
-    def generate(
-        self,
-        models,
-        sample,
-        prefix_tokens=None,
-        bos_token=None,
-        **kwargs
-    ):
+    def generate(self, models, sample, prefix_tokens=None, bos_token=None, **kwargs):
         """Generate a batch of translations.
         Args:
             models (List[~fairseq.models.FairseqModel]): ensemble of models
@@ -161,11 +154,12 @@ class NoisyChannelSequenceGenerator(object):
         # model.forward normally channels prev_output_tokens into the decoder
         # separately, but SequenceGenerator directly calls model.encoder
         encoder_input = {
-            k: v for k, v in sample['net_input'].items()
-            if k != 'prev_output_tokens'
+            k: v for k, v in sample["net_input"].items() if k != "prev_output_tokens"
         }
-        src_tokens = encoder_input['src_tokens']
-        src_lengths_no_eos = (src_tokens.ne(self.eos) & src_tokens.ne(self.pad)).long().sum(dim=1)
+        src_tokens = encoder_input["src_tokens"]
+        src_lengths_no_eos = (
+            (src_tokens.ne(self.eos) & src_tokens.ne(self.pad)).long().sum(dim=1)
+        )
         input_size = src_tokens.size()
         # batch dimension goes first followed by source lengths
         bsz = input_size[0]
@@ -187,7 +181,7 @@ class NoisyChannelSequenceGenerator(object):
         new_order = new_order.to(src_tokens.device).long()
         encoder_outs = model.reorder_encoder_out(encoder_outs, new_order)
 
-        src_lengths = encoder_input['src_lengths']
+        src_lengths = encoder_input["src_lengths"]
         # initialize buffers
         scores = src_tokens.new(bsz * beam_size, max_len + 1).float().fill_(0)
         lm_prefix_scores = src_tokens.new(bsz * beam_size).float().fill_(0)
@@ -198,10 +192,14 @@ class NoisyChannelSequenceGenerator(object):
         tokens[:, 0] = self.eos if bos_token is None else bos_token
 
         # reorder source tokens so they may be used as a reference in generating P(S|T)
-        src_tokens = reorder_all_tokens(src_tokens, src_lengths, self.src_dict.eos_index)
+        src_tokens = reorder_all_tokens(
+            src_tokens, src_lengths, self.src_dict.eos_index
+        )
 
         src_tokens = src_tokens.repeat(1, beam_size).view(-1, src_len)
-        src_lengths = src_lengths.view(bsz, -1).repeat(1, beam_size).view(bsz*beam_size, -1)
+        src_lengths = (
+            src_lengths.view(bsz, -1).repeat(1, beam_size).view(bsz * beam_size, -1)
+        )
 
         attn, attn_buf = None, None
         nonpad_idxs = None
@@ -210,7 +208,9 @@ class NoisyChannelSequenceGenerator(object):
         # For example, suppose we're sampling and have already finalized 2/5
         # samples. Then the cands_to_ignore would mark 2 positions as being ignored,
         # so that we only finalize the remaining 3 samples.
-        cands_to_ignore = src_tokens.new_zeros(bsz, beam_size).eq(-1)  # forward and backward-compatible False mask
+        cands_to_ignore = src_tokens.new_zeros(bsz, beam_size).eq(
+            -1
+        )  # forward and backward-compatible False mask
 
         # list of completed sentences
         finalized = [[] for i in range(bsz)]
@@ -243,7 +243,9 @@ class NoisyChannelSequenceGenerator(object):
                 return True
             return False
 
-        def finalize_hypos(step, bbsz_idx, eos_scores, combined_noisy_channel_eos_scores):
+        def finalize_hypos(
+            step, bbsz_idx, eos_scores, combined_noisy_channel_eos_scores
+        ):
             """
             Finalize the given hypotheses at this step, while keeping the total
             number of finalized hypotheses per sentence <= beam_size.
@@ -265,13 +267,19 @@ class NoisyChannelSequenceGenerator(object):
 
             # clone relevant token and attention tensors
             tokens_clone = tokens.index_select(0, bbsz_idx)
-            tokens_clone = tokens_clone[:, 1:step + 2]  # skip the first index, which is EOS
+            tokens_clone = tokens_clone[
+                :, 1 : step + 2
+            ]  # skip the first index, which is EOS
             assert not tokens_clone.eq(self.eos).any()
             tokens_clone[:, step] = self.eos
-            attn_clone = attn.index_select(0, bbsz_idx)[:, :, 1:step+2] if attn is not None else None
+            attn_clone = (
+                attn.index_select(0, bbsz_idx)[:, :, 1 : step + 2]
+                if attn is not None
+                else None
+            )
 
             # compute scores per token position
-            pos_scores = scores.index_select(0, bbsz_idx)[:, :step+1]
+            pos_scores = scores.index_select(0, bbsz_idx)[:, : step + 1]
             pos_scores[:, step] = eos_scores
             # convert from cumulative to per-position scores
             pos_scores[:, 1:] = pos_scores[:, 1:] - pos_scores[:, :-1]
@@ -289,7 +297,9 @@ class NoisyChannelSequenceGenerator(object):
                     cum_unfin.append(prev)
 
             sents_seen = set()
-            for i, (idx, score) in enumerate(zip(bbsz_idx.tolist(), combined_noisy_channel_eos_scores.tolist())):
+            for i, (idx, score) in enumerate(
+                zip(bbsz_idx.tolist(), combined_noisy_channel_eos_scores.tolist())
+            ):
                 unfin_idx = idx // beam_size
                 sent = unfin_idx + cum_unfin[unfin_idx]
 
@@ -309,11 +319,11 @@ class NoisyChannelSequenceGenerator(object):
                         alignment = None
 
                     return {
-                        'tokens': tokens_clone[i],
-                        'score': score,
-                        'attention': hypo_attn,  # src_len x tgt_len
-                        'alignment': alignment,
-                        'positional_scores': pos_scores[i],
+                        "tokens": tokens_clone[i],
+                        "score": score,
+                        "attention": hypo_attn,  # src_len x tgt_len
+                        "alignment": alignment,
+                        "positional_scores": pos_scores[i],
                     }
 
                 if len(finalized[sent]) < beam_size:
@@ -338,11 +348,23 @@ class NoisyChannelSequenceGenerator(object):
                 lprobs_size = lprobs.size()
                 if prefix_tokens is not None and step < prefix_tokens.size(1):
                     probs_slice = lprobs.view(bsz, -1, lprobs.size(-1))[:, 0, :]
-                    cand_scores = torch.gather(
-                        probs_slice, dim=1,
-                        index=prefix_tokens[:, step].view(-1, 1).data
-                    ).expand(-1, beam_size).contiguous().view(bsz*beam_size, 1)
-                    cand_indices = prefix_tokens[:, step].view(-1, 1).expand(bsz, beam_size).data.contiguous().view(bsz*beam_size, 1)
+                    cand_scores = (
+                        torch.gather(
+                            probs_slice,
+                            dim=1,
+                            index=prefix_tokens[:, step].view(-1, 1).data,
+                        )
+                        .expand(-1, beam_size)
+                        .contiguous()
+                        .view(bsz * beam_size, 1)
+                    )
+                    cand_indices = (
+                        prefix_tokens[:, step]
+                        .view(-1, 1)
+                        .expand(bsz, beam_size)
+                        .data.contiguous()
+                        .view(bsz * beam_size, 1)
+                    )
 
                     # need to calculate and save fw and lm probs for prefix tokens
                     fw_top_k = cand_scores
@@ -350,33 +372,66 @@ class NoisyChannelSequenceGenerator(object):
                     k = 1
                 else:
                     # take the top k best words for every sentence in batch*beam
-                    fw_top_k, fw_top_k_idx = torch.topk(lprobs.view(beam_size*bsz, -1), k=k)
-                eos_idx = torch.nonzero(fw_top_k_idx.view(bsz*beam_size*k, -1) == self.eos)[:, 0]
-                ch_scores = fw_top_k.new_full((beam_size*bsz*k, ), 0)
-                src_size = torch.sum(src_tokens[:, :] != self.src_dict.pad_index, dim=1, keepdim=True, dtype=fw_top_k.dtype)
+                    fw_top_k, fw_top_k_idx = torch.topk(
+                        lprobs.view(beam_size * bsz, -1), k=k
+                    )
+                eos_idx = torch.nonzero(
+                    fw_top_k_idx.view(bsz * beam_size * k, -1) == self.eos
+                )[:, 0]
+                ch_scores = fw_top_k.new_full((beam_size * bsz * k,), 0)
+                src_size = torch.sum(
+                    src_tokens[:, :] != self.src_dict.pad_index,
+                    dim=1,
+                    keepdim=True,
+                    dtype=fw_top_k.dtype,
+                )
 
                 if self.combine_method != "lm_only":
-                    temp_src_tokens_full = src_tokens[:, :].repeat(1, k).view(bsz*beam_size*k, -1)
+                    temp_src_tokens_full = (
+                        src_tokens[:, :].repeat(1, k).view(bsz * beam_size * k, -1)
+                    )
                     not_padding = temp_src_tokens_full[:, 1:] != self.src_dict.pad_index
-                    cur_tgt_size = step+2
+                    cur_tgt_size = step + 2
 
                     # add eos to all candidate sentences except those that already end in eos
                     eos_tokens = tokens[:, 0].repeat(1, k).view(-1, 1)
                     eos_tokens[eos_idx] = self.tgt_dict.pad_index
 
                     if step == 0:
-                        channel_input = torch.cat((fw_top_k_idx.view(-1, 1), eos_tokens), 1)
+                        channel_input = torch.cat(
+                            (fw_top_k_idx.view(-1, 1), eos_tokens), 1
+                        )
                     else:
                         # move eos from beginning to end of target sentence
-                        channel_input = torch.cat((tokens[:, 1:step + 1].repeat(1, k).view(-1, step), fw_top_k_idx.view(-1, 1), eos_tokens), 1)
+                        channel_input = torch.cat(
+                            (
+                                tokens[:, 1 : step + 1].repeat(1, k).view(-1, step),
+                                fw_top_k_idx.view(-1, 1),
+                                eos_tokens,
+                            ),
+                            1,
+                        )
 
-                    ch_input_lengths = torch.tensor(np.full(channel_input.size(0), cur_tgt_size))
-                    ch_input_lengths[eos_idx] = cur_tgt_size-1
+                    ch_input_lengths = torch.tensor(
+                        np.full(channel_input.size(0), cur_tgt_size)
+                    )
+                    ch_input_lengths[eos_idx] = cur_tgt_size - 1
                     if self.channel_scoring_type == "unnormalized":
-                        ch_encoder_output = channel_model.encoder(channel_input, src_lengths=ch_input_lengths)
-                        ch_decoder_output, _ = channel_model.decoder(temp_src_tokens_full, encoder_out=ch_encoder_output, features_only=True)
+                        ch_encoder_output = channel_model.encoder(
+                            channel_input, src_lengths=ch_input_lengths
+                        )
+                        ch_decoder_output, _ = channel_model.decoder(
+                            temp_src_tokens_full,
+                            encoder_out=ch_encoder_output,
+                            features_only=True,
+                        )
                         del ch_encoder_output
-                        ch_intermed_scores = channel_model.decoder.unnormalized_scores_given_target(ch_decoder_output, target_ids=temp_src_tokens_full[:, 1:])
+                        ch_intermed_scores = (
+                            channel_model.decoder.unnormalized_scores_given_target(
+                                ch_decoder_output,
+                                target_ids=temp_src_tokens_full[:, 1:],
+                            )
+                        )
                         ch_intermed_scores = ch_intermed_scores.float()
                         ch_intermed_scores *= not_padding.float()
                         ch_scores = torch.sum(ch_intermed_scores, dim=1)
@@ -384,68 +439,155 @@ class NoisyChannelSequenceGenerator(object):
                         for k_idx in range(k):
                             k_eos_tokens = eos_tokens[k_idx::k, :]
                             if step == 0:
-                                k_ch_input = torch.cat((fw_top_k_idx[:, k_idx:k_idx+1], k_eos_tokens), 1)
+                                k_ch_input = torch.cat(
+                                    (fw_top_k_idx[:, k_idx : k_idx + 1], k_eos_tokens),
+                                    1,
+                                )
                             else:
                                 # move eos from beginning to end of target sentence
-                                k_ch_input = torch.cat((tokens[:, 1:step + 1], fw_top_k_idx[:, k_idx:k_idx+1], k_eos_tokens), 1)
+                                k_ch_input = torch.cat(
+                                    (
+                                        tokens[:, 1 : step + 1],
+                                        fw_top_k_idx[:, k_idx : k_idx + 1],
+                                        k_eos_tokens,
+                                    ),
+                                    1,
+                                )
                             k_ch_input_lengths = ch_input_lengths[k_idx::k]
-                            k_ch_output = channel_model(k_ch_input, k_ch_input_lengths, src_tokens)
-                            k_ch_lprobs = channel_model.get_normalized_probs(k_ch_output, log_probs=True)
-                            k_ch_intermed_scores = torch.gather(k_ch_lprobs[:, :-1, :], 2, src_tokens[:, 1:].unsqueeze(2)).squeeze(2)
+                            k_ch_output = channel_model(
+                                k_ch_input, k_ch_input_lengths, src_tokens
+                            )
+                            k_ch_lprobs = channel_model.get_normalized_probs(
+                                k_ch_output, log_probs=True
+                            )
+                            k_ch_intermed_scores = torch.gather(
+                                k_ch_lprobs[:, :-1, :],
+                                2,
+                                src_tokens[:, 1:].unsqueeze(2),
+                            ).squeeze(2)
                             k_ch_intermed_scores *= not_padding.float()
                             ch_scores[k_idx::k] = torch.sum(k_ch_intermed_scores, dim=1)
                     elif self.channel_scoring_type == "src_vocab":
-                        ch_encoder_output = channel_model.encoder(channel_input, src_lengths=ch_input_lengths)
-                        ch_decoder_output, _ = channel_model.decoder(temp_src_tokens_full, encoder_out=ch_encoder_output, features_only=True)
+                        ch_encoder_output = channel_model.encoder(
+                            channel_input, src_lengths=ch_input_lengths
+                        )
+                        ch_decoder_output, _ = channel_model.decoder(
+                            temp_src_tokens_full,
+                            encoder_out=ch_encoder_output,
+                            features_only=True,
+                        )
 
                         del ch_encoder_output
                         ch_lprobs = normalized_scores_with_batch_vocab(
                             channel_model.decoder,
-                            ch_decoder_output, src_tokens, k, bsz, beam_size,
-                            self.src_dict.pad_index, top_k=self.top_k_vocab)
+                            ch_decoder_output,
+                            src_tokens,
+                            k,
+                            bsz,
+                            beam_size,
+                            self.src_dict.pad_index,
+                            top_k=self.top_k_vocab,
+                        )
                         ch_scores = torch.sum(ch_lprobs, dim=1)
                     elif self.channel_scoring_type == "src_vocab_batched":
                         ch_bsz_size = temp_src_tokens_full.shape[0]
-                        ch_lprobs_list = [None] * len(range(0, ch_bsz_size, self.ch_scoring_bsz))
-                        for i, start_idx in enumerate(range(0, ch_bsz_size, self.ch_scoring_bsz)):
+                        ch_lprobs_list = [None] * len(
+                            range(0, ch_bsz_size, self.ch_scoring_bsz)
+                        )
+                        for i, start_idx in enumerate(
+                            range(0, ch_bsz_size, self.ch_scoring_bsz)
+                        ):
                             end_idx = min(start_idx + self.ch_scoring_bsz, ch_bsz_size)
-                            temp_src_tokens_full_batch = temp_src_tokens_full[start_idx:end_idx, :]
+                            temp_src_tokens_full_batch = temp_src_tokens_full[
+                                start_idx:end_idx, :
+                            ]
                             channel_input_batch = channel_input[start_idx:end_idx, :]
                             ch_input_lengths_batch = ch_input_lengths[start_idx:end_idx]
-                            ch_encoder_output_batch = channel_model.encoder(channel_input_batch, src_lengths=ch_input_lengths_batch)
-                            ch_decoder_output_batch, _ = channel_model.decoder(temp_src_tokens_full_batch, encoder_out=ch_encoder_output_batch, features_only=True)
+                            ch_encoder_output_batch = channel_model.encoder(
+                                channel_input_batch, src_lengths=ch_input_lengths_batch
+                            )
+                            ch_decoder_output_batch, _ = channel_model.decoder(
+                                temp_src_tokens_full_batch,
+                                encoder_out=ch_encoder_output_batch,
+                                features_only=True,
+                            )
                             ch_lprobs_list[i] = normalized_scores_with_batch_vocab(
                                 channel_model.decoder,
-                                ch_decoder_output_batch, src_tokens, k, bsz, beam_size,
-                                self.src_dict.pad_index, top_k=self.top_k_vocab,
-                                start_idx=start_idx, end_idx=end_idx)
+                                ch_decoder_output_batch,
+                                src_tokens,
+                                k,
+                                bsz,
+                                beam_size,
+                                self.src_dict.pad_index,
+                                top_k=self.top_k_vocab,
+                                start_idx=start_idx,
+                                end_idx=end_idx,
+                            )
                         ch_lprobs = torch.cat(ch_lprobs_list, dim=0)
                         ch_scores = torch.sum(ch_lprobs, dim=1)
                     else:
-                        ch_output = channel_model(channel_input, ch_input_lengths, temp_src_tokens_full)
-                        ch_lprobs = channel_model.get_normalized_probs(ch_output, log_probs=True)
-                        ch_intermed_scores = torch.gather(ch_lprobs[:, :-1, :], 2, temp_src_tokens_full[:, 1:].unsqueeze(2)).squeeze().view(bsz*beam_size*k, -1)
+                        ch_output = channel_model(
+                            channel_input, ch_input_lengths, temp_src_tokens_full
+                        )
+                        ch_lprobs = channel_model.get_normalized_probs(
+                            ch_output, log_probs=True
+                        )
+                        ch_intermed_scores = (
+                            torch.gather(
+                                ch_lprobs[:, :-1, :],
+                                2,
+                                temp_src_tokens_full[:, 1:].unsqueeze(2),
+                            )
+                            .squeeze()
+                            .view(bsz * beam_size * k, -1)
+                        )
                         ch_intermed_scores *= not_padding.float()
                         ch_scores = torch.sum(ch_intermed_scores, dim=1)
 
                 else:
                     cur_tgt_size = 0
-                ch_scores = ch_scores.view(bsz*beam_size, k)
-                expanded_lm_prefix_scores = lm_prefix_scores.unsqueeze(1).expand(-1, k).flatten()
+                ch_scores = ch_scores.view(bsz * beam_size, k)
+                expanded_lm_prefix_scores = (
+                    lm_prefix_scores.unsqueeze(1).expand(-1, k).flatten()
+                )
 
                 if self.share_tgt_dict:
-                    lm_scores = get_lm_scores(lm, tokens[:, :step + 1].view(-1, step+1), lm_incremental_states, fw_top_k_idx.view(-1, 1), torch.tensor(np.full(tokens.size(0), step+1)), k)
+                    lm_scores = get_lm_scores(
+                        lm,
+                        tokens[:, : step + 1].view(-1, step + 1),
+                        lm_incremental_states,
+                        fw_top_k_idx.view(-1, 1),
+                        torch.tensor(np.full(tokens.size(0), step + 1)),
+                        k,
+                    )
                 else:
-                    new_lm_input = dict2dict(tokens[:, :step + 1].view(-1, step+1), self.tgt_to_lm)
+                    new_lm_input = dict2dict(
+                        tokens[:, : step + 1].view(-1, step + 1), self.tgt_to_lm
+                    )
                     new_cands = dict2dict(fw_top_k_idx.view(-1, 1), self.tgt_to_lm)
-                    lm_scores = get_lm_scores(lm, new_lm_input, lm_incremental_states, new_cands, torch.tensor(np.full(tokens.size(0), step+1)), k)
+                    lm_scores = get_lm_scores(
+                        lm,
+                        new_lm_input,
+                        lm_incremental_states,
+                        new_cands,
+                        torch.tensor(np.full(tokens.size(0), step + 1)),
+                        k,
+                    )
 
                 lm_scores.add_(expanded_lm_prefix_scores)
-                ch_lm_scores = combine_ch_lm(self.combine_method, ch_scores, lm_scores, src_size, cur_tgt_size)
+                ch_lm_scores = combine_ch_lm(
+                    self.combine_method, ch_scores, lm_scores, src_size, cur_tgt_size
+                )
                 # initialize all as min value
-                new_fw_lprobs = ch_scores.new(lprobs_size).fill_(-1e17).view(bsz*beam_size, -1)
-                new_ch_lm_lprobs = ch_scores.new(lprobs_size).fill_(-1e17).view(bsz*beam_size, -1)
-                new_lm_lprobs = ch_scores.new(lprobs_size).fill_(-1e17).view(bsz*beam_size, -1)
+                new_fw_lprobs = (
+                    ch_scores.new(lprobs_size).fill_(-1e17).view(bsz * beam_size, -1)
+                )
+                new_ch_lm_lprobs = (
+                    ch_scores.new(lprobs_size).fill_(-1e17).view(bsz * beam_size, -1)
+                )
+                new_lm_lprobs = (
+                    ch_scores.new(lprobs_size).fill_(-1e17).view(bsz * beam_size, -1)
+                )
                 new_fw_lprobs[:, self.pad] = -math.inf
                 new_ch_lm_lprobs[:, self.pad] = -math.inf
                 new_lm_lprobs[:, self.pad] = -math.inf
@@ -480,7 +622,9 @@ class NoisyChannelSequenceGenerator(object):
             return ch_scores
 
         if self.channel_models is not None:
-            channel_model = self.channel_models[0]  # assume only one channel_model model
+            channel_model = self.channel_models[
+                0
+            ]  # assume only one channel_model model
         else:
             channel_model = None
 
@@ -500,31 +644,42 @@ class NoisyChannelSequenceGenerator(object):
             if reorder_state is not None:
                 if batch_idxs is not None:
                     # update beam indices to take into account removed sentences
-                    corr = batch_idxs - torch.arange(batch_idxs.numel()).type_as(batch_idxs)
-                    reorder_state.view(-1, beam_size).add_(corr.unsqueeze(-1) * beam_size)
+                    corr = batch_idxs - torch.arange(batch_idxs.numel()).type_as(
+                        batch_idxs
+                    )
+                    reorder_state.view(-1, beam_size).add_(
+                        corr.unsqueeze(-1) * beam_size
+                    )
                 model.reorder_incremental_state(incremental_states, reorder_state)
                 encoder_outs = model.reorder_encoder_out(encoder_outs, reorder_state)
 
                 lm.reorder_incremental_state(lm_incremental_states, reorder_state)
 
             fw_lprobs, avg_attn_scores = model.forward_decoder(
-                tokens[:, :step + 1], encoder_outs, incremental_states, temperature=self.temperature,
+                tokens[:, : step + 1],
+                encoder_outs,
+                incremental_states,
+                temperature=self.temperature,
             )
 
             fw_lprobs[:, self.pad] = -math.inf  # never select pad
             fw_lprobs[:, self.unk] -= self.unk_penalty  # apply unk penalty
-            fw_lprobs, ch_lm_lprobs, lm_lprobs = noisy_channel_rescoring(fw_lprobs, beam_size, bsz, src_tokens, tokens, self.k2)
+            fw_lprobs, ch_lm_lprobs, lm_lprobs = noisy_channel_rescoring(
+                fw_lprobs, beam_size, bsz, src_tokens, tokens, self.k2
+            )
 
             # handle min and max length constraints
             if step >= max_len:
-                fw_lprobs[:, :self.eos] = -math.inf
-                fw_lprobs[:, self.eos + 1:] = -math.inf
+                fw_lprobs[:, : self.eos] = -math.inf
+                fw_lprobs[:, self.eos + 1 :] = -math.inf
             elif step < self.min_len:
                 fw_lprobs[:, self.eos] = -math.inf
 
             # handle prefix tokens (possibly with different lengths)
             if prefix_tokens is not None and step < prefix_tokens.size(1):
-                prefix_toks = prefix_tokens[:, step].unsqueeze(-1).repeat(1, beam_size).view(-1)
+                prefix_toks = (
+                    prefix_tokens[:, step].unsqueeze(-1).repeat(1, beam_size).view(-1)
+                )
                 prefix_mask = prefix_toks.ne(self.pad)
 
                 prefix_fw_lprobs = fw_lprobs.gather(-1, prefix_toks.unsqueeze(-1))
@@ -550,7 +705,9 @@ class NoisyChannelSequenceGenerator(object):
                 eos_mask = prefix_toks.eq(self.eos)
                 if eos_mask.any():
                     # validate that the first beam matches the prefix
-                    first_beam = tokens[eos_mask].view(-1, beam_size, tokens.size(-1))[:, 0, 1:step + 1]
+                    first_beam = tokens[eos_mask].view(-1, beam_size, tokens.size(-1))[
+                        :, 0, 1 : step + 1
+                    ]
                     eos_mask_batch_dim = eos_mask.view(-1, beam_size)[:, 0]
                     target_prefix = prefix_tokens[eos_mask_batch_dim][:, :step]
                     assert (first_beam == target_prefix).all()
@@ -565,7 +722,9 @@ class NoisyChannelSequenceGenerator(object):
                     scores = replicate_first_beam(scores, eos_mask_batch_dim)
 
                     fw_lprobs = replicate_first_beam(fw_lprobs, eos_mask_batch_dim)
-                    ch_lm_lprobs = replicate_first_beam(ch_lm_lprobs, eos_mask_batch_dim)
+                    ch_lm_lprobs = replicate_first_beam(
+                        ch_lm_lprobs, eos_mask_batch_dim
+                    )
                     lm_lprobs = replicate_first_beam(lm_lprobs, eos_mask_batch_dim)
 
             if self.no_repeat_ngram_size > 0:
@@ -573,9 +732,12 @@ class NoisyChannelSequenceGenerator(object):
                 gen_ngrams = [{} for bbsz_idx in range(bsz * beam_size)]
                 for bbsz_idx in range(bsz * beam_size):
                     gen_tokens = tokens[bbsz_idx].tolist()
-                    for ngram in zip(*[gen_tokens[i:] for i in range(self.no_repeat_ngram_size)]):
-                        gen_ngrams[bbsz_idx][tuple(ngram[:-1])] = \
-                                gen_ngrams[bbsz_idx].get(tuple(ngram[:-1]), []) + [ngram[-1]]
+                    for ngram in zip(
+                        *[gen_tokens[i:] for i in range(self.no_repeat_ngram_size)]
+                    ):
+                        gen_ngrams[bbsz_idx][tuple(ngram[:-1])] = gen_ngrams[
+                            bbsz_idx
+                        ].get(tuple(ngram[:-1]), []) + [ngram[-1]]
 
             # Record attention scores
             if avg_attn_scores is not None:
@@ -591,25 +753,41 @@ class NoisyChannelSequenceGenerator(object):
             self.search.set_src_lengths(src_lengths_no_eos)
 
             if self.no_repeat_ngram_size > 0:
+
                 def calculate_banned_tokens(bbsz_idx):
                     # before decoding the next token, prevent decoding of ngrams that have already appeared
-                    ngram_index = tuple(tokens[bbsz_idx, step + 2 - self.no_repeat_ngram_size:step + 1].tolist())
+                    ngram_index = tuple(
+                        tokens[
+                            bbsz_idx, step + 2 - self.no_repeat_ngram_size : step + 1
+                        ].tolist()
+                    )
                     return gen_ngrams[bbsz_idx].get(ngram_index, [])
 
                 if step + 2 - self.no_repeat_ngram_size >= 0:
                     # no banned tokens if we haven't generated no_repeat_ngram_size tokens yet
-                    banned_tokens = [calculate_banned_tokens(bbsz_idx) for bbsz_idx in range(bsz * beam_size)]
+                    banned_tokens = [
+                        calculate_banned_tokens(bbsz_idx)
+                        for bbsz_idx in range(bsz * beam_size)
+                    ]
                 else:
                     banned_tokens = [[] for bbsz_idx in range(bsz * beam_size)]
 
                 for bbsz_idx in range(bsz * beam_size):
                     fw_lprobs[bbsz_idx, banned_tokens[bbsz_idx]] = -math.inf
 
-            combined_noisy_channel_scores, fw_lprobs_top_k, lm_lprobs_top_k, cand_indices, cand_beams = self.search.step(
+            (
+                combined_noisy_channel_scores,
+                fw_lprobs_top_k,
+                lm_lprobs_top_k,
+                cand_indices,
+                cand_beams,
+            ) = self.search.step(
                 step,
                 fw_lprobs.view(bsz, -1, self.vocab_size),
-                scores.view(bsz, beam_size, -1)[:, :, :step], ch_lm_lprobs.view(bsz, -1, self.vocab_size),
-                lm_lprobs.view(bsz, -1, self.vocab_size), self.combine_method
+                scores.view(bsz, beam_size, -1)[:, :, :step],
+                ch_lm_lprobs.view(bsz, -1, self.vocab_size),
+                lm_lprobs.view(bsz, -1, self.vocab_size),
+                self.combine_method,
             )
 
             # cand_bbsz_idx contains beam indices for the top candidate
@@ -638,7 +816,8 @@ class NoisyChannelSequenceGenerator(object):
 
                 # finalize hypo using channel model score
                 finalized_sents = finalize_hypos(
-                    step, eos_bbsz_idx, eos_scores, combined_noisy_channel_eos_scores)
+                    step, eos_bbsz_idx, eos_scores, combined_noisy_channel_eos_scores
+                )
 
                 num_remaining_sent -= len(finalized_sents)
 
@@ -672,12 +851,22 @@ class NoisyChannelSequenceGenerator(object):
                 scores_buf.resize_as_(scores)
                 tokens = tokens.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, -1)
                 tokens_buf.resize_as_(tokens)
-                src_tokens = src_tokens.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, -1)
-                src_lengths = src_lengths.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, -1)
-                lm_prefix_scores = lm_prefix_scores.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, -1).squeeze()
+                src_tokens = src_tokens.view(bsz, -1)[batch_idxs].view(
+                    new_bsz * beam_size, -1
+                )
+                src_lengths = src_lengths.view(bsz, -1)[batch_idxs].view(
+                    new_bsz * beam_size, -1
+                )
+                lm_prefix_scores = (
+                    lm_prefix_scores.view(bsz, -1)[batch_idxs]
+                    .view(new_bsz * beam_size, -1)
+                    .squeeze()
+                )
 
                 if attn is not None:
-                    attn = attn.view(bsz, -1)[batch_idxs].view(new_bsz * beam_size, attn.size(1), -1)
+                    attn = attn.view(bsz, -1)[batch_idxs].view(
+                        new_bsz * beam_size, attn.size(1), -1
+                    )
                     attn_buf.resize_as_(attn)
                 bsz = new_bsz
             else:
@@ -695,23 +884,32 @@ class NoisyChannelSequenceGenerator(object):
 
             # get the top beam_size active hypotheses, which are just the hypos
             # with the smallest values in active_mask
-            active_hypos, new_cands_to_ignore = buffer('active_hypos'), buffer('new_cands_to_ignore')
+            active_hypos, new_cands_to_ignore = buffer("active_hypos"), buffer(
+                "new_cands_to_ignore"
+            )
             torch.topk(
-                active_mask, k=beam_size, dim=1, largest=False,
-                out=(new_cands_to_ignore, active_hypos)
+                active_mask,
+                k=beam_size,
+                dim=1,
+                largest=False,
+                out=(new_cands_to_ignore, active_hypos),
             )
 
             # update cands_to_ignore to ignore any finalized hypos
             cands_to_ignore = new_cands_to_ignore.ge(cand_size)[:, :beam_size]
             assert (~cands_to_ignore).any(dim=1).all()
 
-            active_bbsz_idx = buffer('active_bbsz_idx')
+            active_bbsz_idx = buffer("active_bbsz_idx")
             torch.gather(
-                cand_bbsz_idx, dim=1, index=active_hypos,
+                cand_bbsz_idx,
+                dim=1,
+                index=active_hypos,
                 out=active_bbsz_idx,
             )
             active_scores = torch.gather(
-                fw_lprobs_top_k, dim=1, index=active_hypos,
+                fw_lprobs_top_k,
+                dim=1,
+                index=active_hypos,
                 out=scores[:, step].view(bsz, beam_size),
             )
 
@@ -720,32 +918,44 @@ class NoisyChannelSequenceGenerator(object):
 
             # copy tokens and scores for active hypotheses
             torch.index_select(
-                tokens[:, :step + 1], dim=0, index=active_bbsz_idx,
-                out=tokens_buf[:, :step + 1],
+                tokens[:, : step + 1],
+                dim=0,
+                index=active_bbsz_idx,
+                out=tokens_buf[:, : step + 1],
             )
             torch.gather(
-                cand_indices, dim=1, index=active_hypos,
+                cand_indices,
+                dim=1,
+                index=active_hypos,
                 out=tokens_buf.view(bsz, beam_size, -1)[:, :, step + 1],
             )
             if step > 0:
                 torch.index_select(
-                    scores[:, :step], dim=0, index=active_bbsz_idx,
+                    scores[:, :step],
+                    dim=0,
+                    index=active_bbsz_idx,
                     out=scores_buf[:, :step],
                 )
             torch.gather(
-                fw_lprobs_top_k, dim=1, index=active_hypos,
+                fw_lprobs_top_k,
+                dim=1,
+                index=active_hypos,
                 out=scores_buf.view(bsz, beam_size, -1)[:, :, step],
             )
             torch.gather(
-                lm_lprobs_top_k, dim=1, index=active_hypos,
-                out=lm_prefix_scores.view(bsz, beam_size)
+                lm_lprobs_top_k,
+                dim=1,
+                index=active_hypos,
+                out=lm_prefix_scores.view(bsz, beam_size),
             )
 
             # copy attention for active hypotheses
             if attn is not None:
                 torch.index_select(
-                    attn[:, :, :step + 2], dim=0, index=active_bbsz_idx,
-                    out=attn_buf[:, :, :step + 2],
+                    attn[:, :, : step + 2],
+                    dim=0,
+                    index=active_bbsz_idx,
+                    out=attn_buf[:, :, : step + 2],
                 )
 
             # swap buffers
@@ -759,7 +969,9 @@ class NoisyChannelSequenceGenerator(object):
 
         # sort by score descending
         for sent in range(len(finalized)):
-            finalized[sent] = sorted(finalized[sent], key=lambda r: r['score'], reverse=True)
+            finalized[sent] = sorted(
+                finalized[sent], key=lambda r: r["score"], reverse=True
+            )
 
         return finalized
 
@@ -767,11 +979,19 @@ class NoisyChannelSequenceGenerator(object):
 def get_lm_scores(model, input_tokens, incremental_states, cand_tokens, input_len, k):
     with torch.no_grad():
         lm_lprobs, avg_attn_scores = model.forward_decoder(
-            input_tokens, encoder_outs=None, incremental_states=incremental_states,
+            input_tokens,
+            encoder_outs=None,
+            incremental_states=incremental_states,
         )
 
         lm_lprobs_size = lm_lprobs.size(0)
-        probs_next_wrd = torch.gather(lm_lprobs.repeat(1, k).view(lm_lprobs_size*k, -1), 1, cand_tokens).squeeze().view(-1)
+        probs_next_wrd = (
+            torch.gather(
+                lm_lprobs.repeat(1, k).view(lm_lprobs_size * k, -1), 1, cand_tokens
+            )
+            .squeeze()
+            .view(-1)
+        )
 
         return probs_next_wrd
 
@@ -784,13 +1004,13 @@ def make_dict2dict(old_dict, new_dict):
 
 
 def dict2dict(tokens, dict2dict_map):
-    if tokens.device == torch.device('cpu'):
+    if tokens.device == torch.device("cpu"):
         tokens_tmp = tokens
     else:
         tokens_tmp = tokens.cpu()
     return tokens_tmp.map_(
         tokens_tmp,
-        lambda _, val, dict2dict_map=dict2dict_map : dict2dict_map[float(val)]
+        lambda _, val, dict2dict_map=dict2dict_map: dict2dict_map[float(val)],
     ).to(tokens.device)
 
 
@@ -802,29 +1022,48 @@ def reorder_tokens(tokens, lengths, eos):
 def reorder_all_tokens(tokens, lengths, eos):
     # used to reorder src tokens from [<pad> <w1> <w2> .. <eos>] to [<eos> <w1> <w2>...<pad>]
     # so source tokens can be used to predict P(S|T)
-    return torch.stack([reorder_tokens(token, length, eos) for token, length in zip(tokens, lengths)])
+    return torch.stack(
+        [reorder_tokens(token, length, eos) for token, length in zip(tokens, lengths)]
+    )
 
 
 def normalized_scores_with_batch_vocab(
-        model_decoder, features, target_ids, k, bsz, beam_size,
-        pad_idx, top_k=0, vocab_size_meter=None, start_idx=None,
-        end_idx=None, **kwargs):
+    model_decoder,
+    features,
+    target_ids,
+    k,
+    bsz,
+    beam_size,
+    pad_idx,
+    top_k=0,
+    vocab_size_meter=None,
+    start_idx=None,
+    end_idx=None,
+    **kwargs
+):
     """
-        Get normalized probabilities (or log probs) from a net's output
-        w.r.t. vocab consisting of target IDs in the batch
+    Get normalized probabilities (or log probs) from a net's output
+    w.r.t. vocab consisting of target IDs in the batch
     """
     if model_decoder.adaptive_softmax is None:
         weight = model_decoder.output_projection.weight
         vocab_ids = torch.unique(
             torch.cat(
-                (torch.unique(target_ids), torch.arange(top_k, device=target_ids.device))
+                (
+                    torch.unique(target_ids),
+                    torch.arange(top_k, device=target_ids.device),
+                )
             )
         )
         id_map = dict(zip(vocab_ids.tolist(), range(len(vocab_ids))))
-        mapped_target_ids = target_ids.cpu().apply_(
-            lambda x, id_map=id_map: id_map[x]
-        ).to(target_ids.device)
-        expanded_target_ids = mapped_target_ids[:, :].repeat(1, k).view(bsz*beam_size*k, -1)
+        mapped_target_ids = (
+            target_ids.cpu()
+            .apply_(lambda x, id_map=id_map: id_map[x])
+            .to(target_ids.device)
+        )
+        expanded_target_ids = (
+            mapped_target_ids[:, :].repeat(1, k).view(bsz * beam_size * k, -1)
+        )
         if start_idx is not None and end_idx is not None:
             expanded_target_ids = expanded_target_ids[start_idx:end_idx, :]
         logits = F.linear(features, weight[vocab_ids, :])
@@ -838,5 +1077,7 @@ def normalized_scores_with_batch_vocab(
         intermed_scores *= not_padding.float()
         return intermed_scores
     else:
-        raise ValueError("adaptive softmax doesn't work with " +
-                         "`normalized_scores_with_batch_vocab()`")
+        raise ValueError(
+            "adaptive softmax doesn't work with "
+            + "`normalized_scores_with_batch_vocab()`"
+        )

@@ -15,12 +15,16 @@ from fairseq.utils import safe_hasattr
 from fairseq.models.speech_to_text.s2t_transformer import (
     S2TTransformerModel,
     S2TTransformerEncoder,
-    TransformerDecoderScriptable
+    TransformerDecoderScriptable,
 )
-from fairseq.models.speech_to_text.s2t_transformer import base_architecture as s2t_base_architecture
+from fairseq.models.speech_to_text.s2t_transformer import (
+    base_architecture as s2t_base_architecture,
+)
 
 from ..modules.attn_head_selector import AttnHeadSelector
-from ..modules.head_selection_transformer_layer import HeadSelectionTransformerEncoderLayer
+from ..modules.head_selection_transformer_layer import (
+    HeadSelectionTransformerEncoderLayer,
+)
 from .head_selection_transformer import HeadSelectionTransformerDecoder
 
 
@@ -32,6 +36,7 @@ class HeadSelectionS2TTransformerModel(S2TTransformerModel):
     """
     Head selection implemented in S2TTransformer
     """
+
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
 
@@ -43,42 +48,45 @@ class HeadSelectionS2TTransformerModel(S2TTransformerModel):
             "--encoder-attn-head-select",
             action="store_true",
             default=False,
-            help="encoder head selection"
+            help="encoder head selection",
         )
         parser.add_argument(
             "--total-encoder-attention-heads",
             type=int,
-            help="total number of encoder attention heads"
+            help="total number of encoder attention heads",
         )
         # decoder self attention selection
         parser.add_argument(
             "--decoder-self-attn-head-select",
             action="store_true",
             default=False,
-            help="decoder self-attention head selection"
+            help="decoder self-attention head selection",
         )
         # decoder-encoder attention selection
         parser.add_argument(
             "--dec-enc-attn-head-select",
             action="store_true",
             default=False,
-            help="decoder-encoder attention head selection"
+            help="decoder-encoder attention head selection",
         )
         parser.add_argument(
             "--total-decoder-attention-heads",
             type=int,
-            help="total number of decoder attention heads"
+            help="total number of decoder attention heads",
         )
         # selection strategy
         parser.add_argument(
             "--attn-head-select-strategy",
             type=str,
-            help="attention head selection strategy, subset or group"
+            help="attention head selection strategy, subset or group",
         )
 
     @classmethod
     def build_encoder(cls, args):
-        if safe_hasattr(args, "encoder_attn_head_select") and args.encoder_attn_head_select:
+        if (
+            safe_hasattr(args, "encoder_attn_head_select")
+            and args.encoder_attn_head_select
+        ):
             encoder = HeadSelectionS2TTransformerEncoder(args)
         else:
             encoder = S2TTransformerEncoder(args)
@@ -97,14 +105,23 @@ class HeadSelectionS2TTransformerModel(S2TTransformerModel):
 
     @classmethod
     def build_decoder(cls, args, task, embed_tokens):
-        if (safe_hasattr(args, "decoder_self_attn_head_select") and args.decoder_self_attn_head_select) or (safe_hasattr(args, "dec_enc_attn_head_select") and args.dec_enc_attn_head_select):
-            return HeadSelectionTransformerDecoderScriptable(args, task.target_dictionary, embed_tokens)
+        if (
+            safe_hasattr(args, "decoder_self_attn_head_select")
+            and args.decoder_self_attn_head_select
+        ) or (
+            safe_hasattr(args, "dec_enc_attn_head_select")
+            and args.dec_enc_attn_head_select
+        ):
+            return HeadSelectionTransformerDecoderScriptable(
+                args, task.target_dictionary, embed_tokens
+            )
         else:
-            return TransformerDecoderScriptable(args, task.target_dictionary, embed_tokens)
+            return TransformerDecoderScriptable(
+                args, task.target_dictionary, embed_tokens
+            )
 
 
 class HeadSelectionS2TTransformerEncoder(S2TTransformerEncoder):
-
     def __init__(self, args):
         super().__init__(args)
         self.attn_head_selector = AttnHeadSelector(
@@ -115,9 +132,14 @@ class HeadSelectionS2TTransformerEncoder(S2TTransformerEncoder):
             args.attn_head_select_strategy,
         )
         self.task_ids = None
-        self.transformer_layers = nn.ModuleList([
-            HeadSelectionTransformerEncoderLayer(args, layer_idx, attn_head_selector=self.attn_head_selector) for layer_idx in range(args.encoder_layers)
-        ])
+        self.transformer_layers = nn.ModuleList(
+            [
+                HeadSelectionTransformerEncoderLayer(
+                    args, layer_idx, attn_head_selector=self.attn_head_selector
+                )
+                for layer_idx in range(args.encoder_layers)
+            ]
+        )
 
     def set_task_ids(self, task_ids):
         self.task_ids = task_ids
@@ -149,18 +171,29 @@ class HeadSelectionTransformerDecoderScriptable(HeadSelectionTransformerDecoder)
         return x, None
 
 
-@register_model_architecture(model_name="head_selection_s2t_transformer", arch_name="head_selection_s2t_transformer")
+@register_model_architecture(
+    model_name="head_selection_s2t_transformer",
+    arch_name="head_selection_s2t_transformer",
+)
 def base_architecture(args):
     s2t_base_architecture(args)
     args.encoder_attn_head_select = getattr(args, "encoder_attn_head_select", False)
-    args.decoder_self_attn_head_select = getattr(args, "decoder_self_attn_head_select", False)
+    args.decoder_self_attn_head_select = getattr(
+        args, "decoder_self_attn_head_select", False
+    )
     args.dec_enc_attn_head_select = getattr(args, "dec_enc_attn_head_select", False)
-    args.total_encoder_attention_heads = getattr(args, "total_encoder_attention_heads", 8)
-    args.total_decoder_attention_heads = getattr(args, "total_decoder_attention_heads", 8)
+    args.total_encoder_attention_heads = getattr(
+        args, "total_encoder_attention_heads", 8
+    )
+    args.total_decoder_attention_heads = getattr(
+        args, "total_decoder_attention_heads", 8
+    )
     args.attn_head_select_strategy = getattr(args, "attn_head_select_strategy", "group")
 
 
-@register_model_architecture("head_selection_s2t_transformer", "head_selection_s2t_transformer_s")
+@register_model_architecture(
+    "head_selection_s2t_transformer", "head_selection_s2t_transformer_s"
+)
 def head_selection_s2t_transformer_s(args):
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 256)
     args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 256 * 8)

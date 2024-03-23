@@ -42,7 +42,7 @@ def make_parser():
 
 
 def postprocess_results(
-        dataset: TextToSpeechDataset, sample, hypos, resample_fn, dump_target
+    dataset: TextToSpeechDataset, sample, hypos, resample_fn, dump_target
 ):
     def to_np(x):
         return None if x is None else x.detach().cpu().numpy()
@@ -60,22 +60,30 @@ def postprocess_results(
         feat_targs = [None for _ in hypos]
         wave_targs = [None for _ in hypos]
 
-    return zip(sample_ids, texts, attns, eos_probs, feat_preds, wave_preds,
-               feat_targs, wave_targs)
+    return zip(
+        sample_ids,
+        texts,
+        attns,
+        eos_probs,
+        feat_preds,
+        wave_preds,
+        feat_targs,
+        wave_targs,
+    )
 
 
 def dump_result(
-        is_na_model,
-        args,
-        vocoder,
-        sample_id,
-        text,
-        attn,
-        eos_prob,
-        feat_pred,
-        wave_pred,
-        feat_targ,
-        wave_targ,
+    is_na_model,
+    args,
+    vocoder,
+    sample_id,
+    text,
+    attn,
+    eos_prob,
+    feat_pred,
+    wave_pred,
+    feat_targ,
+    wave_targ,
 ):
     sample_rate = args.output_sample_rate
     out_root = Path(args.results_path)
@@ -124,8 +132,13 @@ def dump_result(
 
 
 def main(args):
-    assert(args.dump_features or args.dump_waveforms or args.dump_attentions
-           or args.dump_eos_probs or args.dump_plots)
+    assert (
+        args.dump_features
+        or args.dump_waveforms
+        or args.dump_attentions
+        or args.dump_eos_probs
+        or args.dump_plots
+    )
     if args.max_tokens is None and args.batch_size is None:
         args.max_tokens = 8000
     logger.info(args)
@@ -147,9 +160,10 @@ def main(args):
     resample_fn = {
         False: lambda x: x,
         True: lambda x: torchaudio.sox_effects.apply_effects_tensor(
-            x.detach().cpu().unsqueeze(0), sample_rate,
-            [['rate', str(args.output_sample_rate)]]
-        )[0].squeeze(0)
+            x.detach().cpu().unsqueeze(0),
+            sample_rate,
+            [["rate", str(args.output_sample_rate)]],
+        )[0].squeeze(0),
     }.get(args.output_sample_rate != sample_rate)
     if args.output_sample_rate != sample_rate:
         logger.info(f"resampling to {args.output_sample_rate}Hz")
@@ -177,7 +191,7 @@ def main(args):
             sample = utils.move_to_cuda(sample) if use_cuda else sample
             hypos = generator.generate(model, sample, has_targ=args.dump_target)
             for result in postprocess_results(
-                    dataset, sample, hypos, resample_fn, args.dump_target
+                dataset, sample, hypos, resample_fn, args.dump_target
             ):
                 dump_result(is_na_model, args, vocoder, *result)
 

@@ -13,7 +13,7 @@ import logging
 
 from fairseq import utils
 from fairseq.dataclass.utils import gen_parser_from_dataclass
-from fairseq.distributed import fsdp_wrap
+
 from fairseq.models import FairseqEncoderDecoderModel
 from fairseq.modules import FactorizedEmbedding
 from fairseq.models.transformer import (
@@ -47,7 +47,6 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
         super().__init__(encoder, decoder)
         self.cfg = cfg
         self.supports_align_args = True
-        self.additional_params = {"alpha": 0}
 
     def set_src_tgt_langs(self, src_lang, tgt_lang):
         self.encoder.src_lang = src_lang

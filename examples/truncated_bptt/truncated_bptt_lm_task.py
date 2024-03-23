@@ -29,7 +29,8 @@ logger = logging.getLogger(__name__)
 class TruncatedBPTTLMConfig(FairseqDataclass):
     data: str = field(default="???", metadata={"help": "path to data directory"})
     tokens_per_sample: int = field(
-        default=1024, metadata={"help": "max number of tokens per sequence"},
+        default=1024,
+        metadata={"help": "max number of tokens per sequence"},
     )
     batch_size: int = II("dataset.batch_size")
     # Some models use *max_target_positions* to know how many positional
@@ -141,7 +142,9 @@ class TruncatedBPTTLMTask(FairseqTask):
         # fairseq expects batches to have the following structure
         return {
             "id": torch.tensor([id] * item.size(0)),
-            "net_input": {"src_tokens": item,},
+            "net_input": {
+                "src_tokens": item,
+            },
             "target": target,
             "nsentences": item.size(0),
             "ntokens": item.numel(),

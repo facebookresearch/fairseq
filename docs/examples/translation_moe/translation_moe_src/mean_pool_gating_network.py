@@ -34,7 +34,7 @@ class MeanPoolGatingNetwork(torch.nn.Module):
 
         # mean pooling over time
         encoder_padding_mask = encoder_out["encoder_padding_mask"][0]  # B x T
-        encoder_out = encoder_out["encoder_out"][0].transpose(0, 1)    # B x T x C
+        encoder_out = encoder_out["encoder_out"][0].transpose(0, 1)  # B x T x C
         if encoder_padding_mask is not None:
             encoder_out = encoder_out.clone()  # required because of transpose above
             encoder_out[encoder_padding_mask] = 0

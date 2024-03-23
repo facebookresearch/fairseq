@@ -47,12 +47,8 @@ class DSAligner(Aligner):
         }
         text_clip_indexs = [0]
 
-        vfeats, vmasks = self._build_video_seq(
-            video_feature, video_clips
-        )
-        caps, cmasks = self._build_text_seq(
-            text_feature, text_clip_indexs
-        )
+        vfeats, vmasks = self._build_video_seq(video_feature, video_clips)
+        caps, cmasks = self._build_text_seq(text_feature, text_clip_indexs)
 
         return {
             "caps": caps,
@@ -67,19 +63,21 @@ class NLGTextProcessor(TextProcessor):
     """
     Also return the original text as ref.
     """
+
     def __call__(self, text_id):
         return super().__call__(text_id), text_id
 
 
 class DSNLGAligner(DSAligner):
     """extend with the capability of 2d mask for generation."""
+
     def __init__(self, config):
         super().__init__(config)
         self.attnmasker = MMAttentionMask2DProcessor()
         from transformers import AutoTokenizer
+
         tokenizer = AutoTokenizer.from_pretrained(
-            self.bert_name, use_fast=self.use_fast,
-            bos_token="[CLS]", eos_token="[SEP]"
+            self.bert_name, use_fast=self.use_fast, bos_token="[CLS]", eos_token="[SEP]"
         )
         self.tokenizer = tokenizer
         self.bos_token_id = tokenizer.bos_token_id
@@ -90,27 +88,28 @@ class DSNLGAligner(DSAligner):
         output = super().__call__(video_id, video_feature, text_feature[0])
         if self.split == "test":
             # output.update({"ref": text_feature[1]})
-            output.update({"ref": self.tokenizer.decode(
-                output["caps"], skip_special_tokens=True)})
+            output.update(
+                {"ref": self.tokenizer.decode(output["caps"], skip_special_tokens=True)}
+            )
             text_label = output["caps"]
             cmasks = torch.BoolTensor([1] * text_label.size(0))
-            caps = torch.LongTensor([
-                self.cls_token_id,
-                self.sep_token_id,
-                self.bos_token_id])
+            caps = torch.LongTensor(
+                [self.cls_token_id, self.sep_token_id, self.bos_token_id]
+            )
         else:
             caps, text_label = self.textgen(output["caps"])
             cmasks = output["cmasks"]
 
-        attention_mask = self.attnmasker(
-            output["vmasks"], cmasks, "textgen")
+        attention_mask = self.attnmasker(output["vmasks"], cmasks, "textgen")
 
-        output.update({
-            "caps": caps,
-            "cmasks": cmasks,
-            "text_label": text_label,
-            "attention_mask": attention_mask,
-        })
+        output.update(
+            {
+                "caps": caps,
+                "cmasks": cmasks,
+                "text_label": text_label,
+                "attention_mask": attention_mask,
+            }
+        )
         return output
 
 
@@ -125,19 +124,21 @@ class MSRVTTMetaProcessor(MetaProcessor):
     def __init__(self, config):
         super().__init__(config)
         import pandas as pd
+
         data = pd.read_csv(self._get_split_path(config))
         # TODO: add a text1ka flag.
-        if config.split == "train" \
-                and config.full_test_path is not None \
-                and config.jsfusion_path is not None:
+        if (
+            config.split == "train"
+            and config.full_test_path is not None
+            and config.jsfusion_path is not None
+        ):
             # add testing videos from full_test_path not used by jfusion.
             additional_data = pd.read_csv(config.full_test_path)
             jsfusion_data = pd.read_csv(config.jsfusion_path)
 
             for video_id in additional_data["video_id"]:
                 if video_id not in jsfusion_data["video_id"].values:
-                    data = data.append(
-                        {"video_id": video_id}, ignore_index=True)
+                    data = data.append({"video_id": video_id}, ignore_index=True)
 
         if config.dup is not None and config.split == "train":
             data = data.append([data] * (config.dup - 1), ignore_index=True)
@@ -185,6 +186,7 @@ class MSRVTTTextProcessor(TextProcessor):
 
 class MSRVTTNLGTextProcessor(MSRVTTTextProcessor):
     """TODO: change dsaligner and merge to avoid any NLG text processor."""
+
     def __call__(self, text_id):
         if self.sentences is not None:
             rind = random.randint(0, len(self.sentences[text_id]) - 1)
@@ -204,16 +206,18 @@ class MSRVTTQAMetaProcessor(MetaProcessor):
     def __init__(self, config):
         super().__init__(config)
         import pandas as pd
+
         csv_data = pd.read_csv(self._get_split_path(config), sep="\t")
         data = []
         for video_id, a1, a2, a3, a4, a5, answer in zip(
-                csv_data["vid_key"].values,
-                csv_data["a1"].values,
-                csv_data["a2"].values,
-                csv_data["a3"].values,
-                csv_data["a4"].values,
-                csv_data["a5"].values,
-                csv_data["answer"].values):
+            csv_data["vid_key"].values,
+            csv_data["a1"].values,
+            csv_data["a2"].values,
+            csv_data["a3"].values,
+            csv_data["a4"].values,
+            csv_data["a5"].values,
+            csv_data["answer"].values,
+        ):
             video_id = video_id.replace("msr", "video")
             data.append((video_id, (answer, [a1, a2, a3, a4, a5])))
         self.data = data
@@ -233,7 +237,9 @@ class MSRVTTQATextProcessor(TextProcessor):
     def __call__(self, text_ans):
         for ans_idx, ans in enumerate(text_ans[1]):
             if isinstance(ans, str):
-                text_ans[1][ans_idx] = self.tokenizer(ans, add_special_tokens=False)["input_ids"]
+                text_ans[1][ans_idx] = self.tokenizer(ans, add_special_tokens=False)[
+                    "input_ids"
+                ]
         return text_ans
 
 
@@ -248,15 +254,16 @@ class MSRVTTQAAligner(DSAligner):
         cmasks = []
         answer = text_feature[0]
         for ans_idx, _text_feature in enumerate(text_feature[1]):
-            output = super().__call__(
-                video_id, video_feature, _text_feature, wps)
+            output = super().__call__(video_id, video_feature, _text_feature, wps)
             caps.append(output["caps"])
             cmasks.append(output["cmasks"])
-        output.update({
-            "caps": torch.stack(caps),
-            "cmasks": torch.stack(cmasks),
-            "answers": torch.LongTensor([answer]),
-        })
+        output.update(
+            {
+                "caps": torch.stack(caps),
+                "cmasks": torch.stack(cmasks),
+                "answers": torch.LongTensor([answer]),
+            }
+        )
         return output
 
 
@@ -313,7 +320,7 @@ class YoucookMetaProcessor(MetaProcessor):
         def _get_video_and_caption(rec):
             vid = rec["id"]
             udl_idx = vid.rindex("_")
-            video_id, clip_id = vid[:udl_idx], int(vid[udl_idx + 1:])
+            video_id, clip_id = vid[:udl_idx], int(vid[udl_idx + 1 :])
             clip = self.youcook_annotation[video_id]["annotations"][clip_id]
             start, end = clip["segment"]
             if self.use_annotation_caption:
@@ -346,16 +353,15 @@ class YoucookNLGMetaProcessor(MetaProcessor):
         vfeat_dir = config.vfeat_dir
         print(self._get_split_path(config))
         with open(self._get_split_path(config)) as fd:
-            video_ids = [
-                line.strip().split("/")[1] for line in fd.readlines()]
+            video_ids = [line.strip().split("/")[1] for line in fd.readlines()]
             print("total video_ids in train/val_list.txt", len(video_ids))
 
             all_valid_video_ids = set(
                 [os.path.splitext(fn)[0] for fn in os.listdir(vfeat_dir)]
             )
             video_ids = [
-                video_id for video_id in video_ids
-                if video_id in all_valid_video_ids]
+                video_id for video_id in video_ids if video_id in all_valid_video_ids
+            ]
 
             print("valid video_ids in train/val_list.txt", len(video_ids))
         with open(config.trainval_annotation) as fd:
@@ -375,56 +381,53 @@ class YoucookNLGMetaProcessor(MetaProcessor):
 
 # --------------------- CrossTask -------------------------
 
+
 class CrossTaskMetaProcessor(MetaProcessor):
     def __init__(self, config):
         super().__init__(config)
         np.random.seed(0)  # deterministic random split.
         task_vids = self._get_vids(
-            config.train_csv_path,
-            config.vfeat_dir,
-            config.annotation_path)
+            config.train_csv_path, config.vfeat_dir, config.annotation_path
+        )
 
         val_vids = self._get_vids(
-            config.val_csv_path,
-            config.vfeat_dir,
-            config.annotation_path)
+            config.val_csv_path, config.vfeat_dir, config.annotation_path
+        )
 
         # filter out those task and vids appear in val_vids.
         task_vids = {
             task: [
-                vid for vid in vids
-                if task not in val_vids or vid not in val_vids[task]]
-            for task, vids in task_vids.items()}
+                vid for vid in vids if task not in val_vids or vid not in val_vids[task]
+            ]
+            for task, vids in task_vids.items()
+        }
 
         primary_info = self._read_task_info(config.primary_path)
-        test_tasks = set(primary_info['steps'].keys())
+        test_tasks = set(primary_info["steps"].keys())
 
         # if args.use_related:
         related_info = self._read_task_info(config.related_path)
-        task_steps = {**primary_info['steps'], **related_info['steps']}
-        n_steps = {**primary_info['n_steps'], **related_info['n_steps']}
+        task_steps = {**primary_info["steps"], **related_info["steps"]}
+        n_steps = {**primary_info["n_steps"], **related_info["n_steps"]}
         # else:
         #     task_steps = primary_info['steps']
         #     n_steps = primary_info['n_steps']
         all_tasks = set(n_steps.keys())
         # filter and keep task in primary or related.
         task_vids = {
-            task: vids for task, vids in task_vids.items()
-            if task in all_tasks}
+            task: vids for task, vids in task_vids.items() if task in all_tasks
+        }
         # vocab-by-step matrix (A) and vocab (M)
         # (huxu): we do not use BoW.
         # A, M = self._get_A(task_steps, share="words")
 
         train_vids, test_vids = self._random_split(
-            task_vids, test_tasks, config.n_train)
+            task_vids, test_tasks, config.n_train
+        )
         print("train_num_videos", sum(len(vids) for vids in train_vids.values()))
         print("test_num_videos", sum(len(vids) for vids in test_vids.values()))
         # added by huxu to automatically determine the split.
-        split_map = {
-            "train": train_vids,
-            "valid": test_vids,
-            "test": test_vids
-        }
+        split_map = {"train": train_vids, "valid": test_vids, "test": test_vids}
         task_vids = split_map[config.split]
 
         self.vids = []
@@ -449,9 +452,9 @@ class CrossTaskMetaProcessor(MetaProcessor):
         for task, vids in task_vids.items():
             if task in test_tasks and len(vids) > n_train:
                 train_vids[task] = np.random.choice(
-                    vids, n_train, replace=False).tolist()
-                test_vids[task] = [
-                    vid for vid in vids if vid not in train_vids[task]]
+                    vids, n_train, replace=False
+                ).tolist()
+                test_vids[task] = [vid for vid in vids if vid not in train_vids[task]]
             else:
                 train_vids[task] = vids
         return train_vids, test_vids
@@ -464,17 +467,16 @@ class CrossTaskMetaProcessor(MetaProcessor):
         """
 
         task_vids = {}
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             for line in f:
-                task, vid, url = line.strip().split(',')
+                task, vid, url = line.strip().split(",")
                 # double check the video is available.
-                if not os.path.exists(
-                        os.path.join(vfeat_dir, vid + ".npy")):
+                if not os.path.exists(os.path.join(vfeat_dir, vid + ".npy")):
                     continue
                 # double check the annotation is available.
-                if not os.path.exists(os.path.join(
-                        annotation_path,
-                        task + "_" + vid + ".csv")):
+                if not os.path.exists(
+                    os.path.join(annotation_path, task + "_" + vid + ".csv")
+                ):
                     continue
                 if task not in task_vids:
                     task_vids[task] = []
@@ -486,45 +488,44 @@ class CrossTaskMetaProcessor(MetaProcessor):
         urls = {}
         n_steps = {}
         steps = {}
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             idx = f.readline()
-            while idx != '':
+            while idx != "":
                 idx = idx.strip()
                 titles[idx] = f.readline().strip()
                 urls[idx] = f.readline().strip()
                 n_steps[idx] = int(f.readline().strip())
-                steps[idx] = f.readline().strip().split(',')
+                steps[idx] = f.readline().strip().split(",")
                 next(f)
                 idx = f.readline()
-        return {
-            'title': titles,
-            'url': urls,
-            'n_steps': n_steps,
-            'steps': steps
-        }
+        return {"title": titles, "url": urls, "n_steps": n_steps, "steps": steps}
 
     def _get_A(self, task_steps, share="words"):
         raise ValueError("running get_A is not allowed for BERT.")
         """Step-to-component matrices."""
-        if share == 'words':
+        if share == "words":
             # share words
             task_step_comps = {
-                task: [step.split(' ') for step in steps]
-                for task, steps in task_steps.items()}
-        elif share == 'task_words':
+                task: [step.split(" ") for step in steps]
+                for task, steps in task_steps.items()
+            }
+        elif share == "task_words":
             # share words within same task
             task_step_comps = {
-                task: [[task+'_'+tok for tok in step.split(' ')] for step in steps]
-                for task, steps in task_steps.items()}
-        elif share == 'steps':
+                task: [[task + "_" + tok for tok in step.split(" ")] for step in steps]
+                for task, steps in task_steps.items()
+            }
+        elif share == "steps":
             # share whole step descriptions
             task_step_comps = {
-                task: [[step] for step in steps] for task, steps in task_steps.items()}
+                task: [[step] for step in steps] for task, steps in task_steps.items()
+            }
         else:
             # no sharing
             task_step_comps = {
-                task: [[task+'_'+step] for step in steps]
-                for task, steps in task_steps.items()}
+                task: [[task + "_" + step] for step in steps]
+                for task, steps in task_steps.items()
+            }
         # BERT tokenizer here?
         vocab = []
         for task, steps in task_step_comps.items():
@@ -566,6 +567,7 @@ class CrossTaskAligner(Aligner):
     """
     TODO: it's not clear yet the formulation of the task; finish this later.
     """
+
     def __init__(self, config):
         super().__init__(config)
         self.annotation_path = config.annotation_path
@@ -574,12 +576,12 @@ class CrossTaskAligner(Aligner):
 
     def __call__(self, video_id, video_feature, text_feature):
         task, vid, steps, n_steps = video_id
-        annot_path = os.path.join(
-            self.annotation_path, task + '_' + vid + '.csv')
+        annot_path = os.path.join(self.annotation_path, task + "_" + vid + ".csv")
         video_len = len(video_feature)
 
-        labels = torch.from_numpy(self._read_assignment(
-            video_len, n_steps, annot_path)).float()
+        labels = torch.from_numpy(
+            self._read_assignment(video_len, n_steps, annot_path)
+        ).float()
 
         vfeats, vmasks, targets = [], [], []
         # sliding window on video features and targets.
@@ -589,11 +591,10 @@ class CrossTaskAligner(Aligner):
             video_clip = {"start": [video_start], "end": [video_end]}
 
             vfeat, vmask = self._build_video_seq(
-                video_feature[window_start: window_start + video_end],
-                video_clip
+                video_feature[window_start : window_start + video_end], video_clip
             )
 
-            target = labels[window_start: window_start + video_end]
+            target = labels[window_start : window_start + video_end]
             assert len(vfeat) >= len(target), "{},{}".format(len(vfeat), len(target))
             # TODO: randomly drop all zero targets for training ?
             # if self.split == "train" and target.sum() == 0:
@@ -613,9 +614,7 @@ class CrossTaskAligner(Aligner):
         for step in text_feature:
             step_text_feature = {"start": [0], "end": [1], "cap": [step]}
             step_text_clip_index = [0]
-            cap, cmask = self._build_text_seq(
-                step_text_feature, step_text_clip_index
-            )
+            cap, cmask = self._build_text_seq(step_text_feature, step_text_clip_index)
             caps.append(cap)
             cmasks.append(cmask)
         caps = torch.stack(caps)
@@ -629,7 +628,7 @@ class CrossTaskAligner(Aligner):
             "targets": targets,
             "video_id": vid,
             "task": task,
-            "video_len": video_len  # for later checking.
+            "video_len": video_len,  # for later checking.
         }
 
     def _read_assignment(self, T, K, path):
@@ -646,9 +645,9 @@ class CrossTaskAligner(Aligner):
         """
 
         Y = np.zeros([T, K], dtype=np.uint8)
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             for line in f:
-                step, start, end = line.strip().split(',')
+                step, start, end = line.strip().split(",")
                 start = int(math.floor(float(start)))
                 end = int(math.ceil(float(end)))
                 step = int(step) - 1
@@ -658,18 +657,17 @@ class CrossTaskAligner(Aligner):
 
 # --------------------- COIN -------------------------
 
+
 class MetaTextBinarizer(Aligner):
     def __call__(self, text_feature):
         text_feature = {
             "cap": [text_feature],
-            "start": [0.],
-            "end": [100.],
+            "start": [0.0],
+            "end": [100.0],
         }
         text_clip_indexs = [0]
 
-        caps, cmasks = self._build_text_seq(
-            text_feature, text_clip_indexs
-        )
+        caps, cmasks = self._build_text_seq(text_feature, text_clip_indexs)
         return {"caps": caps, "cmasks": cmasks}
 
 
@@ -695,7 +693,7 @@ class COINActionSegmentationMetaProcessor(MetaProcessor):
         # text_labels is used for ZS setting
         self.text_labels = ["none"] * len(id2label)
         for label_id in id2label:
-            self.text_labels[label_id-1] = id2label[label_id]
+            self.text_labels[label_id - 1] = id2label[label_id]
 
         id2label[0] = "O"
         print("num of labels", len(id2label))
@@ -703,7 +701,10 @@ class COINActionSegmentationMetaProcessor(MetaProcessor):
         for video_id, rec in database.items():
             if not os.path.isfile(os.path.join(config.vfeat_dir, video_id + ".npy")):
                 continue
-            if rec["subset"] == COINActionSegmentationMetaProcessor.split_map[self.split]:
+            if (
+                rec["subset"]
+                == COINActionSegmentationMetaProcessor.split_map[self.split]
+            ):
                 starts, ends, labels = [], [], []
                 for segment in rec["annotation"]:
                     start, end = segment["segment"]
@@ -711,8 +712,7 @@ class COINActionSegmentationMetaProcessor(MetaProcessor):
                     starts.append(start)
                     ends.append(end)
                     labels.append(label)
-                data.append(
-                    (video_id, {"start": starts, "end": ends, "label": labels}))
+                data.append((video_id, {"start": starts, "end": ends, "label": labels}))
         self.data = data
 
     def meta_text_labels(self, config):
@@ -749,7 +749,11 @@ class COINActionSegmentationAligner(Aligner):
         self.sliding_window_size = config.sliding_window_size
 
     def __call__(self, video_id, video_feature, text_feature):
-        starts, ends, label_ids = text_feature["start"], text_feature["end"], text_feature["label"]
+        starts, ends, label_ids = (
+            text_feature["start"],
+            text_feature["end"],
+            text_feature["label"],
+        )
         # sliding window.
         video_len = len(video_feature)
 
@@ -760,8 +764,7 @@ class COINActionSegmentationAligner(Aligner):
             video_end = min(video_len - window_start, self.sliding_window_size)
             video_clip = {"start": [video_start], "end": [video_end]}
             vfeat, vmask = self._build_video_seq(
-                video_feature[window_start: window_start + video_end],
-                video_clip
+                video_feature[window_start : window_start + video_end], video_clip
             )
             # covers video length only.
             target = torch.full_like(vmask, -100, dtype=torch.long)
@@ -787,12 +790,18 @@ class COINActionSegmentationAligner(Aligner):
             video_targets[start_offset:end_offset] = label_id
 
         caps = torch.LongTensor(
-            [[self.cls_token_id, self.sep_token_id,
-              self.pad_token_id, self.sep_token_id]],
-            ).repeat(vfeats.size(0), 1)
+            [
+                [
+                    self.cls_token_id,
+                    self.sep_token_id,
+                    self.pad_token_id,
+                    self.sep_token_id,
+                ]
+            ],
+        ).repeat(vfeats.size(0), 1)
         cmasks = torch.BoolTensor(
             [[0, 1, 0, 1]]  # pad are valid for attention.
-            ).repeat(vfeats.size(0), 1)
+        ).repeat(vfeats.size(0), 1)
         return {
             "caps": caps,
             "cmasks": cmasks,
@@ -801,7 +810,7 @@ class COINActionSegmentationAligner(Aligner):
             "targets": targets,
             "video_id": video_id,
             "video_len": video_len,  # for later checking.
-            "video_targets": video_targets
+            "video_targets": video_targets,
         }
 
 
@@ -809,10 +818,13 @@ class DiDeMoMetaProcessor(MetaProcessor):
     """reference: https://github.com/LisaAnne/LocalizingMoments/blob/master/utils/eval.py
     https://github.com/LisaAnne/LocalizingMoments/blob/master/utils/data_processing.py
     """
+
     def __init__(self, config):
         super().__init__(config)
 
-        assert "test" in self._get_split_path(config), "DiDeMo only supports zero-shot testing for now."
+        assert "test" in self._get_split_path(
+            config
+        ), "DiDeMo only supports zero-shot testing for now."
 
         with open(self._get_split_path(config)) as data_file:
             json_data = json.load(data_file)

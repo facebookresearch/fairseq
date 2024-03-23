@@ -291,15 +291,9 @@ class Wav2Vec2Config(FairseqDataclass):
     fp16: bool = field(default=False, metadata={"help": "If fp16 is being used"})
 
     # Adapter num
-    adp_num: int = field(
-        default=-1
-    )
-    adp_dim: int = field(
-        default=64
-    )
-    adp_act_fn: str = field(
-        default="relu"
-    )
+    adp_num: int = field(default=-1)
+    adp_dim: int = field(default=64)
+    adp_act_fn: str = field(default="relu")
     adp_trf_idx: str = field(
         default="all",
     )
@@ -975,7 +969,9 @@ class TransformerEncoder(nn.Module):
             if args.adp_trf_idx == "all":
                 use_adp = True
             else:
-                adp_trf_idx = list(range(*[int(g) for g in args.adp_trf_idx.split(":")]))
+                adp_trf_idx = list(
+                    range(*[int(g) for g in args.adp_trf_idx.split(":")])
+                )
                 if kwargs.get("layer_idx", None) in adp_trf_idx:
                     use_adp = True
             if use_adp:
@@ -1009,7 +1005,12 @@ class TransformerEncoder(nn.Module):
             layer = checkpoint_wrapper(layer)
         return layer
 
-    def __init__(self, args: Wav2Vec2Config, skip_pos_conv: bool = False, override_encoder_layer: int = None):
+    def __init__(
+        self,
+        args: Wav2Vec2Config,
+        skip_pos_conv: bool = False,
+        override_encoder_layer: int = None,
+    ):
         super().__init__()
 
         self.dropout = args.dropout
@@ -1063,7 +1064,10 @@ class TransformerEncoder(nn.Module):
             encoder_layers = override_encoder_layer
 
         self.layers = nn.ModuleList(
-            [self.build_encoder_layer(args, layer_idx=ii) for ii in range(encoder_layers)]
+            [
+                self.build_encoder_layer(args, layer_idx=ii)
+                for ii in range(encoder_layers)
+            ]
         )
         self.layer_norm_first = args.layer_norm_first
         self.layer_norm = LayerNorm(self.embedding_dim)
@@ -1127,9 +1131,8 @@ class TransformerEncoder(nn.Module):
                 if isinstance(layer, FullyShardedDataParallel):
                     layer_check = layer.unwrapped_module
                 if (corpus_key is None) or (
-                    not isinstance(layer_check, (
-                        TransformerSentenceEncoderWithAdapterLayer,
-                        )
+                    not isinstance(
+                        layer_check, (TransformerSentenceEncoderWithAdapterLayer,)
                     )
                 ):
                     x, (z, lr) = layer(
@@ -1405,7 +1408,6 @@ class AdapterFast(nn.Module):
         else:
             raise ValueError(f"unsupported {act_fn}")
 
-
         self.input_dim = input_dim
         self.reset_parameters()
 
@@ -1426,7 +1428,7 @@ class AdapterFast(nn.Module):
     def forward(self, x, adapter_id):
         ii = adapter_id
         h = x
-        h = F.layer_norm(h, (self.input_dim, ), self.ln_W[ii], self.ln_b[ii])
+        h = F.layer_norm(h, (self.input_dim,), self.ln_W[ii], self.ln_b[ii])
         h = F.linear(h, self.W_a[ii], self.b_a[ii])
         h = self.act_fn(h)
         h = F.linear(h, self.W_b[ii], self.b_b[ii])
@@ -1434,8 +1436,9 @@ class AdapterFast(nn.Module):
         return outputs
 
     def extra_repr(self):
-        return ('adapter={}, input_dim={}, hidden_dim={}'.format(self.adapter_num, self.input_dim, self.hidden_dim))
-
+        return "adapter={}, input_dim={}, hidden_dim={}".format(
+            self.adapter_num, self.input_dim, self.hidden_dim
+        )
 
 
 class TransformerSentenceEncoderWithAdapterLayer(TransformerSentenceEncoderLayer):
@@ -1468,12 +1471,13 @@ class TransformerSentenceEncoderWithAdapterLayer(TransformerSentenceEncoderLayer
             activation_dropout=activation_dropout,
             activation_fn=activation_fn,
             layer_norm_first=layer_norm_first,
-
         )
 
         self.adapter_num = adapter_num
         self.adapter_dim = adapter_dim
-        self.adapter_layer = AdapterFast(adapter_num, self.embedding_dim, self.adapter_dim, adapter_act_fn)
+        self.adapter_layer = AdapterFast(
+            adapter_num, self.embedding_dim, self.adapter_dim, adapter_act_fn
+        )
 
     def forward(
         self,

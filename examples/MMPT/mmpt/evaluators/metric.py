@@ -79,17 +79,14 @@ class DiDeMoMetric(Metric):
     reference: https://github.com/LisaAnne/LocalizingMoments/blob/master/utils/eval.py
     Code to evaluate your results on the DiDeMo dataset.
     """
+
     def __init__(self, config, metric_names=["rank1", "rank5", "miou"]):
         super().__init__(config, metric_names)
 
     def compute_metrics(self, outputs, targets, **kwargs):
         assert len(outputs) == len(targets)
         rank1, rank5, miou = self._eval_predictions(outputs, targets)
-        metrics = {
-            "rank1": rank1,
-            "rank5": rank5,
-            "miou": miou
-        }
+        metrics = {"rank1": rank1, "rank5": rank5, "miou": miou}
         return metrics
 
     def print_computed_metrics(self, metrics):
@@ -109,13 +106,13 @@ class DiDeMoMetric(Metric):
     def _iou(self, pred, gt):
         intersection = max(0, min(pred[1], gt[1]) + 1 - max(pred[0], gt[0]))
         union = max(pred[1], gt[1]) + 1 - min(pred[0], gt[0])
-        return float(intersection)/union
+        return float(intersection) / union
 
     def _rank(self, pred, gt):
         return pred.index(tuple(gt)) + 1
 
     def _eval_predictions(self, segments, data):
-        '''
+        """
         Inputs:
         segments: For each item in the ground truth data, rank possible video segments given the description and video.
             In DiDeMo, there are 21 posible moments extracted for each video so the list of video segments will be of length 21.
@@ -123,17 +120,19 @@ class DiDeMoMetric(Metric):
             There are 4180 sentence in the validation data, so when evaluating a model on the val dataset,
             segments should be a list of lenght 4180, and each item in segments should be a list of length 21.
         data: ground truth data
-        '''
+        """
         average_ranks = []
         average_iou = []
         for s, d in zip(segments, data):
             pred = s[0]
-            ious = [self._iou(pred, t) for t in d['times']]
+            ious = [self._iou(pred, t) for t in d["times"]]
             average_iou.append(np.mean(np.sort(ious)[-3:]))
-            ranks = [self._rank(s, t) for t in d['times'] if tuple(t) in s]  # if t in s] is added for s, e not in prediction.
+            ranks = [
+                self._rank(s, t) for t in d["times"] if tuple(t) in s
+            ]  # if t in s] is added for s, e not in prediction.
             average_ranks.append(np.mean(np.sort(ranks)[:3]))
-        rank1 = np.sum(np.array(average_ranks) <= 1)/float(len(average_ranks))
-        rank5 = np.sum(np.array(average_ranks) <= 5)/float(len(average_ranks))
+        rank1 = np.sum(np.array(average_ranks) <= 1) / float(len(average_ranks))
+        rank5 = np.sum(np.array(average_ranks) <= 5) / float(len(average_ranks))
         miou = np.mean(average_iou)
 
         # print("Average rank@1: %f" % rank1)
@@ -147,18 +146,23 @@ class NLGMetric(Metric):
         self,
         config,
         metric_names=[
-            "Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4",
-            "METEOR", "ROUGE_L", "CIDEr"
-        ]
+            "Bleu_1",
+            "Bleu_2",
+            "Bleu_3",
+            "Bleu_4",
+            "METEOR",
+            "ROUGE_L",
+            "CIDEr",
+        ],
     ):
         super().__init__(config, metric_names)
         # please install NLGEval from `https://github.com/Maluuba/nlg-eval`
         from nlgeval import NLGEval
+
         self.nlg = NLGEval()
 
     def compute_metrics(self, outputs, targets, **kwargs):
-        return self.nlg.compute_metrics(
-            hyp_list=outputs, ref_list=targets)
+        return self.nlg.compute_metrics(hyp_list=outputs, ref_list=targets)
 
     def print_computed_metrics(self, metrics):
         Bleu_1 = metrics["Bleu_1"]
@@ -177,15 +181,12 @@ class NLGMetric(Metric):
 
 
 class QAMetric(Metric):
-    def __init__(
-        self,
-        config,
-        metric_names=["acc"]
-    ):
+    def __init__(self, config, metric_names=["acc"]):
         super().__init__(config, metric_names)
 
     def compute_metrics(self, outputs, targets, **kwargs):
         from sklearn.metrics import accuracy_score
+
         return {"acc": accuracy_score(targets, outputs)}
 
     def print_computed_metrics(self, metrics):
@@ -202,6 +203,7 @@ class COINActionSegmentationMetric(Metric):
     Future reference for the third:
     `https://github.com/Zephyr-D/TCFPN-ISBA/blob/master/utils/metrics.py`
     """
+
     def __init__(self, config, metric_name=["frame_acc"]):
         super().__init__(config, metric_name)
 
@@ -235,11 +237,10 @@ class CrossTaskMetric(Metric):
         return results
 
     def print_computed_metrics(self, metrics):
-        print('Recall: {0:0.3f}'.format(metrics["recall"]))
+        print("Recall: {0:0.3f}".format(metrics["recall"]))
         for task in metrics:
             if task != "recall":
-                print('Task {0}. Recall = {1:0.3f}'.format(
-                    task, metrics[task]))
+                print("Task {0}. Recall = {1:0.3f}".format(task, metrics[task]))
 
     def _get_recalls(self, Y_true, Y_pred):
         """refactored from
@@ -253,9 +254,8 @@ class CrossTaskMetric(Metric):
                 y_true = ys_true[vid]
                 y_pred = ys_pred[vid]
                 step_total[task] += (y_true.sum(axis=0) > 0).sum()
-                step_match[task] += (y_true*y_pred).sum()
-        recalls = {
-            task: step_match[task] / n for task, n in step_total.items()}
+                step_match[task] += (y_true * y_pred).sum()
+        recalls = {task: step_match[task] / n for task, n in step_total.items()}
         return recalls
 
 
@@ -263,7 +263,7 @@ class ActionRecognitionMetric(Metric):
     def __init__(
         self,
         config,
-        metric_names=["acc", "acc_splits", "r1_splits", "r5_splits", "r10_splits"]
+        metric_names=["acc", "acc_splits", "r1_splits", "r5_splits", "r10_splits"],
     ):
         super().__init__(config, metric_names)
 
@@ -300,14 +300,22 @@ class ActionRecognitionMetric(Metric):
             r5s.append(r5)
             r10s.append(r10)
 
-        return {"acc": accs[0], "acc_splits": accs, "r1_splits": r1s, "r5_splits": r5s, "r10_splits": r10s}
+        return {
+            "acc": accs[0],
+            "acc_splits": accs,
+            "r1_splits": r1s,
+            "r5_splits": r5s,
+            "r10_splits": r10s,
+        }
 
     def print_computed_metrics(self, metrics):
         for split, acc in enumerate(metrics["acc_splits"]):
-            print("Top 1 accuracy on split {}: {}; r1 {}; r5 {}; r10 {}".format(
-                split + 1, acc,
-                metrics["r1_splits"][split],
-                metrics["r5_splits"][split],
-                metrics["r10_splits"][split],
+            print(
+                "Top 1 accuracy on split {}: {}; r1 {}; r5 {}; r10 {}".format(
+                    split + 1,
+                    acc,
+                    metrics["r1_splits"][split],
+                    metrics["r5_splits"][split],
+                    metrics["r10_splits"][split],
                 )
             )

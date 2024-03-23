@@ -13,6 +13,7 @@ from torch.utils.data import Dataset
 
 class VideoLoader(Dataset):
     """modified from how2's video_feature_extractor."""
+
     def __init__(
         self,
         csv=None,
@@ -40,16 +41,20 @@ class VideoLoader(Dataset):
 
     def _get_video_dim(self, video_path):
         probe = ffmpeg.probe(video_path)
-        video_stream = next((stream for stream in probe['streams']
-                             if stream['codec_type'] == 'video'), None)
-        width = int(video_stream['width'])
-        height = int(video_stream['height'])
+        video_stream = next(
+            (stream for stream in probe["streams"] if stream["codec_type"] == "video"),
+            None,
+        )
+        width = int(video_stream["width"])
+        height = int(video_stream["height"])
         return height, width
 
     def _get_video_info(self, video_path):
         probe = ffmpeg.probe(video_path)
-        video_stream = next((stream for stream in probe['streams']
-                             if stream['codec_type'] == 'video'), None)
+        video_stream = next(
+            (stream for stream in probe["streams"] if stream["codec_type"] == "video"),
+            None,
+        )
         return video_stream
 
     def _get_output_dim(self, h, w):
@@ -61,30 +66,32 @@ class VideoLoader(Dataset):
             return self.size, int(w * self.size / h)
 
     def __getitem__(self, idx):
-        video_path = self.csv['video_path'].values[idx]
-        output_file = self.csv['feature_path'].values[idx]
+        video_path = self.csv["video_path"].values[idx]
+        output_file = self.csv["feature_path"].values[idx]
         return self._decode(output_file, video_path)
 
     def _decode(self, output_file, video_path):
-        if not(os.path.isfile(output_file)) and os.path.isfile(video_path):
+        if not (os.path.isfile(output_file)) and os.path.isfile(video_path):
             try:
                 h, w = self._get_video_dim(video_path)
             except Exception:
-                print('ffprobe failed at: {}'.format(video_path))
-                return {'video': th.zeros(1), 'input': video_path,
-                        'output': output_file}
+                print("ffprobe failed at: {}".format(video_path))
+                return {
+                    "video": th.zeros(1),
+                    "input": video_path,
+                    "output": output_file,
+                }
             try:
                 os.makedirs(os.path.dirname(output_file), exist_ok=True)
                 height, width = self._get_output_dim(h, w)
 
                 cmd = (
-                    ffmpeg
-                    .input(video_path)
-                    .filter('fps', fps=self.framerate)
-                    .filter('scale', width, height)
+                    ffmpeg.input(video_path)
+                    .filter("fps", fps=self.framerate)
+                    .filter("scale", width, height)
                 )
                 if self.hflip:
-                    cmd = cmd.filter('hflip')
+                    cmd = cmd.filter("hflip")
 
                 if self.centercrop:
                     x = int((width - self.size) / 2.0)
@@ -96,23 +103,22 @@ class VideoLoader(Dataset):
         else:
             video = th.zeros(1)
 
-        return {'video': video, 'input': video_path, 'output': output_file}
+        return {"video": video, "input": video_path, "output": output_file}
 
     def _run(self, cmd, output_file):
-        out, _ = (
-            cmd.output('pipe:', format='rawvideo', pix_fmt='rgb24')
-            .run(capture_stdout=True, quiet=True)
+        out, _ = cmd.output("pipe:", format="rawvideo", pix_fmt="rgb24").run(
+            capture_stdout=True, quiet=True
         )
         if self.centercrop and isinstance(self.size, int):
             height, width = self.size, self.size
         video = np.frombuffer(out, np.uint8).reshape([-1, height, width, 3])
-        video = th.from_numpy(video.astype('float32'))
+        video = th.from_numpy(video.astype("float32"))
         return video.permute(0, 3, 1, 2)
 
 
 class VideoVerifier(VideoLoader):
     def __getitem__(self, idx):
-        video_path = self.csv['video_path'].values[idx]
+        video_path = self.csv["video_path"].values[idx]
         try:
             return self._get_video_info(video_path)
         except Exception:
@@ -132,31 +138,22 @@ class VideoCompressor(VideoLoader):
         crf=32,
         **kwargs
     ):
-        super().__init__(
-            csv,
-            video_dict,
-            framerate,
-            size,
-            centercrop,
-            hflip
-        )
+        super().__init__(csv, video_dict, framerate, size, centercrop, hflip)
         self.crf = crf
 
     def _run(self, cmd, output_file):
-        out, _ = (
-            cmd.output(filename=output_file, crf=self.crf)
-            .run(quiet=True)
-        )
+        out, _ = cmd.output(filename=output_file, crf=self.crf).run(quiet=True)
         video = None
         return video
 
 
 class VideoDownloader(VideoCompressor):
     """download"""
+
     def __getitem__(self, idx):
-        video_path = self.csv['video_path'].values[idx]
-        output_file = self.csv['feature_path'].values[idx]
-        if not(os.path.isfile(output_file)):
+        video_path = self.csv["video_path"].values[idx]
+        output_file = self.csv["feature_path"].values[idx]
+        if not (os.path.isfile(output_file)):
             os.makedirs(os.path.dirname(output_file), exist_ok=True)
             cmd = "wget -O" + output_file + " " + video_path
             # import subprocess
@@ -164,13 +161,14 @@ class VideoDownloader(VideoCompressor):
             #    cmd,
             #    stderr=subprocess.STDOUT, shell=True)
             os.system(cmd)
-        return {'video': None, 'input': video_path, 'output': output_file}
+        return {"video": None, "input": video_path, "output": output_file}
 
 
 class AvKeyframeVideoCompressor(VideoLoader):
     """extract keyframes from a video and save it as jpg.
     TODO: consider to merge with `CodecProcessor`.
     """
+
     def __init__(
         self,
         csv=None,
@@ -187,6 +185,7 @@ class AvKeyframeVideoCompressor(VideoLoader):
     def _get_video_dim(self, video_fn):
         """decord cannot probe the size of a video, we use pyav instead."""
         import av
+
         with av.open(video_fn) as container:
             height = container.streams.video[0].codec_context.height
             width = container.streams.video[0].codec_context.width
@@ -203,15 +202,19 @@ class AvKeyframeVideoCompressor(VideoLoader):
 
     def __getitem__(self, idx):
         import av
-        video_path = self.csv['video_path'].values[idx]
-        output_file = self.csv['feature_path'].values[idx]
-        if not(os.path.isdir(output_file)) and os.path.isfile(video_path):
+
+        video_path = self.csv["video_path"].values[idx]
+        output_file = self.csv["feature_path"].values[idx]
+        if not (os.path.isdir(output_file)) and os.path.isfile(video_path):
             try:
                 h, w = self._get_video_dim(video_path)
             except Exception:
-                print('probe failed at: {}'.format(video_path))
-                return {'video': th.zeros(1), 'input': video_path,
-                        'output': output_file}
+                print("probe failed at: {}".format(video_path))
+                return {
+                    "video": th.zeros(1),
+                    "input": video_path,
+                    "output": output_file,
+                }
 
             try:
                 height, width = self._get_output_dim(h, w)
@@ -221,8 +224,8 @@ class AvKeyframeVideoCompressor(VideoLoader):
                     container.streams.video[0].thread_type = "AUTO"
                     container.streams.video[0].codec_context.height = height
                     container.streams.video[0].codec_context.width = width
-                    if self.framerate == 0:     # keyframe.
-                        container.streams.video[0].codec_context.skip_frame = 'NONKEY'
+                    if self.framerate == 0:  # keyframe.
+                        container.streams.video[0].codec_context.skip_frame = "NONKEY"
                     frames = []
                     for frame in container.decode(video=0):
                         frames.append(frame)
@@ -231,12 +234,14 @@ class AvKeyframeVideoCompressor(VideoLoader):
                     os.makedirs(output_file, exist_ok=True)
                     for frame in frames:
                         frame.to_image().save(
-                            os.path.join(
-                                output_file,
-                                "%04d.jpg" % frame.index))
+                            os.path.join(output_file, "%04d.jpg" % frame.index)
+                        )
             except Exception:
-                print('extract failed at: {}'.format(video_path))
-                return {'video': th.zeros(1), 'input': video_path,
-                        'output': output_file}
+                print("extract failed at: {}".format(video_path))
+                return {
+                    "video": th.zeros(1),
+                    "input": video_path,
+                    "output": output_file,
+                }
         video = th.zeros(1)
-        return {'video': video, 'input': video_path, 'output': output_file}
+        return {"video": video, "input": video_path, "output": output_file}
