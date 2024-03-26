@@ -3,8 +3,11 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from fairseq.modules.transformer_layer import TransformerEncoderLayer
-from typing import Optional
+from fairseq.modules.transformer_layer import (
+    TransformerEncoderLayer,
+    TransformerDecoderLayer,
+)
+from typing import Dict, List, Optional
 import torch
 import torch.nn as nn
 from fairseq import utils
@@ -169,6 +172,7 @@ class XMODTransformerEncoderLayerBase(TransformerEncoderLayer):
         x = self.activation_fn(self.fc1(x))
         x = self.activation_dropout_module(x)
         x = self.fc2(x)
+
         x = self.dropout_module(x)
         x = self.residual_connection(x, residual)
 

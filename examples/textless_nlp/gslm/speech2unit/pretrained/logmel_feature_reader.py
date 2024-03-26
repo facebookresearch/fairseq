@@ -21,9 +21,10 @@ class LogMelFeatureReader:
     def get_feats(self, file_path, channel_id=None):
         wav, sr = sf.read(file_path)
         if channel_id is not None:
-            assert wav.ndim == 2, \
-                f"Expected stereo input when channel_id is given ({file_path})"
-            wav = wav[:, channel_id-1]
+            assert (
+                wav.ndim == 2
+            ), f"Expected stereo input when channel_id is given ({file_path})"
+            wav = wav[:, channel_id - 1]
         feats = torch.from_numpy(wav).float()
         feats = kaldi.fbank(
             feats.unsqueeze(0),

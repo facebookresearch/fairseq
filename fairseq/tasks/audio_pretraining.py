@@ -47,10 +47,14 @@ class AudioPretrainingConfig(FairseqDataclass):
     )
     multi_corpus_keys: Optional[str] = field(
         default=None,
-        metadata={"help": "Comma separated names for loading multi corpus datasets"})
+        metadata={"help": "Comma separated names for loading multi corpus datasets"},
+    )
     multi_corpus_sampling_weights: Optional[str] = field(
         default=None,
-        metadata={"help": "Comma separated string of sampling weights corresponding to the multi_corpus_keys"})
+        metadata={
+            "help": "Comma separated string of sampling weights corresponding to the multi_corpus_keys"
+        },
+    )
     binarized_dataset: bool = field(
         default=False,
         metadata={
@@ -148,7 +152,7 @@ class AudioPretrainingTask(FairseqTask):
             )
         else:
             if task_cfg.multi_corpus_keys is None:
-                manifest_path = os.path.join(data_path, "{}.tsv".format(split))                
+                manifest_path = os.path.join(data_path, "{}.tsv".format(split))
 
                 self.datasets[split] = FileAudioDataset(
                     manifest_path=manifest_path,
@@ -165,17 +169,24 @@ class AudioPretrainingTask(FairseqTask):
             else:
                 dataset_map = OrderedDict()
                 self.dataset_map = {}
-                multi_corpus_keys = [k.strip() for k in task_cfg.multi_corpus_keys.split(",")]
+                multi_corpus_keys = [
+                    k.strip() for k in task_cfg.multi_corpus_keys.split(",")
+                ]
                 corpus_idx_map = {k: idx for idx, k in enumerate(multi_corpus_keys)}
                 data_keys = [k.split(":") for k in split.split(",")]
 
-                multi_corpus_sampling_weights = [float(val.strip()) for val in task_cfg.multi_corpus_sampling_weights.split(",")]
+                multi_corpus_sampling_weights = [
+                    float(val.strip())
+                    for val in task_cfg.multi_corpus_sampling_weights.split(",")
+                ]
                 data_weights = []
 
                 for key, file_name in data_keys:
-                    
+
                     k = key.strip()
-                    manifest_path = os.path.join(data_path, "{}.tsv".format(file_name.strip()))                
+                    manifest_path = os.path.join(
+                        data_path, "{}.tsv".format(file_name.strip())
+                    )
 
                     # TODO: Remove duplication of code from the if block above
                     dataset_map[k] = FileAudioDataset(
@@ -192,14 +203,21 @@ class AudioPretrainingTask(FairseqTask):
                         **mask_args,
                     )
 
-                    data_weights.append(multi_corpus_sampling_weights[corpus_idx_map[k]])
+                    data_weights.append(
+                        multi_corpus_sampling_weights[corpus_idx_map[k]]
+                    )
 
                 self.dataset_map[split] = dataset_map
-                
+
                 if len(dataset_map) == 1:
                     self.datasets[split] = list(dataset_map.values())[0]
                 else:
-                    self.datasets[split] = MultiCorpusDataset(dataset_map, distribution=data_weights, seed=0, sort_indices=True)
+                    self.datasets[split] = MultiCorpusDataset(
+                        dataset_map,
+                        distribution=data_weights,
+                        seed=0,
+                        sort_indices=True,
+                    )
 
         if getattr(task_cfg, "subsample", 1) < 1:
             self.datasets[split] = SubsampleDataset(

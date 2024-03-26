@@ -21,7 +21,6 @@ from fairseq.modules import (
     LayerDropModuleList,
     LayerNorm,
     PositionalEmbedding,
-    SinusoidalPositionalEmbedding,
     transformer_layer,
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
@@ -104,27 +103,38 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             if not cfg.no_token_positional_embeddings
             else None
         )
-        if cfg.layernorm_embedding:
-            self.layernorm_embedding = LayerNorm(embed_dim, export=cfg.export)
-        else:
-            self.layernorm_embedding = None
+        self.layernorm_embedding = (
+            LayerNorm(self.embed_dim, export=cfg.export)
+            if cfg.layernorm_embedding
+            else None
+        )
 
         self.cross_self_attention = cfg.cross_self_attention
+        self.recurrent_stacking = cfg.decoder.recurrent_stacking
 
-        if self.decoder_layerdrop > 0.0:
-            self.layers = LayerDropModuleList(p=self.decoder_layerdrop)
-        else:
-            self.layers = nn.ModuleList([])
-        self.layers.extend(
-            [
-                self.build_decoder_layer(cfg, no_encoder_attn)
-                for _ in range(cfg.decoder.layers)
-            ]
+        self.layers = (
+            LayerDropModuleList(p=self.decoder_layerdrop)
+            if self.decoder_layerdrop > 0.0
+            else nn.ModuleList([])
         )
+
+        if self.recurrent_stacking is not None:
+            self.layers.extend(
+                [self.build_decoder_layer(cfg, no_encoder_attn)]
+                * self.recurrent_stacking
+            )
+        else:
+            self.layers.extend(
+                [
+                    self.build_decoder_layer(cfg, no_encoder_attn)
+                    for _ in range(cfg.decoder.layers)
+                ]
+            )
+
         self.num_layers = len(self.layers)
 
         if cfg.decoder.normalize_before and not cfg.no_decoder_final_norm:
-            self.layer_norm = LayerNorm(embed_dim, export=cfg.export)
+            self.layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
         else:
             self.layer_norm = None
 
@@ -133,6 +143,13 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             if embed_dim != self.output_embed_dim and not cfg.tie_adaptive_weights
             else None
         )
+
+        if cfg.decoder.output_activation_fn is not None:
+            self.project_out_activation_fn = utils.get_activation_fn(
+                cfg.decoder.output_activation_fn
+            )
+        else:
+            self.project_out_activation_fn = None
 
         self.adaptive_softmax = None
         self.output_projection = output_projection
@@ -151,6 +168,10 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
                 tie_proj=cfg.tie_adaptive_proj,
             )
         elif self.share_input_output_embed:
+            if self.cfg.decoder_factorized_embed_dim is not None:
+                raise ValueError(
+                    "--share-decoder-input-output-embed is not compatible with factorized embeddings"
+                )
             self.output_projection = nn.Linear(
                 self.embed_tokens.weight.shape[1],
                 self.embed_tokens.weight.shape[0],
@@ -164,6 +185,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             nn.init.normal_(
                 self.output_projection.weight, mean=0, std=self.output_embed_dim**-0.5
             )
+
         num_base_layers = cfg.base_layers
         for i in range(num_base_layers):
             self.layers.insert(
@@ -224,6 +246,8 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         )
 
         if not features_only:
+            if self.project_out_activation_fn is not None:
+                x = self.project_out_activation_fn(x)
             x = self.output_layer(x)
         return x, extra
 
@@ -305,6 +329,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         # Prevent torchscript exporting issue for dynamic quant embedding
         prev_output_tokens = prev_output_tokens.contiguous()
         # embed tokens and positions
+
         x = self.embed_scale * self.embed_tokens(prev_output_tokens)
 
         if self.quant_noise is not None:
@@ -331,6 +356,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         # decoder layers
         attn: Optional[Tensor] = None
         inner_states: List[Optional[Tensor]] = [x]
+
         for idx, layer in enumerate(self.layers):
             if incremental_state is None and not full_context_alignment:
                 self_attn_mask = self.buffered_future_mask(x)
@@ -347,6 +373,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
                 need_attn=bool((idx == alignment_layer)),
                 need_head_weights=bool((idx == alignment_layer)),
             )
+
             inner_states.append(x)
             if layer_attn is not None and idx == alignment_layer:
                 attn = layer_attn.float().to(x)
@@ -371,11 +398,11 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
 
     def output_layer(self, features):
         """Project features to the vocabulary size."""
-        if self.adaptive_softmax is None:
-            # project back to size of vocabulary
-            return self.output_projection(features)
-        else:
-            return features
+        return (
+            self.output_projection(features)
+            if self.adaptive_softmax is None
+            else features
+        )
 
     def max_positions(self):
         """Maximum output length supported by the decoder."""

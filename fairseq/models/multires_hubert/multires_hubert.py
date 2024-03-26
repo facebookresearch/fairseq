@@ -815,7 +815,6 @@ class MultiresHubertModel(BaseFairseqModel):
                         res_outputs[i], multi_mask_indices[i]
                     )
 
-
         if features_only:
             # NOTE(jiatong): need to reverse back
             res_outputs.reverse()

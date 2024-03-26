@@ -31,6 +31,7 @@ from . import FairseqTask, register_task
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class AudioClassificationConfig(AudioPretrainingConfig):
     target_dictionary: Optional[str] = field(
@@ -246,6 +247,7 @@ class AudioClassificationTask(AudioPretrainingTask):
         metrics.log_scalar("_total", total)
 
         if total > 0:
+
             def _fn_accuracy(meters):
                 if meters["_total"].sum > 0:
                     return utils.item(meters["_correct"].sum / meters["_total"].sum)

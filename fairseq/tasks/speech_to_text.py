@@ -4,13 +4,11 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
-from argparse import Namespace
 from pathlib import Path
 from typing import List
 
 from fairseq.data import Dictionary, encoders
 from fairseq.data.audio.audio_utils import get_features_or_waveform
-from fairseq.data.audio.data_cfg import MultitaskConfig
 from fairseq.data.audio.speech_to_text_dataset import (
     S2TDataConfig,
     SpeechToTextDataset,
@@ -18,6 +16,7 @@ from fairseq.data.audio.speech_to_text_dataset import (
     TextTargetMultitaskData,
 )
 from fairseq.tasks import LegacyFairseqTask, register_task
+
 
 logger = logging.getLogger(__name__)
 
@@ -32,12 +31,6 @@ class SpeechToTextTask(LegacyFairseqTask):
             type=str,
             default="config.yaml",
             help="Configuration YAML filename (under manifest root)",
-        )
-        parser.add_argument(
-            "--multitask-config-yaml",
-            type=str,
-            default=None,
-            help="Configuration YAML filename for the multitasks (under manifest root)",
         )
         parser.add_argument(
             "--max-source-positions",
@@ -135,12 +128,12 @@ class SpeechToTextTask(LegacyFairseqTask):
         pre_tokenizer = self.build_tokenizer(self.args)
         bpe_tokenizer = self.build_bpe(self.args)
         self.datasets[split] = SpeechToTextDatasetCreator.from_tsv(
-            root=self.args.data,
-            cfg=self.data_cfg,
-            splits=split,
-            tgt_dict=self.tgt_dict,
-            pre_tokenizer=pre_tokenizer,
-            bpe_tokenizer=bpe_tokenizer,
+            self.args.data,
+            self.data_cfg,
+            split,
+            self.tgt_dict,
+            pre_tokenizer,
+            bpe_tokenizer,
             is_train_split=is_train_split,
             epoch=epoch,
             seed=self.args.seed,
@@ -265,29 +258,6 @@ class SpeechToTextTask(LegacyFairseqTask):
                 seq_gen_cls=None,
                 extra_gen_cls_kwargs=extra_gen_cls_kwargs,
             )
-
-    def train_step(
-        self, sample, model, criterion, optimizer, update_num, ignore_grad=False
-    ):
-        for task_name, task_obj in self.multitask_tasks.items():
-            criterion.set_multitask_loss_weight(
-                task_name, task_obj.args.get_loss_weight(update_num)
-            )
-            if task_name in model.multitask_decoders:
-                model.multitask_decoders[task_name].train()
-
-        loss, sample_size, logging_output = super().train_step(
-            sample, model, criterion, optimizer, update_num, ignore_grad
-        )
-        return loss, sample_size, logging_output
-
-    def valid_step(self, sample, model, criterion):
-        for task_name, task_obj in self.multitask_tasks.items():
-            if task_name in model.multitask_decoders:
-                model.multitask_decoders[task_name].eval()
-        loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
-
-        return loss, sample_size, logging_output
 
     def build_tokenizer(self, args):
         logger.info(f"pre-tokenizer: {self.data_cfg.pre_tokenizer}")

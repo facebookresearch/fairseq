@@ -34,12 +34,11 @@ class RotaryPositionalEmbedding(torch.nn.Module):
             self.sin_cached = emb.sin().view(emb.size(0), 1, 1, emb.size(1))
         return self.cos_cached, self.sin_cached
 
+
 # rotary pos emb helpers:
 def rotate_half(x):
     x1, x2 = x[..., : x.shape[-1] // 2], x[..., x.shape[-1] // 2 :]
-    return torch.cat(
-        (-x2, x1), dim=x1.ndim - 1
-    )  # dim=-1 triggers a bug in earlier torch versions
+    return torch.cat((-x2, x1), dim=-1)
 
 
 def apply_rotary_pos_emb(q, k, cos, sin, offset: int = 0):

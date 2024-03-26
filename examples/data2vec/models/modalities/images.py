@@ -88,7 +88,7 @@ class ImageEncoder(ModalitySpecificEncoder):
             torch.zeros(1, num_patches, embed_dim), requires_grad=False
         )
 
-        side_n = int(num_patches ** 0.5)
+        side_n = int(num_patches**0.5)
 
         emb = get_2d_sincos_pos_embed(
             pos_embed.shape[-1],
@@ -171,7 +171,7 @@ class ImageEncoder(ModalitySpecificEncoder):
         h = w = imgs.shape[2] // p
         x = imgs.reshape(shape=(imgs.shape[0], 3, h, p, w, p))
         x = torch.einsum("nchpwq->nhwpqc", x)
-        x = x.reshape(shape=(imgs.shape[0], h * w, p ** 2 * 3))
+        x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * 3))
 
         return x
 

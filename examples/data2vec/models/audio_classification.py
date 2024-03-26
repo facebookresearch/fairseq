@@ -287,7 +287,12 @@ class AudioClassificationModel(BaseFairseqModel):
         elif self.cfg.conv_kernel > 1 and not self.cfg.two_convs:
             self.proj = nn.Sequential(
                 TransposeLast(),
-                nn.Conv1d(d, num_classes, kernel_size=self.cfg.conv_kernel, stride=self.cfg.conv_stride),
+                nn.Conv1d(
+                    d,
+                    num_classes,
+                    kernel_size=self.cfg.conv_kernel,
+                    stride=self.cfg.conv_stride,
+                ),
                 TransposeLast(),
             )
             for p in self.proj.parameters():
@@ -295,7 +300,9 @@ class AudioClassificationModel(BaseFairseqModel):
         elif self.cfg.conv_kernel > 0 and self.cfg.two_convs:
             self.proj = nn.Sequential(
                 TransposeLast(),
-                nn.Conv1d(d, d, kernel_size=self.cfg.conv_kernel, stride=self.cfg.conv_stride),
+                nn.Conv1d(
+                    d, d, kernel_size=self.cfg.conv_kernel, stride=self.cfg.conv_stride
+                ),
                 TransposeLast(),
                 nn.GELU(),
                 nn.Linear(d, num_classes),
@@ -373,10 +380,10 @@ class AudioClassificationModel(BaseFairseqModel):
             weight = 2.0 + 20.0 * (
                 2 * np.log10(12194)
                 + 2 * np.log10(freq_sq)
-                - np.log10(freq_sq + 12194 ** 2)
-                - np.log10(freq_sq + 20.6 ** 2)
-                - 0.5 * np.log10(freq_sq + 107.7 ** 2)
-                - 0.5 * np.log10(freq_sq + 737.9 ** 2)
+                - np.log10(freq_sq + 12194**2)
+                - np.log10(freq_sq + 20.6**2)
+                - 0.5 * np.log10(freq_sq + 107.7**2)
+                - 0.5 * np.log10(freq_sq + 737.9**2)
             )
             weight = np.maximum(weight, min_db)
 
@@ -418,15 +425,15 @@ class AudioClassificationModel(BaseFairseqModel):
 
                 def a_weight(fs, n_fft, min_db=-80.0):
                     freq = np.linspace(0, fs // 2, n_fft // 2 + 1)
-                    freq_sq = freq ** 2
+                    freq_sq = freq**2
                     freq_sq[0] = 1.0
                     weight = 2.0 + 20.0 * (
                         2 * np.log10(12194)
                         + 2 * np.log10(freq_sq)
-                        - np.log10(freq_sq + 12194 ** 2)
-                        - np.log10(freq_sq + 20.6 ** 2)
-                        - 0.5 * np.log10(freq_sq + 107.7 ** 2)
-                        - 0.5 * np.log10(freq_sq + 737.9 ** 2)
+                        - np.log10(freq_sq + 12194**2)
+                        - np.log10(freq_sq + 20.6**2)
+                        - 0.5 * np.log10(freq_sq + 107.7**2)
+                        - 0.5 * np.log10(freq_sq + 737.9**2)
                     )
                     weight = np.maximum(weight, min_db)
 
@@ -439,7 +446,7 @@ class AudioClassificationModel(BaseFairseqModel):
         sound = sound.unfold(-1, n_fft, n_fft // 2)
 
         if mode == "RMSE":
-            sound = sound ** 2
+            sound = sound**2
             g = sound.mean(-1)
         elif mode == "A_weighting":
             w = torch.hann_window(n_fft, device=sound.device) * sound
@@ -506,9 +513,9 @@ class AudioClassificationModel(BaseFairseqModel):
                 mixed = (p * mixed_source) + (1 - p) * s2
 
                 if mix_mask is None:
-                    source = mixed / torch.sqrt(p ** 2 + (1 - p) ** 2)
+                    source = mixed / torch.sqrt(p**2 + (1 - p) ** 2)
                 else:
-                    source[mix_mask] = mixed / torch.sqrt(p ** 2 + (1 - p) ** 2)
+                    source[mix_mask] = mixed / torch.sqrt(p**2 + (1 - p) ** 2)
 
                 if label is not None and self.cfg.label_mixup:
                     r = r.unsqueeze(-1)
@@ -547,7 +554,11 @@ class AudioClassificationModel(BaseFairseqModel):
         if prediction_mode == "average_before":
             x = x.mean(dim=1)
 
-        if prediction_mode != "summary_mha" and prediction_mode != "summary_proj" and prediction_mode != "cls":
+        if (
+            prediction_mode != "summary_mha"
+            and prediction_mode != "summary_proj"
+            and prediction_mode != "cls"
+        ):
             x = self.proj(x)
 
         logits = True
@@ -583,7 +594,7 @@ class AudioClassificationModel(BaseFairseqModel):
             x = x.type_as(source)
             x = self.proj(x)
         elif prediction_mode == "cls":
-            x = x[:,0]
+            x = x[:, 0]
             x = self.proj(x)
         else:
             raise Exception(f"unknown prediction mode {prediction_mode}")

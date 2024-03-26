@@ -42,7 +42,7 @@ inverted_question_mark = r"\u00BF"
 
 
 # Hindi
-hindi_danda = u"\u0964"
+hindi_danda = "\u0964"
 
 # Egyptian Arabic
 # arabic_percent = r"\u066A"
@@ -175,7 +175,7 @@ nominal_digit_shapes = r"\u206f"
 with open(f"{os.path.dirname(__file__)}/punctuations.lst", "r") as punc_f:
     punc_list = punc_f.readlines()
 
-punct_pattern = r""    
+punct_pattern = r""
 for punc in punc_list:
     # the first character in the tab separated line is the punc to be removed
     punct_pattern += re.escape(punc.split("\t")[0])
@@ -213,7 +213,6 @@ shared_punc_list = (
     + arabic_question_mark
     + chinese_punc
     + punct_pattern
-
 )
 
 shared_mappping = {
@@ -242,11 +241,11 @@ norm_config = {
         "mapping": shared_mappping,
         "digit_set": shared_digits,
         "unicode_norm": "NFKC",
-        "rm_diacritics" : False,
+        "rm_diacritics": False,
     }
 }
 
-#=============== Mongolian ===============#
+# =============== Mongolian ===============#
 
 norm_config["mon"] = norm_config["*"].copy()
 # add soft hyphen to punc list to match with fleurs
@@ -254,24 +253,23 @@ norm_config["mon"]["del_set"] += r"\u00AD"
 
 norm_config["khk"] = norm_config["mon"].copy()
 
-#=============== Hebrew ===============#
+# =============== Hebrew ===============#
 
 norm_config["heb"] = norm_config["*"].copy()
 # add "HEBREW POINT" symbols to match with fleurs
 norm_config["heb"]["del_set"] += r"\u05B0-\u05BF\u05C0-\u05CF"
 
-#=============== Thai ===============#
+# =============== Thai ===============#
 
 norm_config["tha"] = norm_config["*"].copy()
 # add "Zero width joiner" symbols to match with fleurs
 norm_config["tha"]["punc_set"] += r"\u200D"
 
-#=============== Arabic ===============#
+# =============== Arabic ===============#
 norm_config["ara"] = norm_config["*"].copy()
 norm_config["ara"]["mapping"]["ٱ"] = "ا"
 norm_config["arb"] = norm_config["ara"].copy()
 
-#=============== Javanese ===============#
+# =============== Javanese ===============#
 norm_config["jav"] = norm_config["*"].copy()
 norm_config["jav"]["rm_diacritics"] = True
-

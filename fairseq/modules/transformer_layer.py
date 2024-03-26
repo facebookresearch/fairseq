@@ -11,9 +11,9 @@ from torch import Tensor
 
 from fairseq import utils
 from fairseq.models.transformer import TransformerConfig
-from fairseq.modules import LayerNorm, MultiheadAttention
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
+from fairseq.modules import LayerNorm, MultiheadAttention, NativeMultiheadAttention
 
 
 class TransformerEncoderLayerBase(nn.Module):
@@ -38,12 +38,13 @@ class TransformerEncoderLayerBase(nn.Module):
         self.embed_dim = cfg.encoder.embed_dim
         self.quant_noise = cfg.quant_noise.pq
         self.quant_noise_block_size = cfg.quant_noise.pq_block_size
+        self.use_native_attention = cfg.use_native_attention
         self.self_attn = self.build_self_attention(self.embed_dim, cfg)
         self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
+
         self.dropout_module = FairseqDropout(
             cfg.dropout, module_name=self.__class__.__name__
         )
-        self.activation_fn = utils.get_activation_fn(activation=cfg.activation_fn)
         activation_dropout_p = cfg.activation_dropout
         if activation_dropout_p == 0:
             # for backwards compatibility with models that use cfg.relu_dropout
@@ -52,6 +53,8 @@ class TransformerEncoderLayerBase(nn.Module):
             float(activation_dropout_p), module_name=self.__class__.__name__
         )
         self.normalize_before = cfg.encoder.normalize_before
+
+        self.activation_fn = utils.get_activation_fn(activation=cfg.activation_fn)
         self.fc1 = self.build_fc1(
             self.embed_dim,
             cfg.encoder.ffn_embed_dim,
@@ -133,15 +136,29 @@ class TransformerEncoderLayerBase(nn.Module):
         self.fc2.bias = torch.nn.Parameter(new_fc2_bias)
 
     def build_self_attention(self, embed_dim, cfg):
-        return MultiheadAttention(
-            embed_dim,
-            cfg.encoder.attention_heads,
-            dropout=cfg.attention_dropout,
-            self_attention=True,
-            q_noise=self.quant_noise,
-            qn_block_size=self.quant_noise_block_size,
-            xformers_att_config=cfg.encoder.xformers_att_config,
-        )
+        if self.use_native_attention:
+            return NativeMultiheadAttention(
+                embed_dim,
+                cfg.encoder.attention_heads,
+                dropout=cfg.attention_dropout,
+                self_attention=True,
+                rope=getattr(cfg, "use_rope", False)
+                and cfg.no_token_positional_embeddings,
+                rope_interpolate_factor=getattr(cfg, "rope_interpolate_factor", 1),
+                rope_use_xpos=getattr(cfg, "rope_use_xpos", False),
+                rope_xpos_scale_base=getattr(cfg, "rope_xpos_scale_base", 512),
+                rope_learned_freq=getattr(cfg, "rope_learned_freq", False),
+            )
+        else:
+            return MultiheadAttention(
+                embed_dim,
+                cfg.encoder.attention_heads,
+                dropout=cfg.attention_dropout,
+                self_attention=True,
+                q_noise=self.quant_noise,
+                qn_block_size=self.quant_noise_block_size,
+                xformers_att_config=cfg.encoder.xformers_att_config,
+            )
 
     def residual_connection(self, x, residual):
         return residual + x
@@ -194,6 +211,7 @@ class TransformerEncoderLayerBase(nn.Module):
         residual = x
         if self.normalize_before:
             x = self.self_attn_layer_norm(x)
+
         x, _ = self.self_attn(
             query=x,
             key=x,
@@ -210,6 +228,7 @@ class TransformerEncoderLayerBase(nn.Module):
         residual = x
         if self.normalize_before:
             x = self.final_layer_norm(x)
+
         x = self.activation_fn(self.fc1(x))
         x = self.activation_dropout_module(x)
         x = self.fc2(x)
@@ -218,6 +237,7 @@ class TransformerEncoderLayerBase(nn.Module):
 
         x = self.dropout_module(x)
         x = self.residual_connection(x, residual)
+
         if not self.normalize_before:
             x = self.final_layer_norm(x)
 
@@ -267,6 +287,7 @@ class TransformerDecoderLayerBase(nn.Module):
         self.quant_noise_block_size = cfg.quant_noise.pq_block_size
 
         self.cross_self_attention = cfg.cross_self_attention
+        self.use_native_attention = cfg.use_native_attention
 
         self.self_attn = self.build_self_attention(
             self.embed_dim,
@@ -288,7 +309,6 @@ class TransformerDecoderLayerBase(nn.Module):
             else None
         )
 
-        self.activation_fn = utils.get_activation_fn(activation=cfg.activation_fn)
         activation_dropout_p = cfg.activation_dropout
         if activation_dropout_p == 0:
             # for backwards compatibility with models that use cfg.relu_dropout
@@ -323,6 +343,7 @@ class TransformerDecoderLayerBase(nn.Module):
             else None
         )
 
+        self.activation_fn = utils.get_activation_fn(activation=cfg.activation_fn)
         self.fc1 = self.build_fc1(
             self.embed_dim,
             cfg.decoder.ffn_embed_dim,
@@ -337,8 +358,8 @@ class TransformerDecoderLayerBase(nn.Module):
         )
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
-        self.need_attn = True
 
+        self.need_attn = True
         self.onnx_trace = False
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
@@ -350,30 +371,54 @@ class TransformerDecoderLayerBase(nn.Module):
     def build_self_attention(
         self, embed_dim, cfg, add_bias_kv=False, add_zero_attn=False
     ):
-        return MultiheadAttention(
-            embed_dim,
-            cfg.decoder.attention_heads,
-            dropout=cfg.attention_dropout,
-            add_bias_kv=add_bias_kv,
-            add_zero_attn=add_zero_attn,
-            self_attention=not cfg.cross_self_attention,
-            q_noise=self.quant_noise,
-            qn_block_size=self.quant_noise_block_size,
-            xformers_att_config=cfg.decoder.xformers_att_config,
-        )
+        if self.use_native_attention:
+            return NativeMultiheadAttention(
+                embed_dim,
+                cfg.decoder.attention_heads,
+                dropout=cfg.attention_dropout,
+                self_attention=not cfg.cross_self_attention,
+                rope=getattr(cfg, "use_rope", False)
+                and cfg.no_token_positional_embeddings,
+                rope_interpolate_factor=getattr(cfg, "rope_interpolate_factor", 1),
+                rope_use_xpos=getattr(cfg, "rope_use_xpos", False),
+                rope_xpos_scale_base=getattr(cfg, "rope_xpos_scale_base", 512),
+                rope_learned_freq=getattr(cfg, "rope_learned_freq", False),
+            )
+        else:
+            return MultiheadAttention(
+                embed_dim,
+                cfg.decoder.attention_heads,
+                dropout=cfg.attention_dropout,
+                add_bias_kv=add_bias_kv,
+                add_zero_attn=add_zero_attn,
+                self_attention=not cfg.cross_self_attention,
+                q_noise=self.quant_noise,
+                qn_block_size=self.quant_noise_block_size,
+                xformers_att_config=cfg.decoder.xformers_att_config,
+            )
 
     def build_encoder_attention(self, embed_dim, cfg):
-        return MultiheadAttention(
-            embed_dim,
-            cfg.decoder.attention_heads,
-            kdim=cfg.encoder.embed_dim,
-            vdim=cfg.encoder.embed_dim,
-            dropout=cfg.attention_dropout,
-            encoder_decoder_attention=True,
-            q_noise=self.quant_noise,
-            qn_block_size=self.quant_noise_block_size,
-            xformers_att_config=cfg.encoder.xformers_att_config,
-        )
+        if self.use_native_attention:
+            return NativeMultiheadAttention(
+                embed_dim,
+                cfg.decoder.attention_heads,
+                kdim=cfg.encoder.embed_dim,
+                vdim=cfg.encoder.embed_dim,
+                dropout=cfg.attention_dropout,
+                encoder_decoder_attention=True,
+            )
+        else:
+            return MultiheadAttention(
+                embed_dim,
+                cfg.decoder.attention_heads,
+                kdim=cfg.encoder.embed_dim,
+                vdim=cfg.encoder.embed_dim,
+                dropout=cfg.attention_dropout,
+                encoder_decoder_attention=True,
+                q_noise=self.quant_noise,
+                qn_block_size=self.quant_noise_block_size,
+                xformers_att_config=cfg.encoder.xformers_att_config,
+            )
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
@@ -413,6 +458,7 @@ class TransformerDecoderLayerBase(nn.Module):
         residual = x
         if self.normalize_before:
             x = self.self_attn_layer_norm(x)
+
         if prev_self_attn_state is not None:
             prev_key, prev_value = prev_self_attn_state[:2]
             saved_state: Dict[str, Optional[Tensor]] = {
@@ -424,6 +470,7 @@ class TransformerDecoderLayerBase(nn.Module):
             assert incremental_state is not None
             self.self_attn._set_input_buffer(incremental_state, saved_state)
         _self_attn_input_buffer = self.self_attn._get_input_buffer(incremental_state)
+
         if self.cross_self_attention and not (
             incremental_state is not None
             and _self_attn_input_buffer is not None
@@ -508,12 +555,15 @@ class TransformerDecoderLayerBase(nn.Module):
         if self.ffn_layernorm is not None:
             x = self.ffn_layernorm(x)
         x = self.fc2(x)
+
         x = self.dropout_module(x)
         if self.w_resid is not None:
             residual = torch.mul(self.w_resid, residual)
         x = self.residual_connection(x, residual)
+
         if not self.normalize_before:
             x = self.final_layer_norm(x)
+
         if self.onnx_trace and incremental_state is not None:
             saved_state = self.self_attn._get_input_buffer(incremental_state)
             assert saved_state is not None

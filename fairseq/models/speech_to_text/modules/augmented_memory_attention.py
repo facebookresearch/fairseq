@@ -3,21 +3,22 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from typing import List, Tuple
+from typing import Tuple, List
 
 import torch
 import torch.nn.functional as F
-from torch import Tensor, nn
-
 from fairseq.models import FairseqEncoder
-from fairseq.models.speech_to_text import ConvTransformerEncoder
+from fairseq.models.speech_to_text import (
+    ConvTransformerEncoder,
+)
+from fairseq.models.speech_to_text.utils import attention_suppression
 from fairseq.models.speech_to_text.utils import (
-    attention_suppression,
     lengths_to_encoder_padding_mask,
     segments_to_sequence,
     sequence_to_segments,
 )
 from fairseq.modules import MultiheadAttention, TransformerEncoderLayer
+from torch import nn, Tensor
 
 # ------------------------------------------------------------------------------
 #   AugmentedMemoryConvTransformerEncoder

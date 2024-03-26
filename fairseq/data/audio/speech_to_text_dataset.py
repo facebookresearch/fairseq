@@ -600,14 +600,6 @@ class SpeechToTextDatasetCreator(object):
             speaker_to_id=speaker_to_id,
         )
 
-        if has_multitask:
-            for task_name, task_obj in multitask.items():
-                task_data = TextTargetMultitaskData(
-                    task_obj.args, split_name, task_obj.target_dictionary
-                )
-                ds.add_multitask_dataset(task_name, task_data)
-        return ds
-
     @classmethod
     def get_size_ratios(
         cls, datasets: List[SpeechToTextDataset], alpha: float = 1.0
@@ -672,7 +664,6 @@ class SpeechToTextDatasetCreator(object):
         bpe_tokenizer,
         n_frames_per_step,
         speaker_to_id,
-        multitask: Optional[Dict] = None,
     ) -> SpeechToTextDataset:
         samples = cls._load_samples_from_tsv(root, split)
         return cls._from_list(
@@ -685,7 +676,6 @@ class SpeechToTextDatasetCreator(object):
             bpe_tokenizer,
             n_frames_per_step,
             speaker_to_id,
-            multitask,
         )
 
     @classmethod
@@ -702,20 +692,18 @@ class SpeechToTextDatasetCreator(object):
         seed: int,
         n_frames_per_step: int = 1,
         speaker_to_id=None,
-        multitask: Optional[Dict] = None,
     ) -> SpeechToTextDataset:
         datasets = [
             cls._from_tsv(
-                root=root,
-                cfg=cfg,
-                split=split,
-                tgt_dict=tgt_dict,
-                is_train_split=is_train_split,
-                pre_tokenizer=pre_tokenizer,
-                bpe_tokenizer=bpe_tokenizer,
-                n_frames_per_step=n_frames_per_step,
-                speaker_to_id=speaker_to_id,
-                multitask=multitask,
+                root,
+                cfg,
+                split,
+                tgt_dict,
+                is_train_split,
+                pre_tokenizer,
+                bpe_tokenizer,
+                n_frames_per_step,
+                speaker_to_id,
             )
             for split in splits.split(",")
         ]

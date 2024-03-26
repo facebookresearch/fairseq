@@ -9,7 +9,6 @@ import subprocess
 import sys
 
 from setuptools import Extension, find_packages, setup
-from torch.utils import cpp_extension
 
 if sys.version_info < (3, 6):
     sys.exit("Sorry, Python >= 3.6 is required for fairseq.")
@@ -80,56 +79,71 @@ extensions = [
 ]
 
 
-extensions.extend(
-    [
-        cpp_extension.CppExtension(
-            "fairseq.libbase",
-            sources=[
-                "fairseq/clib/libbase/balanced_assignment.cpp",
-            ],
-        ),
-        cpp_extension.CppExtension(
-            "fairseq.libnat",
-            sources=[
-                "fairseq/clib/libnat/edit_dist.cpp",
-            ],
-        ),
-        cpp_extension.CppExtension(
-            "alignment_train_cpu_binding",
-            sources=[
-                "examples/operators/alignment_train_cpu.cpp",
-            ],
-        ),
-    ]
-)
-if "CUDA_HOME" in os.environ:
+cmdclass = {}
+
+
+try:
+    # torch is not available when generating docs
+    from torch.utils import cpp_extension
+
     extensions.extend(
         [
             cpp_extension.CppExtension(
-                "fairseq.libnat_cuda",
+                "fairseq.libbase",
                 sources=[
-                    "fairseq/clib/libnat_cuda/edit_dist.cu",
-                    "fairseq/clib/libnat_cuda/binding.cpp",
+                    "fairseq/clib/libbase/balanced_assignment.cpp",
+                ],
+            )
+        ]
+    )
+
+    extensions.extend(
+        [
+            cpp_extension.CppExtension(
+                "fairseq.libnat",
+                sources=[
+                    "fairseq/clib/libnat/edit_dist.cpp",
                 ],
             ),
             cpp_extension.CppExtension(
-                "fairseq.ngram_repeat_block_cuda",
+                "alignment_train_cpu_binding",
                 sources=[
-                    "fairseq/clib/cuda/ngram_repeat_block_cuda.cpp",
-                    "fairseq/clib/cuda/ngram_repeat_block_cuda_kernel.cu",
-                ],
-            ),
-            cpp_extension.CppExtension(
-                "alignment_train_cuda_binding",
-                sources=[
-                    "examples/operators/alignment_train_kernel.cu",
-                    "examples/operators/alignment_train_cuda.cpp",
+                    "examples/operators/alignment_train_cpu.cpp",
                 ],
             ),
         ]
     )
+    if "CUDA_HOME" in os.environ:
+        extensions.extend(
+            [
+                cpp_extension.CppExtension(
+                    "fairseq.libnat_cuda",
+                    sources=[
+                        "fairseq/clib/libnat_cuda/edit_dist.cu",
+                        "fairseq/clib/libnat_cuda/binding.cpp",
+                    ],
+                ),
+                cpp_extension.CppExtension(
+                    "fairseq.ngram_repeat_block_cuda",
+                    sources=[
+                        "fairseq/clib/cuda/ngram_repeat_block_cuda.cpp",
+                        "fairseq/clib/cuda/ngram_repeat_block_cuda_kernel.cu",
+                    ],
+                ),
+                cpp_extension.CppExtension(
+                    "alignment_train_cuda_binding",
+                    sources=[
+                        "examples/operators/alignment_train_kernel.cu",
+                        "examples/operators/alignment_train_cuda.cpp",
+                    ],
+                ),
+            ]
+        )
+    cmdclass["build_ext"] = cpp_extension.BuildExtension
 
-cmdclass = {"build_ext": cpp_extension.BuildExtension}
+except ImportError:
+    pass
+
 
 if "READTHEDOCS" in os.environ:
     # don't build extensions when generating docs
@@ -172,29 +186,36 @@ def do_setup(package_data):
             "Programming Language :: Python :: 3.6",
             "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: 3.8",
+            "Programming Language :: Python :: 3.9",
+            "Programming Language :: Python :: 3.10",
+            "Programming Language :: Python :: 3.11",
             "Topic :: Scientific/Engineering :: Artificial Intelligence",
         ],
         long_description=readme,
         long_description_content_type="text/markdown",
+        setup_requires=[
+            "cython",
+            'numpy<1.20.0; python_version<"3.7"',
+            'numpy; python_version>="3.7"',
+            "setuptools>=18.0",
+        ],
         install_requires=[
             "cffi",
             "cython",
-            "hydra-core>=1.0.7,<1.1",
-            "omegaconf<2.1",
+            "omegaconf",
+            'dataclasses; python_version<"3.7"',
+            "hydra-core>=1.3.2",
             "numpy>=1.21.3",
             "regex",
             "sacrebleu>=1.4.12",
-            "torch>=1.13",
+            "torch>=1.12",
             "tqdm",
             "bitarray",
             "torchaudio>=0.8.0",
             "scikit-learn",
             "packaging",
+            "rotary-embedding-torch",
         ],
-        extras_require={
-            "dev": ["flake8", "pytest", "black==22.3.0"],
-            "docs": ["sphinx", "sphinx-argparse"],
-        },
         dependency_links=dependency_links,
         packages=find_packages(
             exclude=[

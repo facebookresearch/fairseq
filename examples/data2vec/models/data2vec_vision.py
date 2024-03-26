@@ -351,13 +351,13 @@ class Data2VecVisionModel(BaseFairseqModel):
         if dist.is_initialized():
             zc = torch.tensor(y.size(0)).cuda()
             zs = y.sum(dim=0)
-            zss = (y ** 2).sum(dim=0)
+            zss = (y**2).sum(dim=0)
 
             dist.all_reduce(zc)
             dist.all_reduce(zs)
             dist.all_reduce(zss)
 
-            var = zss / (zc - 1) - (zs ** 2) / (zc * (zc - 1))
+            var = zss / (zc - 1) - (zs**2) / (zc * (zc - 1))
             return torch.sqrt(var + 1e-6).mean()
         else:
             return torch.sqrt(y.var(dim=0) + 1e-6).mean()
@@ -415,7 +415,7 @@ class Attention(nn.Module):
         if attn_head_dim is not None:
             head_dim = attn_head_dim
         all_head_dim = head_dim * self.num_heads
-        self.scale = head_dim ** -0.5
+        self.scale = head_dim**-0.5
 
         self.qkv = nn.Linear(dim, all_head_dim * 3, bias=False)
         if qkv_bias:
@@ -492,7 +492,7 @@ class Attention(nn.Module):
         attn = q @ k.transpose(-2, -1)
 
         if self.relative_position_bias_table is not None:
-            assert 1==2
+            assert 1 == 2
             relative_position_bias = self.relative_position_bias_table[
                 self.relative_position_index.view(-1)
             ].view(
@@ -562,9 +562,21 @@ class RelativePositionBias(nn.Module):
         )  # Wh*Ww,Wh*Ww,nH
         print("self.window_size :", self.window_size)
         print("self.num_relative_distance :", self.num_relative_distance)
-        print("self.relative_position_index :", self.relative_position_index.size(), self.relative_position_index)
-        print("relative_position_bias.size(), relative_position_bias :",relative_position_bias.size(), relative_position_bias)
-        print("self.relative_position_bias_table.size(), self.relative_position_bias_table :",self.relative_position_bias_table.size(), self.relative_position_bias_table)
+        print(
+            "self.relative_position_index :",
+            self.relative_position_index.size(),
+            self.relative_position_index,
+        )
+        print(
+            "relative_position_bias.size(), relative_position_bias :",
+            relative_position_bias.size(),
+            relative_position_bias,
+        )
+        print(
+            "self.relative_position_bias_table.size(), self.relative_position_bias_table :",
+            self.relative_position_bias_table.size(),
+            self.relative_position_bias_table,
+        )
         return relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
 
 

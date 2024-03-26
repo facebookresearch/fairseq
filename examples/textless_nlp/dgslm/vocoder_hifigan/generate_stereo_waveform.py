@@ -26,7 +26,11 @@ logger = logging.getLogger(__name__)
 def dump_result(args, data, sample_id, pred_wav):
     assert "audio" in data or args.results_path is not None
     if args.results_path:
-        fname = Path(data["audio"]).stem + ".wav" if "audio" in data else f"{sample_id}_pred.wav"
+        fname = (
+            Path(data["audio"]).stem + ".wav"
+            if "audio" in data
+            else f"{sample_id}_pred.wav"
+        )
         out_file = Path(args.results_path) / fname
 
     sf.write(
@@ -76,7 +80,7 @@ def main(args):
     if args.results_path:
         Path(args.results_path).mkdir(exist_ok=True, parents=True)
 
-    channels = args.channels.split(',')
+    channels = args.channels.split(",")
     speakers = [args.channel1_spk, args.channel2_spk]
 
     for i, d in tqdm(enumerate(data), total=len(data)):
@@ -112,9 +116,8 @@ def cli_main():
     parser.add_argument(
         "--channels",
         type=str,
-        default='unitA,unitB',
-        help="Comma-separated list of the channel names"
-             "(Default: 'unitA,unitB').",
+        default="unitA,unitB",
+        help="Comma-separated list of the channel names" "(Default: 'unitA,unitB').",
     )
     parser.add_argument("--sample-rate", type=int, default=16_000)
     parser.add_argument(
@@ -123,9 +126,23 @@ def cli_main():
         default=None,
         help="Output directory. If not set, the audios will be stored following the 'audio' field specified in the input file",
     )
-    parser.add_argument("--channel1-spk", type=int, default=0, help="Speaker of the first channel",)
-    parser.add_argument("--channel2-spk", type=int, default=4, help="Speaker of the second channel",)
-    parser.add_argument("--mix", action="store_true", help="Mix the two channels to create output mono files")
+    parser.add_argument(
+        "--channel1-spk",
+        type=int,
+        default=0,
+        help="Speaker of the first channel",
+    )
+    parser.add_argument(
+        "--channel2-spk",
+        type=int,
+        default=4,
+        help="Speaker of the second channel",
+    )
+    parser.add_argument(
+        "--mix",
+        action="store_true",
+        help="Mix the two channels to create output mono files",
+    )
     parser.add_argument("--cpu", action="store_true", help="run on CPU")
 
     args = parser.parse_args()

@@ -63,7 +63,9 @@ class MultiresHubertPretrainingConfig(FairseqDataclass):
     #                 (imply (1,2), (2,5))
     #     if base label_rate = 50
     #     (1,2), (2,5) --> label rates 50, 25, 10
-    label_rate_ratios: List[int] = field(default=MISSING, metadata={"help": "tuple for label rates e.g., [(1,2), (2,5)]"})
+    label_rate_ratios: List[int] = field(
+        default=MISSING, metadata={"help": "tuple for label rates e.g., [(1,2), (2,5)]"}
+    )
     sample_rate: int = field(
         default=16_000,
         metadata={
@@ -151,7 +153,10 @@ class MultiresHubertPretrainingTask(FairseqTask):
     def load_dictionaries(self):
         label_dir = self.cfg.data if self.cfg.label_dir is None else self.cfg.label_dir
         self.res_number = len(label_dir)
-        dictionaries = [ (Dictionary.load(f"{label_dir}/dict.{label}.txt") if label is not "" else None ) for label in self.cfg.labels]
+        dictionaries = [
+            (Dictionary.load(f"{label_dir}/dict.{label}.txt") if label != "" else None)
+            for label in self.cfg.labels
+        ]
         return dictionaries[0] if self.cfg.fine_tuning else dictionaries
 
     def get_label_dir(self) -> str:
@@ -165,7 +170,10 @@ class MultiresHubertPretrainingTask(FairseqTask):
         pad_list = [(dict.pad() if dict is not None else None) for dict in dicts]
         eos_list = [(dict.eos() if dict is not None else None) for dict in dicts]
         procs = [LabelEncoder(dict) for dict in dicts]
-        paths = [(f"{self.get_label_dir()}/{split}.{l}" if l != "" else None) for l in self.cfg.labels]
+        paths = [
+            (f"{self.get_label_dir()}/{split}.{l}" if l != "" else None)
+            for l in self.cfg.labels
+        ]
 
         base_rate = self.cfg.label_rate
         self.label_rates = [base_rate]
@@ -173,7 +181,10 @@ class MultiresHubertPretrainingTask(FairseqTask):
         self.label_rate_ratios = []
         for i in range(len(label_rate_ratios) // 2):
 
-            upsample_rate, downsample_rate = label_rate_ratios[i * 2], label_rate_ratios[i * 2 + 1]
+            upsample_rate, downsample_rate = (
+                label_rate_ratios[i * 2],
+                label_rate_ratios[i * 2 + 1],
+            )
             # parse label rate ratios
             self.label_rate_ratios.append((upsample_rate, downsample_rate))
             base_rate = base_rate * upsample_rate // downsample_rate

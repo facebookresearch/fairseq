@@ -1,4 +1,4 @@
-import re 
+import re
 import os
 import torch
 import tempfile
@@ -7,19 +7,22 @@ from dataclasses import dataclass
 from torchaudio.models import wav2vec2_model
 
 # iso codes with specialized rules in uroman
-special_isos_uroman = "ara, bel, bul, deu, ell, eng, fas, grc, ell, eng, heb, kaz, kir, lav, lit, mkd, mkd2, oss, pnt, pus, rus, srp, srp2, tur, uig, ukr, yid".split(",")
+special_isos_uroman = "ara, bel, bul, deu, ell, eng, fas, grc, ell, eng, heb, kaz, kir, lav, lit, mkd, mkd2, oss, pnt, pus, rus, srp, srp2, tur, uig, ukr, yid".split(
+    ","
+)
 special_isos_uroman = [i.strip() for i in special_isos_uroman]
+
 
 def normalize_uroman(text):
     text = text.lower()
     text = re.sub("([^a-z' ])", " ", text)
-    text = re.sub(' +', ' ', text)
+    text = re.sub(" +", " ", text)
     return text.strip()
 
 
-def get_uroman_tokens(norm_transcripts, uroman_root_dir, iso = None):
-    tf = tempfile.NamedTemporaryFile()  
-    tf2 = tempfile.NamedTemporaryFile()  
+def get_uroman_tokens(norm_transcripts, uroman_root_dir, iso=None):
+    tf = tempfile.NamedTemporaryFile()
+    tf2 = tempfile.NamedTemporaryFile()
     with open(tf.name, "w") as f:
         for t in norm_transcripts:
             f.write(t + "\n")
@@ -28,20 +31,19 @@ def get_uroman_tokens(norm_transcripts, uroman_root_dir, iso = None):
     cmd = f"perl {uroman_root_dir}/uroman.pl"
     if iso in special_isos_uroman:
         cmd += f" -l {iso} "
-    cmd +=  f" < {tf.name} > {tf2.name}" 
+    cmd += f" < {tf.name} > {tf2.name}"
     os.system(cmd)
     outtexts = []
     with open(tf2.name) as f:
         for line in f:
             line = " ".join(line.strip())
-            line =  re.sub(r"\s+", " ", line).strip()
+            line = re.sub(r"\s+", " ", line).strip()
             outtexts.append(line)
     assert len(outtexts) == len(norm_transcripts)
     uromans = []
     for ot in outtexts:
         uromans.append(normalize_uroman(ot))
     return uromans
-
 
 
 @dataclass
@@ -73,7 +75,6 @@ def time_to_frame(time):
     stride_msec = 20
     frames_per_sec = 1000 / stride_msec
     return int(time * frames_per_sec)
-
 
 
 def load_model_dict():
@@ -134,6 +135,7 @@ def load_model_dict():
 
     return model, dictionary
 
+
 def get_spans(tokens, segments):
     ltr_idx = 0
     tokens_idx = 0
@@ -141,36 +143,46 @@ def get_spans(tokens, segments):
     start, end = (0, 0)
     sil = "<blank>"
     for (seg_idx, seg) in enumerate(segments):
-        if(tokens_idx == len(tokens)):
-           assert(seg_idx == len(segments) - 1)
-           assert(seg.label == '<blank>')
-           continue
-        cur_token = tokens[tokens_idx].split(' ')
+        if tokens_idx == len(tokens):
+            assert seg_idx == len(segments) - 1
+            assert seg.label == "<blank>"
+            continue
+        cur_token = tokens[tokens_idx].split(" ")
         ltr = cur_token[ltr_idx]
-        if seg.label == "<blank>": continue
-        assert(seg.label == ltr)
-        if(ltr_idx) == 0: start = seg_idx
+        if seg.label == "<blank>":
+            continue
+        assert seg.label == ltr
+        if (ltr_idx) == 0:
+            start = seg_idx
         if ltr_idx == len(cur_token) - 1:
             ltr_idx = 0
             tokens_idx += 1
             intervals.append((start, seg_idx))
             while tokens_idx < len(tokens) and len(tokens[tokens_idx]) == 0:
-                    intervals.append((seg_idx, seg_idx))
-                    tokens_idx += 1
+                intervals.append((seg_idx, seg_idx))
+                tokens_idx += 1
         else:
             ltr_idx += 1
     spans = []
     for (idx, (start, end)) in enumerate(intervals):
-        span = segments[start:end + 1]
+        span = segments[start : end + 1]
         if start > 0:
             prev_seg = segments[start - 1]
             if prev_seg.label == sil:
-                pad_start = prev_seg.start if (idx == 0) else int((prev_seg.start + prev_seg.end)/2)
+                pad_start = (
+                    prev_seg.start
+                    if (idx == 0)
+                    else int((prev_seg.start + prev_seg.end) / 2)
+                )
                 span = [Segment(sil, pad_start, span[0].start)] + span
-        if end+1 < len(segments):
-            next_seg = segments[end+1]
+        if end + 1 < len(segments):
+            next_seg = segments[end + 1]
             if next_seg.label == sil:
-                pad_end = next_seg.end if (idx == len(intervals) - 1) else math.floor((next_seg.start + next_seg.end) / 2)
+                pad_end = (
+                    next_seg.end
+                    if (idx == len(intervals) - 1)
+                    else math.floor((next_seg.start + next_seg.end) / 2)
+                )
                 span = span + [Segment(sil, span[-1].end, pad_end)]
         spans.append(span)
     return spans

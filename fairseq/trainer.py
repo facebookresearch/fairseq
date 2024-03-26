@@ -53,6 +53,9 @@ class Trainer(object):
 
         self.cfg = cfg
         self.task = task
+        self.teacher_model = None
+        self.perform_distillation = False
+        self.load_checkpoint_liberally = not cfg.checkpoint.load_checkpoint_liberally
 
         # catalog shared parameters
         shared_params = _catalog_shared_params(model)
@@ -285,6 +288,11 @@ class Trainer(object):
         if self._lr_scheduler is None:
             self._build_optimizer()  # this will initialize self._lr_scheduler
         return self._lr_scheduler
+
+    def assign_teacher_model(self, teacher_model):
+        self.teacher_model = teacher_model
+        self.teacher_model.eval()
+        self.perform_distillation = True
 
     def _build_optimizer(self):
 
@@ -583,7 +591,9 @@ class Trainer(object):
                     logger.info(self.model)
 
                 self.model.load_state_dict(
-                    state["model"], strict=True, model_cfg=self.cfg.model
+                    state["model"],
+                    model_cfg=self.cfg.model,
+                    strict=self.load_checkpoint_liberally,
                 )
                 # save memory for later steps
                 del state["model"]
@@ -775,7 +785,7 @@ class Trainer(object):
         if self.quantizer is not None:
             self.quantizer.begin_epoch(epoch)
 
-        # task specific setup per epoch
+        # task specific setup per epochtrain_step
         self.task.begin_epoch(epoch, self.get_model())
 
         if self.tpu:
@@ -797,8 +807,15 @@ class Trainer(object):
     def train_step(self, samples, raise_oom=False):
         """Do forward, backward and parameter update."""
         self._set_seed()
-        self.model.train()
-        self.criterion.train()
+
+        if self.cfg.task._name == "translation_with_fisher_information":
+            self.model.eval()
+            self.criterion.eval()
+            self.model.zero_grad(set_to_none=True)
+        else:
+            self.model.train()
+            self.criterion.train()
+
         self.zero_grad()
 
         metrics.log_start_time("train_wall", priority=800, round=0)
@@ -840,15 +857,29 @@ class Trainer(object):
             try:
                 with maybe_no_sync():
                     # forward and backward
-                    loss, sample_size_i, logging_output = self.task.train_step(
-                        sample=sample,
-                        model=self.model,
-                        criterion=self.criterion,
-                        optimizer=self.optimizer,
-                        update_num=self.get_num_updates(),
-                        ignore_grad=is_dummy_batch,
-                        **extra_kwargs,
-                    )
+                    if self.perform_distillation:
+                        # teacher model is required to generate the teacher_lprobs in the criterion
+                        loss, sample_size_i, logging_output = self.task.train_step(
+                            sample=sample,
+                            model=self.model,
+                            teacher_model=self.teacher_model,
+                            criterion=self.criterion,
+                            optimizer=self.optimizer,
+                            update_num=self.get_num_updates(),
+                            ignore_grad=is_dummy_batch,
+                        )
+                    else:
+                        # general training (no distillation)
+                        # those criterion will not have a teacher model
+                        loss, sample_size_i, logging_output = self.task.train_step(
+                            sample=sample,
+                            model=self.model,
+                            criterion=self.criterion,
+                            optimizer=self.optimizer,
+                            update_num=self.get_num_updates(),
+                            ignore_grad=is_dummy_batch,
+                        )
+
                     del loss
 
                 logging_outputs.append(logging_output)
@@ -1000,6 +1031,7 @@ class Trainer(object):
                     self.task.train_step(
                         sample,
                         self.model,
+                        self.teacher_model,
                         self.criterion,
                         self.optimizer,
                         self.get_num_updates(),
@@ -1149,9 +1181,21 @@ class Trainer(object):
             sample, is_dummy_batch = self._prepare_sample(sample)
 
             try:
-                _loss, sample_size, logging_output = self.task.valid_step(
-                    sample, self.model, self.criterion, **extra_kwargs
-                )
+                if self.perform_distillation:
+                    _loss, sample_size, logging_output = self.task.valid_step(
+                        sample=sample,
+                        model=self.model,
+                        teacher_model=self.teacher_model,
+                        criterion=self.criterion,
+                        **extra_kwargs,
+                    )
+                else:
+                    _loss, sample_size, logging_output = self.task.valid_step(
+                        sample=sample,
+                        model=self.model,
+                        criterion=self.criterion,
+                        **extra_kwargs,
+                    )
             except RuntimeError as e:
                 if "out of memory" in str(e):
                     self._log_oom(e)

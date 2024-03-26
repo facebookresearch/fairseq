@@ -51,14 +51,11 @@ class FairseqTask(object):
     """
     Tasks store dictionaries and provide helpers for loading/iterating over
     Datasets, initializing the Model/Criterion and calculating the loss.
-
     Tasks have limited statefulness. In particular, state that needs to be
     saved to/loaded from checkpoints needs to be stored in the `self.state`
     :class:`StatefulContainer` object. For example::
-
         self.state.add_factory("dictionary", self.load_dictionary)
         print(self.state.dictionary)  # calls self.load_dictionary()
-
     This is necessary so that when loading checkpoints, we can properly
     recreate the task state after initializing the task instance.
     """
@@ -88,7 +85,6 @@ class FairseqTask(object):
     @classmethod
     def load_dictionary(cls, filename):
         """Load the dictionary from the filename
-
         Args:
             filename (str): the filename
         """
@@ -99,7 +95,6 @@ class FairseqTask(object):
         cls, filenames, workers=1, threshold=-1, nwords=-1, padding_factor=8
     ):
         """Build the dictionary
-
         Args:
             filenames (list): list of filenames
             workers (int): number of concurrent workers
@@ -121,7 +116,6 @@ class FairseqTask(object):
     @classmethod
     def setup_task(cls, cfg: DictConfig, **kwargs):
         """Setup the task (e.g., load dictionaries).
-
         Args:
             cfg (omegaconf.DictConfig): parsed command-line arguments
         """
@@ -138,7 +132,6 @@ class FairseqTask(object):
         **kwargs,
     ):
         """Load a given dataset split.
-
         Args:
             split (str): name of the split (e.g., train, valid, test)
             combine (bool): combines a split segmented into pieces into one dataset
@@ -150,10 +143,8 @@ class FairseqTask(object):
     def dataset(self, split):
         """
         Return a loaded dataset split.
-
         Args:
             split (str): name of the split (e.g., train, valid, test)
-
         Returns:
             a :class:`~fairseq.data.FairseqDataset` corresponding to *split*
         """
@@ -170,7 +161,6 @@ class FairseqTask(object):
     ):
         """
         Filter examples that are too large
-
         Args:
             indices (np.array): original array of sample indices
             dataset (~fairseq.data.FairseqDataset): dataset to batch
@@ -226,7 +216,6 @@ class FairseqTask(object):
     ):
         """
         Get an iterator that yields batches of data from the given dataset.
-
         Args:
             dataset (~fairseq.data.FairseqDataset): dataset to batch
             max_tokens (int, optional): max number of tokens in each batch
@@ -263,7 +252,6 @@ class FairseqTask(object):
                 between sequence lengths among workers for batches sorted by length.
             update_epoch_batch_itr (bool optional): if true then donot use the cached
                 batch iterator for the epoch
-
         Returns:
             ~fairseq.iterators.EpochBatchIterator: a batched iterator over the
                 given dataset split
@@ -343,10 +331,8 @@ class FairseqTask(object):
         """
         Build the :class:`~fairseq.models.BaseFairseqModel` instance for this
         task.
-
         Args:
             cfg (FairseqDataclass): configuration object
-
         Returns:
             a :class:`~fairseq.models.BaseFairseqModel` instance
         """
@@ -360,10 +346,8 @@ class FairseqTask(object):
         """
         Build the :class:`~fairseq.criterions.FairseqCriterion` instance for
         this task.
-
         Args:
             cfg (omegaconf.DictConfig): configration object
-
         Returns:
             a :class:`~fairseq.criterions.FairseqCriterion` instance
         """
@@ -382,7 +366,6 @@ class FairseqTask(object):
         """
         Build a :class:`~fairseq.SequenceGenerator` instance for this
         task.
-
         Args:
             models (List[~fairseq.models.FairseqModel]): ensemble of models
             args (fairseq.dataclass.configs.GenerationConfig):
@@ -508,7 +491,6 @@ class FairseqTask(object):
         """
         Do forward and backward, and return the loss as computed by *criterion*
         for the given *model* and *sample*.
-
         Args:
             sample (dict): the mini-batch. The format is defined by the
                 :class:`~fairseq.data.FairseqDataset`.
@@ -517,7 +499,6 @@ class FairseqTask(object):
             optimizer (~fairseq.optim.FairseqOptimizer): the optimizer
             update_num (int): the current update
             ignore_grad (bool): multiply loss by 0 if this is set to True
-
         Returns:
             tuple:
                 - the loss
@@ -666,7 +647,6 @@ class LegacyFairseqTask(FairseqTask):
     @classmethod
     def setup_task(cls, args: Namespace, **kwargs):
         """Setup the task (e.g., load dictionaries).
-
         Args:
             args (argparse.Namespace): parsed command-line arguments
         """
@@ -679,10 +659,8 @@ class LegacyFairseqTask(FairseqTask):
         """
         Build the :class:`~fairseq.models.BaseFairseqModel` instance for this
         task.
-
         Args:
             args (argparse.Namespace): parsed command-line arguments
-
         Returns:
             a :class:`~fairseq.models.BaseFairseqModel` instance
         """
@@ -696,10 +674,8 @@ class LegacyFairseqTask(FairseqTask):
         """
         Build the :class:`~fairseq.criterions.FairseqCriterion` instance for
         this task.
-
         Args:
             args (argparse.Namespace): parsed command-line arguments
-
         Returns:
             a :class:`~fairseq.criterions.FairseqCriterion` instance
         """

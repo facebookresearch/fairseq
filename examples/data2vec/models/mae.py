@@ -141,6 +141,7 @@ class AltBlock(nn.Module):
         else:
             if alt_attention:
                 from .multi.modules import AltAttention as AltAttention2
+
                 self.attn = AltAttention2(
                     dim,
                     num_heads=num_heads,
@@ -218,7 +219,7 @@ class AltAttention(nn.Module):
         if attn_head_dim is not None:
             head_dim = attn_head_dim
         all_head_dim = head_dim * self.num_heads
-        self.scale = qk_scale or head_dim ** -0.5
+        self.scale = qk_scale or head_dim**-0.5
 
         self.qkv = nn.Linear(dim, all_head_dim * 3, bias=False)
         if qkv_bias:
@@ -405,7 +406,7 @@ def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
     assert embed_dim % 2 == 0
     omega = np.arange(embed_dim // 2, dtype=np.float)
     omega /= embed_dim / 2.0
-    omega = 1.0 / 10000 ** omega  # (D/2,)
+    omega = 1.0 / 10000**omega  # (D/2,)
 
     pos = pos.reshape(-1)  # (M,)
     out = np.einsum("m,d->md", pos, omega)  # (M, D/2), outer product
@@ -426,7 +427,7 @@ def interpolate_pos_embed(model, checkpoint_model):
         # height (== width) for the checkpoint position embedding
         orig_size = int((pos_embed_checkpoint.shape[-2] - num_extra_tokens) ** 0.5)
         # height (== width) for the new position embedding
-        new_size = int(num_patches ** 0.5)
+        new_size = int(num_patches**0.5)
         # class_token and dist_token are kept unchanged
         if orig_size != new_size:
             print(
@@ -465,9 +466,12 @@ class MaeModel(BaseFairseqModel):
         )
         num_patches = self.patch_embed.num_patches
 
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, cfg.embed_dim)) if not cfg.no_cls else None
+        self.cls_token = (
+            nn.Parameter(torch.zeros(1, 1, cfg.embed_dim)) if not cfg.no_cls else None
+        )
         self.pos_embed = nn.Parameter(
-            torch.zeros(1, num_patches + int(not cfg.no_cls), cfg.embed_dim), requires_grad=False
+            torch.zeros(1, num_patches + int(not cfg.no_cls), cfg.embed_dim),
+            requires_grad=False,
         )  # fixed sin-cos embedding
 
         norm_layer = partial(nn.LayerNorm, eps=cfg.norm_eps)
@@ -515,6 +519,7 @@ class MaeModel(BaseFairseqModel):
                 )
             elif cfg.alt_block2:
                 from .multi.modules import AltBlock as AltBlock2
+
                 return AltBlock2(
                     cfg.embed_dim,
                     cfg.num_heads,
@@ -594,7 +599,7 @@ class MaeModel(BaseFairseqModel):
 
         self.decoder_norm = norm_layer(cfg.decoder_embed_dim)
         self.decoder_pred = nn.Linear(
-            cfg.decoder_embed_dim, cfg.patch_size ** 2 * cfg.in_chans, bias=True
+            cfg.decoder_embed_dim, cfg.patch_size**2 * cfg.in_chans, bias=True
         )  # decoder to patch
         # --------------------------------------------------------------------------
 
@@ -613,7 +618,7 @@ class MaeModel(BaseFairseqModel):
         # initialize (and freeze) pos_embed by sin-cos embedding
         pos_embed = get_2d_sincos_pos_embed(
             self.pos_embed.shape[-1],
-            int(self.patch_embed.num_patches ** 0.5),
+            int(self.patch_embed.num_patches**0.5),
             cls_token=not self.cfg.no_cls,
         )
         self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
@@ -621,7 +626,7 @@ class MaeModel(BaseFairseqModel):
         if self.decoder_pos_embed is not None:
             decoder_pos_embed = get_2d_sincos_pos_embed(
                 self.decoder_pos_embed.shape[-1],
-                int(self.patch_embed.num_patches ** 0.5),
+                int(self.patch_embed.num_patches**0.5),
                 cls_token=not self.cfg.no_cls,
             )
             self.decoder_pos_embed.data.copy_(
@@ -663,7 +668,7 @@ class MaeModel(BaseFairseqModel):
         h = w = imgs.shape[2] // p
         x = imgs.reshape(shape=(imgs.shape[0], 3, h, p, w, p))
         x = torch.einsum("nchpwq->nhwpqc", x)
-        x = x.reshape(shape=(imgs.shape[0], h * w, p ** 2 * 3))
+        x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * 3))
         return x
 
     def unpatchify(self, x):

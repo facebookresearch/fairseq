@@ -34,7 +34,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("fairseq_cli.interactive")
 
-
 Batch = namedtuple("Batch", "ids src_tokens src_lengths constraints")
 Translation = namedtuple("Translation", "src_str hypos pos_scores alignments")
 
@@ -147,7 +146,8 @@ def main(cfg: FairseqConfig):
         arg_overrides=overrides,
         task=task,
         suffix=cfg.checkpoint.checkpoint_suffix,
-        strict=(cfg.checkpoint.checkpoint_shard_count == 1),
+        strict=(cfg.checkpoint.checkpoint_shard_count == 1)
+        and not cfg.checkpoint.load_checkpoint_liberally,
         num_shards=cfg.checkpoint.checkpoint_shard_count,
     )
 
@@ -164,6 +164,25 @@ def main(cfg: FairseqConfig):
         if use_cuda and not cfg.distributed_training.pipeline_model_parallel:
             model.cuda()
         model.prepare_for_inference_(cfg)
+
+        model.eval()
+
+        if cfg.interactive.activate_encoder_adapter is not None:
+            logging.info(
+                "using {} adapters in encoder".format(
+                    cfg.interactive.activate_encoder_adapter
+                )
+            )
+            for layer in model.encoder.layers:
+                layer.adapter_to_be_used = cfg.interactive.activate_encoder_adapter
+        if cfg.interactive.activate_decoder_adapter is not None:
+            logging.info(
+                "using {} adapters in decoder".format(
+                    cfg.interactive.activate_decoder_adapter
+                )
+            )
+            for layer in model.decoder.layers:
+                layer.adapter_to_be_used = cfg.interactive.activate_decoder_adapter
 
     # Initialize generator
     generator = task.build_generator(models, cfg.generation)
@@ -204,6 +223,7 @@ def main(cfg: FairseqConfig):
     logger.info("NOTE: hypothesis and token scores are output in base 2")
     logger.info("Type the input sentence and press return:")
     start_id = 0
+
     for inputs in buffered_read(cfg.interactive.input, cfg.interactive.buffer_size):
         results = []
         for batch in make_batches(inputs, cfg, task, max_positions, encode_fn):
@@ -223,12 +243,14 @@ def main(cfg: FairseqConfig):
                     "src_lengths": src_lengths,
                 },
             }
+
             translate_start_time = time.time()
             translations = task.inference_step(
                 generator, models, sample, constraints=constraints
             )
             translate_time = time.time() - translate_start_time
             total_translate_time += translate_time
+
             list_constraints = [[] for _ in range(bsz)]
             if cfg.generation.constraints:
                 list_constraints = [unpack_constraints(c) for c in constraints]

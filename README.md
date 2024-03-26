@@ -12,143 +12,57 @@
 
 --------------------------------------------------------------------------------
 
-Fairseq(-py) is a sequence modeling toolkit that allows researchers and
+`Fairseq(-py)` is a sequence modeling toolkit that allows researchers and
 developers to train custom models for translation, summarization, language
 modeling and other text generation tasks.
 
-We provide reference implementations of various sequence modeling papers:
 
-<details><summary>List of implemented papers</summary><p>
+# Usage
+This clone of fairseq supports `Knowledge Distillation`, `Recurrent Stacking`, and `LoRA` for the `Transformer` model and the `translation` task. You can add the following flags to `fairseq-train` to use them:
 
-* **Convolutional Neural Networks (CNN)**
-  + [Language Modeling with Gated Convolutional Networks (Dauphin et al., 2017)](examples/language_model/conv_lm/README.md)
-  + [Convolutional Sequence to Sequence Learning (Gehring et al., 2017)](examples/conv_seq2seq/README.md)
-  + [Classical Structured Prediction Losses for Sequence to Sequence Learning (Edunov et al., 2018)](https://github.com/pytorch/fairseq/tree/classic_seqlevel)
-  + [Hierarchical Neural Story Generation (Fan et al., 2018)](examples/stories/README.md)
-  + [wav2vec: Unsupervised Pre-training for Speech Recognition (Schneider et al., 2019)](examples/wav2vec/README.md)
-* **LightConv and DynamicConv models**
-  + [Pay Less Attention with Lightweight and Dynamic Convolutions (Wu et al., 2019)](examples/pay_less_attention_paper/README.md)
-* **Long Short-Term Memory (LSTM) networks**
-  + Effective Approaches to Attention-based Neural Machine Translation (Luong et al., 2015)
-* **Transformer (self-attention) networks**
-  + Attention Is All You Need (Vaswani et al., 2017)
-  + [Scaling Neural Machine Translation (Ott et al., 2018)](examples/scaling_nmt/README.md)
-  + [Understanding Back-Translation at Scale (Edunov et al., 2018)](examples/backtranslation/README.md)
-  + [Adaptive Input Representations for Neural Language Modeling (Baevski and Auli, 2018)](examples/language_model/README.adaptive_inputs.md)
-  + [Lexically constrained decoding with dynamic beam allocation (Post & Vilar, 2018)](examples/constrained_decoding/README.md)
-  + [Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context (Dai et al., 2019)](examples/truncated_bptt/README.md)
-  + [Adaptive Attention Span in Transformers (Sukhbaatar et al., 2019)](examples/adaptive_span/README.md)
-  + [Mixture Models for Diverse Machine Translation: Tricks of the Trade (Shen et al., 2019)](examples/translation_moe/README.md)
-  + [RoBERTa: A Robustly Optimized BERT Pretraining Approach (Liu et al., 2019)](examples/roberta/README.md)
-  + [Facebook FAIR's WMT19 News Translation Task Submission (Ng et al., 2019)](examples/wmt19/README.md)
-  + [Jointly Learning to Align and Translate with Transformer Models (Garg et al., 2019)](examples/joint_alignment_translation/README.md )
-  + [Multilingual Denoising Pre-training for Neural Machine Translation (Liu et at., 2020)](examples/mbart/README.md)
-  + [Neural Machine Translation with Byte-Level Subwords (Wang et al., 2020)](examples/byte_level_bpe/README.md)
-  + [Unsupervised Quality Estimation for Neural Machine Translation (Fomicheva et al., 2020)](examples/unsupervised_quality_estimation/README.md)
-  + [wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations (Baevski et al., 2020)](examples/wav2vec/README.md)
-  + [Generating Medical Reports from Patient-Doctor Conversations Using Sequence-to-Sequence Models (Enarvi et al., 2020)](examples/pointer_generator/README.md)
-  + [Linformer: Self-Attention with Linear Complexity (Wang et al., 2020)](examples/linformer/README.md)
-  + [Cross-lingual Retrieval for Iterative Self-Supervised Training (Tran et al., 2020)](examples/criss/README.md)
-  + [Deep Transformers with Latent Depth (Li et al., 2020)](examples/latent_depth/README.md)
-  + [Unsupervised Cross-lingual Representation Learning for Speech Recognition (Conneau et al., 2020)](https://arxiv.org/abs/2006.13979)
-  + [Self-training and Pre-training are Complementary for Speech Recognition (Xu et al., 2020)](https://arxiv.org/abs/2010.11430)
-  + [Robust wav2vec 2.0: Analyzing Domain Shift in Self-Supervised Pre-Training (Hsu, et al., 2021)](https://arxiv.org/abs/2104.01027)
-  + [Unsupervised Speech Recognition (Baevski, et al., 2021)](https://arxiv.org/abs/2105.11084)
-  + [Simple and Effective Zero-shot Cross-lingual Phoneme Recognition (Xu et al., 2021)](https://arxiv.org/abs/2109.11680)
-  + [VideoCLIP: Contrastive Pre-training for Zero-shot Video-Text Understanding (Xu et. al., 2021)](https://arxiv.org/pdf/2109.14084.pdf)
-  + [VLM: Task-agnostic Video-Language Model Pre-training for Video Understanding (Xu et. al., 2021)](https://aclanthology.org/2021.findings-acl.370.pdf)
-  + [NormFormer: Improved Transformer Pretraining with Extra Normalization (Shleifer et. al, 2021)](examples/normformer/README.md)
-* **Non-autoregressive Transformers**
-  + Non-Autoregressive Neural Machine Translation (Gu et al., 2017)
-  + Deterministic Non-Autoregressive Neural Sequence Modeling by Iterative Refinement (Lee et al. 2018)
-  + Insertion Transformer: Flexible Sequence Generation via Insertion Operations (Stern et al. 2019)
-  + Mask-Predict: Parallel Decoding of Conditional Masked Language Models (Ghazvininejad et al., 2019)
-  + [Levenshtein Transformer (Gu et al., 2019)](examples/nonautoregressive_translation/README.md)
-* **Finetuning**
-  + [Better Fine-Tuning by Reducing Representational Collapse (Aghajanyan et al. 2020)](examples/rxf/README.md)
+- **Knowledge Distillation**: The original implementation was sourced from [LeslieOverfitting](https://github.com/LeslieOverfitting/selective_distillation) and [MANGA-UOFA](https://github.com/MANGA-UOFA/fdistill)
 
-</p></details>
+  - Pure Word-Level Distillation ([Hinton _et al_.](https://arxiv.org/abs/1503.02531)) can be achieved by: 
+    - `--task translation_with_kd --kd-strategy word_level --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd `
+    - Note that, there no NLL Loss between the gold targets and predictions. The only loss is the KL-Divergence between the student and teacher distributions ($`\mathcal{L}`$ = $`\mathcal{L}_{KD}`$)
 
-### What's New:
-* May 2023 [Released models for Scaling Speech Technology to 1,000+ Languages  (Pratap, et al., 2023)](examples/mms/README.md)
-* June 2022 [Released code for wav2vec-U 2.0 from Towards End-to-end Unsupervised Speech Recognition (Liu, et al., 2022)](examples/wav2vec/unsupervised/README.md)
-* May 2022 [Integration with xFormers](https://github.com/facebookresearch/xformers)
-* December 2021 [Released Direct speech-to-speech translation code](examples/speech_to_speech/README.md)
-* October 2021 [Released VideoCLIP and VLM models](examples/MMPT/README.md)
-* October 2021 [Released multilingual finetuned XLSR-53 model](examples/wav2vec/README.md)
-* September 2021 [`master` branch renamed to `main`](https://github.com/github/renaming).
-* July 2021 [Released DrNMT code](examples/discriminative_reranking_nmt/README.md)
-* July 2021 [Released Robust wav2vec 2.0 model](examples/wav2vec/README.md)
-* June 2021 [Released XLMR-XL and XLMR-XXL models](examples/xlmr/README.md)
-* May 2021 [Released Unsupervised Speech Recognition code](examples/wav2vec/unsupervised/README.md)
-* March 2021 [Added full parameter and optimizer state sharding + CPU offloading](examples/fully_sharded_data_parallel/README.md)
-* February 2021 [Added LASER training code](examples/laser/README.md)
-* December 2020: [Added Adaptive Attention Span code](examples/adaptive_span/README.md)
-* December 2020: [GottBERT model and code released](examples/gottbert/README.md)
-* November 2020: Adopted the [Hydra](https://github.com/facebookresearch/hydra) configuration framework
-  * [see documentation explaining how to use it for new and existing projects](docs/hydra_integration.md)
-* November 2020: [fairseq 0.10.0 released](https://github.com/pytorch/fairseq/releases/tag/v0.10.0)
-* October 2020: [Added R3F/R4F (Better Fine-Tuning) code](examples/rxf/README.md)
-* October 2020: [Deep Transformer with Latent Depth code released](examples/latent_depth/README.md)
-* October 2020: [Added CRISS models and code](examples/criss/README.md)
+  - [Kim & Rush](https://aclanthology.org/D16-1139) extend this idea and add a NLL Loss between the predictions and target and modify the loss as $`\mathcal{L}`$ = $`\mathcal{L}_{KD}`$ + $`\mathcal{L}_{NLL}`$. The same can be achieved with the following flags:
+    - `--task translation_with_kd --kd-strategy word_seq_level --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd `
 
-<details><summary>Previous updates</summary><p>
+  - Training with Batch-Level and Global-Level KD ([Wang _et al_.](https://aclanthology.org/2021.acl-long.504)) can be done as follows:
+    - `--task translation_with_kd --kd-strategy batch_level --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd --kd-rate $kd_rate`
+    - `--task translation_with_kd --kd-strategy global_level --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd --kd-rate $kd_rate --kd-queue-size $kd_queue_sz`
 
-* September 2020: [Added Linformer code](examples/linformer/README.md)
-* September 2020: [Added pointer-generator networks](examples/pointer_generator/README.md)
-* August 2020: [Added lexically constrained decoding](examples/constrained_decoding/README.md)
-* August 2020: [wav2vec2 models and code released](examples/wav2vec/README.md)
-* July 2020: [Unsupervised Quality Estimation code released](examples/unsupervised_quality_estimation/README.md)
-* May 2020: [Follow fairseq on Twitter](https://twitter.com/fairseq)
-* April 2020: [Monotonic Multihead Attention code released](examples/simultaneous_translation/README.md)
-* April 2020: [Quant-Noise code released](examples/quant_noise/README.md)
-* April 2020: [Initial model parallel support and 11B parameters unidirectional LM released](examples/megatron_11b/README.md)
-* March 2020: [Byte-level BPE code released](examples/byte_level_bpe/README.md)
-* February 2020: [mBART model and code released](examples/mbart/README.md)
-* February 2020: [Added tutorial for back-translation](https://github.com/pytorch/fairseq/tree/main/examples/backtranslation#training-your-own-model-wmt18-english-german)
-* December 2019: [fairseq 0.9.0 released](https://github.com/pytorch/fairseq/releases/tag/v0.9.0)
-* November 2019: [VizSeq released (a visual analysis toolkit for evaluating fairseq models)](https://facebookresearch.github.io/vizseq/docs/getting_started/fairseq_example)
-* November 2019: [CamemBERT model and code released](examples/camembert/README.md)
-* November 2019: [BART model and code released](examples/bart/README.md)
-* November 2019: [XLM-R models and code released](examples/xlmr/README.md)
-* September 2019: [Nonautoregressive translation code released](examples/nonautoregressive_translation/README.md)
-* August 2019: [WMT'19 models released](examples/wmt19/README.md)
-* July 2019: fairseq relicensed under MIT license
-* July 2019: [RoBERTa models and code released](examples/roberta/README.md)
-* June 2019: [wav2vec models and code released](examples/wav2vec/README.md)
+  - Lastly, the Global-Language-wise selection approach ([Gumma _et al_.](https://aclanthology.org/2023.eamt-1.11/)) can used by:
+    - `--task translation_with_kd --kd-strategy global_language_wise --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd --kd-rate $kd_rate --kd-queue-size $kd_queue_sz --kd-language-tags $language_tags` (note that the `$language_tags` should be a comma separated string of language tags)
 
-</p></details>
+  - Here, similar to Global-Level KD, each language has its own Global FIFO queue, which makes it suitable for multilingual KD with imbalanced datasets. This technique requires adding language tags to each translation pair, similar to [Ramesh _et al_.](https://aclanthology.org/2022.tacl-1.9/). These tags will help the model break the batch into respective languages and push them into the corresponding Global language queues. Note that each FIFO language queue, irrespective of language abundance, will be of the same size, i.e., `$kd_queue_sz`. I know this does not sound so good, and I am working on an alternative.
 
-### Features:
+  - *UPDATE-1*: _Initially, the KD Loss was implemented as the CrossEntropy between student and teacher model distributions, but it was very unustable in mixed-precision training and led to `inf` loss. Hence, the latest implementation uses KL-Divergence, which is much more stable and easy to compute in PyTorch_.
+  - *UPDATE-2*: _Based on [Wen _et al_.](https://aclanthology.org/2023.acl-long.605.pdf), newer variants for KD Loss have been implemented, wiz. `js_div` and `tvd`. They can be used by setting the flag `--kd-criterion $kd_criterion`. By default, `kl_div` is used._
 
-* multi-GPU training on one machine or across multiple machines (data and model parallel)
-* fast generation on both CPU and GPU with multiple search algorithms implemented:
-  + beam search
-  + Diverse Beam Search ([Vijayakumar et al., 2016](https://arxiv.org/abs/1610.02424))
-  + sampling (unconstrained, top-k and top-p/nucleus)
-  + [lexically constrained decoding](examples/constrained_decoding/README.md) (Post & Vilar, 2018)
-* [gradient accumulation](https://fairseq.readthedocs.io/en/latest/getting_started.html#large-mini-batch-training-with-delayed-updates) enables training with large mini-batches even on a single GPU
-* [mixed precision training](https://fairseq.readthedocs.io/en/latest/getting_started.html#training-with-half-precision-floating-point-fp16) (trains faster with less GPU memory on [NVIDIA tensor cores](https://developer.nvidia.com/tensor-cores))
-* [extensible](https://fairseq.readthedocs.io/en/latest/overview.html): easily register new models, criterions, tasks, optimizers and learning rate schedulers
-* [flexible configuration](docs/hydra_integration.md) based on [Hydra](https://github.com/facebookresearch/hydra) allowing a combination of code, command-line and file based configuration
-* [full parameter and optimizer state sharding](examples/fully_sharded_data_parallel/README.md)
-* [offloading parameters to CPU](examples/fully_sharded_data_parallel/README.md)
+- **Recurrent Stacking** ([Dabre & Fujita](https://ojs.aaai.org/index.php/AAAI/article/view/4590)): RS is an extreme parameter sharing technique in which all the layers in the encoder/decoder are shared. Implementation-wise, only one layer exists in the module, and the rest $N-1$ are mere references to it. RS can be activated with the following flags: `--encoder-recurrent-stacking $encoder_recurrent_stacking --decoder-recurrent-stacking $decoder_recurrent_stacking`
 
-We also provide [pre-trained models for translation and language modeling](#pre-trained-models-and-examples)
-with a convenient `torch.hub` interface:
+- **Low-Rank Adaptation (LoRA)** ([Hu _et al_.](https://openreview.net/forum?id=nZeVKeeFYf9)): LoRA is a technique for efficient model adaptation that modifies a small number of model parameters while freezing the rest, enabling effective fine-tuning of large-scale pre-trained models with minimal computational overhead. The LoRA modules can be added and trained using the following flags: `--use-native-attention --lora-r $r --lora-alpha $alpha --lora-dropout $dropout --lora-bias "none" --lora-modules "q_proj,k_proj" --load-checkpoint-liberally`. The model will automatically merge the weights when the `.eval()` method is called, and unmerge them with `.train()`. Note that, training these modules will replace the required linear layers with `LoRALinear` layers, embedding layers with `LoRAEmbeddding`, and attention blocks with `NativeMultiheadAttention`. These changes are yet to be reverted upon saving the final best model. So, use the `--load-checkpoint-liberally` flag for `fairseq-interactive` as well when evaluting the model.
 
-``` python
-en2de = torch.hub.load('pytorch/fairseq', 'transformer.wmt19.en-de.single_model')
-en2de.translate('Hello world', beam=5)
-# 'Hallo Welt'
-```
+- **Rotatary Positional Embedding (RoPE)** ([Su _et al_.](https://arxiv.org/abs/2104.09864)): RoPE encodes the absolute position with a rotation matrix and meanwhile incorporates the explicit relative position dependency in self-attention formulation. Notably, RoPE enables valuable properties, including the flexibility of sequence length, decaying inter-token dependency with increasing relative distances, and the capability of equipping the linear self-attention with relative position encoding. RoPE can be enabled with the following flags: `--use-native-attention --use-rope --no-token-positional-embeddings`. Note that, when adding RoPE to models previously trained with Sinusoidal Positional Embeddings, finetuning with LoRA added to the `query`, and `key` is most efficient. The RoPE implementation is directly sourced from [here](https://github.com/lucidrains/rotary-embedding-torch), and is one of the dependencies. 
+  
+- **Miscellaneous**:
+  - _Factorized Embedding Parameterization_ ([Lan _et al_.](https://openreview.net/forum?id=nZeVKeeFYf9)): Similar to ALBERT, the large embeddings can be parameterized by adding an intermediate bottleneck layer, i.e., the instead of being a single $|V| \times d_m$ matrix, the Embedding consists of two pieces of sizes $|V| \times k$ and $k \times d_m$ respectively, where $k < d_m$. This helps curb the number of parameters in the Embedding layer, which can one of the most bulky components. Factorized embeddings can be used as:`--encoder-factorized-embed-dim $encoder_fac_embed_dim --decoder-factorized-embed-dim $decoder_fac_embed_dim`. A non-linear activation function can be applied to the intermediate bottleneck layer specifying it in the flag `--factorized-embed-activation-fn $fac_embed_activation_fn`.
 
-See the PyTorch Hub tutorials for [translation](https://pytorch.org/hub/pytorch_fairseq_translation/)
-and [RoBERTa](https://pytorch.org/hub/pytorch_fairseq_roberta/) for more examples.
+  - When using a penultimate linear transformation before the final projection onto the vocabulary, activation can be added by `--decoder-output-activation-fn $decoder_out_activation_fn`
+
+  - _Sanity Validation steps_: Similar to `Pytorch-Lightning Trainer`, a full pass over the validation set can be run at the beginning of training to eliminate any bugs in the training/validation. It can be activated with the flag: `--run-sanity-validation-steps`
+
+  - Added support for `Python 3.11+` and bumped the version from `0.12.2` -> `0.12.4`
+
+  - Script to port fairseq transformer models to HuggingFace can be found [here](https://github.com/AI4Bharat/IndicTrans2/tree/main/huggingface_interface)
+
+  - Adapters are now deprecated and removed in favor of LoRA
 
 # Requirements and Installation
 
-* [PyTorch](http://pytorch.org/) version >= 1.10.0
+* [PyTorch](http://pytorch.org/) version >= 2.1.1
 * Python version >= 3.8
 * For training new models, you'll also need an NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
 * **To install fairseq** and develop locally:
@@ -156,7 +70,7 @@ and [RoBERTa](https://pytorch.org/hub/pytorch_fairseq_roberta/) for more example
 ``` bash
 git clone https://github.com/pytorch/fairseq
 cd fairseq
-pip install --editable ./
+pip install -e ./
 
 # on MacOS:
 # CFLAGS="-stdlib=libc++" pip install --editable ./
@@ -177,45 +91,13 @@ pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cud
 
 * **For large datasets** install [PyArrow](https://arrow.apache.org/docs/python/install.html#using-pip): `pip install pyarrow`
 * If you use Docker make sure to increase the shared memory size either with `--ipc=host` or `--shm-size`
- as command line options to `nvidia-docker run` .
+ as command line options to `nvidia-docker run`.
 
 # Getting Started
 
 The [full documentation](https://fairseq.readthedocs.io/) contains instructions
-for getting started, training new models and extending fairseq with new model
+for getting started, training new models, and extending fairseq with a new model
 types and tasks.
-
-# Pre-trained models and examples
-
-We provide pre-trained models and pre-processed, binarized test sets for several tasks listed below,
-as well as example training and evaluation commands.
-
-* [Translation](examples/translation/README.md): convolutional and transformer models are available
-* [Language Modeling](examples/language_model/README.md): convolutional and transformer models are available
-
-We also have more detailed READMEs to reproduce results from specific papers:
-
-* [XLS-R: Self-supervised Cross-lingual Speech Representation Learning at Scale (Babu et al., 2021)](examples/wav2vec/xlsr/README.md)
-* [Cross-lingual Retrieval for Iterative Self-Supervised Training (Tran et al., 2020)](examples/criss/README.md)
-* [wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations (Baevski et al., 2020)](examples/wav2vec/README.md)
-* [Unsupervised Quality Estimation for Neural Machine Translation (Fomicheva et al., 2020)](examples/unsupervised_quality_estimation/README.md)
-* [Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)](examples/quant_noise/README.md)
-* [Neural Machine Translation with Byte-Level Subwords (Wang et al., 2020)](examples/byte_level_bpe/README.md)
-* [Multilingual Denoising Pre-training for Neural Machine Translation (Liu et at., 2020)](examples/mbart/README.md)
-* [Reducing Transformer Depth on Demand with Structured Dropout (Fan et al., 2019)](examples/layerdrop/README.md)
-* [Jointly Learning to Align and Translate with Transformer Models (Garg et al., 2019)](examples/joint_alignment_translation/README.md)
-* [Levenshtein Transformer (Gu et al., 2019)](examples/nonautoregressive_translation/README.md)
-* [Facebook FAIR's WMT19 News Translation Task Submission (Ng et al., 2019)](examples/wmt19/README.md)
-* [RoBERTa: A Robustly Optimized BERT Pretraining Approach (Liu et al., 2019)](examples/roberta/README.md)
-* [wav2vec: Unsupervised Pre-training for Speech Recognition (Schneider et al., 2019)](examples/wav2vec/README.md)
-* [Mixture Models for Diverse Machine Translation: Tricks of the Trade (Shen et al., 2019)](examples/translation_moe/README.md)
-* [Pay Less Attention with Lightweight and Dynamic Convolutions (Wu et al., 2019)](examples/pay_less_attention_paper/README.md)
-* [Understanding Back-Translation at Scale (Edunov et al., 2018)](examples/backtranslation/README.md)
-* [Classical Structured Prediction Losses for Sequence to Sequence Learning (Edunov et al., 2018)](https://github.com/pytorch/fairseq/tree/classic_seqlevel)
-* [Hierarchical Neural Story Generation (Fan et al., 2018)](examples/stories/README.md)
-* [Scaling Neural Machine Translation (Ott et al., 2018)](examples/scaling_nmt/README.md)
-* [Convolutional Sequence to Sequence Learning (Gehring et al., 2017)](examples/conv_seq2seq/README.md)
-* [Language Modeling with Gated Convolutional Networks (Dauphin et al., 2017)](examples/language_model/README.conv.md)
 
 # Join the fairseq community
 
@@ -225,13 +107,12 @@ We also have more detailed READMEs to reproduce results from specific papers:
 
 # License
 
-fairseq(-py) is MIT-licensed.
+`fairseq(-py)` is MIT-licensed.
 The license applies to the pre-trained models as well.
 
 # Citation
 
 Please cite as:
-
 ``` bibtex
 @inproceedings{ott2019fairseq,
   title = {fairseq: A Fast, Extensible Toolkit for Sequence Modeling},
@@ -240,3 +121,9 @@ Please cite as:
   year = {2019},
 }
 ```
+
+and do provide a footnote link to my repository.
+
+# Final Note
+
+_I will try my best to keep this repo synced with the upstream [fairseq](https://github.com/facebookresearch/fairseq) repository. This clone is very dynamic and can have broken stuff once in a while. So feel free to raise any issues or pull requests to clear any bugs or introduce new features._

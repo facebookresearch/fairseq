@@ -7,3 +7,4 @@ from .s2s_conformer import *  # noqa
 from .s2s_conformer_translatotron2 import *  # noqa
 from .s2s_conformer_unity import *  # noqa
 from .s2s_transformer import *  # noqa
+from .s2s_conformer import *  # noqa

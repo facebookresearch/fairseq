@@ -19,7 +19,12 @@ from fairseq.dataclass import ChoiceEnum, FairseqDataclass
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.models import BaseFairseqModel, FairseqEncoder, register_model
 from fairseq.models.wav2vec.wav2vec2 import MASKING_DISTRIBUTION_CHOICES, Wav2Vec2Config
-from fairseq.models.wav2vec.wav2vec2_asr import Embedding, Linear, Wav2VecEncoder, Wav2Vec2AsrConfig
+from fairseq.models.wav2vec.wav2vec2_asr import (
+    Embedding,
+    Linear,
+    Wav2VecEncoder,
+    Wav2Vec2AsrConfig,
+)
 from fairseq.tasks import FairseqTask
 
 logging.basicConfig(level=logging.DEBUG)
@@ -110,7 +115,7 @@ def get_pooling_layer(
     num_targets: int,
     encoder_layers: int,
 ):
-    assert cfg.pooling == 'mean'
+    assert cfg.pooling == "mean"
     if cfg.pooling == "first_token":
         return FirstToken(cfg, encoder_embed_dim, num_targets)
     # elif cfg.pooling == "mean":

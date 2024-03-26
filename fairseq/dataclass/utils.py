@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple, Type
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.configs import FairseqConfig
 from hydra.core.global_hydra import GlobalHydra
-from hydra.experimental import compose, initialize
+from hydra import compose, initialize
 from omegaconf import DictConfig, OmegaConf, open_dict, _utils
 
 logger = logging.getLogger(__name__)

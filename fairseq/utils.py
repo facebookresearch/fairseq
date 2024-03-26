@@ -541,10 +541,6 @@ def deprecation_warning(message, stacklevel=3):
     warnings.warn(message, stacklevel=stacklevel)
 
 
-def relu_squared(x: torch.Tensor):
-    return F.relu(x).pow(2)
-
-
 def get_activation_fn(activation: str) -> Callable:
     """Returns the activation function corresponding to `activation`"""
     from fairseq.modules import gelu, gelu_accurate
@@ -552,34 +548,30 @@ def get_activation_fn(activation: str) -> Callable:
     if activation == "relu":
         return F.relu
     elif activation == "relu_squared":
-        return relu_squared
+        return F.relu(x).pow(2)
     elif activation == "gelu":
         return gelu
-    elif activation == "gelu_fast":
-        deprecation_warning(
-            "--activation-fn=gelu_fast has been renamed to gelu_accurate"
-        )
-        return gelu_accurate
     elif activation == "gelu_accurate":
         return gelu_accurate
     elif activation == "tanh":
-        return torch.tanh
+        return F.tanh
     elif activation == "linear":
         return lambda x: x
-    elif activation == "swish":
-        return torch.nn.SiLU
+    elif activation == "silu":
+        return F.silu
     else:
-        raise RuntimeError("--activation-fn {} not supported".format(activation))
+        raise RuntimeError(f"--activation-fn {activation} not supported")
 
 
 def get_available_activation_fns() -> List:
     return [
         "relu",
         "gelu",
-        "gelu_fast",  # deprecated
-        "gelu_accurate",
         "tanh",
         "linear",
+        "silu",
+        "relu_squared",
+        "gelu_accurate",
     ]
 
 

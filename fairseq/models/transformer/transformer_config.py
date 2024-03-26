@@ -24,11 +24,25 @@ _NAME_PARSER = r"(decoder|encoder|quant_noise)_(.*)"
 
 @dataclass
 class EncDecBaseConfig(FairseqDataclass):
+    recurrent_stacking: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "number of recurrent stackings for the encoder and decoder layers"
+        },
+    )
     embed_path: Optional[str] = field(
         default=None, metadata={"help": "path to pre-trained embedding"}
     )
     embed_dim: Optional[int] = field(
         default=512, metadata={"help": "embedding dimension"}
+    )
+    factorized_embed_dim: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "hidden dimension for the factorized embeddings."
+            "If this argument is specified, regular embeddings will be skipped and factorized embeddings will be generated"
+            "Nevertheless, embed_dim parameter must be specified"
+        },
     )
     ffn_embed_dim: int = field(
         default=2048, metadata={"help": "embedding dimension for FFN"}
@@ -48,7 +62,6 @@ class EncDecBaseConfig(FairseqDataclass):
     layers_to_keep: Optional[List[int]] = field(
         default=None, metadata={"help": "which layers to *keep* when pruning"}
     )
-
     xformers_att_config: Optional[str] = field(
         default=None,
         metadata={
@@ -65,6 +78,10 @@ class DecoderConfig(EncDecBaseConfig):
         metadata={
             "help": "decoder output dimension (extra linear layer if different from decoder embed dim)"
         },
+    )
+    output_activation_fn: Optional[str] = field(
+        default=None,
+        metadata={"help": "activation for the decoder output layer mentioned above"},
     )
 
     def __post_init__(self):
@@ -95,6 +112,18 @@ class QuantNoiseConfig(FairseqDataclass):
 
 @dataclass
 class TransformerConfig(FairseqDataclass):
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+    adapter_activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
+        default="relu", metadata={"help": "activation function for adapters"}
+    )
+    factorized_embed_activation_fn: ChoiceEnum(
+        utils.get_available_activation_fns()
+    ) = field(
+        default="linear",
+        metadata={"help": "activation function to use for the factorized embedding"},
+    )
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+
     activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
         default="relu",
         metadata={"help": "activation function to use"},
@@ -111,13 +140,13 @@ class TransformerConfig(FairseqDataclass):
         },
     )
     adaptive_input: bool = False
-    encoder: EncDecBaseConfig = EncDecBaseConfig()
+    encoder: EncDecBaseConfig = field(default=EncDecBaseConfig)
     # TODO should really be in the encoder config
     max_source_positions: int = field(
         default=DEFAULT_MAX_SOURCE_POSITIONS,
         metadata={"help": "Maximum input length supported by the encoder"},
     )
-    decoder: DecoderConfig = DecoderConfig()
+    decoder: DecoderConfig = field(default=DecoderConfig)
     # TODO should really be in the decoder config
     max_target_positions: int = field(
         default=DEFAULT_MAX_TARGET_POSITIONS,
@@ -196,8 +225,60 @@ class TransformerConfig(FairseqDataclass):
     cross_self_attention: bool = field(
         default=False, metadata={"help": "perform cross+self-attention"}
     )
+    use_native_attention: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "use native attention implementation without much checks. Mainly added for RoPE and LoRA implementation"
+        },
+    )
+    lora_r: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": "LoRA: number of random features to use for the attention mechanism"
+        },
+    )
+    lora_alpha: Optional[int] = field(
+        default=1,
+        metadata={"help": "LoRA: scaling factor for the random features"},
+    )
+    lora_dropout: Optional[float] = field(
+        default=0.0,
+        metadata={"help": "LoRA: dropout probability for the random features"},
+    )
+    lora_bias: Optional[str] = field(
+        default="none",
+        metadata={"help": "LoRA: whether to use bias in the attention mechanism"},
+    )
+    lora_modules: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "A comma separated string of modules to apply LoRA. Supports only Linear and Embedding layers for now."
+        },
+    )
+    use_rope: Optional[bool] = field(
+        default=False,
+        metadata={"help": "use rotary position embedding (RoPE) for self-attention"},
+    )
+    rope_learned_freq: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "use learned frequencies for RoPE instead of fixed frequencies"
+        },
+    )
+    rope_use_xpos: Optional[bool] = field(
+        default=False,
+        metadata={"help": "decay RoPE similar to ALiBi"},
+    )
+    rope_xpos_scale_base: Optional[int] = field(
+        default=512,
+        metadata={"help": "base for scaling the positional encoding"},
+    )
+    rope_interpolate_factor: Optional[float] = field(
+        default=1,
+        metadata={"help": "interpolation factor for RoPE"},
+    )
     # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
-    quant_noise: QuantNoiseConfig = field(default=QuantNoiseConfig())
+    quant_noise: QuantNoiseConfig = field(default=QuantNoiseConfig)
     min_params_to_wrap: int = field(
         default=DEFAULT_MIN_PARAMS_TO_WRAP,
         metadata={

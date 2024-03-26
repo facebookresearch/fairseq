@@ -19,7 +19,6 @@ from fairseq.modules import (
     LayerDropModuleList,
     LayerNorm,
     PositionalEmbedding,
-    SinusoidalPositionalEmbedding,
     transformer_layer,
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
@@ -74,10 +73,10 @@ class TransformerEncoderBase(FairseqEncoder):
             if not cfg.no_token_positional_embeddings
             else None
         )
-        if cfg.layernorm_embedding:
-            self.layernorm_embedding = LayerNorm(embed_dim, export=cfg.export)
-        else:
-            self.layernorm_embedding = None
+
+        self.layernorm_embedding = (
+            LayerNorm(embed_dim, export=cfg.export) if cfg.layernorm_embedding else None
+        )
 
         if not cfg.adaptive_input and cfg.quant_noise.pq > 0:
             self.quant_noise = apply_quant_noise_(
@@ -88,19 +87,30 @@ class TransformerEncoderBase(FairseqEncoder):
         else:
             self.quant_noise = None
 
-        if self.encoder_layerdrop > 0.0:
-            self.layers = LayerDropModuleList(p=self.encoder_layerdrop)
-        else:
-            self.layers = nn.ModuleList([])
-        self.layers.extend(
-            [self.build_encoder_layer(cfg) for i in range(cfg.encoder.layers)]
+        self.recurrent_stacking = cfg.encoder.recurrent_stacking
+
+        self.layers = (
+            LayerDropModuleList(p=self.encoder_layerdrop)
+            if self.encoder_layerdrop > 0.0
+            else nn.ModuleList([])
         )
+
+        if self.recurrent_stacking is not None:
+            self.layers.extend(
+                [self.build_encoder_layer(cfg)] * self.recurrent_stacking
+            )
+        else:
+            self.layers.extend(
+                [self.build_encoder_layer(cfg) for _ in range(cfg.encoder.layers)]
+            )
+
         self.num_layers = len(self.layers)
 
-        if cfg.encoder.normalize_before:
-            self.layer_norm = LayerNorm(embed_dim, export=cfg.export)
-        else:
-            self.layer_norm = None
+        self.layer_norm = (
+            LayerNorm(embed_dim, export=cfg.export)
+            if cfg.encoder.normalize_before
+            else None
+        )
 
     def build_encoder_layer(self, cfg):
         layer = transformer_layer.TransformerEncoderLayerBase(
@@ -226,7 +236,7 @@ class TransformerEncoderBase(FairseqEncoder):
             encoder_states.append(x)
 
         # encoder layers
-        for layer in self.layers:
+        for idx, layer in enumerate(self.layers):
             lr = layer(
                 x, encoder_padding_mask=encoder_padding_mask if has_pads else None
             )

@@ -6,12 +6,14 @@
 """
 Train a new model on one or across multiple GPUs.
 """
-
+import torch
 import argparse
 import logging
 import math
 import os
 import sys
+import json
+from omegaconf import OmegaConf
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 # We need to setup root logger before importing any fairseq libraries.
@@ -24,7 +26,6 @@ logging.basicConfig(
 logger = logging.getLogger("fairseq_cli.train")
 
 import numpy as np
-import torch
 from omegaconf import DictConfig, OmegaConf
 
 from fairseq import checkpoint_utils, options, quantization_utils, tasks, utils
@@ -39,6 +40,74 @@ from fairseq.file_io import PathManager
 from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from fairseq.trainer import Trainer
+from fairseq.checkpoint_utils import load_model_ensemble
+from fairseq.modules.lora import LoRALayer, Linear, Embedding
+
+
+# copied from: https://github.com/microsoft/LoRA/blob/main/loralib/utils.py
+def mark_only_lora_as_trainable(model: torch.nn.Module, bias: str = "none") -> None:
+    for n, p in model.named_parameters():
+        if "lora_" not in n:
+            p.requires_grad = False
+    if bias == "none":
+        return
+    elif bias == "all":
+        for n, p in model.named_parameters():
+            if "bias" in n:
+                p.requires_grad = True
+    elif bias == "lora_only":
+        for m in model.modules():
+            if isinstance(m, LoRALayer) and hasattr(m, "bias") and m.bias is not None:
+                m.bias.requires_grad = True
+    else:
+        raise NotImplementedError
+
+
+def replace_with_lora(model, lora_modules, lora_params) -> None:
+    """
+    Replace all nn.Linear layers in the model with fairseq.modules.lora.Linear layers.
+
+    Args:
+    - model: The original model to be modified.
+    - lora_modules: A list of module names that should be replaced with fairseq.modules.lora.Linear layers.
+    - lora_params: A dictionary containing parameters for the fairseq.modules.lora.Linear layer.
+    """
+    for name, module in model.named_children():
+        if name in lora_modules and isinstance(module, torch.nn.Linear):
+
+            new_module = Linear(module.in_features, module.out_features, **lora_params)
+
+            if module.weight is not None:
+                with torch.no_grad():
+                    new_module.weight.data = module.weight.data
+                    if module.bias is not None:
+                        new_module.bias.data = module.bias.data
+
+            setattr(model, name, new_module)
+
+        elif name in lora_modules and isinstance(module, torch.nn.Embedding):
+            lora_params_emb = lora_params.copy()
+            lora_params_emb.pop("dropout", None)
+
+            new_module = Embedding(
+                num_embeddings=module.num_embeddings,
+                embedding_dim=module.embedding_dim,
+                scale_grad_by_freq=module.scale_grad_by_freq,
+                padding_idx=module.padding_idx,
+                max_norm=module.max_norm,
+                norm_type=module.norm_type,
+                sparse=module.sparse,
+                **lora_params_emb,
+            )
+
+            if module.weight is not None:
+                with torch.no_grad():
+                    new_module.weight.data = module.weight.data
+
+            setattr(model, name, new_module)
+
+        else:
+            replace_with_lora(module, lora_modules, lora_params)
 
 
 def main(cfg: FairseqConfig) -> None:
@@ -73,6 +142,10 @@ def main(cfg: FairseqConfig) -> None:
     # Print args
     logger.info(cfg)
 
+    os.makedirs(cfg.checkpoint.save_dir, exist_ok=True)
+    with open(os.path.join(cfg.checkpoint.save_dir, "config.json"), "w") as f:
+        json.dump(str(cfg), f)
+
     if cfg.checkpoint.write_checkpoints_asynchronously:
         try:
             import iopath  # noqa: F401
@@ -88,17 +161,79 @@ def main(cfg: FairseqConfig) -> None:
 
     assert cfg.criterion, "Please specify criterion to train a model"
 
+    # build teacher model here
+    if (cfg.task._name == "translation_with_kd") and (
+        cfg.criterion._name == "label_smoothed_cross_entropy_with_kd"
+    ):
+        logging.info("Building teacher model")
+
+        teacher_model = load_model_ensemble(
+            [cfg.task.teacher_checkpoint_path], task=task
+        )[0][0]
+
+        use_cuda = (
+            torch.cuda.is_available()
+            and not cfg.common.cpu
+            and not cfg.distributed_training.pipeline_model_parallel
+        )
+
+        if use_cuda:
+            teacher_model = teacher_model.cuda()
+        if cfg.common.fp16:
+            teacher_model = teacher_model.half()
+
+        logger.info(
+            "loaded teacher {} from {} in fp{}".format(
+                teacher_model.__class__.__name__,
+                cfg.task.teacher_checkpoint_path,
+                16 if cfg.common.fp16 else 32,
+            )
+        )
+
+        logger.info(teacher_model)
+
+        logger.info(
+            "num. teacher params: {:,} ".format(
+                sum(p.numel() for p in teacher_model.parameters() if p.requires_grad)
+            )
+        )
+
     # Build model and criterion
     if cfg.distributed_training.ddp_backend == "fully_sharded":
         with fsdp_enable_wrap(cfg.distributed_training):
             model = fsdp_wrap(task.build_model(cfg.model))
     else:
         model = task.build_model(cfg.model)
+
     criterion = task.build_criterion(cfg.criterion)
+
     logger.info(model)
     logger.info("task: {}".format(task.__class__.__name__))
     logger.info("model: {}".format(model.__class__.__name__))
     logger.info("criterion: {}".format(criterion.__class__.__name__))
+
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+    if getattr(cfg.model, "lora_r", 0) > 0:
+        logging.info("adding LoRA modules to model")
+
+        lora_modules = cfg.model.lora_modules.split(",")
+        lora_params = {
+            "r": cfg.model.lora_r,
+            "alpha": cfg.model.lora_alpha,
+            "dropout": cfg.model.lora_dropout,
+            "merge_weights": True,
+        }
+
+        replace_with_lora(model, lora_modules, lora_params)
+        mark_only_lora_as_trainable(model, bias=cfg.model.lora_bias)
+    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
+
+    logger.info(
+        "num. trainable model params: {:,} ".format(
+            sum(p.numel() for p in model.parameters() if p.requires_grad)
+        )
+    )
+
     logger.info(
         "num. shared model params: {:,} (num. trained: {:,})".format(
             sum(
@@ -144,10 +279,20 @@ def main(cfg: FairseqConfig) -> None:
         quantizer = None
 
     # Build trainer
-    if cfg.common.model_parallel_size == 1:
-        trainer = Trainer(cfg, task, model, criterion, quantizer)
-    else:
-        trainer = MegatronTrainer(cfg, task, model, criterion)
+    trainer = (
+        Trainer(cfg, task, model, criterion, quantizer)
+        if cfg.common.model_parallel_size == 1
+        else MegatronTrainer(cfg, task, model, criterion)
+    )
+
+    # assign the teacher model (is present) to the trainer
+    # we had to build the teacher model first before the student and trainer
+    # to avoid over-writing the generator for beam-search of the student with that of the teacher
+    if (cfg.task._name == "translation_with_kd") and (
+        cfg.criterion._name == "label_smoothed_cross_entropy_with_kd"
+    ):
+        trainer.assign_teacher_model(teacher_model)
+
     logger.info(
         "training on {} devices (GPUs/TPUs)".format(
             cfg.distributed_training.distributed_world_size
@@ -321,10 +466,18 @@ def train(
     trainer.begin_epoch(epoch_itr.epoch)
 
     valid_subsets = cfg.dataset.valid_subset.split(",")
-    should_stop = False
+    should_stop, end_of_epoch = False, False
     num_updates = trainer.get_num_updates()
     logger.info("Start iterating over samples")
     for i, samples in enumerate(progress):
+        # run one validation sanity check epoch
+        if cfg.common.run_sanity_validation_steps:
+            logger.info("running one sanity check validation epoch")
+            valid_losses, should_stop = validate_and_save(
+                cfg, trainer, task, epoch_itr, valid_subsets, end_of_epoch
+            )
+            cfg.common.run_sanity_validation_steps = False
+
         with metrics.aggregate("train_inner"), torch.autograd.profiler.record_function(
             "train_step-%d" % i
         ):
@@ -417,7 +570,8 @@ def validate_and_save(
     )
     do_validate = (
         (
-            (not end_of_epoch and do_save)  # validate during mid-epoch saves
+            cfg.common.run_sanity_validation_steps
+            or (not end_of_epoch and do_save)  # validate during mid-epoch saves
             or (end_of_epoch and epoch_itr.epoch % cfg.dataset.validate_interval == 0)
             or should_stop
             or (
@@ -437,7 +591,6 @@ def validate_and_save(
 
     should_stop |= should_stop_early(cfg, valid_losses[0])
 
-    # Save checkpoint
     if do_save or should_stop:
         cp_path = checkpoint_utils.save_checkpoint(
             cfg.checkpoint, trainer, epoch_itr, valid_losses[0]
