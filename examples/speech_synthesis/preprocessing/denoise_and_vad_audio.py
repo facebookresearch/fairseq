@@ -26,6 +26,7 @@ from examples.speech_synthesis.preprocessing.vad import (
     SCALE
 )
 from examples.speech_to_text.data_utils import save_df_to_tsv
+from examples.speech_synthesis.preprocessing.tfgridnet.enh_inference import SeparateSpeech
 
 
 log = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ def write(wav, filename, sr=16_000):
 
 
 def process(args):
-    # making sure we are requested either denoise or vad
+    # Making sure we are requested either denoise or vad
     if not args.denoise and not args.vad:
         log.error("No denoise or vad is requested.")
         return
@@ -91,12 +92,6 @@ def process(args):
         out_vad = Path(args.output_dir).absolute().joinpath(PATHS[1])
         out_vad.mkdir(parents=True, exist_ok=True)
 
-    log.info("Loading pre-trained speech enhancement model...")
-    model = master64().to(args.device)
-
-    log.info("Building the VAD model...")
-    vad = webrtcvad.Vad(int(args.vad_agg_level))
-
     # preparing the output dict
     output_dict = defaultdict(list)
 
@@ -104,18 +99,45 @@ def process(args):
     with open(args.audio_manifest, "r") as f:
         manifest_dict = csv.DictReader(f, delimiter="\t")
         for row in tqdm(manifest_dict):
-            filename = str(row["audio"])
+           filename = str(row["audio"])
 
-            final_output = filename
-            keep_sample = True
-            n_frames = row["n_frames"]
-            snr = -1
-            if args.denoise:
-                output_path_denoise = out_denoise.joinpath(Path(filename).name)
-                # convert to 16khz in case we use a differet sr
+           final_output = filename
+           keep_sample = True
+           n_frames = row["n_frames"]
+           snr = -1
+           # Denoise
+           if args.denoise:
+              # Load pre-trained speech enhancement model and build VAD model
+              log.info("Loading SeperateSpeech(TFGridnet) enhancement model...")
+              if args.model == "SeparateSpeech":
+
+                log.info(f"Training Configuration .yaml file: {args.config}")
+                log.info(f"Pre-trained model .pth file: {args.pth_model}")
+                model = SeparateSpeech(
+                train_config = args.config, 
+                model_file= args.pth_model,
+                normalize_segment_scale=False,
+                show_progressbar=True,
+                ref_channel=4,
+                normalize_output_wav=True)
+
+                output_path_denoise = out_denoise.joinpath(Path(f"SeperateSpeech_{filename}").name)
+                waveform, sr = torchaudio.load(filename)
+                waveform = waveform.to("cpu")
+                estimate = model(waveform)
+                estimate = torch.tensor(estimate)
+                torchaudio.save(output_path_denoise, estimate[0], 16_000, encoding="PCM_S", bits_per_sample=16)
+
+              else:
+
+                log.info("Loading pre-trained speech enhancement model...")
+                model = master64().to(args.device)  
+                # Set the output path for denoised audio
+                output_path_denoise = out_denoise.joinpath(Path(f"master64_{filename}").name)
+
+                # Convert to 16kHz if the sample rate is different
                 tmp_path = convert_sr(final_output, 16000)
-
-                # loading audio file and generating the enhanced version
+                # Load audio file and generate the enhanced version
                 out, sr = torchaudio.load(tmp_path)
                 out = out.to(args.device)
                 estimate = model(out)
@@ -126,7 +148,10 @@ def process(args):
                 snr = snr.cpu().detach().numpy()[0][0]
                 final_output = str(output_path_denoise)
 
-            if args.vad:
+           log.info("Building the VAD model...")
+           vad = webrtcvad.Vad(int(args.vad_agg_level))
+
+           if args.vad:
                 output_path_vad = out_vad.joinpath(Path(filename).name)
                 sr = torchaudio.info(final_output).sample_rate
                 if sr in [16000, 32000, 48000]:
@@ -140,36 +165,35 @@ def process(args):
                 # apply VAD
                 segment, sample_rate = apply_vad(vad, tmp_path)
                 if len(segment) < sample_rate * MIN_T:
-                    keep_sample = False
-                    print((
+                     keep_sample = False
+                     print((
                         f"WARNING: skip {filename} because it is too short "
                         f"after VAD ({len(segment) / sample_rate} < {MIN_T})"
-                    ))
+                     ))
                 else:
                     if sample_rate != sr:
                         tmp_path = generate_tmp_filename("wav")
                         write_wave(tmp_path, segment, sample_rate)
                         convert_sr(tmp_path, sr,
-                                   output_path=str(output_path_vad))
+                               output_path=str(output_path_vad))
                     else:
                         write_wave(str(output_path_vad), segment, sample_rate)
                     final_output = str(output_path_vad)
                     segment, _ = torchaudio.load(final_output)
-                    n_frames = segment.size(1)
+                    n_frames = segment.size(1)    
 
-            if keep_sample:
+           if keep_sample:
                 output_dict["id"].append(row["id"])
                 output_dict["audio"].append(final_output)
                 output_dict["n_frames"].append(n_frames)
                 output_dict["tgt_text"].append(row["tgt_text"])
                 output_dict["speaker"].append(row["speaker"])
                 output_dict["src_text"].append(row["src_text"])
-                output_dict["snr"].append(snr)
+                output_dict["snr"].append(snr)     
 
         out_tsv_path = Path(args.output_dir) / Path(args.audio_manifest).name
         log.info(f"Saving manifest to {out_tsv_path.as_posix()}")
         save_df_to_tsv(pd.DataFrame.from_dict(output_dict), out_tsv_path)
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -194,6 +218,14 @@ def main():
     )
     parser.add_argument("--denoise", action="store_true",
                         help="apply a denoising")
+    parser.add_argument(
+        "--model", "-m", type=str, default="master64",
+        help="the speech enhancement model to be used: master64 | SeparateSpeech."
+    )
+    parser.add_argument("--config", type=str,
+                        help="Training Configuration file for SeparateSpeech model.")
+    parser.add_argument("--pth-model", type=str,
+                        help="Path to the pre-trained model file for SeparateSpeech.")
     parser.add_argument("--vad", action="store_true", help="apply a VAD")
     args = parser.parse_args()
 
