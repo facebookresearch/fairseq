@@ -149,6 +149,7 @@ the internet and VideoCLIP was pretrained on 1.1M HowTo100M videos, and the dura
 | [ASL Citizen](https://www.microsoft.com/en-us/research/project/asl-citizen/) | ASL | ISLR | 84,000 | 2,700 | - |
 | [ASL-LEX](https://asl-lex.org/about.html) | ASL | Phonological Database | - | 2,723 | - |
 | [How2Sign](https://how2sign.github.io/) | ASL | Continuous | 35,000 | 16,000 | 11 |
+| [Spreadthesign](https://www.spreadthesign.com/en.us/search/) | Multilingual | Dictionary | ~500,000 | - | - |
 
 
 
