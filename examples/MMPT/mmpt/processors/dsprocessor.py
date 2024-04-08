@@ -1300,6 +1300,7 @@ class SignCLIPPretrainMetaProcessor(MetaProcessor):
         # config.split = 'test'
 
         self.vfeat_dir = config.vfeat_dir
+        self.task = config.task
         split_path = self._get_split_path(config)
         metadata_df = pd.read_csv(config.metadata_path, dtype=str)
 
@@ -1318,6 +1319,9 @@ class SignCLIPPretrainMetaProcessor(MetaProcessor):
             print(f'text distribution in the {config.split} set:')
             print(metadata_df.groupby(['text'])['text'].count().reset_index(name='count').sort_values(['count'], ascending=False))
 
+            print(f'language distribution in the {config.split} set:')
+            print(metadata_df.groupby(['videoLanguage'])['videoLanguage'].count().reset_index(name='count').sort_values(['count'], ascending=False))
+
             data = metadata_df.to_dict('records')
             data = [datum for datum in tqdm(data) if os.path.exists(os.path.join(config.vfeat_dir, datum['pose']))]
 
@@ -1331,5 +1335,6 @@ class SignCLIPPretrainMetaProcessor(MetaProcessor):
     def __getitem__(self, idx):
         datum = self.data[idx]
         video_id = datum['pose'].replace('.pose', '')
-        text_info = f"<{datum['language']}> <{datum['videoLanguage']}> {datum['text']}"
+        text = '' if self.task == 'identification' else datum['text']
+        text_info = f"<{datum['language']}> <{datum['videoLanguage']}> {text}"
         return video_id, text_info
