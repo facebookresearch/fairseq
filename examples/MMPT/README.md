@@ -151,7 +151,9 @@ the internet and VideoCLIP was pretrained on 1.1M HowTo100M videos, and the dura
 | [How2Sign](https://how2sign.github.io/) | ASL | Continuous | 35,000 | 16,000 | 11 |
 | [Spreadthesign](https://www.spreadthesign.com/en.us/search/) | Multilingual | Dictionary | ~500,000 | - | - |
 
+All languages in Spreadthesign:
 
+https://github.com/sign/translate/blob/master/src/app/core/helpers/iana/languages.ts
 
 ## Credits
 
