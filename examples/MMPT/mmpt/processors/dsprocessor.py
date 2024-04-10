@@ -1178,6 +1178,7 @@ class SignCLIPMetaProcessor(MetaProcessor):
         random.seed(42)
 
         self.config = config
+        self.task = config.task
         self.split = config.split
         self.pose_processer = SignCLIPPoseProcessor(config) # call pose_processer by meta_processor itself
         self.datasets = []
@@ -1220,13 +1221,35 @@ class SignCLIPMetaProcessor(MetaProcessor):
                     'pose_header': pose_header,
                     'data_l': data_l_filtered,
                 })
-                tag_prompt = "<en> <ase>" if config.sp_universal_tagging else "<American Sign Language>"
-                self.data = self.data + [dict(
-                    datum, 
-                    id=f"{dataset}_{datum['id'].numpy().decode('utf-8')}",
-                    text = f"{tag_prompt} {datum['text'].numpy().decode('utf-8')}",
-                    pose_header=pose_header,
-                ) for datum in data_l_filtered]
+
+                for datum in data_l_filtered:
+                    if self.task.startswith('identification'):
+                        signed_language_map = {
+                            'GSL': 'gss',
+                            'BSL': 'bfi',
+                            'DGS': 'gsg',
+                            'LSF': 'fsl',
+                        }
+                        signed_language = signed_language_map[datum['signed_language'].numpy().decode('utf-8')]
+
+                        # DGS and BSL videos contain more than one camera angle, excluding for now
+                        if signed_language == 'gsg' or signed_language == 'bfi':
+                            continue
+                        # if signed_language == 'gsg' or signed_language == 'gss':
+                        #     continue
+                        
+                        tag_prompt = f"<en> <{signed_language}>"
+                        text_prompt = f"{tag_prompt} {datum['text_en'].numpy().decode('utf-8')}" if self.task == 'identification_oracle' else tag_prompt
+                    else:
+                        tag_prompt = "<en> <ase>" if config.sp_universal_tagging else "<American Sign Language>"
+                        text_prompt = f"{tag_prompt} {datum['text'].numpy().decode('utf-8')}"
+
+                    self.data.append(dict(
+                        datum,
+                        id=f"{dataset}_{datum['id'].numpy().decode('utf-8')}",
+                        text=text_prompt,
+                        pose_header=pose_header,
+                    ))
 
         print(f'In total {len(self.data)} wellformed {split} examples from all datasets.')
         if self.split == 'train':

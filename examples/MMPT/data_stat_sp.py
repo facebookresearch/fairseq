@@ -15,7 +15,10 @@ df = df[df['language'] == 'en']
 
 print(len(df))
 
-max_len = 128
+print(f'language distribution:')
+print(df.groupby(['videoLanguage'])['videoLanguage'].count().reset_index(name='count').sort_values(['count'], ascending=False))
+
+max_len = 256
 pose_lens = []
 
 for index, row in tqdm(df.iterrows()):
@@ -32,6 +35,6 @@ for index, row in tqdm(df.iterrows()):
 print(f'{len(pose_lens)} poses.')
 pose_lens = [l for l in pose_lens if l > 0]
 print(f'{len(pose_lens)} valid poses.')
-pose_lens = [l for l in pose_lens if l <= 256]
+pose_lens = [l for l in pose_lens if l <= max_len]
 print(f'{len(pose_lens)} valid poses that does not exceed max length.')
 print(f'mean pose length: {sum(pose_lens) / len(pose_lens)}')

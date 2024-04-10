@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 class Metric(object):
     def __init__(self, config, metric_names):
+        self.config = config
         self.metric_names = metric_names
 
     def best_metric(self, metric):
@@ -197,6 +198,7 @@ class RWTHFSV2TMetric(RetrievalMetric):
         # return super().compute_metrics(outputs.T, texts, **kwargs)
         x = outputs.T
 
+        preds = []
         mr = []
         tp1 = 0
         fn1 = 0
@@ -211,6 +213,10 @@ class RWTHFSV2TMetric(RetrievalMetric):
             candidates = list([(texts[idx], score) for idx, score in enumerate(row)])
             # sort by score
             candidates = list(sorted(candidates, key=lambda x: -x[1]))
+
+            # select the same concept for language identification with orcale
+            if self.config['dataset']['task'] == 'identification_oracle':
+                candidates = [c for c in candidates if c[0].split(' > ')[-1] == gold_text.split(' > ')[-1]]
             # deduplicate
             candidates = [
                 candidate for idx, candidate in enumerate(candidates)
@@ -234,6 +240,7 @@ class RWTHFSV2TMetric(RetrievalMetric):
 
             hit_idx = candidates.index(gold_text)
             mr.append(hit_idx)
+            preds.append(candidates[0])
         metrics = {}
         metrics["R1"] = tp1 / (tp1 + fn1)
         metrics["R5"] = tp5 / (tp5 + fn5)
@@ -247,7 +254,7 @@ class RWTHFSV2TMetric(RetrievalMetric):
             error = []
             # for ex_idx in range(100):
             for ex_idx in range(len(max_idx)):
-                error.append((texts[ex_idx], texts[max_idx[ex_idx]], video_ids[ex_idx]))
+                error.append((texts[ex_idx], preds[ex_idx], video_ids[ex_idx]))
             error = list(sorted(error, key=lambda x: x[0] + x[1]))
             metrics["error"] = error
         return metrics
