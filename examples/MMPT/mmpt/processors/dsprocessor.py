@@ -1359,5 +1359,6 @@ class SignCLIPPretrainMetaProcessor(MetaProcessor):
         datum = self.data[idx]
         video_id = datum['pose'].replace('.pose', '')
         text = '' if self.task == 'identification' else datum['text']
-        text_info = f"<{datum['language']}> <{datum['videoLanguage']}> {text}"
+        vlan = '<ase>' if self.task == 'conceptualization' else f"<{datum['videoLanguage']}>"
+        text_info = f"<{datum['language']}> {vlan} {text}"
         return video_id, text_info
