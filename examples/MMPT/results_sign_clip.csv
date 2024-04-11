@@ -6,3 +6,5 @@ baseline_asl,0.9240,0.8792,0.8060,1.0,0.6885,0.8935,0.9298,1.0,baseline trained 
 baseline_asl_finetune,0.9280,0.9104,0.8496,1.0,0.7343,0.9134,0.9414,1.0,baseline trained with 3 ASL ISLR datasets then finefuned
 baseline_asl_plus,0.9080,0.8656,0.8000,1.0,0.6827,0.8996,0.9385,1.0,baseline trained with 3 ASL ISLR datasets (including validation data)
 baseline_asl_plus_fs,0.9280,0.8832,0.8208,1.0,0.6902,0.9041,0.9378,1.0,baseline trained with 3 ASL ISLR datasets + ChicagoFS (including validation data)
+baseline_sp_b768_finetune_asl,0.9360,0.9056,0.8568,1.0,0.7508,0.9170,0.9431,1.0,baseline trained with Spreadthesign then finefuned
+baseline_sp_b768_pre_finetune_asl,0.8640,0.7536,0.6556,1.0,0.5337,0.8031,0.8786,1.0,baseline trained with Spreadthesign (sign-vq preprocessing) then finefuned

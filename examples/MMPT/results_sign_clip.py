@@ -18,6 +18,8 @@ tasks = [
     'baseline_asl_finetune',
     'baseline_asl_plus',
     'baseline_asl_plus_fs',
+    'baseline_sp_b768_finetune_asl',
+    'baseline_sp_b768_pre_finetune_asl',
 ]
 notes = [
     'baseline (asl_signs data)',
@@ -27,6 +29,8 @@ notes = [
     'baseline trained with 3 ASL ISLR datasets then finefuned',
     'baseline trained with 3 ASL ISLR datasets (including validation data)',
     'baseline trained with 3 ASL ISLR datasets + ChicagoFS (including validation data)',
+    'baseline trained with Spreadthesign then finefuned',
+    'baseline trained with Spreadthesign (sign-vq preprocessing) then finefuned',
 ]
 
 results = {}

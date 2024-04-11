@@ -1223,7 +1223,7 @@ class SignCLIPMetaProcessor(MetaProcessor):
                 })
 
                 for datum in data_l_filtered:
-                    if self.task.startswith('identification'):
+                    if self.task and self.task.startswith('identification'):
                         signed_language_map = {
                             'GSL': 'gss',
                             'BSL': 'bfi',
