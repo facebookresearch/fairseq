@@ -6,14 +6,13 @@ dataset:
   text_processor: TextProcessor
   bert_name: bert-base-cased
   data_dir: /shares/volk.cl.uzh/zifjia/tensorflow_datasets
-  train_datasets: [['asl_signs', '1.0.0', '1.0.0-uzh']]
-  valid_datasets: [['asl_signs', '1.0.0', '1.0.0-uzh']]
+  train_datasets: [['asl_citizen', '1.0.0']]
+  valid_datasets: [['asl_citizen', '1.0.0']]
   test_path: data/<dataset>/test.txt # placeholder, no use
   val_path: data/<dataset>/val.txt # placeholder, no use
   train_path: data/<dataset>/train.txt # placeholder, no use
   aligner: DSAligner
   pose_components: 'reduced_face'
-  sp_universal_tagging: true
 fairseq:
   common:
     fp16: true
@@ -31,17 +30,16 @@ fairseq:
     adam_betas: (0.9, 0.98)
     lr_scheduler: polynomial_decay
     total_num_update: 1000000
-    warmup_updates: 122
+    warmup_updates: 1000
     weight_decay: 0.0
     ddp_backend: no_c10d
     max_epoch: 25
   checkpoint:
-    restore_file: runs/retri/baseline_sp_b768/checkpoint_best.pt
     no_epoch_checkpoints: true
     reset_optimizer: true
     reset_dataloader: true
     reset_meters: true
-    save_dir: runs/retri/baseline_sp_b768_finetune_asl
+    save_dir: runs/retri/baseline_asl_citizen
 task_type: sweep_small
 model:
   model_cls: MMFusionSeparate
@@ -53,4 +51,4 @@ model:
 loss:
   loss_cls: MMContraLoss
 eval:
-  save_path: runs/retri/baseline_sp_b768_finetune_asl
+  save_path: runs/retri/baseline_asl_citizen
