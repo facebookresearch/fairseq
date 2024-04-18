@@ -180,11 +180,11 @@ if __name__ == "__main__":
         buffer = f.read()
         pose = Pose.read(buffer)
 
-        # print(score_pose_and_text(pose, 'random text'))
-        # print(score_pose_and_text(pose, '<en> <ase>'))
-        # print(score_pose_and_text(pose, '<en> <gsg>'))
-        # print(score_pose_and_text(pose, '<en> <fsl>'))
-        # print(score_pose_and_text(pose, '<en> <ise>'))
+        print(score_pose_and_text(pose, 'random text'))
+        print(score_pose_and_text(pose, '<en> <ase>'))
+        print(score_pose_and_text(pose, '<en> <gsg>'))
+        print(score_pose_and_text(pose, '<en> <fsl>'))
+        print(score_pose_and_text(pose, '<en> <ise>'))
 
         # print(guess_language(pose, languages=['fsl', 'gss']))
         # print(guess_language(pose, languages=['ase', 'gsg', 'fsl', 'ise', 'bfi', 'gss']))
@@ -193,31 +193,31 @@ if __name__ == "__main__":
         # scores = score_pose_and_text_batch([pose, pose], ['random text', '<en> <ase>'])
         # print(scores)
 
-        text = [
-            '<en> <ase> Beijing',
-            '<en> <ase> China',
-            '<en> <ase> Tokyo',
-            '<en> <ase> Japan',
-        ]
+        # text = [
+        #     '<en> <ase> Beijing',
+        #     '<en> <ase> China',
+        #     '<en> <ase> Tokyo',
+        #     '<en> <ase> Japan',
+        # ]
 
-        poses = [
-            'stsddd22abeead72150e720f97b6c9f6166.pose',
-            'stsafbea76639527924ebbff40c79520dec.pose',
-            'stsf41d4c1f1ac7a9ae1609a7ae16045349.pose',
-            'sts9d24faa4b6cf2a6ad9f6931485418487.pose',
-        ]
+        # poses = [
+        #     'stsddd22abeead72150e720f97b6c9f6166.pose',
+        #     'stsafbea76639527924ebbff40c79520dec.pose',
+        #     'stsf41d4c1f1ac7a9ae1609a7ae16045349.pose',
+        #     'sts9d24faa4b6cf2a6ad9f6931485418487.pose',
+        # ]
 
-        text_embeddings = embed_text(text)
-        print(text_embeddings)
+        # text_embeddings = embed_text(text)
+        # print(text_embeddings)
 
-        pose_dir = '/home/zifjia/shares/amoryo/datasets/sign-mt-poses'
-        poses = [Pose.read(open(f'{pose_dir}/{pose}', 'rb').read()) for pose in poses]
+        # pose_dir = '/home/zifjia/shares/amoryo/datasets/sign-mt-poses'
+        # poses = [Pose.read(open(f'{pose_dir}/{pose}', 'rb').read()) for pose in poses]
 
-        pose_embeddings = embed_pose(poses)
-        print(pose_embeddings)
+        # pose_embeddings = embed_pose(poses)
+        # print(pose_embeddings)
 
-        embeddings = np.vstack((text_embeddings, pose_embeddings))
-        print(embeddings)
+        # embeddings = np.vstack((text_embeddings, pose_embeddings))
+        # print(embeddings)
 
-        with open('test.npy', 'wb') as f:
-            np.save(f, embeddings)
+        # with open('test.npy', 'wb') as f:
+        #     np.save(f, embeddings)
