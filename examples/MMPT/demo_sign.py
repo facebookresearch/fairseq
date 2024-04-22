@@ -57,9 +57,9 @@ sign_languages = [
 ]
 
 model, tokenizer, aligner = MMPTModel.from_pretrained(
-        "projects/retri/signclip_v1/baseline_sp_b768_pre_aug.yaml",
-        video_encoder=None,
-    )
+    "projects/retri/signclip_v1/baseline_sp_b768.yaml",
+    video_encoder=None,
+)
 model.eval()
 
 
@@ -93,13 +93,13 @@ def pose_hide_legs(pose):
 
 
 def preprocess_pose(pose):
-    # pose = pose.normalize(pose_normalization_info(pose.header))
-    # pose = pose_hide_legs(pose)
-    # pose = pose.get_components(["POSE_LANDMARKS", "FACE_LANDMARKS", "LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"], 
-    #                     {"FACE_LANDMARKS": FACEMESH_CONTOURS_POINTS})
+    pose = pose.normalize(pose_normalization_info(pose.header))
+    pose = pose_hide_legs(pose)
+    pose = pose.get_components(["POSE_LANDMARKS", "FACE_LANDMARKS", "LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"], 
+                        {"FACE_LANDMARKS": FACEMESH_CONTOURS_POINTS})
     
-    pose = pre_process_mediapipe(pose)
-    pose = normalize_mean_std(pose)
+    # pose = pre_process_mediapipe(pose)
+    # pose = normalize_mean_std(pose)
 
     feat = np.nan_to_num(pose.body.data)
     feat = feat.reshape(feat.shape[0], -1)
@@ -134,7 +134,8 @@ def embed_pose(pose):
 
 
 def embed_text(text):
-    pose_frames = torch.randn(1, 1, 534)
+    # pose_frames = torch.randn(1, 1, 534)
+    pose_frames = torch.randn(1, 1, 609)
     texts = text if type(text) == list else [text]
     embeddings = []
 
