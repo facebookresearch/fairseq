@@ -10,7 +10,6 @@ from torch import Tensor, nn
 from torch.nn import Parameter
 
 from fairseq import utils
-from einops import rearrange
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
 from fairseq.modules.multihead_attention import MultiheadAttention
@@ -39,8 +38,6 @@ class NativeMultiheadAttention(MultiheadAttention):
         qn_block_size=8,
         rope=False,
         rope_interpolate_factor=1,
-        rope_use_xpos=False,
-        rope_xpos_scale_base=512,
         rope_learned_freq=False,
     ):
         super().__init__(embed_dim, num_heads, dictionary=dictionary)
@@ -70,11 +67,9 @@ class NativeMultiheadAttention(MultiheadAttention):
             self.rotary_pos_embed = (
                 RotaryEmbedding(
                     dim=self.head_dim,
-                    use_xpos=rope_use_xpos,
-                    learned_freq=rope_learned_freq,
-                    xpos_scale_base=rope_xpos_scale_base,
-                    interpolate_factor=rope_interpolate_factor,
                     seq_before_head_dim=False,
+                    learned_freq=rope_learned_freq,
+                    interpolate_factor=rope_interpolate_factor,
                 )
                 if self.rope
                 else None
@@ -273,7 +268,10 @@ class NativeMultiheadAttention(MultiheadAttention):
         if self.rope:
             q_ = q.view(kv_bsz, self.num_heads, -1, self.head_dim)
             k_ = k.view(kv_bsz, self.num_heads, -1, self.head_dim)
-            q_, k_ = self.rotary_pos_embed.rotate_queries_and_keys(q_, k_)
+
+            q_ = self.rotary_pos_embed.rotate_queries_or_keys(q_)
+            k_ = self.rotary_pos_embed.rotate_queries_or_keys(k_)
+
             q = q_.view(kv_bsz * self.num_heads, -1, self.head_dim)
             k = k_.view(kv_bsz * self.num_heads, -1, self.head_dim)
 

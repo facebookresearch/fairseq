@@ -265,14 +265,6 @@ class TransformerConfig(FairseqDataclass):
             "help": "use learned frequencies for RoPE instead of fixed frequencies"
         },
     )
-    rope_use_xpos: Optional[bool] = field(
-        default=False,
-        metadata={"help": "decay RoPE similar to ALiBi"},
-    )
-    rope_xpos_scale_base: Optional[int] = field(
-        default=512,
-        metadata={"help": "base for scaling the positional encoding"},
-    )
     rope_interpolate_factor: Optional[float] = field(
         default=1,
         metadata={"help": "interpolation factor for RoPE"},
