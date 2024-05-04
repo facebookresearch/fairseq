@@ -37,8 +37,9 @@ class NativeMultiheadAttention(MultiheadAttention):
         q_noise=0.0,
         qn_block_size=8,
         rope=False,
-        rope_interpolate_factor=1,
-        rope_learned_freq=False,
+        rope_theta=10000,
+        rope_use_xpos=False,
+        rope_xpos_scale_base=512,
     ):
         super().__init__(embed_dim, num_heads, dictionary=dictionary)
         self.embed_dim = embed_dim
@@ -67,9 +68,9 @@ class NativeMultiheadAttention(MultiheadAttention):
             self.rotary_pos_embed = (
                 RotaryEmbedding(
                     dim=self.head_dim,
-                    seq_before_head_dim=False,
-                    learned_freq=rope_learned_freq,
-                    interpolate_factor=rope_interpolate_factor,
+                    theta=rope_theta,
+                    use_xpos=rope_use_xpos,
+                    xpos_scale_base=rope_xpos_scale_base,
                 )
                 if self.rope
                 else None

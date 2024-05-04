@@ -142,12 +142,10 @@ class TransformerEncoderLayerBase(nn.Module):
                 cfg.encoder.attention_heads,
                 dropout=cfg.attention_dropout,
                 self_attention=True,
-                rope=getattr(cfg, "use_rope", False)
-                and cfg.no_token_positional_embeddings,
-                rope_interpolate_factor=getattr(cfg, "rope_interpolate_factor", 1),
+                rope=getattr(cfg, "use_rope", False) and cfg.no_token_positional_embeddings,
+                rope_theta=getattr(cfg, "rope_theta", 10000),
                 rope_use_xpos=getattr(cfg, "rope_use_xpos", False),
-                rope_xpos_scale_base=getattr(cfg, "rope_xpos_scale_base", 512),
-                rope_learned_freq=getattr(cfg, "rope_learned_freq", False),
+                rope_xpos_scale_base=getattr(cfg, "rope_xpos_scale_base", 512)
             )
         else:
             return MultiheadAttention(
@@ -376,13 +374,11 @@ class TransformerDecoderLayerBase(nn.Module):
                 embed_dim,
                 cfg.decoder.attention_heads,
                 dropout=cfg.attention_dropout,
-                self_attention=not cfg.cross_self_attention,
-                rope=getattr(cfg, "use_rope", False)
-                and cfg.no_token_positional_embeddings,
-                rope_interpolate_factor=getattr(cfg, "rope_interpolate_factor", 1),
+                self_attention=True,
+                rope=getattr(cfg, "use_rope", False) and cfg.no_token_positional_embeddings,
+                rope_theta=getattr(cfg, "rope_theta", 10000),
                 rope_use_xpos=getattr(cfg, "rope_use_xpos", False),
                 rope_xpos_scale_base=getattr(cfg, "rope_xpos_scale_base", 512),
-                rope_learned_freq=getattr(cfg, "rope_learned_freq", False),
             )
         else:
             return MultiheadAttention(
@@ -391,7 +387,7 @@ class TransformerDecoderLayerBase(nn.Module):
                 dropout=cfg.attention_dropout,
                 add_bias_kv=add_bias_kv,
                 add_zero_attn=add_zero_attn,
-                self_attention=not cfg.cross_self_attention,
+                self_attention=True,
                 q_noise=self.quant_noise,
                 qn_block_size=self.quant_noise_block_size,
                 xformers_att_config=cfg.decoder.xformers_att_config,

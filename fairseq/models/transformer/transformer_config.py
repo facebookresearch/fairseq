@@ -259,15 +259,19 @@ class TransformerConfig(FairseqDataclass):
         default=False,
         metadata={"help": "use rotary position embedding (RoPE) for self-attention"},
     )
-    rope_learned_freq: Optional[bool] = field(
+    rope_theta: Optional[int] = field(
+        default=10000, 
+        metadata={"help": "theta value for RoPE initialization"},
+    )
+    rope_use_xpos: Optional[bool] = field(
         default=False,
         metadata={
-            "help": "use learned frequencies for RoPE instead of fixed frequencies"
+            "help": "use length extendable positional embeddings for RoPE"
         },
     )
-    rope_interpolate_factor: Optional[float] = field(
-        default=1,
-        metadata={"help": "interpolation factor for RoPE"},
+    rope_xpos_scale_base: Optional[float] = field(
+        default=512,
+        metadata={"help": "maximal sequence length for positional embeddings when using xPos"},
     )
     # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
     quant_noise: QuantNoiseConfig = field(default=QuantNoiseConfig)
