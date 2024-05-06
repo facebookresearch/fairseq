@@ -18,10 +18,11 @@ def translate(modality):
     payload = request.get_json()
 
     if modality == 'pose':
+        model = payload.get('model')
         pose_data = payload.get('pose')
         pose_data = pose_data if type(pose_data) == list else [pose_data]
         poses = [Pose.read(base64.b64decode(pose)) for pose in pose_data]
-        embedding = embed_pose(poses)
+        embedding = embed_pose(poses, model=model)
     elif modality == 'text':
         text = payload.get('text')
         embedding = embed_text(text)

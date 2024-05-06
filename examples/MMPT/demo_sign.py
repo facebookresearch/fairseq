@@ -58,6 +58,7 @@ sign_languages = [
 
 model, tokenizer, aligner = MMPTModel.from_pretrained(
     "projects/retri/signclip_v1/baseline_sp_b768.yaml",
+    # "projects/retri/signclip_v1/baseline_sp_b768_finetune_asl_citizen.yaml",
     video_encoder=None,
 )
 model.eval()
@@ -118,7 +119,7 @@ def preprocess_text(text):
     return caps, cmasks
 
 
-def embed_pose(pose):
+def embed_pose(pose, model='default'):
     caps, cmasks = preprocess_text('')
     poses = pose if type(pose) == list else [pose]
     embeddings = []
@@ -127,6 +128,7 @@ def embed_pose(pose):
         pose_frames = preprocess_pose(pose)
 
         with torch.no_grad():
+            # TODO
             output = model(pose_frames, caps, cmasks, return_score=False)
             embeddings.append(output['pooled_video'].numpy())
 
