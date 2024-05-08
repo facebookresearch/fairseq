@@ -56,12 +56,23 @@ sign_languages = [
     'ysl',
 ]
 
-model, tokenizer, aligner = MMPTModel.from_pretrained(
-    "projects/retri/signclip_v1/baseline_sp_b768.yaml",
-    # "projects/retri/signclip_v1/baseline_sp_b768_finetune_asl_citizen.yaml",
-    video_encoder=None,
-)
-model.eval()
+model_configs = [
+    ('default', 'signclip_v1/baseline_sp_b768'),
+    ('asl_citizen', 'signclip_v1/baseline_sp_b768_finetune_asl_citizen'),
+]
+models = {}
+
+for model_name, config_path in model_configs:
+    model, tokenizer, aligner = MMPTModel.from_pretrained(
+        f"projects/retri/{config_path}.yaml",
+        video_encoder=None,
+    )
+    model.eval()
+    models[model_name] = {
+        'model': model,
+        'tokenizer': tokenizer,
+        'aligner': aligner,
+    }
 
 
 def pose_normalization_info(pose_header):
@@ -110,7 +121,10 @@ def preprocess_pose(pose):
     return pose_frames
 
 
-def preprocess_text(text):
+def preprocess_text(text, model_name='default'):
+    aligner = models[model_name]['aligner']
+    tokenizer = models[model_name]['tokenizer']
+
     caps, cmasks = aligner._build_text_seq(
         tokenizer(text, add_special_tokens=False)["input_ids"],
     )
@@ -119,8 +133,10 @@ def preprocess_text(text):
     return caps, cmasks
 
 
-def embed_pose(pose, model='default'):
-    caps, cmasks = preprocess_text('')
+def embed_pose(pose, model_name='default'):
+    model = models[model_name]['model']
+
+    caps, cmasks = preprocess_text('', model_name)
     poses = pose if type(pose) == list else [pose]
     embeddings = []
 
@@ -128,14 +144,15 @@ def embed_pose(pose, model='default'):
         pose_frames = preprocess_pose(pose)
 
         with torch.no_grad():
-            # TODO
             output = model(pose_frames, caps, cmasks, return_score=False)
             embeddings.append(output['pooled_video'].numpy())
 
     return np.concatenate(embeddings)
 
 
-def embed_text(text):
+def embed_text(text, model_name='default'):
+    model = models[model_name]['model']
+
     # pose_frames = torch.randn(1, 1, 534)
     pose_frames = torch.randn(1, 1, 609)
     texts = text if type(text) == list else [text]
@@ -151,7 +168,9 @@ def embed_text(text):
     return np.concatenate(embeddings)
 
 
-def score_pose_and_text(pose, text):
+def score_pose_and_text(pose, text, model_name='default'):
+    model = models[model_name]['model']
+
     pose_frames = preprocess_pose(pose)
     caps, cmasks = preprocess_text(text)
 
@@ -161,9 +180,9 @@ def score_pose_and_text(pose, text):
     return text, float(output["score"])  # dot-product
 
 
-def score_pose_and_text_batch(pose, text):
-    pose_embedding = embed_pose(pose)
-    text_embedding = embed_text(text)
+def score_pose_and_text_batch(pose, text, model_name='default'):
+    pose_embedding = embed_pose(pose, model_name)
+    text_embedding = embed_text(text, model_name)
 
     scores = np.matmul(pose_embedding, text_embedding.T)
     return scores
