@@ -59,6 +59,7 @@ sign_languages = [
 model_configs = [
     ('default', 'signclip_v1/baseline_sp_b768'),
     ('asl_citizen', 'signclip_v1/baseline_sp_b768_finetune_asl_citizen'),
+    ('proj', 'signclip_v1_1/baseline_proj'),
 ]
 models = {}
 
@@ -159,7 +160,7 @@ def embed_text(text, model_name='default'):
     embeddings = []
 
     for text in texts:
-        caps, cmasks = preprocess_text(text)
+        caps, cmasks = preprocess_text(text, model_name)
 
         with torch.no_grad():
             output = model(pose_frames, caps, cmasks, return_score=False)
