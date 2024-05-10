@@ -147,6 +147,11 @@ class MMFusion(nn.Module):
         else:
             raise ValueError("the encoder must be either MM or two backbones.")
 
+        if "multimodal_projection" in config.model:
+            from .transformermodel import Multimodal_Projection
+            self.video_projection = Multimodal_Projection()
+            self.text_projection = Multimodal_Projection()
+
     def forward(
         self,
         caps,
@@ -580,6 +585,10 @@ class MMFusionSeparate(MMFusionShare):
             video_outputs.transpose(2, 1),
             video_attention_mask.unsqueeze(2)
         ).squeeze(-1)
+
+        if hasattr(self, 'video_projection'):
+            pooled_video = self.video_projection(pooled_video)
+
         return pooled_video  # video_outputs
 
     def forward_text(
@@ -631,6 +640,10 @@ class MMFusionSeparate(MMFusionShare):
             text_outputs.transpose(2, 1),
             text_attention_mask.unsqueeze(2)
         ).squeeze(-1)
+
+        if hasattr(self, 'text_projection'):
+            pooled_text = self.text_projection(pooled_text)
+
         return pooled_text  # text_outputs
 
 

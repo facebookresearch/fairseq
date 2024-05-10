@@ -9,18 +9,22 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-o', '--overwrite', required=False, action='store_true', help='whether to overwrite existing testing logs')
 args = parser.parse_args()
 
-tasks_path = 'projects/retri/signclip_v1/'
+tasks_path = 'projects/retri/'
 tasks = [
-    'baseline_sp_b768',
-    'baseline_sp_b768_aug',
-    'baseline_sp_b768_pre',
-    'baseline_sp_b768_pre_aug',
+    'signclip_v1/baseline_sp_b768',
+    'signclip_v1/baseline_sp_b768_aug',
+    'signclip_v1/baseline_sp_b768_pre',
+    'signclip_v1/baseline_sp_b768_pre_aug',
+    'signclip_v1_1/baseline_layer',
+    'signclip_v1_1/baseline_proj',
 ]
 notes = [
-    'pretrained with spreadthesign',
-    '+ 2D augmentation',
-    '+ SignVQ preprocessing',
-    '+ both',
+    'E1 pretrained with spreadthesign',
+    'E1 + 2D augmentation',
+    'E1 + SignVQ preprocessing',
+    'E1 + 2D augmentation & SignVQ preprocessing',
+    'E2: E1 + 6 -> 12 layers for video',
+    'E3: E2 + projection',
 ]
 
 results = {}

@@ -57,8 +57,9 @@ sign_languages = [
 ]
 
 model, tokenizer, aligner = MMPTModel.from_pretrained(
-    "projects/retri/signclip_v1/baseline_sp_b768.yaml",
+    # "projects/retri/signclip_v1/baseline_sp_b768.yaml",
     # "projects/retri/signclip_v1/baseline_sp_b768_finetune_asl_citizen.yaml",
+    "projects/retri/signclip_v1_1/baseline_proj.yaml",
     video_encoder=None,
 )
 model.eval()
@@ -119,7 +120,7 @@ def preprocess_text(text):
     return caps, cmasks
 
 
-def embed_pose(pose, model='default'):
+def embed_pose(pose, model_name='default'):
     caps, cmasks = preprocess_text('')
     poses = pose if type(pose) == list else [pose]
     embeddings = []
@@ -128,7 +129,7 @@ def embed_pose(pose, model='default'):
         pose_frames = preprocess_pose(pose)
 
         with torch.no_grad():
-            # TODO
+            # TODO: select model
             output = model(pose_frames, caps, cmasks, return_score=False)
             embeddings.append(output['pooled_video'].numpy())
 
@@ -183,11 +184,19 @@ if __name__ == "__main__":
         buffer = f.read()
         pose = Pose.read(buffer)
 
+        print(np.matmul(embed_text('<en> <ase> house'), embed_text('<en> <ase> sun').T))
+        print(np.matmul(embed_text('<en> <ase> how are you?'), embed_text('<en> <ase> sun').T))
+        print(np.matmul(embed_text('<en> <gsg> sun'), embed_text('<en> <ase> sun').T))
+        # print(embed_pose(pose))
+
         print(score_pose_and_text(pose, 'random text'))
-        print(score_pose_and_text(pose, '<en> <ase>'))
-        print(score_pose_and_text(pose, '<en> <gsg>'))
-        print(score_pose_and_text(pose, '<en> <fsl>'))
-        print(score_pose_and_text(pose, '<en> <ise>'))
+        print(score_pose_and_text(pose, 'house'))
+        print(score_pose_and_text(pose, '<en> <ase> house'))
+        print(score_pose_and_text(pose, '<en> <gsg> house'))
+        print(score_pose_and_text(pose, '<en> <fsl> house'))
+        print(score_pose_and_text(pose, '<en> <ase> sun'))
+        print(score_pose_and_text(pose, '<en> <ase> police'))
+        print(score_pose_and_text(pose, '<en> <ase> how are you?'))
 
         # print(guess_language(pose, languages=['fsl', 'gss']))
         # print(guess_language(pose, languages=['ase', 'gsg', 'fsl', 'ise', 'bfi', 'gss']))
