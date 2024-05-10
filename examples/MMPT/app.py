@@ -14,18 +14,18 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 
 @app.route('/api/embed/<modality>', methods=['GET'])
-def translate(modality):
+def embed(modality):
     payload = request.get_json()
+    model_name = payload.get('model_name', 'default')
 
     if modality == 'pose':
-        model = payload.get('model')
         pose_data = payload.get('pose')
         pose_data = pose_data if type(pose_data) == list else [pose_data]
         poses = [Pose.read(base64.b64decode(pose)) for pose in pose_data]
-        embedding = embed_pose(poses, model=model)
+        embedding = embed_pose(poses, model_name=model_name)
     elif modality == 'text':
         text = payload.get('text')
-        embedding = embed_text(text)
+        embedding = embed_text(text, model_name=model_name)
 
     return {
         'embeddings': embedding.tolist(),
