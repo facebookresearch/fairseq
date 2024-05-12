@@ -273,6 +273,14 @@ class TransformerConfig(FairseqDataclass):
         default=512,
         metadata={"help": "maximal sequence length for positional embeddings when using xPos"},
     )
+    use_alibi: Optional[bool] = field(
+        default=False,
+        metadata={"help": "use AliBi Positional Embeddings instead of standard sinusoidal positional embeddings"}
+    )
+    alibi_asymmetrical: Optional[bool] = field(
+        default=False,
+        metadata={"help": "use asymmetrical AliBi Positional Embeddings"}
+    )
     # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
     quant_noise: QuantNoiseConfig = field(default=QuantNoiseConfig)
     min_params_to_wrap: int = field(

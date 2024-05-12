@@ -145,8 +145,10 @@ class Trainer(object):
         self._ema = None
 
         # TODO(myleott): support tpu
+        # TODO(varun): The torch.cuda.*DtypeTensor constructors are no longer recommended. It's best to use methods such as torch.tensor(data, dtype=*, device='cuda') to create tensors.
+
         if self.cuda and self.data_parallel_world_size > 1:
-            self._grad_norm_buf = torch.cuda.DoubleTensor(self.data_parallel_world_size)
+            self._grad_norm_buf = torch.DoubleTensor(self.data_parallel_world_size).cuda()
         else:
             self._grad_norm_buf = None
 

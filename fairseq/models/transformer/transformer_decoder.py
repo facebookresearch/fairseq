@@ -156,6 +156,16 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         if self.output_projection is None:
             self.build_output_projection(cfg, dictionary, embed_tokens)
 
+        if cfg.use_alibi:
+            assert (
+                self.embed_positions is None
+            ), "ALiBi shouldn't be used with positional embedding"
+            self.alibi = utils.alibi(
+                cfg.decoder.attention_heads, self.max_target_positions
+            )
+        else:
+            self.alibi = None
+
     def build_output_projection(self, cfg, dictionary, embed_tokens):
         if cfg.adaptive_softmax_cutoff is not None:
             self.adaptive_softmax = AdaptiveSoftmax(
@@ -346,6 +356,12 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
 
         x = self.dropout_module(x)
 
+        # We move the mask construction here because its slightly more efficient.
+        if incremental_state is None and not full_context_alignment:
+            self_attn_mask = self.buffered_future_mask(x)
+        else:
+            self_attn_mask = None
+
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
 
@@ -358,11 +374,6 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         inner_states: List[Optional[Tensor]] = [x]
 
         for idx, layer in enumerate(self.layers):
-            if incremental_state is None and not full_context_alignment:
-                self_attn_mask = self.buffered_future_mask(x)
-            else:
-                self_attn_mask = None
-
             x, layer_attn, _ = layer(
                 x,
                 enc,
@@ -411,18 +422,26 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         return min(self.max_target_positions, self.embed_positions.max_positions)
 
     def buffered_future_mask(self, tensor):
-        dim = tensor.size(0)
+        B, T, _ = tensor.size()
         # self._future_mask.device != tensor.device is not working in TorchScript. This is a workaround.
         if (
             self._future_mask.size(0) == 0
             or (not self._future_mask.device == tensor.device)
-            or self._future_mask.size(0) < dim
+            or self._future_mask.size(1) < T
         ):
             self._future_mask = torch.triu(
-                utils.fill_with_neg_inf(torch.zeros([dim, dim])), 1
+                utils.fill_with_neg_inf(
+                    torch.zeros([self.max_target_positions, self.max_target_positions])
+                ),
+                1,
             )
+            if self.alibi is not None:
+                self._future_mask = self._future_mask.unsqueeze(0) + self.alibi
         self._future_mask = self._future_mask.to(tensor)
-        return self._future_mask[:dim, :dim]
+        if self.alibi is not None:
+            return self._future_mask[:, :T, :T].repeat(B, 1, 1)
+        else:
+            return self._future_mask[:T, :T]
 
     def upgrade_state_dict_named(self, state_dict, name):
         """Upgrade a (possibly old) state dict for new versions of fairseq."""
@@ -449,9 +468,9 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
                 for m in ("weight", "bias"):
                     k = "{}.layers.{}.layer_norms.{}.{}".format(name, i, old, m)
                     if k in state_dict:
-                        state_dict[
-                            "{}.layers.{}.{}.{}".format(name, i, new, m)
-                        ] = state_dict[k]
+                        state_dict["{}.layers.{}.{}.{}".format(name, i, new, m)] = (
+                            state_dict[k]
+                        )
                         del state_dict[k]
 
         version_key = "{}.version".format(name)

@@ -10,6 +10,7 @@ from torch import Tensor, nn
 from torch.nn import Parameter
 
 from fairseq import utils
+from rotary_embedding_torch import RotaryEmbedding
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
 from fairseq.modules.multihead_attention import MultiheadAttention
@@ -58,23 +59,21 @@ class NativeMultiheadAttention(MultiheadAttention):
         ), "embed_dim must be divisible by num_heads"
         self.scaling = self.head_dim**-0.5
 
-        self.rope = rope and self_attention
         self.self_attention = self_attention
         self.encoder_decoder_attention = encoder_decoder_attention
 
-        if self.rope:
-            from rotary_embedding_torch import RotaryEmbedding
-
-            self.rotary_pos_embed = (
-                RotaryEmbedding(
-                    dim=self.head_dim,
-                    theta=rope_theta,
-                    use_xpos=rope_use_xpos,
-                    xpos_scale_base=rope_xpos_scale_base,
-                )
-                if self.rope
-                else None
+        self.rotary_pos_embed = (
+            RotaryEmbedding(
+                dim=self.head_dim,
+                theta=rope_theta,
+                use_xpos=rope_use_xpos,
+                xpos_scale_base=rope_xpos_scale_base,
             )
+            if (rope and self_attention)
+            else None
+        )
+
+        self.rope_use_xpos = rope and self_attention and rope_use_xpos
 
         assert not self.self_attention or self.qkv_same_dim, (
             "Self-attention requires query, key and " "value to be of the same size"
@@ -266,12 +265,15 @@ class NativeMultiheadAttention(MultiheadAttention):
         assert k is not None
         assert k.size(1) == src_len
 
-        if self.rope:
+        if self.rotary_pos_embed is not None:
             q_ = q.view(kv_bsz, self.num_heads, -1, self.head_dim)
             k_ = k.view(kv_bsz, self.num_heads, -1, self.head_dim)
 
-            q_ = self.rotary_pos_embed.rotate_queries_or_keys(q_)
-            k_ = self.rotary_pos_embed.rotate_queries_or_keys(k_)
+            if not self.rope_use_xpos:
+                q_ = self.rotary_pos_embed.rotate_queries_or_keys(q_)
+                k_ = self.rotary_pos_embed.rotate_queries_or_keys(k_)
+            else:
+                q_, k_ = self.rotary_pos_embed.rotate_queries_and_keys(q_, k_)
 
             q = q_.view(kv_bsz * self.num_heads, -1, self.head_dim)
             k = k_.view(kv_bsz * self.num_heads, -1, self.head_dim)
@@ -303,6 +305,7 @@ class NativeMultiheadAttention(MultiheadAttention):
             attn_weights = attn_weights.reshape((-1,) + attn_weights.size()[-2:])
         else:
             attn_weights = torch.bmm(q, k.transpose(1, 2))
+
         attn_weights = self.apply_sparse_mask(attn_weights, tgt_len, src_len, bsz)
 
         assert list(attn_weights.size()) == [

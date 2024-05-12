@@ -295,65 +295,40 @@ def transformer_wmt_en_de_big_t2t(args):
 
 ######################################################### CUSTOM ARCHITECTURES #########################################################
 
-
-@register_model_architecture("transformer", "transformer_base")
-def transformer_base(args):
-    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", True)
-    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", True)
-    args.layernorm_embedding = getattr(args, "layernorm_embedding", True)
-    args.activation_fn = getattr(args, "activation_fn", "gelu")
-    base_architecture(args)
-
-
-@register_model_architecture("transformer", "transformer_small")
-def transformer_small(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 3)
-    args.decoder_layers = getattr(args, "decoder_layers", 3)
-    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 256)
-    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 256)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 1024)
-    args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 1024)
-    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 4)
-    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 4)
-    base_architecture(args)
+@register_model_architecture("transformer", "roformer_IT2_dist")
+def roformer_base18L(args):
+    args.use_rope = getattr(args, "use_rope", True)
+    args.rope_use_xpos = getattr(args, "rope_use_xpos", True)
+    args.rope_xpos_scale_base = getattr(args, "rope_xpos_scale_base", 2048)
+    args.use_native_attention = getattr(args, "use_native_attention", True)
+    args.no_token_positional_embeddings = getattr(args, "no_token_positional_embeddings", True)
+    transformer_base18L(args)
 
 
-@register_model_architecture("transformer", "transformer_xsmall")
-def transformer_xsmall(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 3)
-    args.decoder_layers = getattr(args, "decoder_layers", 3)
-    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 128)
-    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 128)
-    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 512)
-    args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 512)
-    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 4)
-    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 4)
-    base_architecture(args)
-
-
-@register_model_architecture("transformer", "transformer_base12L")
-def transformer_base12L(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 12)
-    args.decoder_layers = getattr(args, "decoder_layers", 12)
-    transformer_base(args)
-
-
-@register_model_architecture("transformer", "transformer_base18L")
+@register_model_architecture("transformer", "transformer_IT2_dist")
 def transformer_base18L(args):
+    args.activation_fn = getattr(args, "activation_fn", "gelu")
     args.encoder_layers = getattr(args, "encoder_layers", 18)
     args.decoder_layers = getattr(args, "decoder_layers", 18)
-    transformer_base(args)
+    args.layernorm_embedding = getattr(args, "layernorm_embedding", True)
+    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", True)
+    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", True)
+    base_architecture(args)
 
 
-@register_model_architecture("transformer", "transformer_base24L")
-def transformer_base24L(args):
-    args.encoder_layers = getattr(args, "encoder_layers", 24)
-    args.decoder_layers = getattr(args, "decoder_layers", 24)
-    transformer_base(args)
+@register_model_architecture("transformer", "roformer_IT2")
+def roformer_deep(args):
+    args.use_rope = getattr(args, "use_rope", True)
+    args.rope_use_xpos = getattr(args, "rope_use_xpos", True)
+    args.rope_xpos_scale_base = getattr(args, "rope_xpos_scale_base", 2048)
+    args.use_native_attention = getattr(args, "use_native_attention", True)
+    args.no_token_positional_embeddings = getattr(args, "no_token_positional_embeddings", True)
+    transformer_deep(args)
 
 
 @register_model_architecture("transformer", "transformer_IT2")
 def transformer_deep(args):
+    args.activation_fn = getattr(args, "activation_fn", "gelu")
     args.encoder_layers = getattr(args, "encoder_layers", 18)
     args.decoder_layers = getattr(args, "decoder_layers", 18)
     args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 1024)
@@ -363,4 +338,6 @@ def transformer_deep(args):
     args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 16)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 16)
     args.layernorm_embedding = getattr(args, "layernorm_embedding", False)
-    transformer_base(args)
+    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", True)
+    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", True)
+    base_architecture(args)
