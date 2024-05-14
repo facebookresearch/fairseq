@@ -205,10 +205,10 @@ class TranslationConfig(FairseqDataclass):
         default=False, metadata={"help": "pad the target on the left"}
     )
     max_source_positions: int = field(
-        default=1024, metadata={"help": "max number of tokens in the source sequence"}
+        default=8192, metadata={"help": "max number of tokens in the source sequence"}
     )
     max_target_positions: int = field(
-        default=1024, metadata={"help": "max number of tokens in the target sequence"}
+        default=8192, metadata={"help": "max number of tokens in the target sequence"}
     )
     upsample_primary: int = field(
         default=-1, metadata={"help": "the amount of upsample primary dataset"}

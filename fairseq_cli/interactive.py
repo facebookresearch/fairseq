@@ -209,9 +209,11 @@ def main(cfg: FairseqConfig):
     # (None if no unknown word replacement, empty if no path to align dictionary)
     align_dict = utils.load_align_dict(cfg.generation.replace_unk)
 
-    max_positions = utils.resolve_max_positions(
-        task.max_positions(), *[model.max_positions() for model in models]
-    )
+    # max_positions = utils.resolve_max_positions(
+    #     task.max_positions(), *[model.max_positions() for model in models]
+    # )
+
+    max_positions = (2048, 2048)
 
     if cfg.generation.constraints:
         logger.warning(

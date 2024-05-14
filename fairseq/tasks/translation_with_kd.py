@@ -18,14 +18,11 @@ from fairseq.optim.amp_optimizer import AMPOptimizer
 
 @dataclass
 class KDTranslationConfig(TranslationConfig):
-    kd_strategy: Optional[str] = field(
-        default=None, metadata={"help": "distillation strategy to be used"}
-    )
     teacher_checkpoint_path: Optional[str] = field(
         default=None,
         metadata={"help": "teacher checkpoint path when performing distillation"},
     )
-    kd_language_tags: Optional[str] = field(
+    language_tags: Optional[str] = field(
         default=None,
         metadata={"help": "language tags for Global-language-wise distillation"},
     )
@@ -47,14 +44,9 @@ class KDTranslationTask(TranslationTask):
 
     def __init__(self, cfg: KDTranslationConfig, src_dict, tgt_dict):
         super().__init__(cfg, src_dict, tgt_dict)
-        # additional parameters
-        self.kd_strategy = cfg.kd_strategy
-        if cfg.kd_language_tags is not None:
-            # dynamically recognize language tag ids
+        if cfg.language_tags is not None:
             _rev_src_dict = {i: src_dict[i] for i in range(len(src_dict))}
-            self.lang_ids = [
-                _rev_src_dict[tag] for tag in cfg.kd_language_tags.split(",")
-            ]
+            self.lang_ids = [_rev_src_dict[tag] for tag in cfg.language_tags.split(",")]
         else:
             self.lang_ids = None
 
@@ -69,7 +61,6 @@ class KDTranslationTask(TranslationTask):
         ignore_grad=False,
     ):
         model.train()
-        teacher_model.eval()
         model.set_num_updates(update_num)
         with torch.autograd.profiler.record_function("forward"):
             with torch.cuda.amp.autocast(enabled=(isinstance(optimizer, AMPOptimizer))):
@@ -84,7 +75,6 @@ class KDTranslationTask(TranslationTask):
 
     def valid_step(self, sample, model, teacher_model, criterion):
         model.eval()
-        teacher_model.eval()
         with torch.no_grad():
             loss, sample_size, logging_output = criterion(model, teacher_model, sample)
         if self.cfg.eval_bleu:

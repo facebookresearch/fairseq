@@ -48,7 +48,14 @@ from .espnet_multihead_attention import (
     RelPositionMultiHeadedAttention,
     RotaryPositionMultiHeadedAttention,
 )
-from .rotary_positional_embedding import RotaryPositionalEmbedding
+from .rotary_positional_embedding import (
+    RotaryPositionalEmbedding,
+    LinearScalingRotaryPositionalEmbedding,
+    DynamicNTKScalingRotaryPositionalEmbedding,
+    YaRNScaledRotaryPositionalEmbedding,
+    YaRNScaledRotaryPositionalEmbedding,
+    DynamicYaRNScaledRotaryPositionalEmbedding,
+)
 from .positional_encoding import (
     RelPositionalEncoding,
 )
@@ -108,4 +115,9 @@ __all__ = [
     "RelPositionalEncoding",
     "RotaryPositionalEmbedding",
     "RotaryPositionMultiHeadedAttention",
+    "LinearScalingRotaryPositionalEmbedding",
+    "DynamicNTKScalingRotaryPositionalEmbedding",
+    "YaRNScaledRotaryPositionalEmbedding",
+    "DynamicYaRNScaledRotaryPositionalEmbedding",
+    "DynamicYaRNScaledRotaryPositionalEmbedding"
 ]

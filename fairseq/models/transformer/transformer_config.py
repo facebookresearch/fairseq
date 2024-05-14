@@ -116,11 +116,13 @@ class TransformerConfig(FairseqDataclass):
     adapter_activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = field(
         default="relu", metadata={"help": "activation function for adapters"}
     )
-    factorized_embed_activation_fn: ChoiceEnum(
-        utils.get_available_activation_fns()
-    ) = field(
-        default="linear",
-        metadata={"help": "activation function to use for the factorized embedding"},
+    factorized_embed_activation_fn: ChoiceEnum(utils.get_available_activation_fns()) = (
+        field(
+            default="linear",
+            metadata={
+                "help": "activation function to use for the factorized embedding"
+            },
+        )
     )
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
@@ -231,56 +233,28 @@ class TransformerConfig(FairseqDataclass):
             "help": "use native attention implementation without much checks. Mainly added for RoPE and LoRA implementation"
         },
     )
-    lora_r: Optional[int] = field(
-        default=0,
-        metadata={
-            "help": "LoRA: number of random features to use for the attention mechanism"
-        },
+
+    lora_args: Optional[str] = field(
+        default=None,
+        metadata={"help": "LoRA arguments (rank, alpha, dropout, target_modules)"},
     )
-    lora_alpha: Optional[int] = field(
-        default=1,
-        metadata={"help": "LoRA: scaling factor for the random features"},
-    )
-    lora_dropout: Optional[float] = field(
-        default=0.0,
-        metadata={"help": "LoRA: dropout probability for the random features"},
-    )
-    lora_bias: Optional[str] = field(
-        default="none",
-        metadata={"help": "LoRA: whether to use bias in the attention mechanism"},
-    )
-    lora_modules: Optional[str] = field(
+    rope_args: Optional[str] = field(
         default=None,
         metadata={
-            "help": "A comma separated string of modules to apply LoRA. Supports only Linear and Embedding layers for now."
+            "help": "RoPE arguments (max_position_embeddings, base, type ['vanilla', 'linear', 'dynamic'], scale)"
         },
     )
-    use_rope: Optional[bool] = field(
-        default=False,
-        metadata={"help": "use rotary position embedding (RoPE) for self-attention"},
-    )
-    rope_theta: Optional[int] = field(
-        default=10000, 
-        metadata={"help": "theta value for RoPE initialization"},
-    )
-    rope_use_xpos: Optional[bool] = field(
-        default=False,
+    yarn_args: Optional[str] = field(
+        default=None,
         metadata={
-            "help": "use length extendable positional embeddings for RoPE"
+            "help": "YaRN arguments (max_position_embeddings, base, type ['vanilla', 'dynamic'], scale, original_max_position_embeddings, extrapolation_factor, attn_factor, beta_fast, beta_slow, finetuned)"
         },
     )
-    rope_xpos_scale_base: Optional[float] = field(
-        default=512,
-        metadata={"help": "maximal sequence length for positional embeddings when using xPos"},
+    alibi_args: Optional[str] = field(
+        default=None,
+        metadata={"help": "ALiBi arguments (alibi_asymmetrical)"},
     )
-    use_alibi: Optional[bool] = field(
-        default=False,
-        metadata={"help": "use AliBi Positional Embeddings instead of standard sinusoidal positional embeddings"}
-    )
-    alibi_asymmetrical: Optional[bool] = field(
-        default=False,
-        metadata={"help": "use asymmetrical AliBi Positional Embeddings"}
-    )
+
     # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
     quant_noise: QuantNoiseConfig = field(default=QuantNoiseConfig)
     min_params_to_wrap: int = field(
@@ -414,9 +388,7 @@ class TransformerConfig(FairseqDataclass):
             args_dict = (
                 args._asdict()
                 if safe_hasattr(args, "_asdict")
-                else vars(args)
-                if safe_hasattr(args, "__dict__")
-                else {}
+                else vars(args) if safe_hasattr(args, "__dict__") else {}
             )  # namedtupled doesn't have __dict__ :-/
             for key, value in args_dict.items():
                 if key not in seen:

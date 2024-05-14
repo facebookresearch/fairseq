@@ -18,48 +18,20 @@ modeling and other text generation tasks.
 
 
 # Usage
-This clone of fairseq supports `Knowledge Distillation`, `Recurrent Stacking`, `LoRA` `RoPE` and `ALiBi` for the `Transformer` model and the `translation` task. You can add the following flags to `fairseq-train` to use them:
+This clone of fairseq supports `Knowledge Distillation`, `Recurrent Stacking`, `LoRA` `RoPE`, `YaRN` and `ALiBi` for the `Transformer` model and the `translation` task. You can add the following flags to `fairseq-train`/`fairseq-interactive`/`fairseq-generate` to use them:
 
-- **Knowledge Distillation**: The original implementation was sourced from [LeslieOverfitting](https://github.com/LeslieOverfitting/selective_distillation) and [MANGA-UOFA](https://github.com/MANGA-UOFA/fdistill)
+| **Name and Citation** | **Description** | **Flags to Activate** | **Source** |
+|-----------------------|-----------------------|-----------------------|------------|
+| **Knowledge Distillation** ([Hinton _et al_.](https://arxiv.org/abs/1503.02531), [Kim & Rush](https://aclanthology.org/D16-1139), [Wang _et al_.](https://aclanthology.org/2021.acl-long.504), [Gumma _et al_.](https://aclanthology.org/2023.eamt-1.11/)) | Transfers _soft_ information from a pretrained teacher model to a smaller student model | `--teacher-checkpoint-path $teacher_ckpt --task translation_with_kd --criterion label_smoothed_cross_entropy_with_kd --kd-args '{"strategy": "word_level"}'` | [Selective Distillation](https://github.com/LeslieOverfitting/selective_distillation) |
+| **Recurrent Stacking** ([Dabre & Fujita](https://ojs.aaai.org/index.php/AAAI/article/view/4590)) | Extreme parameter sharing technique in which all layers in the encoder/decoder are shared | `--encoder-recurrent-stacking $encoder_recurrent_stacking --decoder-recurrent-stacking $decoder_recurrent_stacking` | - |
+| **Low-Rank Adaptation (LoRA)** ([Hu _et al_.](https://openreview.net/forum?id=nZeVKeeFYf9)) | Efficient model adaptation technique that modifies a small number of model parameters while freezing the rest | `--lora-args '{"r": 8, "alpha": 16, "dropout": 0.05, "bias": "none, "target_modules": "k_proj,v_proj"}' --use-native-attention --load-checkpoint-liberally` | [LoRA Implementation](https://github.com/microsoft/LoRA) |
+| **Rotary Positional Embedding (RoPE)** ([Su _et al_.](https://arxiv.org/abs/2104.09864)) | Encodes absolute position with a rotation matrix and incorporates explicit relative position dependency in self-attention formulation | `--rope-args '{"max_position_embeddings": 2048, "base": 10000, "type": "vanilla"}' --use-native-attention --no-token-positional-embeddings` | [RoPE Implementation](https://github.com/jquesnelle/yarn/blob/master/scaled_rope/modeling_llama_yarn.py) |
+| **Yet another RoPE extensioN method (YaRN)** ([Peng _et al_.](https://openreview.net/forum?id=wHBfxhZu1u)) | Compute-efficient method to extend the context window of models | `--yarn-args '{"max_position_embeddings": 2048, "base": 10000, "type": "vanilla", "original_max_position_embeddings": 256, "extrapolation_factor": 1, "attn_factor": 1, "beta_fast": 32, "beta_slow": 1}' --use-native-attention --no-token-positional-embeddings` | [YaRN Implementation](https://github.com/jquesnelle/yarn/blob/master/scaled_rope/modeling_llama_yarn.py) |
+| **Attention with Linear Biases (ALiBi)** ([Press _et al_.](https://openreview.net/forum?id=R8sQPpGCv0)) | Simple and efficient position method that biases query-key attention scores with a penalty proportional to their distance | `--alibi-args '{"alibi_asymmetrical": "false"}' --no-token-positional-embeddings --load-checkpoint-liberally` | [ALiBi Implementation](https://github.com/EIFY/fairseq) |
+| **Factorized Embedding Parameterization** ([Lan _et al_.](https://openreview.net/forum?id=nZeVKeeFYf9)) | Parameterizes large embeddings by adding an intermediate bottleneck layer | `--encoder-factorized-embed-dim $encoder_fac_embed_dim --decoder-factorized-embed-dim $decoder_fac_embed_dim --factorized-embed-activation-fn $fac_embed_activation_fn` | - |
+| **Penultimate Linear Transformation Activation** | Adds activation to the penultimate linear transformation before the final projection onto the vocabulary | `--decoder-output-activation-fn $decoder_out_activation_fn` | - |
+| **Sanity Validation Steps** | Runs a full pass over the validation set at the beginning of training | `--run-sanity-validation-steps` | - |
 
-  - Pure Word-Level Distillation ([Hinton _et al_.](https://arxiv.org/abs/1503.02531)) can be achieved by: 
-    - `--task translation_with_kd --kd-strategy word_level --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd `
-    - Note that, there no NLL Loss between the gold targets and predictions. The only loss is the KL-Divergence between the student and teacher distributions ($`\mathcal{L}`$ = $`\mathcal{L}_{KD}`$)
-
-  - [Kim & Rush](https://aclanthology.org/D16-1139) extend this idea and add a NLL Loss between the predictions and target and modify the loss as $`\mathcal{L}`$ = $`\mathcal{L}_{KD}`$ + $`\mathcal{L}_{NLL}`$. The same can be achieved with the following flags:
-    - `--task translation_with_kd --kd-strategy word_seq_level --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd `
-
-  - Training with Batch-Level and Global-Level KD ([Wang _et al_.](https://aclanthology.org/2021.acl-long.504)) can be done as follows:
-    - `--task translation_with_kd --kd-strategy batch_level --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd --kd-rate $kd_rate`
-    - `--task translation_with_kd --kd-strategy global_level --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd --kd-rate $kd_rate --kd-queue-size $kd_queue_sz`
-
-  - Lastly, the Global-Language-wise selection approach ([Gumma _et al_.](https://aclanthology.org/2023.eamt-1.11/)) can used by:
-    - `--task translation_with_kd --kd-strategy global_language_wise --teacher-checkpoint-path $teacher_ckpt --criterion label_smoothed_cross_entropy_with_kd --kd-rate $kd_rate --kd-queue-size $kd_queue_sz --kd-language-tags $language_tags` (note that the `$language_tags` should be a comma separated string of language tags)
-
-  - Here, similar to Global-Level KD, each language has its own Global FIFO queue, which makes it suitable for multilingual KD with imbalanced datasets. This technique requires adding language tags to each translation pair, following [Ramesh _et al_.](https://aclanthology.org/2022.tacl-1.9/). These tags will help the model break the batch into respective languages and push them into the corresponding Global language queues. Note that each FIFO language queue, irrespective of language abundance, will be of the same size, i.e., `$kd_queue_sz`. I know this does not sound so good, and I am working on an alternative.
-
-  - *UPDATE*: _Based on [Wen _et al_.](https://aclanthology.org/2023.acl-long.605.pdf), newer variants for KD Loss have been implemented, wiz. `js_div` and `tvd`. They can be used by setting the flag `--kd-criterion $kd_criterion`. By default, `kl_div` is used._
-
-- **Recurrent Stacking** ([Dabre & Fujita](https://ojs.aaai.org/index.php/AAAI/article/view/4590)): RS is an extreme parameter sharing technique in which all the layers in the encoder/decoder are shared. Implementation-wise, only one layer exists in the module, and the rest $N-1$ are mere references to it. RS can be activated with the following flags: `--encoder-recurrent-stacking $encoder_recurrent_stacking --decoder-recurrent-stacking $decoder_recurrent_stacking`
-
-- **Low-Rank Adaptation (LoRA)** ([Hu _et al_.](https://openreview.net/forum?id=nZeVKeeFYf9)): LoRA is a technique for efficient model adaptation that modifies a small number of model parameters while freezing the rest, enabling effective fine-tuning of large-scale pre-trained models with minimal computational overhead. The LoRA modules can be added and trained using the following flags: `--use-native-attention --lora-r $r --lora-alpha $alpha --lora-dropout $dropout --lora-bias "none" --lora-modules "q_proj,k_proj" --load-checkpoint-liberally`. The model will automatically merge the weights when the `.eval()` method is called, and unmerge them with `.train()`. Note that, training these modules will replace the required linear layers with `LoRALinear` layers, embedding layers with `LoRAEmbeddding`, and attention blocks with `NativeMultiheadAttention`. These changes are yet to be reverted upon saving the final best model. So, use the `--load-checkpoint-liberally` flag for `fairseq-interactive` as well when evaluting the model.
-
-- **Rotatary Positional Embedding (RoPE)** ([Su _et al_.](https://arxiv.org/abs/2104.09864)): RoPE encodes the absolute position with a rotation matrix and meanwhile incorporates the explicit relative position dependency in self-attention formulation. Notably, RoPE enables valuable properties, including the flexibility of sequence length, decaying inter-token dependency with increasing relative distances, and the capability of equipping the linear self-attention with relative position encoding. RoPE can be enabled with the following flags: `--use-native-attention --use-rope --no-token-positional-embeddings`. The RoPE implementation is directly sourced from [here](https://github.com/lucidrains/rotary-embedding-torch), and is one of the dependencies. 
-
-- **Attention with Linear Biases (ALiBi)** ([Press _et al_.](https://openreview.net/forum?id=R8sQPpGCv0)): Attention with Linear Biases (ALiBi) is a simpler and more efficient position method. ALiBi does not add positional embeddings to word embeddings;  instead, it biases query-key attention scores with a penalty that is proportional to their distance. ALiBi can be enabled with the following flags: `--use-alibi --no-token-positional-embeddings`. Additionally, an asymmetric version can be used for the encoder with the flag `--alibi-asymmetrical`. The ALiBi implementation is directly sourced from [here](https://github.com/EIFY/fairseq).
-  
-- **Miscellaneous**:
-  - _Factorized Embedding Parameterization_ ([Lan _et al_.](https://openreview.net/forum?id=nZeVKeeFYf9)): Similar to ALBERT, the large embeddings can be parameterized by adding an intermediate bottleneck layer, i.e., the instead of being a single $|V| \times d_m$ matrix, the Embedding consists of two pieces of sizes $|V| \times k$ and $k \times d_m$ respectively, where $k < d_m$. This helps curb the number of parameters in the Embedding layer, which can one of the most bulky components. Factorized embeddings can be used as:`--encoder-factorized-embed-dim $encoder_fac_embed_dim --decoder-factorized-embed-dim $decoder_fac_embed_dim`. A non-linear activation function can be applied to the intermediate bottleneck layer specifying it in the flag `--factorized-embed-activation-fn $fac_embed_activation_fn`.
-
-  - When using a penultimate linear transformation before the final projection onto the vocabulary, activation can be added by `--decoder-output-activation-fn $decoder_out_activation_fn`
-
-  - _Sanity Validation steps_: Similar to `Pytorch-Lightning Trainer`, a full pass over the validation set can be run at the beginning of training to eliminate any bugs in the training/validation. It can be activated with the flag: `--run-sanity-validation-steps`
-
-  - Added support for `Python 3.11+` and bumped the version from `0.12.2` -> `0.12.4`
-
-  - Script to port fairseq transformer models to HuggingFace can be found [here](https://github.com/AI4Bharat/IndicTrans2/tree/main/huggingface_interface)
-
-  - Adapters are now deprecated and removed in favor of LoRA.
 
 # Requirements and Installation
 
@@ -69,15 +41,9 @@ This clone of fairseq supports `Knowledge Distillation`, `Recurrent Stacking`, `
 * **To install fairseq** and develop locally:
 
 ``` bash
-git clone https://github.com/pytorch/fairseq
+git clone https://github.com/VarunGumma/fairseq
 cd fairseq
 pip install -e ./
-
-# on MacOS:
-# CFLAGS="-stdlib=libc++" pip install --editable ./
-
-# to install the latest stable release (0.10.x)
-# pip install fairseq
 ```
 
 * **For faster training** install NVIDIA's [apex](https://github.com/NVIDIA/apex) library:
@@ -94,18 +60,6 @@ pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cud
 * If you use Docker make sure to increase the shared memory size either with `--ipc=host` or `--shm-size`
  as command line options to `nvidia-docker run`.
 
-# Getting Started
-
-The [full documentation](https://fairseq.readthedocs.io/) contains instructions
-for getting started, training new models, and extending fairseq with a new model
-types and tasks.
-
-# Join the fairseq community
-
-* Twitter: https://twitter.com/fairseq
-* Facebook page: https://www.facebook.com/groups/fairseq.users
-* Google group: https://groups.google.com/forum/#!forum/fairseq-users
-
 # License
 
 `fairseq(-py)` is MIT-licensed.
@@ -115,16 +69,16 @@ The license applies to the pre-trained models as well.
 
 Please cite as:
 ``` bibtex
-@inproceedings{ott2019fairseq,
+@misc{gumma2024fairseq,
+  author = {Varun Gumma},
   title = {fairseq: A Fast, Extensible Toolkit for Sequence Modeling},
-  author = {Myle Ott and Sergey Edunov and Alexei Baevski and Angela Fan and Sam Gross and Nathan Ng and David Grangier and Michael Auli},
-  booktitle = {Proceedings of NAACL-HLT 2019: Demonstrations},
-  year = {2019},
+  year = {2024},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  howpublished = {\url{https://github.com/VarunGumma/fairseq}},
 }
 ```
 
-and do provide a footnote link to my repository.
-
 # Final Note
 
-_I will try my best to keep this repo synced with the upstream [fairseq](https://github.com/facebookresearch/fairseq) repository. This clone is very dynamic and can have broken stuff once in a while. So feel free to raise any issues or pull requests to clear any bugs or introduce new features._
+_I will try my best to keep this repo synced with the upstream [fairseq](https://github.com/facebookresearch/fairseq) repository. This clone is very dynamic and can have broken stuff once in a while. So feel free to raise issues or pull requests to clear any bugs or introduce new features._

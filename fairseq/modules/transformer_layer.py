@@ -70,6 +70,15 @@ class TransformerEncoderLayerBase(nn.Module):
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
 
+        assert (
+            (
+                getattr(cfg, "rope_args", None) is not None
+                or getattr(cfg, "yarn_args", None) is not None
+            )
+            and cfg.use_native_attention
+            and cfg.no_token_positional_embeddings
+        ), "Only support for native attention with rope or yarn and no token positional embeddings"
+
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
         return quant_noise(
             nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size
@@ -142,10 +151,8 @@ class TransformerEncoderLayerBase(nn.Module):
                 cfg.encoder.attention_heads,
                 dropout=cfg.attention_dropout,
                 self_attention=True,
-                rope=getattr(cfg, "use_rope", False) and cfg.no_token_positional_embeddings,
-                rope_theta=getattr(cfg, "rope_theta", 10000),
-                rope_use_xpos=getattr(cfg, "rope_use_xpos", False),
-                rope_xpos_scale_base=getattr(cfg, "rope_xpos_scale_base", 512)
+                rope_args=getattr(cfg, "rope_args", None),
+                yarn_args=getattr(cfg, "yarn_args", None),
             )
         else:
             return MultiheadAttention(
@@ -375,10 +382,8 @@ class TransformerDecoderLayerBase(nn.Module):
                 cfg.decoder.attention_heads,
                 dropout=cfg.attention_dropout,
                 self_attention=True,
-                rope=getattr(cfg, "use_rope", False) and cfg.no_token_positional_embeddings,
-                rope_theta=getattr(cfg, "rope_theta", 10000),
-                rope_use_xpos=getattr(cfg, "rope_use_xpos", False),
-                rope_xpos_scale_base=getattr(cfg, "rope_xpos_scale_base", 512),
+                rope_args=getattr(cfg, "rope_args", None),
+                yarn_args=getattr(cfg, "yarn_args", None),
             )
         else:
             return MultiheadAttention(

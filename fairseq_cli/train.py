@@ -213,19 +213,20 @@ def main(cfg: FairseqConfig) -> None:
     logger.info("criterion: {}".format(criterion.__class__.__name__))
 
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-    if getattr(cfg.model, "lora_r", 0) > 0:
+    if getattr(cfg.model, "lora_args", False):
         logging.info("adding LoRA modules to model")
-
-        lora_modules = cfg.model.lora_modules.split(",")
+        lora_config = json.loads(cfg.model.lora_args)
         lora_params = {
-            "r": cfg.model.lora_r,
-            "alpha": cfg.model.lora_alpha,
-            "dropout": cfg.model.lora_dropout,
+            "r": lora_config.get("r", 0),
+            "alpha": lora_config.get("alpha", 1),
+            "dropout": lora_config.get("dropout", 0.0),
             "merge_weights": True,
         }
 
+        lora_modules = lora_config["target_modules"].split(",")
+        lora_bias = lora_config.get("bias", "none")
         replace_with_lora(model, lora_modules, lora_params)
-        mark_only_lora_as_trainable(model, bias=cfg.model.lora_bias)
+        mark_only_lora_as_trainable(model, bias=lora_bias)
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
     logger.info(

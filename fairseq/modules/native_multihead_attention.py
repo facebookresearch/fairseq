@@ -5,15 +5,26 @@
 
 from typing import Dict, Optional, Tuple
 
+import json
 import torch
 from torch import Tensor, nn
 from torch.nn import Parameter
 
 from fairseq import utils
-from rotary_embedding_torch import RotaryEmbedding
+
+# from rotary_embedding_torch import RotaryEmbedding
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
 from fairseq.modules.multihead_attention import MultiheadAttention
+
+from fairseq.modules.rotary_positional_embedding import (
+    apply_rotary_pos_emb,
+    RotaryPositionalEmbedding,
+    LinearScalingRotaryPositionalEmbedding,
+    DynamicNTKScalingRotaryPositionalEmbedding,
+    YaRNScaledRotaryPositionalEmbedding,
+    DynamicYaRNScaledRotaryPositionalEmbedding,
+)
 
 
 class NativeMultiheadAttention(MultiheadAttention):
@@ -37,10 +48,8 @@ class NativeMultiheadAttention(MultiheadAttention):
         dictionary=None,
         q_noise=0.0,
         qn_block_size=8,
-        rope=False,
-        rope_theta=10000,
-        rope_use_xpos=False,
-        rope_xpos_scale_base=512,
+        rope_args=None,
+        yarn_args=None,
     ):
         super().__init__(embed_dim, num_heads, dictionary=dictionary)
         self.embed_dim = embed_dim
@@ -62,18 +71,88 @@ class NativeMultiheadAttention(MultiheadAttention):
         self.self_attention = self_attention
         self.encoder_decoder_attention = encoder_decoder_attention
 
-        self.rotary_pos_embed = (
-            RotaryEmbedding(
-                dim=self.head_dim,
-                theta=rope_theta,
-                use_xpos=rope_use_xpos,
-                xpos_scale_base=rope_xpos_scale_base,
-            )
-            if (rope and self_attention)
-            else None
-        )
+        self.rope_args = json.loads(rope_args) if rope_args is not None else None
+        self.yarn_args = json.loads(yarn_args) if yarn_args is not None else None
+        self.yarn_pos_embed = None
+        self.rotary_pos_embed = None
 
-        self.rope_use_xpos = rope and self_attention and rope_use_xpos
+        # both self.rope_args and self.yarn_args cannot be set at the same time
+        assert not (
+            self.rope_args is not None and self.yarn_args is not None
+        ), "Both rotary and yarn position embeddings cannot be set at the same time"
+
+        if self.rope_args is not None:
+            if self.rope_args["type"] == "vanilla":
+                self.rotary_pos_embed = RotaryPositionalEmbedding(
+                    dim=self.head_dim,
+                    base=self.rope_args.get("base", 10000),
+                    max_position_embeddings=self.rope_args.get(
+                        "max_position_embeddings", 2048
+                    ),
+                )
+            elif self.rope_args["type"] == "linear":
+                self.rotary_pos_embed = LinearScalingRotaryPositionalEmbedding(
+                    dim=self.head_dim,
+                    base=self.rope_args.get("base", 10000),
+                    scaling_factor=self.rope_args.get("scaling_factor", 1.0),
+                    max_position_embeddings=self.rope_args.get(
+                        "max_position_embeddings", 2048
+                    ),
+                )
+            elif self.rope_args["type"] == "dynamic":
+                self.rotary_pos_embed = DynamicNTKScalingRotaryPositionalEmbedding(
+                    dim=self.head_dim,
+                    base=self.rope_args.get("base", 10000),
+                    max_position_embeddings=self.rope_args.get(
+                        "max_position_embeddings", 2048
+                    ),
+                )
+            else:
+                raise ValueError(
+                    f"Unknown rotary position embedding type: {self.rope_args['type']}. Allowed types are: vanilla, linear, dynamic"
+                )
+
+        if self.yarn_args is not None:
+            if self.yarn_args["type"] == "vanilla":
+                self.yarn_pos_embed = YaRNScaledRotaryPositionalEmbedding(
+                    dim=self.head_dim,
+                    base=self.yarn_args.get("base", 10000),
+                    scale=self.yarn_args.get("scale", 1.0),
+                    max_position_embeddings=self.yarn_args.get(
+                        "max_position_embeddings", 2048
+                    ),
+                    original_max_position_embeddings=self.yarn_args.get(
+                        "original_max_position_embeddings", 256
+                    ),
+                    extrapolation_factor=self.yarn_args.get(
+                        "extrapolation_factor", 1.0
+                    ),
+                    attn_factor=self.yarn_args.get("attn_factor", 1),
+                    beta_fast=self.yarn_args.get("beta_fast", 32),
+                    beta_slow=self.yarn_args.get("beta_slow", 2),
+                )
+            elif self.yarn_args["type"] == "dynamic":
+                self.yarn_pos_embed = DynamicYaRNScaledRotaryPositionalEmbedding(
+                    dim=self.head_dim,
+                    base=self.yarn_args.get("base", 10000),
+                    max_position_embeddings=self.yarn_args.get(
+                        "max_position_embeddings", 2048
+                    ),
+                    original_max_position_embeddings=self.yarn_args.get(
+                        "original_max_position_embeddings", 256
+                    ),
+                    extrapolation_factor=self.yarn_args.get(
+                        "extrapolation_factor", 1.0
+                    ),
+                    attn_factor=self.yarn_args.get("attn_factor", 1),
+                    beta_fast=self.yarn_args.get("beta_fast", 32),
+                    beta_slow=self.yarn_args.get("beta_slow", 2),
+                    finetuned=self.yarn_args.get("finetuned", False),
+                )
+            else:
+                raise ValueError(
+                    f"Unknown rotary position embedding type: {self.yarn_args['type']}. Allowed types are: vanilla, dynamic"
+                )
 
         assert not self.self_attention or self.qkv_same_dim, (
             "Self-attention requires query, key and " "value to be of the same size"
@@ -265,16 +344,21 @@ class NativeMultiheadAttention(MultiheadAttention):
         assert k is not None
         assert k.size(1) == src_len
 
-        if self.rotary_pos_embed is not None:
+        if self.rotary_pos_embed is not None or self.yarn_pos_embed is not None:
+            # q shape: [bsz * num_heads, tgt_len, head_dim]
             q_ = q.view(kv_bsz, self.num_heads, -1, self.head_dim)
             k_ = k.view(kv_bsz, self.num_heads, -1, self.head_dim)
 
-            if not self.rope_use_xpos:
-                q_ = self.rotary_pos_embed.rotate_queries_or_keys(q_)
-                k_ = self.rotary_pos_embed.rotate_queries_or_keys(k_)
-            else:
-                q_, k_ = self.rotary_pos_embed.rotate_queries_and_keys(q_, k_)
+            # this is mutually exclusive
+            cos, sin = (
+                self.rotary_pos_embed(q_, seq_len=q_.shape[2])
+                if self.rotary_pos_embed is not None
+                else self.yarn_pos_embed(q_, seq_len=q_.shape[2])
+            )
 
+            q_, k_ = apply_rotary_pos_emb(q_, k_, cos, sin)
+
+            # reshape back to [bsz * num_heads, tgt_len, head_dim]
             q = q_.view(kv_bsz * self.num_heads, -1, self.head_dim)
             k = k_.view(kv_bsz * self.num_heads, -1, self.head_dim)
 

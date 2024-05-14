@@ -6,6 +6,7 @@
 import math
 from typing import Dict, List, Optional
 
+import json
 import torch
 import torch.nn as nn
 from torch import Tensor
@@ -112,14 +113,12 @@ class TransformerEncoderBase(FairseqEncoder):
             else None
         )
 
-        if cfg.use_alibi:
-            assert (
-                self.embed_positions is None
-            ), "ALiBi shouldn't be used with positional embedding"
+        if getattr(cfg, "alibi_args", False) and self.embed_positions is None:
+            alibi_args = json.loads(cfg.alibi_args)
             self.alibi = utils.alibi(
                 cfg.encoder.attention_heads,
                 self.max_source_positions,
-                cfg.alibi_asymmetrical,
+                alibi_args.get("alibi_asymmetrical", False),
             )
         else:
             self.alibi = None

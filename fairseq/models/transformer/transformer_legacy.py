@@ -305,6 +305,13 @@ def roformer_base18L(args):
     transformer_base18L(args)
 
 
+@register_model_architecture("transformer", "aliformer_IT2_dist")
+def aliformer_base18L(args):
+    args.use_rope = getattr(args, "use_alibi", True)
+    args.no_token_positional_embeddings = getattr(args, "no_token_positional_embeddings", True)
+    transformer_base18L(args)
+
+
 @register_model_architecture("transformer", "transformer_IT2_dist")
 def transformer_base18L(args):
     args.activation_fn = getattr(args, "activation_fn", "gelu")
@@ -313,6 +320,7 @@ def transformer_base18L(args):
     args.layernorm_embedding = getattr(args, "layernorm_embedding", True)
     args.encoder_normalize_before = getattr(args, "encoder_normalize_before", True)
     args.decoder_normalize_before = getattr(args, "decoder_normalize_before", True)
+    args.share_decoder_input_output_embed = getattr(args, "share_decoder_input_output_embed", True)
     base_architecture(args)
 
 
@@ -322,6 +330,13 @@ def roformer_deep(args):
     args.rope_use_xpos = getattr(args, "rope_use_xpos", True)
     args.rope_xpos_scale_base = getattr(args, "rope_xpos_scale_base", 2048)
     args.use_native_attention = getattr(args, "use_native_attention", True)
+    args.no_token_positional_embeddings = getattr(args, "no_token_positional_embeddings", True)
+    transformer_deep(args)
+
+
+@register_model_architecture("transformer", "aliformer_IT2")
+def aliformer_deep(args):
+    args.use_rope = getattr(args, "use_alibi", True)
     args.no_token_positional_embeddings = getattr(args, "no_token_positional_embeddings", True)
     transformer_deep(args)
 
