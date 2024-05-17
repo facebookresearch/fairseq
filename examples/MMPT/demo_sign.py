@@ -4,6 +4,7 @@ import torch
 import numpy as np
 from pose_format import Pose
 from sign_vq.data.normalize import pre_process_mediapipe, normalize_mean_std
+from pose_anonymization.appearance import remove_appearance
 
 from mmpt.models import MMPTModel
 
@@ -57,10 +58,10 @@ sign_languages = [
 ]
 
 model_configs = [
-    ('default', 'signclip_v1/baseline_sp_b768'),
+    # ('default', 'signclip_v1/baseline_sp_b768'),
     # ('asl_citizen', 'signclip_v1/baseline_sp_b768_finetune_asl_citizen'),
     # ('proj', 'signclip_v1_1/baseline_proj'),
-    ('anonym', 'signclip_v1_1/baseline_anonym'),
+    ('default', 'signclip_v1_1/baseline_anonym'),
 ]
 models = {}
 
@@ -107,13 +108,14 @@ def pose_hide_legs(pose):
 
 
 def preprocess_pose(pose):
-    pose = pose.normalize(pose_normalization_info(pose.header))
-    pose = pose_hide_legs(pose)
-    pose = pose.get_components(["POSE_LANDMARKS", "FACE_LANDMARKS", "LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"], 
-                        {"FACE_LANDMARKS": FACEMESH_CONTOURS_POINTS})
+    # pose = pose.normalize(pose_normalization_info(pose.header))
+    # pose = pose_hide_legs(pose)
+    # pose = pose.get_components(["POSE_LANDMARKS", "FACE_LANDMARKS", "LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"], 
+    #                     {"FACE_LANDMARKS": FACEMESH_CONTOURS_POINTS})
     
-    # pose = pre_process_mediapipe(pose)
-    # pose = normalize_mean_std(pose)
+    pose = remove_appearance(pose)
+    pose = pre_process_mediapipe(pose)
+    pose = normalize_mean_std(pose)
 
     feat = np.nan_to_num(pose.body.data)
     feat = feat.reshape(feat.shape[0], -1)
