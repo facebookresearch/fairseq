@@ -873,6 +873,7 @@ mp_holistic = mp.solutions.holistic
 FACEMESH_CONTOURS_POINTS = [str(p) for p in sorted(set([p for p_tup in list(mp_holistic.FACEMESH_CONTOURS) for p in p_tup]))]
 
 from sign_vq.data.normalize import pre_process_mediapipe, normalize_mean_std
+from pose_anonymization.appearance import remove_appearance
 
 
 class PoseProcessor(VideoProcessor):
@@ -882,6 +883,7 @@ class PoseProcessor(VideoProcessor):
         self.normalize_hand = config.normalize_hand
         self.augment2d = config.augment2d
         self.preprocess = config.preprocess
+        self.anonym_pose = config.anonym_pose
         self.split = config.split
 
     def __call__(self, video_id, pose=None):
@@ -889,15 +891,25 @@ class PoseProcessor(VideoProcessor):
             buffer = open(os.path.join(self.vfeat_dir, video_id + ".pose"), "rb").read()
             pose = Pose.read(buffer)
 
-        # reuse the preprocessing pipeline from sign-vq
-        # https://github.com/sign-language-processing/sign-vq
+        if self.anonym_pose:
+            # remove appearance + add spreadthesign mean pose
+            # https://github.com/sign-language-processing/pose-anonymization
+            pose = remove_appearance(pose)
+        
         if self.preprocess == 'sign-vq':
+            # reuse the preprocessing pipeline from sign-vq
+            # https://github.com/sign-language-processing/sign-vq
             pose = pre_process_mediapipe(pose)
+
+            # this removes spreadthesign mean pose
             pose = normalize_mean_std(pose)
         else:
             # normalize pose: the mean distance between the shoulders of each person equals 1
             pose = pose.normalize(self.pose_normalization_info(pose.header))
-            pose = self.pose_hide_legs(pose)
+
+            # no legs after anonymization
+            if not self.anonym_pose:
+                pose = self.pose_hide_legs(pose)
 
             # select components
             if self.pose_components:
@@ -1188,7 +1200,7 @@ class SignCLIPMetaProcessor(MetaProcessor):
         print(f'Loading {self.split} data ... ')
         print('================================')
 
-        datasets = config[f'{self.split}_datasets']
+        datasets = config[f'{"test" if config.train_for_test else self.split}_datasets']
         datasets = [item if len(item) == 3 else [*item, None] for item in datasets]
 
         for dataset, version, split_version in datasets:
@@ -1304,6 +1316,11 @@ class SignCLIPMetaProcessor(MetaProcessor):
             pose = Pose(datum['pose_header'], pose_body)
             vfeat = self.pose_processer(pose)
 
+            # if datum['text'] == "<en> <ase> man":
+            #     with open('/home/zifjia/man.pose', "wb") as f:
+            #         pose.write(f)
+            #         exit()
+
             return idx, datum['text'], vfeat
 
 
@@ -1319,8 +1336,8 @@ class SignCLIPPretrainMetaProcessor(MetaProcessor):
         super().__init__(config)
         random.seed(42)
 
-        # TODO: remove debug
-        # config.split = 'test'
+        if config.debug:
+            config.split = 'test'
 
         self.vfeat_dir = config.vfeat_dir
         self.task = config.task

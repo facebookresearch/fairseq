@@ -22,7 +22,7 @@ def load_config(args=None, config_file=None, overwrite_fairseq=False):
         )
         config.fairseq.dataset.batch_size = batch_size
 
-    is_test = config.dataset.split is not None and config.dataset.split == "test"
+    is_test = config.dataset.train_for_test or (config.dataset.split is not None and config.dataset.split == "test")
     if not is_test:
         if (
             config.fairseq.checkpoint is None

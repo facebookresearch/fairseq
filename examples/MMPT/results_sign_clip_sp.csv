@@ -5,3 +5,5 @@ signclip_v1/baseline_sp_b768_pre,0.3704,0.1371,0.0803,2.0,0.3787,0.6899,0.8067,2
 signclip_v1/baseline_sp_b768_pre_aug,0.3485,0.1339,0.0790,3.0,0.3608,0.6826,0.7978,2,E1 + 2D augmentation & SignVQ preprocessing
 signclip_v1_1/baseline_layer,0.3675,0.1370,0.0798,2.0,0.3628,0.6824,0.7981,2,E2: E1 + 6 -> 12 layers for video
 signclip_v1_1/baseline_proj,0.3613,0.1354,0.0793,2.0,0.3522,0.6705,0.7914,3,E3: E2 + projection
+signclip_v1_1/baseline_anonym,0.3662,0.1327,0.0778,3.0,0.3650,0.6769,0.7850,2,E4: E2 + anonymization
+signclip_v1_1/baseline_anonym_no_pre,0.3450,0.1279,0.0757,3.0,0.3489,0.6524,0.7674,3,E4 - SignVQ preprocessing

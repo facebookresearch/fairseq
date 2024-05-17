@@ -2,15 +2,21 @@ dataset:
   max_video_len: 256
   max_len: 64
   split: test
-  meta_processor: SignCLIPPretrainMetaProcessor
-  video_processor: PoseProcessor
+  meta_processor: SignCLIPMetaProcessor
+  video_processor: SignCLIPPoseProcessor
   text_processor: TextProcessor
   bert_name: bert-base-cased
-  test_path: /home/zifjia/datasets/sign_language_datasets/datasets/spread_the_sign/splits/1.0.0-uzh/test.txt
-  metadata_path: /shares/volk.cl.uzh/amoryo/datasets/SperadTheSign.csv
-  vfeat_dir: /shares/volk.cl.uzh/amoryo/datasets/sign-mt-poses/
+  data_dir: /shares/volk.cl.uzh/zifjia/tensorflow_datasets
+  test_datasets: [
+    ['asl_citizen', '1.0.0'],
+    ['sem_lex', '1.0.0'],
+    ['asl_signs', '1.0.0', '1.0.0-uzh'],
+  ]
+  test_path: data/<dataset>/test.txt # placeholder, no use
   aligner: DSAligner
   pose_components: 'reduced_face'
+  test_separately: true
+  sp_universal_tagging: true
 slurm_config: big
 task_type: local_predict
 fairseq:

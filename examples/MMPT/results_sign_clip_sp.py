@@ -17,6 +17,8 @@ tasks = [
     'signclip_v1/baseline_sp_b768_pre_aug',
     'signclip_v1_1/baseline_layer',
     'signclip_v1_1/baseline_proj',
+    'signclip_v1_1/baseline_anonym',
+    'signclip_v1_1/baseline_anonym_no_pre',
 ]
 notes = [
     'E1 pretrained with spreadthesign',
@@ -25,6 +27,8 @@ notes = [
     'E1 + 2D augmentation & SignVQ preprocessing',
     'E2: E1 + 6 -> 12 layers for video',
     'E3: E2 + projection',
+    'E4: E2 + anonymization',
+    'E4 - SignVQ preprocessing',
 ]
 
 results = {}

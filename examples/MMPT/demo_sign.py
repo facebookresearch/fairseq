@@ -58,8 +58,9 @@ sign_languages = [
 
 model_configs = [
     ('default', 'signclip_v1/baseline_sp_b768'),
-    ('asl_citizen', 'signclip_v1/baseline_sp_b768_finetune_asl_citizen'),
-    ('proj', 'signclip_v1_1/baseline_proj'),
+    # ('asl_citizen', 'signclip_v1/baseline_sp_b768_finetune_asl_citizen'),
+    # ('proj', 'signclip_v1_1/baseline_proj'),
+    ('anonym', 'signclip_v1_1/baseline_anonym'),
 ]
 models = {}
 

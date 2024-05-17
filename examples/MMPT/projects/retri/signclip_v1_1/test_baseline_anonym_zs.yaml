@@ -10,13 +10,14 @@ dataset:
   bert_name: bert-base-cased
   data_dir: /shares/volk.cl.uzh/zifjia/tensorflow_datasets
   test_datasets: [
-    ['asl_citizen', '1.0.0'],
-    ['sem_lex', '1.0.0'],
+    # ['asl_citizen', '1.0.0'],
+    # ['sem_lex', '1.0.0'],
     ['asl_signs', '1.0.0', '1.0.0-uzh'],
   ]
   test_path: data/<dataset>/test.txt # placeholder, no use
   aligner: DSAligner
-  pose_components: 'reduced_face'
+  preprocess: 'sign-vq'
+  anonym_pose: true
   test_separately: true
   sp_universal_tagging: true
 slurm_config: big
@@ -28,15 +29,15 @@ fairseq:
     valid_subset: test
     num_workers: 2
   common_eval:
-    path: runs/retri/baseline_sp_b768/checkpoint_best.pt
+    path: runs/retri_v1_1/baseline_anonym/checkpoint_best.pt
 model:
   model_cls: MMFusionSeparate
   mm_encoder_cls: null
   video_encoder_cls: MMBertForEncoder
   text_encoder_cls: BertModel
-  num_hidden_video_layers: 6
-  vfeat_dim: 609
+  num_hidden_video_layers: 12
+  vfeat_dim: 534
 eval:
-  save_path: runs/retri/baseline_sp_b768/eval
+  save_path: runs/retri_v1_1/baseline_anonym/eval
 metric: RWTHFSMetric
 predictor: RetrievalPredictor
