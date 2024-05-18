@@ -6,7 +6,7 @@
 import os
 import sys
 from dataclasses import _MISSING_TYPE, dataclass, field
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple
 
 import torch
 from omegaconf import II, MISSING, OmegaConf
@@ -1108,16 +1108,12 @@ class InteractiveConfig(FairseqDataclass):
         default="-",
         metadata={"help": "file to read from; use - for stdin"},
     )
-    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
-    activate_encoder_adapter: Optional[str] = field(
+    force_override_max_positions: Optional[str] = field(
         default=None,
-        metadata={"help": "encoder language adapters to be used while evaluating"},
+        metadata={
+            "help": "force override the max_positions specified in the checkpoint. Should be a tuple of integers, ex. (2048, 2048), in the form of a string."
+        },
     )
-    activate_decoder_adapter: Optional[str] = field(
-        default=None,
-        metadata={"help": "decoder language adapters to be used while evaluating"},
-    )
-    ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
 
 @dataclass

@@ -167,23 +167,6 @@ def main(cfg: FairseqConfig):
 
         model.eval()
 
-        if cfg.interactive.activate_encoder_adapter is not None:
-            logging.info(
-                "using {} adapters in encoder".format(
-                    cfg.interactive.activate_encoder_adapter
-                )
-            )
-            for layer in model.encoder.layers:
-                layer.adapter_to_be_used = cfg.interactive.activate_encoder_adapter
-        if cfg.interactive.activate_decoder_adapter is not None:
-            logging.info(
-                "using {} adapters in decoder".format(
-                    cfg.interactive.activate_decoder_adapter
-                )
-            )
-            for layer in model.decoder.layers:
-                layer.adapter_to_be_used = cfg.interactive.activate_decoder_adapter
-
     # Initialize generator
     generator = task.build_generator(models, cfg.generation)
 
@@ -209,11 +192,12 @@ def main(cfg: FairseqConfig):
     # (None if no unknown word replacement, empty if no path to align dictionary)
     align_dict = utils.load_align_dict(cfg.generation.replace_unk)
 
-    # max_positions = utils.resolve_max_positions(
-    #     task.max_positions(), *[model.max_positions() for model in models]
-    # )
-
-    max_positions = (2048, 2048)
+    if not getattr(cfg.interactive, "force_override_max_positions", False):
+        max_positions = utils.resolve_max_positions(
+            task.max_positions(), *[model.max_positions() for model in models]
+        )
+    else:
+        max_positions = eval(cfg.interactive.force_override_max_positions)
 
     if cfg.generation.constraints:
         logger.warning(

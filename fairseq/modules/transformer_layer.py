@@ -70,15 +70,6 @@ class TransformerEncoderLayerBase(nn.Module):
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
 
-        assert (
-            (
-                getattr(cfg, "rope_args", None) is not None
-                or getattr(cfg, "yarn_args", None) is not None
-            )
-            and cfg.use_native_attention
-            and cfg.no_token_positional_embeddings
-        ), "Only support for native attention with rope or yarn and no token positional embeddings"
-
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
         return quant_noise(
             nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size
