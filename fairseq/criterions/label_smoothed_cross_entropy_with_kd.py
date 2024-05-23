@@ -7,6 +7,7 @@ import math
 from dataclasses import dataclass, field
 
 import torch
+import json
 from typing import Optional
 import torch.nn.functional as F
 from fairseq import metrics, utils
@@ -58,6 +59,8 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
 
         # new parameters
         assert kd_args is not None, "Knowledge distillation arguments are missing!"
+
+        kd_args = json.loads(kd_args)
 
         self.kd_rate = kd_args.get("rate", 0.0)
         self.kd_strategy = kd_args.get("strategy", "word_level") # Possible values: word_level, word_seq_level, batch_level, global_level, global_language_wise
