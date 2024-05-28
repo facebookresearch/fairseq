@@ -17,6 +17,7 @@ random.seed(42)
 # embedding_dir = '/shares/iict-sp2.ebling.cl.uzh/zifjia/fairseq/examples/MMPT/runs/retri/baseline_sp_b768/eval'
 embedding_dir = '/shares/iict-sp2.ebling.cl.uzh/zifjia/fairseq/examples/MMPT/runs/retri_v1_1/baseline_anonym/eval'
 datasets = ['asl_signs', 'asl_citizen', 'sem_lex']
+# datasets = ['sem_lex']
 number_shots = [1, 5, 10, 100]
 
 for dataset in datasets:
@@ -35,6 +36,10 @@ for dataset in datasets:
 
         for i, text in enumerate(train_text):
             train_embeddings_grouped[text].append(i)
+
+        # print(train_embeddings_grouped)
+        # print(len(train_embeddings_grouped))
+        # exit()
 
         for text, ids in train_embeddings_grouped.items():
             if len(ids) > number_shot:
