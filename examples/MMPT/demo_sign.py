@@ -157,8 +157,8 @@ def embed_pose(pose, model_name='default'):
 def embed_text(text, model_name='default'):
     model = models[model_name]['model']
 
-    # pose_frames = torch.randn(1, 1, 534)
-    pose_frames = torch.randn(1, 1, 609)
+    pose_frames = torch.randn(1, 1, 534)
+    # pose_frames = torch.randn(1, 1, 609)
     texts = text if type(text) == list else [text]
     embeddings = []
 
