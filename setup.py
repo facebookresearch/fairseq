@@ -190,6 +190,7 @@ def do_setup(package_data):
             "torchaudio>=0.8.0",
             "scikit-learn",
             "packaging",
+            "mocodo<=4.2.6",
         ],
         extras_require={
             "dev": ["flake8", "pytest", "black==22.3.0"],
