@@ -867,13 +867,14 @@ class DiDeMoAligner(DSAligner):
 
 from pose_format import Pose
 from pose_format.utils.normalization_3d import PoseNormalizer
+# from pose_format.utils.holistic import FLIPPED_BODY_POINTS
 
 import mediapipe as mp
 mp_holistic = mp.solutions.holistic
 FACEMESH_CONTOURS_POINTS = [str(p) for p in sorted(set([p for p_tup in list(mp_holistic.FACEMESH_CONTOURS) for p in p_tup]))]
 
 from sign_vq.data.normalize import pre_process_mediapipe, normalize_mean_std
-from pose_anonymization.appearance import remove_appearance
+from pose_anonymization.appearance import remove_appearance, reduce_pose
 
 
 class PoseProcessor(VideoProcessor):
@@ -884,18 +885,32 @@ class PoseProcessor(VideoProcessor):
         self.augment2d = config.augment2d
         self.preprocess = config.preprocess
         self.anonym_pose = config.anonym_pose
-        self.split = config.split
+        self.flip_pose = config.flip_pose
+        self.is_training = (config.split == 'train') and (not config.train_for_test)
 
     def __call__(self, video_id, pose=None):
         if video_id:
             buffer = open(os.path.join(self.vfeat_dir, video_id + ".pose"), "rb").read()
             pose = Pose.read(buffer)
 
+        # augmentation (training only)
+        if self.is_training:
+            if self.flip_pose and random.random() < self.flip_pose:
+                # CAUTION: flipping works on reduced set of key points only
+                pose = reduce_pose(pose)
+
+                FLIPPED_COMPONENTS = ["POSE_LANDMARKS", "FACE_LANDMARKS", "RIGHT_HAND_LANDMARKS", "LEFT_HAND_LANDMARKS"]
+                FLIPPED_BODY_POINTS = ['RIGHT_SHOULDER', 'LEFT_SHOULDER', 'RIGHT_ELBOW', 'LEFT_ELBOW', 'RIGHT_WRIST', 'LEFT_WRIST', 'RIGHT_HIP', 'LEFT_HIP']
+                # face flipping based on https://storage.googleapis.com/mediapipe-assets/documentation/mediapipe_face_landmark_fullsize.png
+                FLIPPED_FACE_POINTS = ['0', '249', '10', '13', '14', '17', '251', '263', '267', '269', '270', '276', '282', '283', '284', '285', '288', '291', '293', '295', '296', '297', '300', '308', '310', '311', '312', '314', '317', '318', '321', '323', '324', '332', '334', '336', '338', '356', '361', '362', '365', '373', '374', '375', '377', '378', '379', '152', '380', '381', '382', '384', '385', '386', '387', '388', '389', '390', '397', '398', '400', '402', '405', '409', '415', '454', '466', \
+                                            '7', '21', '33', '37', '39', '40', '46', '52', '53', '54', '55', '58', '61', '63', '65', '66', '67', '70', '78', '80', '81', '82', '84', '87', '88', '91', '93', '95', '103', '105', '107', '109', '127', '132', '133', '136', '144', '145', '146', '148', '149', '150', '153', '154', '155', '157', '158', '159', '160', '161', '162', '163', '172', '173', '176', '178', '181', '185', '191', '234', '246']
+                pose = pose.flip(0).get_components(FLIPPED_COMPONENTS, {"POSE_LANDMARKS": FLIPPED_BODY_POINTS, "FACE_LANDMARKS": FLIPPED_FACE_POINTS})
+
         if self.anonym_pose:
             # remove appearance + add spreadthesign mean pose
             # https://github.com/sign-language-processing/pose-anonymization
             pose = remove_appearance(pose)
-        
+
         if self.preprocess == 'sign-vq':
             # reuse the preprocessing pipeline from sign-vq
             # https://github.com/sign-language-processing/sign-vq
@@ -925,8 +940,9 @@ class PoseProcessor(VideoProcessor):
                 pose = pose.get_components(["POSE_LANDMARKS", "FACE_LANDMARKS", "LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"])
 
         # augmentation (training only)
-        if self.split == 'train' and self.augment2d:
-            pose = pose.augment2d()
+        if self.is_training:
+            if self.augment2d:
+                pose = pose.augment2d()
 
         feat = np.nan_to_num(pose.body.data)
         feat = feat.reshape(feat.shape[0], -1)
@@ -1172,6 +1188,7 @@ class ASLSignPoseProcessor(PoseProcessor):
 
 # -------------------- SignCLIP v1 -----------------------
 
+import string
 import importlib
 from tqdm import tqdm
 
@@ -1195,6 +1212,12 @@ class SignCLIPMetaProcessor(MetaProcessor):
         self.pose_processer = SignCLIPPoseProcessor(config) # call pose_processer by meta_processor itself
         self.datasets = []
         self.data = []
+
+        if config.test_in_vocab:
+            vocab_path = './data_stat_sp_concept_dis.csv'
+            vocab_df = pd.read_csv(vocab_path)
+            vocab_df = vocab_df[vocab_df['count'] > 20]
+            self.vocab = list(vocab_df['text'])
 
         print('================================')
         print(f'Loading {self.split} data ... ')
@@ -1254,7 +1277,22 @@ class SignCLIPMetaProcessor(MetaProcessor):
                         text_prompt = f"{tag_prompt} {datum['text_en'].numpy().decode('utf-8')}" if self.task == 'identification_oracle' else tag_prompt
                     else:
                         tag_prompt = "<en> <ase>" if config.sp_universal_tagging else "<American Sign Language>"
-                        text_prompt = f"{tag_prompt} {datum['text'].numpy().decode('utf-8')}"
+
+                        text_content = datum['text'].numpy().decode('utf-8')
+
+                        if dataset == 'asl_citizen':
+                            text_content = text_content.lower()
+                            text_content = text_content.rstrip(string.digits)
+
+                        if dataset == 'sem_lex':
+                            text_content = text_content.rstrip(string.digits)
+                            text_content = text_content.rstrip('_')
+                            text_content = text_content.replace('_', ' ')
+
+                        if config.test_in_vocab and text_content not in self.vocab:
+                            continue
+
+                        text_prompt = f"{tag_prompt} {text_content}"
 
                     self.data.append(dict(
                         datum,
@@ -1280,6 +1318,7 @@ class SignCLIPMetaProcessor(MetaProcessor):
                 print(entry)
             elif i == 10:
                 print('...')
+        print('Total classes:', len(text_to_idxs_num))
         
         # unique sampler: sample config.unique_sampler_num examples of different text prompts randomly (for a batch)
         if self.split == 'train' and config.unique_sampler_num:

@@ -11,7 +11,10 @@ dataset:
   metadata_path: /shares/volk.cl.uzh/amoryo/datasets/SperadTheSign.csv
   vfeat_dir: /shares/volk.cl.uzh/amoryo/datasets/sign-mt-poses/
   aligner: DSAligner
-  pose_components: 'reduced_face'
+  preprocess: 'sign-vq'
+  anonym_pose: true
+  flip_pose: 0.3
+  # debug: true
 fairseq:
   common:
     fp16: true
@@ -20,6 +23,7 @@ fairseq:
   dataset:
     num_workers: 4
     batch_size: 448 # fit on 80GB GPU
+    # batch_size: 16 # debug
   optimization:
     lr:
     - 5.0e-05
@@ -37,7 +41,7 @@ fairseq:
     reset_optimizer: true
     reset_dataloader: true
     reset_meters: true
-    save_dir: runs/retri_v1_1/baseline_layer
+    save_dir: runs/retri_v1_1/baseline_handedness
 task_type: sweep_small
 model:
   model_cls: MMFusionSeparate
@@ -45,8 +49,8 @@ model:
   video_encoder_cls: MMBertForEncoder
   text_encoder_cls: BertModel
   num_hidden_video_layers: 12
-  vfeat_dim: 609
+  vfeat_dim: 534
 loss:
   loss_cls: MMContraLoss
 eval:
-  save_path: runs/retri_v1_1/baseline_layer
+  save_path: runs/retri_v1_1/baseline_handedness

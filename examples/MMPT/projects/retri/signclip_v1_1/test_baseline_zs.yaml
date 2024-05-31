@@ -2,8 +2,6 @@ dataset:
   max_video_len: 256
   max_len: 64
   split: test
-  # split: train
-  # train_for_test: true
   meta_processor: SignCLIPMetaProcessor
   video_processor: SignCLIPPoseProcessor
   text_processor: TextProcessor
@@ -15,12 +13,11 @@ dataset:
     ['sem_lex', '1.0.0'],
   ]
   test_path: data/<dataset>/test.txt # placeholder, no use
-  aligner: DSAligner
-  preprocess: 'sign-vq'
-  anonym_pose: true
   test_separately: true
-  test_in_vocab: true
   sp_universal_tagging: true
+  test_in_vocab: true
+  aligner: DSAligner
+  pose_components: 'reduced_face'
 slurm_config: big
 task_type: local_predict
 fairseq:
@@ -30,15 +27,15 @@ fairseq:
     valid_subset: test
     num_workers: 2
   common_eval:
-    path: runs/retri_v1_1/baseline_anonym/checkpoint_best.pt
+    path: runs/retri_v1_1/baseline/checkpoint_best.pt
 model:
   model_cls: MMFusionSeparate
   mm_encoder_cls: null
   video_encoder_cls: MMBertForEncoder
   text_encoder_cls: BertModel
-  num_hidden_video_layers: 12
-  vfeat_dim: 534
+  num_hidden_video_layers: 6
+  vfeat_dim: 609
 eval:
-  save_path: runs/retri_v1_1/baseline_anonym/eval
+  save_path: runs/retri_v1_1/baseline/eval
 metric: RWTHFSMetric
 predictor: RetrievalPredictor

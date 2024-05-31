@@ -19,7 +19,7 @@ fairseq:
     log_interval: 1000
   dataset:
     num_workers: 4
-    batch_size: 512 # fit on 80GB GPU
+    batch_size: 448 # fit on 80GB GPU
     # batch_size: 64 # debug
   optimization:
     lr:

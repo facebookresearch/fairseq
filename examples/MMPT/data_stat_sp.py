@@ -16,7 +16,13 @@ df = df[df['language'] == 'en']
 print(len(df))
 
 print(f'language distribution:')
-print(df.groupby(['videoLanguage'])['videoLanguage'].count().reset_index(name='count').sort_values(['count'], ascending=False))
+df_lan_dis = df.groupby(['videoLanguage'])['videoLanguage'].count().reset_index(name='count').sort_values(['count'], ascending=False)
+print(df_lan_dis)
+df_lan_dis.to_csv('./data_stat_sp_lan_dis.csv', index=False)
+
+df_concept_dis = df.groupby(['text'])['text'].count().reset_index(name='count').sort_values(['count'], ascending=False)
+print(df_concept_dis)
+df_concept_dis.to_csv('./data_stat_sp_concept_dis.csv', index=False)
 
 max_len = 256
 pose_lens = []
@@ -38,3 +44,7 @@ print(f'{len(pose_lens)} valid poses.')
 pose_lens = [l for l in pose_lens if l <= max_len]
 print(f'{len(pose_lens)} valid poses that does not exceed max length.')
 print(f'mean pose length: {sum(pose_lens) / len(pose_lens)}')
+
+with open('./data_stat_sp_pose_len.txt', 'w') as f:
+    for line in pose_lens:
+        f.write(f"{line}\n")

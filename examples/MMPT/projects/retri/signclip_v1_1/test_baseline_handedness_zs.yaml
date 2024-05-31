@@ -30,7 +30,7 @@ fairseq:
     valid_subset: test
     num_workers: 2
   common_eval:
-    path: runs/retri_v1_1/baseline_anonym/checkpoint_best.pt
+    path: runs/retri_v1_1/baseline_handedness/checkpoint_best.pt
 model:
   model_cls: MMFusionSeparate
   mm_encoder_cls: null
@@ -39,6 +39,6 @@ model:
   num_hidden_video_layers: 12
   vfeat_dim: 534
 eval:
-  save_path: runs/retri_v1_1/baseline_anonym/eval
+  save_path: runs/retri_v1_1/baseline_handedness/eval
 metric: RWTHFSMetric
 predictor: RetrievalPredictor
