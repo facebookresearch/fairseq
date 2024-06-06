@@ -236,7 +236,7 @@ class TransformerConfig(FairseqDataclass):
 
     lora_args: Optional[str] = field(
         default=None,
-        metadata={"help": "LoRA arguments (rank, alpha, dropout, target_modules)"},
+        metadata={"help": "LoRA arguments (rank, alpha, dropout, target_modules, rank_scaled)"},
     )
     rope_args: Optional[str] = field(
         default=None,

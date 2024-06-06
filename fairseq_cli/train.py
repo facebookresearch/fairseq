@@ -220,6 +220,7 @@ def main(cfg: FairseqConfig) -> None:
             "r": lora_config.get("r", 0),
             "alpha": lora_config.get("alpha", 1),
             "dropout": lora_config.get("dropout", 0.0),
+            "rank_scaled": lora_config.get("rank_scaled", False),
             "merge_weights": True,
         }
 

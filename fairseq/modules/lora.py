@@ -11,6 +11,7 @@ class LoRALayer:
         r: int,
         alpha: int,
         dropout: float,
+        rank_scaled: bool,
         merge_weights: bool,
     ):
         self.r = r
@@ -22,6 +23,7 @@ class LoRALayer:
             self.dropout = lambda x: x
         # Mark the weight as unmerged
         self.merged = False
+        self.rank_scaled = rank_scaled
         self.merge_weights = merge_weights
 
 
@@ -33,6 +35,7 @@ class Embedding(nn.Embedding, LoRALayer):
         embedding_dim: int,
         r: int = 0,
         alpha: int = 1,
+        rank_scaled: bool = False,
         merge_weights: bool = True,
         **kwargs
     ):
@@ -42,13 +45,14 @@ class Embedding(nn.Embedding, LoRALayer):
             r=r,
             alpha=alpha,
             dropout=0,
+            rank_scaled=rank_scaled,
             merge_weights=merge_weights,
         )
         # Actual trainable parameters
         if r > 0:
             self.lora_A = nn.Parameter(self.weight.new_zeros((r, num_embeddings)))
             self.lora_B = nn.Parameter(self.weight.new_zeros((embedding_dim, r)))
-            self.scaling = self.alpha / self.r
+            self.scaling = (self.alpha / math.sqrt(self.r)) if rank_scaled else (self.alpha / self.r)
             # Freezing the pre-trained weight matrix
             self.weight.requires_grad = False
         self.reset_parameters()
@@ -106,7 +110,8 @@ class Linear(nn.Linear, LoRALayer):
         r: int = 0,
         alpha: int = 1,
         dropout: float = 0.0,
-        fan_in_fan_out: bool = False,  # Set this to True if the layer to replace stores weight like (fan_in, fan_out)
+        fan_in_fan_out: bool = False,
+        rank_scaled: bool = False,
         merge_weights: bool = True,
         **kwargs
     ):
@@ -116,6 +121,7 @@ class Linear(nn.Linear, LoRALayer):
             r=r,
             alpha=alpha,
             dropout=dropout,
+            rank_scaled=rank_scaled,
             merge_weights=merge_weights,
         )
 
@@ -124,7 +130,7 @@ class Linear(nn.Linear, LoRALayer):
         if r > 0:
             self.lora_A = nn.Parameter(self.weight.new_zeros((r, in_features)))
             self.lora_B = nn.Parameter(self.weight.new_zeros((out_features, r)))
-            self.scaling = self.alpha / self.r
+            self.scaling = (self.alpha / math.sqrt(self.r)) if rank_scaled else (self.alpha / self.r)
             # Freezing the pre-trained weight matrix
             self.weight.requires_grad = False
         self.reset_parameters()
