@@ -20,6 +20,7 @@ dataset:
   test_separately: true
   test_in_vocab: true
   sp_universal_tagging: true
+  # anonym_pose: true
 slurm_config: big
 task_type: local_predict
 fairseq:

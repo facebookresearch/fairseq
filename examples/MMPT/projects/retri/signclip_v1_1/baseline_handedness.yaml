@@ -11,9 +11,11 @@ dataset:
   metadata_path: /shares/volk.cl.uzh/amoryo/datasets/SperadTheSign.csv
   vfeat_dir: /shares/volk.cl.uzh/amoryo/datasets/sign-mt-poses/
   aligner: DSAligner
-  preprocess: 'sign-vq'
-  anonym_pose: true
-  flip_pose: 0.3
+  # preprocess: 'sign-vq'
+  # anonym_pose: true
+  # flip_pose: 0.3
+  pose_components: 'reduced_face'
+  flip_pose: 0.2
   # debug: true
 fairseq:
   common:
@@ -49,7 +51,8 @@ model:
   video_encoder_cls: MMBertForEncoder
   text_encoder_cls: BertModel
   num_hidden_video_layers: 12
-  vfeat_dim: 534
+  # vfeat_dim: 534
+  vfeat_dim: 609
 loss:
   loss_cls: MMContraLoss
 eval:

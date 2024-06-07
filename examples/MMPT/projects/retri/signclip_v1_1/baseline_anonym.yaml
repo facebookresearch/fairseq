@@ -13,7 +13,6 @@ dataset:
   aligner: DSAligner
   preprocess: 'sign-vq'
   anonym_pose: true
-  # debug: true
 fairseq:
   common:
     fp16: true
@@ -21,9 +20,7 @@ fairseq:
     log_interval: 1000
   dataset:
     num_workers: 4
-    # batch_size: 512 # fit on 80GB GPU
     batch_size: 448
-    # batch_size: 16 # debug
   optimization:
     lr:
     - 5.0e-05

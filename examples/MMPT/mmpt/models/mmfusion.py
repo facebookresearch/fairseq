@@ -149,8 +149,9 @@ class MMFusion(nn.Module):
 
         if "multimodal_projection" in config.model:
             from .transformermodel import Multimodal_Projection
-            self.video_projection = Multimodal_Projection()
-            self.text_projection = Multimodal_Projection()
+            l2_norm = config.model.multimodal_projection == 'l2_norm'
+            self.video_projection = Multimodal_Projection(l2_norm)
+            self.text_projection = Multimodal_Projection(l2_norm)
 
     def forward(
         self,

@@ -10,8 +10,9 @@ dataset:
   metadata_path: /shares/volk.cl.uzh/amoryo/datasets/SperadTheSign.csv
   vfeat_dir: /shares/volk.cl.uzh/amoryo/datasets/sign-mt-poses/
   aligner: DSAligner
-  preprocess: 'sign-vq'
-  anonym_pose: true
+  # preprocess: 'sign-vq'
+  # anonym_pose: true
+  pose_components: 'reduced_face'
 slurm_config: big
 task_type: local_predict
 fairseq:
@@ -28,7 +29,8 @@ model:
   video_encoder_cls: MMBertForEncoder
   text_encoder_cls: BertModel
   num_hidden_video_layers: 12
-  vfeat_dim: 534
+  # vfeat_dim: 534
+  vfeat_dim: 609
 eval:
   save_path: runs/retri_v1_1/baseline_handedness/eval
 metric: RWTHFSMetric

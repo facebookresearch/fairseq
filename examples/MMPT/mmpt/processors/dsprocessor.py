@@ -882,42 +882,35 @@ class PoseProcessor(VideoProcessor):
         super().__init__(config)
         self.pose_components = config.pose_components
         self.normalize_hand = config.normalize_hand
+        self.flip_pose = config.flip_pose
         self.augment2d = config.augment2d
+        self.augment_temporal = config.augment_temporal
+        self.gaussian_noise = config.gaussian_noise
+        self.max_video_len = config.max_video_len
         self.preprocess = config.preprocess
         self.anonym_pose = config.anonym_pose
-        self.flip_pose = config.flip_pose
         self.is_training = (config.split == 'train') and (not config.train_for_test)
+
+        np.random.seed(42)
 
     def __call__(self, video_id, pose=None):
         if video_id:
             buffer = open(os.path.join(self.vfeat_dir, video_id + ".pose"), "rb").read()
             pose = Pose.read(buffer)
 
-        # augmentation (training only)
-        if self.is_training:
-            if self.flip_pose and random.random() < self.flip_pose:
-                # CAUTION: flipping works on reduced set of key points only
-                pose = reduce_pose(pose)
-
-                FLIPPED_COMPONENTS = ["POSE_LANDMARKS", "FACE_LANDMARKS", "RIGHT_HAND_LANDMARKS", "LEFT_HAND_LANDMARKS"]
-                FLIPPED_BODY_POINTS = ['RIGHT_SHOULDER', 'LEFT_SHOULDER', 'RIGHT_ELBOW', 'LEFT_ELBOW', 'RIGHT_WRIST', 'LEFT_WRIST', 'RIGHT_HIP', 'LEFT_HIP']
-                # face flipping based on https://storage.googleapis.com/mediapipe-assets/documentation/mediapipe_face_landmark_fullsize.png
-                FLIPPED_FACE_POINTS = ['0', '249', '10', '13', '14', '17', '251', '263', '267', '269', '270', '276', '282', '283', '284', '285', '288', '291', '293', '295', '296', '297', '300', '308', '310', '311', '312', '314', '317', '318', '321', '323', '324', '332', '334', '336', '338', '356', '361', '362', '365', '373', '374', '375', '377', '378', '379', '152', '380', '381', '382', '384', '385', '386', '387', '388', '389', '390', '397', '398', '400', '402', '405', '409', '415', '454', '466', \
-                                            '7', '21', '33', '37', '39', '40', '46', '52', '53', '54', '55', '58', '61', '63', '65', '66', '67', '70', '78', '80', '81', '82', '84', '87', '88', '91', '93', '95', '103', '105', '107', '109', '127', '132', '133', '136', '144', '145', '146', '148', '149', '150', '153', '154', '155', '157', '158', '159', '160', '161', '162', '163', '172', '173', '176', '178', '181', '185', '191', '234', '246']
-                pose = pose.flip(0).get_components(FLIPPED_COMPONENTS, {"POSE_LANDMARKS": FLIPPED_BODY_POINTS, "FACE_LANDMARKS": FLIPPED_FACE_POINTS})
-
         if self.anonym_pose:
             # remove appearance + add spreadthesign mean pose
             # https://github.com/sign-language-processing/pose-anonymization
             pose = remove_appearance(pose)
 
-        if self.preprocess == 'sign-vq':
+        if self.preprocess == 'sign-vq' or self.preprocess == 'sign-vq-original-scale':
             # reuse the preprocessing pipeline from sign-vq
             # https://github.com/sign-language-processing/sign-vq
             pose = pre_process_mediapipe(pose)
 
-            # this removes spreadthesign mean pose
-            pose = normalize_mean_std(pose)
+            if not self.preprocess == 'sign-vq-original-scale':
+                # this removes spreadthesign mean pose
+                pose = normalize_mean_std(pose)
         else:
             # normalize pose: the mean distance between the shoulders of each person equals 1
             pose = pose.normalize(self.pose_normalization_info(pose.header))
@@ -941,8 +934,28 @@ class PoseProcessor(VideoProcessor):
 
         # augmentation (training only)
         if self.is_training:
+            if self.flip_pose and random.random() < self.flip_pose:
+                # CAUTION: flipping works on reduced set of key points only
+                FLIPPED_COMPONENTS = ["POSE_LANDMARKS", "FACE_LANDMARKS", "RIGHT_HAND_LANDMARKS", "LEFT_HAND_LANDMARKS"]
+                # FLIPPED_BODY_POINTS = ['RIGHT_SHOULDER', 'LEFT_SHOULDER', 'RIGHT_ELBOW', 'LEFT_ELBOW', 'RIGHT_WRIST', 'LEFT_WRIST', 'RIGHT_HIP', 'LEFT_HIP']
+                FLIPPED_BODY_POINTS = ['NOSE', 'RIGHT_EYE_INNER', 'RIGHT_EYE', 'RIGHT_EYE_OUTER', 'LEFT_EYE_INNER', 'LEFT_EYE', 'LEFT_EYE_OUTER', 'RIGHT_EAR', 'LEFT_EAR', 'MOUTH_RIGHT', 'MOUTH_LEFT', 'RIGHT_SHOULDER', 'LEFT_SHOULDER', 'RIGHT_ELBOW', 'LEFT_ELBOW', 'RIGHT_WRIST', 'LEFT_WRIST', 'RIGHT_PINKY', 'LEFT_PINKY', 'RIGHT_INDEX', 'LEFT_INDEX', 'RIGHT_THUMB', 'LEFT_THUMB', 'RIGHT_HIP', 'LEFT_HIP', 'RIGHT_KNEE', 'LEFT_KNEE', 'RIGHT_ANKLE', 'LEFT_ANKLE', 'RIGHT_HEEL', 'LEFT_HEEL', 'RIGHT_FOOT_INDEX', 'LEFT_FOOT_INDEX']
+                # face flipping based on https://storage.googleapis.com/mediapipe-assets/documentation/mediapipe_face_landmark_fullsize.png
+                FLIPPED_FACE_POINTS = ['0', '249', '10', '13', '14', '17', '251', '263', '267', '269', '270', '276', '282', '283', '284', '285', '288', '291', '293', '295', '296', '297', '300', '308', '310', '311', '312', '314', '317', '318', '321', '323', '324', '332', '334', '336', '338', '356', '361', '362', '365', '373', '374', '375', '377', '378', '379', '152', '380', '381', '382', '384', '385', '386', '387', '388', '389', '390', '397', '398', '400', '402', '405', '409', '415', '454', '466', \
+                                            '7', '21', '33', '37', '39', '40', '46', '52', '53', '54', '55', '58', '61', '63', '65', '66', '67', '70', '78', '80', '81', '82', '84', '87', '88', '91', '93', '95', '103', '105', '107', '109', '127', '132', '133', '136', '144', '145', '146', '148', '149', '150', '153', '154', '155', '157', '158', '159', '160', '161', '162', '163', '172', '173', '176', '178', '181', '185', '191', '234', '246']
+                pose = pose.flip(0).get_components(FLIPPED_COMPONENTS, {"POSE_LANDMARKS": FLIPPED_BODY_POINTS, "FACE_LANDMARKS": FLIPPED_FACE_POINTS})
+                pose = pose.normalize(self.pose_normalization_info(pose.header))
             if self.augment2d:
                 pose = pose.augment2d()
+            if self.augment_temporal and pose.body.data.shape[0] > 1:
+                old_fps = pose.body.fps
+                ratio = np.random.normal(loc=1, scale=0.2)
+                if pose.body.data.shape[0] * ratio < self.max_video_len:
+                    new_fps = round(old_fps * ratio)
+                    pose = pose.interpolate(new_fps, kind='linear')
+            if self.gaussian_noise:
+                noise_std = 0.001
+                noise = np.random.normal(scale=noise_std, size=pose.body.data.shape)
+                pose.body.data = pose.body.data + noise
 
         feat = np.nan_to_num(pose.body.data)
         feat = feat.reshape(feat.shape[0], -1)
@@ -1188,6 +1201,7 @@ class ASLSignPoseProcessor(PoseProcessor):
 
 # -------------------- SignCLIP v1 -----------------------
 
+import re
 import string
 import importlib
 from tqdm import tqdm
@@ -1280,17 +1294,18 @@ class SignCLIPMetaProcessor(MetaProcessor):
 
                         text_content = datum['text'].numpy().decode('utf-8')
 
-                        if dataset == 'asl_citizen':
-                            text_content = text_content.lower()
-                            text_content = text_content.rstrip(string.digits)
+                        if config.test_in_vocab:
+                            if dataset == 'asl_citizen':
+                                text_content = text_content.lower()
+                                text_content = text_content.rstrip(string.digits)
+                            elif dataset == 'sem_lex':
+                                text_content = text_content.rstrip(string.digits)
+                                text_content = text_content.rstrip('_')
+                                # text_content = re.sub(r'_\d+$', '', text_content)
+                                text_content = text_content.replace('_', ' ')
 
-                        if dataset == 'sem_lex':
-                            text_content = text_content.rstrip(string.digits)
-                            text_content = text_content.rstrip('_')
-                            text_content = text_content.replace('_', ' ')
-
-                        if config.test_in_vocab and text_content not in self.vocab:
-                            continue
+                            if text_content not in self.vocab:
+                                continue
 
                         text_prompt = f"{tag_prompt} {text_content}"
 

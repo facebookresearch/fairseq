@@ -18,6 +18,7 @@ dataset:
   test_in_vocab: true
   aligner: DSAligner
   pose_components: 'reduced_face'
+  # anonym_pose: true
 slurm_config: big
 task_type: local_predict
 fairseq:

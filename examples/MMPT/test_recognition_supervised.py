@@ -70,6 +70,8 @@ for dataset in datasets:
     y_score = clf.predict_proba(X_test)
     print(y_score.shape)
 
+    # TODO: optimize for Sem-lex test set (smaller than training)
+
     for n in top_n:
         score = top_k_accuracy_score(y_test, y_score, labels=range(len(lb.classes_)), k=n)
         print(f'Top {n}:', score)
