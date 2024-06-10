@@ -635,14 +635,16 @@ class TextMaskingProcessor(Processor):
                 )
             return list(
                 map(
-                    lambda x: 1
-                    if x
-                    in [
-                        self.tokenizer.sep_token_id,
-                        self.tokenizer.cls_token_id,
-                        self.tokenizer.pad_token_id,
-                    ]
-                    else 0,
+                    lambda x: (
+                        1
+                        if x
+                        in [
+                            self.tokenizer.sep_token_id,
+                            self.tokenizer.cls_token_id,
+                            self.tokenizer.pad_token_id,
+                        ]
+                        else 0
+                    ),
                     token_ids_0,
                 )
             )

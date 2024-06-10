@@ -37,7 +37,7 @@ def generate_fairseq_manifests(manifest, output_path, audio_root=None):
         utterances = []
         filepaths = []
         keys = None
-        for (idx, line) in enumerate(i):
+        for idx, line in enumerate(i):
             if idx == 0:
                 keys = line.strip().split("\t")
             else:

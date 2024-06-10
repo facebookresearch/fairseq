@@ -51,17 +51,23 @@ def main():
 
     with contextlib.ExitStack() as stack:
         inputs = [
-            stack.enter_context(
-                open(input, "r", encoding="utf-8", newline="\n", errors="replace")
+            (
+                stack.enter_context(
+                    open(input, "r", encoding="utf-8", newline="\n", errors="replace")
+                )
+                if input != "-"
+                else io.TextIOWrapper(
+                    sys.stdin.buffer, encoding="utf-8", errors="replace"
+                )
             )
-            if input != "-"
-            else io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8", errors="replace")
             for input in args.inputs
         ]
         outputs = [
-            stack.enter_context(open(output, "w", encoding="utf-8", newline="\n"))
-            if output != "-"
-            else sys.stdout
+            (
+                stack.enter_context(open(output, "w", encoding="utf-8", newline="\n"))
+                if output != "-"
+                else sys.stdout
+            )
             for output in args.outputs
         ]
         with Pool(args.num_workers, initializer=partial(init, args.model)) as p:

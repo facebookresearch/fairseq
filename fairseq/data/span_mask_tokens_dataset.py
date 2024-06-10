@@ -51,9 +51,9 @@ def collate(
         target = merge(
             "target",
             left_pad=left_pad_target,
-            pad_to_length=pad_to_length["target"]
-            if pad_to_length is not None
-            else None,
+            pad_to_length=(
+                pad_to_length["target"] if pad_to_length is not None else None
+            ),
         )
         target = target.index_select(0, sort_order)
         ntokens = sum(len(s["target"]) for s in samples)
@@ -65,9 +65,9 @@ def collate(
                 "target",
                 left_pad=left_pad_target,
                 move_eos_to_beginning=True,
-                pad_to_length=pad_to_length["target"]
-                if pad_to_length is not None
-                else None,
+                pad_to_length=(
+                    pad_to_length["target"] if pad_to_length is not None else None
+                ),
             )
             prev_output_tokens = prev_output_tokens.index_select(0, sort_order)
     else:
@@ -151,7 +151,6 @@ class SpanMaskedTokensDataset(FairseqDataset):
         }
 
     def random_spans_noise_mask(self, length):
-
         """
         This function is copy of `random_spans_helper <https://github.com/google-research/text-to-text-transfer-transformer/blob/84f8bcc14b5f2c03de51bd3587609ba8f6bbd1cd/t5/data/preprocessors.py#L2682>`__ .
         Noise mask consisting of random spans of noise tokens.

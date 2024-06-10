@@ -250,9 +250,11 @@ class MultilingualTranslationTask(LegacyFairseqTask):
                     for lang_pair in self.lang_pairs
                 ]
             ),
-            eval_key=None
-            if self.training
-            else "%s-%s" % (self.args.source_lang, self.args.target_lang),
+            eval_key=(
+                None
+                if self.training
+                else "%s-%s" % (self.args.source_lang, self.args.target_lang)
+            ),
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):

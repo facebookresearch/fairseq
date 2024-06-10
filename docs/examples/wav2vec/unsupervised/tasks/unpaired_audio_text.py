@@ -380,11 +380,11 @@ class UnpairedAudioText(FairseqTask):
         if num_chars > 0:
             metrics.log_derived(
                 "uer",
-                lambda meters: meters["_num_char_errors"].sum
-                * 100.0
-                / meters["_num_chars"].sum
-                if meters["_num_chars"].sum > 0
-                else float("nan"),
+                lambda meters: (
+                    meters["_num_char_errors"].sum * 100.0 / meters["_num_chars"].sum
+                    if meters["_num_chars"].sum > 0
+                    else float("nan")
+                ),
             )
 
             if lm_score_sum < 0 and vocab_seen > 0:

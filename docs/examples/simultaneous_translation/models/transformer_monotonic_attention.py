@@ -211,9 +211,9 @@ class TransformerMonotonicDecoder(TransformerDecoder):
                 encoder_out=encoder_outs,
                 encoder_padding_mask=encoder_padding_mask,
                 incremental_state=incremental_state,
-                self_attn_mask=self.buffered_future_mask(x)
-                if incremental_state is None
-                else None,
+                self_attn_mask=(
+                    self.buffered_future_mask(x) if incremental_state is None else None
+                ),
             )
 
             inner_states.append(x)

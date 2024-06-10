@@ -263,9 +263,9 @@ class MultiresHubertEncoder(FairseqEncoder):
             state = None
             multires_hubert_args = cfg.multires_hubert_args
             if isinstance(multires_hubert_args, Namespace):
-                cfg.multires_hubert_args = (
-                    multires_hubert_args
-                ) = convert_namespace_to_omegaconf(multires_hubert_args)
+                cfg.multires_hubert_args = multires_hubert_args = (
+                    convert_namespace_to_omegaconf(multires_hubert_args)
+                )
 
         assert cfg.normalize == multires_hubert_args.task.normalize, (
             "Fine-tuning works best when data normalization is the same. "

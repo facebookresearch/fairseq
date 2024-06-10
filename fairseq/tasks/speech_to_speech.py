@@ -445,9 +445,9 @@ class SpeechToSpeechTask(LegacyFairseqTask):
 
                 if extra_gen_cls_kwargs is None:
                     extra_gen_cls_kwargs = {}
-                extra_gen_cls_kwargs[
-                    "symbols_to_strip_from_output"
-                ] = lang_token_ids_aux
+                extra_gen_cls_kwargs["symbols_to_strip_from_output"] = (
+                    lang_token_ids_aux
+                )
 
                 eos_id_mt = (
                     self.tgt_dict_mt.index(self.eos_token_mt)

@@ -258,7 +258,6 @@ class MeanPoolingFastAMSoftmax(MeanPoolingFast):
         nn.init.xavier_normal_(self.projection.weight, gain=1)
 
     def forward(self, last_layer_feats, padding_mask, **kwargs):
-
         """
         Arguments
             features - [BxTxD] Acoustic feature with shape
@@ -300,7 +299,6 @@ class MaxPoolingFast(Pooling):
         self.linear = Linear(encoder_embed_dim, encoder_embed_dim)
 
     def forward(self, last_layer_feats, padding_mask, **kwargs):
-
         """
         Arguments
             features - [TxBxD] Acoustic feature with shape

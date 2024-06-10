@@ -84,9 +84,9 @@ class SpeechEoSEncoder(FairseqEncoder):
             )
             src_token_eos[:, :max_seq_len] = src_tokens
             for bi in range(bsz):
-                src_token_eos[bi][
-                    src_lengths[bi] : src_lengths[bi] + self.eos_num
-                ] = self.eos_emb.expand(self.eos_num, fdim)
+                src_token_eos[bi][src_lengths[bi] : src_lengths[bi] + self.eos_num] = (
+                    self.eos_emb.expand(self.eos_num, fdim)
+                )
             src_lengths = src_lengths + self.eos_num
             src_tokens = src_token_eos
         return src_tokens, src_lengths
@@ -883,9 +883,9 @@ class DualInputS2TTransformerModel(FairseqEncoderDecoderModel):
             spch_decoder=spch_decoder,
             text_decoder=text_decoder,
             compute_cross_attentive_loss=compute_cross_attentive_loss,
-            cross_attentive_loss_with_norm=True
-            if not cross_attentive_loss_without_norm
-            else False,
+            cross_attentive_loss_with_norm=(
+                True if not cross_attentive_loss_without_norm else False
+            ),
             cross_attentive_loss_reverse=cross_attentive_loss_reverse,
         )
         if args.init_scale != 1.0:

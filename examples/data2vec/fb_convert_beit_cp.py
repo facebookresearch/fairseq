@@ -43,9 +43,9 @@ def update_checkpoint(model_dict, prefix, is_nested):
     }
 
     starts_with = {
-        "patch_embed.proj": "model.patch_embed.conv"
-        if is_nested
-        else "patch_embed.conv",
+        "patch_embed.proj": (
+            "model.patch_embed.conv" if is_nested else "patch_embed.conv"
+        ),
         "lm_head": "final_proj",
         "fc_norm": "fc_norm",
         "head": "head",

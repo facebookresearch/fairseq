@@ -23,7 +23,9 @@ class D2vTextConfig(D2vModalityConfig):
     type: Modality = Modality.TEXT
     max_source_positions: int = 512
     learned_pos: bool = True
-    dropout: float = 0.1  # used for both local_encoder and contextualized encoder. tied with global transformer in data2vec_text
+    dropout: float = (
+        0.1  # used for both local_encoder and contextualized encoder. tied with global transformer in data2vec_text
+    )
 
     no_scale_embedding: bool = True
     layernorm_embedding: bool = True
@@ -65,9 +67,11 @@ class TextEncoder(ModalitySpecificEncoder):
         )
         context_encoder = BlockEncoder(
             nn.ModuleList(make_block(dpr[i]) for i in range(modality_cfg.prenet_depth)),
-            norm_layer(embed_dim)
-            if not layer_norm_first and modality_cfg.prenet_depth > 0
-            else None,
+            (
+                norm_layer(embed_dim)
+                if not layer_norm_first and modality_cfg.prenet_depth > 0
+                else None
+            ),
             layer_norm_first,
             modality_cfg.prenet_layerdrop,
             modality_cfg.prenet_dropout if modality_cfg.prenet_depth > 0 else 0.0,

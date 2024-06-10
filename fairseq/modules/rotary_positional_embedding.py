@@ -2,8 +2,10 @@ import torch
 import math
 import torch.nn as nn
 from torch.cuda.amp import autocast
+
 # RoPE and YaRN code from https://github.com/jquesnelle/yarn/blob/master/scaled_rope/modeling_llama_yarn.py
 # TODO: Check if the implementation works out of the box for Encoder-Decoder models
+
 
 # Inverse dim formula to find dim based on number of rotations
 def _yarn_find_correction_dim(

@@ -27,7 +27,7 @@ class LoRALayer:
         self.merge_weights = merge_weights
 
 
-class Embedding(nn.Embedding, LoRALayer):
+class LoRAEmbedding(nn.Embedding, LoRALayer):
     # LoRA implemented in a dense layer
     def __init__(
         self,
@@ -52,7 +52,11 @@ class Embedding(nn.Embedding, LoRALayer):
         if r > 0:
             self.lora_A = nn.Parameter(self.weight.new_zeros((r, num_embeddings)))
             self.lora_B = nn.Parameter(self.weight.new_zeros((embedding_dim, r)))
-            self.scaling = (self.alpha / math.sqrt(self.r)) if rank_scaled else (self.alpha / self.r)
+            self.scaling = (
+                (self.alpha / math.sqrt(self.r))
+                if rank_scaled
+                else (self.alpha / self.r)
+            )
             # Freezing the pre-trained weight matrix
             self.weight.requires_grad = False
         self.reset_parameters()
@@ -101,7 +105,7 @@ class Embedding(nn.Embedding, LoRALayer):
             return nn.Embedding.forward(self, x)
 
 
-class Linear(nn.Linear, LoRALayer):
+class LoRALinear(nn.Linear, LoRALayer):
     # LoRA implemented in a dense layer
     def __init__(
         self,
@@ -130,7 +134,11 @@ class Linear(nn.Linear, LoRALayer):
         if r > 0:
             self.lora_A = nn.Parameter(self.weight.new_zeros((r, in_features)))
             self.lora_B = nn.Parameter(self.weight.new_zeros((out_features, r)))
-            self.scaling = (self.alpha / math.sqrt(self.r)) if rank_scaled else (self.alpha / self.r)
+            self.scaling = (
+                (self.alpha / math.sqrt(self.r))
+                if rank_scaled
+                else (self.alpha / self.r)
+            )
             # Freezing the pre-trained weight matrix
             self.weight.requires_grad = False
         self.reset_parameters()

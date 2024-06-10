@@ -33,7 +33,6 @@ class VectorPool(object):
         db_type="flatl2",
         examples_per_cent_to_train=48,
     ):
-
         """merge results from multiple gpus and return a retriver.."""
         self.retriver = retriever_cls(
             hidden_size, centroids, db_type, examples_per_cent_to_train

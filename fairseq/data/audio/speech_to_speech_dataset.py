@@ -359,9 +359,11 @@ class SpeechToSpeechDatasetCreator(object):
             (audio_root / s[cls.KEY_SRC_AUDIO]).as_posix() for s in samples
         ]
         tgt_audio_paths = [
-            s[cls.KEY_TGT_AUDIO]
-            if target_is_code
-            else (audio_root / s[cls.KEY_TGT_AUDIO]).as_posix()
+            (
+                s[cls.KEY_TGT_AUDIO]
+                if target_is_code
+                else (audio_root / s[cls.KEY_TGT_AUDIO]).as_posix()
+            )
             for s in samples
         ]
         src_n_frames = [int(s[cls.KEY_SRC_N_FRAMES]) for s in samples]

@@ -34,9 +34,11 @@ class LayerSelect(nn.Module):
         """
         assert logit_idx is not None
         self.samples = self._gumbel_sigmoid(
-            self.layer_logits[logit_idx, :].detach()
-            if self.detach_grad
-            else self.layer_logits[logit_idx, :],
+            (
+                self.layer_logits[logit_idx, :].detach()
+                if self.detach_grad
+                else self.layer_logits[logit_idx, :]
+            ),
             dim=-1,
             tau=self.tau,
             hard=self.hard_select,

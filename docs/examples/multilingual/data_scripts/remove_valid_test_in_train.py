@@ -132,7 +132,13 @@ def remove_messed_up_sentences(
     corrected_src = f"{to_folder}/{split}.{direction}.{src_lang}"
     line_num = 0
     keep_num = 0
-    with open(src, encoding="utf8",) as fsrc, open(tgt, encoding="utf8",) as ftgt, open(
+    with open(
+        src,
+        encoding="utf8",
+    ) as fsrc, open(
+        tgt,
+        encoding="utf8",
+    ) as ftgt, open(
         corrected_src, "w", encoding="utf8"
     ) as fsrc_corrected, open(corrected_tgt, "w", encoding="utf8") as ftgt_corrected:
         for s, t in zip(fsrc, ftgt):

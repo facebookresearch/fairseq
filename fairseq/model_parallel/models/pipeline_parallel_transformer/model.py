@@ -750,9 +750,9 @@ class TransformerDecoder(FairseqDecoder):
                 for m in ("weight", "bias"):
                     k = "{}.layers.{}.layer_norms.{}.{}".format(name, i, old, m)
                     if k in state_dict:
-                        state_dict[
-                            "{}.layers.{}.{}.{}".format(name, i, new, m)
-                        ] = state_dict[k]
+                        state_dict["{}.layers.{}.{}.{}".format(name, i, new, m)] = (
+                            state_dict[k]
+                        )
                         del state_dict[k]
 
         version_key = "{}.version".format(name)

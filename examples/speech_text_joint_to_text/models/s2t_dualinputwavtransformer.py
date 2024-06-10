@@ -366,9 +366,9 @@ class DualInputWavTransformerModel(DualInputS2TTransformerModel):
             spch_decoder=text_decoder,
             text_decoder=text_decoder,
             compute_cross_attentive_loss=compute_cross_attentive_loss,
-            cross_attentive_loss_with_norm=True
-            if not cross_attentive_loss_without_norm
-            else False,
+            cross_attentive_loss_with_norm=(
+                True if not cross_attentive_loss_without_norm else False
+            ),
             cross_attentive_loss_reverse=cross_attentive_loss_reverse,
         )
         if getattr(args, "load_init_decoder", "") != "":

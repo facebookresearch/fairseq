@@ -404,6 +404,7 @@ class Embedding(nn.Embedding):
         output. The gradient for this vector from :class:`~torch.nn.Embedding`
         is always zero.
     """
+
     __constants__ = ["unk_idx"]
 
     # Torchscript: Inheriting from Embedding class produces an error when exporting to Torchscript

@@ -38,9 +38,9 @@ class FairseqNAG(FairseqOptimizer):
         different learning rate.
         """
         return {
-            "lr": self.cfg.lr[0]
-            if isinstance(self.cfg.lr, Collection)
-            else self.cfg.lr,
+            "lr": (
+                self.cfg.lr[0] if isinstance(self.cfg.lr, Collection) else self.cfg.lr
+            ),
             "momentum": self.cfg.momentum,
             "weight_decay": self.cfg.weight_decay,
         }

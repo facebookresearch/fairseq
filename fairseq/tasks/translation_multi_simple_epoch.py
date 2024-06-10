@@ -249,11 +249,13 @@ class TranslationMultiSimpleEpochTask(LegacyFairseqTask):
                     models,
                     sample,
                     prefix_tokens=prefix_tokens,
-                    bos_token=self.data_manager.get_decoder_langtok(
-                        self.args.target_lang, tgt_langtok_spec
-                    )
-                    if tgt_langtok_spec
-                    else self.target_dictionary.eos(),
+                    bos_token=(
+                        self.data_manager.get_decoder_langtok(
+                            self.args.target_lang, tgt_langtok_spec
+                        )
+                        if tgt_langtok_spec
+                        else self.target_dictionary.eos()
+                    ),
                 )
 
     def reduce_metrics(self, logging_outputs, criterion):

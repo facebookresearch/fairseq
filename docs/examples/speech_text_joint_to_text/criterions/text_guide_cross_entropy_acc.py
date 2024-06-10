@@ -252,21 +252,27 @@ class GuidedCrossEntAccCriterion(FairseqCriterion):
 
         agg_output = {
             "loss": loss_sum / sample_size / math.log(2) if sample_size > 0 else 0.0,
-            "nll_loss": nll_loss_sum / sample_size / math.log(2)
-            if sample_size > 0
-            else 0.0,
+            "nll_loss": (
+                nll_loss_sum / sample_size / math.log(2) if sample_size > 0 else 0.0
+            ),
             # if args.sentence_avg, then sample_size is nsentences, and loss
             # is per-sentence loss; else sample_size is ntokens, and the loss
             # becomes per-output token loss
-            "speech_loss": speech_loss_sum / sample_size_speech / math.log(2)
-            if sample_size_speech > 0
-            else 0.0,
-            "speech_nll_loss": speech_nll_loss_sum / sample_size_speech / math.log(2)
-            if sample_size_speech > 0
-            else 0.0,
-            "speech_attn_loss": speech_attn_loss_sum / src_token_sum / math.log(2)
-            if src_token_sum > 0
-            else 0.0,
+            "speech_loss": (
+                speech_loss_sum / sample_size_speech / math.log(2)
+                if sample_size_speech > 0
+                else 0.0
+            ),
+            "speech_nll_loss": (
+                speech_nll_loss_sum / sample_size_speech / math.log(2)
+                if sample_size_speech > 0
+                else 0.0
+            ),
+            "speech_attn_loss": (
+                speech_attn_loss_sum / src_token_sum / math.log(2)
+                if src_token_sum > 0
+                else 0.0
+            ),
             "ntokens": ntokens,
             "nsentences": nsentences,
             "nframes": nframes,

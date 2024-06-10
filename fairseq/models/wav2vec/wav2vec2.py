@@ -1053,9 +1053,11 @@ class TransformerEncoder(nn.Module):
                 self.embedding_dim,
                 args.conv_pos,
                 args.conv_pos_groups,
-                is_batch_norm=args.conv_pos_batch_norm
-                if hasattr(args, "conv_pos_batch_norm")
-                else False,
+                is_batch_norm=(
+                    args.conv_pos_batch_norm
+                    if hasattr(args, "conv_pos_batch_norm")
+                    else False
+                ),
             )
 
         if override_encoder_layer is None:

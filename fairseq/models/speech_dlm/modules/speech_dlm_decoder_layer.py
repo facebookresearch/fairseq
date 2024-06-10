@@ -58,9 +58,11 @@ class CrossChannelTransformerDecoderLayer(nn.Module):
         )
 
         self.activation_fn = utils.get_activation_fn(
-            activation=str(args.activation_fn)
-            if getattr(args, "activation_fn", None) is not None
-            else "relu"
+            activation=(
+                str(args.activation_fn)
+                if getattr(args, "activation_fn", None) is not None
+                else "relu"
+            )
         )
         activation_dropout_p = getattr(args, "activation_dropout", 0) or 0
         if activation_dropout_p == 0:
@@ -263,9 +265,9 @@ class CrossChannelTransformerDecoderLayer(nn.Module):
                 key=y,
                 value=y,
                 key_padding_mask=self_attn_padding_mask,
-                incremental_state=incremental_state[i]
-                if incremental_state is not None
-                else None,
+                incremental_state=(
+                    incremental_state[i] if incremental_state is not None else None
+                ),
                 need_weights=False,
                 attn_mask=self_attn_mask,
             )
@@ -297,9 +299,9 @@ class CrossChannelTransformerDecoderLayer(nn.Module):
                     key=encoder_out,
                     value=encoder_out,
                     key_padding_mask=encoder_padding_mask,
-                    incremental_state=incremental_state[i]
-                    if incremental_state is not None
-                    else None,
+                    incremental_state=(
+                        incremental_state[i] if incremental_state is not None else None
+                    ),
                     static_kv=True,
                     need_weights=need_attn or (not self.training and self.need_attn),
                     need_head_weights=need_head_weights,
@@ -348,9 +350,9 @@ class CrossChannelTransformerDecoderLayer(nn.Module):
                 key=x_other,
                 value=x_other,
                 key_padding_mask=self_attn_padding_mask_orin,
-                incremental_state=incremental_state[i]
-                if incremental_state is not None
-                else None,
+                incremental_state=(
+                    incremental_state[i] if incremental_state is not None else None
+                ),
                 need_weights=False,
                 attn_mask=self_attn_mask_orin,
             )
@@ -453,9 +455,11 @@ class StandardTransformerDecoderLayer(nn.Module):
         )
 
         self.activation_fn = utils.get_activation_fn(
-            activation=str(args.activation_fn)
-            if getattr(args, "activation_fn", None) is not None
-            else "relu"
+            activation=(
+                str(args.activation_fn)
+                if getattr(args, "activation_fn", None) is not None
+                else "relu"
+            )
         )
         activation_dropout_p = getattr(args, "activation_dropout", 0) or 0
         if activation_dropout_p == 0:
@@ -633,9 +637,9 @@ class StandardTransformerDecoderLayer(nn.Module):
                 key=y,
                 value=y,
                 key_padding_mask=self_attn_padding_mask,
-                incremental_state=incremental_state[i]
-                if incremental_state is not None
-                else None,
+                incremental_state=(
+                    incremental_state[i] if incremental_state is not None else None
+                ),
                 need_weights=False,
                 attn_mask=self_attn_mask,
             )
@@ -664,9 +668,9 @@ class StandardTransformerDecoderLayer(nn.Module):
                     key=encoder_out,
                     value=encoder_out,
                     key_padding_mask=encoder_padding_mask,
-                    incremental_state=incremental_state[i]
-                    if incremental_state is not None
-                    else None,
+                    incremental_state=(
+                        incremental_state[i] if incremental_state is not None else None
+                    ),
                     static_kv=True,
                     need_weights=need_attn or (not self.training and self.need_attn),
                     need_head_weights=need_head_weights,

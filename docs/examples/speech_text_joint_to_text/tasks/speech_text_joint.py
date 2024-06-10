@@ -293,9 +293,11 @@ class SpeechTextJointToTextTask(SpeechToTextTask):
                     "text",
                     text_dataset,
                     (self.args.max_positions_text, self.args.max_target_positions),
-                    self.args.max_tokens_text
-                    if self.args.max_tokens_text is not None
-                    else self.args.max_tokens,
+                    (
+                        self.args.max_tokens_text
+                        if self.args.max_tokens_text is not None
+                        else self.args.max_tokens
+                    ),
                     self.args.batch_size,
                 ),
             ]

@@ -256,7 +256,7 @@ class SampledMultiDataset(FairseqDataset):
             return None
         if self.collate_format == "ordered_dict":
             collect_samples = [[] for _ in range(len(self.datasets))]
-            for (i, sample) in samples:
+            for i, sample in samples:
                 collect_samples[i].append(sample)
             batch = OrderedDict(
                 [
@@ -312,9 +312,11 @@ class SampledMultiDataset(FairseqDataset):
                     ),
                     "src_lengths": src_lengths,
                 },
-                "target": straight_order([b["target"] for b in batches])
-                if batches[0]["target"] is not None
-                else None,
+                "target": (
+                    straight_order([b["target"] for b in batches])
+                    if batches[0]["target"] is not None
+                    else None
+                ),
             }
             if "prev_output_tokens" in batches[0]["net_input"]:
                 batch["net_input"]["prev_output_tokens"] = straight_order(

@@ -152,9 +152,9 @@ with th.no_grad():
                         )  # (51, 487), (51, 512)
                     if args.l2_normalize:
                         batch_features = F.normalize(batch_features, dim=1)
-                    features[
-                        i * args.batch_size : (i + 1) * args.batch_size
-                    ] = batch_features
+                    features[i * args.batch_size : (i + 1) * args.batch_size] = (
+                        batch_features
+                    )
                 features = features.cpu().numpy()
                 if args.half_precision:
                     if args.type == "vae":

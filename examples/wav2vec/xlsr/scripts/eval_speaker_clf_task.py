@@ -8,6 +8,7 @@ Usage:
             --data /fsx/androstj/exps/lid_voxlingua/infer/atj_xlsr2_100pct_300M_mean_fast_upd_100k_new.npz \
             --task cls --merge mean_logit
 """
+
 import numpy as np
 import sklearn
 from sklearn.metrics.pairwise import cosine_similarity

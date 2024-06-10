@@ -263,7 +263,7 @@ std::vector<at::Tensor> lightconv_cuda_backward(
 
     with open("lightconv_cuda_backward.cu", "w") as backward:
         backward.write(head)
-        for (k, t, mem) in zip(kernels, thresh, max_mem):
+        for k, t, mem in zip(kernels, thresh, max_mem):
             backward.write(case_k.format(k=k))
             for seq in seqs:
                 if (t == -1 or seq <= t) and (mem == -1 or seq < mem):

@@ -493,9 +493,11 @@ class MultilingualDatasetManager(object):
             )
         return self.get_langtok_index(
             langtok,
-            self.get_source_dictionary(src_lang)
-            if src_lang
-            else self.get_target_dictionary(tgt_lang),
+            (
+                self.get_source_dictionary(src_lang)
+                if src_lang
+                else self.get_target_dictionary(tgt_lang)
+            ),
         )
 
     def get_decoder_langtok(self, tgt_lang, spec=None):
@@ -667,12 +669,12 @@ class MultilingualDatasetManager(object):
             src_dataset = src_dataset_transform_func(src_dataset)
             tgt_dataset = tgt_dataset_transform_func(tgt_dataset)
             if langpairs_sharing_datasets is not None:
-                langpairs_sharing_datasets[
-                    (data_path, split, norm_direction, src)
-                ] = src_dataset
-                langpairs_sharing_datasets[
-                    (data_path, split, norm_direction, tgt)
-                ] = tgt_dataset
+                langpairs_sharing_datasets[(data_path, split, norm_direction, src)] = (
+                    src_dataset
+                )
+                langpairs_sharing_datasets[(data_path, split, norm_direction, tgt)] = (
+                    tgt_dataset
+                )
                 langpairs_sharing_datasets[
                     (data_path, split, norm_direction, src, tgt)
                 ] = align_dataset
@@ -825,21 +827,27 @@ class MultilingualDatasetManager(object):
             tgt_dataset_transform_func=lambda dataset: tgt_dataset_transform_func(
                 src, tgt, dataset, tgt_langtok_spec
             ),
-            src_lang_id=_lang_id(lang_dictionary, src)
-            if enable_lang_ids and lang_dictionary is not None
-            else None,
-            tgt_lang_id=_lang_id(lang_dictionary, tgt)
-            if enable_lang_ids and lang_dictionary is not None
-            else None,
+            src_lang_id=(
+                _lang_id(lang_dictionary, src)
+                if enable_lang_ids and lang_dictionary is not None
+                else None
+            ),
+            tgt_lang_id=(
+                _lang_id(lang_dictionary, tgt)
+                if enable_lang_ids and lang_dictionary is not None
+                else None
+            ),
             langpairs_sharing_datasets=langpairs_sharing_datasets,
         )
         # TODO: handle modified lang toks for mined data and dae data
         if self.args.lang_tok_replacing_bos_eos:
             ds = self.alter_dataset_langtok(
                 langpair_ds,
-                src_eos=self.get_source_dictionary(src).eos()
-                if src
-                else self.get_target_dictionary(tgt).eos(),
+                src_eos=(
+                    self.get_source_dictionary(src).eos()
+                    if src
+                    else self.get_target_dictionary(tgt).eos()
+                ),
                 src_lang=src,
                 tgt_eos=self.get_target_dictionary(tgt).eos(),
                 tgt_lang=tgt,
@@ -985,9 +993,11 @@ class MultilingualDatasetManager(object):
                         "data_path": data_path,
                         "split": split,
                         "src": src,
-                        "src_dict": self.get_source_dictionary(src)
-                        if src and data_category != "mono_dae"
-                        else None,
+                        "src_dict": (
+                            self.get_source_dictionary(src)
+                            if src and data_category != "mono_dae"
+                            else None
+                        ),
                         "tgt": tgt,
                         "tgt_dict": self.get_target_dictionary(tgt),
                         "data_category": data_category,

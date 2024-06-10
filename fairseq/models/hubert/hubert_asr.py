@@ -550,7 +550,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             tmp = torch.zeros(
                 [len(prev_output_tokens), max_len], device=prev_output_tokens[0].device
             )
-            for (i, p) in enumerate(prev_output_tokens):
+            for i, p in enumerate(prev_output_tokens):
                 tmp[i, : len(p)] = p
             prev_output_tokens = tmp
         prev_output_tokens = prev_output_tokens.long()
@@ -614,9 +614,11 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                     encoder_out["encoder_out"] if encoder_out is not None else None,
                     encoder_out["padding_mask"] if encoder_out is not None else None,
                     incremental_state,
-                    self_attn_mask=self.buffered_future_mask(x)
-                    if incremental_state is None
-                    else None,
+                    self_attn_mask=(
+                        self.buffered_future_mask(x)
+                        if incremental_state is None
+                        else None
+                    ),
                     self_attn_padding_mask=self_attn_padding_mask,
                 )
                 inner_states.append(x)

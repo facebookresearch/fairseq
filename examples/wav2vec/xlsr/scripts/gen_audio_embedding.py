@@ -18,6 +18,7 @@ Usage:
         --infer-xtimes 10 --infer-max-sample-size 160000 --output-path $odir
 
 """
+
 import torch
 from fairseq import checkpoint_utils, distributed_utils, options, utils
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf

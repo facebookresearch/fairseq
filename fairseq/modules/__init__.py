@@ -119,5 +119,5 @@ __all__ = [
     "DynamicNTKScalingRotaryPositionalEmbedding",
     "YaRNScaledRotaryPositionalEmbedding",
     "DynamicYaRNScaledRotaryPositionalEmbedding",
-    "DynamicYaRNScaledRotaryPositionalEmbedding"
+    "DynamicYaRNScaledRotaryPositionalEmbedding",
 ]

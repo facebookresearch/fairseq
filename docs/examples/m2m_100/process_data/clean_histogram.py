@@ -26,10 +26,10 @@ def read_hist(f):
     return ch
 
 
-with (open("{}/{}".format(args.histograms, args.src), "r", encoding="utf8")) as f:
+with open("{}/{}".format(args.histograms, args.src), "r", encoding="utf8") as f:
     ch1 = read_hist(f)
 
-with (open("{}/{}".format(args.histograms, args.tgt), "r", encoding="utf8")) as f:
+with open("{}/{}".format(args.histograms, args.tgt), "r", encoding="utf8") as f:
     ch2 = read_hist(f)
 
 print("Accepted characters for {}: {}".format(args.src, ch1))

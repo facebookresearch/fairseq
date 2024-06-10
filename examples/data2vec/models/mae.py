@@ -512,9 +512,14 @@ class MaeModel(BaseFairseqModel):
                     layer_norm_first=cfg.layer_norm_first,
                     ffn_targets=not cfg.end_of_block_targets,
                     use_rel_pos_bias=cfg.use_rel_pos_bias,
-                    window_size=window_size
-                    if (self.cfg.use_rel_pos_bias and not self.cfg.shared_rel_pos_bias)
-                    else None,
+                    window_size=(
+                        window_size
+                        if (
+                            self.cfg.use_rel_pos_bias
+                            and not self.cfg.shared_rel_pos_bias
+                        )
+                        else None
+                    ),
                     alt_attention=cfg.alt_attention,
                 )
             elif cfg.alt_block2:
@@ -559,9 +564,11 @@ class MaeModel(BaseFairseqModel):
                 torch.zeros(
                     1,
                     1,
-                    cfg.decoder_embed_dim
-                    if not cfg.no_decoder_embed
-                    else cfg.embed_dim,
+                    (
+                        cfg.decoder_embed_dim
+                        if not cfg.no_decoder_embed
+                        else cfg.embed_dim
+                    ),
                 )
             )
             if cfg.mask_noise_std <= 0
@@ -573,9 +580,11 @@ class MaeModel(BaseFairseqModel):
                 torch.zeros(
                     1,
                     num_patches + 1,
-                    cfg.decoder_embed_dim
-                    if not cfg.no_decoder_embed
-                    else cfg.embed_dim,
+                    (
+                        cfg.decoder_embed_dim
+                        if not cfg.no_decoder_embed
+                        else cfg.embed_dim
+                    ),
                 ),
                 requires_grad=False,
             )

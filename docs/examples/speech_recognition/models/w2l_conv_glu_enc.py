@@ -121,7 +121,6 @@ class W2lConvGluEncoder(FairseqEncoder):
             cur_channels = out_channels // 2
 
     def forward(self, src_tokens, src_lengths, **kwargs):
-
         """
         src_tokens: padded tensor (B, T, C * feat)
         src_lengths: tensor of original lengths of input utterances (B,)

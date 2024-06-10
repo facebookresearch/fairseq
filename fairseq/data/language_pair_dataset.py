@@ -84,9 +84,9 @@ def collate(
         target = merge(
             "target",
             left_pad=left_pad_target,
-            pad_to_length=pad_to_length["target"]
-            if pad_to_length is not None
-            else None,
+            pad_to_length=(
+                pad_to_length["target"] if pad_to_length is not None else None
+            ),
         )
         target = target.index_select(0, sort_order)
         tgt_lengths = torch.LongTensor(
@@ -103,9 +103,9 @@ def collate(
                 "target",
                 left_pad=left_pad_target,
                 move_eos_to_beginning=True,
-                pad_to_length=pad_to_length["target"]
-                if pad_to_length is not None
-                else None,
+                pad_to_length=(
+                    pad_to_length["target"] if pad_to_length is not None else None
+                ),
             )
     else:
         ntokens = src_lengths.sum().item()

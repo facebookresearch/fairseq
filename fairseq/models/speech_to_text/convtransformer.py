@@ -326,9 +326,11 @@ class ConvTransformerEncoder(FairseqEncoder):
 
         return {
             "encoder_out": [x],
-            "encoder_padding_mask": [maybe_encoder_padding_mask]
-            if maybe_encoder_padding_mask is not None
-            else [],
+            "encoder_padding_mask": (
+                [maybe_encoder_padding_mask]
+                if maybe_encoder_padding_mask is not None
+                else []
+            ),
             "encoder_embedding": [],
             "encoder_states": [],
             "src_tokens": [],

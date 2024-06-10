@@ -240,7 +240,9 @@ class TransformerEncoderBase(FairseqEncoder):
         if self.alibi is not None:
             shape = x.size()
             self.alibi = self.alibi.to(x)
-            self_attn_mask = self.alibi[:, :shape[1], :shape[1]].repeat(shape[0], 1, 1)
+            self_attn_mask = self.alibi[:, : shape[1], : shape[1]].repeat(
+                shape[0], 1, 1
+            )
         else:
             self_attn_mask = None
 

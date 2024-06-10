@@ -72,9 +72,9 @@ class FairseqCPUAdam(FairseqOptimizer):
         different learning rate.
         """
         return {
-            "lr": self.cfg.lr[0]
-            if isinstance(self.cfg.lr, Collection)
-            else self.cfg.lr,
+            "lr": (
+                self.cfg.lr[0] if isinstance(self.cfg.lr, Collection) else self.cfg.lr
+            ),
             "betas": eval(self.cfg.adam_betas),
             "eps": self.cfg.adam_eps,
             "weight_decay": self.cfg.weight_decay,

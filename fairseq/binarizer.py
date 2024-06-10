@@ -72,8 +72,7 @@ class Binarizer(ABC):
         self,
         line: str,
         summary: BinarizeSummary,
-    ) -> torch.IntTensor:
-        ...
+    ) -> torch.IntTensor: ...
 
 
 def _worker_prefix(output_prefix: str, worker_id: int):
@@ -119,11 +118,13 @@ class FileBinarizer:
                         ),
                         dataset_impl,
                     ),
-                    kwds={
-                        "vocab_size": vocab_size,
-                    }
-                    if vocab_size is not None
-                    else {},
+                    kwds=(
+                        {
+                            "vocab_size": vocab_size,
+                        }
+                        if vocab_size is not None
+                        else {}
+                    ),
                 )
                 for worker_id, (start_offset, end_offset) in enumerate(
                     more_chunks, start=1

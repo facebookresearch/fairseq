@@ -101,9 +101,9 @@ class S2TConformerEncoder(FairseqEncoder):
 
         return {
             "encoder_out": [x],  # T x B x C
-            "encoder_padding_mask": [encoder_padding_mask]
-            if encoder_padding_mask.any()
-            else [],  # B x T
+            "encoder_padding_mask": (
+                [encoder_padding_mask] if encoder_padding_mask.any() else []
+            ),  # B x T
             "encoder_embedding": [],  # B x T x C
             "encoder_states": encoder_states,  # List[T x B x C]
             "src_tokens": [],

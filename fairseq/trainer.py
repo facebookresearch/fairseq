@@ -148,7 +148,9 @@ class Trainer(object):
         # TODO(varun): The torch.cuda.*DtypeTensor constructors are no longer recommended. It's best to use methods such as torch.tensor(data, dtype=*, device='cuda') to create tensors.
 
         if self.cuda and self.data_parallel_world_size > 1:
-            self._grad_norm_buf = torch.DoubleTensor(self.data_parallel_world_size).cuda()
+            self._grad_norm_buf = torch.DoubleTensor(
+                self.data_parallel_world_size
+            ).cuda()
         else:
             self._grad_norm_buf = None
 
@@ -732,9 +734,11 @@ class Trainer(object):
             ),
             ignore_invalid_inputs=True,
             required_batch_size_multiple=self.cfg.dataset.required_batch_size_multiple,
-            seed=(self.cfg.common.seed + epoch)
-            if self.cfg.dataset.update_ordered_indices_seed
-            else self.cfg.common.seed,
+            seed=(
+                (self.cfg.common.seed + epoch)
+                if self.cfg.dataset.update_ordered_indices_seed
+                else self.cfg.common.seed
+            ),
             num_shards=self.data_parallel_world_size if shard_batch_itr else 1,
             shard_id=self.data_parallel_rank if shard_batch_itr else 0,
             num_workers=self.cfg.dataset.num_workers,

@@ -51,13 +51,13 @@ class MultitaskCriterion:
                     rdrop_alpha=rdrop_alpha_task,
                 )
             else:
-                self.multitask_criterion[
-                    task_name
-                ] = RdropLabelSmoothedCrossEntropyCriterion(
-                    task_obj,
-                    task_obj.args.criterion_cfg.sentence_avg,
-                    label_smoothing=task_obj.args.criterion_cfg.label_smoothing,
-                    rdrop_alpha=rdrop_alpha_task,
+                self.multitask_criterion[task_name] = (
+                    RdropLabelSmoothedCrossEntropyCriterion(
+                        task_obj,
+                        task_obj.args.criterion_cfg.sentence_avg,
+                        label_smoothing=task_obj.args.criterion_cfg.label_smoothing,
+                        rdrop_alpha=rdrop_alpha_task,
+                    )
                 )
 
     def set_multitask_loss_weight(self, task_name, weight=0.0):

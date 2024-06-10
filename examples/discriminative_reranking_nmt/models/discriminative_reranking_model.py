@@ -173,9 +173,11 @@ class BertRanker(BaseRanker):
                 dropout=args.dropout,
                 attention_dropout=args.attention_dropout,
                 activation_dropout=args.activation_dropout,
-                max_seq_len=task.max_positions()
-                if task.max_positions()
-                else args.tokens_per_sample,
+                max_seq_len=(
+                    task.max_positions()
+                    if task.max_positions()
+                    else args.tokens_per_sample
+                ),
                 num_segments=2,
                 offset_positions_by_padding=False,
                 encoder_normalize_before=args.encoder_normalize_before,

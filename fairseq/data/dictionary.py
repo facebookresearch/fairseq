@@ -358,7 +358,7 @@ class Dictionary:
             chunks = zip(offsets, offsets[1:])
             pool = Pool(processes=num_workers)
             results = []
-            for (start_offset, end_offset) in chunks:
+            for start_offset, end_offset in chunks:
                 results.append(
                     pool.apply_async(
                         Dictionary._add_file_to_dictionary_single_worker,

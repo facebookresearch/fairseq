@@ -53,9 +53,9 @@ def collate(
         target = merge(
             "target",
             left_pad=left_pad_target,
-            pad_to_length=pad_to_length["target"]
-            if pad_to_length is not None
-            else None,
+            pad_to_length=(
+                pad_to_length["target"] if pad_to_length is not None else None
+            ),
         )
         target = target.index_select(0, sort_order)
         ntokens = sum(len(s["target"]) for s in samples)
@@ -67,9 +67,9 @@ def collate(
                 "target",
                 left_pad=left_pad_target,
                 move_eos_to_beginning=True,
-                pad_to_length=pad_to_length["target"]
-                if pad_to_length is not None
-                else None,
+                pad_to_length=(
+                    pad_to_length["target"] if pad_to_length is not None else None
+                ),
             )
             prev_output_tokens = prev_output_tokens.index_select(0, sort_order)
     else:
@@ -304,9 +304,9 @@ class DenoisingDataset(FairseqDataset):
         source_length = source.size(0)
         assert source_length - 1 not in indices
         to_keep = torch.ones(source_length, dtype=torch.bool)
-        is_word_start[
-            -1
-        ] = 255  # acts as a long length, so spans don't go over the end of doc
+        is_word_start[-1] = (
+            255  # acts as a long length, so spans don't go over the end of doc
+        )
         if self.replace_length == 0:
             to_keep[indices] = 0
         else:

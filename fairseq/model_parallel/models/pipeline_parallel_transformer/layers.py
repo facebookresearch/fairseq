@@ -241,9 +241,7 @@ class TransformerDecoderOutputLayer(nn.Module):
             self.embed_tokens = nn.Parameter(
                 torch.Tensor(len(dictionary), self.output_embed_dim)
             )
-            nn.init.normal_(
-                self.embed_tokens, mean=0, std=self.output_embed_dim**-0.5
-            )
+            nn.init.normal_(self.embed_tokens, mean=0, std=self.output_embed_dim**-0.5)
 
         if args.decoder_normalize_before and not getattr(
             args, "no_decoder_final_norm", False

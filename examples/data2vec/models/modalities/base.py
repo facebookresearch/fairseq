@@ -114,13 +114,17 @@ class ModalitySpecificEncoder(nn.Module):
             self.alibi_scale = nn.Parameter(
                 torch.full(
                     (
-                        (modality_cfg.prenet_depth + modality_cfg.model_depth)
-                        if modality_cfg.learned_alibi_scale_per_layer
-                        else 1,
+                        (
+                            (modality_cfg.prenet_depth + modality_cfg.model_depth)
+                            if modality_cfg.learned_alibi_scale_per_layer
+                            else 1
+                        ),
                         1,
-                        self.modality_cfg.num_alibi_heads
-                        if modality_cfg.learned_alibi_scale_per_head
-                        else 1,
+                        (
+                            self.modality_cfg.num_alibi_heads
+                            if modality_cfg.learned_alibi_scale_per_head
+                            else 1
+                        ),
                         1,
                         1,
                     ),
@@ -313,9 +317,11 @@ class ModalitySpecificEncoder(nn.Module):
             x,
             masked_padding_mask,
             alibi_bias,
-            alibi_scale[: self.modality_cfg.prenet_depth]
-            if alibi_scale is not None
-            else None,
+            (
+                alibi_scale[: self.modality_cfg.prenet_depth]
+                if alibi_scale is not None
+                else None
+            ),
         )
 
         return {
@@ -323,9 +329,11 @@ class ModalitySpecificEncoder(nn.Module):
             "local_features": local_features,
             "padding_mask": masked_padding_mask,
             "alibi_bias": alibi_bias,
-            "alibi_scale": alibi_scale[self.modality_cfg.prenet_depth :]
-            if alibi_scale is not None and alibi_scale.size(0) > 1
-            else alibi_scale,
+            "alibi_scale": (
+                alibi_scale[self.modality_cfg.prenet_depth :]
+                if alibi_scale is not None and alibi_scale.size(0) > 1
+                else alibi_scale
+            ),
             "encoder_mask": mask_info,
         }
 

@@ -86,9 +86,9 @@ class IterativeRefinementGenerator(object):
                 hypos = self.generate(
                     self.models,
                     sample,
-                    prefix_tokens=sample["target"][:, :prefix_size]
-                    if prefix_size > 0
-                    else None,
+                    prefix_tokens=(
+                        sample["target"][:, :prefix_size] if prefix_size > 0 else None
+                    ),
                 )
             if timer is not None:
                 timer.stop(sample["ntokens"])
@@ -275,12 +275,16 @@ class IterativeRefinementGenerator(object):
             prev_decoder_out = decoder_out._replace(
                 output_tokens=decoder_out.output_tokens[not_terminated],
                 output_scores=decoder_out.output_scores[not_terminated],
-                attn=decoder_out.attn[not_terminated]
-                if (decoder_out.attn is not None and decoder_out.attn.size(0) > 0)
-                else None,
-                history=[h[not_terminated] for h in decoder_out.history]
-                if decoder_out.history is not None
-                else None,
+                attn=(
+                    decoder_out.attn[not_terminated]
+                    if (decoder_out.attn is not None and decoder_out.attn.size(0) > 0)
+                    else None
+                ),
+                history=(
+                    [h[not_terminated] for h in decoder_out.history]
+                    if decoder_out.history is not None
+                    else None
+                ),
             )
             encoder_out = model.encoder.reorder_encoder_out(
                 encoder_out, not_terminated.nonzero(as_tuple=False).squeeze()
@@ -324,9 +328,9 @@ class IterativeRefinementGenerator(object):
             return final_output_tokens
 
         final_output_tokens = rebuild_batch(finalized)
-        final_output_tokens[
-            :, 0
-        ] = self.eos  # autoregressive model assumes starting with EOS
+        final_output_tokens[:, 0] = (
+            self.eos
+        )  # autoregressive model assumes starting with EOS
 
         reranker_encoder_out = reranker.encoder(*encoder_input)
         length_beam_order = (

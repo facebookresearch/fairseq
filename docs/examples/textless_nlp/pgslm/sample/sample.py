@@ -376,9 +376,11 @@ def main(rank, world_size, args):
 
     pbar = (
         tqdm.tqdm(
-            total=dataset_size
-            if raw_args.max_samples is None
-            else min(raw_args.max_samples, dataset_size)
+            total=(
+                dataset_size
+                if raw_args.max_samples is None
+                else min(raw_args.max_samples, dataset_size)
+            )
         )
         if world_size == 1
         else None

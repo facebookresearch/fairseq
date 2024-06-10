@@ -640,9 +640,9 @@ class MMBertForNLG(BertPreTrainedModel):
             )
 
             # expand encoder_outputs
-            encoder_outputs[
-                "last_hidden_state"
-            ] = encoder_outputs.last_hidden_state.index_select(0, expanded_batch_idxs)
+            encoder_outputs["last_hidden_state"] = (
+                encoder_outputs.last_hidden_state.index_select(0, expanded_batch_idxs)
+            )
 
             # save encoder_outputs in `model_kwargs`
             model_kwargs["encoder_outputs"] = encoder_outputs

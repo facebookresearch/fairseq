@@ -29,8 +29,12 @@ class KDLabelSmoothedCrossEntropyCriterionConfig(
     LabelSmoothedCrossEntropyCriterionConfig
 ):
     kd_args: Optional[str] = field(
-        default=None, metadata={"help": "arguments for knowledge distillation (kd_rate, kd_queue_size, kd_strategy)"}
+        default=None,
+        metadata={
+            "help": "arguments for knowledge distillation (kd_rate, kd_queue_size, kd_strategy)"
+        },
     )
+
 
 @register_criterion(
     "label_smoothed_cross_entropy_with_kd",
@@ -63,7 +67,9 @@ class KDLabelSmoothedCrossEntropyCriterion(LabelSmoothedCrossEntropyCriterion):
         kd_args = json.loads(kd_args)
 
         self.kd_rate = kd_args.get("rate", 0.0)
-        self.kd_strategy = kd_args.get("strategy", "word_level") # Possible values: word_level, word_seq_level, batch_level, global_level, global_language_wise
+        self.kd_strategy = kd_args.get(
+            "strategy", "word_level"
+        )  # Possible values: word_level, word_seq_level, batch_level, global_level, global_language_wise
         self.kd_queue_size = kd_args.get("queue_size", 10000)
 
         self.num_languages = (

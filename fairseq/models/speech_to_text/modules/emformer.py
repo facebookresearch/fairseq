@@ -81,12 +81,16 @@ class Fp32LayerNorm(nn.Module):
         output = torch.nn.functional.layer_norm(
             input.float(),
             self.torch_module.normalized_shape,
-            self.torch_module.weight.float()
-            if self.torch_module.weight is not None
-            else None,
-            self.torch_module.bias.float()
-            if self.torch_module.bias is not None
-            else None,
+            (
+                self.torch_module.weight.float()
+                if self.torch_module.weight is not None
+                else None
+            ),
+            (
+                self.torch_module.bias.float()
+                if self.torch_module.bias is not None
+                else None
+            ),
             self.torch_module.eps,
         ).type_as(input)
         return output

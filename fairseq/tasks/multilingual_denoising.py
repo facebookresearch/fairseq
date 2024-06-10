@@ -194,9 +194,11 @@ class MultilingualDenoisingTask(DenoisingTask):
                 replace_length=self.cfg.replace_length,
                 mask_length=self.cfg.mask_length,
                 poisson_lambda=self.cfg.poisson_lambda,
-                eos=None
-                if not self.cfg.add_lang_token
-                else self.source_dictionary.index("[{}]".format(language)),
+                eos=(
+                    None
+                    if not self.cfg.add_lang_token
+                    else self.source_dictionary.index("[{}]".format(language))
+                ),
             )
             lang_datasets.append(lang_dataset)
 

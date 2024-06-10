@@ -41,7 +41,7 @@ from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from fairseq.trainer import Trainer
 from fairseq.checkpoint_utils import load_model_ensemble
-from fairseq.modules.lora import LoRALayer, Linear, Embedding
+from fairseq.modules.lora import LoRALayer, LoRALinear, LoRAEmbedding
 
 
 # copied from: https://github.com/microsoft/LoRA/blob/main/loralib/utils.py
@@ -75,7 +75,9 @@ def replace_with_lora(model, lora_modules, lora_params) -> None:
     for name, module in model.named_children():
         if name in lora_modules and isinstance(module, torch.nn.Linear):
 
-            new_module = Linear(module.in_features, module.out_features, **lora_params)
+            new_module = LoRALinear(
+                module.in_features, module.out_features, **lora_params
+            )
 
             if module.weight is not None:
                 with torch.no_grad():
@@ -89,7 +91,7 @@ def replace_with_lora(model, lora_modules, lora_params) -> None:
             lora_params_emb = lora_params.copy()
             lora_params_emb.pop("dropout", None)
 
-            new_module = Embedding(
+            new_module = LoRAEmbedding(
                 num_embeddings=module.num_embeddings,
                 embedding_dim=module.embedding_dim,
                 scale_grad_by_freq=module.scale_grad_by_freq,
@@ -228,6 +230,7 @@ def main(cfg: FairseqConfig) -> None:
         lora_bias = lora_config.get("bias", "none")
         replace_with_lora(model, lora_modules, lora_params)
         mark_only_lora_as_trainable(model, bias=lora_bias)
+        print(model)
     ### EXPERIMENTAL :: NOT TO BE USED UNTIL TESTED ###
 
     logger.info(

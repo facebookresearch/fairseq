@@ -233,9 +233,9 @@ class LanguagePairDenoisingDataset(LanguagePairDataset):
         source_length = source.size(0)
         assert source_length - 1 not in indices
         to_keep = torch.ones(source_length, dtype=torch.bool)
-        is_word_start[
-            -1
-        ] = 255  # acts as a long length, so spans don't go over the end of doc
+        is_word_start[-1] = (
+            255  # acts as a long length, so spans don't go over the end of doc
+        )
         if self.replace_length == 0:
             to_keep[indices] = 0
         else:

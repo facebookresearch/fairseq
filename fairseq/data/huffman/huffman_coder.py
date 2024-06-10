@@ -196,7 +196,7 @@ class HuffmanCodeBuilder:
 
     def to_file(self, filename, sep="\t"):
         with open(filename, "w", encoding="utf-8") as output:
-            for (tok, cnt) in self.symbols.most_common():
+            for tok, cnt in self.symbols.most_common():
                 output.write(f"{tok}{sep}{cnt}\n")
 
     def _smallest(self, q1: deque, q2: deque) -> HuffmanNode:

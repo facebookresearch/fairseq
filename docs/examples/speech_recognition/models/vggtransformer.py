@@ -382,9 +382,9 @@ class VGGTransformerEncoder(FairseqEncoder):
 
         return {
             "encoder_out": x,  # (T, B, C)
-            "encoder_padding_mask": encoder_padding_mask.t()
-            if encoder_padding_mask is not None
-            else None,
+            "encoder_padding_mask": (
+                encoder_padding_mask.t() if encoder_padding_mask is not None else None
+            ),
             # (B, T) --> (T, B)
         }
 

@@ -8,7 +8,6 @@ from examples.mms.data_prep.norm_config import norm_config
 def text_normalize(
     text, iso_code, lower_case=True, remove_numbers=True, remove_brackets=False
 ):
-
     """Given a text, normalize it by changing to lower case, removing punctuations, removing words that only contain digits and removing extra spaces
 
     Args:

@@ -348,9 +348,11 @@ class SemisupervisedTranslationTask(MultilingualTranslationTask):
                     for lang_pair, dataset in noising_datasets.items()
                 ]
             ),
-            eval_key=None
-            if self.training
-            else "%s-%s" % (self.args.source_lang, self.args.target_lang),
+            eval_key=(
+                None
+                if self.training
+                else "%s-%s" % (self.args.source_lang, self.args.target_lang)
+            ),
         )
 
     def build_model(self, args, from_checkpoint=False):

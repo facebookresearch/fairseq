@@ -483,9 +483,11 @@ class Data2VecTextEncoder(FairseqEncoder):
 
         result = {
             "losses": {
-                "main": loss.sum() / math.sqrt(sz)
-                if self.loss_scale <= 0
-                else loss.sum() * self.loss_scale,
+                "main": (
+                    loss.sum() / math.sqrt(sz)
+                    if self.loss_scale <= 0
+                    else loss.sum() * self.loss_scale
+                ),
             },
             "sample_size": loss.numel(),
         }

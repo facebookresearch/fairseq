@@ -142,7 +142,7 @@ def get_spans(tokens, segments):
     intervals = []
     start, end = (0, 0)
     sil = "<blank>"
-    for (seg_idx, seg) in enumerate(segments):
+    for seg_idx, seg in enumerate(segments):
         if tokens_idx == len(tokens):
             assert seg_idx == len(segments) - 1
             assert seg.label == "<blank>"
@@ -164,7 +164,7 @@ def get_spans(tokens, segments):
         else:
             ltr_idx += 1
     spans = []
-    for (idx, (start, end)) in enumerate(intervals):
+    for idx, (start, end) in enumerate(intervals):
         span = segments[start : end + 1]
         if start > 0:
             prev_seg = segments[start - 1]

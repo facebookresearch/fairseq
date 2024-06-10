@@ -247,9 +247,11 @@ class MultiDecoderSpeechGenerator(SpeechGenerator):
         else:
             synthesizer_encoder_out = {
                 "encoder_out": [x],  # T x B x C
-                "encoder_padding_mask": [mt_decoder_padding_mask]
-                if mt_decoder_padding_mask is not None
-                else [],  # B x T
+                "encoder_padding_mask": (
+                    [mt_decoder_padding_mask]
+                    if mt_decoder_padding_mask is not None
+                    else []
+                ),  # B x T
                 "encoder_embedding": [],
                 "encoder_states": [],
                 "src_tokens": [],

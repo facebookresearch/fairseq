@@ -56,9 +56,11 @@ class ExtractedFeaturesDataset(FairseqDataset):
         if not os.path.exists(path + f".{labels}"):
             labels = None
 
-        with open(data_path + ".lengths", "r") as len_f, open(
-            path + f".{labels}", "r"
-        ) if labels is not None else contextlib.ExitStack() as lbl_f:
+        with open(data_path + ".lengths", "r") as len_f, (
+            open(path + f".{labels}", "r")
+            if labels is not None
+            else contextlib.ExitStack()
+        ) as lbl_f:
             for line in len_f:
                 length = int(line.rstrip())
                 lbl = None if labels is None else next(lbl_f).rstrip().split()

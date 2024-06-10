@@ -134,7 +134,6 @@ def write_reprocessed(
     target_prefix_frac=None,
     source_prefix_frac=None,
 ):
-
     """writes nbest hypothesis for rescoring"""
     assert not (
         prefix_len is not None and target_prefix_frac is not None

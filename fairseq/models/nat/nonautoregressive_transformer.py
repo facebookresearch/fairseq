@@ -303,15 +303,19 @@ class NATransformerDecoder(FairseqNATDecoder):
 
             x, attn, _ = layer(
                 x,
-                encoder_out["encoder_out"][0]
-                if (encoder_out is not None and len(encoder_out["encoder_out"]) > 0)
-                else None,
-                encoder_out["encoder_padding_mask"][0]
-                if (
-                    encoder_out is not None
-                    and len(encoder_out["encoder_padding_mask"]) > 0
-                )
-                else None,
+                (
+                    encoder_out["encoder_out"][0]
+                    if (encoder_out is not None and len(encoder_out["encoder_out"]) > 0)
+                    else None
+                ),
+                (
+                    encoder_out["encoder_padding_mask"][0]
+                    if (
+                        encoder_out is not None
+                        and len(encoder_out["encoder_padding_mask"]) > 0
+                    )
+                    else None
+                ),
                 self_attn_mask=None,
                 self_attn_padding_mask=decoder_padding_mask,
             )

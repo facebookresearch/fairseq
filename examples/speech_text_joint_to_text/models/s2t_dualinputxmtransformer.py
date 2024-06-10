@@ -89,9 +89,9 @@ class SharedEncoder(FairseqEncoder):
         if shared_layer_from < 0:
             shared_layer_from = 0
         for layer_id, layer in enumerate(self.shared_layers):
-            mbart_enc.layers[
-                shared_layer_from + layer_id
-            ] = TransformerSentenceEncoderLayerStd(layer)
+            mbart_enc.layers[shared_layer_from + layer_id] = (
+                TransformerSentenceEncoderLayerStd(layer)
+            )
 
     def forward(self, src_tokens, src_lengths=None, **kwargs):
         padding_mask = lengths_to_padding_mask(src_lengths)
@@ -114,9 +114,9 @@ class SharedEncoder(FairseqEncoder):
 
         return {
             "encoder_out": [x],  # T x B x C
-            "encoder_padding_mask": [enc_padding_mask]
-            if enc_padding_mask is not None
-            else [],  # B x T
+            "encoder_padding_mask": (
+                [enc_padding_mask] if enc_padding_mask is not None else []
+            ),  # B x T
             "encoder_embedding": [],  # B x T x C
             "encoder_states": [],  # List[T x B x C]
             "src_tokens": [],
@@ -165,9 +165,9 @@ class StackedWav2VecEncoderWithAdaptor(FairseqEncoder):
 
         return {
             "encoder_out": [x],  # T x B x C
-            "encoder_padding_mask": [enc_padding_mask]
-            if enc_padding_mask is not None
-            else [],  # B x T
+            "encoder_padding_mask": (
+                [enc_padding_mask] if enc_padding_mask is not None else []
+            ),  # B x T
             "encoder_embedding": [],  # B x T x C
             "encoder_states": encoder_states,  # List[T x B x C]
             "src_tokens": [],
@@ -507,9 +507,9 @@ class DualInputXMTransformerModel(DualInputS2TTransformerModel):
             spch_decoder=decoder,
             text_decoder=decoder,
             compute_cross_attentive_loss=compute_cross_attentive_loss,
-            cross_attentive_loss_with_norm=True
-            if not cross_attentive_loss_without_norm
-            else False,
+            cross_attentive_loss_with_norm=(
+                True if not cross_attentive_loss_without_norm else False
+            ),
             cross_attentive_loss_reverse=cross_attentive_loss_reverse,
         )
         return decoder

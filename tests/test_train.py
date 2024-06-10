@@ -194,9 +194,9 @@ class TestLoadCheckpoint(unittest.TestCase):
                 else:
                     return False
 
-            self.patches[
-                "fairseq.file_io.PathManager.exists"
-            ].side_effect = mock_finetune_exist
+            self.patches["fairseq.file_io.PathManager.exists"].side_effect = (
+                mock_finetune_exist
+            )
             cfg_mock = get_mock_cfg(from_model_path)
             cfg_mock.checkpoint.restore_file = "checkpoint_last.pt"
             _, _ = checkpoint_utils.load_checkpoint(cfg_mock.checkpoint, trainer)
@@ -225,9 +225,9 @@ class TestLoadCheckpoint(unittest.TestCase):
                 else:
                     return False
 
-            self.patches[
-                "fairseq.file_io.PathManager.exists"
-            ].side_effect = mock_finetune_exist
+            self.patches["fairseq.file_io.PathManager.exists"].side_effect = (
+                mock_finetune_exist
+            )
             cfg_mock = get_mock_cfg(from_model_path)
             cfg_mock.checkpoint.restore_file = "checkpoint_last.pt"
             _, _ = checkpoint_utils.load_checkpoint(cfg_mock.checkpoint, trainer)

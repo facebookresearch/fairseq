@@ -142,9 +142,11 @@ class ConvTransformerEmformerEncoder(ConvTransformerEncoder):
             "encoder_out": [output],
             # This is because that in the original implementation
             # the output didn't consider the last segment as right context.
-            "encoder_padding_mask": [encoder_padding_masks[0][:, : output.size(0)]]
-            if len(encoder_padding_masks) > 0
-            else [],
+            "encoder_padding_mask": (
+                [encoder_padding_masks[0][:, : output.size(0)]]
+                if len(encoder_padding_masks) > 0
+                else []
+            ),
             "encoder_embedding": [],
             "encoder_states": [],
             "src_tokens": [],

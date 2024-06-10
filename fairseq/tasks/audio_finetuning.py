@@ -380,20 +380,24 @@ class AudioFinetuningTask(AudioPretrainingTask):
             if num_chars > 0:
                 metrics.log_derived(
                     "uer",
-                    lambda meters: meters["_num_char_errors"].sum
-                    * 100.0
-                    / meters["_num_chars"].sum
-                    if meters["_num_chars"].sum > 0
-                    else float("nan"),
+                    lambda meters: (
+                        meters["_num_char_errors"].sum
+                        * 100.0
+                        / meters["_num_chars"].sum
+                        if meters["_num_chars"].sum > 0
+                        else float("nan")
+                    ),
                 )
             if num_words > 0:
                 metrics.log_derived(
                     "wer",
-                    lambda meters: meters["_num_word_errors"].sum
-                    * 100.0
-                    / meters["_num_words"].sum
-                    if meters["_num_words"].sum > 0
-                    else float("nan"),
+                    lambda meters: (
+                        meters["_num_word_errors"].sum
+                        * 100.0
+                        / meters["_num_words"].sum
+                        if meters["_num_words"].sum > 0
+                        else float("nan")
+                    ),
                 )
         if self.cfg.eval_bleu:
             len_keys = ["_bleu_sys_len", "_bleu_ref_len"]

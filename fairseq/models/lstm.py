@@ -437,9 +437,9 @@ class LSTMDecoder(FairseqIncrementalDecoder):
         self.layers = nn.ModuleList(
             [
                 LSTMCell(
-                    input_size=input_feed_size + embed_dim
-                    if layer == 0
-                    else hidden_size,
+                    input_size=(
+                        input_feed_size + embed_dim if layer == 0 else hidden_size
+                    ),
                     hidden_size=hidden_size,
                 )
                 for layer in range(num_layers)

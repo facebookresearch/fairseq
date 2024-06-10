@@ -252,9 +252,11 @@ class MaskedLMDataset(FairseqDataset):
                 "segment_labels": merge("segment_labels"),
             },
             "lm_target": merge("lm_target"),
-            "sentence_target": torch.LongTensor([s["sentence_target"] for s in samples])
-            if self.has_pairs
-            else None,
+            "sentence_target": (
+                torch.LongTensor([s["sentence_target"] for s in samples])
+                if self.has_pairs
+                else None
+            ),
             "nsentences": len(samples),
         }
 

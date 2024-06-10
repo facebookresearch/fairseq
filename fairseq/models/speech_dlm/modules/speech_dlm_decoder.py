@@ -110,9 +110,11 @@ class CrossChannelTransformerDecoder(FairseqIncrementalDecoder):
             self.layers = nn.ModuleList([])
         self.layers.extend(
             [
-                self.build_decoder_layer(args, no_encoder_attn)
-                if i < args.decoder_layers - args.decoder_cross_layers
-                else self.build_cross_decoder_layer(args, no_encoder_attn)
+                (
+                    self.build_decoder_layer(args, no_encoder_attn)
+                    if i < args.decoder_layers - args.decoder_cross_layers
+                    else self.build_cross_decoder_layer(args, no_encoder_attn)
+                )
                 for i in range(args.decoder_layers)
             ]
         )
@@ -319,9 +321,9 @@ class CrossChannelTransformerDecoder(FairseqIncrementalDecoder):
             if self.embed_positions is not None:
                 positions = self.embed_positions(
                     prev_output_tokens[channel],
-                    incremental_state=incremental_state[i]
-                    if incremental_state is not None
-                    else None,
+                    incremental_state=(
+                        incremental_state[i] if incremental_state is not None else None
+                    ),
                 )
 
             if incremental_state is not None:
@@ -378,15 +380,19 @@ class CrossChannelTransformerDecoder(FairseqIncrementalDecoder):
                 x_list = torch.stack(x_list)
             x_list, layer_attn_list, _ = layer(
                 x_list,
-                encoder_out["encoder_out"][0]
-                if (encoder_out is not None and len(encoder_out["encoder_out"]) > 0)
-                else None,
-                encoder_out["encoder_padding_mask"][0]
-                if (
-                    encoder_out is not None
-                    and len(encoder_out["encoder_padding_mask"]) > 0
-                )
-                else None,
+                (
+                    encoder_out["encoder_out"][0]
+                    if (encoder_out is not None and len(encoder_out["encoder_out"]) > 0)
+                    else None
+                ),
+                (
+                    encoder_out["encoder_padding_mask"][0]
+                    if (
+                        encoder_out is not None
+                        and len(encoder_out["encoder_padding_mask"]) > 0
+                    )
+                    else None
+                ),
                 incremental_state,
                 self_attn_mask=self_attn_mask,
                 self_attn_padding_mask=self_attn_padding_mask,

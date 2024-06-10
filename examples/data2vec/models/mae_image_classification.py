@@ -131,12 +131,12 @@ class MaeImageClassificationModel(BaseFairseqModel):
             model_blocks = pretrained_args.model["depth"]
             with open_dict(pretrained_args):
                 dpr = np.linspace(0, cfg.drop_path_rate, model_blocks).tolist()
-                pretrained_args.model["modalities"]["image"][
-                    "start_drop_path_rate"
-                ] = dpr[0]
-                pretrained_args.model["modalities"]["image"][
-                    "end_drop_path_rate"
-                ] = max(0, dpr[prenet_blocks - 1])
+                pretrained_args.model["modalities"]["image"]["start_drop_path_rate"] = (
+                    dpr[0]
+                )
+                pretrained_args.model["modalities"]["image"]["end_drop_path_rate"] = (
+                    max(0, dpr[prenet_blocks - 1])
+                )
                 pretrained_args.model["start_drop_path_rate"] = dpr[prenet_blocks]
                 pretrained_args.model["end_drop_path_rate"] = dpr[-1]
 

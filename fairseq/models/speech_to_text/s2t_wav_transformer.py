@@ -368,9 +368,9 @@ class SpeechWavTransformerEncoder(FairseqEncoder):
         if features_only:
             return {
                 "encoder_out": [x],  # [T x B x C]
-                "encoder_padding_mask": [padding_mask]
-                if padding_mask is not None
-                else [],  # B x T
+                "encoder_padding_mask": (
+                    [padding_mask] if padding_mask is not None else []
+                ),  # B x T
                 "encoder_embedding": [],  #
                 "encoder_states": encoder_states,  # List[T x B x C]
                 "src_tokens": [],
@@ -384,9 +384,9 @@ class SpeechWavTransformerEncoder(FairseqEncoder):
         return {
             "encoder_out": [x],  # [T x B x C]
             "encoder_unmasked_out": [x_unmasked],  # [T x B x C]
-            "encoder_padding_mask": [padding_mask]
-            if padding_mask is not None
-            else [],  # B x T
+            "encoder_padding_mask": (
+                [padding_mask] if padding_mask is not None else []
+            ),  # B x T
             "encoder_embedding": [],  #
             "encoder_states": encoder_states,  # List[T x B x C]
             "src_tokens": [],
@@ -475,9 +475,9 @@ class StackedSpeechWavTransformerEncoder(FairseqEncoder):
         if features_only:
             return {
                 "encoder_out": [x],  # T x B x C
-                "encoder_padding_mask": [encoder_padding_mask]
-                if encoder_padding_mask is not None
-                else [],  # B x T
+                "encoder_padding_mask": (
+                    [encoder_padding_mask] if encoder_padding_mask is not None else []
+                ),  # B x T
                 "encoder_embedding": [],  # B x T x C
                 "encoder_states": encoder_states,  # List[T x B x C]
                 "src_tokens": [],
@@ -490,9 +490,9 @@ class StackedSpeechWavTransformerEncoder(FairseqEncoder):
         return {
             "encoder_out": [x],  # [T x B x C]
             "encoder_unmasked_out": [x_u],  # [T x B x C]
-            "encoder_padding_mask": [encoder_padding_mask]
-            if encoder_padding_mask is not None
-            else [],  # B x T
+            "encoder_padding_mask": (
+                [encoder_padding_mask] if encoder_padding_mask is not None else []
+            ),  # B x T
             "encoder_embedding": [],  #
             "encoder_states": encoder_states,  # List[T x B x C]
             "src_tokens": [],

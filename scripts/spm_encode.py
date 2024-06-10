@@ -74,15 +74,19 @@ def main():
 
     with contextlib.ExitStack() as stack:
         inputs = [
-            stack.enter_context(open(input, "r", encoding="utf-8"))
-            if input != "-"
-            else sys.stdin
+            (
+                stack.enter_context(open(input, "r", encoding="utf-8"))
+                if input != "-"
+                else sys.stdin
+            )
             for input in args.inputs
         ]
         outputs = [
-            stack.enter_context(open(output, "w", encoding="utf-8"))
-            if output != "-"
-            else sys.stdout
+            (
+                stack.enter_context(open(output, "w", encoding="utf-8"))
+                if output != "-"
+                else sys.stdout
+            )
             for output in args.outputs
         ]
 
