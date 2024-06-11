@@ -129,7 +129,7 @@ class NativeMultiheadAttention(MultiheadAttention):
                     ),
                     attn_factor=self.yarn_args.get("attn_factor", 1),
                     beta_fast=self.yarn_args.get("beta_fast", 32),
-                    beta_slow=self.yarn_args.get("beta_slow", 2),
+                    beta_slow=self.yarn_args.get("beta_slow", 1),
                 )
             elif self.yarn_args["type"] == "dynamic":
                 self.yarn_pos_embed = DynamicYaRNScaledRotaryPositionalEmbedding(
@@ -146,7 +146,7 @@ class NativeMultiheadAttention(MultiheadAttention):
                     ),
                     attn_factor=self.yarn_args.get("attn_factor", 1),
                     beta_fast=self.yarn_args.get("beta_fast", 32),
-                    beta_slow=self.yarn_args.get("beta_slow", 2),
+                    beta_slow=self.yarn_args.get("beta_slow", 1),
                     finetuned=self.yarn_args.get("finetuned", False),
                 )
             else:
