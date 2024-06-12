@@ -58,26 +58,44 @@ class TransformerEncoderLayerBase(nn.Module):
         self.fc1 = self.build_fc1(
             self.embed_dim,
             cfg.encoder.ffn_embed_dim,
+            not cfg.encoder.use_gated_fc,
             self.quant_noise,
             self.quant_noise_block_size,
         )
         self.fc2 = self.build_fc2(
             cfg.encoder.ffn_embed_dim,
             self.embed_dim,
+            not cfg.encoder.use_gated_fc,
             self.quant_noise,
             self.quant_noise_block_size,
         )
 
+        if cfg.encoder.use_gated_fc:
+            self.gate_fc = self.build_gate_fc(
+                self.embed_dim,
+                cfg.encoder.ffn_embed_dim,
+                not cfg.encoder.use_gated_fc,
+                self.quant_noise,
+                self.quant_noise_block_size,
+            )
+        else:
+            self.gate_fc = None
+
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
 
-    def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
+    def build_fc1(self, input_dim, output_dim, bias, q_noise, qn_block_size):
         return quant_noise(
-            nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size
+            nn.Linear(input_dim, output_dim, bias=bias), q_noise, qn_block_size
         )
 
-    def build_fc2(self, input_dim, output_dim, q_noise, qn_block_size):
+    def build_fc2(self, input_dim, output_dim, bias, q_noise, qn_block_size):
         return quant_noise(
-            nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size
+            nn.Linear(input_dim, output_dim, bias=bias), q_noise, qn_block_size
+        )
+
+    def build_gate_fc(self, input_dim, output_dim, bias, q_noise, qn_block_size):
+        return quant_noise(
+            nn.Linear(input_dim, output_dim, bias=bias), q_noise, qn_block_size
         )
 
     def _get_fc_rank(self, remove_num: int) -> List[int]:
@@ -225,8 +243,13 @@ class TransformerEncoderLayerBase(nn.Module):
         if self.normalize_before:
             x = self.final_layer_norm(x)
 
-        x = self.activation_fn(self.fc1(x))
+        x = (
+            self.activation_fn(self.gate_fc(x)) * self.fc1(x)
+            if self.gate_fc is not None
+            else self.activation_fn(self.fc1(x))
+        )
         x = self.activation_dropout_module(x)
+
         x = self.fc2(x)
 
         fc_result = x
@@ -343,26 +366,48 @@ class TransformerDecoderLayerBase(nn.Module):
         self.fc1 = self.build_fc1(
             self.embed_dim,
             cfg.decoder.ffn_embed_dim,
+            not cfg.decoder.use_gated_fc,
             self.quant_noise,
             self.quant_noise_block_size,
         )
         self.fc2 = self.build_fc2(
             cfg.decoder.ffn_embed_dim,
             self.embed_dim,
+            not cfg.decoder.use_gated_fc,
             self.quant_noise,
             self.quant_noise_block_size,
         )
+
+        if cfg.decoder.use_gated_fc:
+            self.gate_fc = self.build_gate_fc(
+                self.embed_dim,
+                cfg.decoder.ffn_embed_dim,
+                not cfg.decoder.use_gated_fc,
+                self.quant_noise,
+                self.quant_noise_block_size,
+            )
+        else:
+            self.gate_fc = None
 
         self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
 
         self.need_attn = True
         self.onnx_trace = False
 
-    def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
-        return quant_noise(nn.Linear(input_dim, output_dim), q_noise, qn_block_size)
+    def build_fc1(self, input_dim, output_dim, bias, q_noise, qn_block_size):
+        return quant_noise(
+            nn.Linear(input_dim, output_dim, bias=bias), q_noise, qn_block_size
+        )
 
-    def build_fc2(self, input_dim, output_dim, q_noise, qn_block_size):
-        return quant_noise(nn.Linear(input_dim, output_dim), q_noise, qn_block_size)
+    def build_fc2(self, input_dim, output_dim, bias, q_noise, qn_block_size):
+        return quant_noise(
+            nn.Linear(input_dim, output_dim, bias=bias), q_noise, qn_block_size
+        )
+
+    def build_gate_fc(self, input_dim, output_dim, bias, q_noise, qn_block_size):
+        return quant_noise(
+            nn.Linear(input_dim, output_dim, bias=bias), q_noise, qn_block_size
+        )
 
     def build_self_attention(
         self, embed_dim, cfg, add_bias_kv=False, add_zero_attn=False
@@ -542,10 +587,16 @@ class TransformerDecoderLayerBase(nn.Module):
         if self.normalize_before:
             x = self.final_layer_norm(x)
 
-        x = self.activation_fn(self.fc1(x))
+        x = (
+            self.activation_fn(self.gate_fc(x)) * self.fc1(x)
+            if self.gate_fc is not None
+            else self.activation_fn(self.fc1(x))
+        )
         x = self.activation_dropout_module(x)
+
         if self.ffn_layernorm is not None:
             x = self.ffn_layernorm(x)
+
         x = self.fc2(x)
 
         x = self.dropout_module(x)

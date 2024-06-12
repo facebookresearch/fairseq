@@ -54,6 +54,9 @@ class EncDecBaseConfig(FairseqDataclass):
     normalize_before: bool = field(
         default=False, metadata={"help": "apply layernorm before each block"}
     )
+    use_gated_fc: bool = field(
+        default=False, metadata={"help": "use gated fc layers in the encoder/decoder"}
+    )
     learned_pos: bool = field(
         default=False, metadata={"help": "use learned positional embeddings"}
     )
