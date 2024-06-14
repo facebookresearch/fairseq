@@ -24,6 +24,8 @@ tasks = [
     'signclip_v1_1/baseline_spatial',
     'signclip_v1_1/baseline_temporal',
     'signclip_v1_1/baseline_noise',
+    'signclip_v1_1/baseline_final',
+    'signclip_v1_1/baseline_final_proj',
 ]
 notes = [
 ]

@@ -15,17 +15,21 @@ def read_file(filename):
         return lines
 
 seed = 42
-random.seed(42)
+random.seed(seed)
+np.random.seed(seed)
 
 
-# embedding_dir = '/shares/iict-sp2.ebling.cl.uzh/zifjia/fairseq/examples/MMPT/runs/retri/baseline_sp_b768/eval'
-embedding_dir = '/shares/iict-sp2.ebling.cl.uzh/zifjia/fairseq/examples/MMPT/runs/retri_v1_1/baseline_anonym/eval'
-datasets = ['asl_signs', 'asl_citizen', 'sem_lex']
-# datasets = ['sem_lex']
+# embedding_dir = '/shares/iict-sp2.ebling.cl.uzh/zifjia/fairseq/examples/MMPT/runs/retri_v1_1/baseline_anonym/eval'
+embedding_dir = '/shares/iict-sp2.ebling.cl.uzh/zifjia/fairseq/examples/MMPT/runs/retri_v1_1/baseline_temporal/eval_flip_full'
+# embedding_dir = '/shares/iict-sp2.ebling.cl.uzh/zifjia/fairseq/examples/MMPT/runs/retri_v1_1/baseline_temporal/eval_anonym_full'
+# datasets = ['asl_signs', 'asl_citizen', 'sem_lex']
+datasets = ['sem_lex']
 top_n = [1, 5, 10]
 
 for dataset in datasets:
     print(f'Evaluating {dataset} ...')
+
+    # embedding_dir = f'/shares/iict-sp2.ebling.cl.uzh/zifjia/fairseq/examples/MMPT/runs/retri_asl/{dataset}_finetune/eval'
 
     embedding_dir_train = f'{embedding_dir}/{dataset}_train'
     embedding_dir_test = f'{embedding_dir}/{dataset}_test'
@@ -53,9 +57,29 @@ for dataset in datasets:
     test_embeddings = test_embeddings[ids]
     print('test set:', test_embeddings.shape)
 
+    if dataset == 'sem_lex':
+        print('Filter train set with test labels')
+        ids = []
+        train_text_filtered = []
+        for i, text in enumerate(train_text):
+            if text in test_text:
+                ids.append(i)
+                train_text_filtered.append(text)
+        train_text = train_text_filtered
+        train_embeddings = train_embeddings[ids]
+        print('train set:', train_embeddings.shape)
+
     lb = LabelEncoder()
     y_train = lb.fit_transform(train_text)
     y_test = lb.transform(test_text)
+
+    y_train_labels = list(sorted(set(y_train)))
+    y_test_labels = list(sorted(set(y_test)))
+
+    # print('test class:', y_train_labels)
+    # print('test class:', y_test_labels)
+    print('test class in training set:', len(y_train_labels))
+    print('test class in test set:', len(y_test_labels))
 
     # scaler = StandardScaler().fit(train_embeddings)
     # X_train = scaler.transform(train_embeddings)
@@ -66,14 +90,16 @@ for dataset in datasets:
 
     clf = LogisticRegression(verbose=True, random_state=seed, max_iter=100)
     clf.fit(X_train, y_train)
+    # clf.fit(np.random.rand(len(y_train_labels), X_train.shape[1]), y_train_labels)
 
     y_score = clf.predict_proba(X_test)
+    # if dataset == 'sem_lex':
+    #     # masking for Sem-lex test set (smaller than training)
+    #     y_score[:, [item for item in y_train_labels if item not in y_test_labels]] = 0
     print(y_score.shape)
 
-    # TODO: optimize for Sem-lex test set (smaller than training)
-
     for n in top_n:
-        score = top_k_accuracy_score(y_test, y_score, labels=range(len(lb.classes_)), k=n)
+        score = top_k_accuracy_score(y_test, y_score, labels=y_train_labels, k=n)
         print(f'Top {n}:', score)
 
     y_argsort = np.argsort(-y_score)

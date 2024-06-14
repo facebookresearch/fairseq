@@ -2,23 +2,16 @@ dataset:
   max_video_len: 256
   max_len: 64
   split: test
-  meta_processor: SignCLIPMetaProcessor
-  video_processor: SignCLIPPoseProcessor
+  meta_processor: SignCLIPPretrainMetaProcessor
+  video_processor: PoseProcessor
   text_processor: TextProcessor
   bert_name: bert-base-cased
-  data_dir: /shares/volk.cl.uzh/zifjia/tensorflow_datasets
-  test_datasets: [
-    ['asl_signs', '1.0.0', '1.0.0-uzh'],
-    ['asl_citizen', '1.0.0'],
-    ['sem_lex', '1.0.0'],
-  ]
-  test_path: data/<dataset>/test.txt # placeholder, no use
-  test_separately: true
-  sp_universal_tagging: true
-  test_in_vocab: true
+  test_path: /home/zifjia/datasets/sign_language_datasets/datasets/spread_the_sign/splits/1.0.0-uzh/test.txt
+  metadata_path: /shares/volk.cl.uzh/amoryo/datasets/SperadTheSign.csv
+  vfeat_dir: /shares/iict-sp2.ebling.cl.uzh/common/spreadthesign/sign-mt-poses/
   aligner: DSAligner
   pose_components: 'reduced_face'
-  # anonym_pose: true
+  flip_pose: 'right'
 slurm_config: big
 task_type: local_predict
 fairseq:
@@ -28,7 +21,7 @@ fairseq:
     valid_subset: test
     num_workers: 2
   common_eval:
-    path: runs/retri_v1_1/baseline_final/checkpoint_best.pt
+    path: runs/retri_v1_1/baseline_temporal/checkpoint_best.pt
 model:
   model_cls: MMFusionSeparate
   mm_encoder_cls: null
@@ -37,6 +30,6 @@ model:
   num_hidden_video_layers: 12
   vfeat_dim: 609
 eval:
-  save_path: runs/retri_v1_1/baseline_final/eval
+  save_path: runs/retri_v1_1/baseline_temporal/eval_flip
 metric: RWTHFSMetric
 predictor: RetrievalPredictor

@@ -36,6 +36,7 @@ model:
   text_encoder_cls: BertModel
   num_hidden_video_layers: 12
   vfeat_dim: 609
+  multimodal_projection: true
 eval:
   save_path: runs/retri_v1_1/baseline_final_proj/eval
 metric: RWTHFSMetric

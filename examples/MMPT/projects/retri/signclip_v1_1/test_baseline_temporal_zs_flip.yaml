@@ -18,7 +18,7 @@ dataset:
   test_in_vocab: true
   aligner: DSAligner
   pose_components: 'reduced_face'
-  # anonym_pose: true
+  flip_pose: 'right'
 slurm_config: big
 task_type: local_predict
 fairseq:
@@ -28,7 +28,7 @@ fairseq:
     valid_subset: test
     num_workers: 2
   common_eval:
-    path: runs/retri_v1_1/baseline_final/checkpoint_best.pt
+    path: runs/retri_v1_1/baseline_temporal/checkpoint_best.pt
 model:
   model_cls: MMFusionSeparate
   mm_encoder_cls: null
@@ -37,6 +37,6 @@ model:
   num_hidden_video_layers: 12
   vfeat_dim: 609
 eval:
-  save_path: runs/retri_v1_1/baseline_final/eval
+  save_path: runs/retri_v1_1/baseline_temporal/eval_flip
 metric: RWTHFSMetric
 predictor: RetrievalPredictor

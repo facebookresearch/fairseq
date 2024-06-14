@@ -11,16 +11,23 @@ def read_file(filename):
         lines = [line.rstrip() for line in file]
         return lines
 
-random.seed(42)
+seed = 42
+random.seed(seed)
+np.random.seed(seed)
 
 
 # embedding_dir = '/shares/iict-sp2.ebling.cl.uzh/zifjia/fairseq/examples/MMPT/runs/retri/baseline_sp_b768/eval'
-embedding_dir = '/shares/iict-sp2.ebling.cl.uzh/zifjia/fairseq/examples/MMPT/runs/retri_v1_1/baseline_anonym/eval'
+# embedding_dir = '/shares/iict-sp2.ebling.cl.uzh/zifjia/fairseq/examples/MMPT/runs/retri_v1_1/baseline_anonym/eval'
 datasets = ['asl_signs', 'asl_citizen', 'sem_lex']
 # datasets = ['sem_lex']
 number_shots = [1, 5, 10, 100]
 
 for dataset in datasets:
+    if dataset == 'asl_signs':
+        embedding_dir = '/shares/iict-sp2.ebling.cl.uzh/zifjia/fairseq/examples/MMPT/runs/retri_v1_1/baseline_temporal/eval_anonym_full'
+    else:
+        embedding_dir = '/shares/iict-sp2.ebling.cl.uzh/zifjia/fairseq/examples/MMPT/runs/retri_v1_1/baseline_temporal/eval_flip_full'
+
     for number_shot in number_shots:
         print(f'Evaluating {dataset} {number_shot}-shot ...')
 
@@ -51,7 +58,7 @@ for dataset in datasets:
         mr = []
 
         # test_text = test_text[:10]
-        for i, gold_text in tqdm(enumerate(test_text)):
+        for i, gold_text in enumerate(test_text):
             test_embedding = test_embeddings[i]
             scores_per_class = []
 

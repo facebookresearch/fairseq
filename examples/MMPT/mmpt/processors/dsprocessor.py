@@ -867,14 +867,14 @@ class DiDeMoAligner(DSAligner):
 
 from pose_format import Pose
 from pose_format.utils.normalization_3d import PoseNormalizer
-# from pose_format.utils.holistic import FLIPPED_BODY_POINTS
+from pose_format.utils.generic import flip_holistic, is_left_handed, pose_normalization_info
 
 import mediapipe as mp
 mp_holistic = mp.solutions.holistic
 FACEMESH_CONTOURS_POINTS = [str(p) for p in sorted(set([p for p_tup in list(mp_holistic.FACEMESH_CONTOURS) for p in p_tup]))]
 
 from sign_vq.data.normalize import pre_process_mediapipe, normalize_mean_std
-from pose_anonymization.appearance import remove_appearance, reduce_pose
+from pose_anonymization.appearance import remove_appearance
 
 
 class PoseProcessor(VideoProcessor):
@@ -898,6 +898,22 @@ class PoseProcessor(VideoProcessor):
             buffer = open(os.path.join(self.vfeat_dir, video_id + ".pose"), "rb").read()
             pose = Pose.read(buffer)
 
+        # select components
+        if self.pose_components:
+            if self.pose_components == 'reduced_face':
+                pose = pose.get_components(["POSE_LANDMARKS", "FACE_LANDMARKS", "LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"], 
+                    {"FACE_LANDMARKS": FACEMESH_CONTOURS_POINTS})
+            else:
+                pose = pose.get_components(self.pose_components)
+                # 3D Hand Normalization
+                if self.pose_components == ['RIGHT_HAND_LANDMARKS'] and self.normalize_hand:
+                    pose = self.hand_normalization(pose)
+
+        if self.flip_pose == 'right':
+            # if is_left_handed(pose):
+            if np.nan_to_num(pose.get_components(["RIGHT_HAND_LANDMARKS"]).body.data).var(axis=0).sum() == 0:
+                pose = flip_holistic(pose)
+
         if self.anonym_pose:
             # remove appearance + add spreadthesign mean pose
             # https://github.com/sign-language-processing/pose-anonymization
@@ -914,23 +930,7 @@ class PoseProcessor(VideoProcessor):
         else:
             # normalize pose: the mean distance between the shoulders of each person equals 1
             pose = pose.normalize(self.pose_normalization_info(pose.header))
-
-            # no legs after anonymization
-            if not self.anonym_pose:
-                pose = self.pose_hide_legs(pose)
-
-            # select components
-            if self.pose_components:
-                if self.pose_components == 'reduced_face':
-                    pose = pose.get_components(["POSE_LANDMARKS", "FACE_LANDMARKS", "LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"], 
-                        {"FACE_LANDMARKS": FACEMESH_CONTOURS_POINTS})
-                else:
-                    pose = pose.get_components(self.pose_components)
-                    # 3D Hand Normalization
-                    if self.pose_components == ['RIGHT_HAND_LANDMARKS'] and self.normalize_hand:
-                        pose = self.hand_normalization(pose)
-            else:
-                pose = pose.get_components(["POSE_LANDMARKS", "FACE_LANDMARKS", "LEFT_HAND_LANDMARKS", "RIGHT_HAND_LANDMARKS"])
+            pose = self.pose_hide_legs(pose)
 
         # augmentation (training only)
         if self.is_training:
@@ -1291,7 +1291,6 @@ class SignCLIPMetaProcessor(MetaProcessor):
                         text_prompt = f"{tag_prompt} {datum['text_en'].numpy().decode('utf-8')}" if self.task == 'identification_oracle' else tag_prompt
                     else:
                         tag_prompt = "<en> <ase>" if config.sp_universal_tagging else "<American Sign Language>"
-
                         text_content = datum['text'].numpy().decode('utf-8')
 
                         if config.test_in_vocab:
