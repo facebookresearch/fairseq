@@ -57,6 +57,9 @@ class EncDecBaseConfig(FairseqDataclass):
     use_gated_fc: bool = field(
         default=False, metadata={"help": "use gated fc layers in the encoder/decoder"}
     )
+    use_rmsnorm: bool = field(
+        default=False, metadata={"help": "use RMSNorm instead of LayerNorm"}
+    )
     learned_pos: bool = field(
         default=False, metadata={"help": "use learned positional embeddings"}
     )

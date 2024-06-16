@@ -60,6 +60,7 @@ from .positional_encoding import (
     RelPositionalEncoding,
 )
 
+from .rms_norm import RMSNorm
 
 __all__ = [
     "AdaptiveInput",
@@ -115,6 +116,7 @@ __all__ = [
     "RelPositionalEncoding",
     "RotaryPositionalEmbedding",
     "RotaryPositionMultiHeadedAttention",
+    "RMSNorm",
     "LinearScalingRotaryPositionalEmbedding",
     "DynamicNTKScalingRotaryPositionalEmbedding",
     "YaRNScaledRotaryPositionalEmbedding",

@@ -6,7 +6,6 @@
 import math
 from typing import Any, Dict, List, Optional
 
-import json
 import torch
 import torch.nn as nn
 from torch import Tensor
@@ -21,6 +20,7 @@ from fairseq.modules import (
     FairseqDropout,
     LayerDropModuleList,
     LayerNorm,
+    RMSNorm,
     PositionalEmbedding,
     transformer_layer,
 )
@@ -105,7 +105,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             else None
         )
         self.layernorm_embedding = (
-            LayerNorm(self.embed_dim, export=cfg.export)
+            self.normalization(self.embed_dim, rms=cfg.decoder.use_rmsnorm)
             if cfg.layernorm_embedding
             else None
         )
@@ -135,7 +135,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         self.num_layers = len(self.layers)
 
         if cfg.decoder.normalize_before and not cfg.no_decoder_final_norm:
-            self.layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
+            self.layer_norm = self.normalization(self.embed_dim, rms=cfg.decoder.use_rmsnorm)
         else:
             self.layer_norm = None
 
@@ -163,6 +163,9 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
             )
         else:
             self.alibi = None
+
+    def normalization(self, dim, rms=False):
+        return LayerNorm(dim, export=self.cfg.export) if not rms else RMSNorm(dim)
 
     def build_output_projection(self, cfg, dictionary, embed_tokens):
         if cfg.adaptive_softmax_cutoff is not None:

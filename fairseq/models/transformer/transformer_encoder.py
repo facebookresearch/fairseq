@@ -2,7 +2,6 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
-
 import math
 from typing import Dict, List, Optional
 
@@ -19,6 +18,7 @@ from fairseq.modules import (
     FairseqDropout,
     LayerDropModuleList,
     LayerNorm,
+    RMSNorm,
     PositionalEmbedding,
     transformer_layer,
 )
@@ -76,7 +76,9 @@ class TransformerEncoderBase(FairseqEncoder):
         )
 
         self.layernorm_embedding = (
-            LayerNorm(embed_dim, export=cfg.export) if cfg.layernorm_embedding else None
+            self.normalization(embed_dim, rms=cfg.encoder.use_rmsnorm) 
+            if cfg.layernorm_embedding 
+            else None
         )
 
         if not cfg.adaptive_input and cfg.quant_noise.pq > 0:
@@ -108,7 +110,7 @@ class TransformerEncoderBase(FairseqEncoder):
         self.num_layers = len(self.layers)
 
         self.layer_norm = (
-            LayerNorm(embed_dim, export=cfg.export)
+            self.normalization(embed_dim, rms=cfg.encoder.use_rmsnorm)
             if cfg.encoder.normalize_before
             else None
         )
@@ -122,6 +124,9 @@ class TransformerEncoderBase(FairseqEncoder):
             )
         else:
             self.alibi = None
+
+    def normalization(self, dim, rms=False):
+        return LayerNorm(dim, export=self.cfg.export) if not rms else RMSNorm(dim)
 
     def build_encoder_layer(self, cfg):
         layer = transformer_layer.TransformerEncoderLayerBase(

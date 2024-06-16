@@ -13,7 +13,7 @@ from fairseq import utils
 from fairseq.models.transformer import TransformerConfig
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
-from fairseq.modules import LayerNorm, MultiheadAttention, NativeMultiheadAttention
+from fairseq.modules import LayerNorm, MultiheadAttention, NativeMultiheadAttention, RMSNorm
 
 
 class TransformerEncoderLayerBase(nn.Module):
@@ -40,7 +40,7 @@ class TransformerEncoderLayerBase(nn.Module):
         self.quant_noise_block_size = cfg.quant_noise.pq_block_size
         self.use_native_attention = cfg.use_native_attention
         self.self_attn = self.build_self_attention(self.embed_dim, cfg)
-        self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
+        self.self_attn_layer_norm = self.normalization(self, self.embed_dim, rms=cfg.encoder.use_rmsnorm)
 
         self.dropout_module = FairseqDropout(
             cfg.dropout, module_name=self.__class__.__name__
@@ -81,7 +81,7 @@ class TransformerEncoderLayerBase(nn.Module):
         else:
             self.gate_fc = None
 
-        self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
+        self.final_layer_norm = self.normalization(self, self.embed_dim, rms=cfg.encoder.use_rmsnorm)
 
     def build_fc1(self, input_dim, output_dim, bias, q_noise, qn_block_size):
         return quant_noise(
@@ -173,6 +173,9 @@ class TransformerEncoderLayerBase(nn.Module):
                 qn_block_size=self.quant_noise_block_size,
                 xformers_att_config=cfg.encoder.xformers_att_config,
             )
+        
+    def normalization(self, dim, rms=False):
+        return LayerNorm(dim, export=self.cfg.export) if not rms else RMSNorm(dim)
 
     def residual_connection(self, x, residual):
         return residual + x
@@ -298,6 +301,7 @@ class TransformerDecoderLayerBase(nn.Module):
         self, cfg, no_encoder_attn=False, add_bias_kv=False, add_zero_attn=False
     ):
         super().__init__()
+        self.cfg = cfg
         self.embed_dim = cfg.decoder.embed_dim
         self.dropout_module = FairseqDropout(
             cfg.dropout, module_name=self.__class__.__name__
@@ -315,7 +319,7 @@ class TransformerDecoderLayerBase(nn.Module):
             add_zero_attn=add_zero_attn,
         )
         self.attn_ln = (
-            LayerNorm(self.embed_dim)
+            self.normalization(self.embed_dim, rms=cfg.decoder.use_rmsnorm)
             if utils.safe_getattr(cfg, "scale_attn", False)
             else None
         )
@@ -337,17 +341,17 @@ class TransformerDecoderLayerBase(nn.Module):
         )
         self.normalize_before = cfg.decoder.normalize_before
 
-        self.self_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
+        self.self_attn_layer_norm = self.normalization(self.embed_dim, rms=cfg.decoder.use_rmsnorm)
 
         if no_encoder_attn:
             self.encoder_attn = None
             self.encoder_attn_layer_norm = None
         else:
             self.encoder_attn = self.build_encoder_attention(self.embed_dim, cfg)
-            self.encoder_attn_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
+            self.encoder_attn_layer_norm = self.normalization(self.embed_dim, rms=cfg.decoder.use_rmsnorm)
 
         self.ffn_layernorm = (
-            LayerNorm(cfg.decoder.ffn_embed_dim)
+            self.normalization(cfg.decoder.ffn_embed_dim, rms=cfg.decoder.use_rmsnorm)
             if utils.safe_getattr(cfg, "scale_fc", False)
             else None
         )
@@ -389,7 +393,7 @@ class TransformerDecoderLayerBase(nn.Module):
         else:
             self.gate_fc = None
 
-        self.final_layer_norm = LayerNorm(self.embed_dim, export=cfg.export)
+        self.final_layer_norm = self.normalization(self.embed_dim, rms=cfg.decoder.use_rmsnorm)
 
         self.need_attn = True
         self.onnx_trace = False
@@ -462,6 +466,9 @@ class TransformerDecoderLayerBase(nn.Module):
 
     def residual_connection(self, x, residual):
         return residual + x
+
+    def normalization(self, dim, rms=False):
+        return LayerNorm(dim, export=self.cfg.export) if not rms else RMSNorm(dim)
 
     def forward(
         self,
