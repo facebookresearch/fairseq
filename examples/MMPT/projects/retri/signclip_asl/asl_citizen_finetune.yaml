@@ -52,4 +52,4 @@ model:
 loss:
   loss_cls: MMContraLoss
 eval:
-  save_path: runs/retri/asl_citizen_finetune
+  save_path: runs/retri_asl/asl_citizen_finetune
