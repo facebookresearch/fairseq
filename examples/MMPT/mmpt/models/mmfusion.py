@@ -84,7 +84,10 @@ class MMPTModel(nn.Module):
             ],
             dim=1
         )
-        output = self.model(caps, cmasks, vfeats, vmasks)
+        if next(self.model.parameters()).is_cuda:
+            output = self.model(caps.cuda(), cmasks.cuda(), vfeats.cuda(), vmasks.cuda())
+        else:
+            output = self.model(caps, cmasks, vfeats, vmasks)
         if return_score:
             output = {"score": torch.bmm(
                 output["pooled_video"][:, None, :],

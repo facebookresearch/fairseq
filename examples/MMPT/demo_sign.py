@@ -3,8 +3,6 @@ import sys
 import torch
 import numpy as np
 from pose_format import Pose
-from sign_vq.data.normalize import pre_process_mediapipe, normalize_mean_std
-from pose_anonymization.appearance import remove_appearance
 
 from mmpt.models import MMPTModel
 
@@ -69,6 +67,10 @@ for model_name, config_path in model_configs:
         video_encoder=None,
     )
     model.eval()
+
+    if torch.cuda.is_available():
+        model.cuda()
+
     models[model_name] = {
         'model': model,
         'tokenizer': tokenizer,
@@ -112,7 +114,9 @@ def preprocess_pose(pose):
     pose = pose.normalize(pose_normalization_info(pose.header))
     pose = pose_hide_legs(pose)
     
-    
+    # from sign_vq.data.normalize import pre_process_mediapipe, normalize_mean_std
+    # from pose_anonymization.appearance import remove_appearance
+
     # pose = remove_appearance(pose)
     # pose = pre_process_mediapipe(pose)
     # pose = normalize_mean_std(pose)
@@ -149,7 +153,7 @@ def embed_pose(pose, model_name='default'):
 
         with torch.no_grad():
             output = model(pose_frames, caps, cmasks, return_score=False)
-            embeddings.append(output['pooled_video'].numpy())
+            embeddings.append(output['pooled_video'].cpu().numpy())
 
     return np.concatenate(embeddings)
 
@@ -167,7 +171,7 @@ def embed_text(text, model_name='default'):
 
         with torch.no_grad():
             output = model(pose_frames, caps, cmasks, return_score=False)
-            embeddings.append(output['pooled_text'].numpy())
+            embeddings.append(output['pooled_text'].cpu().numpy())
 
     return np.concatenate(embeddings)
 

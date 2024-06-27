@@ -867,7 +867,8 @@ class DiDeMoAligner(DSAligner):
 
 from pose_format import Pose
 from pose_format.utils.normalization_3d import PoseNormalizer
-from pose_format.utils.generic import flip_holistic, is_left_handed, pose_normalization_info
+from pose_format.utils.generic import pose_normalization_info
+# from pose_format.utils.generic import flip_holistic, is_left_handed, pose_normalization_info
 
 import mediapipe as mp
 mp_holistic = mp.solutions.holistic
