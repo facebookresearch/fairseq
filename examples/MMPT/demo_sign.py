@@ -11,50 +11,6 @@ mp_holistic = mp.solutions.holistic
 FACEMESH_CONTOURS_POINTS = [str(p) for p in sorted(set([p for p_tup in list(mp_holistic.FACEMESH_CONTOURS) for p in p_tup]))]
 
 
-sign_languages = [
-    'swl',
-    'lls',
-    'dsl',
-    'ise',
-    'bfi',
-    'gsg',
-    'asq',
-    'csq',
-    'ssp',
-    'lsl',
-    'rsl',
-    'eso',
-    'tsm',
-    'svk',
-    'rsl-by',
-    'psr',
-    'aed',
-    'cse',
-    'csl',
-    'icl',
-    'ukl',
-    'bqn',
-    'ase',
-    'pso',
-    'fsl',
-    'asf',
-    'gss',
-    'pks',
-    'fse',
-    'jsl',
-    'gss-cy',
-    'rms',
-    'bzs',
-    'csg',
-    'ins',
-    'mfs',
-    'jos',
-    'nzs',
-    'ils',
-    'csf',
-    'ysl',
-]
-
 model_configs = [
     ('default', 'signclip_v1_1/baseline_temporal'),
     ('asl_citizen', 'signclip_asl/asl_citizen_finetune'),
@@ -196,24 +152,12 @@ def score_pose_and_text_batch(pose, text, model_name='default'):
     return scores
 
 
-def guess_language(pose, languages=sign_languages):
-    text_prompt = "And I'm actually going to lock my wrists when I pike."
-    text_prompt = "Athens"
-    predictions = list(sorted([score_pose_and_text(pose, f'<en> <{lan}> {text_prompt}') for lan in languages], key=lambda t: t[1], reverse=True))
-    return predictions
-
-
 if __name__ == "__main__":
     pose_path = '/shares/volk.cl.uzh/zifjia/RWTH_Fingerspelling/pose/1_1_1_cam2.pose' if len(sys.argv) < 2 else sys.argv[1]
 
     with open(pose_path, "rb") as f:
         buffer = f.read()
         pose = Pose.read(buffer)
-
-        print(np.matmul(embed_text('<en> <ase> house'), embed_text('<en> <ase> sun').T))
-        print(np.matmul(embed_text('<en> <ase> how are you?'), embed_text('<en> <ase> sun').T))
-        print(np.matmul(embed_text('<en> <gsg> sun'), embed_text('<en> <ase> sun').T))
-        # print(embed_pose(pose))
 
         print(score_pose_and_text(pose, 'random text'))
         print(score_pose_and_text(pose, 'house'))
@@ -223,39 +167,3 @@ if __name__ == "__main__":
         print(score_pose_and_text(pose, '<en> <ase> sun'))
         print(score_pose_and_text(pose, '<en> <ase> police'))
         print(score_pose_and_text(pose, '<en> <ase> how are you?'))
-
-        # print(guess_language(pose, languages=['fsl', 'gss']))
-        # print(guess_language(pose, languages=['ase', 'gsg', 'fsl', 'ise', 'bfi', 'gss']))
-        # print(guess_language(pose))
-
-        # scores = score_pose_and_text_batch([pose, pose], ['random text', '<en> <ase>'])
-        # print(scores)
-
-        # text = [
-        #     '<en> <ase> Beijing',
-        #     '<en> <ase> China',
-        #     '<en> <ase> Tokyo',
-        #     '<en> <ase> Japan',
-        # ]
-
-        # poses = [
-        #     'stsddd22abeead72150e720f97b6c9f6166.pose',
-        #     'stsafbea76639527924ebbff40c79520dec.pose',
-        #     'stsf41d4c1f1ac7a9ae1609a7ae16045349.pose',
-        #     'sts9d24faa4b6cf2a6ad9f6931485418487.pose',
-        # ]
-
-        # text_embeddings = embed_text(text)
-        # print(text_embeddings)
-
-        # pose_dir = '/home/zifjia/shares/amoryo/datasets/sign-mt-poses'
-        # poses = [Pose.read(open(f'{pose_dir}/{pose}', 'rb').read()) for pose in poses]
-
-        # pose_embeddings = embed_pose(poses)
-        # print(pose_embeddings)
-
-        # embeddings = np.vstack((text_embeddings, pose_embeddings))
-        # print(embeddings)
-
-        # with open('test.npy', 'wb') as f:
-        #     np.save(f, embeddings)

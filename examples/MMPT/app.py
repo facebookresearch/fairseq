@@ -15,6 +15,21 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 @app.route('/api/embed/<modality>', methods=['GET'])
 def embed(modality):
+    '''
+    Returns a list of embedding(s) of the JSON data of given modality.
+
+    URL Parameters:
+        modality (string): "pose" or "text".
+
+    JSON keys:
+        model_name: the name of the model checkpoint to use, "default" or "asl_citizen".
+        pose: a list of pose data, i.e., Pose object encoded by the base64 library, see an example at
+            https://colab.research.google.com/drive/1r8GtyZOJoy_tSu62tvi7Zi2ogxcqlcsz#scrollTo=kbqu1vgUuevx.
+        text: a list of text strings.
+
+    Returns:
+        embeddings (list): a list of embedding(s).
+    '''
     payload = request.get_json()
     model_name = payload.get('model_name', 'default')
 
