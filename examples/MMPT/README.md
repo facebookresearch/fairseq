@@ -291,14 +291,34 @@ python demo_sign.py /home/ubuntu/house_sp.pose
 ('<en> <ase> how are you?', 80.26660919189453)
 ```
 
+We release the model weights for **E7.2** here (others are available on request):
+
+https://drive.google.com/drive/folders/10q7FxPlicrfwZn7_FgtNqKFDiAJi6CTc?usp=sharing
+
 ### API Server
+
+To set up an API server for the above-mentioned model, first install dependencies:
 
 ```
 pip install flask
 pip install flask_cors
 ```
 
-### Additional Analysis
+then run locally for debugging:
+
+```
+python -m flask --app app run --host=0.0.0.0 --port=3030
+```
+
+or use a [Gunicorn](https://gunicorn.org/) server for production:
+
+```
+gunicorn -t 300 -w 4 -b 0.0.0.0:3030 app:app
+```
+
+We set this up on a public URL `https://pub.cl.uzh.ch/demo/sign_clip/<modality>` for demo purposes, **please do not abuse it**.
+
+Additional demo and analysis is done using a Colab notebook with the API:
 
 https://colab.research.google.com/drive/1r8GtyZOJoy_tSu62tvi7Zi2ogxcqlcsz?usp=sharing
 
