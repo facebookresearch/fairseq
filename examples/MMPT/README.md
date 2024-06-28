@@ -1,10 +1,27 @@
-# SignCLIP - Connecting text and sign language by contrastive learning
+# SignCLIP: Connecting Text and Sign Language by Contrastive Learning
 
-This codebase is an adaption of [VideoCLIP](https://github.com/facebookresearch/fairseq/tree/main/examples/MMPT), where general videos (e.g., [HowTo100M](https://www.di.ens.fr/willow/research/howto100m/)) are replaced by specific sign language videos (e.g., [How2Sign](https://how2sign.github.io/)) to bring together text and sign language under a same latent space. See VideoCLIP's original README for an overall introduction to multimodal video understanding and instructions on installing and using the packages.
+This codebase is an adaption of [VideoCLIP](https://github.com/facebookresearch/fairseq/tree/main/examples/MMPT), where general videos (e.g., [HowTo100M](https://www.di.ens.fr/willow/research/howto100m/)) are replaced by specific sign language videos (e.g., [How2Sign](https://how2sign.github.io/)) to bring together text and sign language under a same latent space. 
 
-Video is the most available and rawest representational format that contains human motion and sign language. However, videos are very dense both temporally (*FPS*, frame per second) and spatially (resolution), which are not computationally efficient and thus require a video encoder to extract informative features with reduced dimensionalities for downstream tasks. 
+See VideoCLIP's original [README](https://github.com/facebookresearch/fairseq/tree/main/examples/MMPT#installation) for an overall introduction to multimodal video understanding and instructions on installing and using the packages. Our repo additionally requires the following packages for the development of SignCLIP:
 
-VideoCLIP uses a [S3D](https://github.com/antoine77340/S3D_HowTo100M) model pretrained on the HowTo100M instructional videos as the video encoder and it produces one video token per second. For sign language, it is possible to use a similar video encoder pretrained on sign language videos. A prominent one is the [I3D](https://www.robots.ox.ac.uk/~vgg/research/bslattend/) model pretrained specifically on the sign language recognition task of British Sign Language (BSL).
+```
+pip install tensorflow_datasets
+pip install mediapipe
+pip install scikit-learn
+
+pip install sign-language-datasets
+pip install pose-format
+
+pip install git+https://github.com/sign-language-processing/pose-anonymization
+pip install git+https://github.com/sign-language-processing/sign-vq
+pip install git+https://github.com/sign-language-processing/transcription.git@1f2cef8
+```
+
+## Background: Sign Language Representation
+
+Video is the most available and rawest representation format containing human motion and sign language. However, videos are very dense both temporally (*FPS*, frame per second) and spatially (resolution), which are not computationally efficient and thus require a video encoder to extract informative features with reduced dimensionalities for downstream tasks. 
+
+VideoCLIP uses an [S3D](https://github.com/antoine77340/S3D_HowTo100M) model pretrained on the HowTo100M instructional videos as the video encoder and it produces one video token per second. It is possible to use a similar video encoder pretrained on sign language videos for sign language. A prominent one is the [I3D](https://www.robots.ox.ac.uk/~vgg/research/bslattend/) model pretrained specifically on the sign language recognition task of British Sign Language (BSL).
 
 A potentially more interpretable and universal way of extracting sign language-related features from videos is human pose estimation, for example by [MediaPipe Holistic](https://github.com/google/mediapipe/blob/master/docs/solutions/holistic.md). Recently, quantization-based approaches (such as [SignVQNet](http://nlpcl.kaist.ac.kr/~projects/signvqnet)) have also appeared as an alternative to convert continuous representations of sign language (videos/poses) to discrete tokens similar to spoken language (sub-)words.
 
@@ -15,12 +32,12 @@ Given a 10-second 480p (640×480) RGB (3 channels) video with 30 FPS, we make a 
 | Original video | 10x30 | 640×480x3 |
 | S3D (pretrained on HowTo100M) | 10 | 512 |
 | I3D (pretrained on BSL) | 10 | 1024 |
-| MediaPipe Holistic | 10x30 | 543 |
+| MediaPipe Holistic | 10x30 | 543x3 |
 | SignVQNet | 10 | 1024 |
 
 On the text side, we follow VideoCLIP and use the pretrained [BERT](https://huggingface.co/docs/transformers/model_doc/bert) model. One additional [idea](https://github.com/sign-language-processing/transcription/blob/aa2b1ead7d39b2d545b83bac2041b4b539471a7c/pose_to_text/IDEA-CLIP.md) is to use [SignWriting](https://www.signwriting.org/about/what/what02.html#:~:text=SignWriting%20is%20a%20writing%20system,signed%20language%20in%20the%20world.) as a phonetic text representation of sign language.
 
-## FingerCLIP - Fingerspelling Understanding
+## FingerCLIP - Fingerspelling Understanding as a Proof-of-concept
 
 We start with a simple dataset, [RWTH German Fingerspelling Database](https://www-i6.informatik.rwth-aachen.de/aslr/fingerspelling.php), which contains 35 gestures with video sequences for the signs A to Z and SCH, the German umlauts Ä, Ö, Ü, and for the numbers 1 to 5. Five of the gestures contain inherent motion (J, Z, Ä, Ö, and Ü). We call the model FingerCLIP, a mini version of SignCLIP since fingerspelling is a small and special part of sign language.
 
@@ -48,7 +65,9 @@ and training strategies:
 - from scratch
 
 The same as the original VideoCLIP model training, in all experiments, the video encoders are frozen and only the weights of the two separate
-trainable Transformers (one each for video and text) are updated, initialized with the pre-trained `bert-base-uncased`. We train 25 epochs from scratch and 10 epochs for finetuning, respectively. To start the training, run the following command with the desired config file:
+trainable Transformers (one each for video and text) are updated, initialized with the pre-trained `bert-base-uncased`. We train 25 epochs from scratch and 10 epochs for finetuning, respectively. 
+
+We place all config files for FingerCLIP under the directory `projects/retri/fingerclip/`. For example, to start the training for the experiment named `rwthfs_scratch_pose` (**E3** in paper), run the following command with the desired config file:
 
 ```
 python locallaunch.py projects/retri/fingerclip/rwthfs_scratch_pose.yaml --jobtype local_single
@@ -64,7 +83,17 @@ python locallaunch.py projects/retri/fingerclip/test_rwthfs_scratch_pose.yaml --
 
 For each test text prompt `'Fingerspell the letter <letter_name> in German Sign Language.'`, there is possibly more than one correct video (e.g, the same letter signed by different signers) in the test video pool, and they are all considered a successful retrieval. We thus evaluate the text-video retrieval task by `precision@k`, i.e., in the k most similar candidates, how many of them are correct answers. For each test video example, there is only one correct text prompt out of the 35 possible prompts. We thus evaluate the video-text retrieval task by `recall@k`, i.e., by taking the k most similar candidates, how much is the chance that one of them is the correct answer. When `k=1`, both `precision@k` and `recall@k` can be interpreted as the retrieval accuracy. For both directions, we add an additional metric `Median R`, which is the median value of the index of the first correct answer in the candidate lists.
 
-Please refer to [results_rwthfs.csv](https://github.com/J22Melody/fairseq/blob/main/examples/MMPT/results_rwthfs.csv) for the evaluation results. Takeaways:
+### Results Collection and Analysis
+
+To collect evaluation results for all experiments:
+
+```
+python results_rwthfs.py
+```
+
+This will store the results in [results_rwthfs.csv](https://github.com/J22Melody/fairseq/blob/main/examples/MMPT/results_rwthfs.csv).
+
+Takeaways:
 
 - Neither zero-shot nor fine-tuned VideoCLIP is helpful, just train from scratch.
 - I3D features pretrained on BSL works better than S3D features pretrained on HowTo100M.
@@ -75,15 +104,21 @@ Please refer to [results_rwthfs.csv](https://github.com/J22Melody/fairseq/blob/m
 
 ### Demo
 
-To run the inference on an arbitrary test video and text prompts with the best model `rwthfs_scratch_hand_dominant_aug`:
+We record a video of signing the letter A and convert it to pose by the [transcription](https://github.com/sign-language-processing/transcription) library:
+
+```
+video_to_pose -i zifan_A.mediapipe.mp4 --format mediapipe -o zifan_A.mediapipe.pose
+```
+
+https://github.com/J22Melody/fairseq/assets/2316987/97c9216e-3072-4f9c-8307-2afcaca47a63
+
+And run the inference on this pose and some pre-defined text prompts with the best model `rwthfs_scratch_hand_dominant_aug`:
 
 ```
 python demo_finger.py /data/zifjia/zifan_A.mediapipe.pose
 ```
 
-We input a pose file that contains the pose estimation of the following video of signing the letter A and various text prompts to compare the similarities:
-
-https://github.com/J22Melody/fairseq/assets/2316987/97c9216e-3072-4f9c-8307-2afcaca47a63
+Compare the similarities:
 
 ```
 ('random text', 40.20402145385742)
@@ -99,6 +134,8 @@ As expected, the model scores the lowest with random text and higher with the de
 
 ## SignCLIP v0 - Isolated Sign Language Recognition (ISLR)
 
+> **_NOTE:_** This section is a preliminary exploration and not part of the paper, skip if irrelevant.
+
 We continue our exploration with the [Google - Isolated Sign Language Recognition](https://www.kaggle.com/competitions/asl-signs/data) dataset, which was released for the [Kaggle](https://www.kaggle.com/) competition on classifying isolated American Sign Language (ASL) signs. The dataset contains the pose estimation (by MediaPipe Holistic) of 94,478 signing videos of 250 different individual signs. We split them randomly into training, dev, and test sets at the ratio of 9:0.5:0.5.
 
 ### Training
@@ -109,7 +146,7 @@ Following the practice in FingerCLIP, we make each batch a collection of unique 
 - a 1D CNN layer before the video Transformer
 - aggressive dropout
 
-We always train the models from scratch and inherit the training setup from FingerCLIP. To start the training, run the following command with the desired config file:
+We always train the models from scratch and inherit the training setup from FingerCLIP. To start the training, run the following command with the desired config file (under `projects/retri/signclip/`):
 
 ```
 python locallaunch.py projects/retri/signclip/asl_signs_face.yaml --jobtype local_single
@@ -132,8 +169,163 @@ Please refer to [results_asl_signs.csv](https://github.com/J22Melody/fairseq/blo
 
 ## SignCLIP v1
 
-To fully realize the power and versatility of SignCLIP, in this version, we do not focus on a single dataset and a single task anymore. Instead, we train the models on more diverse sign language datasets with as large a batch size as we can afford (the original [CLIP](https://openai.com/research/clip) was trained with batch size 32,768). As a reference, VideoCLIP was pretrained on 1.1M videos, and the duration of each is ∼6.5 minutes with ∼110 clip-text pairs.
+To fully realize the power and versatility of SignCLIP, in this version, we do not focus on a single dataset and a single task anymore. Instead, we train the models on more diverse sign language datasets with as large a batch size as we can afford (the original [CLIP](https://openai.com/research/clip) was trained with batch size 32,768). 
 
-## Credits
+As a reference, CLIP was trained on 400 million (image, text) pairs collected from
+the internet and VideoCLIP was pretrained on 1.1M HowTo100M videos, and the duration of each is ∼6.5 minutes with ∼110 clip-text pairs.
+
+### Dataset Comparison
+
+We compare some existing datasets:
+
+| Dataset | Language | Type | #examples | #signs | #signers |
+|-----------|-----------|-----------|-----------|-----------|-----------|
+| [RWTH German Fingerspelling](https://www-i6.informatik.rwth-aachen.de/aslr/fingerspelling.php) | DGS | Isolated Fingerspelling | 1400 | 35 | 20 |
+| [ChicagoFSWild](https://home.ttic.edu/~klivescu/ChicagoFSWild.htm) | ASL | Continuous fingerspelling | 7,304 | - | 160 |
+| [ChicagoFSWild+](https://home.ttic.edu/~klivescu/ChicagoFSWild.htm) | ASL | Continuous fingerspelling | 55,232 | - | 260 |
+| [Google - American Sign Language Fingerspelling Recognition](https://www.kaggle.com/competitions/asl-fingerspelling/data) | ASL | Continuous fingerspelling | 67,208 | - | 100 |
+| [Google - Isolated Sign Language Recognition](https://www.kaggle.com/competitions/asl-signs/data) | ASL | ISLR | 94,477 | 250 | 21 |
+| [WLASL](https://dxli94.github.io/WLASL/) | ASL | ISLR | 21,083 | 2,000 | 100 |
+| [Sem-Lex](https://github.com/leekezar/SemLex) | ASL | ISLR | 91,148 | 3,149 | 41 |
+| [ASL Citizen](https://www.microsoft.com/en-us/research/project/asl-citizen/) | ASL | ISLR | 84,000 | 2,700 | - |
+| [ASL-LEX](https://asl-lex.org/about.html) | ASL | Phonological Database | - | 2,723 | - |
+| [How2Sign](https://how2sign.github.io/) | ASL | Continuous | 35,000 | 16,000 | 11 |
+| [Spreadthesign](https://www.spreadthesign.com/en.us/search/) | Multilingual | Dictionary | ~500,000 | - | - |
+
+We choose Spreadthesign as our pretraining dataset for its large-scale and [multilingual](https://github.com/sign/translate/blob/master/src/app/core/helpers/iana/languages.ts) nature.
+
+### Dataset Analysis
+
+```
+python data_stat_sp.py
+```
+
+This generates some CSV and log files that we use for making statistical plots:
+
+https://colab.research.google.com/drive/1hLB1Ydw_4cDMFzV0m0er0-T-IGldfn1y?usp=sharing
+
+### Training and Evaluation
+
+Some prelimimary config files are placed under the directory `projects/retri/signclip_v1/`, the final experiments reported in the paper are under `projects/retri/signclip_v1_1/`, and the experiments that finetune SignCLIP on three ASL ISLR datasets are under `projects/retri/signclip_asl/`.
+
+For example, to train **E7.2**, as described in the paper:
+
+```
+python locallaunch.py projects/retri/signclip_v1_1/baseline_temporal.yaml --jobtype local_single
+```
+
+and test on in-domain data :
+
+```
+python locallaunch.py projects/retri/signclip_v1_1/test_baseline_temporal.yaml --jobtype local_predict
+```
+
+and test on out-of-domain data:
+
+```
+python locallaunch.py projects/retri/signclip_v1_1/test_baseline_temporal_zs.yaml --jobtype local_predict
+```
+
+and apply pose flipping at test time (**E8**):
+
+```
+python locallaunch.py projects/retri/signclip_v1_1/test_baseline_temporal_zs_flip.yaml --jobtype local_predict
+```
+
+and apply pose anonymization at test time (**E8.1**):
+
+```
+python locallaunch.py projects/retri/signclip_v1_1/test_baseline_temporal_zs_anonym.yaml --jobtype local_predict
+```
+
+The training and testing process can be automated by:
+
+```
+bash train_and_test.sh
+```
+
+and collect final results into [results_paper.csv](https://github.com/J22Melody/fairseq/blob/main/examples/MMPT/results_paper.csv) by:
+
+```
+python results_paper.py
+```
+
+### Downstream Datasets
+
+To train from scratch or fine-tune on ASL ISLR datasets, take ASL Citizen for example:
+
+```
+python locallaunch.py projects/retri/signclip_asl/asl_citizen_scratch.yaml --jobtype local_single
+```
+
+```
+python locallaunch.py projects/retri/signclip_asl/asl_citizen_finetune.yaml --jobtype local_single
+```
+
+and test:
+
+```
+python locallaunch.py projects/retri/signclip_asl/test_asl_citizen_scratch.yaml --jobtype local_predict
+```
+
+```
+python locallaunch.py projects/retri/signclip_asl/test_asl_citizen_finetune.yaml --jobtype local_predict
+```
+
+### Demo and Model Weights
+
+Similar to FingerCLIP, we run a demo for the sign "house" in ASL from Spreadthesign:
+
+https://github.com/J22Melody/fairseq/assets/2316987/b8d883d4-65f0-478d-a008-b98e782dfe29
+
+```
+python demo_sign.py /home/ubuntu/house_sp.pose
+```
+
+```
+('random text', 62.97612380981445)
+('house', 67.9032211303711)
+('<en> <ase> house', 93.79232788085938)
+('<en> <gsg> house', 80.39485931396484)
+('<en> <fsl> house', 83.63579559326172)
+('<en> <ase> sun', 72.60753631591797)
+('<en> <ase> police', 81.2123031616211)
+('<en> <ase> how are you?', 80.26660919189453)
+```
+
+We release the model weights for **E7.2** here (others are available on request):
+
+https://drive.google.com/drive/folders/10q7FxPlicrfwZn7_FgtNqKFDiAJi6CTc?usp=sharing
+
+### API Server
+
+To set up an API server for the above-mentioned model, first install dependencies:
+
+```
+pip install flask
+pip install flask_cors
+```
+
+then run locally for debugging:
+
+```
+python -m flask --app app run --host=0.0.0.0 --port=3030
+```
+
+or use a [Gunicorn](https://gunicorn.org/) server for production:
+
+```
+gunicorn -t 300 -w 4 -b 0.0.0.0:3030 app:app
+```
+
+We set this up on a public URL `https://pub.cl.uzh.ch/demo/sign_clip/<modality>` for demo purposes, **please do not abuse it**.
+
+Additional demo and analysis is done using a Colab notebook with the API:
+
+https://colab.research.google.com/drive/1r8GtyZOJoy_tSu62tvi7Zi2ogxcqlcsz?usp=sharing
+
+## Citation and Credits
+
+Please cite our paper as follows: TODO
 
 Mathias Müller ([@bricksdont](https://github.com/bricksdont)) proposes the [initial idea](https://docs.google.com/document/d/1mUSLZs_DWc4mHn_nt0soKf1hsTtbrHUUnEX_QBCth5w/edit#heading=h.p699gptqhse9) of a CLIP-like model for sign language.

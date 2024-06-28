@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import pickle
 import math
+from pathlib import Path
 
 from tqdm import tqdm
 
@@ -116,6 +117,7 @@ class RetrievalPredictor(Predictor):
         from transformers import AutoTokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(
             config.dataset.bert_name)
+        self.config = config
 
     def predict_loop(
         self,
@@ -157,10 +159,23 @@ class RetrievalPredictor(Predictor):
         self._append_scores(scores, full_scores)
 
     def finalize(self, full_scores, texts, video_ids, output_file=None):
-        outputs = self._aggregate_scores(full_scores)
+        outputs, text_hidden, video_hidden = self._aggregate_scores(full_scores)
+        video_ids = [(int(item.item()) if torch.is_tensor(item) else item) for sublist in video_ids for item in sublist]
+
         if output_file is not None:
-            np.save(os.path.join(self.pred_dir, output_file + ".npy"), outputs)
-        video_ids = [item for sublist in video_ids for item in sublist]
+            if self.config.dataset.test_datasets:
+                dir_name = f"{self.config.dataset.test_datasets[0][0]}_{self.config.dataset.split}"
+            else:
+                dir_name = self.config.dataset.split
+            pred_dir = os.path.join(self.pred_dir, dir_name)
+            Path(pred_dir).mkdir(parents=True, exist_ok=True)
+
+            np.save(os.path.join(pred_dir, output_file + ".npy"), outputs)
+            np.save(os.path.join(pred_dir, "video_embeddings.npy"), video_hidden)
+            with open(os.path.join(pred_dir, "texts.txt"), 'w') as f:
+                for line in texts:
+                    f.write(f"{line}\n")
+
         return {"outputs": outputs, "texts": texts, "video_ids": video_ids}
 
     def _get_pooled_outputs(self, outputs):
@@ -183,7 +198,7 @@ class RetrievalPredictor(Predictor):
         text_hidden = np.concatenate(scores[1], axis=0)
         # clear up.
         self.full_scores = []
-        return np.matmul(text_hidden, video_hidden.T)
+        return np.matmul(text_hidden, video_hidden.T), text_hidden, video_hidden
 
 
 class QAPredictor(Predictor):

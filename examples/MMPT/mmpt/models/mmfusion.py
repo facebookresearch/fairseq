@@ -84,7 +84,10 @@ class MMPTModel(nn.Module):
             ],
             dim=1
         )
-        output = self.model(caps, cmasks, vfeats, vmasks)
+        if next(self.model.parameters()).is_cuda:
+            output = self.model(caps.cuda(), cmasks.cuda(), vfeats.cuda(), vmasks.cuda())
+        else:
+            output = self.model(caps, cmasks, vfeats, vmasks)
         if return_score:
             output = {"score": torch.bmm(
                 output["pooled_video"][:, None, :],
@@ -146,6 +149,12 @@ class MMFusion(nn.Module):
                 config.dataset.bert_name)
         else:
             raise ValueError("the encoder must be either MM or two backbones.")
+
+        if "multimodal_projection" in config.model:
+            from .transformermodel import Multimodal_Projection
+            l2_norm = config.model.multimodal_projection == 'l2_norm'
+            self.video_projection = Multimodal_Projection(l2_norm)
+            self.text_projection = Multimodal_Projection(l2_norm)
 
     def forward(
         self,
@@ -580,6 +589,10 @@ class MMFusionSeparate(MMFusionShare):
             video_outputs.transpose(2, 1),
             video_attention_mask.unsqueeze(2)
         ).squeeze(-1)
+
+        if hasattr(self, 'video_projection'):
+            pooled_video = self.video_projection(pooled_video)
+
         return pooled_video  # video_outputs
 
     def forward_text(
@@ -631,6 +644,10 @@ class MMFusionSeparate(MMFusionShare):
             text_outputs.transpose(2, 1),
             text_attention_mask.unsqueeze(2)
         ).squeeze(-1)
+
+        if hasattr(self, 'text_projection'):
+            pooled_text = self.text_projection(pooled_text)
+
         return pooled_text  # text_outputs
 
 

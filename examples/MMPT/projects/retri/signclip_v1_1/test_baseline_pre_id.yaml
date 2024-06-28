@@ -1,0 +1,35 @@
+dataset:
+  max_video_len: 256
+  max_len: 64
+  split: test
+  meta_processor: SignCLIPPretrainMetaProcessor
+  video_processor: PoseProcessor
+  text_processor: TextProcessor
+  bert_name: bert-base-cased
+  test_path: /home/zifjia/datasets/sign_language_datasets/datasets/spread_the_sign/splits/1.0.0-uzh/test.txt
+  metadata_path: /shares/volk.cl.uzh/amoryo/datasets/SperadTheSign.csv
+  vfeat_dir: /shares/volk.cl.uzh/amoryo/datasets/sign-mt-poses/
+  aligner: DSAligner
+  preprocess: 'sign-vq'
+  task: 'identification'
+slurm_config: big
+task_type: local_predict
+fairseq:
+  dataset:
+    # batch_size: 256
+    batch_size: 512
+    valid_subset: test
+    num_workers: 2
+  common_eval:
+    path: runs/retri_v1_1/baseline_pre/checkpoint_best.pt
+model:
+  model_cls: MMFusionSeparate
+  mm_encoder_cls: null
+  video_encoder_cls: MMBertForEncoder
+  text_encoder_cls: BertModel
+  num_hidden_video_layers: 12
+  vfeat_dim: 534
+eval:
+  save_path: runs/retri_v1_1/baseline_pre/eval_id
+metric: RWTHFSMetric
+predictor: RetrievalPredictor

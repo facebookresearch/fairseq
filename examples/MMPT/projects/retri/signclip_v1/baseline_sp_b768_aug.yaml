@@ -1,0 +1,53 @@
+dataset:
+  max_video_len: 256
+  max_len: 64
+  meta_processor: SignCLIPPretrainMetaProcessor
+  video_processor: PoseProcessor
+  text_processor: TextProcessor
+  bert_name: bert-base-cased
+  test_path: /home/zifjia/datasets/sign_language_datasets/datasets/spread_the_sign/splits/1.0.0-uzh/test.txt
+  val_path: /home/zifjia/datasets/sign_language_datasets/datasets/spread_the_sign/splits/1.0.0-uzh/val.txt
+  train_path: /home/zifjia/datasets/sign_language_datasets/datasets/spread_the_sign/splits/1.0.0-uzh/train.txt
+  metadata_path: /shares/volk.cl.uzh/amoryo/datasets/SperadTheSign.csv
+  vfeat_dir: /shares/volk.cl.uzh/amoryo/datasets/sign-mt-poses/
+  aligner: DSAligner
+  pose_components: 'reduced_face'
+  augment2d: true
+fairseq:
+  common:
+    fp16: true
+    tensorboard_logdir: run
+    log_interval: 1000
+  dataset:
+    num_workers: 4
+    batch_size: 768 # fit on 80GB GPU
+  optimization:
+    lr:
+    - 5.0e-05
+    clip_norm: 2.0
+    optimizer: adam
+    adam_betas: (0.9, 0.98)
+    lr_scheduler: polynomial_decay
+    total_num_update: 1000000
+    warmup_updates: 1000
+    weight_decay: 0.0
+    ddp_backend: no_c10d
+    max_epoch: 25
+  checkpoint:
+    no_epoch_checkpoints: true
+    reset_optimizer: true
+    reset_dataloader: true
+    reset_meters: true
+    save_dir: runs/retri/baseline_sp_b768_aug
+task_type: sweep_small
+model:
+  model_cls: MMFusionSeparate
+  mm_encoder_cls: null
+  video_encoder_cls: MMBertForEncoder
+  text_encoder_cls: BertModel
+  num_hidden_video_layers: 6
+  vfeat_dim: 609
+loss:
+  loss_cls: MMContraLoss
+eval:
+  save_path: runs/retri/baseline_sp_b768_aug

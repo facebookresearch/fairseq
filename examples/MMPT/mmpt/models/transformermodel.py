@@ -29,7 +29,7 @@ try:
 except ImportError:
     pass
 
-from ..modules import VideoConv1D, VideoTokenMLP, MMBertEmbeddings
+from ..modules import VideoConv1D, VideoTokenMLP, MMBertEmbeddings, Multimodal_Projection
 
 
 # --------------- fine-tuning models ---------------

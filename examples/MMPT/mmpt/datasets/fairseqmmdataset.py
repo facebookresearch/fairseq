@@ -35,7 +35,11 @@ class FairseqMMDataset(FairseqDataset):
         return len(self.mmdataset)
 
     def collater(self, samples):
-        # print('-------------------')
+        # print('batch size:', len(samples))
+        # if self.mmdataset.split == "train":
+        #     print('-------')
+        #     print([sample['caps'] for sample in samples])
+        #     print('-------')
         if hasattr(self.mmdataset, "collator"):
             return self.mmdataset.collator(samples)
         if len(samples) == 0:

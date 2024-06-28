@@ -29,6 +29,19 @@ except ImportError:
     pass
 
 
+class Multimodal_Projection(nn.Module):
+    def __init__(self, l2_norm=False, in_dim=768, out_dim=768):
+        super().__init__()
+        self.linear = nn.Linear(in_dim, out_dim, bias=False)
+        self.l2_norm = l2_norm
+
+    def forward(self, hidden_states):
+        hidden_states = self.linear(hidden_states)
+        if self.l2_norm:
+            hidden_states = nn.functional.normalize(hidden_states, p=2, dim=1)
+        return hidden_states
+
+
 class VideoConv1D(nn.Module):
     def __init__(self, config, kernel_size=17):
         super().__init__()

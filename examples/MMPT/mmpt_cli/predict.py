@@ -62,48 +62,54 @@ def main(args):
     mmtask = Task.config_task(config)
     mmtask.build_model()
 
-    test_dataloader = get_dataloader(config)
-    checkpoint_search_path = os.path.dirname(config.eval.save_path)
-    results = []
+    configs = [config]
 
-    prefix = os.path.basename(args.taskconfig)
-    if prefix.startswith("test"):
-        # loop all checkpoint for datasets without validation set.
-        if "best" not in config.fairseq.common_eval.path:
-            print("eval each epoch.")
-            for checkpoint in glob.glob(checkpoint_search_path + "/checkpoint*"):
-                model = mmtask.load_checkpoint(checkpoint)
-                ckpt = os.path.basename(checkpoint)
-                evaluator = Evaluator(config)
-                output = evaluator.evaluate(
-                    model, test_dataloader, ckpt + "_merged")
-                results.append((checkpoint, output))
-        # use the one specified by the config lastly.
-        model = mmtask.load_checkpoint(config.fairseq.common_eval.path)
-        evaluator = Evaluator(config)
-        output = evaluator.evaluate(model, test_dataloader)
-        results.append((config.fairseq.common_eval.path, output))
+    if config['dataset']['test_separately']:
+        configs = [OmegaConf.create(dict(config, dataset=dict(config['dataset'], test_datasets=[test_dataset]))) for test_dataset in config['dataset']['test_datasets']]
 
-        best_result = None
-        best_metric = 0.
-        for checkpoint, result in results:
-            # print(checkpoint)
-            # evaluator.metric.print_computed_metrics(result)
-            best_score = evaluator.metric.best_metric(result)
-            if best_score > best_metric:
-                best_result = (checkpoint, result)
-                best_metric = best_score
-        print("best results:")
-        print(best_result[0])
-        evaluator.metric.print_computed_metrics(best_result[1])
+    for config in configs:
+        test_dataloader = get_dataloader(config)
+        checkpoint_search_path = os.path.dirname(config.eval.save_path)
+        results = []
 
-    elif prefix.startswith("vis"):
-        model = mmtask.load_checkpoint(config.fairseq.common_eval.path)
-        predictor_cls = getattr(predictor_path, config.predictor)
-        predictor = predictor_cls(config)
-        predictor.predict_loop(model, test_dataloader, mmtask, None)
-    else:
-        raise ValueError("unknown prefix of the config file", args.taskconfig)
+        prefix = os.path.basename(args.taskconfig)
+        if prefix.startswith("test"):
+            # loop all checkpoint for datasets without validation set.
+            if "best" not in config.fairseq.common_eval.path:
+                print("eval each epoch.")
+                for checkpoint in glob.glob(checkpoint_search_path + "/checkpoint*"):
+                    model = mmtask.load_checkpoint(checkpoint)
+                    ckpt = os.path.basename(checkpoint)
+                    evaluator = Evaluator(config)
+                    output = evaluator.evaluate(
+                        model, test_dataloader, ckpt + "_merged")
+                    results.append((checkpoint, output))
+            # use the one specified by the config lastly.
+            model = mmtask.load_checkpoint(config.fairseq.common_eval.path)
+            evaluator = Evaluator(config)
+            output = evaluator.evaluate(model, test_dataloader)
+            results.append((config.fairseq.common_eval.path, output))
+
+            best_result = None
+            best_metric = 0.
+            for checkpoint, result in results:
+                # print(checkpoint)
+                # evaluator.metric.print_computed_metrics(result)
+                best_score = evaluator.metric.best_metric(result)
+                if best_score > best_metric:
+                    best_result = (checkpoint, result)
+                    best_metric = best_score
+            print("best results:")
+            print(best_result[0])
+            evaluator.metric.print_computed_metrics(best_result[1])
+
+        elif prefix.startswith("vis"):
+            model = mmtask.load_checkpoint(config.fairseq.common_eval.path)
+            predictor_cls = getattr(predictor_path, config.predictor)
+            predictor = predictor_cls(config)
+            predictor.predict_loop(model, test_dataloader, mmtask, None)
+        else:
+            raise ValueError("unknown prefix of the config file", args.taskconfig)
 
 
 if __name__ == "__main__":
