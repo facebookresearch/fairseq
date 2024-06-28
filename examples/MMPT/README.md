@@ -346,6 +346,8 @@ Additional demo and analysis is done using a Colab notebook with the API:
 
 https://colab.research.google.com/drive/1r8GtyZOJoy_tSu62tvi7Zi2ogxcqlcsz?usp=sharing
 
+This notebook shows how to get SignCLIP embeddings given text and sign language videos via the API.
+
 ## Citation and Credits
 
 Please cite our paper as follows: TODO
