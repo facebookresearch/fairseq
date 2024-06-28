@@ -1,4 +1,4 @@
-# SignCLIP - Connecting text and sign language by contrastive learning
+# SignCLIP: Connecting Text and Sign Language by Contrastive Learning
 
 This codebase is an adaption of [VideoCLIP](https://github.com/facebookresearch/fairseq/tree/main/examples/MMPT), where general videos (e.g., [HowTo100M](https://www.di.ens.fr/willow/research/howto100m/)) are replaced by specific sign language videos (e.g., [How2Sign](https://how2sign.github.io/)) to bring together text and sign language under a same latent space. 
 
@@ -146,7 +146,7 @@ Following the practice in FingerCLIP, we make each batch a collection of unique 
 - a 1D CNN layer before the video Transformer
 - aggressive dropout
 
-We always train the models from scratch and inherit the training setup from FingerCLIP. To start the training, run the following command with the desired config file:
+We always train the models from scratch and inherit the training setup from FingerCLIP. To start the training, run the following command with the desired config file (under `projects/retri/signclip/`):
 
 ```
 python locallaunch.py projects/retri/signclip/asl_signs_face.yaml --jobtype local_single
@@ -204,12 +204,103 @@ This generates some CSV and log files that we use for making statistical plots:
 
 https://colab.research.google.com/drive/1hLB1Ydw_4cDMFzV0m0er0-T-IGldfn1y?usp=sharing
 
+### Training and Evaluation
+
+Some prelimimary config files are placed under the directory `projects/retri/signclip_v1/`, the final experiments reported in the paper are under `projects/retri/signclip_v1_1/`, and the experiments that finetune SignCLIP on three ASL ISLR datasets are under `projects/retri/signclip_asl/`.
+
+For example, to train **E7.2**, as described in the paper:
+
+```
+python locallaunch.py projects/retri/signclip_v1_1/baseline_temporal.yaml --jobtype local_single
+```
+
+and test on in-domain data :
+
+```
+python locallaunch.py projects/retri/signclip_v1_1/test_baseline_temporal.yaml --jobtype local_predict
+```
+
+and test on out-of-domain data:
+
+```
+python locallaunch.py projects/retri/signclip_v1_1/test_baseline_temporal_zs.yaml --jobtype local_predict
+```
+
+and apply pose flipping at test time (**E8**):
+
+```
+python locallaunch.py projects/retri/signclip_v1_1/test_baseline_temporal_zs_flip.yaml --jobtype local_predict
+```
+
+and apply pose anonymization at test time (**E8.1**):
+
+```
+python locallaunch.py projects/retri/signclip_v1_1/test_baseline_temporal_zs_anonym.yaml --jobtype local_predict
+```
+
+The training and testing process can be automated by:
+
+```
+bash train_and_test.sh
+```
+
+and collect final results into [results_paper.csv](https://github.com/J22Melody/fairseq/blob/main/examples/MMPT/results_paper.csv) by:
+
+```
+python results_paper.py
+```
+
+### Downstream Datasets
+
+To train from scratch or fine-tune on ASL ISLR datasets, take ASL Citizen for example:
+
+```
+python locallaunch.py projects/retri/signclip_asl/asl_citizen_scratch.yaml --jobtype local_single
+```
+
+```
+python locallaunch.py projects/retri/signclip_asl/asl_citizen_finetune.yaml --jobtype local_single
+```
+
+and test:
+
+```
+python locallaunch.py projects/retri/signclip_asl/test_asl_citizen_scratch.yaml --jobtype local_predict
+```
+
+```
+python locallaunch.py projects/retri/signclip_asl/test_asl_citizen_finetune.yaml --jobtype local_predict
+```
+
+### Demo and Model Weights
+
+Similar to FingerCLIP, we run a demo for the sign "house" in ASL:
+
+```
+python demo_sign.py /home/ubuntu/house_sp.pose
+```
+
+```
+('random text', 62.97612380981445)
+('house', 67.9032211303711)
+('<en> <ase> house', 93.79232788085938)
+('<en> <gsg> house', 80.39485931396484)
+('<en> <fsl> house', 83.63579559326172)
+('<en> <ase> sun', 72.60753631591797)
+('<en> <ase> police', 81.2123031616211)
+('<en> <ase> how are you?', 80.26660919189453)
+```
+
 ### API Server
 
 ```
 pip install flask
 pip install flask_cors
 ```
+
+### Additional Analysis
+
+https://colab.research.google.com/drive/1r8GtyZOJoy_tSu62tvi7Zi2ogxcqlcsz?usp=sharing
 
 ## Citation and Credits
 
