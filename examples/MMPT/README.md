@@ -322,6 +322,24 @@ or use a [Gunicorn](https://gunicorn.org/) server for production:
 gunicorn -t 300 -w 4 -b 0.0.0.0:3030 app:app
 ```
 
+To test locally:
+
+```
+python client_example.py
+```
+
+or simply by cURL:
+
+```
+curl --location --request GET 'http://localhost:3030/api/embed/text' \
+--header 'Content-Type: application/json' \
+--data '{
+    "text": [
+        "random text."
+    ]
+}'
+```
+
 We set this up on a public URL `https://pub.cl.uzh.ch/demo/sign_clip/<modality>` for demo purposes, **please do not abuse it**.
 
 Additional demo and analysis is done using a Colab notebook with the API:
