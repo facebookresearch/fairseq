@@ -17,6 +17,8 @@ pip install git+https://github.com/sign-language-processing/sign-vq
 pip install git+https://github.com/sign-language-processing/transcription.git@1f2cef8
 ```
 
+This document serves as a guideline for using our code and models and reproducing our findings. Please refer to our research paper (TODO: upload Arxiv version) for full discussion and details.
+
 ## Background: Sign Language Representation
 
 Video is the most available and rawest representation format containing human motion and sign language. However, videos are very dense both temporally (*FPS*, frame per second) and spatially (resolution), which are not computationally efficient and thus require a video encoder to extract informative features with reduced dimensionalities for downstream tasks. 
@@ -41,11 +43,13 @@ On the text side, we follow VideoCLIP and use the pretrained [BERT](https://hugg
 
 We start with a simple dataset, [RWTH German Fingerspelling Database](https://www-i6.informatik.rwth-aachen.de/aslr/fingerspelling.php), which contains 35 gestures with video sequences for the signs A to Z and SCH, the German umlauts Ä, Ö, Ü, and for the numbers 1 to 5. Five of the gestures contain inherent motion (J, Z, Ä, Ö, and Ü). We call the model FingerCLIP, a mini version of SignCLIP since fingerspelling is a small and special part of sign language.
 
-The database consists of 1400 videos that contain gestures of 20 different persons. The gestures were recorded by two cameras, one webcam and one camcorder, from two different points of view. The webcam named `cam1` recorded the dominant hands only with a resolution of 320x240 at 25 frames per second, and the camcorder named `cam2` recorded the whole body with a resolution of 352x288 at 25 frames per second. We exclude all `cam1` videos for pose estimation since we assume that the pose estimation model expects whole-body input. Each video file is named `<signer_id>_<letter_id>_<seq_id>_<camera_id>.mpg`. We take all video files and split them randomly into training, dev, and test sets at the ratio of 8:1:1.
+<!-- The database consists of 1400 videos that contain gestures of 20 different persons. The gestures were recorded by two cameras, one webcam and one camcorder, from two different points of view. The webcam named `cam1` recorded the dominant hands only with a resolution of 320x240 at 25 frames per second, and the camcorder named `cam2` recorded the whole body with a resolution of 352x288 at 25 frames per second. We exclude all `cam1` videos for pose estimation since we assume that the pose estimation model expects whole-body input. Each video file is named `<signer_id>_<letter_id>_<seq_id>_<camera_id>.mpg`. We take all video files and split them randomly into training, dev, and test sets at the ratio of 8:1:1. -->
 
 ### Training
 
-For contrastive training, we use a batch size of 35 and make each batch a collection of 35 different gestures with their corresponding text prompt `'Fingerspell the letter <letter_name> in German Sign Language.'` regardless of the camera type. By optimizing the [InfoNCE loss](https://arxiv.org/abs/1807.03748), we want the video embedding of a gesture to move closer to the corresponding text embedding, as well as to move further away from the remaining 34 negative examples in the same batch. We test the viability of the idea using different combinations of video encoders/features:
+<!-- For contrastive training, we use a batch size of 35 and make each batch a collection of 35 different gestures with their corresponding text prompt `'Fingerspell the letter <letter_name> in German Sign Language.'` regardless of the camera type. By optimizing the [InfoNCE loss](https://arxiv.org/abs/1807.03748), we want the video embedding of a gesture to move closer to the corresponding text embedding, as well as to move further away from the remaining 34 negative examples in the same batch.  -->
+
+We test the viability of the idea using different combinations of video encoders/features:
 
 - [S3D](https://github.com/antoine77340/S3D_HowTo100M) HowTo100M video features
 - [I3D](https://www.robots.ox.ac.uk/~vgg/research/bslattend/data/bsl5k.pth.tar) BSL video features ([code](https://github.com/gulvarol/bsl1k))
@@ -81,7 +85,7 @@ We evaluate the models by viewing fingerspelling understanding as a text-video/v
 python locallaunch.py projects/retri/fingerclip/test_rwthfs_scratch_pose.yaml --jobtype local_predict
 ```
 
-For each test text prompt `'Fingerspell the letter <letter_name> in German Sign Language.'`, there is possibly more than one correct video (e.g, the same letter signed by different signers) in the test video pool, and they are all considered a successful retrieval. We thus evaluate the text-video retrieval task by `precision@k`, i.e., in the k most similar candidates, how many of them are correct answers. For each test video example, there is only one correct text prompt out of the 35 possible prompts. We thus evaluate the video-text retrieval task by `recall@k`, i.e., by taking the k most similar candidates, how much is the chance that one of them is the correct answer. When `k=1`, both `precision@k` and `recall@k` can be interpreted as the retrieval accuracy. For both directions, we add an additional metric `Median R`, which is the median value of the index of the first correct answer in the candidate lists.
+<!-- For each test text prompt `'Fingerspell the letter <letter_name> in German Sign Language.'`, there is possibly more than one correct video (e.g, the same letter signed by different signers) in the test video pool, and they are all considered a successful retrieval. We thus evaluate the text-video retrieval task by `precision@k`, i.e., in the k most similar candidates, how many of them are correct answers. For each test video example, there is only one correct text prompt out of the 35 possible prompts. We thus evaluate the video-text retrieval task by `recall@k`, i.e., by taking the k most similar candidates, how much is the chance that one of them is the correct answer. When `k=1`, both `precision@k` and `recall@k` can be interpreted as the retrieval accuracy. For both directions, we add an additional metric `Median R`, which is the median value of the index of the first correct answer in the candidate lists. -->
 
 ### Results Collection and Analysis
 
@@ -100,7 +104,7 @@ Takeaways:
 - Pose estimation as a feature extractor works better than 3D-CNN-based video encoders, probably because it is more universal. It is also more interpretable and operable (for data normalization and augmentation). 
 - For fingerspelling, it is beneficial to focus on just the dominant hand.
 - Video-text retrieval is more challenging than text-video retrieval. Video-text retrieval is also more valuable since it involves sign language video recognition and understanding, while text-video retrieval can sometimes be easily implemented as a sign language dictionary lookup.
-- FingerCLIP solves both directions well, i.e., FingerCLIP understands isolated fingerspelling of the letters in German Sign Language (DGS).
+- FingerCLIP solves both directions well, i.e., FingerCLIP understands isolated fingerspelling of the letters in German Sign Language (DGS). 
 
 ### Demo
 
@@ -176,7 +180,7 @@ the internet and VideoCLIP was pretrained on 1.1M HowTo100M videos, and the dura
 
 ### Dataset Comparison
 
-We compare some existing datasets:
+We present some existing datasets:
 
 | Dataset | Language | Type | #examples | #signs | #signers |
 |-----------|-----------|-----------|-----------|-----------|-----------|
@@ -206,7 +210,7 @@ https://colab.research.google.com/drive/1hLB1Ydw_4cDMFzV0m0er0-T-IGldfn1y?usp=sh
 
 ### Training and Evaluation
 
-Some prelimimary config files are placed under the directory `projects/retri/signclip_v1/`, the final experiments reported in the paper are under `projects/retri/signclip_v1_1/`, and the experiments that finetune SignCLIP on three ASL ISLR datasets are under `projects/retri/signclip_asl/`.
+The final experiments reported in the paper are under `projects/retri/signclip_v1_1/` and the experiments that finetune SignCLIP on three ASL ISLR datasets are under `projects/retri/signclip_asl/` (some preliminary config files are placed under the directory `projects/retri/signclip_v1/`).
 
 For example, to train **E7.2**, as described in the paper:
 
