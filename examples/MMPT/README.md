@@ -274,7 +274,9 @@ python locallaunch.py projects/retri/signclip_asl/test_asl_citizen_finetune.yaml
 
 ### Demo and Model Weights
 
-Similar to FingerCLIP, we run a demo for the sign "house" in ASL:
+Similar to FingerCLIP, we run a demo for the sign "house" in ASL from Spreadthesign:
+
+https://github.com/J22Melody/fairseq/assets/2316987/b8d883d4-65f0-478d-a008-b98e782dfe29
 
 ```
 python demo_sign.py /home/ubuntu/house_sp.pose
