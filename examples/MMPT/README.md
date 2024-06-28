@@ -1,6 +1,30 @@
 # SignCLIP - Connecting text and sign language by contrastive learning
 
-This codebase is an adaption of [VideoCLIP](https://github.com/facebookresearch/fairseq/tree/main/examples/MMPT), where general videos (e.g., [HowTo100M](https://www.di.ens.fr/willow/research/howto100m/)) are replaced by specific sign language videos (e.g., [How2Sign](https://how2sign.github.io/)) to bring together text and sign language under a same latent space. See VideoCLIP's original README for an overall introduction to multimodal video understanding and instructions on installing and using the packages.
+This codebase is an adaption of [VideoCLIP](https://github.com/facebookresearch/fairseq/tree/main/examples/MMPT), where general videos (e.g., [HowTo100M](https://www.di.ens.fr/willow/research/howto100m/)) are replaced by specific sign language videos (e.g., [How2Sign](https://how2sign.github.io/)) to bring together text and sign language under a same latent space. 
+
+See VideoCLIP's original [README](https://github.com/facebookresearch/fairseq/tree/main/examples/MMPT#installation) for an overall introduction to multimodal video understanding and instructions on installing and using the packages. Our repo additionally requrires the following packages for the development of SignCLIP:
+
+```
+pip install tensorflow_datasets
+pip install mediapipe
+pip install scikit-learn
+
+pip install sign-language-datasets
+pip install pose-format
+
+pip install git+https://github.com/sign-language-processing/pose-anonymization
+pip install git+https://github.com/sign-language-processing/sign-vq
+pip install git+https://github.com/sign-language-processing/transcription.git@1f2cef8
+```
+
+For the API server:
+
+```
+pip install flask
+pip install flask_cors
+```
+
+## Background: Sign Language Representation
 
 Video is the most available and rawest representational format that contains human motion and sign language. However, videos are very dense both temporally (*FPS*, frame per second) and spatially (resolution), which are not computationally efficient and thus require a video encoder to extract informative features with reduced dimensionalities for downstream tasks. 
 
@@ -48,7 +72,9 @@ and training strategies:
 - from scratch
 
 The same as the original VideoCLIP model training, in all experiments, the video encoders are frozen and only the weights of the two separate
-trainable Transformers (one each for video and text) are updated, initialized with the pre-trained `bert-base-uncased`. We train 25 epochs from scratch and 10 epochs for finetuning, respectively. To start the training, run the following command with the desired config file:
+trainable Transformers (one each for video and text) are updated, initialized with the pre-trained `bert-base-uncased`. We train 25 epochs from scratch and 10 epochs for finetuning, respectively. 
+
+We place all config files for FingerCLIP under the directory `projects/retri/fingerclip/`. For example, to start the training for the experiment named `rwthfs_scratch_pose` (**E3** in paper), run the following command with the desired config file:
 
 ```
 python locallaunch.py projects/retri/fingerclip/rwthfs_scratch_pose.yaml --jobtype local_single
@@ -64,7 +90,17 @@ python locallaunch.py projects/retri/fingerclip/test_rwthfs_scratch_pose.yaml --
 
 For each test text prompt `'Fingerspell the letter <letter_name> in German Sign Language.'`, there is possibly more than one correct video (e.g, the same letter signed by different signers) in the test video pool, and they are all considered a successful retrieval. We thus evaluate the text-video retrieval task by `precision@k`, i.e., in the k most similar candidates, how many of them are correct answers. For each test video example, there is only one correct text prompt out of the 35 possible prompts. We thus evaluate the video-text retrieval task by `recall@k`, i.e., by taking the k most similar candidates, how much is the chance that one of them is the correct answer. When `k=1`, both `precision@k` and `recall@k` can be interpreted as the retrieval accuracy. For both directions, we add an additional metric `Median R`, which is the median value of the index of the first correct answer in the candidate lists.
 
-Please refer to [results_rwthfs.csv](https://github.com/J22Melody/fairseq/blob/main/examples/MMPT/results_rwthfs.csv) for the evaluation results. Takeaways:
+### Results Collection and Analysis
+
+To collect evaluation results for all experiments:
+
+```
+python results_rwthfs.py
+```
+
+This will store the results in [results_rwthfs.csv](https://github.com/J22Melody/fairseq/blob/main/examples/MMPT/results_rwthfs.csv).
+
+Takeaways:
 
 - Neither zero-shot nor fine-tuned VideoCLIP is helpful, just train from scratch.
 - I3D features pretrained on BSL works better than S3D features pretrained on HowTo100M.
@@ -75,15 +111,21 @@ Please refer to [results_rwthfs.csv](https://github.com/J22Melody/fairseq/blob/m
 
 ### Demo
 
-To run the inference on an arbitrary test video and text prompts with the best model `rwthfs_scratch_hand_dominant_aug`:
+We record a video of signing the letter A and convert it to pose by the [transcription](https://github.com/sign-language-processing/transcription) library:
+
+```
+video_to_pose -i zifan_A.mediapipe.mp4 --format mediapipe -o zifan_A.mediapipe.pose
+```
+
+https://github.com/J22Melody/fairseq/assets/2316987/97c9216e-3072-4f9c-8307-2afcaca47a63
+
+And run the inference on this pose and some pre-defined text prompts with the best model `rwthfs_scratch_hand_dominant_aug`:
 
 ```
 python demo_finger.py /data/zifjia/zifan_A.mediapipe.pose
 ```
 
-We input a pose file that contains the pose estimation of the following video of signing the letter A and various text prompts to compare the similarities:
-
-https://github.com/J22Melody/fairseq/assets/2316987/97c9216e-3072-4f9c-8307-2afcaca47a63
+Compare the similarities:
 
 ```
 ('random text', 40.20402145385742)
@@ -155,6 +197,8 @@ All languages in Spreadthesign:
 
 https://github.com/sign/translate/blob/master/src/app/core/helpers/iana/languages.ts
 
-## Credits
+## Citation and Credits
+
+Please cite our paper as follows: TODO
 
 Mathias Müller ([@bricksdont](https://github.com/bricksdont)) proposes the [initial idea](https://docs.google.com/document/d/1mUSLZs_DWc4mHn_nt0soKf1hsTtbrHUUnEX_QBCth5w/edit#heading=h.p699gptqhse9) of a CLIP-like model for sign language.
