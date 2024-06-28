@@ -17,13 +17,6 @@ pip install git+https://github.com/sign-language-processing/sign-vq
 pip install git+https://github.com/sign-language-processing/transcription.git@1f2cef8
 ```
 
-For the API server:
-
-```
-pip install flask
-pip install flask_cors
-```
-
 ## Background: Sign Language Representation
 
 Video is the most available and rawest representation format containing human motion and sign language. However, videos are very dense both temporally (*FPS*, frame per second) and spatially (resolution), which are not computationally efficient and thus require a video encoder to extract informative features with reduced dimensionalities for downstream tasks. 
@@ -44,7 +37,7 @@ Given a 10-second 480p (640×480) RGB (3 channels) video with 30 FPS, we make a 
 
 On the text side, we follow VideoCLIP and use the pretrained [BERT](https://huggingface.co/docs/transformers/model_doc/bert) model. One additional [idea](https://github.com/sign-language-processing/transcription/blob/aa2b1ead7d39b2d545b83bac2041b4b539471a7c/pose_to_text/IDEA-CLIP.md) is to use [SignWriting](https://www.signwriting.org/about/what/what02.html#:~:text=SignWriting%20is%20a%20writing%20system,signed%20language%20in%20the%20world.) as a phonetic text representation of sign language.
 
-## FingerCLIP - Fingerspelling Understanding
+## FingerCLIP - Fingerspelling Understanding as a Proof-of-concept
 
 We start with a simple dataset, [RWTH German Fingerspelling Database](https://www-i6.informatik.rwth-aachen.de/aslr/fingerspelling.php), which contains 35 gestures with video sequences for the signs A to Z and SCH, the German umlauts Ä, Ö, Ü, and for the numbers 1 to 5. Five of the gestures contain inherent motion (J, Z, Ä, Ö, and Ü). We call the model FingerCLIP, a mini version of SignCLIP since fingerspelling is a small and special part of sign language.
 
@@ -141,6 +134,8 @@ As expected, the model scores the lowest with random text and higher with the de
 
 ## SignCLIP v0 - Isolated Sign Language Recognition (ISLR)
 
+> **_NOTE:_** This section is a preliminary exploration and not part of the paper, skip if irrelevant.
+
 We continue our exploration with the [Google - Isolated Sign Language Recognition](https://www.kaggle.com/competitions/asl-signs/data) dataset, which was released for the [Kaggle](https://www.kaggle.com/) competition on classifying isolated American Sign Language (ASL) signs. The dataset contains the pose estimation (by MediaPipe Holistic) of 94,478 signing videos of 250 different individual signs. We split them randomly into training, dev, and test sets at the ratio of 9:0.5:0.5.
 
 ### Training
@@ -179,6 +174,10 @@ To fully realize the power and versatility of SignCLIP, in this version, we do n
 As a reference, CLIP was trained on 400 million (image, text) pairs collected from
 the internet and VideoCLIP was pretrained on 1.1M HowTo100M videos, and the duration of each is ∼6.5 minutes with ∼110 clip-text pairs.
 
+### Dataset Comparison
+
+We compare some existing datasets:
+
 | Dataset | Language | Type | #examples | #signs | #signers |
 |-----------|-----------|-----------|-----------|-----------|-----------|
 | [RWTH German Fingerspelling](https://www-i6.informatik.rwth-aachen.de/aslr/fingerspelling.php) | DGS | Isolated Fingerspelling | 1400 | 35 | 20 |
@@ -193,9 +192,24 @@ the internet and VideoCLIP was pretrained on 1.1M HowTo100M videos, and the dura
 | [How2Sign](https://how2sign.github.io/) | ASL | Continuous | 35,000 | 16,000 | 11 |
 | [Spreadthesign](https://www.spreadthesign.com/en.us/search/) | Multilingual | Dictionary | ~500,000 | - | - |
 
-All languages in Spreadthesign:
+We choose Spreadthesign as our pretraining dataset for its large-scale and [multilingual](https://github.com/sign/translate/blob/master/src/app/core/helpers/iana/languages.ts) nature.
 
-https://github.com/sign/translate/blob/master/src/app/core/helpers/iana/languages.ts
+### Dataset Analysis
+
+```
+python data_stat_sp.py
+```
+
+This generates some CSV and log files that we use for making statistical plots:
+
+https://colab.research.google.com/drive/1hLB1Ydw_4cDMFzV0m0er0-T-IGldfn1y?usp=sharing
+
+### API Server
+
+```
+pip install flask
+pip install flask_cors
+```
 
 ## Citation and Credits
 
