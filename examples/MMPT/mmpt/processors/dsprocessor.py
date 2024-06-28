@@ -936,6 +936,8 @@ class PoseProcessor(VideoProcessor):
         # augmentation (training only)
         if self.is_training:
             if self.flip_pose and random.random() < self.flip_pose:
+                # TODO: move the flip_pose function into pose-format
+
                 # CAUTION: flipping works on reduced set of key points only
                 FLIPPED_COMPONENTS = ["POSE_LANDMARKS", "FACE_LANDMARKS", "RIGHT_HAND_LANDMARKS", "LEFT_HAND_LANDMARKS"]
                 # FLIPPED_BODY_POINTS = ['RIGHT_SHOULDER', 'LEFT_SHOULDER', 'RIGHT_ELBOW', 'LEFT_ELBOW', 'RIGHT_WRIST', 'LEFT_WRIST', 'RIGHT_HIP', 'LEFT_HIP']
@@ -990,7 +992,6 @@ class PoseProcessor(VideoProcessor):
         normalizer = PoseNormalizer(plane=plane, line=line, size=100)
         tensor = normalizer(pose.body.data)
 
-        # pose.body.data = np.nan_to_num(tensor)
         pose.body.data = tensor
         pose.focus()
 
@@ -1370,11 +1371,6 @@ class SignCLIPMetaProcessor(MetaProcessor):
             pose = Pose(datum['pose_header'], pose_body)
             vfeat = self.pose_processer(pose)
 
-            # if datum['text'] == "<en> <ase> man":
-            #     with open('/home/zifjia/man.pose', "wb") as f:
-            #         pose.write(f)
-            #         exit()
-
             return idx, datum['text'], vfeat
 
 
@@ -1384,6 +1380,8 @@ class SignCLIPPoseProcessor(PoseProcessor):
         feat = super().__call__(None, pose)
         return feat
         
+
+# -------------------- SignCLIP pretrained on Spreadthesign -----------------------
 
 class SignCLIPPretrainMetaProcessor(MetaProcessor):
     def __init__(self, config):
