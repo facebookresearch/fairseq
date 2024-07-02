@@ -15,6 +15,31 @@ Please cite and refer to our paper for full discussion and details:
 }
 ```
 
+## Table of Contents
+
+<!-- toc -->
+
+- [Installation](#installation)
+- [Background: Sign Language Representation](#background-sign-language-representation)
+- [FingerCLIP - Fingerspelling Understanding as a Proof-of-concept](#fingerclip---fingerspelling-understanding-as-a-proof-of-concept)
+  * [Training](#training)
+  * [Evaluation](#evaluation)
+  * [Discussion](#discussion)
+  * [Demo](#demo)
+- [SignCLIP v0 - Isolated Sign Language Recognition (ISLR)](#signclip-v0---isolated-sign-language-recognition-islr)
+  * [Training](#training-1)
+  * [Evaluation](#evaluation-1)
+- [SignCLIP v1](#signclip-v1)
+  * [Dataset Comparison](#dataset-comparison)
+  * [Dataset Analysis](#dataset-analysis)
+  * [Training and Evaluation](#training-and-evaluation)
+  * [Downstream Datasets](#downstream-datasets)
+  * [Demo and Model Weights](#demo-and-model-weights)
+  * [API Server](#api-server)
+- [Credits](#credits)
+
+<!-- tocstop -->
+
 ## Installation
 
 The codebase is an adaption of [VideoCLIP](https://github.com/facebookresearch/fairseq/tree/main/examples/MMPT), where general videos (e.g., [HowTo100M](https://www.di.ens.fr/willow/research/howto100m/)) are replaced by specific sign language videos (e.g., [How2Sign](https://how2sign.github.io/)) to bring together text and sign language under a same latent space. 
@@ -102,7 +127,7 @@ python locallaunch.py projects/retri/fingerclip/test_rwthfs_scratch_pose.yaml --
 
 <!-- For each test text prompt `'Fingerspell the letter <letter_name> in German Sign Language.'`, there is possibly more than one correct video (e.g, the same letter signed by different signers) in the test video pool, and they are all considered a successful retrieval. We thus evaluate the text-video retrieval task by `precision@k`, i.e., in the k most similar candidates, how many of them are correct answers. For each test video example, there is only one correct text prompt out of the 35 possible prompts. We thus evaluate the video-text retrieval task by `recall@k`, i.e., by taking the k most similar candidates, how much is the chance that one of them is the correct answer. When `k=1`, both `precision@k` and `recall@k` can be interpreted as the retrieval accuracy. For both directions, we add an additional metric `Median R`, which is the median value of the index of the first correct answer in the candidate lists. -->
 
-### Results Collection and Analysis
+### Discussion
 
 To collect evaluation results for all experiments:
 
