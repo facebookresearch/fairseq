@@ -1,6 +1,6 @@
 # SignCLIP: Connecting Text and Sign Language by Contrastive Learning
 
-This codebase is an adaption of [VideoCLIP](https://github.com/facebookresearch/fairseq/tree/main/examples/MMPT), where general videos (e.g., [HowTo100M](https://www.di.ens.fr/willow/research/howto100m/)) are replaced by specific sign language videos (e.g., [How2Sign](https://how2sign.github.io/)) to bring together text and sign language under a same latent space. 
+The codebase is an adaption of [VideoCLIP](https://github.com/facebookresearch/fairseq/tree/main/examples/MMPT), where general videos (e.g., [HowTo100M](https://www.di.ens.fr/willow/research/howto100m/)) are replaced by specific sign language videos (e.g., [How2Sign](https://how2sign.github.io/)) to bring together text and sign language under a same latent space. 
 
 See VideoCLIP's original [README](https://github.com/facebookresearch/fairseq/tree/main/examples/MMPT#installation) for an overall introduction to multimodal video understanding and instructions on installing and using the packages. Our repo additionally requires the following packages for the development of SignCLIP:
 
@@ -17,7 +17,18 @@ pip install git+https://github.com/sign-language-processing/sign-vq
 pip install git+https://github.com/sign-language-processing/transcription.git@1f2cef8
 ```
 
-This document serves as a guideline for using our code and models and reproducing our findings. Please refer to our research paper (TODO: upload Arxiv version) for full discussion and details.
+This document is a guideline for using our code and models and reproducing our findings. Please refer to our research paper for full discussion and details:
+
+[SignCLIP: Connecting Text and Sign Language by Contrastive Learning](https://arxiv.org/abs/2407.01264)
+
+```
+@article{jiang2024signclip,
+  title={SignCLIP: Connecting Text and Sign Language by Contrastive Learning},
+  author={Jiang, Zifan and Sant, Gerard and Moryossef, Amit and M{\"u}ller, Mathias and Sennrich, Rico and Ebling, Sarah},
+  journal={arXiv preprint arXiv:2407.01264},
+  year={2024}
+}
+```
 
 ## Background: Sign Language Representation
 
@@ -348,8 +359,6 @@ https://colab.research.google.com/drive/1r8GtyZOJoy_tSu62tvi7Zi2ogxcqlcsz?usp=sh
 
 This notebook shows how to get SignCLIP embeddings given text and sign language videos via the API.
 
-## Citation and Credits
-
-Please cite our paper as follows: TODO
+## Credits
 
 Mathias Müller ([@bricksdont](https://github.com/bricksdont)) proposes the [initial idea](https://docs.google.com/document/d/1mUSLZs_DWc4mHn_nt0soKf1hsTtbrHUUnEX_QBCth5w/edit#heading=h.p699gptqhse9) of a CLIP-like model for sign language.
