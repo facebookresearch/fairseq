@@ -1,5 +1,22 @@
 # SignCLIP: Connecting Text and Sign Language by Contrastive Learning
 
+This document is a guideline for using the code and models and reproducing the findings introduced in our research paper:
+
+[SignCLIP: Connecting Text and Sign Language by Contrastive Learning](https://arxiv.org/abs/2407.01264)
+
+Please cite and refer to our paper for full discussion and details:
+
+```
+@article{jiang2024signclip,
+  title={SignCLIP: Connecting Text and Sign Language by Contrastive Learning},
+  author={Jiang, Zifan and Sant, Gerard and Moryossef, Amit and M{\"u}ller, Mathias and Sennrich, Rico and Ebling, Sarah},
+  journal={arXiv preprint arXiv:2407.01264},
+  year={2024}
+}
+```
+
+## Installation
+
 The codebase is an adaption of [VideoCLIP](https://github.com/facebookresearch/fairseq/tree/main/examples/MMPT), where general videos (e.g., [HowTo100M](https://www.di.ens.fr/willow/research/howto100m/)) are replaced by specific sign language videos (e.g., [How2Sign](https://how2sign.github.io/)) to bring together text and sign language under a same latent space. 
 
 See VideoCLIP's original [README](https://github.com/facebookresearch/fairseq/tree/main/examples/MMPT#installation) for an overall introduction to multimodal video understanding and instructions on installing and using the packages. Our repo additionally requires the following packages for the development of SignCLIP:
@@ -15,19 +32,6 @@ pip install pose-format
 pip install git+https://github.com/sign-language-processing/pose-anonymization
 pip install git+https://github.com/sign-language-processing/sign-vq
 pip install git+https://github.com/sign-language-processing/transcription.git@1f2cef8
-```
-
-This document is a guideline for using our code and models and reproducing our findings. Please refer to our research paper for full discussion and details:
-
-[SignCLIP: Connecting Text and Sign Language by Contrastive Learning](https://arxiv.org/abs/2407.01264)
-
-```
-@article{jiang2024signclip,
-  title={SignCLIP: Connecting Text and Sign Language by Contrastive Learning},
-  author={Jiang, Zifan and Sant, Gerard and Moryossef, Amit and M{\"u}ller, Mathias and Sennrich, Rico and Ebling, Sarah},
-  journal={arXiv preprint arXiv:2407.01264},
-  year={2024}
-}
 ```
 
 ## Background: Sign Language Representation
