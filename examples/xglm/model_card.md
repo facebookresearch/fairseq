@@ -2,7 +2,7 @@
 ## Version 1.0.0
 
 ### Model developer
-Meta AI
+FAIR (Fundamental Artificial Intelligence Research)
 
 ### Model type
 A family of multilingual autoregressive language models (ranging from 564 million to 7.5 billion parameters) trained on a balanced corpus of a diverse set of languages. The language model can learn tasks from natural language descriptions and a few examples.
@@ -31,7 +31,7 @@ The model was evaluated on hate speech detection and occupation identification.
 ## Metrics
 ### Model performance measures
 The XGLM model was primarily evaluated on
-1. Zero shot and few shot learning by looking at per-language performance on tasks spanning commonsense reasoning (XCOPA, XWinograd), natural language inference (XNLI) and paraphrasing (PAWS-X). The model is also evaluated on XStoryCloze, a new dataset created by Meta AI.
+1. Zero shot and few shot learning by looking at per-language performance on tasks spanning commonsense reasoning (XCOPA, XWinograd), natural language inference (XNLI) and paraphrasing (PAWS-X). The model is also evaluated on XStoryCloze, a new dataset created by FAIR (Fundamental Artificial Intelligence Research).
 2. Cross lingual transfer through templates and few-shot examples.
 3. Knowledge probing - Evaluate to what extent the XGLM model can effectively store factual knowledge in different languages using the mLAMA benchmark.
 4. Translation - We report machine translation results on WMT benchmarks and a subset of FLORES-101 in the main paper.
@@ -50,7 +50,7 @@ The Cross-lingual Natural Language Inference (XNLI) corpus is the extension of t
 
 ### XStoryCloze
 #### Description
-A new dataset created by Meta AI along side this work by translating the validation split of the English StoryCloze dataset (Mostafazadeh et al., 2016) (Spring 2016 version) to 10 other typologically diverse languages (ru, zh Simplified, es Latin America, ar, hi, id, te, sw, eu, my).
+A new dataset created by FAIR along side this work by translating the validation split of the English StoryCloze dataset (Mostafazadeh et al., 2016) (Spring 2016 version) to 10 other typologically diverse languages (ru, zh Simplified, es Latin America, ar, hi, id, te, sw, eu, my).
 
 ### XCOPA (Ponti et al., 2020)
 #### Description
@@ -85,7 +85,7 @@ More details on the CC100-XL dataset can be found in the Appendix section of the
 The XGLM model was evaluated on Hate speech and bias identification datasets. For hate speech, we observe that across the 5 languages in the dataset, in context learning results are only slightly better than random (50%). Another interesting observation is that most few shot results are worse than zero-shot, which indicates that the model is not able to utilize examples using the templates described in the paper. For bias identification, the XGLM (6.7B) English only model achieves the best performance on English and Spanish, while the GPT-3 model of comparable size (6.7B) model achieves the best in French. On certain occupations (e.g. model and teacher), XGLM 6.7B En only model and GPT-3 (6.7B) have very significant bias while XGLM 7.5B is much less biased.
 
 ### Privacy and security
-The XGLM model did not have any special Privacy and Security considerations. The training data and evaluation data were both public and went through standard Meta AI Privacy and licensing procedures.
+The XGLM model did not have any special Privacy and Security considerations. The training data and evaluation data were both public and went through standard Meta privacy and licensing procedures.
 
 ### Transparency and control
 In the spirit of transparency and accountability we have created this model card and a data card for the CC100-XL which can be found in the Appendix section of the paper.
