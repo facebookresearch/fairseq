@@ -54,7 +54,9 @@ cd examples/MMPT
 pip install -e .
 ```
 
-> The code is developed under Python=3.8.8, Pytorch=1.8, cuda=11.0 with fairseq=1.0.0a0+af0389f and tested under Python=3.8.8 pytorch=1.9 cuda=11.0 fairseq=1.0.0a0+8e7bc73 during code release. Most models require transformers==3.4 for API compatibility pip install transformers==3.4. In addition, some downstream tasks may need conda install pandas.
+> The code is developed under Python=3.8.8, Pytorch=1.8, cuda=11.0 with fairseq=1.0.0a0+af0389f and tested under Python=3.8.8 pytorch=1.9 cuda=11.0 fairseq=1.0.0a0+8e7bc73 during code release.
+Most models require `transformers==3.4` for API compatibility `pip install transformers==3.4`. 
+In addition, some downstream tasks may need `conda install pandas`.  
 
 Our repo additionally requires the following packages for the development of SignCLIP:
 
