@@ -1,0 +1,7 @@
+fairseq==0.12.2
+pandas==1.4.3
+sacrebleu==2.2.0
+torch==1.12.1
+torchaudio==0.12.1
+tqdm==4.64.0
+transformers==4.21.1

@@ -160,6 +160,11 @@ class BaseFairseqModel(nn.Module):
             if hasattr(m, "set_num_updates") and m != self:
                 m.set_num_updates(num_updates)
 
+    def set_epoch(self, epoch):
+        for m in self.modules():
+            if hasattr(m, "set_epoch") and m != self:
+                m.set_epoch(epoch)
+
     def prepare_for_inference_(self, cfg: DictConfig):
         """Prepare model for inference."""
         kwargs = {}

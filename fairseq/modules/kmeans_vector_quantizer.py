@@ -100,15 +100,16 @@ class KmeansVectorQuantizer(nn.Module):
         assert ze.shape == zq.shape, (ze.shape, zq.shape)
         x = self._pass_grad(ze, zq)
 
-        hard_x = (
-            idx.new_zeros(bsz * tsz * self.groups, self.num_vars)
-            .scatter_(-1, idx.view(-1, 1), 1.0)
-            .view(bsz * tsz, self.groups, -1)
-        )
-        hard_probs = torch.mean(hard_x.float(), dim=0)
-        result["code_perplexity"] = torch.exp(
-            -torch.sum(hard_probs * torch.log(hard_probs + 1e-7), dim=-1)
-        ).sum()
+        with torch.no_grad():
+            hard_x = (
+                idx.new_zeros(bsz * tsz * self.groups, self.num_vars)
+                .scatter_(-1, idx.view(-1, 1), 1.0)
+                .view(bsz * tsz, self.groups, -1)
+            )
+            hard_probs = torch.mean(hard_x.float(), dim=0)
+            result["code_perplexity"] = torch.exp(
+                -torch.sum(hard_probs * torch.log(hard_probs + 1e-7), dim=-1)
+            ).sum()
 
         if produce_targets:
             result["targets"] = idx

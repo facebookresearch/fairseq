@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 import torch
 import torch.nn as nn
+from torch import Tensor
 
 from fairseq import utils
 from fairseq.distributed import fsdp_wrap
@@ -25,7 +26,6 @@ from fairseq.modules import (
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
-from torch import Tensor
 
 
 # rewrite name for backward compatibility in `make_generation_fast_`
@@ -42,7 +42,7 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
     is a :class:`TransformerDecoderLayer`.
 
     Args:
-        args (argparse.Namespace): parsed command-line arguments
+        cfg (argparse.Namespace): parsed command-line arguments
         dictionary (~fairseq.data.Dictionary): decoding dictionary
         embed_tokens (torch.nn.Embedding): output embedding
         no_encoder_attn (bool, optional): whether to attend to encoder outputs
@@ -399,14 +399,6 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
 
     def upgrade_state_dict_named(self, state_dict, name):
         """Upgrade a (possibly old) state dict for new versions of fairseq."""
-        if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
-            weights_key = "{}.embed_positions.weights".format(name)
-            if weights_key in state_dict:
-                del state_dict[weights_key]
-            state_dict[
-                "{}.embed_positions._float_tensor".format(name)
-            ] = torch.FloatTensor(1)
-
         if f"{name}.output_projection.weight" not in state_dict:
             if self.share_input_output_embed:
                 embed_out_key = f"{name}.embed_tokens.weight"

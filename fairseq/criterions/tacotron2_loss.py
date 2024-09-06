@@ -14,7 +14,8 @@ import torch
 import torch.nn.functional as F
 from omegaconf import II
 
-from fairseq import metrics, utils
+from fairseq import utils
+from fairseq.logging import metrics
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.data.data_utils import lengths_to_mask
 from fairseq.dataclass import FairseqDataclass

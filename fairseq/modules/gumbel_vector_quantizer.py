@@ -21,6 +21,8 @@ class GumbelVectorQuantizer(nn.Module):
         activation=nn.GELU(),
         weight_proj_depth=1,
         weight_proj_factor=1,
+        hard=True,
+        std=0,
     ):
         """Vector quantization using gumbel softmax
 
@@ -44,6 +46,7 @@ class GumbelVectorQuantizer(nn.Module):
         self.input_dim = dim
         self.num_vars = num_vars
         self.time_first = time_first
+        self.hard = hard
 
         assert (
             vq_dim % groups == 0
@@ -53,7 +56,10 @@ class GumbelVectorQuantizer(nn.Module):
         num_groups = groups if not combine_groups else 1
 
         self.vars = nn.Parameter(torch.FloatTensor(1, num_groups * num_vars, var_dim))
-        nn.init.uniform_(self.vars)
+        if std == 0:
+            nn.init.uniform_(self.vars)
+        else:
+            nn.init.normal_(self.vars, mean=0, std=std)
 
         if weight_proj_depth > 1:
 
@@ -151,16 +157,17 @@ class GumbelVectorQuantizer(nn.Module):
         x = self.weight_proj(x)
         x = x.view(bsz * tsz * self.groups, -1)
 
-        _, k = x.max(-1)
-        hard_x = (
-            x.new_zeros(*x.shape)
-            .scatter_(-1, k.view(-1, 1), 1.0)
-            .view(bsz * tsz, self.groups, -1)
-        )
-        hard_probs = torch.mean(hard_x.float(), dim=0)
-        result["code_perplexity"] = torch.exp(
-            -torch.sum(hard_probs * torch.log(hard_probs + 1e-7), dim=-1)
-        ).sum()
+        with torch.no_grad():
+            _, k = x.max(-1)
+            hard_x = (
+                x.new_zeros(*x.shape)
+                .scatter_(-1, k.view(-1, 1), 1.0)
+                .view(bsz * tsz, self.groups, -1)
+            )
+            hard_probs = torch.mean(hard_x.float(), dim=0)
+            result["code_perplexity"] = torch.exp(
+                -torch.sum(hard_probs * torch.log(hard_probs + 1e-7), dim=-1)
+            ).sum()
 
         avg_probs = torch.softmax(
             x.view(bsz * tsz, self.groups, -1).float(), dim=-1
@@ -172,7 +179,9 @@ class GumbelVectorQuantizer(nn.Module):
         result["temp"] = self.curr_temp
 
         if self.training:
-            x = F.gumbel_softmax(x.float(), tau=self.curr_temp, hard=True).type_as(x)
+            x = F.gumbel_softmax(x.float(), tau=self.curr_temp, hard=self.hard).type_as(
+                x
+            )
         else:
             x = hard_x
 

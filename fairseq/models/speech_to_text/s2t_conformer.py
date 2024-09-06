@@ -1,16 +1,30 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
 import logging
+import math
+from pathlib import Path
+
 import torch
+
+from fairseq import checkpoint_utils
+from fairseq.data.data_utils import lengths_to_padding_mask
+from fairseq.models import FairseqEncoder, register_model, register_model_architecture
+from fairseq.models.speech_to_text.modules.convolution import (
+    Conv1dSubsampler,
+    Conv2dSubsampler,
+)
 from fairseq.models.speech_to_text.s2t_transformer import (
     S2TTransformerEncoder,
     S2TTransformerModel,
-    Conv1dSubsampler,
+)
+from fairseq.models.speech_to_text.s2t_transformer import (
     base_architecture as transformer_base_architecture,
 )
-from fairseq.data.data_utils import lengths_to_padding_mask
-from fairseq.modules.conformer_layer import ConformerEncoderLayer
-from fairseq.models import FairseqEncoder, register_model_architecture, register_model
 from fairseq.modules import PositionalEmbedding, RelPositionalEncoding
-import math
+from fairseq.modules.conformer_layer import ConformerEncoderLayer
 
 logger = logging.getLogger(__name__)
 
@@ -20,16 +34,29 @@ class S2TConformerEncoder(FairseqEncoder):
 
     def __init__(self, args):
         super().__init__(None)
+
+        self.encoder_freezing_updates = args.encoder_freezing_updates
+        self.num_updates = 0
+
         self.embed_scale = math.sqrt(args.encoder_embed_dim)
         if args.no_scale_embedding:
             self.embed_scale = 1.0
         self.padding_idx = 1
-        self.subsample = Conv1dSubsampler(
-            args.input_feat_per_channel * args.input_channels,
-            args.conv_channels,
-            args.encoder_embed_dim,
-            [int(k) for k in args.conv_kernel_sizes.split(",")],
-        )
+        self.conv_version = args.conv_version
+        if self.conv_version == "s2t_transformer":
+            self.subsample = Conv1dSubsampler(
+                args.input_feat_per_channel * args.input_channels,
+                args.conv_channels,
+                args.encoder_embed_dim,
+                [int(k) for k in args.conv_kernel_sizes.split(",")],
+            )
+        elif self.conv_version == "convtransformer":
+            self.subsample = Conv2dSubsampler(
+                args.input_channels,
+                args.input_feat_per_channel,
+                args.conv_out_channels,
+                args.encoder_embed_dim,
+            )
         self.pos_enc_type = args.pos_enc_type
         if self.pos_enc_type == "rel_pos":
             self.embed_positions = RelPositionalEncoding(
@@ -61,7 +88,7 @@ class S2TConformerEncoder(FairseqEncoder):
             ]
         )
 
-    def forward(self, src_tokens, src_lengths, return_all_hiddens=False):
+    def _forward(self, src_tokens, src_lengths, return_all_hiddens=False):
         """
         Args:
             src_tokens: Input source tokens Tensor of shape B X T X C
@@ -110,9 +137,29 @@ class S2TConformerEncoder(FairseqEncoder):
             "src_lengths": [],
         }
 
+    def forward(self, src_tokens, src_lengths, return_all_hiddens=False):
+        if self.num_updates < self.encoder_freezing_updates:
+            with torch.no_grad():
+                x = self._forward(
+                    src_tokens,
+                    src_lengths,
+                    return_all_hiddens=return_all_hiddens,
+                )
+        else:
+            x = self._forward(
+                src_tokens,
+                src_lengths,
+                return_all_hiddens=return_all_hiddens,
+            )
+        return x
+
     def reorder_encoder_out(self, encoder_out, new_order):
         """Required method for a FairseqEncoder. Calls the method from the parent class"""
         return S2TTransformerEncoder.reorder_encoder_out(self, encoder_out, new_order)
+
+    def set_num_updates(self, num_updates):
+        super().set_num_updates(num_updates)
+        self.num_updates = num_updates
 
 
 @register_model("s2t_conformer")
@@ -123,28 +170,56 @@ class S2TConformerModel(S2TTransformerModel):
     @staticmethod
     def add_args(parser):
         S2TTransformerModel.add_args(parser)
-        parser.add_argument("--input-feat-per-channel", default=80)
-        parser.add_argument("--depthwise-conv-kernel-size", default=31)
-        parser.add_argument("--input-channels", default=1)
+        parser.add_argument(
+            "--input-feat-per-channel",
+            type=int,
+            metavar="N",
+            help="dimension of input features per channel",
+        )
+        parser.add_argument(
+            "--input-channels",
+            type=int,
+            metavar="N",
+            help="number of chennels of input features",
+        )
+        parser.add_argument(
+            "--depthwise-conv-kernel-size",
+            type=int,
+            metavar="N",
+            help="kernel size of depthwise convolution layers",
+        )
         parser.add_argument(
             "--attn-type",
-            default=None,
+            type=str,
+            metavar="STR",
             help="If not specified uses fairseq MHA. Other valid option is espnet",
         )
         parser.add_argument(
             "--pos-enc-type",
-            default="abs",
+            type=str,
+            metavar="STR",
             help="Must be specified in addition to attn-type=espnet for rel_pos and rope",
         )
 
     @classmethod
     def build_encoder(cls, args):
         encoder = S2TConformerEncoder(args)
+        pretraining_path = getattr(args, "load_pretrained_encoder_from", None)
+        if pretraining_path is not None:
+            if not Path(pretraining_path).exists():
+                logger.warning(
+                    f"skipped pretraining because {pretraining_path} does not exist"
+                )
+            else:
+                encoder = checkpoint_utils.load_pretrained_component_from_model(
+                    component=encoder, checkpoint=pretraining_path
+                )
+                logger.info(f"loaded pretrained encoder from: {pretraining_path}")
         return encoder
 
 
 @register_model_architecture("s2t_conformer", "s2t_conformer")
-def base_architecture(args):
+def conformer_base_architecture(args):
     args.attn_type = getattr(args, "attn_type", None)
     args.pos_enc_type = getattr(args, "pos_enc_type", "abs")
     args.input_feat_per_channel = getattr(args, "input_feat_per_channel", 80)

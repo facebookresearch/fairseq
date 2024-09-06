@@ -202,13 +202,19 @@ class TransformerEncoderBase(FairseqEncoder):
         """
         # compute padding mask
         encoder_padding_mask = src_tokens.eq(self.padding_idx)
-        has_pads = src_tokens.device.type == "xla" or encoder_padding_mask.any()
+        has_pads = (
+            torch.tensor(src_tokens.device.type == "xla") or encoder_padding_mask.any()
+        )
+        # Torchscript doesn't handle bool Tensor correctly, so we need to work around.
+        if torch.jit.is_scripting():
+            has_pads = torch.tensor(1) if has_pads else torch.tensor(0)
 
         x, encoder_embedding = self.forward_embedding(src_tokens, token_embeddings)
 
         # account for padding while computing the representation
-        if has_pads:
-            x = x * (1 - encoder_padding_mask.unsqueeze(-1).type_as(x))
+        x = x * (
+            1 - encoder_padding_mask.unsqueeze(-1).type_as(x) * has_pads.type_as(x)
+        )
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
@@ -219,79 +225,11 @@ class TransformerEncoderBase(FairseqEncoder):
         if return_all_hiddens:
             encoder_states.append(x)
 
-        # nested tensor and BT enable
-        layer = self.layers[0]
-        BT_flag = False
-        NT_flag = False
-        # torch version check, BT>=1.12.0 and NT>=1.13.0.dev20220613
-        # internal format is '1.13.0a0+fb'
-        # external format is '1.13.0.dev20220613'(cpu&gpu) for nightly or "1.11.0"(cpu) or '1.11.0+cu102'(gpu) for stable
-        BT_version = False
-        NT_version = False
-        if "fb" in torch.__version__:
-            BT_version = True
-            NT_version = True
-        else:
-            if "+" in torch.__version__:
-                torch_version = torch.__version__.split("+")[0]
-            else:
-                torch_version = torch.__version__
-
-            torch_version = torch_version.split(".")
-            int_version = (
-                int(torch_version[0]) * 1000
-                + int(torch_version[1]) * 10
-                + int(torch_version[2])
-            )
-            if len(torch_version) == 3:
-                if int_version >= 1120:
-                    BT_version = True
-                if int_version >= 1131:
-                    NT_version = True
-            elif len(torch_version) == 4:
-                if int_version >= 1130:
-                    BT_version = True
-                # Consider _nested_tensor_from_mask_left_aligned is landed after "20220613"
-                if int_version >= 1131 or (
-                    int_version == 1130 and torch_version[3][3:] >= "20220613"
-                ):
-                    NT_version = True
-
-        if (
-            BT_version
-            and x.dim() == 3
-            and layer.load_to_BT
-            and not layer.return_fc
-            and layer.can_use_fastpath
-            and not layer.training
-            and not layer.ever_training
-            and not layer.cfg_checkpoint_activations
-        ):
-            # Batch first can not be justified but needs user to make sure
-            x = x.transpose(0, 1)
-            # Check mask conditions for nested tensor
-            if NT_version:
-                if (
-                    encoder_padding_mask is not None
-                    and torch._nested_tensor_from_mask_left_aligned(
-                        x, encoder_padding_mask.logical_not()
-                    )
-                ):
-                    if not torch.is_grad_enabled() or not x.requires_grad:
-                        x = torch._nested_tensor_from_mask(
-                            x, encoder_padding_mask.logical_not()
-                        )
-                        NT_flag = True
-            BT_flag = True
-
         # encoder layers
-        if NT_flag:
-            processing_mask = None
-        else:
-            processing_mask = encoder_padding_mask
-        encoder_padding_mask_out = processing_mask if has_pads else None
         for layer in self.layers:
-            lr = layer(x, encoder_padding_mask=encoder_padding_mask_out)
+            lr = layer(
+                x, encoder_padding_mask=encoder_padding_mask if has_pads else None
+            )
 
             if isinstance(lr, tuple) and len(lr) == 2:
                 x, fc_result = lr
@@ -303,13 +241,6 @@ class TransformerEncoderBase(FairseqEncoder):
                 assert encoder_states is not None
                 encoder_states.append(x)
                 fc_results.append(fc_result)
-
-        # change back to non-nested and Batch second
-        if NT_flag:
-            x = x.to_padded_tensor(0.0)
-
-        if NT_flag or BT_flag:
-            x = x.transpose(0, 1)
 
         if self.layer_norm is not None:
             x = self.layer_norm(x)
@@ -400,14 +331,6 @@ class TransformerEncoderBase(FairseqEncoder):
 
     def upgrade_state_dict_named(self, state_dict, name):
         """Upgrade a (possibly old) state dict for new versions of fairseq."""
-        if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
-            weights_key = "{}.embed_positions.weights".format(name)
-            if weights_key in state_dict:
-                print("deleting {0}".format(weights_key))
-                del state_dict[weights_key]
-            state_dict[
-                "{}.embed_positions._float_tensor".format(name)
-            ] = torch.FloatTensor(1)
         for i in range(self.num_layers):
             # update layer norms
             self.layers[i].upgrade_state_dict_named(

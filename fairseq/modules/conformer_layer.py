@@ -4,12 +4,14 @@
 # LICENSE file in the root directory of this source tree.
 
 
-import torch
 from typing import Optional
+
+import torch
+
 from fairseq.modules import (
+    ESPNETMultiHeadedAttention,
     LayerNorm,
     MultiheadAttention,
-    ESPNETMultiHeadedAttention,
     RelPositionMultiHeadedAttention,
     RotaryPositionMultiHeadedAttention,
 )
