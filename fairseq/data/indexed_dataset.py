@@ -412,7 +412,10 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
 
                     for size in sizes:
                         pointers.append(address)
-                        address += size * dtype_size
+                        address += int(size * dtype_size)
+
+                        if not isinstance(address, int):
+                            raise ValueError("This should no longer be possible...")
 
                     return pointers
 
