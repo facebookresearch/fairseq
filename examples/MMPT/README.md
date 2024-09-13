@@ -351,7 +351,13 @@ python demo_sign.py /home/ubuntu/house_sp.pose
 ('<en> <ase> how are you?', 80.26660919189453)
 ```
 
-We released the model weights for **E7.2** and the model weights fine-tuned for the three ASL datasets here (others are available on request):
+We released the model weights for:
+
+- **E3.2**: `rwthfs_hand_dominant_aug`,
+- **E7.2**: `baseline_temporal`,
+- and ones fine-tuned for the three ASL datasets
+
+here (others are available on request):
 
 https://drive.google.com/drive/folders/10q7FxPlicrfwZn7_FgtNqKFDiAJi6CTc?usp=sharing
 
