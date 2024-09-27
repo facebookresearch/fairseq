@@ -1,0 +1,10 @@
+transformers
+peft
+protobuf
+blobfile
+sentencepiece
+fasttext
+numpy<=1.26.4
+librosa
+ninja
+editdistance
