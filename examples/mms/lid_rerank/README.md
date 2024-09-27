@@ -35,13 +35,7 @@ python whisper/infer_asr.py --wavs "path/to/wav/list" --lids "path/to/lid/result
 ```
 
 ### MMS
-Installation:
-```
-git clone https://github.com/facebookresearch/fairseq.git
-cd fairseq
-git checkout mms_rerank
-pip install --editable ./
-```
+Refer to the [Fairseq documentation](https://github.com/facebookresearch/fairseq/tree/main) for installation instructions.
 
 Prepare data and models following the [instructions from the MMS repository](https://github.com/facebookresearch/fairseq/tree/main/examples/mms). Note that the MMS backend expects a slightly different wav list format, which can be obtained via:
 ```
