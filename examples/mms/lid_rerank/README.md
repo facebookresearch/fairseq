@@ -3,7 +3,7 @@ This project provides N-best re-ranking, a simple inference procedure, for impro
 
 The workflow is as follows: 1) run LID+ASR inference (MMS and Whisper are supported), 2) compute external re-ranking features, 3) tune feature coefficients on dev set, and 4) apply on test set.
 
-For more information about our method, please refer to the paper: "Improving Multilingual ASR in the Wild Using Simple N-best Re-ranking".
+For more information about our method, please refer to the paper: ["Improving Multilingual ASR in the Wild Using Simple N-best Re-ranking"](https://arxiv.org/abs/2409.18428).
 
 ## 1) Commands to Run LID+ASR Inference
 

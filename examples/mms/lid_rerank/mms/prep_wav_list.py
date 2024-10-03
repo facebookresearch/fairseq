@@ -4,6 +4,7 @@ import argparse
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Example argument parser')
     parser.add_argument('--src', type=str)
+    parser.add_argument('--dst', type=str)
     args = parser.parse_args()
 
     wavs = [x.strip() for x in open(args.src, "r").readlines()]
