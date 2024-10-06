@@ -7,11 +7,19 @@ This document is a guideline for using the code and models and reproducing the f
 Please cite and refer to our paper for full discussion and details:
 
 ```
-@article{jiang2024signclip,
-  title={SignCLIP: Connecting Text and Sign Language by Contrastive Learning},
-  author={Jiang, Zifan and Sant, Gerard and Moryossef, Amit and M{\"u}ller, Mathias and Sennrich, Rico and Ebling, Sarah},
-  journal={arXiv preprint arXiv:2407.01264},
-  year={2024}
+@inproceedings{jiang-etal-2024-signclip,
+    title = "{S}ign{CLIP}i: Connecting Text and Sign Language by Contrastive Learning",
+    author = {Jiang, Zifan  and
+      Sant, Gerard and
+      Moryossef, Amit  and
+      M{\"u}ller, Mathias and
+      Sennrich, Rico  and
+      Ebling, Sarah},
+    booktitle = "Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing",
+    month = nov,
+    year = "2024",
+    address = "Miami, USA",
+    eprint="2407.01264",
 }
 ```
 
