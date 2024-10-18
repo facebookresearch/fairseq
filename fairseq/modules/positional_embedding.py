@@ -14,6 +14,7 @@ def PositionalEmbedding(
     embedding_dim: int,
     padding_idx: int,
     learned: bool = False,
+    auto_expand: bool = True,
 ):
     if learned:
         # if padding_idx is specified then offset the embedding ids by
@@ -31,5 +32,6 @@ def PositionalEmbedding(
             embedding_dim,
             padding_idx,
             init_size=num_embeddings + padding_idx + 1,
+            auto_expand=auto_expand,
         )
     return m
