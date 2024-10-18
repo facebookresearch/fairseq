@@ -124,9 +124,9 @@ class Dictionary:
         else:
             return self.unk_word
 
-    def add_symbol(self, word, n=1, overwrite=False):
+    def add_symbol(self, word, n=1, overwrite=True):
         """Adds a word to the dictionary"""
-        if word in self.indices and not overwrite:
+        if word in self.indices and overwrite:
             idx = self.indices[word]
             self.count[idx] = self.count[idx] + n
             return idx
@@ -218,11 +218,17 @@ class Dictionary:
     def load(cls, f, add_special_symbols=True):
         """Loads the dictionary from a text file with the format:
 
-        ```
-        <symbol0> <count0>
-        <symbol1> <count1>
-        ...
-        ```
+        Example::
+            ```
+            <symbol0> <count0> [<flag0>]
+            <symbol1> <count1> [<flag1>]
+            ...
+            ```
+        
+        Note:
+            Possible flags are `#fairseq:overwrite` to overwrite duplicates 
+            and `#fairseq:duplicate` to keep them (for backward compatibility 
+            after bug fix)
         """
         d = cls(add_special_symbols=add_special_symbols)
         d.add_from_file(f)
@@ -255,31 +261,36 @@ class Dictionary:
                 if field == "#fairseq:overwrite":
                     overwrite = True
                     line, field = line.rsplit(" ", 1)
-                else:
+                elif field == "#fairseq:duplicate":
                     overwrite = False
+                    line, field = line.rsplit(" ", 1)
+                else:
+                    if line in self:
+                        raise RuntimeError(
+                            "Duplicate word found when loading Dictionary: '{}'. "
+                            "Duplicate words can overwrite earlier ones by adding the "
+                            "#fairseq:overwrite flag at the end of the corresponding row "
+                            "in the dictionary file. Use the #fairseq:duplicate flag "
+                            "to keep duplicates in the dictionary (backward compatibility "
+                            "after bug fix). If using the Camembert model, please "
+                            "download an updated copy of the model file.".format(word)
+                        )
+                    overwrite = True # default behaviour
                 count = int(field)
                 word = line
-                if word in self and not overwrite:
-                    raise RuntimeError(
-                        "Duplicate word found when loading Dictionary: '{}'. "
-                        "Duplicate words can overwrite earlier ones by adding the "
-                        "#fairseq:overwrite flag at the end of the corresponding row "
-                        "in the dictionary file. If using the Camembert model, please "
-                        "download an updated copy of the model file.".format(word)
-                    )
                 self.add_symbol(word, n=count, overwrite=overwrite)
             except ValueError:
                 raise ValueError(
                     f"Incorrect dictionary format, expected '<token> <cnt> [flags]': \"{line}\""
                 )
 
-    def _save(self, f, kv_iterator):
+    def _save(self, f, kvf_iterator):
         if isinstance(f, str):
             PathManager.mkdirs(os.path.dirname(f))
             with PathManager.open(f, "w", encoding="utf-8") as fd:
                 return self.save(fd)
-        for k, v in kv_iterator:
-            print("{} {}".format(k, v), file=f)
+        for k, v, flag in kvf_iterator:
+            print("{} {} {}".format(k, v, flag), file=f)
 
     def _get_meta(self):
         return [], []
@@ -295,6 +306,12 @@ class Dictionary:
             zip(
                 ex_keys + self.symbols[self.nspecial :],
                 ex_vals + self.count[self.nspecial :],
+                [ 
+                    '#fairseq:duplicate' 
+                    if s in self.symbols[:self.nspecial+i] 
+                    else '' 
+                    for i, s in enumerate(self.symbols[self.nspecial:]) 
+                ]
             ),
         )
 
