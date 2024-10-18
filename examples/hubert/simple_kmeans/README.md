@@ -9,7 +9,7 @@ steps are:
 
 ## Data preparation
 
-`*.tsv` files contains a list of audio, where each line is the root, and
+`*.tsv` files contains a list of audio, where first line is the root, and
 following lines are the subpath for each audio:
 ```
 <root-dir>
