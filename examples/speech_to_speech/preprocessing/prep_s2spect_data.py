@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # Copyright (c) Facebook, Inc. and its affiliates.
 #
 # This source code is licensed under the MIT license found in the
@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 MANIFEST_COLUMNS = ["id", "src_audio", "src_n_frames", "tgt_audio", "tgt_n_frames"]
 
 
-def prepare_target_data(args, tgt_audios):
-    feature_name = "logmelspec80"
+def prepare_target_data(args, tgt_audios, feature_name="logmelspec80"):
+    # feature_name = "logmelspec80"
     zip_path = args.output_root / f"{feature_name}.zip"
     if zip_path.exists():
         print(f"{zip_path} exists.")
@@ -62,6 +62,7 @@ def process(args):
 
     manifest = {}
     tgt_audios = []
+    all_src_audios = []
     for split in args.data_split:
         print(f"Processing {split}...")
 
@@ -76,26 +77,35 @@ def process(args):
                 missing_tgt_audios.append(sample_id)
                 continue
 
-            tgt_audios.append(tgt_audio)
 
             src_n_frames = sf.info(src_audio.as_posix()).frames
+            tgt_n_frames = sf.info(tgt_audio).frames
+            if src_n_frames < 1600 or tgt_n_frames < 1600:
+                missing_tgt_audios.append(sample_id)
+                continue
+            all_src_audios.append(src_audio)
+            tgt_audios.append(tgt_audio)
             manifest[split]["id"].append(sample_id)
-            manifest[split]["src_audio"].append(src_audio.as_posix())
-            manifest[split]["src_n_frames"].append(
-                src_n_frames // 160
-            )  # estimation of 10-ms frame for 16kHz audio
-
+            # manifest[split]["src_audio"].append(src_audio.as_posix())
+            # manifest[split]["src_n_frames"].append(
+            #     src_n_frames // 160
+            # )  # estimation of 10-ms frame for 16kHz audio
         print(f"Processed {len(manifest[split]['id'])} samples")
         if len(missing_tgt_audios) > 0:
             print(
                 f"{len(missing_tgt_audios)} with missing target data (first 3 examples: {', '.join(missing_tgt_audios[:3])})"
             )
-
+    print(len(tgt_audios))
     # Extract features and pack features into ZIP
+    src_zip_path = prepare_target_data(args, all_src_audios, feature_name="srclogmelspec80")
     zip_path = prepare_target_data(args, tgt_audios)
 
     print("Fetching ZIP manifest...")
     tgt_audio_paths, tgt_audio_lengths = get_zip_manifest(zip_path)
+    src_audio_paths, src_audio_lengths = get_zip_manifest(src_zip_path)
+
+    print(len(tgt_audio_paths))
+    print(len(src_audio_paths))
 
     print("Generating manifest...")
     for split in args.data_split:
@@ -104,6 +114,8 @@ def process(args):
         for sample_id in tqdm(manifest[split]["id"]):
             manifest[split]["tgt_audio"].append(tgt_audio_paths[sample_id])
             manifest[split]["tgt_n_frames"].append(tgt_audio_lengths[sample_id])
+            manifest[split]["src_audio"].append(src_audio_paths[sample_id])
+            manifest[split]["src_n_frames"].append(src_audio_lengths[sample_id])
 
         out_manifest = args.output_root / f"{split}.tsv"
         print(f"Writing manifest to {out_manifest}...")
