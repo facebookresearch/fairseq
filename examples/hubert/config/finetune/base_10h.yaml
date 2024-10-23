@@ -28,6 +28,7 @@ task:
   normalize: false  # must be consistent with pre-training
   labels: ["ltr"]
   single_target: true
+  pad_audio: true
 
 dataset:
   num_workers: 0
