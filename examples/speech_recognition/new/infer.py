@@ -144,6 +144,7 @@ class InferenceProcessor:
         self.hypo_units_file = None
         self.ref_words_file = None
         self.ref_units_file = None
+        self.score_file = None
 
         self.progress_bar = self.build_progress_bar()
 
@@ -153,6 +154,7 @@ class InferenceProcessor:
             self.hypo_units_file = self.get_res_file("hypo.units")
             self.ref_words_file = self.get_res_file("ref.word")
             self.ref_units_file = self.get_res_file("ref.units")
+            self.score_file = self.get_res_file("asr_score")
         return self
 
     def __exit__(self, *exc) -> bool:
@@ -161,6 +163,7 @@ class InferenceProcessor:
             self.hypo_units_file.close()
             self.ref_words_file.close()
             self.ref_units_file.close()
+            self.score_file.close()
         return False
 
     def __iter__(self) -> Any:
@@ -290,7 +293,6 @@ class InferenceProcessor:
         batch_id: int,
     ) -> Tuple[int, int]:
         speaker = None  # Speaker can't be parsed from dataset.
-
         if "target_label" in sample:
             toks = sample["target_label"]
         else:
@@ -314,6 +316,7 @@ class InferenceProcessor:
             print(f"{hyp_words} ({speaker}-{sid})", file=self.hypo_words_file)
             print(f"{tgt_pieces} ({speaker}-{sid})", file=self.ref_units_file)
             print(f"{tgt_words} ({speaker}-{sid})", file=self.ref_words_file)
+            print(f"{hypo['score'].item()} ({speaker}-{sid})", file=self.score_file)
 
         if not self.cfg.common_eval.quiet:
             logger.info(f"HYPO: {hyp_words}")
