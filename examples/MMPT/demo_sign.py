@@ -9,6 +9,7 @@ from mmpt.models import MMPTModel
 import mediapipe as mp
 mp_holistic = mp.solutions.holistic
 FACEMESH_CONTOURS_POINTS = [str(p) for p in sorted(set([p for p_tup in list(mp_holistic.FACEMESH_CONTOURS) for p in p_tup]))]
+MAX_FRAMES = 256 # see also max_video_length in MMPT/mmpt/models/mmfusion.py" # TODO: check the model.max_video_len instead?
 
 
 model_configs = [
@@ -80,8 +81,11 @@ def preprocess_pose(pose):
     feat = np.nan_to_num(pose.body.data)
     feat = feat.reshape(feat.shape[0], -1)
 
-    pose_frames = torch.from_numpy(np.expand_dims(feat, axis=0)).float()
-
+    pose_frames = torch.from_numpy(np.expand_dims(feat, axis=0)).float() # .size() is torch.Size([1, frame count, 609])
+    if pose_frames.size(1) > MAX_FRAMES:
+        print(f"Video too long for signCLIP. Truncating to {MAX_FRAMES} from {pose_frames.size(1)}")
+        pose_frames = pose_frames[:, :MAX_FRAMES, :]
+        
     return pose_frames
 
 
