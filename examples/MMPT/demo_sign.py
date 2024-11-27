@@ -97,7 +97,43 @@ def preprocess_text(text, model_name="default"):
     return caps, cmasks
 
 
-def score_pose_and_text(pose, text, max_frames, model_name="default"):
+
+
+def embed_pose(pose, model_name='default'):
+    model = models[model_name]['model']
+
+    caps, cmasks = preprocess_text('', model_name)
+    poses = pose if type(pose) == list else [pose]
+    embeddings = []
+
+    for pose in poses:
+        pose_frames = preprocess_pose(pose)
+
+        with torch.no_grad():
+            output = model(pose_frames, caps, cmasks, return_score=False)
+            embeddings.append(output['pooled_video'].cpu().numpy())
+
+    return np.concatenate(embeddings)
+
+
+def embed_text(text, model_name='default'):
+    model = models[model_name]['model']
+
+    # pose_frames = torch.randn(1, 1, 534)
+    pose_frames = torch.randn(1, 1, 609)
+    texts = text if type(text) == list else [text]
+    embeddings = []
+
+    for text in texts:
+        caps, cmasks = preprocess_text(text, model_name)
+
+        with torch.no_grad():
+            output = model(pose_frames, caps, cmasks, return_score=False)
+            embeddings.append(output['pooled_text'].cpu().numpy())
+
+    return np.concatenate(embeddings)
+
+def score_pose_and_text(pose, text, model_name="default", max_frames=None):
     model = models[model_name]["model"]
 
     pose_frames = preprocess_pose(pose, max_frames)
@@ -108,6 +144,13 @@ def score_pose_and_text(pose, text, max_frames, model_name="default"):
 
     return text, float(output["score"])  # dot-product
 
+
+def score_pose_and_text_batch(pose, text, model_name='default'):
+    pose_embedding = embed_pose(pose, model_name)
+    text_embedding = embed_text(text, model_name)
+
+    scores = np.matmul(pose_embedding, text_embedding.T)
+    return scores
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate pose and text similarity using SignCLIP.")
@@ -139,14 +182,14 @@ def main():
         buffer = f.read()
         pose = Pose.read(buffer)
 
-        print(score_pose_and_text(pose, "random text", max_frames))
-        print(score_pose_and_text(pose, "house", max_frames))
-        print(score_pose_and_text(pose, "<en> <ase> house", max_frames))
-        print(score_pose_and_text(pose, "<en> <gsg> house", max_frames))
-        print(score_pose_and_text(pose, "<en> <fsl> house", max_frames))
-        print(score_pose_and_text(pose, "<en> <ase> sun", max_frames))
-        print(score_pose_and_text(pose, "<en> <ase> police", max_frames))
-        print(score_pose_and_text(pose, "<en> <ase> how are you?", max_frames))
+        print(score_pose_and_text(pose, "random text", max_frames=max_frames))
+        print(score_pose_and_text(pose, "house", max_frames=max_frames))
+        print(score_pose_and_text(pose, "<en> <ase> house", max_frames=max_frames))
+        print(score_pose_and_text(pose, "<en> <gsg> house", max_frames=max_frames))
+        print(score_pose_and_text(pose, "<en> <fsl> house", max_frames=max_frames))
+        print(score_pose_and_text(pose, "<en> <ase> sun", max_frames=max_frames))
+        print(score_pose_and_text(pose, "<en> <ase> police", max_frames=max_frames))
+        print(score_pose_and_text(pose, "<en> <ase> how are you?", max_frames=max_frames))
 
 
 if __name__ == "__main__":
