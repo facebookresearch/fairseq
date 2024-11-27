@@ -1,12 +1,11 @@
+import argparse
+from pathlib import Path
 import torch
 import numpy as np
 from pose_format import Pose
-
+import mediapipe as mp
 from mmpt.models import MMPTModel
 
-import mediapipe as mp
-import argparse
-from pathlib import Path
 
 mp_holistic = mp.solutions.holistic
 FACEMESH_CONTOURS_POINTS = [str(p) for p in sorted(set(p for p_tup in mp_holistic.FACEMESH_CONTOURS for p in p_tup))]
@@ -38,15 +37,17 @@ for model_name, config_path in model_configs:
 
 def pose_normalization_info(pose_header):
     if pose_header.components[0].name == "POSE_LANDMARKS":
-        return pose_header.normalization_info(
-            p1=("POSE_LANDMARKS", "RIGHT_SHOULDER"), p2=("POSE_LANDMARKS", "LEFT_SHOULDER")
-        )
+        return pose_header.normalization_info(p1=("POSE_LANDMARKS", "RIGHT_SHOULDER"),
+                                            p2=("POSE_LANDMARKS", "LEFT_SHOULDER"))
+
     if pose_header.components[0].name == "BODY_135":
         return pose_header.normalization_info(p1=("BODY_135", "RShoulder"), p2=("BODY_135", "LShoulder"))
+
     if pose_header.components[0].name == "pose_keypoints_2d":
-        return pose_header.normalization_info(
-            p1=("pose_keypoints_2d", "RShoulder"), p2=("pose_keypoints_2d", "LShoulder")
-        )
+        return pose_header.normalization_info(p1=("pose_keypoints_2d", "RShoulder"),
+                                                p2=("pose_keypoints_2d", "LShoulder"))
+    
+    raise ValueError(f"Could not parse normalization info, pose_header.components[0].name is {pose_header.components[0].name}. Expected one of (POSE_LANDMARKS,BODY_135,pose_keypoints_2d)")
 
 
 def pose_hide_legs(pose):
@@ -61,8 +62,7 @@ def pose_hide_legs(pose):
         pose.body.confidence[:, :, points] = 0
         pose.body.data[:, :, points, :] = 0
         return pose
-    else:
-        raise ValueError("Unknown pose header schema for hiding legs")
+    raise ValueError("Unknown pose header schema for hiding legs")
 
 
 def preprocess_pose(pose, max_frames=None):
@@ -79,7 +79,7 @@ def preprocess_pose(pose, max_frames=None):
 
     pose_frames = torch.from_numpy(np.expand_dims(feat, axis=0)).float()  # .size() is torch.Size([1, frame count, 609])
     if max_frames is not None and pose_frames.size(1) > max_frames:
-        print(f"Video too long for signCLIP. Truncating to {max_frames} from {pose_frames.size(1)}")
+        print(f"pose sequnce length too long ({pose_frames.size(1)}) longer than {max_frames} frames. Truncating")
         pose_frames = pose_frames[:, :max_frames, :]
 
     return pose_frames
@@ -111,14 +111,19 @@ def score_pose_and_text(pose, text, max_frames, model_name="default"):
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate pose and text similarity using SignCLIP.")
-    parser.add_argument("pose_path", 
-                        default='/shares/volk.cl.uzh/zifjia/RWTH_Fingerspelling/pose/1_1_1_cam2.pose'
-                        type=Path, help="Path to the .pose file.")
+    parser.add_argument(
+        "pose_path",
+        default="/shares/volk.cl.uzh/zifjia/RWTH_Fingerspelling/pose/1_1_1_cam2.pose",
+        type=Path,
+        help="Path to the .pose file.",
+    )
     parser.add_argument(
         "--max_frames",
+        nargs="?",
         type=int,
-        default=MAX_FRAMES_DEFAULT,
-        help=f"Maximum number of frames to process. Pose sequences longer than this will be truncated. Default is {MAX_FRAMES_DEFAULT}, as SignCLIP can currently only support this many.",
+        const=MAX_FRAMES_DEFAULT,
+        default=None,
+        help=f"If provided, pose sequences longer than this will be truncated, otherwise they will not. If provided without a value, will use {MAX_FRAMES_DEFAULT}, as SignCLIP can currently only support this many. If provided with a value, will use that value",
     )
 
     args = parser.parse_args()
