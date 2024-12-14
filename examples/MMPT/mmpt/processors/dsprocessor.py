@@ -13,7 +13,6 @@ from collections import defaultdict
 
 import numpy as np
 import pandas as pd
-import pyarrow.parquet as pq
 import torch
 
 from .processor import (
@@ -874,9 +873,6 @@ import mediapipe as mp
 mp_holistic = mp.solutions.holistic
 FACEMESH_CONTOURS_POINTS = [str(p) for p in sorted(set([p for p_tup in list(mp_holistic.FACEMESH_CONTOURS) for p in p_tup]))]
 
-from sign_vq.data.normalize import pre_process_mediapipe, normalize_mean_std
-from pose_anonymization.appearance import remove_appearance
-
 
 class PoseProcessor(VideoProcessor):
     def __init__(self, config):
@@ -896,8 +892,9 @@ class PoseProcessor(VideoProcessor):
 
     def __call__(self, video_id, pose=None):
         if video_id:
-            buffer = open(os.path.join(self.vfeat_dir, video_id + ".pose"), "rb").read()
-            pose = Pose.read(buffer)
+            with open(os.path.join(self.vfeat_dir, video_id + ".pose"), "rb") as f:
+                buffer = f.read()
+                pose = Pose.read(buffer)
 
         # select components
         if self.pose_components:
@@ -916,11 +913,13 @@ class PoseProcessor(VideoProcessor):
                 pose = flip_holistic(pose)
 
         if self.anonym_pose:
+            from pose_anonymization.appearance import remove_appearance
             # remove appearance + add spreadthesign mean pose
             # https://github.com/sign-language-processing/pose-anonymization
             pose = remove_appearance(pose)
 
         if self.preprocess == 'sign-vq' or self.preprocess == 'sign-vq-original-scale':
+            from sign_vq.data.normalize import pre_process_mediapipe, normalize_mean_std
             # reuse the preprocessing pipeline from sign-vq
             # https://github.com/sign-language-processing/sign-vq
             pose = pre_process_mediapipe(pose)
@@ -1170,6 +1169,8 @@ class ASLSignPoseProcessor(PoseProcessor):
     BODY = LHAND + POSE + RHAND
 
     def __call__(self, video_id):
+        import pyarrow.parquet as pq
+
         pose_df = pq.read_table(os.path.join(self.vfeat_dir, video_id)).to_pandas()
 
         # pd.set_option('display.max_rows', None)
@@ -1430,4 +1431,96 @@ class SignCLIPPretrainMetaProcessor(MetaProcessor):
         text = '' if self.task == 'identification' else datum['text']
         vlan = '<ase>' if self.task == 'conceptualization' else f"<{datum['videoLanguage']}>"
         text_info = f"<{datum['language']}> {vlan} {text}"
+        return video_id, text_info
+
+
+from pprint import pprint
+
+
+class BOBSLMetaProcessor(MetaProcessor):
+    """BBC-Oxford British Sign Language Dataset
+    https://www.robots.ox.ac.uk/~vgg/data/bobsl/
+    """
+
+    def __init__(self, config):
+        super().__init__(config)
+
+        BOBSL_PATH = '/athenahomes/zifan/BOBSL/v1.4'
+        VIDEO_DIR = '/scratch/shared/beegfs/zifan/bobsl/original_videos'
+        OUTPUT_DIR = '/scratch/shared/beegfs/zifan/bobsl'
+
+        annotations = {
+            'test': {
+                'dict': {
+                    'spottings_path': f"{BOBSL_PATH}/manual_annotations/isolated_signs/verified_dict_spottings.json",
+                    'range': [-3, 22],
+                },
+                'mouthing': {
+                    'spottings_path': f"{BOBSL_PATH}/manual_annotations/isolated_signs/verified_mouthing_spottings.json",
+                    'range': [-15, 4],
+                },
+            },
+            'train': {
+                'attention': {
+                    'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/attention/attention_spottings.json",
+                    'range': [-8, 18],
+                },
+                'mouthing_v1': {
+                    'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/mouthing/mouthing_spottings_v1.json",
+                    'range': [-9, 11],
+                },
+                'mouthing_v2': {
+                    'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/mouthing/mouthing_spottings_v2.pkl",
+                    'range': [-9, 11],
+                },
+                'dict_v1': {
+                    'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/dictionary/dictionary_spottings_v1.json",
+                    'range': [-3, 22],
+                },
+                'dict_v2': {
+                    'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/dictionary/dictionary_spottings_v2.pkl",
+                    'range': [-3, 22],
+                },
+                'i3d_pseudo_labels': {
+                    'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/i3d_pseudo_labels/i3d_pseudo_labels_spottings.pkl",
+                    'range': [0, 19],
+                },
+                'exemplars': {
+                    'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/exemplars/exemplar_spottings.pkl",
+                    'range': [0, 19],
+                },
+            },
+        }
+
+        self.data = []
+        split = config.split
+
+        for annotation_source, annotation in annotations[split].items():
+            print(f'Loading {annotation_source} ...')
+
+            file_path = annotation['spottings_path']
+            if file_path.endswith('.json'):
+                with open(file_path, "r") as file:
+                    data = json.load(file)
+                    data = data[split]
+
+                    annotation['total_num'] = sum([len(d['names']) for d in data.values()])
+                    annotation['vocab'] = len(data)
+
+                    # for gloss, value in tqdm(data.items()):
+                    for gloss, value in tqdm(list(data.items())):
+                        for i, name in enumerate(value['names']):
+                            global_time = value['global_times'][i]
+                            pose_path = f"{split}/{annotation_source}/{gloss}/{name}-{str(global_time).replace('.', '_')}"
+
+                            self.data.append({
+                                'text': gloss,
+                                'pose': pose_path,
+                            })
+
+        pprint(annotations[split])
+
+    def __getitem__(self, idx):
+        video_id = self.data[idx]['pose']
+        text_info = f"<bfi> {self.data[idx]['text']}"
         return video_id, text_info

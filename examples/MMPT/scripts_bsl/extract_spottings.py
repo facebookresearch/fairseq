@@ -4,6 +4,7 @@ import pickle
 import argparse
 from pathlib import Path
 from functools import partial
+from pprint import pprint
 from tqdm.contrib.concurrent import process_map
 
 import ffmpeg
@@ -25,6 +26,10 @@ annotations = {
         },
     },
     'train': {
+        'attention': {
+            'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/attention/attention_spottings.json",
+            'range': [-8, 18],
+        },
         'mouthing_v1': {
             'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/mouthing/mouthing_spottings_v1.json",
             'range': [-9, 11],
@@ -34,14 +39,21 @@ annotations = {
             'range': [-9, 11],
         },
         'dict_v1': {
-            'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/mouthing/dictionary_spottings_v1.json",
+            'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/dictionary/dictionary_spottings_v1.json",
             'range': [-3, 22],
         },
         'dict_v2': {
-            'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/mouthing/dictionary_spottings_v2.pkl",
+            'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/dictionary/dictionary_spottings_v2.pkl",
             'range': [-3, 22],
         },
-        # TODO: others
+        'i3d_pseudo_labels': {
+            'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/i3d_pseudo_labels/i3d_pseudo_labels_spottings.pkl",
+            'range': [0, 19],
+        },
+        'exemplars': {
+            'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/exemplars/exemplar_spottings.pkl",
+            'range': [0, 19],
+        },
     },
 }
 
@@ -52,7 +64,7 @@ def trim_video(input_file, output_file, start_time, end_time):
     """
 
     if os.path.exists(output_file):
-        print(f"Output file '{output_file}' already exists. Skipping.")
+        # print(f"Output file '{output_file}' already exists. Skipping.")
         return
 
     ffmpeg.input(input_file, ss=start_time, t=(end_time - start_time)) \
@@ -62,7 +74,7 @@ def trim_video(input_file, output_file, start_time, end_time):
         .run()
 
 
-def process_video(split, annotation_source, annotation, item):
+def process_video_by_gloss(split, annotation_source, annotation, item):
     (gloss, value) = item
     print(gloss)
 
@@ -82,6 +94,25 @@ def process_video(split, annotation_source, annotation, item):
         end_time = global_time + annotation['range'][1] / fps
 
         trim_video(video_path, output_video_path, start_time, end_time)
+
+
+def process_video(split, annotation_source, annotation, item):
+    gloss = item['annot_word']
+
+    output_video_dir = f'{OUTPUT_DIR}/islr_videos/{split}/{annotation_source}/{gloss}'
+    Path(output_video_dir).mkdir(parents=True, exist_ok=True)
+
+    global_time = item['annot_time']
+    name = item['episode_name'].replace('.mp4', '')
+
+    video_path = f'{VIDEO_DIR}/{name}.mp4'
+    output_video_path = f"{output_video_dir}/{name}-{str(global_time).replace('.', '_')}.mp4"
+
+    fps = 25
+    start_time = global_time + annotation['range'][0] / fps
+    end_time = global_time + annotation['range'][1] / fps
+
+    trim_video(video_path, output_video_path, start_time, end_time)
 
 
 def main():
@@ -118,6 +149,11 @@ def main():
                 annotation['total_num'] = sum([len(d['names']) for d in data.values()])
                 annotation['vocab'] = len(data)
 
+                if not args.read_only:
+                    func = partial(process_video_by_gloss, split, annotation_source, annotation)
+                    for _ in process_map(func, data.items(), max_workers=args.num_workers):
+                        pass
+
         elif file_path.endswith('.pkl'):
             with open(file_path, "rb") as file:
 
@@ -125,12 +161,14 @@ def main():
                 annotation['total_num'] = len(data['episode_name'])
                 annotation['vocab'] = len(set(data['annot_word']))
 
-        if not args.read_only:
-            func = partial(process_video, split, annotation_source, annotation)
-            for _ in process_map(func, data.items(), max_workers=args.num_workers):
-                pass
+                if not args.read_only:
+                    data = [dict(zip(data.keys(), values)) for values in zip(*data.values())]
+                    
+                    func = partial(process_video, split, annotation_source, annotation)
+                    for _ in process_map(func, data, max_workers=args.num_workers, chunksize=1000):
+                        pass
 
-    print(annotations[split])
+    pprint(annotations[split])
 
 if __name__ == "__main__":
     main()
