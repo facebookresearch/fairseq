@@ -56,7 +56,7 @@ See VideoCLIP's original [README](https://github.com/facebookresearch/fairseq/tr
 
 ```
 cd fairseq
-pip install -e .
+pip install .
 
 cd examples/MMPT 
 pip install -e .
