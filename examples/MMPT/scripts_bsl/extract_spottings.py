@@ -30,18 +30,18 @@ annotations = {
             'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/attention/attention_spottings.json",
             'range': [-8, 18],
         },
-        'mouthing_v1': {
-            'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/mouthing/mouthing_spottings_v1.json",
-            'range': [-9, 11],
-        },
+        # 'mouthing_v1': {
+        #     'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/mouthing/mouthing_spottings_v1.json",
+        #     'range': [-9, 11],
+        # },
         'mouthing_v2': {
             'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/mouthing/mouthing_spottings_v2.pkl",
             'range': [-9, 11],
         },
-        'dict_v1': {
-            'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/dictionary/dictionary_spottings_v1.json",
-            'range': [-3, 22],
-        },
+        # 'dict_v1': {
+        #     'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/dictionary/dictionary_spottings_v1.json",
+        #     'range': [-3, 22],
+        # },
         'dict_v2': {
             'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/dictionary/dictionary_spottings_v2.pkl",
             'range': [-3, 22],
