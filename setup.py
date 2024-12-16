@@ -187,7 +187,7 @@ def do_setup(package_data):
             "torch>=1.13",
             "tqdm",
             "bitarray",
-            "torchaudio>=0.8.0",
+            # "torchaudio>=0.8.0",
             "scikit-learn",
             "packaging",
         ],
