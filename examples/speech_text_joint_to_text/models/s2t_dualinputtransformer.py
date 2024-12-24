@@ -28,6 +28,7 @@ from fairseq.modules import (
     GradMultiply,
     LayerNorm,
 )
+from fairseq.incrcorr import IncrCorr
 
 logger = logging.getLogger(__name__)
 
@@ -387,6 +388,7 @@ class TransformerMultiInputDecoder(FairseqDecoder):
         compute_cross_attentive_loss=False,
         cross_attentive_loss_with_norm=True,
         cross_attentive_loss_reverse=False,
+        measure_corr=False,
     ):
 
         super().__init__(dictionary)
@@ -395,6 +397,43 @@ class TransformerMultiInputDecoder(FairseqDecoder):
         self.compute_cross_attentive_loss = compute_cross_attentive_loss
         self.cross_attentive_loss_with_norm = cross_attentive_loss_with_norm
         self.cross_attentive_loss_reverse = cross_attentive_loss_reverse
+
+        if measure_corr:
+            self.run_corr_arr = [IncrCorr((1,spch_decoder.embed_dim), 0) for _ in range(len(spch_decoder.layers) + 1)]
+        else:
+            self.run_corr_arr = None
+
+    @torch.no_grad()
+    def update_corr(self, x, y):
+        """Update running correlation calculation
+
+        x: left side of comparison, array of tensors of shape
+        (seq_len x batch_size x embed_dim) with length equal to the number of
+        decoder layers
+
+        y: right side of comparison, same type/size as x
+        """
+        embed_dim = self.spch_decoder.embed_dim
+        layer_results = []
+        for layer_x, layer_y, run_corr in zip(x, y, self.run_corr_arr):
+            tx_tens = torch.reshape(layer_x, (-1, embed_dim))
+            ty_tens = torch.reshape(layer_y, (-1, embed_dim))
+            run_corr.update(tx_tens, ty_tens)
+
+    def retrieve_corr(self):
+        """Return the cumulative correlation measurement"""
+        embed_dim = self.spch_decoder.embed_dim
+        layer_results = []
+        for run_corr in self.run_corr_arr:
+            cur_corr = run_corr.retrieve() # Should be len embed_dim
+            total_corr = float(cur_corr.sum() / embed_dim)
+            layer_results.append(total_corr)
+        return layer_results
+
+    def reset_corr(self):
+        """Reset all correlation measurements e.g. at the start of a new epoch"""
+        for run_corr in self.run_corr_arr:
+            cur_corr = run_corr.reset()
 
     @classmethod
     def share_spchdecoder(cls, task_args, text_decoder, spch_decoder):
@@ -521,6 +560,12 @@ class TransformerMultiInputDecoder(FairseqDecoder):
                     rst.append(
                         self.text_decoder(prev_output_tokens, eo, incremental_state)
                     )
+
+            if self.run_corr_arr:
+                # Compare internal decoder states resulting from text and speech inputs
+                # store intermediate correlation calculation resulting from the comparison
+                self.update_corr(rst[0][1]['inner_states'], rst[1][1]['inner_states'])
+
             dec_out = torch.cat([r[0] for r in rst], dim=0)
             attn_cost = None
             if self.compute_cross_attentive_loss:
@@ -771,6 +816,11 @@ class DualInputS2TTransformerModel(FairseqEncoderDecoderModel):
             help="add eos token at the end of input feature",
         )
         parser.add_argument(
+            "--measure-corr",
+            action="store_true",
+            help="measure correlation for each epoch",
+        )
+        parser.add_argument(
             "--speech-encoder-adapter-type",
             type=str,
             metavar="EXPR",
@@ -882,6 +932,7 @@ class DualInputS2TTransformerModel(FairseqEncoderDecoderModel):
             if not cross_attentive_loss_without_norm
             else False,
             cross_attentive_loss_reverse=cross_attentive_loss_reverse,
+            measure_corr=args.measure_corr,
         )
         if args.init_scale != 1.0:
             with torch.no_grad():
@@ -1038,6 +1089,7 @@ def dualinputs2ttransformer_base(args):
     args.encoder_shared_layers = getattr(args, "encoder_shared_layers", 0)
     args.decoder_layers = getattr(args, "decoder_layers", 6)
 
+    args.measure_corr = getattr(args, "measure_corr", False)
     args.add_speech_eos = getattr(args, "add_speech_eos", False)
 
 
