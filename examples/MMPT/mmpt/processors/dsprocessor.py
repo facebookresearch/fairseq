@@ -13,7 +13,6 @@ from collections import defaultdict
 
 import numpy as np
 import pandas as pd
-import pyarrow.parquet as pq
 import torch
 
 from .processor import (
@@ -874,9 +873,6 @@ import mediapipe as mp
 mp_holistic = mp.solutions.holistic
 FACEMESH_CONTOURS_POINTS = [str(p) for p in sorted(set([p for p_tup in list(mp_holistic.FACEMESH_CONTOURS) for p in p_tup]))]
 
-from sign_vq.data.normalize import pre_process_mediapipe, normalize_mean_std
-from pose_anonymization.appearance import remove_appearance
-
 
 class PoseProcessor(VideoProcessor):
     def __init__(self, config):
@@ -896,8 +892,9 @@ class PoseProcessor(VideoProcessor):
 
     def __call__(self, video_id, pose=None):
         if video_id:
-            buffer = open(os.path.join(self.vfeat_dir, video_id + ".pose"), "rb").read()
-            pose = Pose.read(buffer)
+            with open(os.path.join(self.vfeat_dir, video_id + ".pose"), "rb") as f:
+                buffer = f.read()
+                pose = Pose.read(buffer)
 
         # select components
         if self.pose_components:
@@ -916,11 +913,13 @@ class PoseProcessor(VideoProcessor):
                 pose = flip_holistic(pose)
 
         if self.anonym_pose:
+            from pose_anonymization.appearance import remove_appearance
             # remove appearance + add spreadthesign mean pose
             # https://github.com/sign-language-processing/pose-anonymization
             pose = remove_appearance(pose)
 
         if self.preprocess == 'sign-vq' or self.preprocess == 'sign-vq-original-scale':
+            from sign_vq.data.normalize import pre_process_mediapipe, normalize_mean_std
             # reuse the preprocessing pipeline from sign-vq
             # https://github.com/sign-language-processing/sign-vq
             pose = pre_process_mediapipe(pose)
@@ -1170,6 +1169,8 @@ class ASLSignPoseProcessor(PoseProcessor):
     BODY = LHAND + POSE + RHAND
 
     def __call__(self, video_id):
+        import pyarrow.parquet as pq
+
         pose_df = pq.read_table(os.path.join(self.vfeat_dir, video_id)).to_pandas()
 
         # pd.set_option('display.max_rows', None)
@@ -1226,7 +1227,7 @@ class SignCLIPMetaProcessor(MetaProcessor):
         self.task = config.task
         self.split = config.split
         self.pose_processer = SignCLIPPoseProcessor(config) # call pose_processer by meta_processor itself
-        self.datasets = []
+        self.datasets = {}
         self.data = []
 
         if config.test_in_vocab:
@@ -1262,19 +1263,24 @@ class SignCLIPMetaProcessor(MetaProcessor):
                 data_l = tfds.load(name=dataset, builder_kwargs=dict(config=sd_config), data_dir=config.data_dir)[split]
 
                 print(f'In total {len(data_l)} raw {split} examples.')
+                print('Iterate over examples ...')
 
-                # filter empty or long poses
-                data_l_filtered = [datum for datum in data_l if datum['pose']['data'].shape[0] > 0 and datum['pose']['data'].shape[0] <= config.max_video_len]
-                print(f'In total {len(data_l_filtered)} wellformed {split} examples.')
-                
-                self.datasets.append({
-                    'name': dataset,
+                self.datasets[dataset] = {
                     'pose_header': pose_header,
-                    'data_l': data_l_filtered,
-                })
+                    'data_l': data_l,
+                }
 
-                for datum in data_l_filtered:
+                count = 0
+                for dataset_index, datum in enumerate(tqdm(data_l)):
+                    if not (datum['pose']['data'].shape[0] > 0 and datum['pose']['data'].shape[0] <= config.max_video_len):
+                        continue
+
+                    if config.debug and count >= 1000:
+                        break
+                    count = count + 1
+
                     if self.task and self.task.startswith('identification'):
+                        # for dicta_sign
                         signed_language_map = {
                             'GSL': 'gss',
                             'BSL': 'bfi',
@@ -1292,7 +1298,14 @@ class SignCLIPMetaProcessor(MetaProcessor):
                         tag_prompt = f"<en> <{signed_language}>"
                         text_prompt = f"{tag_prompt} {datum['text_en'].numpy().decode('utf-8')}" if self.task == 'identification_oracle' else tag_prompt
                     else:
-                        tag_prompt = "<en> <ase>" if config.sp_universal_tagging else "<American Sign Language>"
+                        if config.sp_universal_tagging:
+                            if dataset == 'bobsl_islr':
+                                tag_prompt = "<en> <bfi>" 
+                            else:
+                                tag_prompt = "<en> <ase>" 
+                        else:
+                            tag_prompt = "<American Sign Language>"
+
                         text_content = datum['text'].numpy().decode('utf-8')
 
                         if config.test_in_vocab:
@@ -1310,14 +1323,31 @@ class SignCLIPMetaProcessor(MetaProcessor):
 
                         text_prompt = f"{tag_prompt} {text_content}"
 
+                    vfeat = None
+                    # save memory consumption for 3.5M BOBSL ISLR examples to under 300GB
+                    # better solution: use SignCLIPMetaProcessorV2 to load data asynchronously
+                    if config.pre_compute_vfeat: 
+                        # reconstruct pose object
+                        tf_pose = datum['pose']
+                        fps = int(tf_pose["fps"].numpy())
+                        pose_body = NumPyPoseBody(fps, tf_pose["data"].numpy(), tf_pose["conf"].numpy())
+                        pose = Pose(pose_header, pose_body)
+                        vfeat = self.pose_processer(pose)
+
                     self.data.append(dict(
-                        datum,
+                        # datum,
                         id=f"{dataset}_{datum['id'].numpy().decode('utf-8')}",
                         text=text_prompt,
-                        pose_header=pose_header,
+                        vfeat=vfeat,
                     ))
 
+                # if config.debug:
+                #     self.data = self.data*3000
+
+                print(f'In total {count} wellformed {split} examples.')
+
         print(f'In total {len(self.data)} wellformed {split} examples from all datasets.')
+        
         if self.split == 'train':
             random.shuffle(self.data)
 
@@ -1364,11 +1394,16 @@ class SignCLIPMetaProcessor(MetaProcessor):
         else:
             datum = self.data[idx]
 
+            # vfeat pre-computed during __init__
+            if 'vfeat' in datum:
+                return idx, datum['text'], datum['vfeat']
+
             # reconstruct pose object
             tf_pose = datum['pose']
+            # tf_pose = dataset['data_l'][datum['dataset_index']]['pose']
             fps = int(tf_pose["fps"].numpy())
             pose_body = NumPyPoseBody(fps, tf_pose["data"].numpy(), tf_pose["conf"].numpy())
-            pose = Pose(datum['pose_header'], pose_body)
+            pose = Pose(dataset['pose_header'], pose_body)
             vfeat = self.pose_processer(pose)
 
             return idx, datum['text'], vfeat
@@ -1431,3 +1466,80 @@ class SignCLIPPretrainMetaProcessor(MetaProcessor):
         vlan = '<ase>' if self.task == 'conceptualization' else f"<{datum['videoLanguage']}>"
         text_info = f"<{datum['language']}> {vlan} {text}"
         return video_id, text_info
+
+
+class SignCLIPMetaProcessorV2(MetaProcessor):
+    def __init__(self, config):
+        super().__init__(config)
+        random.seed(42)
+
+        self.config = config
+        self.split = config.split
+        self.pose_processer = SignCLIPPoseProcessor(config) # call pose_processer by meta_processor itself
+
+        print('================================')
+        print(f'Loading {self.split} data ... ')
+        print('================================')
+
+        datasets = config[f'{"test" if config.train_for_test else self.split}_datasets']
+        datasets = [item if len(item) == 3 else [*item, None] for item in datasets]
+
+        for dataset, version, split_version in datasets:
+            print('--------------------------------')
+            print(f'Loading the {dataset} {version} dataset, {split_version if split_version else "default"} split ... ')
+            print('--------------------------------')
+
+            # read common pose header for the dataset
+            dataset_module = importlib.import_module("sign_language_datasets.datasets." + dataset + "." + dataset)
+            with open(dataset_module._POSE_HEADERS['holistic'], "rb") as buffer:
+                pose_header = PoseHeader.read(BufferReader(buffer.read()))
+
+            sd_config = SignDatasetConfig(name="holistic", version=version, include_video=False, include_pose="holistic", extra={'split': split_version} if split_version else {})
+            split = 'validation' if self.split == 'valid' else self.split
+
+            self.pose_header = pose_header
+
+            self.data_l = tfds.load(name=dataset, builder_kwargs=dict(config=sd_config), data_dir=config.data_dir)[split]
+            print("Dataset initialized")
+            print(f'In total {len(self.data_l)} raw {split} examples.')
+
+
+    def reset_data_iter(self):
+        print("Resetting iterator")
+        self.data_iter = iter(self.data_l)
+
+
+    def __len__(self): 
+        return len(self.data_l)
+
+
+    def __getitem__(self, idx):
+        # print(f"Fetching item {idx}")
+
+        if idx == 0:
+            self.reset_data_iter()
+
+        try:
+            # Get the next data from the TensorFlow generator
+            datum = next(self.data_iter)
+        except StopIteration:
+            print("Iterator exhausted, resetting...")
+            # If the generator is exhausted, reset it
+            self.reset_data_iter()
+            # Retrieve the first element from the reset generator
+            datum = next(self.data_iter)
+
+        tag_prompt = "<en> <bfi>" 
+        text_content = datum['text'].numpy().decode('utf-8')
+        text_prompt = f"{tag_prompt} {text_content}"
+
+        # print(text_prompt)
+
+        # reconstruct pose object
+        tf_pose = datum['pose']
+        fps = int(tf_pose["fps"].numpy())
+        pose_body = NumPyPoseBody(fps, tf_pose["data"].numpy(), tf_pose["conf"].numpy())
+        pose = Pose(self.pose_header, pose_body)
+        vfeat = self.pose_processer(pose)
+
+        return idx, text_prompt, vfeat

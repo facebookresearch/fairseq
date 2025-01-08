@@ -1,0 +1,38 @@
+dataset:
+  # debug: true
+  max_video_len: 32
+  max_len: 32
+  split: train
+  train_for_test: true
+  # split: test
+  meta_processor: SignCLIPMetaProcessorV2
+  video_processor: SignCLIPPoseProcessor
+  text_processor: TextProcessor
+  bert_name: bert-base-cased
+  data_dir: /scratch/shared/beegfs/zifan/tensorflow_datasets
+  test_datasets: [['bobsl_islr', '1.4.0']]
+  test_path: data/<dataset>/test.txt # placeholder, no use
+  aligner: DSAligner
+  pose_components: 'reduced_face'
+  sp_universal_tagging: true
+slurm_config: big
+task_type: local_predict
+fairseq:
+  dataset:
+    batch_size: 12800
+    # batch_size: 2048
+    valid_subset: test
+    num_workers: 0
+  common_eval:
+    path: runs/retri_bsl/bobsl_islr_finetune/checkpoint_best.pt
+model:
+  model_cls: MMFusionSeparate
+  mm_encoder_cls: null
+  video_encoder_cls: MMBertForEncoder
+  text_encoder_cls: BertModel
+  num_hidden_video_layers: 12
+  vfeat_dim: 609
+eval:
+  save_path: runs/retri_bsl/bobsl_islr_finetune/eval_v2
+metric: RWTHFSMetric
+predictor: RetrievalPredictor

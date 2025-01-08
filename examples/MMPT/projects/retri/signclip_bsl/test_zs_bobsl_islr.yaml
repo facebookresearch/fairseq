@@ -1,0 +1,34 @@
+dataset:
+  max_video_len: 256
+  max_len: 64
+  split: test
+  meta_processor: BOBSLMetaProcessor
+  video_processor: PoseProcessor
+  text_processor: TextProcessor
+  bert_name: bert-base-cased
+  test_path: data/<dataset>/test.txt # placeholder, no use
+  vfeat_dir: /scratch/shared/beegfs/zifan/bobsl/islr_videos/
+  aligner: DSAligner
+  pose_components: 'reduced_face'
+  # anonym_pose: true
+slurm_config: big
+task_type: local_predict
+fairseq:
+  dataset:
+    # batch_size: 256
+    batch_size: 512
+    valid_subset: test
+    num_workers: 2
+  common_eval:
+    path: runs/retri_v1_1/baseline_temporal/checkpoint_best.pt
+model:
+  model_cls: MMFusionSeparate
+  mm_encoder_cls: null
+  video_encoder_cls: MMBertForEncoder
+  text_encoder_cls: BertModel
+  num_hidden_video_layers: 12
+  vfeat_dim: 609
+eval:
+  save_path: runs/retri_bsl/baseline_temporal/eval
+metric: RWTHFSMetric
+predictor: RetrievalPredictor

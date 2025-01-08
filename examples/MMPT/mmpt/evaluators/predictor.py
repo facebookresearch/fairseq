@@ -131,8 +131,16 @@ class RetrievalPredictor(Predictor):
         video_ids = []
         model.eval()
         model = model.cuda()
+
+        if self.config.dataset.test_datasets:
+            dir_name = f"{self.config.dataset.test_datasets[0][0]}_{self.config.dataset.split}"
+        else:
+            dir_name = self.config.dataset.split
+        pred_dir = os.path.join(self.pred_dir, dir_name)
+        Path(pred_dir).mkdir(parents=True, exist_ok=True)
+
         with torch.no_grad():
-            for data in eval_dataloader:
+            for i, data in enumerate(tqdm(eval_dataloader)):
                 # convert to dict.
                 if not isinstance(data, dict):
                     data = {
@@ -152,6 +160,13 @@ class RetrievalPredictor(Predictor):
                     )
                 video_ids.append(data["video_id"])
 
+                video_hidden = full_scores[0][-1]
+                np.save(os.path.join(pred_dir, f"video_embeddings_{i}.npy"), video_hidden)
+
+                with open(os.path.join(pred_dir, "texts.txt"), 'w') as f:
+                    for line in texts:
+                        f.write(f"{line}\n")
+
         return self.finalize(full_scores, texts, video_ids, output_file)
 
     def __call__(self, sample, full_scores):
@@ -159,22 +174,25 @@ class RetrievalPredictor(Predictor):
         self._append_scores(scores, full_scores)
 
     def finalize(self, full_scores, texts, video_ids, output_file=None):
+        print('_aggregate_scores by matrix multiplication ...')
         outputs, text_hidden, video_hidden = self._aggregate_scores(full_scores)
+        print('collect video ids ...')
         video_ids = [(int(item.item()) if torch.is_tensor(item) else item) for sublist in video_ids for item in sublist]
+        print(f'{len(video_ids)} video ids')
 
-        if output_file is not None:
-            if self.config.dataset.test_datasets:
-                dir_name = f"{self.config.dataset.test_datasets[0][0]}_{self.config.dataset.split}"
-            else:
-                dir_name = self.config.dataset.split
-            pred_dir = os.path.join(self.pred_dir, dir_name)
-            Path(pred_dir).mkdir(parents=True, exist_ok=True)
+        # if output_file is not None:
+        #     if self.config.dataset.test_datasets:
+        #         dir_name = f"{self.config.dataset.test_datasets[0][0]}_{self.config.dataset.split}"
+        #     else:
+        #         dir_name = self.config.dataset.split
+        #     pred_dir = os.path.join(self.pred_dir, dir_name)
+        #     Path(pred_dir).mkdir(parents=True, exist_ok=True)
 
-            np.save(os.path.join(pred_dir, output_file + ".npy"), outputs)
-            np.save(os.path.join(pred_dir, "video_embeddings.npy"), video_hidden)
-            with open(os.path.join(pred_dir, "texts.txt"), 'w') as f:
-                for line in texts:
-                    f.write(f"{line}\n")
+        #     np.save(os.path.join(pred_dir, output_file + ".npy"), outputs)
+        #     np.save(os.path.join(pred_dir, "video_embeddings.npy"), video_hidden)
+        #     with open(os.path.join(pred_dir, "texts.txt"), 'w') as f:
+        #         for line in texts:
+        #             f.write(f"{line}\n")
 
         return {"outputs": outputs, "texts": texts, "video_ids": video_ids}
 
@@ -198,7 +216,16 @@ class RetrievalPredictor(Predictor):
         text_hidden = np.concatenate(scores[1], axis=0)
         # clear up.
         self.full_scores = []
-        return np.matmul(text_hidden, video_hidden.T), text_hidden, video_hidden
+
+        max_dim = 100000
+        cut_dim = 10000
+        if video_hidden.shape[0] > max_dim:
+            print(f'Warning: score matrix dimension larger than max {max_dim}, cutting to {cut_dim} fit memory ...')
+            scores = np.matmul(text_hidden[:cut_dim], video_hidden[:cut_dim].T)
+        else:
+            scores = np.matmul(text_hidden, video_hidden.T)
+
+        return scores, text_hidden, video_hidden
 
 
 class QAPredictor(Predictor):
