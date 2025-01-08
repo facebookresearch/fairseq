@@ -180,20 +180,19 @@ class RetrievalPredictor(Predictor):
         video_ids = [(int(item.item()) if torch.is_tensor(item) else item) for sublist in video_ids for item in sublist]
         print(f'{len(video_ids)} video ids')
 
-        if output_file is not None:
-            if self.config.dataset.test_datasets:
-                dir_name = f"{self.config.dataset.test_datasets[0][0]}_{self.config.dataset.split}"
-            else:
-                dir_name = self.config.dataset.split
-            pred_dir = os.path.join(self.pred_dir, dir_name)
-            Path(pred_dir).mkdir(parents=True, exist_ok=True)
+        # if output_file is not None:
+        #     if self.config.dataset.test_datasets:
+        #         dir_name = f"{self.config.dataset.test_datasets[0][0]}_{self.config.dataset.split}"
+        #     else:
+        #         dir_name = self.config.dataset.split
+        #     pred_dir = os.path.join(self.pred_dir, dir_name)
+        #     Path(pred_dir).mkdir(parents=True, exist_ok=True)
 
-            np.save(os.path.join(pred_dir, output_file + ".npy"), outputs)
-
-            # np.save(os.path.join(pred_dir, "video_embeddings.npy"), video_hidden)
-            # with open(os.path.join(pred_dir, "texts.txt"), 'w') as f:
-            #     for line in texts:
-            #         f.write(f"{line}\n")
+        #     np.save(os.path.join(pred_dir, output_file + ".npy"), outputs)
+        #     np.save(os.path.join(pred_dir, "video_embeddings.npy"), video_hidden)
+        #     with open(os.path.join(pred_dir, "texts.txt"), 'w') as f:
+        #         for line in texts:
+        #             f.write(f"{line}\n")
 
         return {"outputs": outputs, "texts": texts, "video_ids": video_ids}
 
@@ -225,7 +224,7 @@ class RetrievalPredictor(Predictor):
             scores = np.matmul(text_hidden[:cut_dim], video_hidden[:cut_dim].T)
         else:
             scores = np.matmul(text_hidden, video_hidden.T)
-            
+
         return scores, text_hidden, video_hidden
 
 
