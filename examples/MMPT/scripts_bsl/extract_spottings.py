@@ -29,6 +29,7 @@ annotations = {
         'attention': {
             'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/attention/attention_spottings.json",
             'range': [-8, 18],
+            'threshold': 0,
         },
         # 'mouthing_v1': {
         #     'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/mouthing/mouthing_spottings_v1.json",
@@ -37,6 +38,7 @@ annotations = {
         'mouthing_v2': {
             'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/mouthing/mouthing_spottings_v2.pkl",
             'range': [-9, 11],
+            'threshold': 0.8,
         },
         # 'dict_v1': {
         #     'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/dictionary/dictionary_spottings_v1.json",
@@ -45,14 +47,17 @@ annotations = {
         'dict_v2': {
             'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/dictionary/dictionary_spottings_v2.pkl",
             'range': [-3, 22],
+            'threshold': 0.8,
         },
         'i3d_pseudo_labels': {
             'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/i3d_pseudo_labels/i3d_pseudo_labels_spottings.pkl",
             'range': [0, 19],
+            'threshold': 0.5,
         },
         'exemplars': {
             'spottings_path': f"{BOBSL_PATH}/automatic_annotations/isolated_signs/exemplars/exemplar_spottings.pkl",
             'range': [0, 19],
+            'threshold': 2,
         },
     },
 }
@@ -147,6 +152,7 @@ def main():
                 data = data[split]
 
                 annotation['total_num'] = sum([len(d['names']) for d in data.values()])
+                annotation['total_num_threshold'] = sum([len([prob for prob in d['probs'] if prob >= annotation['threshold']]) for d in data.values()])
                 annotation['vocab'] = len(data)
 
                 if not args.read_only:
@@ -159,6 +165,7 @@ def main():
 
                 data = pickle.load(file)
                 annotation['total_num'] = len(data['episode_name'])
+                annotation['total_num_threshold'] = len([prob for prob in data['annot_prob'] if prob >= annotation['threshold']])
                 annotation['vocab'] = len(set(data['annot_word']))
 
                 if not args.read_only:
@@ -169,6 +176,8 @@ def main():
                         pass
 
     pprint(annotations[split])
+    print('total_num', sum([annotation['total_num'] for annotation in annotations[split].values()]))
+    print('total_num_threshold', sum([annotation['total_num_threshold'] for annotation in annotations[split].values()]))
 
 if __name__ == "__main__":
     main()

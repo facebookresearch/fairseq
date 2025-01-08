@@ -2,13 +2,16 @@ dataset:
   debug: false
   max_video_len: 256
   max_len: 64
+  # split: valid
+  # train_for_test: true
   split: test
   meta_processor: BOBSLMetaProcessorV2
   video_processor: SignCLIPPoseProcessor
   text_processor: TextProcessor
   bert_name: bert-base-cased
   test_path: data/<dataset>/test.txt # placeholder, no use
-  vfeat_dir: '/scratch/shared/beegfs/zifan/bobsl/original_videos'
+  vfeat_dir: /scratch/shared/beegfs/zifan/bobsl/original_videos
+  vfeat_dir_test: /scratch/shared/beegfs/zifan/bobsl/islr_videos
   aligner: DSAligner
   pose_components: 'reduced_face'
   # anonym_pose: true

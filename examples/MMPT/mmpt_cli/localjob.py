@@ -42,7 +42,7 @@ class LocalJob(BaseJob):
             "fairseq-train", "[yaml]", "--user-dir", "mmpt",
             "--task", "mmtask", "--arch", "mmarch",
             "--criterion", "mmloss",
-            "--distributed-world-size", "8"
+            "--distributed-world-size", "4"
         ],
         "local_predict": ["python", "mmpt_cli/predict.py", "[yaml]"],
     }
