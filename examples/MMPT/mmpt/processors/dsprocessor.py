@@ -1275,9 +1275,9 @@ class SignCLIPMetaProcessor(MetaProcessor):
                     if not (datum['pose']['data'].shape[0] > 0 and datum['pose']['data'].shape[0] <= config.max_video_len):
                         continue
 
-                    count = count + 1
-                    if config.debug and count > 1000:
+                    if config.debug and count >= 1000:
                         break
+                    count = count + 1
 
                     if self.task and self.task.startswith('identification'):
                         # for dicta_sign
@@ -1323,27 +1323,31 @@ class SignCLIPMetaProcessor(MetaProcessor):
 
                         text_prompt = f"{tag_prompt} {text_content}"
 
-                    # reconstruct pose object
-                    tf_pose = datum['pose']
-                    fps = int(tf_pose["fps"].numpy())
-                    pose_body = NumPyPoseBody(fps, tf_pose["data"].numpy(), tf_pose["conf"].numpy())
-                    pose = Pose(pose_header, pose_body)
-                    vfeat = self.pose_processer(pose)
+                    vfeat = None
+                    # save memory consumption for 3.5M BOBSL ISLR examples to under 300GB
+                    # better solution: use SignCLIPMetaProcessorV2 to load data asynchronously
+                    if config.pre_compute_vfeat: 
+                        # reconstruct pose object
+                        tf_pose = datum['pose']
+                        fps = int(tf_pose["fps"].numpy())
+                        pose_body = NumPyPoseBody(fps, tf_pose["data"].numpy(), tf_pose["conf"].numpy())
+                        pose = Pose(pose_header, pose_body)
+                        vfeat = self.pose_processer(pose)
 
                     self.data.append(dict(
                         # datum,
                         id=f"{dataset}_{datum['id'].numpy().decode('utf-8')}",
                         text=text_prompt,
-                        dataset=dataset,
-                        dataset_index=dataset_index,
                         vfeat=vfeat,
                     ))
 
                 # if config.debug:
                 #     self.data = self.data*3000
+
                 print(f'In total {count} wellformed {split} examples.')
 
         print(f'In total {len(self.data)} wellformed {split} examples from all datasets.')
+        
         if self.split == 'train':
             random.shuffle(self.data)
 
@@ -1389,18 +1393,20 @@ class SignCLIPMetaProcessor(MetaProcessor):
             return sampled_idx, sampled_text
         else:
             datum = self.data[idx]
-            # dataset = self.datasets[datum['dataset']]
 
-            # # reconstruct pose object
-            # tf_pose = datum['pose']
-            # # tf_pose = dataset['data_l'][datum['dataset_index']]['pose']
-            # fps = int(tf_pose["fps"].numpy())
-            # pose_body = NumPyPoseBody(fps, tf_pose["data"].numpy(), tf_pose["conf"].numpy())
-            # pose = Pose(dataset['pose_header'], pose_body)
-            # vfeat = self.pose_processer(pose)
+            # vfeat pre-computed during __init__
+            if 'vfeat' in datum:
+                return idx, datum['text'], datum['vfeat']
 
-            # return idx, datum['text'], vfeat
-            return idx, datum['text'], datum['vfeat']
+            # reconstruct pose object
+            tf_pose = datum['pose']
+            # tf_pose = dataset['data_l'][datum['dataset_index']]['pose']
+            fps = int(tf_pose["fps"].numpy())
+            pose_body = NumPyPoseBody(fps, tf_pose["data"].numpy(), tf_pose["conf"].numpy())
+            pose = Pose(dataset['pose_header'], pose_body)
+            vfeat = self.pose_processer(pose)
+
+            return idx, datum['text'], vfeat
 
 
 class SignCLIPPoseProcessor(PoseProcessor):
@@ -1462,336 +1468,6 @@ class SignCLIPPretrainMetaProcessor(MetaProcessor):
         return video_id, text_info
 
 
-from pprint import pprint
-
-
-# test only
-class BOBSLMetaProcessor(MetaProcessor):
-    """BBC-Oxford British Sign Language Dataset
-    https://www.robots.ox.ac.uk/~vgg/data/bobsl/
-    """
-
-    def __init__(self, config):
-        super().__init__(config)
-
-        BOBSL_PATH = '/athenahomes/zifan/BOBSL/v1.4'
-        annotations = {
-            'test': {
-                'dict': {
-                    'spottings_path': f"{BOBSL_PATH}/manual_annotations/isolated_signs/verified_dict_spottings.json",
-                    'range': [-3, 22],
-                },
-                'mouthing': {
-                    'spottings_path': f"{BOBSL_PATH}/manual_annotations/isolated_signs/verified_mouthing_spottings.json",
-                    'range': [-15, 4],
-                },
-            },
-        }
-
-        self.data = []
-        split = config.split
-
-        for annotation_source, annotation in annotations[split].items():
-            print(f'Loading {annotation_source} ...')
-
-            file_path = annotation['spottings_path']
-            if file_path.endswith('.json'):
-                with open(file_path, "r") as file:
-                    data = json.load(file)
-                    data = data[split]
-
-                    annotation['total_num'] = sum([len(d['names']) for d in data.values()])
-                    annotation['vocab'] = len(data)
-
-                    for gloss, value in tqdm(list(data.items())):
-                        for i, name in enumerate(value['names']):
-                            global_time = value['global_times'][i]
-                            pose_path = f"{split}/{annotation_source}/{gloss}/{name}-{str(global_time).replace('.', '_')}"
-
-                            self.data.append({
-                                'text': gloss,
-                                'pose': pose_path,
-                            })
-
-        pprint(annotations[split])
-
-    def __getitem__(self, idx):
-        video_id = self.data[idx]['pose']
-        text_info = f"<bfi> {self.data[idx]['text']}"
-        return video_id, text_info
-
-
-# Load data from pickled annotations directly
-# Issue: I/O too slow
-# class BOBSLMetaProcessorV2(MetaProcessor):
-#     """BBC-Oxford British Sign Language Dataset
-#     https://www.robots.ox.ac.uk/~vgg/data/bobsl/
-#     """
-
-#     def __init__(self, config):
-#         super().__init__(config)
-
-#         random.seed(42)
-
-#         self.data = []
-#         self.cache_path = os.path.join(config.cache_dir, f'{config.split}.pickle')
-#         self.split = config.split
-#         self.vfeat_dir = config.vfeat_dir_test if config.split == 'test' else config.vfeat_dir
-#         self.pose_processer = SignCLIPPoseProcessor(config) # call pose_processer by meta_processor itself
-
-#         split = config.split
-#         print(f'Initialize {split} ...')
-
-#         if os.path.exists(self.cache_path):
-#             print(f'Load {split} from cache ...')
-#             with open(self.cache_path, 'rb') as fp:
-#                 self.data = pickle.load(fp)
-#         else:
-#             if split == 'test':
-#                 # Read the 25K ISOLATED SIGNS annotation files from BOBSL website
-
-#                 BOBSL_PATH = '/athenahomes/zifan/BOBSL/v1.4'
-#                 annotations = {
-#                     'test': {
-#                         'dict': {
-#                             'spottings_path': f"{BOBSL_PATH}/manual_annotations/isolated_signs/verified_dict_spottings.json",
-#                             'range': [-3, 22],
-#                         },
-#                         'mouthing': {
-#                             'spottings_path': f"{BOBSL_PATH}/manual_annotations/isolated_signs/verified_mouthing_spottings.json",
-#                             'range': [-15, 4],
-#                         },
-#                     },
-#                 }
-
-#                 self.fnames = []
-#                 self.labels = []
-
-#                 for annotation_source, annotation in annotations[split].items():
-#                     print(f'Loading {annotation_source} ...')
-
-#                     file_path = annotation['spottings_path']
-#                     if file_path.endswith('.json'):
-#                         with open(file_path, "r") as file:
-#                             data = json.load(file)
-#                             data = data[split]
-
-#                             annotation['total_num'] = sum([len(d['names']) for d in data.values()])
-#                             annotation['vocab'] = len(data)
-
-#                             for gloss, value in tqdm(list(data.items())):
-#                                 for i, name in enumerate(value['names']):
-#                                     global_time = value['global_times'][i]
-#                                     pose_path = f"{split}/{annotation_source}/{gloss}/{name}-{str(global_time).replace('.', '_')}.pose"
-
-#                                     self.fnames.append(pose_path)
-#                                     self.labels.append([gloss])
-
-#                 pprint(annotations[split])
-#             else:
-#                 # Copy annotations from the vgg_islr repo
-
-#                 type2offsets = {
-#                     "prajwal_mouthing" : (-9, 11), "dict" : (-3, 22), "attention" : (-8, 18), 
-#                     "i3d_pseudo_label" : (0, 19), "mouthing" : (-15, 4), 
-#                     "swin_pseudo_label" : (5, 25), "other" : (-8, 8), "cos_sim" : (0, 19)
-#                 }
-#                 type2prob_thresh = {
-#                     0 : # train
-#                         {"prajwal_mouthing" : 0.8, "dict" : 0.8, "attention" : 0., "i3d_pseudo_label" : 0.5,
-#                         "swin_pseudo_label" : 0.3, "cos_sim" : 2., "other" : 0.},
-
-#                     1 : {"prajwal_mouthing" : 0.8, "dict" : 0.9, "attention" : 0., "i3d_pseudo_label" : 0.5,
-#                     "swin_pseudo_label" : 0.3, "cos_sim" : 2., "other" : 0.},
-
-#                     3 : {"prajwal_mouthing" : 0.8, "dict" : 0.8, "mouthing" : 0.8, "other" : 0.},
-#                 }
-#                 TRAIN_SPLIT_NUM = 0
-#                 VAL_SPLIT_NUM = 1
-#                 TEST_SPLIT_NUM = 3
-#                 vocab_file = "/work/sign-language/haran/bobsl/vocab/8697_vocab.pkl"
-#                 spotting_file = "/work/sign-language/youngjoon/islr/anno.pkl"
-#                 fps = 25
-
-#                 if split == "train":
-#                     split_idx = TRAIN_SPLIT_NUM
-#                 elif split == "valid":
-#                     split_idx = VAL_SPLIT_NUM
-#                 elif split == "test":
-#                     split_idx = TEST_SPLIT_NUM
-
-#                 print('Load vocab ...')
-#                 with open(vocab_file, 'rb') as f:
-#                     self.vocab = pickle.load(f)["words_to_id"]
-#                     self.id2word = {id : word for word, id in self.vocab.items()}
-#                 print('Load spotting annotations ...')
-#                 with open(spotting_file, 'rb') as f:
-#                     data = pickle.load(f)
-#                 data = data["videos"]
-                
-#                 count = 0 
-#                 self.unigrams = defaultdict(list)
-
-#                 # print('Collect number of annotations by split:')
-#                 # for index in [TRAIN_SPLIT_NUM, VAL_SPLIT_NUM, TEST_SPLIT_NUM]:
-#                 #     print(index, len([d for d in data['split'] if d == index]))
-
-#                 # print('Collect number of annotations by type:')
-#                 # for anno_type, anno_thres in type2prob_thresh[0].items():
-#                 #     print(f'{anno_type}:', len([d for d in data["anno_type"] if anno_type == d]))
-#                 #     print(f'{anno_type} after thresholding:', len([d for i, d in enumerate(data["anno_type"]) if anno_type == d and data["mouthing_prob"][i] > anno_thres]))
-
-#                 print('Load examples ...')
-#                 anno_type = None
-#                 for i in tqdm(range(len(data["name"]))):
-#                     if data["split"][i] == split_idx:
-#                         if data["word"][i] in ['_fingerspelling', '_nosigning', '_pointing', '_lexical_signing']:
-#                             continue
-
-#                         if data["word"][i] in self.vocab:
-#                             if anno_type is None or data["anno_type"][i] == anno_type:
-#                                 if split == 'test' or (data["mouthing_prob"][i] \
-#                                     >= type2prob_thresh[split_idx][data["anno_type"][i]]):
-#                                         pose_filename = data["name"][i].replace('.mp4', '.pose')
-
-#                                         if os.path.exists(f'{self.vfeat_dir}/{pose_filename}'):
-#                                             time = int(data["mouthing_time"][i] * fps)
-#                                             start_offset, end_offset = type2offsets[data["anno_type"][i]]
-#                                             s, e = max(0, time + start_offset), time + end_offset
-
-#                                             self.unigrams[pose_filename].append([s, e, data["word"][i]])
-
-#                                             if config.debug:
-#                                                 count = count + 1 
-#                                                 # if count > 100000:
-#                                                 if count > 10:
-#                                                     break
-
-#                 self.flatten(self.unigrams)
-#                 del self.unigrams
-#                 del data
-
-#             # for idx, fname in tqdm(enumerate(self.fnames)):
-#             #     video_id = fname
-#             #     with open(os.path.join(self.vfeat_dir, video_id), "rb") as f:
-#             #         buffer = f.read()
-#             #         if self.split == 'test':
-#             #             pose = Pose.read(buffer)
-#             #         else:
-#             #             pose = Pose.read(buffer, start_frame=self.starts[idx], end_frame=self.ends[idx])
-
-#             #     data = (
-#             #         idx,
-#             #         f"<bfi> {self.labels[idx][0]}",
-#             #         pose,
-#             #     )
-#             #     self.data.append(data)
-
-#             from tqdm.contrib.concurrent import process_map
-
-#             def process(idx):
-#                 video_id = self.fnames[idx]
-#                 with open(os.path.join(self.vfeat_dir, video_id), "rb") as f:
-#                     buffer = f.read()
-#                     if self.split == 'test':
-#                         pose = Pose.read(buffer)
-#                     else:
-#                         pose = Pose.read(buffer, start_frame=self.starts[idx], end_frame=self.ends[idx])
-
-#                 data = (
-#                     idx,
-#                     f"<bfi> {self.labels[idx][0]}",
-#                     pose,
-#                 )
-#                 return data
-
-#             # func = partial(process, )
-#             indices = range(len(self.fnames))
-#             for data in process_map(process, indices, max_workers=4, chunksize=1):
-#                 self.data.append(data)
-
-#             with open(self.cache_path, 'wb') as fp:
-#                 pickle.dump(self.data, fp, protocol=pickle.HIGHEST_PROTOCOL)
-
-
-#     def flatten(self, ngrams):
-#         unique_words = {}
-#         word_counter = {}
-#         self.fnames = []
-#         self.starts = []
-#         self.ends = []
-#         self.labels = []
-#         self.max_repeat = -1
-#         for fname in ngrams:
-#             for s, e, w in ngrams[fname]:
-#                 word_counter[w] = word_counter.get(w, 0) + 1
-#                 if self.max_repeat > 0 and word_counter[w] > self.max_repeat:
-#                     continue
-
-#                 self.fnames.append(fname)
-#                 self.starts.append(s)
-#                 self.ends.append(e)
-#                 if isinstance(w, tuple):
-#                     self.labels.append(list(w))
-#                 else:
-#                     self.labels.append([w])
-#                     unique_words[w] = True
-#         if self.split == 'train':
-#             zipped = list(zip(self.fnames, self.labels, self.starts, self.ends))
-#             random.shuffle(zipped)
-#             self.fnames, self.labels, self.starts, self.ends = zip(*zipped)
-#         print("Vocab size:", len(unique_words))
-
-
-#     def __len__(self): 
-#         return len(self.data)
-
-
-#     def __getitem__(self, idx):
-#         (idx, text_info, pose) = self.data[idx]
-#         vfeat = self.pose_processer(pose)
-#         return idx, text_info, vfeat
-
-
-# Load prepared pickle data
-# Issue: too high memory requirement, 100k training is successful
-class BOBSLMetaProcessorV3(MetaProcessor):
-    """BBC-Oxford British Sign Language Dataset
-    https://www.robots.ox.ac.uk/~vgg/data/bobsl/
-    """
-
-    def __init__(self, config):
-        super().__init__(config)
-
-        random.seed(42)
-
-        split = config.split
-        print(f'Initialize {split} ...')
-
-        self.pose_processer = SignCLIPPoseProcessor(config) # call pose_processer by meta_processor itself
-
-        pickle_name = 'train_100000' if split == 'train' else split
-        self.cache_path = os.path.join(config.cache_dir, f'{pickle_name}.pickle')
-
-        if os.path.exists(self.cache_path):
-            print(f'Load {split} from cache ...')
-            with open(self.cache_path, 'rb') as fp:
-                self.data = pickle.load(fp)
-
-        if split == 'train':
-            random.shuffle(self.data)
-
-
-    def __len__(self): 
-        return len(self.data)
-
-
-    def __getitem__(self, idx):
-        (idx, text_info, pose) = self.data[idx]
-        vfeat = self.pose_processer(pose)
-        return idx, text_info, vfeat
-
-
 class SignCLIPMetaProcessorV2(MetaProcessor):
     def __init__(self, config):
         super().__init__(config)
@@ -1828,7 +1504,7 @@ class SignCLIPMetaProcessorV2(MetaProcessor):
             print(f'In total {len(self.data_l)} raw {split} examples.')
 
 
-    def reset_data_l(self):
+    def reset_data_iter(self):
         print("Resetting iterator")
         self.data_iter = iter(self.data_l)
 
@@ -1841,7 +1517,7 @@ class SignCLIPMetaProcessorV2(MetaProcessor):
         # print(f"Fetching item {idx}")
 
         if idx == 0:
-            self.reset_data_l()
+            self.reset_data_iter()
 
         try:
             # Get the next data from the TensorFlow generator
@@ -1849,7 +1525,7 @@ class SignCLIPMetaProcessorV2(MetaProcessor):
         except StopIteration:
             print("Iterator exhausted, resetting...")
             # If the generator is exhausted, reset it
-            self.reset_data_l()
+            self.reset_data_iter()
             # Retrieve the first element from the reset generator
             datum = next(self.data_iter)
 

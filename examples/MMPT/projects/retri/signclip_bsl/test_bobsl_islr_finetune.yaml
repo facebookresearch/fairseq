@@ -15,6 +15,7 @@ dataset:
   aligner: DSAligner
   pose_components: 'reduced_face'
   sp_universal_tagging: true
+  pre_compute_vfeat: true
 slurm_config: big
 task_type: local_predict
 fairseq:

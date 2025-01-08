@@ -18,6 +18,7 @@ dataset:
   aligner: DSAligner
   pose_components: 'reduced_face'
   sp_universal_tagging: true
+  pre_compute_vfeat: true
 fairseq:
   common:
     fp16: true

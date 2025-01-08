@@ -160,7 +160,7 @@ class RWTHFST2VMetric(RetrievalMetric):
             # print top errors.
             error = []
             # for ex_idx in range(100):
-            for ex_idx in range(min(len(max_idx), 100000)):
+            for ex_idx in range(len(max_idx)):
                 error.append((texts_reduced[ex_idx], texts[max_idx[ex_idx]], video_ids[max_idx[ex_idx]]))
             error = list(sorted(error, key=lambda x: x[0] + x[1]))
             metrics["error"] = error
