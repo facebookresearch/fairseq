@@ -11,7 +11,7 @@ See our interactive [Demo page](https://huggingface.co/spaces/facebook/Hokkien_T
 We create and release a Hokkien-English parallel speech dataset that is available for benchmarking Hokkien<>English speech to speech translation systems. The dataset was derived from TAT-Vol1-eval-lavalier (dev) and TAT-Vol1-test-lavalier (test) based on [Taiwanese Across Taiwan (TAT) corpus](https://sites.google.com/speech.ntut.edu.tw/fsw/home/tat-corpus), which contained audio recordings and transcripts in Taiwanese Hokkien.
 We created the parallel dataset by first concatenating neighboring sentences to form longer utterances, translating the Hokkien text transcriptions into English via Hokkien-English bilinguals, and recording the English translations with human voices. Below are some summary statistics of the dataset.
 
-The dataset is available [HERE](https://sites.google.com/nycu.edu.tw/speechlabx/tat_s2st_benchmark).
+The benchmark dataset is available at https://sites.google.com/nycu.edu.tw/sarc/tat_s2st_benchmark.
 
 ## Open Sourced English-Hokkien S2ST Models
 
