@@ -6,9 +6,12 @@
 """
 Legacy entry point. Use fairseq_cli/train.py or fairseq-train instead.
 """
+user_input_name = str(input())
+print("Hey, " + user_input_name + ". Thank you for choosing us")
 
 from fairseq_cli.train import cli_main
 
 
 if __name__ == "__main__":
     cli_main()
+ else raise Excpetion('Function/program failed, if youu would like to continue, rerun the program')
