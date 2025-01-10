@@ -48,6 +48,15 @@ Audios are saved to ${SAVE_ROOT}/audios/. For example, English audios are compre
 
 Speech alignments are saved to ${SAVE_ROOT}/aligned_speech/. For example, en-fr.tsv.gz contains a pair of aligned audio paths in English and French respectively together with their alignment score in each line.
 
+## Speech Transcriptions
+
+While SpeechMatrix focuses on speech-only data mining and translation, we provide transcriptions for the mined speech in case they are needed for future research. The transcriptions are generated with [Whisper](https://github.com/openai/whisper), we use medium.en for English transcribing, and medium for other langauges. Curently transcriptions are provided the target speech in these language directions: {"cs", "de", "en", "es", "et", "fi", "fr", "hu", "it", "lt", "nl", "pl", "pt", "ro", "sl"}-{"de", "en", "es", "fr", "nl"}.
+
+```bash
+# SAVE_ROOT: the directory to save mined data
+python mined_train_sets/download_transcriptions.py \
+    --save-root ${SAVE_ROOT}
+```
 
 ## Speech-to-Unit Data
 
