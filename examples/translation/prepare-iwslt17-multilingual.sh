@@ -24,41 +24,39 @@ mkdir -p "$ORIG" "$DATA"
 TRAIN_MINLEN=1  # remove sentences with <1 BPE token
 TRAIN_MAXLEN=250  # remove sentences with >250 BPE tokens
 
-URLS=(
-    "https://wit3.fbk.eu/archive/2017-01-trnted/texts/de/en/de-en.tgz"
-    "https://wit3.fbk.eu/archive/2017-01-trnted/texts/fr/en/fr-en.tgz"
-)
-ARCHIVES=(
-    "de-en.tgz"
-    "fr-en.tgz"
-)
+URL="https://drive.google.com/uc?id=1gFeuPTRc3RB4DhJEkhr8O-a8PObM7Ix2"
+
+ARCHIVE="2017-01-trnted.tgz"
+
 VALID_SETS=(
     "IWSLT17.TED.dev2010.de-en IWSLT17.TED.tst2010.de-en IWSLT17.TED.tst2011.de-en IWSLT17.TED.tst2012.de-en IWSLT17.TED.tst2013.de-en IWSLT17.TED.tst2014.de-en IWSLT17.TED.tst2015.de-en"
     "IWSLT17.TED.dev2010.fr-en IWSLT17.TED.tst2010.fr-en IWSLT17.TED.tst2011.fr-en IWSLT17.TED.tst2012.fr-en IWSLT17.TED.tst2013.fr-en IWSLT17.TED.tst2014.fr-en IWSLT17.TED.tst2015.fr-en"
 )
 
-# download and extract data
-for ((i=0;i<${#URLS[@]};++i)); do
-    ARCHIVE=$ORIG/${ARCHIVES[i]}
-    if [ -f "$ARCHIVE" ]; then
-        echo "$ARCHIVE already exists, skipping download"
-    else
-        URL=${URLS[i]}
-        wget -P "$ORIG" "$URL"
-        if [ -f "$ARCHIVE" ]; then
-            echo "$URL successfully downloaded."
-        else
-            echo "$URL not successfully downloaded."
-            exit 1
+echo "downloading data..."
+pip install gdown
+if [ -f "$ARCHIVE" ]; then
+    echo "$ARCHIVE already exists, skipping download"
+else
+    gdown "$URL"
+fi
+
+if [ -e "2017-01-trnted" ]; then
+    echo "2017-01-trnted already exists, skipping extraction"
+else
+    tar -xzvf "$ARCHIVE"
+fi
+
+for SRC in "${SRCS[@]}"; do
+    for LANG in "${SRC}" "${TGT}"; do
+        if [ -e "$ORIG/$SRC-TGT" ]; then
+            echo "$ORIG/$SRC-TGT already exists, skipping extraction"
+	else
+            tar -C "$ORIG" -xzvf "2017-01-trnted/texts/$SRC/$TGT/$SRC-$TGT.tgz"
         fi
-    fi
-    FILE=${ARCHIVE: -4}
-    if [ -e "$FILE" ]; then
-        echo "$FILE already exists, skipping extraction"
-    else
-        tar -C "$ORIG" -xzvf "$ARCHIVE"
-    fi
+    done
 done
+
 
 echo "pre-processing train data..."
 for SRC in "${SRCS[@]}"; do
