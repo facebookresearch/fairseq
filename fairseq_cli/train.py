@@ -265,7 +265,8 @@ def train(
     # Initialize data iterator
     itr = epoch_itr.next_epoch_itr(
         fix_batches_to_gpus=cfg.distributed_training.fix_batches_to_gpus,
-        shuffle=(epoch_itr.next_epoch_idx > cfg.dataset.curriculum),
+        # shuffle=(epoch_itr.next_epoch_idx > cfg.dataset.curriculum),
+        shuffle=False,
     )
     update_freq = (
         cfg.optimization.update_freq[epoch_itr.epoch - 1]

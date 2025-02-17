@@ -133,6 +133,7 @@ class MMBertForTokenClassification(BertPreTrainedModel):
 
 # ------------ pre-training models ----------------
 
+
 class MMBertForEncoder(BertPreTrainedModel):
     """A BertModel for Contrastive Learning."""
     def __init__(self, config):
@@ -141,6 +142,30 @@ class MMBertForEncoder(BertPreTrainedModel):
         self.videomlp = VideoTokenMLP(config)
         self.bert = MMBertModel(config)
         self.init_weights()
+
+        self.perceiver = None
+        # from perceiver_pytorch import Perceiver
+        # self.perceiver = Perceiver(
+        #     input_channels = config.input_dim,          # number of channels for each token of the input
+        #     input_axis = 1,              # number of axis for input data (2 for images, 3 for video)
+        #     num_freq_bands = 6,          # number of freq bands, with original value (2 * K + 1)
+        #     max_freq = 10.,              # maximum frequency, hyperparameter depending on how fine the data is
+        #     depth = 6,                   # depth of net. The shape of the final attention mechanism will be:
+        #                                 #   depth * (cross attention -> self_per_cross_attn * self attention)
+        #     num_latents = 8,           # number of latents, or induced set points, or centroids. different papers giving it different names
+        #     latent_dim = config.hidden_size,            # latent dimension
+        #     cross_heads = 1,             # number of heads for cross attention. paper said 1
+        #     latent_heads = 8,            # number of heads for latent self attention, 8
+        #     cross_dim_head = 64,         # number of dimensions per cross attention head
+        #     latent_dim_head = 64,        # number of dimensions per latent self attention head
+        #     num_classes = config.hidden_size,          # output number of classes
+        #     attn_dropout = 0.,
+        #     ff_dropout = 0.,
+        #     weight_tie_layers = False,   # whether to weight tie layers (optional, as indicated in the diagram)
+        #     fourier_encode_data = True,  # whether to auto-fourier encode the data, using the input_axis given. defaults to True, but can be turned off if you are fourier encoding the data yourself
+        #     self_per_cross_attn = 2,      # number of self attention blocks per cross attention
+        #     final_classifier_head=False,
+        # )
 
     def forward(
         self,
@@ -159,10 +184,19 @@ class MMBertForEncoder(BertPreTrainedModel):
             return_dict if return_dict is not None
             else self.config.use_return_dict
         )
+
+        # print(input_video_embeds.shape)
+
         if input_video_embeds is not None:
-            video_tokens = self.videomlp(self.videoconv(input_video_embeds)) if self.videoconv else self.videomlp(input_video_embeds)
+            if self.perceiver:
+                video_tokens = self.perceiver(input_video_embeds)
+            else:
+                video_tokens = self.videomlp(self.videoconv(input_video_embeds)) if self.videoconv else self.videomlp(input_video_embeds)
         else:
             video_tokens = None
+
+        # print(video_tokens.shape)
+        # exit()
 
         outputs = self.bert(
             input_ids,
