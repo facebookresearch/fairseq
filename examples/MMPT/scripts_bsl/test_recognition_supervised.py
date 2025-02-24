@@ -26,10 +26,9 @@ top_n = [1, 5, 10]
 for dataset in datasets:
     print(f'Evaluating {dataset} ...')
 
-    # embedding_dir = f'/shares/iict-sp2.ebling.cl.uzh/zifjia/fairseq/examples/MMPT/runs/retri_asl/{dataset}_finetune/eval'
-
     embedding_dir_train = f'/athenahomes/zifan/sign_clip/runs/retri_bsl/bobsl_islr_finetune/eval_v2/{dataset}_train'
-    embedding_dir_test = f'/athenahomes/zifan/sign_clip/runs/retri_bsl/bobsl_islr_finetune/eval/{dataset}_valid'
+    embedding_dir_test = f'/athenahomes/zifan/sign_clip/runs/retri_bsl/bobsl_islr_finetune/eval/{dataset}_test'
+    # embedding_dir_test = f'/athenahomes/zifan/sign_clip/runs/retri_bsl/bobsl_islr_finetune/eval/{dataset}_valid'
 
     test_text = read_file(f'{embedding_dir_test}/texts.txt')
     test_embeddings = np.load(f'{embedding_dir_test}/video_embeddings.npy')
@@ -48,7 +47,7 @@ for dataset in datasets:
 
     # train_text = test_text[:100]
     # train_embeddings = test_embeddings[:100]
-    # train_embeddings = train_embeddings[:10000]
+    train_embeddings = train_embeddings[:10000]
 
     train_text = train_text[:train_embeddings.shape[0]]
 
@@ -98,12 +97,8 @@ for dataset in datasets:
 
     clf = LogisticRegression(verbose=True, random_state=seed, max_iter=100)
     clf.fit(X_train, y_train)
-    # clf.fit(np.random.rand(len(y_train_labels), X_train.shape[1]), y_train_labels)
 
     y_score = clf.predict_proba(X_test)
-    # if dataset == 'sem_lex':
-    #     # masking for Sem-lex test set (smaller than training)
-    #     y_score[:, [item for item in y_train_labels if item not in y_test_labels]] = 0
     print(y_score.shape)
 
     for n in top_n:

@@ -652,13 +652,16 @@ class SignCLIPMetaProcessorV2(MetaProcessor):
             with open(dataset_module._POSE_HEADERS['holistic'], "rb") as buffer:
                 pose_header = PoseHeader.read(BufferReader(buffer.read()))
 
-            sd_config = SignDatasetConfig(name="holistic", version=version, include_video=False, include_pose="holistic", extra={'split': split_version} if split_version else {})
+            sd_config = SignDatasetConfig(name=config.config_name or 'holistic', version=version, include_video=False, include_pose="holistic", extra={
+                'split': split_version,
+                'lip_feature_dir': config.lip_feature_dir if config.config_name == 'holistic_lip' else None,
+            })
             split = 'validation' if self.split == 'valid' else self.split
 
             self.pose_header = pose_header
 
             if config.debug:
-                self.data_l = list(tfds.load(name=dataset, builder_kwargs=dict(config=sd_config), data_dir=config.data_dir)['test'])[:100]
+                self.data_l = list(tfds.load(name=dataset, builder_kwargs=dict(config=sd_config), data_dir=config.data_dir)['test'])[:2000]
             else:
                 self.data_l = tfds.load(name=dataset, builder_kwargs=dict(config=sd_config), data_dir=config.data_dir)[split]
 
@@ -696,11 +699,11 @@ class SignCLIPMetaProcessorV2(MetaProcessor):
             datum = next(self.data_iter)
             self.current_idx = 0
 
+        example_id = datum['id'].numpy().decode('utf-8')
+
         tag_prompt = "<en> <bfi>" 
         text_content = datum['text'].numpy().decode('utf-8')
         text_prompt = f"{tag_prompt} {text_content}"
-
-        # print(text_prompt)
 
         # reconstruct pose object
         tf_pose = datum['pose']
@@ -709,4 +712,8 @@ class SignCLIPMetaProcessorV2(MetaProcessor):
         pose = Pose(self.pose_header, pose_body)
         vfeat = self.pose_processer(pose)
 
-        return idx, text_prompt, vfeat
+        if self.config.include_lip_reading:
+            lip_feat = datum['lip'].numpy()
+            vfeat = np.concatenate((vfeat, lip_feat), axis=1)
+
+        return example_id, text_prompt, vfeat
