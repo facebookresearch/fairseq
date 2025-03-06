@@ -411,7 +411,7 @@ class SignCLIPMetaProcessor(MetaProcessor):
             with open(dataset_module._POSE_HEADERS['holistic'], "rb") as buffer:
                 pose_header = PoseHeader.read(BufferReader(buffer.read()))
 
-            sd_config = SignDatasetConfig(name="holistic", version=version, include_video=False, include_pose="holistic", extra={'split': split_version} if split_version else {})
+            sd_config = SignDatasetConfig(name=config.config_name or 'holistic', version=version, include_video=False, include_pose="holistic", extra={'split': split_version} if split_version else {})
             splits = ['validation' if self.split == 'valid' else self.split]
             # utilize unused validation data from some datasets for pretraining as well
             if self.split == 'train' and config.use_valid_for_pretraining and dataset not in [d[0] for d in config.valid_datasets]:
@@ -661,7 +661,23 @@ class SignCLIPMetaProcessorV2(MetaProcessor):
             self.pose_header = pose_header
 
             if config.debug:
-                self.data_l = list(tfds.load(name=dataset, builder_kwargs=dict(config=sd_config), data_dir=config.data_dir)['test'])[:2000]
+                split_debug = 'validation' if split == 'validation' else 'test'
+                self.data_l = list(tfds.load(name=dataset, builder_kwargs=dict(config=sd_config), data_dir=config.data_dir)[split_debug])[:1000]
+
+                # Group examples by text prompts
+                self.text_to_idxs = defaultdict(list)
+                for idx, datum in enumerate(self.data_l):
+                    self.text_to_idxs[datum['text'].numpy().decode('utf-8')].append(idx)
+
+                print('Number of examples grouped by the text prompts:')
+                text_to_idxs_num = [(text, len(idxs)) for text, idxs in self.text_to_idxs.items()]
+                text_to_idxs_num = sorted(text_to_idxs_num, key=lambda x: x[1], reverse=True)
+                for i, entry in enumerate(text_to_idxs_num):
+                    if i < 10 or (len(text_to_idxs_num) - i < 10):
+                        print(entry)
+                    elif i == 10:
+                        print('...')
+                print('Total classes:', len(text_to_idxs_num))
             else:
                 self.data_l = tfds.load(name=dataset, builder_kwargs=dict(config=sd_config), data_dir=config.data_dir)[split]
 

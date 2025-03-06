@@ -66,7 +66,7 @@ class MMPTModel(nn.Module):
 
     def forward(self, video_frames, caps, cmasks, return_score=False):
         bsz = video_frames.size(0)
-        assert bsz == 1, "only bsz=1 is supported now, received video_frames.size()={video_frames.size()}"
+        # assert bsz == 1, "only bsz=1 is supported now, received video_frames.size()={video_frames.size()}"
         seq_len = video_frames.size(1)
         assert seq_len <= self.max_video_len, f"Video too long. Received frame count {video_frames.size(1)} greater than configured max_video_len ({self.max_video_len})"
         if self.video_encoder:
