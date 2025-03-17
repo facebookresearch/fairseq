@@ -15,6 +15,7 @@ dataset:
   test_path: data/<dataset>/test.txt # placeholder, no use
   aligner: DSAligner
   pose_components: 'reduced_face'
+  include_lip_reading: true
   sp_universal_tagging: true
 slurm_config: big
 task_type: local_predict
@@ -25,15 +26,15 @@ fairseq:
     valid_subset: test
     num_workers: 0
   common_eval:
-    path: runs/retri_bsl/bobsl_islr_finetune/checkpoint_best.pt
+    path: runs/retri_bsl/bobsl_islr_lip/checkpoint_best.pt
 model:
   model_cls: MMFusionSeparate
   mm_encoder_cls: null
   video_encoder_cls: MMBertForEncoder
   text_encoder_cls: BertModel
   num_hidden_video_layers: 12
-  vfeat_dim: 609
+  vfeat_dim: 1377
 eval:
-  save_path: runs/retri_bsl/bobsl_islr_finetune/eval_v3
+  save_path: runs/retri_bsl/bobsl_islr_lip/eval
 metric: RWTHFSMetric
 predictor: RetrievalPredictor

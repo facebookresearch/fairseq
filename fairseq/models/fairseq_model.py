@@ -125,6 +125,12 @@ class BaseFairseqModel(nn.Module):
         from fairseq.checkpoint_utils import prune_state_dict
 
         new_state_dict = prune_state_dict(state_dict, model_cfg)
+        print(f'load model with strict={strict}')
+
+        current_model_dict = self.state_dict()
+        loaded_state_dict = new_state_dict
+        new_state_dict={k:v if v.size()==current_model_dict[k].size()  else  current_model_dict[k] for k,v in zip(current_model_dict.keys(), loaded_state_dict.values())}
+
         return super().load_state_dict(new_state_dict, strict)
 
     def upgrade_state_dict(self, state_dict):

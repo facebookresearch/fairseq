@@ -8,6 +8,7 @@ from .how2processor import *
 from .how2retriprocessor import *
 
 from .dsprocessor import *
+from .dsprocessor_sign import *
 
 try:
     from .rawvideoprocessor import *

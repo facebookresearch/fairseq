@@ -583,13 +583,13 @@ class Trainer(object):
                     logger.info(self.model)
 
                 self.model.load_state_dict(
-                    state["model"], strict=True, model_cfg=self.cfg.model
+                    state["model"], strict=False, model_cfg=self.cfg.model
                 )
                 # save memory for later steps
                 del state["model"]
                 if utils.has_parameters(self.get_criterion()):
                     self.get_criterion().load_state_dict(
-                        state["criterion"], strict=True
+                        state["criterion"], strict=False
                     )
                     del state["criterion"]
 

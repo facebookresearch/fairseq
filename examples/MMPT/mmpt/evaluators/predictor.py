@@ -166,6 +166,10 @@ class RetrievalPredictor(Predictor):
                 with open(os.path.join(pred_dir, "texts.txt"), 'w') as f:
                     for line in texts:
                         f.write(f"{line}\n")
+                with open(os.path.join(pred_dir, "ids.txt"), 'w') as f:
+                    for ids in video_ids:
+                        for line in ids:
+                            f.write(f"{line}\n")
 
         return self.finalize(full_scores, texts, video_ids, output_file)
 
