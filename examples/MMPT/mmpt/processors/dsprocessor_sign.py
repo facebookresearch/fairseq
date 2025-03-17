@@ -717,7 +717,7 @@ class SignCLIPMetaProcessorV2(MetaProcessor):
 
         example_id = datum['id'].numpy().decode('utf-8')
 
-        tag_prompt = "<en> <bfi>" 
+        tag_prompt = "<en> <bfi>" # FIXME
         text_content = datum['text'].numpy().decode('utf-8')
         text_prompt = f"{tag_prompt} {text_content}"
 
