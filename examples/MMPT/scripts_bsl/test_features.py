@@ -45,12 +45,12 @@ def get_sign_clip_embedding(ex, idx, sign_clip_from_episode, embeddings, pooling
         adjusted_end = end_frame // stride
         emb_array = np.load(sign_clip_file)[adjusted_start:adjusted_end]
         if pooling_method == "max":
-            pooled = np.max(emb_array, axis=0).astype(np.float32)
+            pooled = np.max(emb_array, axis=0).astype(np.float16)
         else:
-            pooled = np.mean(emb_array, axis=0).astype(np.float32)
+            pooled = np.mean(emb_array, axis=0).astype(np.float16)
         return pooled
     else:
-        return embeddings[idx].astype(np.float32)
+        return embeddings[idx].astype(np.float16)
 
 def get_swin_embedding(ex, idx, pooling_method, lmdb_loader):
     """
@@ -78,9 +78,9 @@ def get_swin_embedding(ex, idx, pooling_method, lmdb_loader):
         print(f"Warning: Failed to load swin features for episode {episode_id} at index {idx}: {e}")
         return None
     if pooling_method == "max":
-        pooled = np.max(episode_features, axis=0).astype(np.float32)
+        pooled = np.max(episode_features, axis=0).astype(np.float16)
     else:
-        pooled = np.mean(episode_features, axis=0).astype(np.float32)
+        pooled = np.mean(episode_features, axis=0).astype(np.float16)
     return pooled
 
 def process_examples(dataset, desc, debug, embeddings=None, features=["lip"], 
@@ -91,16 +91,16 @@ def process_examples(dataset, desc, debug, embeddings=None, features=["lip"],
     """
     examples = []
     for idx, ex in enumerate(tqdm(dataset, desc=desc)):
-        if debug and idx >= 10000:
+        if debug and idx >= 1000:
             break
         feature_embeddings = []
         for feat in features:
             if feat == "lip":
                 lip_data = ex['lip'].numpy()
                 if pooling_method == "max":
-                    lip_feature = np.max(lip_data, axis=0).astype(np.float32)
+                    lip_feature = np.max(lip_data, axis=0).astype(np.float16)
                 else:
-                    lip_feature = np.mean(lip_data, axis=0).astype(np.float32)
+                    lip_feature = np.mean(lip_data, axis=0).astype(np.float16)
                 feature_embeddings.append(lip_feature)
             elif feat == "sign_clip":
                 sign_clip_emb = get_sign_clip_embedding(ex, idx, sign_clip_from_episode, embeddings, pooling_method)
@@ -147,6 +147,30 @@ def split_examples(examples, test_ratio=0.1, random_seed=42):
     test_split = [examples[i] for i in test_indices]
     return train_split, test_split
 
+def evaluate_model(clf, X_test, y_test):
+    """Evaluate the classifier and print top-1, top-5, and top-10 accuracy."""
+    top1_acc = clf.score(X_test, y_test)
+    print(f"Top-1 accuracy: {top1_acc:.4f}")
+    
+    # Use predict_proba if available; otherwise use decision_function.
+    if hasattr(clf, "predict_proba"):
+        scores = clf.predict_proba(X_test)
+    else:
+        scores = clf.decision_function(X_test)
+    
+    # Map test labels to the indices of clf.classes_.
+    y_test_enc = np.array([np.where(clf.classes_ == label)[0][0] for label in y_test])
+    
+    def compute_topk_accuracy(scores, true_labels, k):
+        topk_preds = np.argsort(scores, axis=1)[:, -k:]
+        correct = [true_label in topk for true_label, topk in zip(true_labels, topk_preds)]
+        return np.mean(correct)
+    
+    top5 = compute_topk_accuracy(scores, y_test_enc, 5)
+    top10 = compute_topk_accuracy(scores, y_test_enc, 10)
+    print(f"Top-5 accuracy: {top5:.4f}")
+    print(f"Top-10 accuracy: {top10:.4f}")
+
 if __name__ == "__main__":
     # -------------------- Argument Parsing --------------------
     parser = argparse.ArgumentParser(
@@ -185,6 +209,12 @@ if __name__ == "__main__":
         help="If set, load sign_clip embeddings from episode files using adapted frame indices and pooling instead of using precomputed lookup tables."
     )
     parser.add_argument(
+        "--sign_clip_embedding_dir",
+        type=str,
+        default="/scratch/shared/beegfs/zifan/runs/retri_bsl/bobsl_islr_finetune/eval_v3",
+        help="Base directory for precomputed sign_clip embeddings."
+    )
+    parser.add_argument(
         "--pooling_method",
         type=str,
         choices=["avg", "max"],
@@ -212,6 +242,27 @@ if __name__ == "__main__":
         default=4,
         help="Input features stride for swin features."
     )
+    # New CLI argument for filtering classes.
+    parser.add_argument(
+        "--filter_class",
+        type=str,
+        choices=["both", "training"],
+        default="both",
+        help="Filter classes: 'both' to filter both training and testing by common labels, 'training' to filter test set only by classes present in training."
+    )
+    # New CLI argument for using incremental (partial_fit) training.
+    parser.add_argument(
+        "--partial_fit",
+        action="store_true",
+        help="If set, train using SGDClassifier with mini‑batch updates via partial_fit."
+    )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=1,
+        help="Number of passes over the training data to perform when using partial_fit."
+    )
+
     args = parser.parse_args()
     
     # Print all CLI options before proceeding.
@@ -244,18 +295,18 @@ if __name__ == "__main__":
         print("Loading precomputed embeddings...")
         emb_start_time = time.perf_counter()
         if args.dataset_for_training == "validation":
-            train_emb_dir = "/scratch/shared/beegfs/zifan/runs/retri_bsl/bobsl_islr_finetune/eval_v3/bobsl_islr_valid"
+            train_emb_dir = os.path.join(args.sign_clip_embedding_dir, "bobsl_islr_valid")
         elif args.dataset_for_training == "test":
-            train_emb_dir = "/scratch/shared/beegfs/zifan/runs/retri_bsl/bobsl_islr_finetune/eval_v3/bobsl_islr_test"
+            train_emb_dir = os.path.join(args.sign_clip_embedding_dir, "bobsl_islr_test")
         else:  # "training"
-            train_emb_dir = "/scratch/shared/beegfs/zifan/runs/retri_bsl/bobsl_islr_finetune/eval_v3/bobsl_islr_train"
+            train_emb_dir = os.path.join(args.sign_clip_embedding_dir, "bobsl_islr_train")
         
         if args.dataset_for_test == "training":
-            test_emb_dir = "/scratch/shared/beegfs/zifan/runs/retri_bsl/bobsl_islr_finetune/eval_v3/bobsl_islr_train"
+            test_emb_dir = os.path.join(args.sign_clip_embedding_dir, "bobsl_islr_train")
         elif args.dataset_for_test == "validation":
-            test_emb_dir = "/scratch/shared/beegfs/zifan/runs/retri_bsl/bobsl_islr_finetune/eval_v3/bobsl_islr_valid"
+            test_emb_dir = os.path.join(args.sign_clip_embedding_dir, "bobsl_islr_valid")
         elif args.dataset_for_test == "test":
-            test_emb_dir = "/scratch/shared/beegfs/zifan/runs/retri_bsl/bobsl_islr_finetune/eval_v3/bobsl_islr_test"
+            test_emb_dir = os.path.join(args.sign_clip_embedding_dir, "bobsl_islr_test")
             
         train_embeddings = load_embedding_lookup(train_emb_dir)
         test_embeddings = load_embedding_lookup(test_emb_dir)
@@ -388,17 +439,27 @@ if __name__ == "__main__":
     print("y_test shape:", y_test.shape)
 
     # -------------------- Filter for Common Labels --------------------
-    common_labels = np.intersect1d(np.unique(y_train), np.unique(y_test))
-    if len(common_labels) > 100:
-        print("Common labels (showing first 100):", common_labels[:100])
+    # Determine which labels to use for filtering.
+    if args.filter_class == "both":
+        labels = np.intersect1d(np.unique(y_train), np.unique(y_test))
+        filter_train = True  # Filter both training and test sets.
+    elif args.filter_class == "training":
+        labels = np.unique(y_train)
+        filter_train = False  # Only filter the test set.
+
+    # Print labels (showing only the first 100 if there are many).
+    if len(labels) > 100:
+        print(f"{len(labels)} labels (showing first 100):", labels[:100])
     else:
-        print("Common labels:", common_labels)
+        print(f"{len(labels)}:", labels)
+
+    # Apply filtering.
+    if filter_train:
+        train_mask = np.isin(y_train, labels)
+        X_train = X_train[train_mask]
+        y_train = y_train[train_mask]
     
-    train_mask = np.isin(y_train, common_labels)
-    X_train = X_train[train_mask]
-    y_train = y_train[train_mask]
-    
-    test_mask = np.isin(y_test, common_labels)
+    test_mask = np.isin(y_test, labels)
     X_test = X_test[test_mask]
     y_test = y_test[test_mask]
     
@@ -409,30 +470,40 @@ if __name__ == "__main__":
     print("y_test shape:", y_test.shape)
 
     # -------------------- CPU Training with scikit-learn --------------------
-    print("Training using sklearn LogisticRegression on CPU.")
-    num_classes = len(np.unique(y_train))
-    print("Number of classes:", num_classes)
-    
-    clf = LogisticRegression(verbose=True, random_state=42, max_iter=200, solver=args.solver)
-    
-    start_train_time = time.perf_counter()
-    clf.fit(X_train, y_train)
-    train_time = time.perf_counter() - start_train_time
-    print(f"Time to train model: {train_time:.2f} seconds")
-    
-    top1_acc = clf.score(X_test, y_test)
-    print(f"Top-1 accuracy (sklearn CPU): {top1_acc:.4f}")
-    
-    probs = clf.predict_proba(X_test)
-    # Map the test labels to the corresponding indices of clf.classes_
-    y_test_enc = np.array([np.where(clf.classes_ == label)[0][0] for label in y_test])
-    
-    def compute_topk_accuracy(probs, true_labels, k):
-        topk_preds = np.argsort(probs, axis=1)[:, -k:]
-        correct = [true_label in topk for true_label, topk in zip(true_labels, topk_preds)]
-        return np.mean(correct)
-    
-    top5 = compute_topk_accuracy(probs, y_test_enc, 5)
-    top10 = compute_topk_accuracy(probs, y_test_enc, 10)
-    print(f"Top-5 accuracy (sklearn CPU): {top5:.4f}")
-    print(f"Top-10 accuracy (sklearn CPU): {top10:.4f}")
+    if args.partial_fit:
+        from sklearn.linear_model import SGDClassifier
+        from sklearn.utils import shuffle
+        print("Training using SGDClassifier with partial_fit updates on CPU.")
+        clf = SGDClassifier(loss='log_loss', random_state=42)
+        classes = np.unique(y_train)
+        batch_size = 500000
+        epochs = args.epochs if hasattr(args, "epochs") else 10
+
+        start_train_time = time.perf_counter()
+        for epoch in range(epochs):
+            # Shuffle the training data at the start of each epoch.
+            X_train_shuffled, y_train_shuffled = shuffle(X_train, y_train, random_state=42 + epoch)
+            print(f"Epoch {epoch+1}/{epochs}")
+            for i in tqdm(range(0, len(X_train_shuffled), batch_size)):
+                X_batch = X_train_shuffled[i:i+batch_size]
+                y_batch = y_train_shuffled[i:i+batch_size]
+                if epoch == 0 and i == 0:
+                    clf.partial_fit(X_batch, y_batch, classes=classes)
+                else:
+                    clf.partial_fit(X_batch, y_batch)
+            print(f"Evaluation after epoch {epoch+1}:")
+            evaluate_model(clf, X_test, y_test)
+        train_time = time.perf_counter() - start_train_time
+        print(f"Time to train model (partial_fit over {epochs} epochs): {train_time:.2f} seconds")
+    else:
+        print("Training using sklearn LogisticRegression on CPU.")
+        num_classes = len(np.unique(y_train))
+        print("Number of classes:", num_classes)
+        clf = LogisticRegression(verbose=True, random_state=42, max_iter=200, solver=args.solver)
+        start_train_time = time.perf_counter()
+        clf.fit(X_train, y_train)
+        train_time = time.perf_counter() - start_train_time
+        print(f"Time to train model: {train_time:.2f} seconds")
+        print("Evaluation after training:")
+        evaluate_model(clf, X_test, y_test)
+
