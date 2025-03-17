@@ -78,6 +78,7 @@ pip install scikit-learn
 pip install sign-language-datasets
 pip install pose-format
 
+# The following packages can be skipped except for running the specific experiments regarding sign-vq, pose-anonymization and segmentation
 pip install git+https://github.com/sign-language-processing/pose-anonymization
 pip install git+https://github.com/sign-language-processing/sign-vq
 pip install git+https://github.com/sign-language-processing/transcription.git@1f2cef8
