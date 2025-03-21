@@ -54,6 +54,8 @@ The codebase is an adaption of [VideoCLIP](https://github.com/facebookresearch/f
 
 See VideoCLIP's original [README](https://github.com/facebookresearch/fairseq/tree/main/examples/MMPT#installation) for an overall introduction to multimodal video understanding and instructions on installing and using the packages:
 
+(we also provide an `environment.yml` but it might be a bit redundant)
+
 ```
 cd fairseq
 pip install .    # no need to make changes to the fairseq package
