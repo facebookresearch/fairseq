@@ -1124,18 +1124,41 @@ class EMAConfig(FairseqDataclass):
     )
 
 
+# @dataclass
+# class FairseqConfig(FairseqDataclass):
+#     common: CommonConfig = CommonConfig()
+#     common_eval: CommonEvalConfig = CommonEvalConfig()
+#     distributed_training: DistributedTrainingConfig = DistributedTrainingConfig()
+#     dataset: DatasetConfig = DatasetConfig()
+#     optimization: OptimizationConfig = OptimizationConfig()
+#     checkpoint: CheckpointConfig = CheckpointConfig()
+#     bmuf: FairseqBMUFConfig = FairseqBMUFConfig()
+#     generation: GenerationConfig = GenerationConfig()
+#     eval_lm: EvalLMConfig = EvalLMConfig()
+#     interactive: InteractiveConfig = InteractiveConfig()
+#     model: Any = MISSING
+#     task: Any = None
+#     criterion: Any = None
+#     optimizer: Any = None
+#     lr_scheduler: Any = None
+#     scoring: Any = None
+#     bpe: Any = None
+#     tokenizer: Any = None
+#     ema: EMAConfig = EMAConfig()
+
+# support python>=3.11
 @dataclass
 class FairseqConfig(FairseqDataclass):
-    common: CommonConfig = CommonConfig()
-    common_eval: CommonEvalConfig = CommonEvalConfig()
-    distributed_training: DistributedTrainingConfig = DistributedTrainingConfig()
-    dataset: DatasetConfig = DatasetConfig()
-    optimization: OptimizationConfig = OptimizationConfig()
-    checkpoint: CheckpointConfig = CheckpointConfig()
-    bmuf: FairseqBMUFConfig = FairseqBMUFConfig()
-    generation: GenerationConfig = GenerationConfig()
-    eval_lm: EvalLMConfig = EvalLMConfig()
-    interactive: InteractiveConfig = InteractiveConfig()
+    common: CommonConfig = field(default=CommonConfig)
+    common_eval: CommonEvalConfig = field(default=CommonEvalConfig)
+    distributed_training: DistributedTrainingConfig = field(default=DistributedTrainingConfig)
+    dataset: DatasetConfig = field(default=DatasetConfig)
+    optimization: OptimizationConfig = field(default=OptimizationConfig)
+    checkpoint: CheckpointConfig = field(default=CheckpointConfig)
+    bmuf: FairseqBMUFConfig = field(default=FairseqBMUFConfig)
+    generation: GenerationConfig = field(default=GenerationConfig)
+    eval_lm: EvalLMConfig = field(default=EvalLMConfig)
+    interactive: InteractiveConfig = field(default=InteractiveConfig)
     model: Any = MISSING
     task: Any = None
     criterion: Any = None
@@ -1144,4 +1167,4 @@ class FairseqConfig(FairseqDataclass):
     scoring: Any = None
     bpe: Any = None
     tokenizer: Any = None
-    ema: EMAConfig = EMAConfig()
+    ema: EMAConfig = field(default=EMAConfig)

@@ -20,13 +20,20 @@ import torch
 
 from torch import nn
 
+
+
 try:
+    # transformers==3.4.0
     from transformers.modeling_bert import (
         BertEmbeddings,
         ACT2FN,
     )
 except ImportError:
-    pass
+    # latest
+    from transformers.models.bert.modeling_bert import (
+        BertEmbeddings,
+        ACT2FN,
+    )
 
 
 class Multimodal_Projection(nn.Module):

@@ -11,7 +11,6 @@ from torch.utils.data import Dataset
 from torch.utils.data.dataloader import default_collate
 
 from ..utils import set_seed
-from ..processors import SignCLIPPoseProcessor
 
 
 class MMDataset(Dataset):

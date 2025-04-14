@@ -20,6 +20,7 @@ import torch
 from torch import nn
 
 try:
+    # transformers==3.4.0
     from transformers.modeling_bert import (
         BertPreTrainedModel,
         BertModel,
@@ -27,7 +28,13 @@ try:
         BertPredictionHeadTransform,
     )
 except ImportError:
-    pass
+    # latest
+    from transformers.models.bert.modeling_bert import (
+        BertPreTrainedModel,
+        BertModel,
+        BertEncoder,
+        BertPredictionHeadTransform,
+    )
 
 from ..modules import VideoConv1D, VideoTokenMLP, MMBertEmbeddings, Multimodal_Projection
 
@@ -747,13 +754,23 @@ class MultiLayerAttentionMaskBertEncoder(BertEncoder):
                     encoder_attention_mask,
                 )
             else:
+                # layer_outputs = layer_module(
+                #     hidden_states,
+                #     layer_attention_mask,
+                #     layer_head_mask,
+                #     encoder_hidden_states,
+                #     encoder_attention_mask,
+                #     output_attentions,
+                # )
+                # support latest transformers package
+                # see https://github.com/facebookresearch/fairseq/issues/5404#issuecomment-1963062507
                 layer_outputs = layer_module(
-                    hidden_states,
-                    layer_attention_mask,
-                    layer_head_mask,
-                    encoder_hidden_states,
-                    encoder_attention_mask,
-                    output_attentions,
+                    hidden_states=hidden_states,
+                    attention_mask=layer_attention_mask,
+                    head_mask=layer_head_mask,
+                    encoder_hidden_states=encoder_hidden_states,
+                    encoder_attention_mask=encoder_attention_mask,
+                    output_attentions=output_attentions,
                 )
             hidden_states = layer_outputs[0]
             if output_attentions:

@@ -11,7 +11,6 @@ from collections import defaultdict
 
 import numpy as np
 import pandas as pd
-import pyarrow.parquet as pq
 import torch
 
 from .processor import (
@@ -367,10 +366,6 @@ import string
 import importlib
 from tqdm import tqdm
 
-import tensorflow_datasets as tfds
-import sign_language_datasets.datasets
-from sign_language_datasets.datasets.config import SignDatasetConfig
-
 from pose_format.numpy.pose_body import NumPyPoseBody
 from pose_format.pose_header import PoseHeader
 from pose_format.utils.reader import BufferReader
@@ -380,6 +375,10 @@ class SignCLIPMetaProcessor(MetaProcessor):
     def __init__(self, config):
         super().__init__(config)
         random.seed(42)
+
+        import tensorflow_datasets as tfds
+        import sign_language_datasets.datasets
+        from sign_language_datasets.datasets.config import SignDatasetConfig
 
         self.config = config
         self.task = config.task
@@ -630,6 +629,10 @@ class SignCLIPMetaProcessorV2(MetaProcessor):
     def __init__(self, config):
         super().__init__(config)
         random.seed(42)
+
+        import tensorflow_datasets as tfds
+        import sign_language_datasets.datasets
+        from sign_language_datasets.datasets.config import SignDatasetConfig
 
         self.config = config
         self.split = config.split

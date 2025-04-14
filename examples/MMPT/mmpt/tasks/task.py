@@ -104,7 +104,7 @@ class Task(object):
     def load_checkpoint(self, checkpoint):
         if self.model is None:
             raise ValueError("model is not initialized.")
-        state_dict = torch.load(checkpoint)
+        state_dict = torch.load(checkpoint, weights_only=False)
         state_dict = self._trim_state_dict(state_dict)
         self.model.load_state_dict(state_dict, strict=False)
         # if it's a fp16 model, turn it back.
