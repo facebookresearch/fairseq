@@ -21,7 +21,7 @@ from fairseq_cli.train import main as pre_main
 logger = logging.getLogger("fairseq_cli.hydra_train")
 
 
-@hydra.main(config_path=os.path.join("..", "fairseq", "config"), config_name="config")
+@hydra.main(version_base=None, config_path=os.path.join("..", "fairseq", "config"), config_name="config")
 def hydra_main(cfg: FairseqConfig) -> float:
     _hydra_main(cfg)
 
@@ -74,11 +74,20 @@ def _hydra_main(cfg: FairseqConfig, **kwargs) -> float:
 
 def cli_main():
     try:
-        from hydra._internal.utils import get_args
-
-        cfg_name = get_args().config_name or "config"
+        import sys
+        from hydra.core.config_store import ConfigStore
+        
+        # Use built-in argparse instead of hydra._internal.utils.get_args
+        cfg_name = "config"
+        for i, arg in enumerate(sys.argv):
+            if arg == "--config-name" and i + 1 < len(sys.argv):
+                cfg_name = sys.argv[i + 1]
+                break
+            elif arg.startswith("--config-name="):
+                cfg_name = arg.split("=", 1)[1]
+                break
     except:
-        logger.warning("Failed to get config name from hydra args")
+        logger.warning("Failed to get config name from command line arguments")
         cfg_name = "config"
 
     hydra_init(cfg_name)

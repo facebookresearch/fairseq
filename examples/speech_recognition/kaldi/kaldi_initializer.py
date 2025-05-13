@@ -669,7 +669,7 @@ def initalize_kaldi(cfg: KaldiInitializerConfig) -> Path:
     return hlg_graph
 
 
-@hydra.main(config_path=config_path, config_name="kaldi_initializer")
+@hydra.main(version_base=None, config_path=config_path, config_name="kaldi_initializer")
 def cli_main(cfg: KaldiInitializerConfig) -> None:
     container = OmegaConf.to_container(cfg, resolve=True, enum_to_str=True)
     cfg = OmegaConf.create(container)
@@ -683,13 +683,19 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     try:
-        from hydra._internal.utils import (
-            get_args,
-        )  # pylint: disable=import-outside-toplevel
-
-        cfg_name = get_args().config_name or "kaldi_initializer"
-    except ImportError:
-        logger.warning("Failed to get config name from hydra args")
+        import sys
+        
+        # Use built-in argparse instead of hydra._internal.utils.get_args
+        cfg_name = "kaldi_initializer"
+        for i, arg in enumerate(sys.argv):
+            if arg == "--config-name" and i + 1 < len(sys.argv):
+                cfg_name = sys.argv[i + 1]
+                break
+            elif arg.startswith("--config-name="):
+                cfg_name = arg.split("=", 1)[1]
+                break
+    except:
+        logger.warning("Failed to get config name from command line arguments")
         cfg_name = "kaldi_initializer"
 
     cs = ConfigStore.instance()
