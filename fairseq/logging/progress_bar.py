@@ -479,6 +479,8 @@ try:
     import wandb
 except ImportError:
     wandb = None
+except AttributeError:
+    wandb = None
 
 
 class WandBProgressBarWrapper(BaseProgressBar):
