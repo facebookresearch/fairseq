@@ -362,27 +362,6 @@ def override_module_args(args: Namespace) -> Tuple[List[str], List[str]]:
     return overrides, deletes
 
 
-class omegaconf_no_object_check:
-    def __init__(self):
-        # Changed in https://github.com/omry/omegaconf/pull/911 - both are kept for back compat.
-        if hasattr(_utils, "is_primitive_type"):
-            self.old_is_primitive = _utils.is_primitive_type
-        else:
-            self.old_is_primitive = _utils.is_primitive_type_annotation
-
-    def __enter__(self):
-        if hasattr(_utils, "is_primitive_type"):
-            _utils.is_primitive_type = lambda _: True
-        else:
-            _utils.is_primitive_type_annotation = lambda _: True
-
-    def __exit__(self, type, value, traceback):
-        if hasattr(_utils, "is_primitive_type"):
-            _utils.is_primitive_type = self.old_is_primitive
-        else:
-            _utils.is_primitive_type_annotation = self.old_is_primitive
-
-
 def convert_namespace_to_omegaconf(args: Namespace) -> DictConfig:
     """Convert a flat argparse.Namespace to a structured DictConfig."""
 
@@ -404,47 +383,46 @@ def convert_namespace_to_omegaconf(args: Namespace) -> DictConfig:
         for k in deletes:
             composed_cfg[k] = None
 
-    cfg = OmegaConf.create(
-        OmegaConf.to_container(composed_cfg, resolve=True, enum_to_str=True)
-    )
-
-    # hack to be able to set Namespace in dict config. this should be removed when we update to newer
-    # omegaconf version that supports object flags, or when we migrate all existing models
-    from omegaconf import _utils
-
-    with omegaconf_no_object_check():
-        if cfg.task is None and getattr(args, "task", None):
-            cfg.task = Namespace(**vars(args))
-            from fairseq.tasks import TASK_REGISTRY
-
-            _set_legacy_defaults(cfg.task, TASK_REGISTRY[args.task])
-            cfg.task._name = args.task
-        if cfg.model is None and getattr(args, "arch", None):
-            cfg.model = Namespace(**vars(args))
-            from fairseq.models import ARCH_MODEL_REGISTRY
-
-            _set_legacy_defaults(cfg.model, ARCH_MODEL_REGISTRY[args.arch])
-            cfg.model._name = args.arch
-        if cfg.optimizer is None and getattr(args, "optimizer", None):
-            cfg.optimizer = Namespace(**vars(args))
-            from fairseq.optim import OPTIMIZER_REGISTRY
-
-            _set_legacy_defaults(cfg.optimizer, OPTIMIZER_REGISTRY[args.optimizer])
-            cfg.optimizer._name = args.optimizer
-        if cfg.lr_scheduler is None and getattr(args, "lr_scheduler", None):
-            cfg.lr_scheduler = Namespace(**vars(args))
-            from fairseq.optim.lr_scheduler import LR_SCHEDULER_REGISTRY
-
-            _set_legacy_defaults(
-                cfg.lr_scheduler, LR_SCHEDULER_REGISTRY[args.lr_scheduler]
-            )
-            cfg.lr_scheduler._name = args.lr_scheduler
-        if cfg.criterion is None and getattr(args, "criterion", None):
-            cfg.criterion = Namespace(**vars(args))
-            from fairseq.criterions import CRITERION_REGISTRY
-
-            _set_legacy_defaults(cfg.criterion, CRITERION_REGISTRY[args.criterion])
-            cfg.criterion._name = args.criterion
+    # Filter out any MISSING values before creating the final config
+    composed_cfg_dict = OmegaConf.to_container(composed_cfg, resolve=True, enum_to_str=True)
+    if isinstance(composed_cfg_dict, dict):
+        for k, v in list(composed_cfg_dict.items()):
+            if v == "???" or v is None:
+                composed_cfg_dict.pop(k)
+    
+    # Create the config with proper object handling in omegaconf 2.1+
+    cfg = OmegaConf.create(composed_cfg_dict, flags={"allow_objects": True})
+    
+    # Handle task, model, optimizer, lr_scheduler, criterion namespace conversions properly
+    if cfg.task is None and getattr(args, "task", None):
+        cfg.task = Namespace(**vars(args))
+        from fairseq.tasks import TASK_REGISTRY
+        _set_legacy_defaults(cfg.task, TASK_REGISTRY[args.task])
+        cfg.task._name = args.task
+        
+    if cfg.model is None and getattr(args, "arch", None):
+        cfg.model = Namespace(**vars(args))
+        from fairseq.models import ARCH_MODEL_REGISTRY
+        _set_legacy_defaults(cfg.model, ARCH_MODEL_REGISTRY[args.arch])
+        cfg.model._name = args.arch
+        
+    if cfg.optimizer is None and getattr(args, "optimizer", None):
+        cfg.optimizer = Namespace(**vars(args))
+        from fairseq.optim import OPTIMIZER_REGISTRY
+        _set_legacy_defaults(cfg.optimizer, OPTIMIZER_REGISTRY[args.optimizer])
+        cfg.optimizer._name = args.optimizer
+        
+    if cfg.lr_scheduler is None and getattr(args, "lr_scheduler", None):
+        cfg.lr_scheduler = Namespace(**vars(args))
+        from fairseq.optim.lr_scheduler import LR_SCHEDULER_REGISTRY
+        _set_legacy_defaults(cfg.lr_scheduler, LR_SCHEDULER_REGISTRY[args.lr_scheduler])
+        cfg.lr_scheduler._name = args.lr_scheduler
+        
+    if cfg.criterion is None and getattr(args, "criterion", None):
+        cfg.criterion = Namespace(**vars(args))
+        from fairseq.criterions import CRITERION_REGISTRY
+        _set_legacy_defaults(cfg.criterion, CRITERION_REGISTRY[args.criterion])
+        cfg.criterion._name = args.criterion
 
     OmegaConf.set_struct(cfg, True)
     return cfg

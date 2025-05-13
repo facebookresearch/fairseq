@@ -58,4 +58,10 @@ def add_defaults(cfg: DictConfig) -> None:
                 dc = REGISTRIES[k]["dataclass_registry"].get(name)
 
             if dc is not None:
+                # Filter out any MISSING values before merging
+                if OmegaConf.is_config(field_cfg):
+                    for key in list(field_cfg.keys()):
+                        if field_cfg[key] is None or (isinstance(field_cfg[key], str) and field_cfg[key] == "???"):
+                            field_cfg.pop(key)
+                
                 cfg[k] = merge_with_parent(dc, field_cfg)

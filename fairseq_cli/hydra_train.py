@@ -15,7 +15,6 @@ from omegaconf import OmegaConf, open_dict
 from fairseq import distributed_utils, metrics
 from fairseq.dataclass.configs import FairseqConfig
 from fairseq.dataclass.initialize import add_defaults, hydra_init
-from fairseq.dataclass.utils import omegaconf_no_object_check
 from fairseq.utils import reset_logging
 from fairseq_cli.train import main as pre_main
 
@@ -41,10 +40,9 @@ def _hydra_main(cfg: FairseqConfig, **kwargs) -> float:
                     HydraConfig.get().job_logging, resolve=True
                 )
 
-    with omegaconf_no_object_check():
-        cfg = OmegaConf.create(
-            OmegaConf.to_container(cfg, resolve=True, enum_to_str=True)
-        )
+    # Create the config with proper object handling in omegaconf 2.1+
+    cfg_dict = OmegaConf.to_container(cfg, resolve=True, enum_to_str=True)
+    cfg = OmegaConf.create(cfg_dict, flags={"allow_objects": True})
     OmegaConf.set_struct(cfg, True)
 
     try:
