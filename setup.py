@@ -180,7 +180,7 @@ def do_setup(package_data):
             "cffi",
             "cython",
             "hydra-core>=1.0.7,<1.1",
-            "omegaconf<2.1",
+            "omegaconf>=2.1.0",
             "numpy>=1.21.3",
             "regex",
             "sacrebleu>=1.4.12",

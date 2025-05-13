@@ -504,7 +504,21 @@ def merge_with_parent(dc: FairseqDataclass, cfg: DictConfig, remove_missing=Fals
         with open_dict(cfg):
             remove_missing_rec(cfg, dc)
 
-    merged_cfg = OmegaConf.merge(dc, cfg)
-    merged_cfg.__dict__["_parent"] = cfg.__dict__["_parent"]
+    # Filter out any MISSING values from the config before merging to avoid
+    # them overriding values in dc (omegaconf 2.1+ behavior change)
+    filtered_cfg = OmegaConf.create({}) if cfg is None else cfg
+    if OmegaConf.is_config(filtered_cfg):
+        with open_dict(filtered_cfg):
+            filtered_cfg_dict = {}
+            for k, v in filtered_cfg.items():
+                if v is not None and not (isinstance(v, str) and v == "???"):
+                    filtered_cfg_dict[k] = v
+            
+            # Create a new config with the filtered values
+            filtered_cfg = OmegaConf.create(filtered_cfg_dict)
+    
+    merged_cfg = OmegaConf.merge(dc, filtered_cfg)
+    if hasattr(cfg, "_parent") and cfg._parent is not None:
+        merged_cfg.__dict__["_parent"] = cfg.__dict__["_parent"]
     OmegaConf.set_struct(merged_cfg, True)
     return merged_cfg

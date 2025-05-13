@@ -351,7 +351,7 @@ def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False):
         from omegaconf import __version__ as oc_version
         from omegaconf import _utils
 
-        if oc_version < "2.2":
+        if oc_version < "2.1.0":
             old_primitive = _utils.is_primitive_type
             _utils.is_primitive_type = lambda _: True
 
@@ -360,6 +360,7 @@ def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False):
             _utils.is_primitive_type = old_primitive
             OmegaConf.set_struct(state["cfg"], True)
         else:
+            # OmegaConf 2.1+ can handle this with allow_objects flag
             state["cfg"] = OmegaConf.create(state["cfg"], flags={"allow_objects": True})
 
         if arg_overrides is not None:
