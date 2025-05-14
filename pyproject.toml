@@ -3,8 +3,6 @@ requires = [
   "setuptools>=61.0",
   "wheel",
   "cython",
-  "numpy>=1.24.2",
-  "torch>=2.4.0",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -28,7 +26,6 @@ classifiers = [
 ]
 dependencies = [
   "cffi",
-  "cython",
   "hydra-core>=1.3.2",
   "omegaconf>=2.1.0",
   "numpy>=1.24.2",
@@ -43,7 +40,8 @@ dependencies = [
   "packaging",
   "scipy>=1.15.0",
   "pandas>=2.2.0",
-  "transformers>=4.51.3"
+  "transformers>=4.51.3",  
+  "numpy>=1.24.2",
 ]
 
 [project.optional-dependencies]
