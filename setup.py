@@ -95,6 +95,7 @@ extensions = [
     ),
 ]
 
+
 extensions.extend(
     [
         cpp_extension.CppExtension(
@@ -107,6 +108,12 @@ extensions.extend(
             "fairseq.libnat",
             sources=[
                 "fairseq/clib/libnat/edit_dist.cpp",
+            ],
+        ),
+        cpp_extension.CppExtension(
+            "alignment_train_cpu_binding",
+            sources=[
+                "examples/operators/alignment_train_cpu.cpp",
             ],
         ),
     ]
@@ -132,7 +139,7 @@ if "CUDA_HOME" in os.environ and not is_windows:
     
     # Add CUDA extensions with platform-specific settings
     extensions.extend([
-        CUDAExtension(
+        cpp_extension.CppExtension(
             "fairseq.libnat_cuda",
             sources=[
                 "fairseq/clib/libnat_cuda/edit_dist.cu",
@@ -140,11 +147,19 @@ if "CUDA_HOME" in os.environ and not is_windows:
             ],
             **cuda_extension_args
         ),
-        CUDAExtension(
+        cpp_extension.CppExtension(
             "fairseq.ngram_repeat_block_cuda",
             sources=[
                 "fairseq/clib/cuda/ngram_repeat_block_cuda.cpp",
                 "fairseq/clib/cuda/ngram_repeat_block_cuda_kernel.cu",
+            ],
+            **cuda_extension_args
+        ),
+        cpp_extension.CppExtension(
+            "alignment_train_cuda_binding",
+            sources=[
+                "examples/operators/alignment_train_kernel.cu",
+                "examples/operators/alignment_train_cuda.cpp",
             ],
             **cuda_extension_args
         ),
@@ -183,27 +198,13 @@ else:
 
 
 if "clean" in sys.argv[1:]:
-    # Source: https://github.com/pytorch/pytorch/blob/master/setup.py
-    from setuptools.command.clean import clean
+    # Source: https://bit.ly/2NLVsgE
+    print("deleting Cython files...")
 
-    class clean_with_subdirs(clean):
-        def run(self):
-            import glob
-            import shutil
-
-            with open(".gitignore", "r") as f:
-                ignores = f.read()
-                for wildcard in filter(bool, ignores.split("\n")):
-                    for filename in glob.glob(wildcard):
-                        try:
-                            shutil.rmtree(filename)
-                        except OSError:
-                            try:
-                                os.remove(filename)
-                            except OSError:
-                                pass
-
-    cmdclass["clean"] = clean_with_subdirs
+    subprocess.run(
+        ["rm -f fairseq/*.so fairseq/**/*.so fairseq/*.pyd fairseq/**/*.pyd"],
+        shell=True,
+    )
 
 
 extra_packages = []
@@ -223,47 +224,28 @@ def do_setup(package_data):
             "Programming Language :: Python :: 3.6",
             "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: 3.8",
-            "Programming Language :: Python :: 3.9",
-            "Programming Language :: Python :: 3.10",
             "Topic :: Scientific/Engineering :: Artificial Intelligence",
         ],
         long_description=readme,
         long_description_content_type="text/markdown",
-        setup_requires=[
-            "cython",
-            "numpy",
-            "setuptools>=18.0",
-        ],
         install_requires=[
-            "cffi>=1.15.1",
-            "cython>=0.29.34",
-            "hydra-core>=1.0.7,<1.1",
-            "omegaconf<2.1",
-            "numpy>=1.21.3",
-            "regex>=2023.5.5",
+            "cffi",
+            "cython",
+            "hydra-core>=1.3.2",
+            "omegaconf>=2.1.0",
+            "numpy>=1.24.2",
+            "regex",
             "sacrebleu>=1.4.12",
-            "torch>=2.0.0",
-            "tqdm>=4.64.0",
-            "bitarray>=2.7.3",
-            "torchaudio>=0.8.0",
-            "scikit-learn>=1.2.2",
-            "packaging>=23.1",
-            "typing_extensions>=4.5.0",
-            "fairscale>=0.4.13",
+            "torch>=2.4.0",
+            "tqdm",
+            "bitarray",
+            "torchaudio>=2.4.0",
+            "scikit-learn",
+            "packaging",
         ],
         extras_require={
-            "dev": [
-                "flake8>=6.0.0",
-                "pytest>=7.3.1",
-                "black==22.3.0",
-                "isort>=5.12.0",
-                "mypy>=1.4.1",
-            ],
-            "docs": [
-                "sphinx>=7.0.0",
-                "sphinx-argparse>=0.4.0",
-                "sphinx-rtd-theme>=1.2.2",
-            ],
+            "dev": ["flake8", "pytest", "black==22.3.0"],
+            "docs": ["sphinx", "sphinx-argparse"],
         },
         dependency_links=dependency_links,
         packages=find_packages(
@@ -275,7 +257,8 @@ def do_setup(package_data):
                 "tests",
                 "tests.*",
             ]
-        ) + extra_packages,
+        )
+        + extra_packages,
         package_data=package_data,
         ext_modules=extensions,
         test_suite="tests",
@@ -283,6 +266,7 @@ def do_setup(package_data):
             "console_scripts": [
                 "fairseq-eval-lm = fairseq_cli.eval_lm:cli_main",
                 "fairseq-generate = fairseq_cli.generate:cli_main",
+                "fairseq-hydra-train = fairseq_cli.hydra_train:cli_main",
                 "fairseq-interactive = fairseq_cli.interactive:cli_main",
                 "fairseq-preprocess = fairseq_cli.preprocess:cli_main",
                 "fairseq-score = fairseq_cli.score:cli_main",
@@ -292,7 +276,6 @@ def do_setup(package_data):
         },
         cmdclass=cmdclass,
         zip_safe=False,
-        python_requires=">=3.8",
     )
 
 
@@ -308,7 +291,19 @@ def get_files(path, relative_to="fairseq"):
 
 
 if __name__ == "__main__":
-    package_data = {
-        "fairseq": get_files(os.path.join("fairseq", "config"))
-    }
-    do_setup(package_data)
+    try:
+        # symlink examples into fairseq package so package_data accepts them
+        fairseq_examples = os.path.join("fairseq", "examples")
+        if "build_ext" not in sys.argv[1:] and not os.path.exists(fairseq_examples):
+            os.symlink(os.path.join("..", "examples"), fairseq_examples)
+
+        package_data = {
+            "fairseq": (
+                get_files(fairseq_examples)
+                + get_files(os.path.join("fairseq", "config"))
+            )
+        }
+        do_setup(package_data)
+    finally:
+        if "build_ext" not in sys.argv[1:] and os.path.islink(fairseq_examples):
+            os.unlink(fairseq_examples)
