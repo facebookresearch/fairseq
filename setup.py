@@ -258,7 +258,8 @@ def do_setup(package_data):
                 "tests",
                 "tests.*",
             ]
-        ),
+        )
+        + extra_packages,
         package_data=package_data,
         ext_modules=extensions,
         test_suite="tests",
