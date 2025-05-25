@@ -132,7 +132,7 @@ if "CUDA_HOME" in os.environ and not is_windows:
     
     # Add CUDA extensions with platform-specific settings
     extensions.extend([
-        cpp_extension.CppExtension(
+        CUDAExtension(
             "fairseq.libnat_cuda",
             sources=[
                 "fairseq/clib/libnat_cuda/edit_dist.cu",
@@ -140,7 +140,7 @@ if "CUDA_HOME" in os.environ and not is_windows:
             ],
             **cuda_extension_args
         ),
-        cpp_extension.CppExtension(
+        CUDAExtension(
             "fairseq.ngram_repeat_block_cuda",
             sources=[
                 "fairseq/clib/cuda/ngram_repeat_block_cuda.cpp",
@@ -235,20 +235,37 @@ def do_setup(package_data):
             "setuptools>=18.0",
         ],
         install_requires=[
-            "cffi",
-            "cython",
+            "cffi>=1.15.1",
+            "cython>=0.29.34",
             "hydra-core>=1.0.7,<1.1",
             "omegaconf<2.1",
             "numpy>=1.21.3",
-            "regex",
+            "regex>=2023.5.5",
             "sacrebleu>=1.4.12",
             "torch>=2.0.0",
-            "tqdm",
-            "bitarray",
+            "tqdm>=4.64.0",
+            "bitarray>=2.7.3",
             "torchaudio>=0.8.0",
-            "scikit-learn",
-            "packaging",
+            "scikit-learn>=1.2.2",
+            "packaging>=23.1",
+            "typing_extensions>=4.5.0",
+            "fairscale>=0.4.13",
         ],
+        extras_require={
+            "dev": [
+                "flake8>=6.0.0",
+                "pytest>=7.3.1",
+                "black==22.3.0",
+                "isort>=5.12.0",
+                "mypy>=1.4.1",
+            ],
+            "docs": [
+                "sphinx>=7.0.0",
+                "sphinx-argparse>=0.4.0",
+                "sphinx-rtd-theme>=1.2.2",
+            ],
+        },
+        dependency_links=dependency_links,
         packages=find_packages(
             exclude=[
                 "examples",
@@ -258,8 +275,7 @@ def do_setup(package_data):
                 "tests",
                 "tests.*",
             ]
-        )
-        + extra_packages,
+        ) + extra_packages,
         package_data=package_data,
         ext_modules=extensions,
         test_suite="tests",
