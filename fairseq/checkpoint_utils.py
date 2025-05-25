@@ -336,8 +336,18 @@ def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False):
             torch.distributed.barrier()
         local_path = PathManager.get_local_path(path)
 
+    # Check torch version and set weights_only accordingly
+    torch_version = torch.__version__.split('.')
+    weights_only = False
+    if int(torch_version[0]) > 2 or (int(torch_version[0]) == 2 and int(torch_version[1]) >= 6):
+        # For PyTorch 2.6+ we need to explicitly set weights_only=False
+        weights_only = False
+        from fairseq.data.dictionary import Dictionary
+        from torch.serialization import add_safe_globals
+        add_safe_globals([Dictionary])
+
     with open(local_path, "rb") as f:
-        state = torch.load(f, map_location=torch.device("cpu"))
+        state = torch.load(f, map_location=torch.device("cpu"), weights_only=weights_only)
 
     if "args" in state and state["args"] is not None and arg_overrides is not None:
         args = state["args"]
@@ -345,7 +355,6 @@ def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False):
             setattr(args, arg_name, arg_val)
 
     if "cfg" in state and state["cfg"] is not None:
-
         # Use proper object flags approach for omegaconf 2.1+
         from omegaconf import __version__ as oc_version
         

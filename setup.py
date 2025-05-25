@@ -198,13 +198,27 @@ else:
 
 
 if "clean" in sys.argv[1:]:
-    # Source: https://bit.ly/2NLVsgE
-    print("deleting Cython files...")
+    # Source: https://github.com/pytorch/pytorch/blob/master/setup.py
+    from setuptools.command.clean import clean
 
-    subprocess.run(
-        ["rm -f fairseq/*.so fairseq/**/*.so fairseq/*.pyd fairseq/**/*.pyd"],
-        shell=True,
-    )
+    class clean_with_subdirs(clean):
+        def run(self):
+            import glob
+            import shutil
+
+            with open(".gitignore", "r") as f:
+                ignores = f.read()
+                for wildcard in filter(bool, ignores.split("\n")):
+                    for filename in glob.glob(wildcard):
+                        try:
+                            shutil.rmtree(filename)
+                        except OSError:
+                            try:
+                                os.remove(filename)
+                            except OSError:
+                                pass
+
+    cmdclass["clean"] = clean_with_subdirs
 
 
 extra_packages = []
@@ -224,41 +238,45 @@ def do_setup(package_data):
             "Programming Language :: Python :: 3.6",
             "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: 3.8",
+            "Programming Language :: Python :: 3.9",
+            "Programming Language :: Python :: 3.10",
             "Topic :: Scientific/Engineering :: Artificial Intelligence",
         ],
         long_description=readme,
         long_description_content_type="text/markdown",
         install_requires=[
-            "cffi",
-            "cython",
-            "hydra-core>=1.3.2",
-            "omegaconf>=2.1.0",
-            "numpy>=1.24.2",
-            "regex",
+            "cffi>=1.15.1",
+            "cython>=0.29.34",
+            "hydra-core>=1.0.7,<1.1",
+            "omegaconf<2.1",
+            "numpy>=1.21.3",
+            "regex>=2023.5.5",
             "sacrebleu>=1.4.12",
-            "torch>=2.4.0",
-            "tqdm",
-            "bitarray",
-            "torchaudio>=2.4.0",
-            "scikit-learn",
-            "packaging",
+            "torch>=2.6.0",
+            "tqdm>=4.64.0",
+            "bitarray>=2.7.3",
+            "torchaudio>=2.0.0",
+            "scikit-learn>=1.2.2",
+            "packaging>=23.1",
+            "typing_extensions>=4.5.0",
+            "fairscale>=0.4.13",
         ],
         extras_require={
-            "dev": ["flake8", "pytest", "black==22.3.0"],
-            "docs": ["sphinx", "sphinx-argparse"],
+            "dev": [
+                "flake8>=6.0.0",
+                "pytest>=7.3.1",
+                "black==22.3.0",
+                "isort>=5.12.0",
+                "mypy>=1.4.1",
+            ],
+            "docs": [
+                "sphinx>=7.0.0",
+                "sphinx-argparse>=0.4.0",
+                "sphinx-rtd-theme>=1.2.2",
+            ],
         },
         dependency_links=dependency_links,
-        packages=find_packages(
-            exclude=[
-                "examples",
-                "examples.*",
-                "scripts",
-                "scripts.*",
-                "tests",
-                "tests.*",
-            ]
-        )
-        + extra_packages,
+        packages=find_packages(exclude=["scripts", "tests", "tests.*"]),
         package_data=package_data,
         ext_modules=extensions,
         test_suite="tests",
@@ -266,7 +284,6 @@ def do_setup(package_data):
             "console_scripts": [
                 "fairseq-eval-lm = fairseq_cli.eval_lm:cli_main",
                 "fairseq-generate = fairseq_cli.generate:cli_main",
-                "fairseq-hydra-train = fairseq_cli.hydra_train:cli_main",
                 "fairseq-interactive = fairseq_cli.interactive:cli_main",
                 "fairseq-preprocess = fairseq_cli.preprocess:cli_main",
                 "fairseq-score = fairseq_cli.score:cli_main",
