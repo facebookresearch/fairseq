@@ -95,7 +95,6 @@ extensions = [
     ),
 ]
 
-
 extensions.extend(
     [
         cpp_extension.CppExtension(
@@ -108,12 +107,6 @@ extensions.extend(
             "fairseq.libnat",
             sources=[
                 "fairseq/clib/libnat/edit_dist.cpp",
-            ],
-        ),
-        cpp_extension.CppExtension(
-            "alignment_train_cpu_binding",
-            sources=[
-                "examples/operators/alignment_train_cpu.cpp",
             ],
         ),
     ]
@@ -152,14 +145,6 @@ if "CUDA_HOME" in os.environ and not is_windows:
             sources=[
                 "fairseq/clib/cuda/ngram_repeat_block_cuda.cpp",
                 "fairseq/clib/cuda/ngram_repeat_block_cuda_kernel.cu",
-            ],
-            **cuda_extension_args
-        ),
-        cpp_extension.CppExtension(
-            "alignment_train_cuda_binding",
-            sources=[
-                "examples/operators/alignment_train_kernel.cu",
-                "examples/operators/alignment_train_cuda.cpp",
             ],
             **cuda_extension_args
         ),
@@ -306,19 +291,7 @@ def get_files(path, relative_to="fairseq"):
 
 
 if __name__ == "__main__":
-    try:
-        # symlink examples into fairseq package so package_data accepts them
-        fairseq_examples = os.path.join("fairseq", "examples")
-        if "build_ext" not in sys.argv[1:] and not os.path.exists(fairseq_examples):
-            os.symlink(os.path.join("..", "examples"), fairseq_examples)
-
-        package_data = {
-            "fairseq": (
-                get_files(fairseq_examples)
-                + get_files(os.path.join("fairseq", "config"))
-            )
-        }
-        do_setup(package_data)
-    finally:
-        if "build_ext" not in sys.argv[1:] and os.path.islink(fairseq_examples):
-            os.unlink(fairseq_examples)
+    package_data = {
+        "fairseq": get_files(os.path.join("fairseq", "config"))
+    }
+    do_setup(package_data)
