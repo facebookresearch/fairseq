@@ -305,6 +305,9 @@ def add_preprocess_args(parser):
                        help="number of parallel workers")
     group.add_argument("--dict-only", action='store_true',
                        help="if true, only builds a dictionary and then exits")
+    group.add_argument("--no-eos-append", action="store_false",
+                        dest="append_eos", default=True,
+                        help="Do not append EOS to the end of each document")
     # fmt: on
     return parser
 
