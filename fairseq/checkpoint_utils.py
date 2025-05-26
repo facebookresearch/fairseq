@@ -339,7 +339,7 @@ def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False):
     with open(local_path, "rb") as f:
         # See if torch.load has weights_only parameter
         if hasattr(torch.load, "weights_only"):
-            state = torch.load(f, map_location=torch.device("cpu"), weights_only=True)
+            state = torch.load(f, map_location=torch.device("cpu"), weights_only=False)
         else:
             state = torch.load(f, map_location=torch.device("cpu"))
 
@@ -916,7 +916,7 @@ def load_ema_from_checkpoint(fpath):
                 map_location=(
                     lambda s, _: torch.serialization.default_restore_location(s, "cpu")
                 ),
-                weights_only=True
+                weights_only=False
             )
         else:
             new_state = torch.load(
