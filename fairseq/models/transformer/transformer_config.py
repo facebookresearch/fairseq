@@ -245,8 +245,11 @@ class TransformerConfig(FairseqDataclass):
     def __getattr__(self, name):
         match = re.match(_NAME_PARSER, name)
         if match:
-            sub = safe_getattr(self, match[1])
-            return safe_getattr(sub, match[2])
+            try:
+                sub = safe_getattr(self, match[1])
+                return safe_getattr(sub, match[2])
+            except (AttributeError, KeyError):
+                raise AttributeError(f"invalid argument {name}.")
         raise AttributeError(f"invalid argument {name}.")
 
     def __setattr__(self, name, value):

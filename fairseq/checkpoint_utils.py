@@ -337,7 +337,11 @@ def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False):
         local_path = PathManager.get_local_path(path)
 
     with open(local_path, "rb") as f:
-        state = torch.load(f, map_location=torch.device("cpu"))
+        # See if torch.load has weights_only parameter
+        if hasattr(torch.load, "weights_only"):
+            state = torch.load(f, map_location=torch.device("cpu"), weights_only=False)
+        else:
+            state = torch.load(f, map_location=torch.device("cpu"))
 
     if "args" in state and state["args"] is not None and arg_overrides is not None:
         args = state["args"]
@@ -345,22 +349,21 @@ def load_checkpoint_to_cpu(path, arg_overrides=None, load_on_all_ranks=False):
             setattr(args, arg_name, arg_val)
 
     if "cfg" in state and state["cfg"] is not None:
-
-        # hack to be able to set Namespace in dict config. this should be removed when we update to newer
-        # omegaconf version that supports object flags, or when we migrate all existing models
+        # Use proper object flags approach for omegaconf 2.1+
         from omegaconf import __version__ as oc_version
-        from omegaconf import _utils
-
-        if oc_version < "2.2":
+        
+        if oc_version >= "2.1.0":
+            # OmegaConf 2.1+ can handle this with allow_objects flag
+            state["cfg"] = OmegaConf.create(state["cfg"], flags={"allow_objects": True})
+        else:
+            # Fallback for older versions using the hacky approach
+            from omegaconf import _utils
             old_primitive = _utils.is_primitive_type
             _utils.is_primitive_type = lambda _: True
-
             state["cfg"] = OmegaConf.create(state["cfg"])
-
             _utils.is_primitive_type = old_primitive
-            OmegaConf.set_struct(state["cfg"], True)
-        else:
-            state["cfg"] = OmegaConf.create(state["cfg"], flags={"allow_objects": True})
+            
+        OmegaConf.set_struct(state["cfg"], True)
 
         if arg_overrides is not None:
             overwrite_args_by_name(state["cfg"], arg_overrides)
@@ -906,12 +909,22 @@ def load_ema_from_checkpoint(fpath):
     new_state = None
 
     with PathManager.open(fpath, "rb") as f:
-        new_state = torch.load(
-            f,
-            map_location=(
-                lambda s, _: torch.serialization.default_restore_location(s, "cpu")
-            ),
-        )
+        # See if torch.load has weights_only parameter
+        if hasattr(torch.load, "weights_only"):
+            new_state = torch.load(
+                f,
+                map_location=(
+                    lambda s, _: torch.serialization.default_restore_location(s, "cpu")
+                ),
+                weights_only=False
+            )
+        else:
+            new_state = torch.load(
+                f,
+                map_location=(
+                    lambda s, _: torch.serialization.default_restore_location(s, "cpu")
+                ),
+            )
 
         # EMA model is stored in a separate "extra state"
         model_params = new_state["extra_state"]["ema"]

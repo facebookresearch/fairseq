@@ -38,11 +38,14 @@ class StatefulContainer(object):
         return self._state
 
     def __getattr__(self, name):
-        if name not in self._state and name in self._factories:
-            self._state[name] = self._factories[name]()
+        try:
+            if name not in self._state and name in self._factories:
+                self._state[name] = self._factories[name]()
 
-        if name in self._state:
-            return self._state[name]
+            if name in self._state:
+                return self._state[name]
+        except (AttributeError, KeyError):
+            pass
 
         raise AttributeError(f"Task state has no factory for attribute {name}")
 

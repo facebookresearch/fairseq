@@ -59,6 +59,13 @@ def recursive_config(config_path):
         includes = config.includes
         config.pop("includes")
         base_config = recursive_config(includes)
+        
+        # Filter out any MISSING values from config before merging
+        if isinstance(config, omegaconf.DictConfig):
+            for key in list(config.keys()):
+                if config[key] is None or (isinstance(config[key], str) and config[key] == "???"):
+                    config.pop(key)
+        
         config = OmegaConf.merge(base_config, config)
     return config
 

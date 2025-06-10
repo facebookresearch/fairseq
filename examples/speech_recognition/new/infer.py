@@ -440,7 +440,7 @@ def main(cfg: InferConfig) -> float:
         return wer
 
 
-@hydra.main(config_path=config_path, config_name="infer")
+@hydra.main(version_base=None, config_path=config_path, config_name="infer")
 def hydra_main(cfg: InferConfig) -> Union[float, Tuple[float, Optional[float]]]:
     container = OmegaConf.to_container(cfg, resolve=True, enum_to_str=True)
     cfg = OmegaConf.create(container)
@@ -478,13 +478,19 @@ def hydra_main(cfg: InferConfig) -> Union[float, Tuple[float, Optional[float]]]:
 
 def cli_main() -> None:
     try:
-        from hydra._internal.utils import (
-            get_args,
-        )  # pylint: disable=import-outside-toplevel
-
-        cfg_name = get_args().config_name or "infer"
-    except ImportError:
-        logger.warning("Failed to get config name from hydra args")
+        import sys
+        
+        # Use built-in argparse instead of hydra._internal.utils.get_args
+        cfg_name = "infer"
+        for i, arg in enumerate(sys.argv):
+            if arg == "--config-name" and i + 1 < len(sys.argv):
+                cfg_name = sys.argv[i + 1]
+                break
+            elif arg.startswith("--config-name="):
+                cfg_name = arg.split("=", 1)[1]
+                break
+    except:
+        logger.warning("Failed to get config name from command line arguments")
         cfg_name = "infer"
 
     cs = ConfigStore.instance()

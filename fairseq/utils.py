@@ -832,9 +832,47 @@ def safe_getattr(obj, k, default=None):
     from omegaconf import OmegaConf
 
     if OmegaConf.is_config(obj):
-        return obj[k] if k in obj and obj[k] is not None else default
+        try:
+            return obj[k] if k in obj and obj[k] is not None else default
+        except (KeyError, AttributeError):
+            return default
 
     return getattr(obj, k, default)
+
+
+def safe_dictconfig_get(cfg, key, default=None):
+    """
+    Safely access keys in DictConfig objects with omegaconf 2.1+ compatibility.
+    
+    In omegaconf 2.1+, cfg[key] raises KeyError and cfg.key raises AttributeError
+    if the key doesn't exist, while in older versions it returned None.
+    This function provides backward compatibility.
+    
+    Args:
+        cfg: DictConfig or similar object
+        key: Key to access
+        default: Default value if key doesn't exist
+
+    Returns:
+        Value at key or default if key doesn't exist
+    """
+    from omegaconf import OmegaConf
+    
+    if OmegaConf.is_config(cfg):
+        try:
+            # First check if key exists to avoid error
+            if key in cfg:
+                val = cfg[key]
+                return val if val is not None else default
+            return default
+        except (KeyError, AttributeError):
+            return default
+    
+    # Fall back to dict-like get or attribute access
+    if hasattr(cfg, "get"):
+        return cfg.get(key, default)
+    
+    return getattr(cfg, key, default)
 
 
 def safe_hasattr(obj, k):
