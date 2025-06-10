@@ -32,7 +32,9 @@ class FastaDataset(torch.utils.data.Dataset):
                 self.offsets, self.sizes = self._build_index(path)
                 np.save(self.cache, np.stack([self.offsets, self.sizes]))
         else:
-            self.offsets, self.sizes = self._build_index(path)
+            raise ValueError(
+                "`cache_indices` is not supported anymore due to security concerns."
+            )
 
     def _get_file(self):
         if not hasattr(self.threadlocal, "f"):
@@ -52,24 +54,6 @@ class FastaDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return self.offsets.size
-
-    def _build_index(self, path: str):
-        # Use grep and awk to get 100M/s on local SSD.
-        # Should process your enormous 100G fasta in ~10 min single core...
-        path = fasta_file_path(path)
-        bytes_offsets = subprocess.check_output(
-            f"cat {path} | tqdm --bytes --total $(wc -c < {path})"
-            "| grep --byte-offset '^>' -o | cut -d: -f1",
-            shell=True,
-        )
-        fasta_lengths = subprocess.check_output(
-            f"cat {path} | tqdm --bytes --total $(wc -c < {path})"
-            "| awk '/^>/ {print \"\";next;} { printf(\"%s\",$0);}' | tail -n+2 | awk '{print length($1)}'",
-            shell=True,
-        )
-        bytes_np = np.fromstring(bytes_offsets, dtype=np.int64, sep=" ")
-        sizes_np = np.fromstring(fasta_lengths, dtype=np.int64, sep=" ")
-        return bytes_np, sizes_np
 
     def __setstate__(self, state):
         self.__dict__ = state
