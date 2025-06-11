@@ -23,7 +23,7 @@ This tutorial covers:
 
 The original tutorial provides raw data, but we'll work with a modified version
 of the data that is already tokenized into characters and split into separate
-train, valid and test sets.
+train, validation and test sets.
 
 Download and extract the data from here:
 `tutorial_names.tar.gz <https://dl.fbaipublicfiles.com/fairseq/data/tutorial_names.tar.gz>`_
