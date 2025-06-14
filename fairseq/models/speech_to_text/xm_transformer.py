@@ -24,21 +24,11 @@ from fairseq.models import (
 )
 from fairseq.models.speech_to_speech.modules.ctc_decoder import CTCDecoder
 from fairseq.models.speech_to_text.hub_interface import S2THubInterface
-from fairseq.models.transformer import (
-    Embedding,
-    TransformerDecoder,
-    TransformerModelBase,
-)
+from fairseq.models.transformer import TransformerDecoder, TransformerModelBase
 from fairseq.models.wav2vec import Wav2VecEncoder
 from fairseq.modules.layer_norm import LayerNorm
 
 logger = logging.getLogger(__name__)
-
-
-def build_embedding(dictionary, embed_dim):
-    num_embeddings = len(dictionary)
-    padding_idx = dictionary.pad()
-    return Embedding(num_embeddings, embed_dim, padding_idx)
 
 
 class Conv1dAdaptor(nn.Module):
@@ -646,8 +636,8 @@ class XMTransformerModel(FairseqEncoderDecoderModel):
             decoder_args_dict = cls.get_decoder_args_from_checkpoint(ckpt["cfg"])
             args = cls.override_decoder_args(args, decoder_args_dict)
 
-        decoder_embed_tokens = build_embedding(
-            task.target_dictionary, args.decoder_embed_dim
+        decoder_embed_tokens = TransformerModelBase.build_embedding(
+            args, task.target_dictionary, args.decoder_embed_dim
         )
 
         encoder = cls.build_encoder(args)
