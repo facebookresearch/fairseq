@@ -91,7 +91,6 @@ class SequenceGenerator(nn.Module):
             ).long()
 
         self.vocab_size = len(tgt_dict)
-        self.beam_size = beam_size
         # the max beam size is the dictionary size - 1, since we never select pad
         self.beam_size = min(beam_size, self.vocab_size - 1)
         self.model.set_decoder_beam_size(self.beam_size)
@@ -210,13 +209,6 @@ class SequenceGenerator(nn.Module):
         constraints: Optional[Tensor] = None,
         bos_token: Optional[int] = None,
     ):
-        incremental_states = torch.jit.annotate(
-            List[Dict[str, Dict[str, Optional[Tensor]]]],
-            [
-                torch.jit.annotate(Dict[str, Dict[str, Optional[Tensor]]], {})
-                for i in range(self.model.models_size)
-            ],
-        )
         net_input = sample["net_input"]
 
         if "src_tokens" in net_input:
@@ -251,18 +243,53 @@ class SequenceGenerator(nn.Module):
                 + str(net_input.keys())
             )
 
-        # bsz: total number of sentences in beam
-        # Note that src_tokens may have more than 2 dimensions (i.e. audio features)
-        bsz, src_len = src_tokens.size()[:2]
-        beam_size = self.beam_size
-
         if constraints is not None and not self.search.supports_constraints:
             raise NotImplementedError(
                 "Target-side constraints were provided, but search method doesn't support them"
             )
 
         # Initialize constraints, when active
-        self.search.init_constraints(constraints, beam_size)
+        self.search.init_constraints(constraints, self.beam_size)
+
+        # compute the encoder output for each beam
+        with torch.autograd.profiler.record_function("EnsembleModel: forward_encoder"):
+            encoder_outs = self.model.forward_encoder(net_input)
+
+        finalized = self.generate_decoder(
+            encoder_outs,
+            src_tokens,
+            src_lengths,
+            sample,
+            prefix_tokens,
+            constraints,
+            bos_token,
+        )
+        return finalized
+
+    def generate_decoder(
+        self,
+        encoder_outs,
+        src_tokens,
+        src_lengths,
+        sample: Dict[str, Dict[str, Tensor]],
+        prefix_tokens: Optional[Tensor] = None,
+        constraints: Optional[Tensor] = None,
+        bos_token: Optional[int] = None,
+        aux_task_name="",
+        encoder_outs2: Optional[Tensor] = None,
+    ):
+        incremental_states = torch.jit.annotate(
+            List[Dict[str, Dict[str, Optional[Tensor]]]],
+            [
+                torch.jit.annotate(Dict[str, Dict[str, Optional[Tensor]]], {})
+                for i in range(self.model.models_size)
+            ],
+        )
+
+        # bsz: total number of sentences in beam
+        # Note that src_tokens may have more than 2 dimensions (i.e. audio features)
+        bsz, src_len = src_tokens.size()[:2]
+        beam_size = self.beam_size
 
         max_len: int = -1
         if self.match_source_len:
@@ -275,9 +302,6 @@ class SequenceGenerator(nn.Module):
         assert (
             self.min_len <= max_len
         ), "min_len cannot be larger than max_len, please adjust these!"
-        # compute the encoder output for each beam
-        with torch.autograd.profiler.record_function("EnsembleModel: forward_encoder"):
-            encoder_outs = self.model.forward_encoder(net_input)
 
         # placeholder of indices for bsz * beam_size to hold tokens and accumulative scores
         new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)
