@@ -260,6 +260,13 @@ class TranslationConfig(FairseqDataclass):
             "argparse_const": "@@ ",
         },
     )
+    eval_sacrebleu_args: Optional[str] = field(
+        default="{}",
+        metadata={
+            "help": "args for sacrebleu.corpus_bleu, as JSON string; "
+            'e.g., \'{"tokenize": "zh", "lowercase": true}\''
+        },
+    )
     eval_bleu_print_samples: bool = field(
         default=False, metadata={"help": "print sample generations during validation"}
     )
@@ -492,7 +499,9 @@ class TranslationTask(FairseqTask):
         if self.cfg.eval_bleu_print_samples:
             logger.info("example hypothesis: " + hyps[0])
             logger.info("example reference: " + refs[0])
+
+        sacrebleu_args = json.loads(self.cfg.eval_sacrebleu_args)
         if self.cfg.eval_tokenized_bleu:
-            return sacrebleu.corpus_bleu(hyps, [refs], tokenize="none")
-        else:
-            return sacrebleu.corpus_bleu(hyps, [refs])
+            # force set the sacrebleu tokenizer to "none" to avoid double-tokenization
+            sacrebleu_args["tokenize"] = "none"
+        return sacrebleu.corpus_bleu(hyps, [refs], **sacrebleu_args)
