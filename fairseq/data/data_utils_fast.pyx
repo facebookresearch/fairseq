@@ -112,6 +112,7 @@ cpdef list batch_by_size_fn(
     int64_t max_sentences,
     int32_t bsz_mult,
 ):
+    cdef int32_t target_index = 0
     cdef int32_t indices_len = indices.shape[0]
     cdef np.ndarray[int64_t, ndim=1] num_tokens_vec = np.zeros(indices_len,
                                                                dtype=np.int64)
@@ -120,6 +121,13 @@ cpdef list batch_by_size_fn(
     cdef int64_t pos
     for pos in range(indices_len):
         num_tokens_vec[pos] = num_tokens_fn(indices_view[pos])
+
+    for num_index in range(len(num_tokens_vec)):
+        if num_tokens_vec[num_index] <= max_tokens:
+            target_index = num_index
+            break
+    indices = indices[target_index:]
+    num_tokens_vec = num_tokens_vec[target_index:]
     return batch_by_size_vec(indices, num_tokens_vec, max_tokens,
         max_sentences, bsz_mult,)
 
