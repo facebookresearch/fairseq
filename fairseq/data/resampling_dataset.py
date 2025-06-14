@@ -67,7 +67,7 @@ class ResamplingDataset(BaseWrapperDataset):
         self.size_ratio = float(size_ratio)
         self.actual_size = np.ceil(len(dataset) * self.size_ratio).astype(int)
 
-        self.batch_by_size = batch_by_size
+        self._batch_by_size = batch_by_size
         self.seed = seed
 
         self._cur_epoch = None
@@ -94,7 +94,7 @@ class ResamplingDataset(BaseWrapperDataset):
         return self.dataset.size(self._cur_indices.array[index])
 
     def ordered_indices(self):
-        if self.batch_by_size:
+        if self._batch_by_size:
             order = [
                 np.arange(len(self)),
                 self.sizes,
