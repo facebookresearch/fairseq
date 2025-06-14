@@ -31,7 +31,7 @@ camembert.eval()  # disable dropout (or leave in train mode to finetune)
 ```python
 # Download camembert model
 wget https://dl.fbaipublicfiles.com/fairseq/models/camembert-base.tar.gz
-tar -xzvf camembert.tar.gz
+tar -xzvf camembert-base.tar.gz
 
 # Load the model in fairseq
 from fairseq.models.roberta import CamembertModel
