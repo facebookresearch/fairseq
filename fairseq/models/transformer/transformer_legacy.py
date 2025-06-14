@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import sys
 from fairseq.dataclass.utils import gen_parser_from_dataclass
 from fairseq.models import (
     register_model,
@@ -221,6 +222,13 @@ def base_architecture(args):
     args.quant_noise_pq = getattr(args, "quant_noise_pq", 0)
     args.quant_noise_pq_block_size = getattr(args, "quant_noise_pq_block_size", 8)
     args.quant_noise_scalar = getattr(args, "quant_noise_scalar", 0)
+    #for perturbations
+    args.sampling_method = getattr(args, "sampling_method", None)
+    if args.sampling_method is not None and not args.sampling_method in ["worddrop", "uniform", "similarity"]:
+        print("Please select sampling method from worddrop, uniform, and similarity", file=sys.stderr, flush=True)
+        sys.exit(1)
+    args.enc_replace_rate = getattr(args, "enc_replace_rate", 0.0)
+    args.dec_replace_rate = getattr(args, "dec_replace_rate", 0.0)
 
 
 @register_model_architecture("transformer", "transformer_iwslt_de_en")
