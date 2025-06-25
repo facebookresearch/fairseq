@@ -2,6 +2,7 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+import logging
 
 from dataclasses import dataclass, field
 import torch
@@ -13,9 +14,11 @@ from fairseq.tasks.translation import (
     TranslationConfig,
     TranslationTask,
     load_langpair_dataset,
+    valid_bleu
 )
 from fairseq.utils import new_arange
 
+logger = logging.getLogger(__name__)
 
 NOISE_CHOICES = ChoiceEnum(["random_delete", "random_mask", "no_noise", "full_mask"])
 
@@ -36,6 +39,13 @@ class TranslationLevenshteinTask(TranslationTask):
     """
 
     cfg: TranslationLevenshteinConfig
+
+    @classmethod
+    def setup_task(cls, cfg, **kwargs):
+        cls = super(cls, cls).setup_task(cfg)
+        cls.src_dict.blank_index = cls.src_dict.add_symbol('<ctc_blank>')
+        cls.tgt_dict.blank_index = cls.tgt_dict.add_symbol('<ctc_blank>')
+        return cls
 
     def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         """Load a given dataset split.
@@ -150,19 +160,19 @@ class TranslationLevenshteinTask(TranslationTask):
         else:
             raise NotImplementedError
 
-    def build_generator(self, models, args, **unused):
+    def build_generator(self, models, cfg, **unused):
         # add models input to match the API for SequenceGenerator
         from fairseq.iterative_refinement_generator import IterativeRefinementGenerator
 
         return IterativeRefinementGenerator(
             self.target_dictionary,
-            eos_penalty=getattr(args, "iter_decode_eos_penalty", 0.0),
-            max_iter=getattr(args, "iter_decode_max_iter", 10),
-            beam_size=getattr(args, "iter_decode_with_beam", 1),
-            reranking=getattr(args, "iter_decode_with_external_reranker", False),
-            decoding_format=getattr(args, "decoding_format", None),
-            adaptive=not getattr(args, "iter_decode_force_max_iter", False),
-            retain_history=getattr(args, "retain_iter_history", False),
+            eos_penalty=getattr(cfg, "iter_decode_eos_penalty", 0.0),
+            max_iter=getattr(cfg, "iter_decode_max_iter", 10),
+            beam_size=getattr(cfg, "iter_decode_with_beam", 1),
+            reranking=getattr(cfg, "iter_decode_with_external_reranker", False),
+            decoding_format=getattr(cfg, "decoding_format", None),
+            adaptive=not getattr(cfg, "iter_decode_force_max_iter", False),
+            retain_history=getattr(cfg, "retain_iter_history", False),
         )
 
     def build_dataset_for_inference(self, src_tokens, src_lengths, constraints=None):
@@ -180,6 +190,7 @@ class TranslationLevenshteinTask(TranslationTask):
         self, sample, model, criterion, optimizer, update_num, ignore_grad=False
     ):
         model.train()
+        model.set_num_updates(update_num)
         sample["prev_target"] = self.inject_noise(sample["target"])
         loss, sample_size, logging_output = criterion(model, sample)
         if ignore_grad:
@@ -192,4 +203,21 @@ class TranslationLevenshteinTask(TranslationTask):
         with torch.no_grad():
             sample["prev_target"] = self.inject_noise(sample["target"])
             loss, sample_size, logging_output = criterion(model, sample)
+        if self.cfg.eval_bleu:
+            valid_bleu(self, self.sequence_generator, sample, model, logging_output)
         return loss, sample_size, logging_output
+
+    def inference_step(
+        self, generator, models, sample, prefix_tokens=None, constraints=None):
+        gen_out = super(type(self), self).inference_step(generator, models, sample,
+                                                         prefix_tokens=prefix_tokens, constraints=constraints)
+
+        # post-process output if ctc_decoder was used
+        if getattr(models[0], "use_ctc_decoder", False):
+            for i in range(len(gen_out)):
+                hyp = gen_out[i][0]["tokens"]
+                _toks = hyp.int().tolist()
+                _toks = [v for i, v in enumerate(_toks) if i == 0 or v != _toks[i - 1]]
+                gen_out[i][0]["tokens"] = hyp.new_tensor([v for v in _toks if v != getattr(self.tgt_dict, 'blank_index')])
+
+        return gen_out
