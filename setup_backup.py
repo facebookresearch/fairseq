@@ -120,7 +120,7 @@ extensions.extend(
 )
 
 # Add CUDA extensions if CUDA is available
-if "CUDA_HOME" in os.environ and not is_windows:
+if "CUDA_HOME" in os.environ:
     # Configure CUDA extension settings based on platform
     cuda_extension_args = {}
     
@@ -139,7 +139,7 @@ if "CUDA_HOME" in os.environ and not is_windows:
     
     # Add CUDA extensions with platform-specific settings
     extensions.extend([
-        cpp_extension.CppExtension(
+        cpp_extension.CUDAExtension(
             "fairseq.libnat_cuda",
             sources=[
                 "fairseq/clib/libnat_cuda/edit_dist.cu",
@@ -147,7 +147,7 @@ if "CUDA_HOME" in os.environ and not is_windows:
             ],
             **cuda_extension_args
         ),
-        cpp_extension.CppExtension(
+        cpp_extension.CUDAExtension(
             "fairseq.ngram_repeat_block_cuda",
             sources=[
                 "fairseq/clib/cuda/ngram_repeat_block_cuda.cpp",
@@ -155,7 +155,7 @@ if "CUDA_HOME" in os.environ and not is_windows:
             ],
             **cuda_extension_args
         ),
-        cpp_extension.CppExtension(
+        cpp_extension.CUDAExtension(
             "alignment_train_cuda_binding",
             sources=[
                 "examples/operators/alignment_train_kernel.cu",
@@ -233,13 +233,13 @@ def do_setup(package_data):
             "cython",
             "hydra-core>=1.3.2",
             "omegaconf>=2.1.0",
-            "numpy>=1.24.2",
+            "numpy>=1.21.3",
             "regex",
             "sacrebleu>=1.4.12",
-            "torch>=2.4.0",
+            "torch>=2.1.0",
             "tqdm",
             "bitarray",
-            "torchaudio>=2.4.0",
+            "torchaudio>=2.1.0",
             "scikit-learn",
             "packaging",
         ],

@@ -12,9 +12,21 @@
 
 --------------------------------------------------------------------------------
 
-Fairseq(-py) is a sequence modeling toolkit that allows researchers and
-developers to train custom models for translation, summarization, language
-modeling and other text generation tasks.
+# Fairseq
+
+Fairseq(-py) is a sequence modeling toolkit that allows researchers and developers to train custom models for translation, summarization, language modeling and other text generation tasks.
+
+## New in Version 0.13.0
+- Added support for PyTorch 2.6+ with safe globals handling
+- Updated dependency requirements for modern Python environments
+- Improved Windows compatibility
+- Added explicit fairscale dependency
+
+## Requirements and Installation
+* [PyTorch](http://pytorch.org/) version >= 2.6.0
+* Python version >= 3.8
+* For training new models, you'll also need an NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
+* **For faster training** install NVIDIA's [apex](https://github.com/NVIDIA/apex) library with the `--cuda_ext` and `--deprecated_fused_adam` options
 
 We provide reference implementations of various sequence modeling papers:
 
@@ -145,39 +157,6 @@ en2de.translate('Hello world', beam=5)
 
 See the PyTorch Hub tutorials for [translation](https://pytorch.org/hub/pytorch_fairseq_translation/)
 and [RoBERTa](https://pytorch.org/hub/pytorch_fairseq_roberta/) for more examples.
-
-# Requirements and Installation
-
-* [PyTorch](http://pytorch.org/) version >= 1.10.0
-* Python version >= 3.8
-* For training new models, you'll also need an NVIDIA GPU and [NCCL](https://github.com/NVIDIA/nccl)
-* **To install fairseq** and develop locally:
-
-``` bash
-git clone https://github.com/pytorch/fairseq
-cd fairseq
-pip install --editable ./
-
-# on MacOS:
-# CFLAGS="-stdlib=libc++" pip install --editable ./
-
-# to install the latest stable release (0.10.x)
-# pip install fairseq
-```
-
-* **For faster training** install NVIDIA's [apex](https://github.com/NVIDIA/apex) library:
-
-``` bash
-git clone https://github.com/NVIDIA/apex
-cd apex
-pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" \
-  --global-option="--deprecated_fused_adam" --global-option="--xentropy" \
-  --global-option="--fast_multihead_attn" ./
-```
-
-* **For large datasets** install [PyArrow](https://arrow.apache.org/docs/python/install.html#using-pip): `pip install pyarrow`
-* If you use Docker make sure to increase the shared memory size either with `--ipc=host` or `--shm-size`
- as command line options to `nvidia-docker run` .
 
 # Getting Started
 
