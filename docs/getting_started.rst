@@ -196,6 +196,20 @@ GPUs, but a port number must be provided:
     > salloc --gpus=16 --nodes 2 (...)
     > srun fairseq-train --distributed-port 12345 (...).
 
+
+.. warning::
+
+    PyTorch Distributed features used in fairseq are intended for internal
+    communication only. They are not built for use in untrusted environments or
+    networks.
+
+    For performance reasons, none of the PyTorch Distributed primitives include
+    any authorization protocol and will send messages unencrypted. They accept
+    connections from anywhere, and execute the workload sent without performing
+    any checks. Therefore, if you run a distributed fairseq job on your network,
+    anybody with access to the network can execute arbitrary code with the
+    privileges of the user running the job.
+
 Sharding very large datasets
 ----------------------------
 
