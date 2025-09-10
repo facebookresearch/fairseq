@@ -110,7 +110,7 @@ def _make_binary_dataset(
 
     binarizer = VocabularyDatasetBinarizer(
         vocab,
-        append_eos=True,
+        append_eos=args.append_eos,
     )
 
     input_file = "{}{}".format(input_prefix, ("." + lang) if lang is not None else "")
