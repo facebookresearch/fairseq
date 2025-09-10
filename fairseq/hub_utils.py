@@ -213,7 +213,7 @@ class GeneratorHubInterface(nn.Module):
                 return getattr(gen_args, name, getattr(self.cfg, name, default))
 
             for source_tokens, target_hypotheses in zip(tokenized_sentences, outputs):
-                src_str_with_unk = self.string(source_tokens)
+                src_str_with_unk = self.src_dict.string(source_tokens)
                 logger.info("S\t{}".format(src_str_with_unk))
                 for hypo in target_hypotheses:
                     hypo_str = self.decode(hypo["tokens"])
