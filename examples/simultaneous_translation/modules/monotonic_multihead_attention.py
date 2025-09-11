@@ -45,7 +45,7 @@ class MonotonicAttention(MultiheadAttention):
 
         self.soft_attention = False
 
-        self.eps = getattr(args, "attention_eps", True)
+        self.eps = getattr(args, "attention_eps", 1e-6)
         self.mass_preservation = getattr(args, "mass_preservation", True)
 
         self.noise_type = args.noise_type
@@ -126,12 +126,12 @@ class MonotonicAttention(MultiheadAttention):
         if key_padding_mask is not None:
             energy = energy.masked_fill(
                 key_padding_mask.unsqueeze(1).to(torch.bool),
-                - float("inf")
+                -1e4 if energy.dtype == torch.float16 else -1e8
             )
 
         return energy
 
-    def p_choose_from_qk(self, query, key, key_padding_mask, incremental_states=None):
+    def p_choose_from_qk(self, query, key, key_padding_mask, incremental_state=None):
         monotonic_energy = self.energy_from_qk(
             query,
             key,
@@ -148,8 +148,8 @@ class MonotonicAttention(MultiheadAttention):
         )
         return p_choose
 
-    def p_choose(self, query, key, key_padding_mask, incremental_states=None):
-        return self.p_choose_from_qk(self, query, key, key_padding_mask)
+    def p_choose(self, query, key, key_padding_mask, incremental_state=None):
+        return self.p_choose_from_qk(query, key, key_padding_mask, incremental_state=incremental_state)
 
     def monotonic_attention_process_infer(
         self,
@@ -181,7 +181,7 @@ class MonotonicAttention(MultiheadAttention):
         # Step for each head
         monotonic_step = monotonic_cache.get(
             'head_step',
-            p_choose.new_zeros(1, self.num_heads).long()
+            p_choose.new_zeros(self.num_heads, 1).long()
         )
         assert monotonic_step is not None
         finish_read = monotonic_step.eq(max_steps)
@@ -190,7 +190,7 @@ class MonotonicAttention(MultiheadAttention):
         while finish_read.sum().item() < self.num_heads:
             # p_choose: self.num_heads, src_len
             # only choose the p at monotonic steps
-            # p_choose_i: 1, self.num_heads
+            # p_choose_i: self.num_heads, 1
             p_choose_i = (
                 p_choose.gather(
                     1,
@@ -204,7 +204,7 @@ class MonotonicAttention(MultiheadAttention):
                 .type_as(monotonic_step)
                 .masked_fill(finish_read, 0)
             )
-            # 1 x bsz
+            # self.num_heads x 1
             # sample actions on unfinished seq
             # 0 means stay, finish reading
             # 1 means leave, continue reading
@@ -250,8 +250,8 @@ class MonotonicAttention(MultiheadAttention):
 
         # 4. Compute Beta
         if self.soft_attention:
-            monotonic_step = monotonic_step.t()
-            beta_mask = torch.arange(src_len).expand_as(alpha).gt(monotonic_step).unsqueeze(1)
+            # monotonic_step = monotonic_step.t()
+            beta_mask = torch.arange(src_len, device=alpha.device).expand_as(alpha).gt(monotonic_step).unsqueeze(1)
             # If it's soft attention just do softmax on current context
             soft_energy = self.energy_from_qk(
                 query,
@@ -259,13 +259,16 @@ class MonotonicAttention(MultiheadAttention):
                 "soft"
             )
             beta = torch.nn.functional.softmax(
-                soft_energy.masked_fill(beta_mask, -float("inf")), dim=-1
+                soft_energy.masked_fill(
+                    beta_mask,
+                    -1e4 if soft_energy.dtype == torch.float16 else -1e8
+                ), dim=-1
             )
             # It could happen that a head doesn't move at all
             beta = beta.masked_fill(monotonic_step.eq(0).unsqueeze(1), 0)
         else:
             # If it's hard attention just select the last state
-            beta = alpha
+            beta = alpha.view(self.num_heads, 1, src_len)  # bsz * head, tgt, src
 
         return p_choose, alpha, beta
 
@@ -286,11 +289,11 @@ class MonotonicAttention(MultiheadAttention):
         assert key is not None
 
         # 1. compute stepwise probability
-        p_choose = self.p_choose_from_qk(query, key, key_padding_mask)
+        p_choose = self.p_choose(query, key, key_padding_mask)
 
         # 2. compute expected_alignment
         alpha = expected_alignment_from_p_choose(
-            p_choose,
+            p_choose.float(),  # prevents latency loss from nan
             key_padding_mask,
             eps=self.eps,
         )

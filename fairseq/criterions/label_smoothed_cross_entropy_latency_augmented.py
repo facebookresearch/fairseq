@@ -167,15 +167,20 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
             .view(-1, tgt_len)
         )
 
+        target_lengths = (~target_padding_mask).sum(-1)
+        src_lengths = sample["net_input"]["src_lengths"]
+        if net_output[-1].encoder_padding_mask is not None:
+            # for speech, input length != encoded lengths
+            src_lengths = (~net_output[-1].encoder_padding_mask).sum(-1)
         src_lengths = (
-            sample["net_input"]["src_lengths"]
+            src_lengths
             .unsqueeze(1)
             .expand(bsz, num_layers * num_heads)
             .contiguous()
             .view(-1)
         )
         expected_latency = LATENCY_METRICS[self.latency_avg_type](
-            expected_delays, src_lengths, None, target_padding_mask=target_padding_mask
+            expected_delays, src_lengths, target_lengths, target_padding_mask=target_padding_mask
         )
 
         # 2.1 average expected latency of heads
@@ -200,7 +205,7 @@ class LatencyAugmentedLabelSmoothedCrossEntropyCriterion(
             expected_delays.view(bsz, -1, tgt_len).var(dim=1).mean(dim=1)
         )
         expected_delays_var = expected_delays_var.sum()
-        var_loss = self.latency_avg_weight * expected_delays_var
+        var_loss = self.latency_var_weight * expected_delays_var
 
         # 3. Final loss
         latency_loss = avg_loss + var_loss
