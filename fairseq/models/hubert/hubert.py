@@ -243,6 +243,7 @@ class HubertConfig(FairseqDataclass):
     )
     fp16: bool = field(default=False, metadata={"help": "If fp16 is being used"})
 
+>>>>>>> 5f2515e676985efd2944f6c87fe1b086cb94bdee
 
 @register_model("hubert", dataclass=HubertConfig)
 class HubertModel(BaseFairseqModel):

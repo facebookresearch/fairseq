@@ -1,0 +1,18 @@
+source_letter:  # $TASK_NAME
+   decoder_type: transformer
+   dict: dump/source_letter/dict.txt
+   data: dump/source_letter
+   encoder_layer: 6
+   loss_weight: 8.0
+target_letter:
+   decoder_type: transformer
+   dict: dump/target_letter/dict.txt
+   data: dump/target_letter
+   encoder_layer: 8
+   loss_weight: 8.0
+decoder_target_ctc:
+   decoder_type: ctc
+   dict: dump/decoder_target_ctc/dict.txt
+   data: dump/decoder_target_ctc
+   decoder_layer: 3
+   loss_weight: 1.6
