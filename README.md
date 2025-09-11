@@ -170,9 +170,10 @@ pip install --editable ./
 ``` bash
 git clone https://github.com/NVIDIA/apex
 cd apex
-pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" \
-  --global-option="--deprecated_fused_adam" --global-option="--xentropy" \
-  --global-option="--fast_multihead_attn" ./
+# if pip >= 23.1 (ref: https://pip.pypa.io/en/stable/news/#v23-1) which supports multiple `--config-settings` with the same key... 
+pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext" --config-settings "--build-option=--cuda_ext" ./
+# otherwise
+pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 ```
 
 * **For large datasets** install [PyArrow](https://arrow.apache.org/docs/python/install.html#using-pip): `pip install pyarrow`
