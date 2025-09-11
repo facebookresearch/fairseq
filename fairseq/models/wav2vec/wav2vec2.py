@@ -1381,7 +1381,7 @@ class AdapterFast(nn.Module):
     def __init__(self, adapter_num, input_dim, hidden_dim, act_fn):
         """
         Implements adapter modules directly with 3D tensor weight as parameters
-        and without using ModuleList orto speed up training throughput.
+        and without using ModuleList to speed up training throughput.
         """
         super().__init__()
 
