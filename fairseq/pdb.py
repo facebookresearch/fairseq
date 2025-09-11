@@ -13,11 +13,27 @@ __all__ = ["set_trace"]
 
 
 _stdin = [None]
-_stdin_lock = multiprocessing.Lock()
+
 try:
     _stdin_fd = sys.stdin.fileno()
 except Exception:
     _stdin_fd = None
+
+
+try:
+    _stdin_lock = multiprocessing.Lock()
+except OSError:
+    import contextlib
+
+    @contextlib.contextmanager
+    def _dummy_lock(*args, **kwargs):
+        yield
+
+    # Implement a dummy lock that satisfies the context manager protocol to
+    # fake a multiprocessing.Lock(). This is useful on systems where some
+    # features required by multiprocessing aren't implemented, like some
+    # serverless compute platforms.
+    _stdin_lock = _dummy_lock()
 
 
 class MultiprocessingPdb(pdb.Pdb):
