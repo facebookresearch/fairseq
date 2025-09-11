@@ -175,7 +175,7 @@ class RawAudioDataset(FairseqDataset):
         return out
 
     def _get_mask_indices_dims(self, size, padding=0, dilation=1):
-        if size not in self.feature_encoder_spec:
+        if size not in self._features_size_map:
             L_in = size
             for (_, kernel_size, stride) in self.feature_encoder_spec:
                 L_out = L_in + 2 * padding - dilation * (kernel_size - 1) - 1
