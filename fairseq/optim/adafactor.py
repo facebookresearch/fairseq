@@ -158,7 +158,7 @@ class Adafactor(torch.optim.Optimizer):
 
     def _approx_sq_grad(self, exp_avg_sq_row, exp_avg_sq_col):
         r_factor = (
-            (exp_avg_sq_row / exp_avg_sq_row.mean(dim=-1, keepdim=True))
+            (exp_avg_sq_row / exp_avg_sq_row.sum(dim=-1, keepdim=True))
             .rsqrt_()
             .unsqueeze(-1)
         )
@@ -230,10 +230,10 @@ class Adafactor(torch.optim.Optimizer):
                     exp_avg_sq_col = state["exp_avg_sq_col"]
 
                     exp_avg_sq_row.mul_(beta2t).add_(
-                        update.mean(dim=-1), alpha=1.0 - beta2t
+                        update.sum(dim=-1), alpha=1.0 - beta2t
                     )
                     exp_avg_sq_col.mul_(beta2t).add_(
-                        update.mean(dim=-2), alpha=1.0 - beta2t
+                        update.sum(dim=-2), alpha=1.0 - beta2t
                     )
 
                     # Approximation of exponential moving average of square of gradient
