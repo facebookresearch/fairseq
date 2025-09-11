@@ -195,17 +195,28 @@ class GeneratorHubInterface(nn.Module):
         )
 
         inference_step_args = inference_step_args or {}
-        results = []
+        results = {}
         for batch in self._build_batches(tokenized_sentences, skip_invalid_size_inputs):
             batch = utils.apply_to_sample(lambda t: t.to(self.device), batch)
             translations = self.task.inference_step(
                 generator, self.models, batch, **inference_step_args
             )
             for id, hypos in zip(batch["id"].tolist(), translations):
-                results.append((id, hypos))
+                results[id] = hypos
 
         # sort output to match input order
-        outputs = [hypos for _, hypos in sorted(results, key=lambda x: x[0])]
+        outputs = []
+        for i in range(len(tokenized_sentences)):
+            if i in results:
+                outputs.append(results[i])
+            else:
+                translation = {}
+                translation['tokens'] = torch.tensor([])
+                translation['score'] = torch.tensor([])
+                translation['attention'] = torch.tensor([])
+                translation['alignment'] = torch.tensor([])
+                translation['positional_scores'] = torch.tensor([])
+                outputs.append([translation])
 
         if verbose:
 
