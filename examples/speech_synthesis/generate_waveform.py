@@ -90,7 +90,7 @@ def dump_result(
     if args.dump_attentions:
         attn_dir = out_root / "attn"
         attn_dir.mkdir(exist_ok=True, parents=True)
-        np.save(attn_dir / f"{sample_id}.npy", attn.numpy())
+        np.save(attn_dir / f"{sample_id}.npy", attn)
     if args.dump_eos_probs and not is_na_model:
         eos_dir = out_root / "eos"
         eos_dir.mkdir(exist_ok=True, parents=True)
