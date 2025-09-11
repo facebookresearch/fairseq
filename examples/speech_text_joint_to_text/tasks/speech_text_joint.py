@@ -375,3 +375,24 @@ class SpeechTextJointToTextTask(SpeechToTextTask):
         )
         self.dataset_to_epoch_iter[dataset] = {}  # refresh it every epoch
         return epoch_iter
+
+    def begin_valid_epoch(self, epoch, model):
+        if model.decoder.run_corr_arr:
+            corr_val = model.decoder.retrieve_corr()
+            msg = {
+                "type": "train",
+                "epoch": epoch,
+                "correlation": corr_val
+            }
+            logger.info(msg)
+            model.decoder.reset_corr()
+
+    def post_validate(self, model, stats, agg):
+        if model.decoder.run_corr_arr:
+            corr_val = model.decoder.retrieve_corr()
+            msg = {
+                "type": "validation",
+                "correlation": corr_val
+            }
+            logger.info(msg)
+            model.decoder.reset_corr()
