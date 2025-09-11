@@ -26,7 +26,7 @@ You can find demo samples [[here]](https://speechbot.github.io/pgslm/index.html)
 ## Additional requirements
 Three packages are required in addition to fairseq, they are installable with pip:
 ```bash 
-pip install AMFM-decompy SoundFile scipy sklearn torchaudio npy-append-array
+pip install AMFM-decompy SoundFile scipy sklearn torchaudio npy-append-array librosa
 ```
 
 ## Data preprocessing
