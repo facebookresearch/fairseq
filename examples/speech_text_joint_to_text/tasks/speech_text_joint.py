@@ -135,7 +135,7 @@ class SpeechTextJointToTextTask(SpeechToTextTask):
         tgt_dict_path = Path(args.data) / data_cfg.vocab_filename
         src_dict_path = Path(args.data) / data_cfg.src_vocab_filename
         if (not os.path.isfile(src_dict_path)) or (not os.path.isfile(tgt_dict_path)):
-            raise FileNotFoundError("Dict not found: {}".format(args.data))
+            raise FileNotFoundError(f"Dict not found. src_dict_path: {src_dict_path} ; tgt_dict_path: {tgt_dict_path}")
         src_dict = Dictionary.load(src_dict_path.as_posix())
         tgt_dict = Dictionary.load(tgt_dict_path.as_posix())
 
@@ -177,7 +177,7 @@ class SpeechTextJointToTextTask(SpeechToTextTask):
                 tgt,
                 self.tgt_dict,
                 combine=True,
-                dataset_impl=None,
+                dataset_impl=self.args.dataset_impl,
                 upsample_primary=1,
                 left_pad_source=False,
                 left_pad_target=False,
