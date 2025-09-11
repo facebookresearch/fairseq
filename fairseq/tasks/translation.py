@@ -170,6 +170,16 @@ def load_langpair_dataset(
         pad_to_multiple=pad_to_multiple,
     )
 
+def valid_bleu(self, sequence_generator, sample, model, logging_output):
+    bleu = TranslationTask._inference_with_bleu(self, sequence_generator, sample, model)
+    logging_output["_bleu_sys_len"] = bleu.sys_len
+    logging_output["_bleu_ref_len"] = bleu.ref_len
+    # we split counts into separate entries so that they can be
+    # summed efficiently across workers using fast-stat-sync
+    assert len(bleu.counts) == EVAL_BLEU_ORDER
+    for i in range(EVAL_BLEU_ORDER):
+        logging_output["_bleu_counts_" + str(i)] = bleu.counts[i]
+        logging_output["_bleu_totals_" + str(i)] = bleu.totals[i]
 
 @dataclass
 class TranslationConfig(FairseqDataclass):
@@ -211,7 +221,7 @@ class TranslationConfig(FairseqDataclass):
         default=1024, metadata={"help": "max number of tokens in the target sequence"}
     )
     upsample_primary: int = field(
-        default=-1, metadata={"help": "the amount of upsample primary dataset"}
+        default=1, metadata={"help": "the amount of upsample primary dataset"}
     )
     truncate_source: bool = field(
         default=False, metadata={"help": "truncate source to max-source-positions"}
@@ -383,15 +393,8 @@ class TranslationTask(FairseqTask):
     def valid_step(self, sample, model, criterion):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
         if self.cfg.eval_bleu:
-            bleu = self._inference_with_bleu(self.sequence_generator, sample, model)
-            logging_output["_bleu_sys_len"] = bleu.sys_len
-            logging_output["_bleu_ref_len"] = bleu.ref_len
-            # we split counts into separate entries so that they can be
-            # summed efficiently across workers using fast-stat-sync
-            assert len(bleu.counts) == EVAL_BLEU_ORDER
-            for i in range(EVAL_BLEU_ORDER):
-                logging_output["_bleu_counts_" + str(i)] = bleu.counts[i]
-                logging_output["_bleu_totals_" + str(i)] = bleu.totals[i]
+            valid_bleu(self, self.sequence_generator, sample, model, logging_output)
+            
         return loss, sample_size, logging_output
 
     def reduce_metrics(self, logging_outputs, criterion):

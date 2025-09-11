@@ -2,7 +2,7 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
-
+import logging
 import math
 
 import torch
@@ -12,8 +12,10 @@ from fairseq.logging import metrics
 from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.dataclass import FairseqDataclass
 from torch import Tensor
-
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
+
 
 
 @dataclass
@@ -29,6 +31,8 @@ class LabelSmoothedDualImitationCriterion(FairseqCriterion):
     def __init__(self, task, label_smoothing):
         super().__init__(task)
         self.label_smoothing = label_smoothing
+        self.blank_index = getattr(task.target_dictionary, "blank_index", None)
+        self.pad_idx = task.target_dictionary.pad()
 
     def _compute_loss(
         self, outputs, targets, masks=None, label_smoothing=0.0, name="loss", factor=1.0
@@ -75,6 +79,71 @@ class LabelSmoothedDualImitationCriterion(FairseqCriterion):
         loss = loss * factor
         return {"name": name, "loss": loss, "nll_loss": nll_loss, "factor": factor}
 
+    def _compute_ctc_loss(self, logits, prev_output_tokens, targets, label_smoothing=0.0, name="ctc-loss", factor=1.0):
+        """
+        This method computes the ctc loss based on the logits using the pytorch ctc loss.
+        It does the required transformations for the ctc loss and includes label smoothing.
+        """
+        target_mask = targets.ne(self.pad_idx)
+        logit_mask = prev_output_tokens.ne(self.pad_idx)
+        logit_lengths = (logit_mask.bool()).long().sum(1)
+
+        if len(targets.size()) == 1:
+            targets = targets.unsqueeze(0)
+            target_mask = target_mask.unsqueeze(0)
+        target_lengths = (target_mask.bool()).long().sum(1)
+
+        log_probs = logits.log_softmax(-1)  # B x T x N_classes
+        log_probs_T = log_probs.transpose(0, 1)  # T x B x N_classes, this kind of shape is required for ctc_loss
+        targets = targets[target_mask.bool()].long()
+        loss = F.ctc_loss(
+            log_probs_T.float(),
+            targets,
+            logit_lengths,
+            target_lengths,
+            blank=self.blank_index,
+            reduction="mean",
+            zero_infinity=True,
+        )
+
+        # The number of invalid samples are samples where the predictions are shorter than the targets.
+        # If this is true for too many samples, one might think about increasing --ctc-src-upsample-scale.
+        n_invalid_samples = (logit_lengths < target_lengths).long().sum()
+
+        if n_invalid_samples > 0:
+            logger.warning(
+                f"The length of predicted alignment is shorter than target length, increase upsample factor: {n_invalid_samples} samples"
+            )
+
+        if label_smoothing > 0:
+            smoothed_loss = -log_probs.mean(-1)[logit_mask.bool()].mean()
+            loss = (1 - label_smoothing) * loss + label_smoothing * smoothed_loss
+
+        return {"name": name, "loss": loss, "factor": factor}
+    
+    def _compute_ds_ctc_loss(self, logits, prev_output_tokens, targets, label_smoothing=0.0, name="ds-ctc-loss", factor=1.0):
+        logits = list(map(lambda layer_pred: layer_pred.squeeze(dim=0), torch.split(logits,1)))
+        ctc_losses = list(map(lambda layer_pred: self._compute_ctc_loss(
+            logits=layer_pred,
+            prev_output_tokens=prev_output_tokens,
+            targets=targets,
+            label_smoothing=label_smoothing
+        )['loss'], logits))
+
+        return {"name": name, "loss": sum(ctc_losses) / len(ctc_losses), "factor": factor}
+
+    def _compute_ds_loss(self, logits, targets, masks=None, label_smoothing=0.0, name="ds-loss", factor=1.0):
+        logits = list(map(lambda layer_pred: layer_pred.squeeze(dim=0), torch.split(logits,1)))
+        losses = list(map(lambda layer_pred: self._compute_loss(
+            outputs=layer_pred,
+            targets=targets,
+            masks=masks,
+            label_smoothing=label_smoothing
+        ), logits))
+        loss_mean = sum([loss['loss'] for loss in losses]) / len(losses)
+        nll_loss_mean = sum([loss['nll_loss'] for loss in losses]) / len(losses)
+        return {"name": name, "loss": loss_mean, "nll_loss": nll_loss_mean, "factor": factor}
+
     def _custom_loss(self, loss, name="loss", factor=1.0):
         return {"name": name, "loss": loss, "factor": factor}
 
@@ -98,8 +167,21 @@ class LabelSmoothedDualImitationCriterion(FairseqCriterion):
         losses, nll_loss = [], []
 
         for obj in outputs:
-            if outputs[obj].get("loss", None) is None:
-                _losses = self._compute_loss(
+            if obj.startswith('glat'):
+                continue
+            if obj.startswith('ctc'):
+                loss_function = self._compute_ctc_loss if not outputs[obj].get("deep_supervision") else self._compute_ds_ctc_loss
+                _losses = loss_function(
+                    outputs[obj].get("logits"),
+                    outputs[obj].get("prev_output_tokens"),
+                    outputs[obj].get("targets"),
+                    outputs[obj].get("ls", 0.0),
+                    name=obj + "-loss",
+                    factor=outputs[obj].get("factor", 1.0),
+                )
+            elif outputs[obj].get("loss", None) is None:
+                loss_function = self._compute_loss if not outputs[obj].get("deep_supervision") else self._compute_ds_loss
+                _losses = loss_function(
                     outputs[obj].get("out"),
                     outputs[obj].get("tgt"),
                     outputs[obj].get("mask", None),
@@ -132,7 +214,11 @@ class LabelSmoothedDualImitationCriterion(FairseqCriterion):
             "nsentences": nsentences,
             "sample_size": sample_size,
         }
+        if "glat_accu" in outputs:
+            logging_output["glat_accu"] = outputs['glat_accu']
 
+        if "glat_context_p" in outputs:
+            logging_output['glat_context_p'] = outputs['glat_context_p']
         for l in losses:
             logging_output[l["name"]] = (
                 utils.item(l["loss"].data / l["factor"])
@@ -150,16 +236,14 @@ class LabelSmoothedDualImitationCriterion(FairseqCriterion):
         )
         loss = utils.item(sum(log.get("loss", 0) for log in logging_outputs))
         nll_loss = utils.item(sum(log.get("nll_loss", 0) for log in logging_outputs))
+        glat_accu = utils.item(sum(log.get("glat_accu", 0) for log in logging_outputs))
+        glat_context_p = utils.item(sum(log.get("glat_context_p", 0) for log in logging_outputs))
 
-        metrics.log_scalar(
-            "loss", loss / sample_size / math.log(2), sample_size, round=3
-        )
-        metrics.log_scalar(
-            "nll_loss", nll_loss / sample_size / math.log(2), sample_size, round=3
-        )
-        metrics.log_derived(
-            "ppl", lambda meters: utils.get_perplexity(meters["loss"].avg)
-        )
+        metrics.log_scalar("loss", loss / sample_size / math.log(2), sample_size, round=3)
+        metrics.log_scalar("nll_loss", nll_loss / sample_size / math.log(2), sample_size, round=3)
+        metrics.log_derived("ppl", lambda meters: utils.get_perplexity(meters["loss"].avg))
+        metrics.log_scalar("glat_accu", glat_accu / sample_size, sample_size, round=3)
+        metrics.log_scalar("glat_context_p", glat_context_p / sample_size, sample_size, round=3)
 
         for key in logging_outputs[0]:
             if key[-5:] == "-loss":
@@ -178,4 +262,4 @@ class LabelSmoothedDualImitationCriterion(FairseqCriterion):
         across workers prior to calling `reduce_metrics`. Setting this
         to True will improves distributed training speed.
         """
-        return True
+        return False
