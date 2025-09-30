@@ -31,7 +31,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
         export: bool = False,
         q_noise: float = 0.0,
         qn_block_size: int = 8,
-        init_fn: Callable = None,
+        init_fn: Optional[Callable] = None,
     ) -> None:
         super().__init__()
 
