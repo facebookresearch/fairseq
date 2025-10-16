@@ -118,6 +118,7 @@ class S2TDataConfig(object):
         raw audio as inputs."""
         return self.config.get("use_audio_input", False)
 
+    @property
     def standardize_audio(self) -> bool:
         return self.use_audio_input and self.config.get("standardize_audio", False)
 
