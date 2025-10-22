@@ -25,7 +25,7 @@ from fairseq.models.speech_to_text.modules.convolution import (
     Conv1dSubsampler,
     Conv2dSubsampler,
 )
-from fairseq.models.transformer import Embedding, TransformerDecoder
+from fairseq.models.transformer import TransformerDecoder, TransformerModelBase
 from fairseq.modules import (
     FairseqDropout,
     LayerNorm,
@@ -238,13 +238,8 @@ class S2TTransformerModel(FairseqEncoderDecoderModel):
         # make sure all arguments are present in older models
         base_architecture(args)
 
-        def build_embedding(dictionary, embed_dim):
-            num_embeddings = len(dictionary)
-            padding_idx = dictionary.pad()
-            return Embedding(num_embeddings, embed_dim, padding_idx)
-
-        decoder_embed_tokens = build_embedding(
-            task.target_dictionary, args.decoder_embed_dim
+        decoder_embed_tokens = TransformerModelBase.build_embedding(
+            args, task.target_dictionary, args.decoder_embed_dim
         )
         args.tgt_dict_size = len(task.target_dictionary)
         encoder = cls.build_encoder(args)
