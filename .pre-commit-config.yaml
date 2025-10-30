@@ -5,7 +5,7 @@ default_language_version:
 
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.1.0
+    rev: v4.5.0
     hooks:
     -   id: trailing-whitespace
     -   id: check-ast
@@ -17,13 +17,13 @@ repos:
     -   id: end-of-file-fixer
 
 -   repo: https://github.com/ambv/black
-    rev: 22.3.0
+    rev: 23.12.0
     hooks:
     - id: black
       language_version: python3.8
 
--   repo: https://gitlab.com/pycqa/flake8
-    rev: 3.9.2
+-   repo: https://github.com/pycqa/flake8
+    rev: 6.1.0
     hooks:
     -   id: flake8
         args: [
@@ -32,7 +32,7 @@ repos:
         ]
 
 -   repo: https://github.com/pycqa/isort
-    rev: 5.10.1
+    rev: 5.13.2
     hooks:
     -   id: isort
         exclude: README.md
