@@ -30,9 +30,9 @@ def main():
     parser.add_argument("--tgt-file", type=str, required=True,
                         help="tgt file")
     parser.add_argument("--src-file-out", type=str, required=True,
-                        help="src ouptut file")
+                        help="src output file")
     parser.add_argument("--tgt-file-out", type=str, required=True,
-                        help="tgt ouput file") 
+                        help="tgt output file")
     args = parser.parse_args()    
     deup(args.src_file, args.tgt_file, args.src_file_out, args.tgt_file_out)
                 
