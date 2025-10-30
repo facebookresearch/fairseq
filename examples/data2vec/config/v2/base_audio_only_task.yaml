@@ -66,7 +66,7 @@ model:
   loss_beta: 0
   loss_scale: null
 
-  depth: 12
+  depth: 8
   embed_dim: 768
   clone_batch: 8
 
@@ -91,7 +91,7 @@ model:
       conv_pos_depth: 5
       conv_pos_width: 95
       conv_pos_groups: 16
-      prenet_depth: 0
+      prenet_depth: 4
       mask_prob: 0.5
       mask_prob_adjust: 0.05
       inverse_mask: false
