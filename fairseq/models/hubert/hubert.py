@@ -79,7 +79,7 @@ class HubertConfig(FairseqDataclass):
     )
     encoder_layerdrop: float = field(
         default=0.0,
-        metadata={"help": "probability of dropping a tarnsformer layer"},
+        metadata={"help": "probability of dropping a transformer layer"},
     )
     dropout_input: float = field(
         default=0.0,
