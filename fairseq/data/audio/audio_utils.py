@@ -340,7 +340,7 @@ def get_mel_filters(
         import librosa
     except ImportError:
         raise ImportError("Please install librosa: pip install librosa")
-    basis = librosa.filters.mel(sample_rate, n_fft, n_mels, f_min, f_max)
+    basis = librosa.filters.mel(sr=sample_rate, n_fft=n_fft, n_mels=n_mels, fmin=f_min, fmax=f_max)
     return torch.from_numpy(basis).float()
 
 
