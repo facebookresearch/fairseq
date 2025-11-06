@@ -4,24 +4,27 @@
 # LICENSE file in the root directory of this source tree.
 
 import csv
-from pathlib import Path
+import io
 import zipfile
 from functools import reduce
 from multiprocessing import cpu_count
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-import io
 
 import numpy as np
 import pandas as pd
 import sentencepiece as sp
-from fairseq.data.audio.audio_utils import (
-    convert_waveform, _get_kaldi_fbank, _get_torchaudio_fbank, is_npy_data,
-    is_sf_audio_data
-)
-import torch
 import soundfile as sf
+import torch
 from tqdm import tqdm
 
+from fairseq.data.audio.audio_utils import (
+    _get_kaldi_fbank,
+    _get_torchaudio_fbank,
+    convert_waveform,
+    is_npy_data,
+    is_sf_audio_data,
+)
 
 UNK_TOKEN, UNK_TOKEN_ID = "<unk>", 3
 BOS_TOKEN, BOS_TOKEN_ID = "<s>", 0
@@ -30,8 +33,11 @@ PAD_TOKEN, PAD_TOKEN_ID = "<pad>", 1
 
 
 def gen_vocab(
-    input_path: Path, output_path_prefix: Path, model_type="bpe",
-    vocab_size=1000, special_symbols: Optional[List[str]] = None
+    input_path: Path,
+    output_path_prefix: Path,
+    model_type="bpe",
+    vocab_size=1000,
+    special_symbols: Optional[List[str]] = None,
 ):
     # Train SentencePiece Model
     arguments = [
@@ -82,7 +88,7 @@ def extract_fbank_features(
 
     _waveform, _ = convert_waveform(waveform, sample_rate, to_mono=True)
     # Kaldi compliance: 16-bit signed integers
-    _waveform = _waveform * (2 ** 15)
+    _waveform = _waveform * (2**15)
     _waveform = _waveform.numpy()
 
     features = _get_kaldi_fbank(_waveform, sample_rate, n_mel_bins)
@@ -106,16 +112,17 @@ def create_zip(data_root: Path, zip_path: Path):
             f.write(path, arcname=path.name)
 
 
-def get_zip_manifest(
-        zip_path: Path, zip_root: Optional[Path] = None, is_audio=False
-):
+def get_zip_manifest(zip_path: Path, zip_root: Optional[Path] = None, is_audio=False):
     _zip_path = Path.joinpath(zip_root or Path(""), zip_path)
     with zipfile.ZipFile(_zip_path, mode="r") as f:
         info = f.infolist()
     paths, lengths = {}, {}
     for i in tqdm(info):
         utt_id = Path(i.filename).stem
-        offset, file_size = i.header_offset + 30 + len(i.filename), i.file_size
+        offset, file_size = (
+            i.header_offset + 30 + len(bytes(i.filename, "utf8")),
+            i.file_size,
+        )
         paths[utt_id] = f"{zip_path.as_posix()}:{offset}:{file_size}"
         with open(_zip_path, "rb") as f:
             f.seek(offset)
@@ -146,13 +153,14 @@ def gen_config_yaml(
     audio_root: str = "",
     cmvn_type: str = "utterance",
     gcmvn_path: Optional[Path] = None,
-    extra=None
+    extra=None,
 ):
     manifest_root = manifest_root.absolute()
     writer = S2TDataConfigWriter(manifest_root / yaml_filename)
     assert spm_filename is not None or vocab_name is not None
-    vocab_name = spm_filename.replace(".model", ".txt") if vocab_name is None \
-        else vocab_name
+    vocab_name = (
+        spm_filename.replace(".model", ".txt") if vocab_name is None else vocab_name
+    )
     writer.set_vocab_filename(vocab_name)
     if input_channels is not None:
         writer.set_input_channels(input_channels)
@@ -183,9 +191,7 @@ def gen_config_yaml(
         raise NotImplementedError
 
     if specaugment_policy is not None:
-        writer.set_feature_transforms(
-            "_train", [f"{cmvn_type}_cmvn", "specaugment"]
-        )
+        writer.set_feature_transforms("_train", [f"{cmvn_type}_cmvn", "specaugment"])
     writer.set_feature_transforms("*", [f"{cmvn_type}_cmvn"])
 
     if cmvn_type == "global":
@@ -266,10 +272,10 @@ def filter_manifest_df(
 
 def cal_gcmvn_stats(features_list):
     features = np.concatenate(features_list)
-    square_sums = (features ** 2).sum(axis=0)
+    square_sums = (features**2).sum(axis=0)
     mean = features.mean(axis=0)
     features = np.subtract(features, mean)
-    var = square_sums / features.shape[0] - mean ** 2
+    var = square_sums / features.shape[0] - mean**2
     std = np.sqrt(np.maximum(var, 1e-8))
     return {"mean": mean.astype("float32"), "std": std.astype("float32")}
 
