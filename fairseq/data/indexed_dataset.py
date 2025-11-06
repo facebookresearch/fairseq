@@ -59,10 +59,10 @@ def infer_dataset_impl(path):
         return None
 
 
-def make_builder(out_file, impl, vocab_size=None):
+def make_builder(out_file, impl, vocab_size=None, dtype=None):
     if impl == "mmap":
         return MMapIndexedDatasetBuilder(
-            out_file, dtype=best_fitting_int_dtype(vocab_size)
+            out_file, dtype=dtype if dtype is not None else best_fitting_int_dtype(vocab_size)
         )
     elif impl == "fasta":
         raise NotImplementedError
@@ -71,7 +71,7 @@ def make_builder(out_file, impl, vocab_size=None):
             "Use HuffmanCodeBuilder directly as it has a different interface."
         )
     else:
-        return IndexedDatasetBuilder(out_file)
+        return IndexedDatasetBuilder(out_file, dtype)
 
 
 def make_dataset(path, impl, fix_lua_indexing=False, dictionary=None):
