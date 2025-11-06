@@ -9,11 +9,24 @@ from operator import attrgetter
 import torch.distributed as dist
 import torch.nn as nn
 
+# Adding quantized counterpart to the Conv1D module : IntConv1DHF
+from transformers.modeling_utils import Conv1D
+
 from ..pq.utils import attrsetter, get_layers
-from .modules import ActivationQuantizer, IntConv2d, IntEmbedding, IntLinear
+from .modules import (
+    ActivationQuantizer,
+    IntConv1DHF,
+    IntConv2d,
+    IntEmbedding,
+    IntLinear,
+)
 
-
-MAPPING = {nn.Linear: IntLinear, nn.Embedding: IntEmbedding, nn.Conv2d: IntConv2d}
+MAPPING = {
+    nn.Linear: IntLinear,
+    nn.Embedding: IntEmbedding,
+    nn.Conv2d: IntConv2d,
+    Conv1D: IntConv1DHF,
+}
 
 
 def quantize_model_(
@@ -33,6 +46,11 @@ def quantize_model_(
     # remove weights indicates whether the weights extension should be removed, in addition to
     # weight_orig and weight extension on names
     quantized_layers = get_layers(model, "(.*?)", remove_weights=remove_weights)
+
+    # hf_gpt2 is a GPT2LMHeadModel
+    # lm_head is not identified in the get_layers function
+    if "decoder.model.transformer.wte" in quantized_layers:
+        quantized_layers.append("decoder.model.lm_head")
 
     for layer in quantized_layers:
 
