@@ -381,6 +381,7 @@ class SequenceGenerator(nn.Module):
             if step >= max_len:
                 lprobs[:, : self.eos] = -math.inf
                 lprobs[:, self.eos + 1 :] = -math.inf
+                lprobs[:, self.eos] = 1
 
             # handle prefix tokens (possibly with different lengths)
             if (
