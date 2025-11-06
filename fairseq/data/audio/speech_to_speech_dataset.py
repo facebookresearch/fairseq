@@ -64,8 +64,10 @@ class SpeechToSpeechDataset(SpeechToTextDataset):
             tgt_langs=tgt_langs,
             n_frames_per_step=n_frames_per_step,
         )
+        # logging.info("print {} {}".format(split, src_audio_paths))
 
         self.tgt_audio_paths = tgt_audio_paths
+        self.src_audio_paths = src_audio_paths
         self.tgt_lens = [t // self.n_frames_per_step for t in tgt_n_frames]
 
         assert not target_is_code or tgt_dict is not None
@@ -109,7 +111,12 @@ class SpeechToSpeechDataset(SpeechToTextDataset):
         return res
 
     def __getitem__(self, index: int) -> SpeechToSpeechDatasetItem:
-        source = self._get_source_audio(index)
+        # source = self._get_source_audio(index)
+        source = get_features_or_waveform(self.src_audio_paths[index])
+        if self.feature_transforms is not None:
+            source = self.feature_transforms(source)
+        source = torch.from_numpy(source).float()
+        # source = self.pack_frames(source)
 
         tgt_lang_tag = None
         if self.cfg.prepend_tgt_lang_tag_as_bos:

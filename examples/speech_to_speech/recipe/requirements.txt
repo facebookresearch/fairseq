@@ -1,0 +1,3 @@
+espnet_tts_frontend
+transformers
+sacrebleu
