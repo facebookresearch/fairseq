@@ -48,7 +48,7 @@ fairseq-preprocess \
 
 ### 2) Train RoBERTa base
 ```bash
-DATA_DIR=data-bin/wikitext-103
+DATA_DIR=$(pwd)/data-bin/wikitext-103
 
 fairseq-hydra-train -m --config-dir examples/roberta/config/pretraining \
 --config-name base task.data=$DATA_DIR
