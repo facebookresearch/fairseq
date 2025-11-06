@@ -26,6 +26,7 @@ from fairseq.modules import (
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
+from fairseq.modules.replace_input_tokens import replace_input_tokens
 
 
 # rewrite name for backward compatibility in `make_generation_fast_`
@@ -75,6 +76,10 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
 
         self.padding_idx = embed_tokens.padding_idx
         self.max_target_positions = cfg.max_target_positions
+
+        #var for input token replacement
+        self.sampling_method = cfg.sampling_method
+        self.dec_replace_rate = cfg.dec_replace_rate
 
         self.embed_tokens = embed_tokens
 
@@ -305,7 +310,11 @@ class TransformerDecoderBase(FairseqIncrementalDecoder):
         # Prevent torchscript exporting issue for dynamic quant embedding
         prev_output_tokens = prev_output_tokens.contiguous()
         # embed tokens and positions
-        x = self.embed_scale * self.embed_tokens(prev_output_tokens)
+        x = self.embed_tokens(prev_output_tokens)
+        #replace embeddings (or word dropout)
+        if self.training and self.dec_replace_rate > 0:
+            x = replace_input_tokens(x, self.embed_tokens, self.dec_replace_rate, self.sampling_method, decoder=True)
+        x = self.embed_scale * x
 
         if self.quant_noise is not None:
             x = self.quant_noise(x)

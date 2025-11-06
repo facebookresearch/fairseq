@@ -24,6 +24,7 @@ from fairseq.modules import (
 )
 from fairseq.modules.checkpoint_activations import checkpoint_wrapper
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
+from fairseq.modules.replace_input_tokens import replace_input_tokens
 
 
 # rewrite name for backward compatibility in `make_generation_fast_`
@@ -59,6 +60,10 @@ class TransformerEncoderBase(FairseqEncoder):
         embed_dim = embed_tokens.embedding_dim
         self.padding_idx = embed_tokens.padding_idx
         self.max_source_positions = cfg.max_source_positions
+
+        #var for input token replacement
+        self.sampling_method = cfg.sampling_method
+        self.enc_replace_rate = cfg.enc_replace_rate
 
         self.embed_tokens = embed_tokens
 
@@ -122,6 +127,8 @@ class TransformerEncoderBase(FairseqEncoder):
         # embed tokens and positions
         if token_embedding is None:
             token_embedding = self.embed_tokens(src_tokens)
+        if self.training and self.enc_replace_rate > 0:
+            token_embedding = replace_input_tokens(token_embedding, self.embed_tokens, self.enc_replace_rate, self.sampling_method)
         x = embed = self.embed_scale * token_embedding
         if self.embed_positions is not None:
             x = embed + self.embed_positions(src_tokens)
@@ -202,19 +209,13 @@ class TransformerEncoderBase(FairseqEncoder):
         """
         # compute padding mask
         encoder_padding_mask = src_tokens.eq(self.padding_idx)
-        has_pads = (
-            torch.tensor(src_tokens.device.type == "xla") or encoder_padding_mask.any()
-        )
-        # Torchscript doesn't handle bool Tensor correctly, so we need to work around.
-        if torch.jit.is_scripting():
-            has_pads = torch.tensor(1) if has_pads else torch.tensor(0)
+        has_pads = src_tokens.device.type == "xla" or encoder_padding_mask.any()
 
         x, encoder_embedding = self.forward_embedding(src_tokens, token_embeddings)
 
         # account for padding while computing the representation
-        x = x * (
-            1 - encoder_padding_mask.unsqueeze(-1).type_as(x) * has_pads.type_as(x)
-        )
+        if has_pads:
+            x = x * (1 - encoder_padding_mask.unsqueeze(-1).type_as(x))
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)

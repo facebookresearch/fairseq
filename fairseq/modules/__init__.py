@@ -50,6 +50,7 @@ from .rotary_positional_embedding import RotaryPositionalEmbedding
 from .positional_encoding import (
     RelPositionalEncoding,
 )
+from .replace_input_tokens import replace_input_tokens
 
 __all__ = [
     "AdaptiveInput",

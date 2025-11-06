@@ -237,6 +237,19 @@ class TransformerConfig(FairseqDataclass):
         metadata={"help": "don't add an extra layernorm after the last decoder block"},
     )
 
+    #for input perturbations
+    sampling_method: Optional[str] = field(
+        default=None, metadata={"help": "sampling method for perturbations, select from worddrop, uniform, and similarity"}
+    )
+    enc_replace_rate: float = field(
+        default=0.,
+        metadata={"help": "replacement rate for encoder-side tokens"},
+    )
+    dec_replace_rate: float = field(
+        default=0.,
+        metadata={"help": "replacement rate for decoder-side tokens"},
+    )
+
     # We need to make this hierarchical dataclass like the flat namespace
     # __getattr__ and __setattr__ here allow backward compatibility
     # for subclasses of Transformer(Legacy) that depend on read/write on
