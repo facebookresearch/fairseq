@@ -30,7 +30,7 @@ class StepLRScheduleConfig(FairseqDataclass):
         metadata={"help": "max learning rate, must be more than cfg.min_lr"},
     )
     min_lr: float = field(default=0.0, metadata={"help": "min learning rate"})
-    lr_deacy_period: int = field(default=25000, metadata={"help": "decay period"})
+    lr_decay_period: int = field(default=25000, metadata={"help": "decay period"})
     lr_decay: float = field(default=0.5, metadata={"help": "decay factor"})
 
 
@@ -42,14 +42,14 @@ class StepLRSchedule(FairseqLRScheduler):
         super().__init__(cfg, fairseq_optimizer)
         self.max_lr = cfg.lr[0] if isinstance(cfg.lr, Collection) else cfg.lr
         self.min_lr = cfg.min_lr
-        self.lr_deacy_period = cfg.lr_deacy_period
+        self.lr_decay_period = cfg.lr_decay_period
         self.lr_decay = cfg.lr_decay
         self.warmup_updates = cfg.warmup_updates
         self.warmup_init_lr = (
             cfg.warmup_init_lr if cfg.warmup_init_lr >= 0 else self.min_lr
         )
 
-        assert self.lr_deacy_period > 0
+        assert self.lr_decay_period > 0
         assert self.lr_decay <= 1
         assert self.min_lr >= 0
         assert self.max_lr > self.min_lr
@@ -78,7 +78,7 @@ class StepLRSchedule(FairseqLRScheduler):
             self.lr = self.warmup_init_lr + num_updates * self.warmup_lr_step
         else:
             curr_updates = num_updates - self.cfg.warmup_updates
-            lr_mult = self.lr_decay ** (curr_updates // self.lr_deacy_period)
+            lr_mult = self.lr_decay ** (curr_updates // self.lr_decay_period)
             self.lr = max(self.max_lr * lr_mult, self.min_lr)
 
         self.optimizer.set_lr(self.lr)
