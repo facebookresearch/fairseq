@@ -128,7 +128,7 @@ def fixed_pooling_monotonic_attention(monotonic_attention):
                     ) < key_pool.size(0):
                         key_pool = key_pool[:-1]
                         if key_padding_mask_pool is not None:
-                            key_padding_mask_pool = key_padding_mask_pool[:-1]
+                            key_padding_mask_pool = key_padding_mask_pool[:, :-1]
 
                 p_choose_pooled = self.p_choose_from_qk(
                     query,
