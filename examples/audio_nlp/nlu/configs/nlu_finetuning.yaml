@@ -51,7 +51,6 @@ model:
   autoregressive: true
   apply_mask: true
   mask_prob: 0.5
-  mask_channel_prob: 0.5
   mask_channel_length: 64
   layerdrop: 0.1
   activation_dropout: 0.1
