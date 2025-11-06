@@ -11,7 +11,10 @@ from pathlib import Path
 import shutil
 from itertools import groupby
 from tempfile import NamedTemporaryFile
-from typing import Tuple
+from typing import Tuple, Dict, Union
+from multiprocessing import Pool
+from multiprocessing.pool import ThreadPool
+from functools import partial
 
 import numpy as np
 import pandas as pd
@@ -61,7 +64,7 @@ class MUSTC(Dataset):
         except ImportError:
             print("Please install PyYAML to load the MuST-C YAML files")
         with open(txt_root / f"{split}.yaml") as f:
-            segments = yaml.load(f, Loader=yaml.BaseLoader)
+            segments = yaml.load(f, Loader=yaml.CBaseLoader)
         # Load source and target utterances
         for _lang in ["en", lang]:
             with open(txt_root / f"{split}.{_lang}") as f:
@@ -105,6 +108,38 @@ class MUSTC(Dataset):
         return len(self.data)
 
 
+def _convert_and_save(
+    dataset: MUSTC, audio_root: Path, tgt_sample_rate: int, index: int
+) -> None:
+    waveform, sample_rate, _, _, _, utt_id = dataset[index]
+
+    _wavform, _ = convert_waveform(
+        waveform, sample_rate, to_mono=True,
+        to_sample_rate=tgt_sample_rate
+    )
+    sf.write(
+        (audio_root / f"{utt_id}.flac").as_posix(),
+        _wavform.T.numpy(), tgt_sample_rate
+    )
+
+
+def _get_utt_manifest(
+    dataset: MUSTC,
+    audio_paths: Dict[str, str],
+    audio_lengths: Dict[str, int],
+    task: str,
+    index: int
+) -> Dict[str, Union[str, int]]:
+    _, _, src_utt, tgt_utt, speaker_id, utt_id = dataset[index]
+    return {
+        "id": utt_id,
+        "audio": audio_paths[utt_id],
+        "n_frames": audio_lengths[utt_id],
+        "tgt_text": src_utt if task == "asr" else tgt_utt,
+        "speaker": speaker_id,
+    }
+
+
 def process(args):
     root = Path(args.data_root).absolute()
     for lang in MUSTC.LANGUAGES:
@@ -121,15 +156,21 @@ def process(args):
             dataset = MUSTC(root.as_posix(), lang, split)
             if args.use_audio_input:
                 print("Converting audios...")
-                for waveform, sample_rate, _, _, _, utt_id in tqdm(dataset):
-                    tgt_sample_rate = 16_000
-                    _wavform, _ = convert_waveform(
-                        waveform, sample_rate, to_mono=True,
-                        to_sample_rate=tgt_sample_rate
-                    )
-                    sf.write(
-                        (audio_root / f"{utt_id}.flac").as_posix(),
-                        _wavform.T.numpy(), tgt_sample_rate
+                tgt_sample_rate = 16_000
+                _convert_and_save_ = partial(
+                    _convert_and_save, dataset, audio_root, tgt_sample_rate
+                )
+                num_cpus = len(os.sched_getaffinity(0))
+                with Pool(num_cpus) as p:
+                    _ = list(
+                        tqdm(
+                            p.imap(
+                                _convert_and_save_,
+                                range(len(dataset)),
+                                chunksize=100
+                            ),
+                            total=len(dataset)
+                        )
                     )
             else:
                 print("Extracting log mel filter bank features...")
@@ -167,18 +208,31 @@ def process(args):
             is_train_split = split.startswith("train")
             manifest = {c: [] for c in MANIFEST_COLUMNS}
             dataset = MUSTC(args.data_root, lang, split)
-            for _, _, src_utt, tgt_utt, speaker_id, utt_id in tqdm(dataset):
-                manifest["id"].append(utt_id)
-                manifest["audio"].append(audio_paths[utt_id])
-                manifest["n_frames"].append(audio_lengths[utt_id])
-                manifest["tgt_text"].append(
-                    src_utt if args.task == "asr" else tgt_utt
+            _get_utt_manifest_ = partial(
+                _get_utt_manifest,
+                dataset, audio_paths, audio_lengths, args.task
+            )
+            num_processes = len(os.sched_getaffinity(0))
+            with ThreadPool(num_processes) as p:
+                manifest = list(
+                    tqdm(
+                        p.imap(
+                            _get_utt_manifest_,
+                            list(range(len(dataset))),
+                            chunksize=100
+                        ),
+                        total=len(dataset),
+                    )
                 )
-                manifest["speaker"].append(speaker_id)
             if is_train_split:
-                train_text.extend(manifest["tgt_text"])
-            df = pd.DataFrame.from_dict(manifest)
-            df = filter_manifest_df(df, is_train_split=is_train_split)
+                train_text.extend([utt['tgt_text'] for utt in manifest])
+            df = pd.DataFrame.from_records(manifest)
+            df = filter_manifest_df(
+                df,
+                is_train_split=is_train_split,
+                min_n_frames=(5 if not args.use_audio_input else 8000),
+                max_n_frames=(3000 if not args.use_audio_input else 480_000),
+            )
             save_df_to_tsv(df, cur_root / f"{split}_{args.task}.tsv")
         # Generate vocab
         v_size_str = "" if args.vocab_type == "char" else str(args.vocab_size)
