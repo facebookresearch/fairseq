@@ -46,7 +46,7 @@ Features would also be saved at `${feat_dir}/${split}_${rank}_${nshard}.{npy,len
 ## K-means clustering
 To fit a k-means model with `${n_clusters}` clusters on 10% of the `${split}` data, run
 ```sh
-python learn_kmeans.py ${feat_dir} ${split} ${nshard} ${km_path} ${n_cluster} --percent 0.1
+python learn_kmeans.py ${feat_dir} ${split} ${nshard} ${km_path} ${n_clusters} --percent 0.1
 ```
 This saves the k-means model to `${km_path}`.
 
