@@ -198,6 +198,7 @@ class SpeechToUnitMultitaskTaskCriterion(
         loss, nll_loss, rdrop_kl_loss = self.compute_loss(
             model, [net_output], sample, reduce=reduce
         )
+        sample["ntokens"] -= self.ignore_prefix_size * sample["target"].size(0)
         sample_size = (
             sample["target"].size(0) if self.sentence_avg else sample["ntokens"]
         )
@@ -302,6 +303,7 @@ class SpeechToUnit2passMultitaskTaskCriterion(SpeechToUnitMultitaskTaskCriterion
             model, [net_output], sample, reduce=reduce
         )
 
+        sample["ntokens"] -= self.ignore_prefix_size * sample["target"].size(0)
         sample_size = (
             sample["target"].size(0) if self.sentence_avg else sample["ntokens"]
         )
