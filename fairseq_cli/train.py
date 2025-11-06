@@ -315,6 +315,11 @@ def train(
             if distributed_utils.is_master(cfg.distributed_training)
             else False
         ),
+        mlflow_logging=(
+            cfg.common.mlflow_logging
+            if distributed_utils.is_master(cfg.distributed_training)
+            else False
+        ),
     )
     progress.update_config(_flatten_config(cfg))
 
@@ -507,6 +512,11 @@ def validate(
             ),
             wandb_run_name=os.environ.get(
                 "WANDB_NAME", os.path.basename(cfg.checkpoint.save_dir)
+            ),
+            mlflow_logging=(
+                cfg.common.mlflow_logging
+                if distributed_utils.is_master(cfg.distributed_training)
+                else False
             ),
         )
 
