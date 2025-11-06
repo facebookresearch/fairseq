@@ -254,7 +254,7 @@ class Data2VecTextModel(FairseqEncoderModel):
 
             self.encoder.lm_head = None
 
-        if self.encoder.target_model is None:
+        if hasattr(self.encoder, "target_model") and self.encoder.target_model is None:
             for k in list(state_dict.keys()):
                 if k.startswith(prefix + "encoder.target_model."):
                     del state_dict[k]
