@@ -49,5 +49,5 @@ Download a wav2vec or hubert model from [link](https://github.com/facebookresear
 
 
 ```
-python fairseq_cli/hydra-train  --config-dir examples/audio_nlp/nlu/configs/  --config-name nlu_finetuning task.data=$FAIRSEQ_DATA_OUTPUT model.w2v_path=$PRETRAINED_MODEL_PATH
+python fairseq_cli/hydra_train.py  --config-dir examples/audio_nlp/nlu/configs/  --config-name nlu_finetuning task.data=$FAIRSEQ_DATA_OUTPUT model.w2v_path=$PRETRAINED_MODEL_PATH
 ```
