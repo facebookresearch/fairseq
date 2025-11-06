@@ -43,7 +43,7 @@ class AMPOptimizer(optim.FairseqOptimizer):
         function additionally dynamically scales the loss to avoid gradient
         underflow.
         """
-        self._grad_scaler.scale(loss).backward()
+        self.scaler.scale(loss).backward()
 
     def step(self):
         self.scaler.step(self.fp32_optimizer)
@@ -68,6 +68,19 @@ class AMPOptimizer(optim.FairseqOptimizer):
                 )
         return grad_norm
 
+    def state_dict(self):
+        """Return the optimizer's state dict."""
+        state_dict = self.fp32_optimizer.state_dict()
+        if self.scaler is not None:
+            state_dict["amp_loss_scaler"] = self.scaler.state_dict()
+        return state_dict
+
+    def load_state_dict(self, state_dict, optimizer_overrides=None):
+        """Load an optimizer state dict."""
+        if "amp_loss_scaler" in state_dict and self.scaler is not None:
+            self.scaler.load_state_dict(state_dict["amp_loss_scaler"])
+        self.fp32_optimizer.load_state_dict(state_dict, optimizer_overrides)
+
     @property
     def scaler(self):
         return self._grad_scaler
@@ -91,6 +104,10 @@ class AMPOptimizer(optim.FairseqOptimizer):
     @property
     def optimizer_config(self):
         return self.fp32_optimizer.optimizer_config
+
+    @property
+    def name(self):
+        return self.fp32_optimizer.__class__.__name__
 
     def get_lr(self):
         return self.fp32_optimizer.get_lr()

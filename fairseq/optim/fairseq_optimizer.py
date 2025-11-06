@@ -168,6 +168,10 @@ class FairseqOptimizer(object):
             return self.optimizer.supports_flat_params
         return False
 
+    @property
+    def name(self):
+        return self.__class__.__name__
+
     def average_params(self):
         pass
 

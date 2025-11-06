@@ -416,7 +416,7 @@ class Trainer(object):
             + [
                 {
                     "criterion_name": self.get_criterion().__class__.__name__,
-                    "optimizer_name": self.optimizer.__class__.__name__,
+                    "optimizer_name": self.optimizer.name,
                     "lr_scheduler_state": self.lr_scheduler.state_dict(),
                     "num_updates": self.get_num_updates(),
                 }
@@ -611,8 +611,8 @@ class Trainer(object):
                 last_optim["criterion_name"] == self.get_criterion().__class__.__name__
             ), f"Criterion does not match; please reset the optimizer (--reset-optimizer). {last_optim['criterion_name']} vs {self.get_criterion().__class__.__name__}"
             assert (
-                last_optim["optimizer_name"] == self.optimizer.__class__.__name__
-            ), f"Optimizer does not match; please reset the optimizer (--reset-optimizer). {last_optim['optimizer_name']} vs {self.optimizer.__class__.__name__}"
+                last_optim["optimizer_name"] == self.optimizer.name
+            ), f"Optimizer does not match; please reset the optimizer (--reset-optimizer). {last_optim['optimizer_name']} vs {self.optimizer.name}"
 
             if not reset_lr_scheduler:
                 self.lr_scheduler.load_state_dict(last_optim["lr_scheduler_state"])
