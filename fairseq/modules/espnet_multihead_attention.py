@@ -64,7 +64,7 @@ class ESPNETMultiHeadedAttention(nn.Module):
         Args:
             value: Transformed value B X n_head X T2 X d_k.
             scores: Attention score  B X n_head X T1 X T2
-            mask: Mask  T2 X B
+            mask: Mask  B X T2
         Returns:
             torch.Tensor: Transformed value  B X T1 X d_model
                 weighted by the attention score  B X T1 X T2
@@ -159,7 +159,7 @@ class RelPositionMultiHeadedAttention(ESPNETMultiHeadedAttention):
             key: Key tensor T X B X C
             value: Value tensor T X B X C
             pos_emb: Positional embedding tensor B X 2T-1 X C
-            key_padding_mask: Mask tensor T X B
+            key_padding_mask: Mask tensor B X T
         Returns:
             torch.Tensor: Output tensor T X B X C.
         """
@@ -224,7 +224,7 @@ class RotaryPositionMultiHeadedAttention(ESPNETMultiHeadedAttention):
             query: Query tensor T X B X C
             key: Key tensor T X B X C
             value: Value tensor T X B X C
-            key_padding_mask: Mask tensor T X B
+            key_padding_mask: Mask tensor B X T
         Returns:
             torch.Tensor: Output tensor T X B X D.
         Notes:
