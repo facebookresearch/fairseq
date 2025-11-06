@@ -632,8 +632,8 @@ class OptimizationConfig(FairseqDataclass):
     skip_remainder_batch: Optional[bool] = field(
         default=False,
         metadata={
-            "help": "if set, include the last (partial) batch of each epoch in training"
-            " (default is to skip it)."
+            "help": "if set, discard the last (partial) batch of each epoch in training"
+            " (default is not to skip it)."
         },
     )
     debug_param_names: bool = False
