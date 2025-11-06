@@ -52,7 +52,7 @@ class SentencepieceBPE(object):
         )
 
     def decode(self, x: str) -> str:
-        return x.replace(" ", "").replace("\u2581", " ").strip()
+        return self.sp.Decode(x.split())
 
     def is_beginning_of_word(self, x: str) -> bool:
         if x in ["<unk>", "<s>", "</s>", "<pad>"]:
