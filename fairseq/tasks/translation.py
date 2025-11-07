@@ -446,6 +446,12 @@ class TranslationTask(FairseqTask):
                     return round(bleu.score, 2)
 
                 metrics.log_derived("bleu", compute_bleu)
+            else:
+                def zero_bleu(meters):
+                    return 0.0
+                
+                metrics.log_derived("bleu", zero_bleu)
+                
 
     def max_positions(self):
         """Return the max sentence length allowed by the task."""
