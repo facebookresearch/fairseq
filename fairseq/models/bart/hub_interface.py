@@ -113,6 +113,8 @@ class BARTHubInterface(GeneratorHubInterface):
             )
             for id, hypos in zip(batch["id"].tolist(), results):
                 res.append((id, hypos))
+                
+        # sort output to match input order
         res = [hypos for _, hypos in sorted(res, key=lambda x: x[0])]
         return res
 
