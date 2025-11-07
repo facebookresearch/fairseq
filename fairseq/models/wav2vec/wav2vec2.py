@@ -1334,7 +1334,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
                 value=x,
                 key_padding_mask=self_attn_padding_mask,
                 attn_mask=self_attn_mask,
-                need_weights=False,
+                need_weights=need_weights,
             )
             x = self.dropout1(x)
             x = residual + x
@@ -1355,7 +1355,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
                 key=x,
                 value=x,
                 key_padding_mask=self_attn_padding_mask,
-                need_weights=False,
+                need_weights=need_weights,
             )
 
             x = self.dropout1(x)
