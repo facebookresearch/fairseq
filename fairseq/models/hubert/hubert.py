@@ -354,6 +354,7 @@ class HubertModel(BaseFairseqModel):
                 min_masks=2,
                 no_overlap=self.no_mask_overlap,
                 min_space=self.mask_min_space,
+                require_same_masks=False,
             )
             mask_indices = torch.from_numpy(mask_indices).to(x.device)
             x[mask_indices] = self.mask_emb
