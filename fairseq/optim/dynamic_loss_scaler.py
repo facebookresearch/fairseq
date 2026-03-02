@@ -42,7 +42,7 @@ class DynamicLossScaler(object):
     def check_overflow(self, grad_norm):
         # detect inf and nan
         if grad_norm == float("inf") or grad_norm != grad_norm:
-            # overflow has occured
+            # overflow has occurred
             prev_scale = self.loss_scale
             iter_since_rescale = self._iter - self._last_rescale_iter
 

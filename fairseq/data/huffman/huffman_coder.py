@@ -173,7 +173,7 @@ class HuffmanNode:
 
 class HuffmanCodeBuilder:
     """
-    build a dictionary with occurence count and then build the Huffman code for it.
+    build a dictionary with occurrence count and then build the Huffman code for it.
     """
 
     def __init__(self):
