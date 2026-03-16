@@ -110,7 +110,6 @@ def get_pooling_layer(
     num_targets: int,
     encoder_layers: int,
 ):
-    assert cfg.pooling == 'mean'
     if cfg.pooling == "first_token":
         return FirstToken(cfg, encoder_embed_dim, num_targets)
     # elif cfg.pooling == "mean":
